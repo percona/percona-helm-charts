@@ -10,7 +10,7 @@ This repository contains Helm charts for various Percona products.
 Add the Repository to Helm:
 
 ```bash
-helm repo add percona https://url-of-percona-chart-gh-pages/percona-helm-charts
+helm repo add percona https://percona-lab.github.io/percona-helm-charts
 ```
 
 Install Percona Operator:
