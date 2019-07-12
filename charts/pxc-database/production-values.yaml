@@ -1,0 +1,207 @@
+# example production ready values for pxc-cluster.
+# (you may still need to tune this for your own needs)
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+finalizers:
+  - delete-pxc-pods-in-order
+# Can delete proxysql PVCs, they're recreatable.
+  - delete-proxysql-pvc
+## Don't delete database PVCs.
+#  - delete-pxc-pvc
+
+nameOverride: "production"
+fullnameOverride: "production"
+
+pause: false
+
+pxc:
+  size: 3
+  image:
+    repository: percona/percona-xtradb-cluster-operator
+    tag: 1.0.0-pxc
+  imagePullSecrets: []
+  # - name: private-registry-credentials
+  annotations: {}
+  #  iam.amazonaws.com/role: role-arn
+  labels: {}
+  #  rack: rack-22
+  # priorityClassName:
+  readinessDelaySec: 15
+  livenessDelaySec: 300
+  forceUnsafeBootstrap: false
+  ## Uncomment to pass in a mysql config file
+  # configuration: |
+  #   [mysqld]
+  #   wsrep_debug=ON
+  #   wsrep_provider_options="gcache.size=1G; gcache.recover=yes"
+  resources:
+    # Set these to the miminum you'd expect your database to need.
+    requests:
+      memory: 1G
+      cpu: 600m
+    # db resources are sacred, so don't limit it.
+    limits: {}
+  nodeSelector: {}
+  #  disktype: ssd
+  affinity:
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # advanced:
+    #   nodeAffinity:
+    #     requiredDuringSchedulingIgnoredDuringExecution:
+    #       nodeSelectorTerms:
+    #       - matchExpressions:
+    #         - key: kubernetes.io/e2e-az-name
+    #           operator: In
+    #           values:
+    #           - e2e-az1
+    #           - e2e-az2
+  tolerations: []
+    # - key: "node.alpha.kubernetes.io/unreachable"
+    #   operator: "Exists"
+    #   effect: "NoExecute"
+    #   tolerationSeconds: 6000
+  gracePeriod: 600
+  podDisruptionBudget:
+    # With only 3 nodes, don't let Kubernetes disrupt more than one at a time.
+    maxUnavailable: 1
+    # minAvailable: 0
+  persistence:
+    enabled: true
+    ## set storage class if you need something fancy for your cloud.
+    # storageClass: "-"
+    accessMode: ReadWriteOnce
+    ## Size this according to your expected data size. Resizing a PVC isn't easy
+    ## So don't be tight fisted.
+    size: 8Gi
+
+  ## Don't disable TLS you monster
+  disableTLS: false
+
+  ## You should use certManager ... if you don't, you should create the certificates
+  ## Don't let helm do it for you for prod.
+  certManager: true
+
+  ## You should absolutely provide a pre-create secret here, don't rely on Helm to
+  ## Pass in passwords etc.
+  # clusterSecretName:
+
+proxysql:
+  enabled: true
+  size: 3
+  image:
+    repository: percona/percona-xtradb-cluster-operator
+    tag: 1.0.0-proxysql
+  imagePullSecrets: []
+  # - name: private-registry-credentials
+  annotations: {}
+  #  iam.amazonaws.com/role: role-arn
+  labels: {}
+  #  rack: rack-22
+  # priorityClassName:
+  readinessDelaySec: 15
+  livenessDelaySec: 300
+  resources:
+    requests:
+      memory: 1G
+      cpu: 600m
+    limits: {}
+      # memory: 1G
+      # cpu: 600m
+  nodeSelector: {}
+  #  disktype: ssd
+  affinity:
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # advanced:
+    #   nodeAffinity:
+    #     requiredDuringSchedulingIgnoredDuringExecution:
+    #       nodeSelectorTerms:
+    #       - matchExpressions:
+    #         - key: kubernetes.io/e2e-az-name
+    #           operator: In
+    #           values:
+    #           - e2e-az1
+    #           - e2e-az2
+  tolerations: []
+    # - key: "node.alpha.kubernetes.io/unreachable"
+    #   operator: "Exists"
+    #   effect: "NoExecute"
+    #   tolerationSeconds: 6000
+  gracePeriod: 600
+  # only one of `maxUnavailable` or `minAvailable` can be set.
+  podDisruptionBudget:
+    maxUnavailable: 1
+    # minAvailable: 0
+  persistence:
+    enabled: true
+    # storageClass: "-"
+    accessMode: ReadWriteOnce
+    size: 8Gi
+
+pmm:
+  enabled: false
+  image:
+    repository: perconalab/pmm-client
+    tag: 1.17.1
+  serverHost: monitoring-service
+  serverUser: pmm
+
+backup:
+  enabled: true
+  image:
+    repository: percona/percona-xtradb-cluster-operator
+    tag: 1.0.0-backup
+  imagePullSecrets: []
+  # - name: private-registry-credentials
+  storages:
+    fs-pvc:
+      type: filesystem
+      volume:
+        persistentVolumeClaim:
+        #  storageClassName: standard
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: 6Gi
+    ## Set up backups to your S3 bucket!!!
+    # s3-us-west:
+    #   type: s3
+    #   s3:
+    #     bucket: S3-BACKUP-BUCKET-NAME-HERE
+    #     credentialsSecret: my-cluster-name-backup-s3
+    #     region: us-west-2
+
+  schedule:
+    - name: "daily-backup"
+      schedule: "0 0 * * *"
+      keep: 5
+      storageName: fs-pvc
+    ## Schedule s3 backups!!
+    # - name: "sat-night-backup"
+    #   schedule: "0 0 * * 6"
+    #   keep: 3
+    #   storageName: s3-us-west
+
+secrets:
+  ## You should be overriding these with your own.
+  passwords:
+    root: insecure-root-password
+    xtrabackup: insecure-xtrabackup-password
+    monitor: insecure-monitor-password
+    clustercheck: insecure-clustercheck-password
+    proxyadmin: insecure-proxyadmin-password
+    pmmserver: insecure-pmmserver-password
+  ## If you are using `cert-manager` you can skip this next section.
+  ## If not using cert-manager, you should set these!!!!
+  tls: {}
+    # This should be the name of a secret that contains certificates.
+    # it should have the following keys: `ca.crt`, `tls.crt`, `tls.key`
+    # If not set the Helm chart will attempt to create certificates
+    # for you [not recommended for prod]:
+    # cluster:
+
+    # This should be the name of a secret that contains certificates.
+    # it should have the following keys: `ca.crt`, `tls.crt`, `tls.key`
+    # If not set the Helm chart will attempt to create certificates
+    # for you [not recommended for prod]:
+    # internal:

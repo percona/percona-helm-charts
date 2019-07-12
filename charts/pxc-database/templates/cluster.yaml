@@ -1,0 +1,173 @@
+apiVersion: pxc.percona.com/v1
+kind: PerconaXtraDBCluster
+metadata:
+  name: {{ include "pxc-database.fullname" . }}
+  labels:
+{{ include "pxc-database.labels" . | indent 4 }}
+  finalizers:
+{{ .Values.finalizers | toYaml | indent 4 }}
+spec:
+  {{- if hasKey .Values.pxc "clusterSecretName" }}
+  secretsName: {{ .Values.pxc.clusterSecretName }}
+  {{- else }}
+  secretsName: {{ include "pxc-database.fullname" . }}
+  {{- end }}
+  {{- if not .Values.pxc.disableTLS }}
+  {{- if hasKey .Values.secrets.tls "cluster" }}
+  sslSecretName: {{ .Values.secrets.tls.cluster }}
+  {{- else }}
+  sslSecretName: {{ include "pxc-database.fullname" . }}-ssl
+  {{- end }}
+  {{- if hasKey .Values.secrets.tls "internal" }}
+  sslInternalSecretName: {{ hasKey .Values.secrets.tls.cluster }}
+  {{- else }}
+  sslInternalSecretName: {{ include "pxc-database.fullname" . }}-ssl-internal
+  {{- end }}
+  {{- end }}
+  pause: {{ .Values.pause }}
+  {{- $pxc := .Values.pxc }}
+  pxc:
+    size: {{ $pxc.size }}
+    {{- if .Values.pxc.disableTLS }}
+    allowUnsafeConfigurations: false
+    {{- end }}
+    image: "{{ $pxc.image.repository }}:{{ $pxc.image.tag }}"
+    readinessDelaySec: {{ $pxc.readinessDelaySec }}
+    livenessDelaySec: {{ $pxc.livenessDelaySec }}
+    forceUnsafeBootstrap: {{ $pxc.forceUnsafeBootstrap }}
+    {{- if $pxc.configuration }}
+    configuration: |
+    {{ $pxc.configuration | nindent 6 }}
+    {{- end }}
+    {{- if $pxc.imagePullSecrets }}
+    imagePullSecrets:
+{{ $pxc.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+{{- if hasKey $pxc "priorityClassName" }}
+    priorityClassName: {{ $pxc.priorityClassName }}
+{{- end }}
+    annotations:
+{{ $pxc.annotations | toYaml | indent 6 }}
+    labels:
+{{ $pxc.labels | toYaml | indent 6 }}
+    resources:
+      requests:
+{{ $pxc.resources.requests | toYaml | indent 8 }}
+      limits:
+{{ $pxc.resources.limits | toYaml | indent 8 }}
+    nodeSelector:
+{{ $pxc.nodeSelector | toYaml | indent 6 }}
+    affinity:
+{{ $pxc.affinity | toYaml | indent 6 }}
+    tolerations:
+{{ $pxc.tolerations | toYaml | indent 6 }}
+    podDisruptionBudget:
+{{ $pxc.podDisruptionBudget | toYaml | indent 6 }}
+    volumeSpec:
+    {{- if not $pxc.persistence.enabled }}
+      emptyDir: {}
+    {{- else }}
+    {{- if hasKey $pxc.persistence "hostPath" }}
+      hostPath:
+        path: {{ $pxc.persistence.hostPath }}
+        type: Directory
+    {{- else }}
+      persistentVolumeClaim:
+        {{- if $pxc.persistence.storageClass }}
+        {{- if (eq "-" $pxc.persistence.storageClass) }}
+        storageClassName: ""
+        {{- else }}
+        storageClassName: "{{ $pxc.persistence.storageClass }}"
+        {{- end }}
+        {{- end }}
+        accessModes: [{{ $pxc.persistence.accessMode | quote }}]
+        resources:
+          requests:
+            storage: {{ $pxc.persistence.size | quote }}
+    {{- end }}
+    {{- end }}
+    gracePeriod: {{ $pxc.gracePeriod }}
+  {{- if not .Values.proxysql.enabled }}
+  proxysql:
+    enabled: false
+  {{- else }}
+  {{- $proxysql := .Values.proxysql }}
+  proxysql:
+    enabled: true
+    size: {{ $proxysql.size }}
+    image: percona/percona-xtradb-cluster-operator:1.0.0-proxysql
+    {{- if $proxysql.imagePullSecrets }}
+    imagePullSecrets:
+    {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+{{- if hasKey $proxysql "priorityClassName" }}
+    priorityClassName: {{ $proxysql.priorityClassName }}
+{{- end }}
+    annotations:
+{{ $proxysql.annotations | toYaml | indent 6 }}
+    labels:
+{{ $proxysql.labels | toYaml | indent 6 }}
+    resources:
+      requests:
+{{ $proxysql.resources.requests | toYaml | indent 8 }}
+      limits:
+{{ $proxysql.resources.limits | toYaml | indent 8 }}
+    nodeSelector:
+{{ $proxysql.nodeSelector | toYaml | indent 6 }}
+    affinity:
+{{ $proxysql.affinity | toYaml | indent 6 }}
+    tolerations:
+{{ $proxysql.tolerations | toYaml | indent 6 }}
+    podDisruptionBudget:
+{{ $proxysql.podDisruptionBudget | toYaml | indent 6 }}
+    volumeSpec:
+    {{- if not $proxysql.persistence.enabled }}
+      emptyDir: {}
+    {{- else }}
+    {{- if hasKey $proxysql.persistence "hostPath" }}
+      hostPath:
+        path: {{ $proxysql.persistence.hostPath }}
+        type: Directory
+    {{- else }}
+      persistentVolumeClaim:
+        {{- if $proxysql.persistence.storageClass }}
+        {{- if (eq "-" $proxysql.persistence.storageClass) }}
+        storageClassName: ""
+        {{- else }}
+        storageClassName: "{{ $proxysql.persistence.storageClass }}"
+        {{- end }}
+        {{- end }}
+        accessModes: [{{ $proxysql.persistence.accessMode | quote }}]
+        resources:
+          requests:
+            storage: {{ $proxysql.persistence.size | quote }}
+    {{- end }}
+    {{- end }}
+    gracePeriod: {{ $proxysql.gracePeriod }}
+  {{- end }}
+  {{- if not .Values.pmm.enabled }}
+  pmm:
+    enabled: false
+  {{- else }}
+    {{- $pmm := .Values.pmm }}
+    enabled: true
+    image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
+    serverHost: {{ $pmm.serverHost }}
+    serverUser: {{ $pmm.serverUser }}
+  {{- end }}
+  {{- $backup := .Values.backup }}
+
+  backup:
+  {{- if not $backup.enabled }}
+    enabled: false
+  {{- end }}
+    image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
+    serviceAccountName: default
+    {{- if $backup.imagePullSecrets }}
+    imagePullSecrets:
+{{ $backup.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    storages:
+{{ $backup.storages | toYaml | indent 6 }}
+    schedule:
+{{ $backup.schedule | toYaml | indent 6 }}
