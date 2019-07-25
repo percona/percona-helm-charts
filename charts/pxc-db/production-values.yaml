@@ -38,8 +38,8 @@ pxc:
   resources:
     # Set these to the miminum you'd expect your database to need.
     requests:
-      memory: 1G
-      cpu: 600m
+      memory: 500m
+      cpu: 200m
     # db resources are sacred, so don't limit it.
     limits: {}
   nodeSelector: {}
@@ -103,8 +103,8 @@ proxysql:
   livenessDelaySec: 300
   resources:
     requests:
-      memory: 1G
-      cpu: 600m
+      memory: 500m
+      cpu: 200m
     limits: {}
       # memory: 1G
       # cpu: 600m
