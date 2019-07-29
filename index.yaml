@@ -12,7 +12,7 @@ entries:
       name: paulczar
     name: pxc-operator
     urls:
-    - https://percona-lab.github.io/percona-helm-charts/charts/pxc-operator/pxc-operator-0.1.5.tgz
+    - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
   pxc-db:
   - apiVersion: v1
@@ -27,6 +27,6 @@ entries:
       name: paulczar
     name: pxc-db
     urls:
-    - https://percona-lab.github.io/percona-helm-charts/charts/pxc-db/pxc-db-0.1.5.tgz
+    - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.5/pxc-db-0.1.5.tgz
     version: 0.1.5
 generated: "2019-07-25T11:04:13.100203+03:00"
