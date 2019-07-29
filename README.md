@@ -22,5 +22,5 @@ helm install percona/pxc-operator
 Install Percona Cluster:
 
 ```bash
-helm install percona/pxc-database
+helm install percona/pxc-db
 ```
