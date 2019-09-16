@@ -1,4 +1,8 @@
+{{- if kindIs "invalid" .Values.watchNamespace }}
 kind: RoleBinding
+  {{- else }}
+kind: ClusterRoleBinding
+{{- end }}
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: {{ include "pxc-operator.fullname" . }}
@@ -10,14 +14,14 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: default
-  {{- if .Values.watchNamespace }}
+  {{- if not (kindIs "invalid" .Values.watchNamespace) }}
   namespace: {{ .Release.Namespace }}
   {{- end }}
 roleRef:
-  {{- if .Values.watchNamespace }}
-  kind: ClusterRole
-  {{- else }}
+  {{- if kindIs "invalid" .Values.watchNamespace }}
   kind: Role
+  {{- else }}
+  kind: ClusterRole
   {{- end }}
   name: {{ include "pxc-operator.fullname" . }}
   apiGroup: rbac.authorization.k8s.io

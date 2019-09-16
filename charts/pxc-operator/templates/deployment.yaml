@@ -31,7 +31,11 @@ spec:
           - percona-xtradb-cluster-operator
           env:
             - name: WATCH_NAMESPACE
-              value: {{ default .Release.Namespace .Values.watchNamespace }}
+            {{- if kindIs "invalid" .Values.watchNamespace }}
+              value: {{ .Release.Namespace }}
+            {{- else }}
+              value:  {{ .Values.watchNamespace }}
+            {{- end }}
             - name: OPERATOR_NAME
               value: {{ default "percona-xtradb-cluster-operator" .Values.operatorName }}
           # livenessProbe:
