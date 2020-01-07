@@ -1,6 +1,9 @@
-apiVersion: pxc.percona.com/v1
+apiVersion: pxc.percona.com/{{ .Chart.ApiVersion }}
 kind: PerconaXtraDBCluster
 metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"pxc.percona.com/{{ .Chart.ApiVersion }}","kind":"PerconaXtraDBCluster"}
   name: {{ include "pxc-database.fullname" . }}
   labels:
 {{ include "pxc-database.labels" . | indent 4 }}
@@ -31,7 +34,7 @@ spec:
     {{- if .Values.pxc.disableTLS }}
     allowUnsafeConfigurations: false
     {{- end }}
-    image: "{{ $pxc.image.repository }}:{{ $pxc.image.tag }}"
+    image: {{ $pxc.image.repository }}:{{ $pxc.image.tag }}
     readinessDelaySec: {{ $pxc.readinessDelaySec }}
     livenessDelaySec: {{ $pxc.livenessDelaySec }}
     forceUnsafeBootstrap: {{ $pxc.forceUnsafeBootstrap }}
@@ -95,7 +98,7 @@ spec:
   proxysql:
     enabled: true
     size: {{ $proxysql.size }}
-    image: percona/percona-xtradb-cluster-operator:1.1.0-proxysql
+    image: {{ $proxysql.image.repository }}:{{ $proxysql.image.tag }}
     {{- if $proxysql.imagePullSecrets }}
     imagePullSecrets:
     {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
