@@ -175,7 +175,7 @@ backup:
       volume:
         persistentVolumeClaim:
         #  storageClassName: standard
-          accessModes: [ "ReadWriteOnce" ]
+          accessModes: ["ReadWriteOnce"]
           resources:
             requests:
               storage: 6Gi
