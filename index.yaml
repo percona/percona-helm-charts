@@ -27,7 +27,7 @@ entries:
       name: paulczar
     name: pxc-operator
     urls:
-    - https://github.com/cap1984/percona-helm-charts/releases/download/pxc-operator-0.1.6/pxc-operator-0.1.6.tgz
+    - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.6/pxc-operator-0.1.6.tgz
     version: 0.1.6
   - apiVersion: v1
     appVersion: 1.1.0
