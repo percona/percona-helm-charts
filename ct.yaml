@@ -1,0 +1,2 @@
+# See https://github.com/helm/chart-testing#configuration
+helm-extra-args: --timeout 600
