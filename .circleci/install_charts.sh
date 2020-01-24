@@ -68,6 +68,7 @@ install_tiller() {
 }
 
 install_charts() {
+    docker_exec kubectl apply -f https://raw.githubusercontent.com/percona/percona-xtradb-cluster-operator/master/deploy/crd.yaml
     docker_exec ct install
     echo
 }
