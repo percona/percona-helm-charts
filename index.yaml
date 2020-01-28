@@ -2,19 +2,19 @@ apiVersion: v1
 entries:
   pxc-db:
   - apiVersion: v1
-    appVersion: 1.1.0
-    created: "2019-07-25T11:33:14.665924+03:00"
+    appVersion: 1.3.0
+    created: "2020-01-28T11:11:07.156877788Z"
     description: A Helm chart for installing Percona XtraDB Cluster Databases using
       the PXC Operator.
-    digest: e0e767d5727aeb145912bced9a981fa670b7cb2e6ea69f67faad214b78ad2070
+    digest: 0fc6468ed1269b3bbbff6068aae5ccbbb46913d3d87533bdf0ed219516d9bde2
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     maintainers:
     - email: username.taken@gmail.com
       name: paulczar
     name: pxc-db
     urls:
-    - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.5/pxc-db-0.1.5.tgz
-    version: 0.1.5
+    - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.7/pxc-db-0.1.7.tgz
+    version: 0.1.7
   - apiVersion: v1
     appVersion: 1.3.0
     created: "2020-01-23T11:33:14.665924+03:00"
@@ -29,7 +29,34 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.6/pxc-db-0.1.6.tgz
     version: 0.1.6
+  - apiVersion: v1
+    appVersion: 1.1.0
+    created: "2019-07-25T11:33:14.665924+03:00"
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
+    digest: e0e767d5727aeb145912bced9a981fa670b7cb2e6ea69f67faad214b78ad2070
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    maintainers:
+    - email: username.taken@gmail.com
+      name: paulczar
+    name: pxc-db
+    urls:
+    - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.5/pxc-db-0.1.5.tgz
+    version: 0.1.5
   pxc-operator:
+  - apiVersion: v1
+    appVersion: 1.3.0
+    created: "2020-01-28T11:11:07.279119054Z"
+    description: A Helm chart for Deploying the Percona XtraDB Cluster Operator Kubernetes
+    digest: 96d2745a2402d1d830d202055c246e614be57c93874779e14c5232927321da50
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    maintainers:
+    - email: username.taken@gmail.com
+      name: paulczar
+    name: pxc-operator
+    urls:
+    - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.7/pxc-operator-0.1.7.tgz
+    version: 0.1.7
   - apiVersion: v1
     appVersion: 1.3.0
     created: "2020-01-23T17:41:23.750509+02:00"
