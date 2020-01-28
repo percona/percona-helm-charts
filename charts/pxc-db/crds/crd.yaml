@@ -1,13 +1,7 @@
-{{- if .Values.createCRD }}
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   name: perconaxtradbclusters.pxc.percona.com
-  annotations:
-    "helm.sh/hook": "crd-install"
-    "fart": "poop"
-  labels:
-{{ include "pxc-operator.labels" . | indent 4 }}
 spec:
   group: pxc.percona.com
   names:
@@ -30,6 +24,9 @@ spec:
       storage: false
       served: true
     - name: v1-3-0
+      storage: false
+      served: true
+    - name: v1-4-0
       storage: false
       served: true
     - name: v1alpha1
@@ -60,10 +57,6 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   name: perconaxtradbclusterbackups.pxc.percona.com
-  annotations:
-    "helm.sh/hook": "crd-install"
-  labels:
-{{ include "pxc-operator.labels" . | indent 4 }}
 spec:
   group: pxc.percona.com
   names:
@@ -110,10 +103,6 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   name: perconaxtradbclusterrestores.pxc.percona.com
-  annotations:
-    "helm.sh/hook": "crd-install"
-  labels:
-{{ include "pxc-operator.labels" . | indent 4 }}
 spec:
   group: pxc.percona.com
   names:
@@ -152,10 +141,6 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   name: perconaxtradbbackups.pxc.percona.com
-  annotations:
-    "helm.sh/hook": "crd-install"
-  labels:
-{{ include "pxc-operator.labels" . | indent 4 }}
 spec:
   group: pxc.percona.com
   names:
@@ -193,4 +178,3 @@ spec:
     - name: Age
       type: date
       JSONPath: .metadata.creationTimestamp
-{{- end }}
