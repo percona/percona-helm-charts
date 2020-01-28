@@ -22,6 +22,10 @@ jobs:
         # Only build a kind cluster if there are chart changes to test.
         if: steps.lint.outputs.changed == 'true'
 
+      - name: Install CRD for Helm 2
+         run: |
+           kubectl apply -f https://raw.githubusercontent.com/percona/percona-xtradb-cluster-operator/master/deploy/crd.yaml
+
       - name: Run chart-testing (install)
         uses: helm/chart-testing-action@v1.0.0-alpha.3
         with:
