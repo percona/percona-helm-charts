@@ -23,7 +23,7 @@ jobs:
         if: steps.lint.outputs.changed == 'true'
 
       - name: Install CRD for Helm 2
-         run: |
+        run: |
            kubectl apply -f https://raw.githubusercontent.com/percona/percona-xtradb-cluster-operator/master/deploy/crd.yaml
 
       - name: Run chart-testing (install)
