@@ -18,7 +18,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.3.0-pxc
+    tag: 1.4.0-pxc8.0
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -97,7 +97,7 @@ proxysql:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.3.0-proxysql
+    tag: 1.4.0-proxysql
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -166,7 +166,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.3.0-backup
+    tag: 1.4.0-pxc8.0-backup
   imagePullSecrets: []
   # - name: private-registry-credentials
   storages:
