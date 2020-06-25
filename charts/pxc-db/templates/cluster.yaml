@@ -27,13 +27,13 @@ spec:
   sslInternalSecretName: {{ include "pxc-database.fullname" . }}-ssl-internal
   {{- end }}
   {{- end }}
+  {{- if or .Values.allowUnsafeConfigurations .Values.pxc.disableTLS }}
+  allowUnsafeConfigurations: true
+  {{- end }}
   pause: {{ .Values.pause }}
   {{- $pxc := .Values.pxc }}
   pxc:
     size: {{ $pxc.size }}
-    {{- if .Values.pxc.disableTLS }}
-    allowUnsafeConfigurations: false
-    {{- end }}
     image: "{{ $pxc.image.repository }}:{{ $pxc.image.tag }}"
     readinessDelaySec: {{ $pxc.readinessDelaySec }}
     livenessDelaySec: {{ $pxc.livenessDelaySec }}
