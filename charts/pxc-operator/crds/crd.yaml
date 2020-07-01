@@ -148,7 +148,6 @@ spec:
     listKind: PerconaXtraDBBackupList
     plural: perconaxtradbbackups
     singular: perconaxtradbbackup
-    shortNames: []
   scope: Namespaced
   versions:
     - name: v1alpha1
