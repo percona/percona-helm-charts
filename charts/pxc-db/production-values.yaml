@@ -171,6 +171,7 @@ backup:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
     #     credentialsSecret: my-cluster-name-backup-s3
     #     region: us-west-2
+    #     endpointUrl: sfo2.digitaloceanspaces.com
 
   schedule:
     - name: "daily-backup"
