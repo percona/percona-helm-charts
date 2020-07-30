@@ -148,8 +148,8 @@ spec:
     {{- end }}
     gracePeriod: {{ $proxysql.gracePeriod }}
   {{- end }}
-  {{- if not .Values.pmm.enabled }}
   pmm:
+  {{- if not .Values.pmm.enabled }}
     enabled: false
   {{- else }}
     {{- $pmm := .Values.pmm }}
