@@ -1,9 +1,9 @@
-apiVersion: pxc.percona.com/v1-4-0
+apiVersion: pxc.percona.com/v1-5-0
 kind: PerconaXtraDBCluster
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"pxc.percona.com/v1-4-0","kind":"PerconaXtraDBCluster"}
+      {"apiVersion":"pxc.percona.com/v1-5-0","kind":"PerconaXtraDBCluster"}
   name: {{ include "pxc-database.fullname" . }}
   labels:
 {{ include "pxc-database.labels" . | indent 4 }}
@@ -31,6 +31,13 @@ spec:
   allowUnsafeConfigurations: true
   {{- end }}
   pause: {{ .Values.pause }}
+  updateStrategy: {{ .Values.updateStrategy }}
+  {{- if hasKey .Values.upgradeOptions "versionServiceEndpoint" }}
+  upgradeOptions:
+    versionServiceEndpoint: {{ .Values.upgradeOptions.versionServiceEndpoint }}
+    apply: {{ .Values.upgradeOptions.apply }}
+    schedule: {{ .Values.upgradeOptions.schedule }}
+  {{- end }}
   {{- $pxc := .Values.pxc }}
   pxc:
     size: {{ $pxc.size }}
@@ -90,6 +97,64 @@ spec:
     {{- end }}
     {{- end }}
     gracePeriod: {{ $pxc.gracePeriod }}
+  {{- if not .Values.haproxy.enabled }}
+  haproxy:
+    enabled: false
+  {{- else }}
+  {{- $haproxy := .Values.haproxy }}
+  haproxy:
+    enabled: true
+    size: {{ $haproxy.size }}
+    image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
+    {{- if $haproxy.imagePullSecrets }}
+    imagePullSecrets:
+    {{- $haproxy.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+{{- if hasKey $haproxy "priorityClassName" }}
+    priorityClassName: {{ $haproxy.priorityClassName }}
+{{- end }}
+    annotations:
+{{ $haproxy.annotations | toYaml | indent 6 }}
+    labels:
+{{ $haproxy.labels | toYaml | indent 6 }}
+    resources:
+      requests:
+{{ $haproxy.resources.requests | toYaml | indent 8 }}
+      limits:
+{{ $haproxy.resources.limits | toYaml | indent 8 }}
+    nodeSelector:
+{{ $haproxy.nodeSelector | toYaml | indent 6 }}
+    affinity:
+{{ $haproxy.affinity | toYaml | indent 6 }}
+    tolerations:
+{{ $haproxy.tolerations | toYaml | indent 6 }}
+    podDisruptionBudget:
+{{ $haproxy.podDisruptionBudget | toYaml | indent 6 }}
+    volumeSpec:
+    {{- if not $haproxy.persistence.enabled }}
+      emptyDir: {}
+    {{- else }}
+    {{- if hasKey $haproxy.persistence "hostPath" }}
+      hostPath:
+        path: {{ $haproxy.persistence.hostPath }}
+        type: Directory
+    {{- else }}
+      persistentVolumeClaim:
+        {{- if $haproxy.persistence.storageClass }}
+        {{- if (eq "-" $haproxy.persistence.storageClass) }}
+        storageClassName: ""
+        {{- else }}
+        storageClassName: "{{ $haproxy.persistence.storageClass }}"
+        {{- end }}
+        {{- end }}
+        accessModes: [{{ $haproxy.persistence.accessMode | quote }}]
+        resources:
+          requests:
+            storage: {{ $haproxy.persistence.size | quote }}
+    {{- end }}
+    {{- end }}
+    gracePeriod: {{ $haproxy.gracePeriod }}
+  {{- end }}
   {{- if not .Values.proxysql.enabled }}
   proxysql:
     enabled: false
@@ -165,7 +230,7 @@ spec:
     enabled: false
   {{- end }}
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
-    serviceAccountName: default
+    serviceAccountName: percona-xtradb-cluster-operator
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}

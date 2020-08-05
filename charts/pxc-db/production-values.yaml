@@ -15,12 +15,17 @@ fullnameOverride: "production"
 
 pause: false
 allowUnsafeConfigurations: false
+updateStrategy: SmartUpdate
+upgradeOptions:
+  versionServiceEndpoint: https://check.percona.com/versions
+  apply: disabled
+  schedule: "0 4 * * *"
 
 pxc:
   size: 3
   image:
-    repository: percona/percona-xtradb-cluster-operator
-    tag: 1.4.0-pxc8.0
+    repository: percona/percona-xtradb-cluster
+    tag: 8.0.19-10.1
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -87,12 +92,64 @@ pxc:
   ## Pass in passwords etc.
   # clusterSecretName:
 
-proxysql:
+haproxy:
   enabled: true
   size: 3
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.4.0-proxysql
+    tag: 1.5.0-haproxy
+  imagePullSecrets: []
+  # - name: private-registry-credentials
+  annotations: {}
+  #  iam.amazonaws.com/role: role-arn
+  labels: {}
+  #  rack: rack-22
+  # priorityClassName:
+  readinessDelaySec: 15
+  livenessDelaySec: 300
+  resources:
+    requests:
+      memory: 1G
+      cpu: 600m
+    limits: {}
+      # memory: 1G
+      # cpu: 600m
+  nodeSelector: {}
+  #  disktype: ssd
+  affinity:
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # advanced:
+    #   nodeAffinity:
+    #     requiredDuringSchedulingIgnoredDuringExecution:
+    #       nodeSelectorTerms:
+    #       - matchExpressions:
+    #         - key: kubernetes.io/e2e-az-name
+    #           operator: In
+    #           values:
+    #           - e2e-az1
+    #           - e2e-az2
+  tolerations: []
+    # - key: "node.alpha.kubernetes.io/unreachable"
+    #   operator: "Exists"
+    #   effect: "NoExecute"
+    #   tolerationSeconds: 6000
+  gracePeriod: 600
+  # only one of `maxUnavailable` or `minAvailable` can be set.
+  podDisruptionBudget:
+    maxUnavailable: 1
+    # minAvailable: 0
+  persistence:
+    enabled: true
+    # storageClass: "-"
+    accessMode: ReadWriteOnce
+    size: 8Gi
+
+proxysql:
+  enabled: false
+  size: 3
+  image:
+    repository: percona/percona-xtradb-cluster-operator
+    tag: 1.5.0-proxysql
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -151,7 +208,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.4.0-pxc8.0-backup
+    tag: 1.5.0-pxc8.0-backup
   imagePullSecrets: []
   # - name: private-registry-credentials
   storages:
@@ -193,6 +250,7 @@ secrets:
     clustercheck: insecure-clustercheck-password
     proxyadmin: insecure-proxyadmin-password
     pmmserver: insecure-pmmserver-password
+    operator: insecure-operator-password
   ## If you are using `cert-manager` you can skip this next section.
   ## If not using cert-manager, you should set these!!!!
   tls: {}

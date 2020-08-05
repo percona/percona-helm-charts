@@ -29,6 +29,9 @@ spec:
     - name: v1-4-0
       storage: false
       served: true
+    - name: v1-5-0
+      storage: false
+      served: true
     - name: v1alpha1
       storage: false
       served: true
@@ -45,8 +48,12 @@ spec:
       JSONPath: .status.pxc.ready
     - name: proxysql
       type: string
-      description: Ready pxc nodes
+      description: Ready proxysql nodes
       JSONPath: .status.proxysql.ready
+    - name: haproxy
+      type: string
+      description: Ready haproxy nodes
+      JSONPath: .status.haproxy.ready
     - name: Age
       type: date
       JSONPath: .metadata.creationTimestamp
