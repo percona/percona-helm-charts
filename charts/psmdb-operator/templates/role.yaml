@@ -1,0 +1,96 @@
+{{- if .Values.watchNamespace }}
+kind: ClusterRole
+{{- else }}
+kind: Role
+{{- end }}
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: {{ include "psmdb-operator.fullname" . }}
+  labels:
+{{ include "psmdb-operator.labels" . | indent 4 }}
+rules:
+  - apiGroups:
+    - psmdb.percona.com
+    resources:
+    - perconaservermongodbs
+    - perconaservermongodbs/status
+    - perconaservermongodbbackups
+    - perconaservermongodbbackups/status
+    - perconaservermongodbrestores
+    - perconaservermongodbrestores/status
+    verbs:
+    - get
+    - list
+    - update
+    - watch
+    - create
+  - apiGroups:
+    - ""
+    resources:
+    - pods
+    - pods/exec
+    - services
+    - persistentvolumeclaims
+    - secrets
+    - configmaps
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    - replicasets
+    - statefulsets
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+  - apiGroups:
+    - batch
+    resources:
+    - cronjobs
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+  - apiGroups:
+    - policy
+    resources:
+    - poddisruptionbudgets
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+  - apiGroups:
+    - certmanager.k8s.io
+    resources:
+    - issuers
+    - certificates
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+    - deletecollection
+  
