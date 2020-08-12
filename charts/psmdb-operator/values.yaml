@@ -14,7 +14,7 @@ image:
 # watchNamespace:
 
 # set if you want to use a different operator name
-# defaults to `percona-xtradb-cluster-operator`
+# defaults to `percona-server-mongodb-operator`
 # operatorName:
 
 # set to false if you don't want the helm chart to
