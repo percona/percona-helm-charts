@@ -35,6 +35,10 @@ spec:
               value: {{ default .Release.Namespace .Values.watchNamespace }}
             - name: OPERATOR_NAME
               value: {{ default "percona-server-mongodb-operator" .Values.operatorName }}
+            - name: RESYNC_PERIOD
+              value: "{{ .Values.env.resyncPeriod }}"
+            - name: LOG_VERBOSE
+              value: "{{ .Values.env.logVerbose }}"
           # livenessProbe:
           #   httpGet:
           #     path: /

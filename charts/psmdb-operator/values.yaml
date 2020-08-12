@@ -1,4 +1,4 @@
-# Default values for pxc-operator.
+# Default values for psmdb-operator.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -24,6 +24,10 @@ createCRD: true
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
+
+env:
+  resyncPeriod: 5s
+  logVerbose: false
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
