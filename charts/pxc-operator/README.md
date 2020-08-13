@@ -1,6 +1,6 @@
-# pxс-operator: A chart for installing the Percona Kubernetes Operator, which will deploy and manage Percona XtraDB Cluster - a database clustering solution for MySQL.
+# pxс-operator: A chart for installing Percona Kubernetes Operator for Percona XtraDB Cluster.
 
-This chart implements Percona XtraDB Cluster operator deployment. The Operator itself can be found here:
+This chart implements the Percona XtraDB Cluster Operator deployment. [Percona XtraDB Cluster](https://www.percona.com/doc/percona-xtradb-cluster/LATEST/index.html) is a database clustering solution for MySQL. The Operator itself can be found here:
 * <https://github.com/percona/percona-xtradb-cluster-operator>
 
 ## Pre-requisites
