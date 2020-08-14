@@ -7,7 +7,7 @@ This chart implements Percona XtraDB Cluster deployment in Kubernets via Custom 
 * [PXC operator](https://hub.helm.sh/charts/percona/pxc-operator) running in you K8S cluster
 * Kubernetes 1.11+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
-* Requires at least `v2.4.0` version of helm to support
+* At least `v2.4.0` version of helm to support
 
 ## Custom Resource Details
 * <https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/>
@@ -17,7 +17,7 @@ This chart implements Percona XtraDB Cluster deployment in Kubernets via Custom 
 
 ## Chart Details
 This chart will:
-* deploy a PXC database Pods (Custom Resource -> StatefulSet) for the further XtraDB Cluster creation in K8S. 
+* deploy a PXC database Pods (Custom Resource -> StatefulSet) for the further XtraDB Cluster creation in K8S.
 
 ### Installing the Chart
 To install the chart with the `pxc` release name using a dedicated namespace (recommended):
@@ -42,7 +42,7 @@ The chart can be customized using the following configurable parameters:
 | `pxc.image.tag`                     | PXC Container image tag                                       | `8.0.19-10.1`                              |
 | `pxc.imagePullSecrets`             | PXC Container pull secret                                                | `[]`                                      |
 | `pxc.annotations`             | PXC Pod user-defined annotations                                         | `{}` |
-| `pxc.priorityClassName`       | PXC Pod priority Class defined by user                                   |  | 
+| `pxc.priorityClassName`       | PXC Pod priority Class defined by user                                   |  |
 | `pxc.labels`                  | PXC Pod user-defined labels                                              | `{}` |
 | `pxc.readinessDelaySec`       | PXC Pod delay for readiness probe in seconds                             | `15` |
 | `pxc.livenessDelaySec`        | PXC Pod delay for liveness probe in seconds                             | `300` |
@@ -69,7 +69,7 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.image.tag`                     | HAProxy Container image tag                                       | `1.5.0-haproxy`                              |
 | `haproxy.imagePullSecrets`             | HAProxy Container pull secret                                                | `[]`                                      |
 | `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
-| `haproxy.priorityClassName`       | HAProxy Pod priority Class defined by user                                   |  | 
+| `haproxy.priorityClassName`       | HAProxy Pod priority Class defined by user                                   |  |
 | `haproxy.labels`                  | HAProxy Pod user-defined labels                                              | `{}` |
 | `haproxy.readinessDelaySec`       | HAProxy Pod delay for readiness probe in seconds                             | `15` |
 | `haproxy.livenessDelaySec`        | HAProxy Pod delay for liveness probe in seconds                             | `300` |
@@ -86,7 +86,6 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.persistence.storageClass` | Sets K8S storageClass name for all HAProxy Pods PVC. Available only when `pxc.persistence.enabled: true` | `-`                      |
 | `haproxy.persistence.accessMode` | Sets K8S persistent storage access policy for all HAProxy Pods | `ReadWriteOnce`                      |
 | `haproxy.persistence.size` | Sets K8S persistent storage size for all HAProxy Pods | `8Gi`                      |
-| `haproxy.persistence.size` | Sets K8S persistent storage size for all HAProxy Pods | `8Gi`                      |
 | |
 | `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `true` |
 | `proxysql.size`                      | ProxySQL target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
@@ -94,7 +93,7 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.image.tag`                     | ProxySQL Container image tag                                       | `1.5.0-proxysql`                              |
 | `proxysql.imagePullSecrets`             | ProxySQL Container pull secret                                                | `[]`                                      |
 | `proxysql.annotations`             | ProxySQL Pod user-defined annotations                                         | `{}` |
-| `proxysql.priorityClassName`       | ProxySQL Pod priority Class defined by user                                   |  | 
+| `proxysql.priorityClassName`       | ProxySQL Pod priority Class defined by user                                   |  |
 | `proxysql.labels`                  | ProxySQL Pod user-defined labels                                              | `{}` |
 | `proxysql.readinessDelaySec`       | ProxySQL Pod delay for readiness probe in seconds                             | `15` |
 | `proxysql.livenessDelaySec`        | ProxySQL Pod delay for liveness probe in seconds                             | `300` |
@@ -124,7 +123,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                      |
 | `backup.storages.fs-pvc` | Backups storage configuration, where `storages:` is a high-level key for the underlying structure. `fs-pvc` is a user-defined storage name. | |
 | `backup.storages.fs-pvc.type`             | Backup storage type                                          | `filysystem` |
-| `backup.storages.fs-pvc.volume.persistentVolumeClaim.accessModes`       | Backup PVC access policy                                   | `["ReadWriteOnce"]` | 
+| `backup.storages.fs-pvc.volume.persistentVolumeClaim.accessModes`       | Backup PVC access policy                                   | `["ReadWriteOnce"]` |
 | `backup.storages.fs-pvc.volume.persistentVolumeClaim.resources`         | Backup Pod resources specification      | `{}` |
 | `backup.storages.fs-pvc.volume.persistentVolumeClaim.resources.requests.storage`         | Backup Pod datadir backups size      | `6Gi` |
 | `backup.schedule`         | Backup execution timetable      | `[]` |
