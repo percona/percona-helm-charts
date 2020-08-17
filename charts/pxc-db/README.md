@@ -1,16 +1,148 @@
-# pxc-cluster: A chart for installing Percona XtraDB Operator managed Databases
+# pxc-db: A chart for installing Percona XtraDB Operator managed Databases
 
-This Helm Chart will deploy Percona XtraDB Operator managed Databases on Kubernetes.
+This chart implements Percona XtraDB Cluster deployment in Kubernets via Custom Resource object. The project itself can be found here:
+* <https://github.com/percona/percona-xtradb-cluster-operator>
 
-You must already have the Percona XtraDB Operator installed before you use this.
+## Pre-requisites
+* [PXC operator](https://hub.helm.sh/charts/percona/pxc-operator) running in you K8S cluster
+* Kubernetes 1.11+
+* PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
+* At least `v2.4.0` version of helm to support
 
-To deploy clone down this repository and run:
+## Custom Resource Details
+* <https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/>
 
-```bash
-$ helm install .
+## StatefulSet Details
+* <https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/>
+
+## Chart Details
+This chart will:
+* deploy a PXC database Pods (Custom Resource -> StatefulSet) for the further XtraDB Cluster creation in K8S.
+
+### Installing the Chart
+To install the chart with the `pxc` release name using a dedicated namespace (recommended):
+
+```sh
+helm repo add percona https://percona-lab.github.io/percona-helm-charts/
+helm install my-db percona/pxc-db --version 0.1.10 --namespace my-namespace
 ```
 
-See [values.yaml](./values.yaml) for a comprehensive list of settings that can be used to customize the configuration.
+The chart can be customized using the following configurable parameters:
+
+| Parameter                       | Description                                                                   | Default                                   |
+| ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
+| `pause`                         | Stop PXC Database safely                                                      | `false`                                   |
+| `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PXC cluster pods          | `false`                                   |
+| `updateStrategy`                | Regulates the way how PXC Cluster Pods will be updated after setting a new image | `SmartUpdate`                          |
+| `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PXC Versions provider                             | `https://check.percona.com/versions`      |
+| `upgradeOptions.apply`          | PXC image to apply from version service - `recommended`, `latest`, actual version like `8.0.19-10.1` | `recommended` |
+| `upgradeOptions.schedule`          | Cron formatted time to execute the update | `"0 4 * * *"` |
+| `pxc.size`                      | PXC Cluster target member (pod) quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
+| `pxc.image.repository`              | PXC Container image repository                                           | `percona/percona-xtradb-cluster` |
+| `pxc.image.tag`                     | PXC Container image tag                                       | `8.0.19-10.1`                              |
+| `pxc.imagePullSecrets`             | PXC Container pull secret                                                | `[]`                                      |
+| `pxc.annotations`             | PXC Pod user-defined annotations                                         | `{}` |
+| `pxc.priorityClassName`       | PXC Pod priority Class defined by user                                   |  |
+| `pxc.labels`                  | PXC Pod user-defined labels                                              | `{}` |
+| `pxc.readinessDelaySec`       | PXC Pod delay for readiness probe in seconds                             | `15` |
+| `pxc.livenessDelaySec`        | PXC Pod delay for liveness probe in seconds                             | `300` |
+| `pxc.forceUnsafeBootstrap`        | Order PXC Pods to override the previous Pod crash                             | `false` |
+| `pxc.configuration`             | User defined MySQL options according to MySQL configuration file syntax       | ``     |
+| `pxc.resources`                     | PXC Pods resource requests and limits                                    | `{}`                                      |
+| `pxc.nodeSelector`                  | PXC Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
+| `pxc.affinity.antiAffinityTopologyKey` | PXC Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
+| `pxc.affinity.advanced` | PXC Pods advanced scheduling restriction with match expression engine          | `{}` |
+| `pxc.tolerations`                   | List of node taints to tolerate for PXC Pods                       | `[]`                                      |
+| `pxc.gracePeriod`                   | Allowed time for graceful shutdown                       | `600`                                      |
+| `pxc.podDisruptionBudget.maxUnavailable` | Instruct Kubernetes about the failed pods allowed quantity           | `1`                                      |
+| `pxc.persistence.enabled` | Requests a persistent storage (`hostPath` or `storageClass`) from K8S for PXC Pods datadir  | `true`                                      |
+| `pxc.persistence.hostPath` | Sets datadir path on K8S node for all PXC Pods. Available only when `pxc.persistence.enabled: true` |                             |
+| `pxc.persistence.storageClass` | Sets K8S storageClass name for all PXC Pods PVC. Available only when `pxc.persistence.enabled: true` | `-`                      |
+| `pxc.persistence.accessMode` | Sets K8S persistent storage access policy for all PXC Pods | `ReadWriteOnce`                      |
+| `pxc.persistence.size` | Sets K8S persistent storage size for all PXC Pods | `8Gi`                      |
+| `pxc.disableTLS` | Disable PXC Pod communication with TLS | `false`                      |
+| `pxc.certManager` | Enable this option if you want the operator to request certificates from `cert-manager` | `false`                      |
+| |
+| `haproxy.enabled` | Use HAProxy as TCP proxy for PXC cluster | `true` |
+| `haproxy.size`                      | HAProxy target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
+| `haproxy.image.repository`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
+| `haproxy.image.tag`                     | HAProxy Container image tag                                       | `1.5.0-haproxy`                              |
+| `haproxy.imagePullSecrets`             | HAProxy Container pull secret                                                | `[]`                                      |
+| `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
+| `haproxy.priorityClassName`       | HAProxy Pod priority Class defined by user                                   |  |
+| `haproxy.labels`                  | HAProxy Pod user-defined labels                                              | `{}` |
+| `haproxy.readinessDelaySec`       | HAProxy Pod delay for readiness probe in seconds                             | `15` |
+| `haproxy.livenessDelaySec`        | HAProxy Pod delay for liveness probe in seconds                             | `300` |
+| `haproxy.forceUnsafeBootstrap`        | Order HAProxy Pods to override the previous Pod crash                             | `false` |
+| `haproxy.resources`                     | HAProxy Pods resource requests and limits                                    | `{}`                                      |
+| `haproxy.nodeSelector`                  | HAProxy Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
+| `haproxy.affinity.antiAffinityTopologyKey` | HAProxy Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
+| `haproxy.affinity.advanced` | HAProxy Pods advanced scheduling restriction with match expression engine          | `{}` |
+| `haproxy.tolerations`                   | List of node taints to tolerate for HAProxy Pods                       | `[]`                                      |
+| `haproxy.gracePeriod`                   | Allowed time for graceful shutdown                       | `600`                                      |
+| `haproxy.podDisruptionBudget.maxUnavailable` | Instruct Kubernetes about the failed pods allowed quantity           | `1`                                      |
+| `haproxy.persistence.enabled` | Requests a persistent storage (`hostPath` or `storageClass`) from K8S for HAProxy Pods  | `true`                                      |
+| `haproxy.persistence.hostPath` | Sets datadir path on K8S node for all HAProxy Pods. Available only when `pxc.persistence.enabled: true` |                             |
+| `haproxy.persistence.storageClass` | Sets K8S storageClass name for all HAProxy Pods PVC. Available only when `pxc.persistence.enabled: true` | `-`                      |
+| `haproxy.persistence.accessMode` | Sets K8S persistent storage access policy for all HAProxy Pods | `ReadWriteOnce`                      |
+| `haproxy.persistence.size` | Sets K8S persistent storage size for all HAProxy Pods | `8Gi`                      |
+| |
+| `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `true` |
+| `proxysql.size`                      | ProxySQL target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
+| `proxysql.image.repository`              | ProxySQL Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
+| `proxysql.image.tag`                     | ProxySQL Container image tag                                       | `1.5.0-proxysql`                              |
+| `proxysql.imagePullSecrets`             | ProxySQL Container pull secret                                                | `[]`                                      |
+| `proxysql.annotations`             | ProxySQL Pod user-defined annotations                                         | `{}` |
+| `proxysql.priorityClassName`       | ProxySQL Pod priority Class defined by user                                   |  |
+| `proxysql.labels`                  | ProxySQL Pod user-defined labels                                              | `{}` |
+| `proxysql.readinessDelaySec`       | ProxySQL Pod delay for readiness probe in seconds                             | `15` |
+| `proxysql.livenessDelaySec`        | ProxySQL Pod delay for liveness probe in seconds                             | `300` |
+| `proxysql.forceUnsafeBootstrap`        | Order ProxySQL Pods to override the previous Pod crash                             | `false` |
+| `proxysql.resources`                     | ProxySQL Pods resource requests and limits                                    | `{}`                                      |
+| `proxysql.nodeSelector`                  | ProxySQL Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
+| `proxysql.affinity.antiAffinityTopologyKey` | ProxySQL Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
+| `proxysql.affinity.advanced` | ProxySQL Pods advanced scheduling restriction with match expression engine          | `{}` |
+| `proxysql.tolerations`                   | List of node taints to tolerate for ProxySQL Pods                       | `[]`                                      |
+| `proxysql.gracePeriod`                   | Allowed time for graceful shutdown                       | `600`                                      |
+| `proxysql.podDisruptionBudget.maxUnavailable` | Instruct Kubernetes about the failed pods allowed quantity           | `1`                                      |
+| `proxysql.persistence.enabled` | Requests a persistent storage (`hostPath` or `storageClass`) from K8S for ProxySQL Pods  | `true`                                      |
+| `proxysql.persistence.hostPath` | Sets datadir path on K8S node for all ProxySQL Pods. Available only when `pxc.persistence.enabled: true` |                             |
+| `proxysql.persistence.storageClass` | Sets K8S storageClass name for all ProxySQL Pods PVC. Available only when `pxc.persistence.enabled: true` | `-`                      |
+| `proxysql.persistence.accessMode` | Sets K8S persistent storage access policy for all ProxySQL Pods | `ReadWriteOnce`                      |
+| `proxysql.persistence.size` | Sets K8S persistent storage size for all ProxySQL Pods | `8Gi`                      |
+| |
+| `pmm.enabled` | Enable integration with [Percona Monitoting and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false` |
+| `pmm.image.repository`              | PMM Container image repository                                           | `perconalab/pmm-client` |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `1.17.1`                              |
+| `pmm.serverHost`                      | PMM server related K8S service hostname              | `monitoring-service` |
+| `pmm.serverUser`                      | Username for accessing PXC database internals | `pmm` |
+| |
+| `backup.enabled` | Enables backups for PXC cluster | `true` |
+| `backup.image.repository`              | Backup Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
+| `backup.image.tag`                     | Backup Container image tag                      | `1.5.0-pxc8.0-backup`                              |
+| `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                      |
+| `backup.storages.fs-pvc` | Backups storage configuration, where `storages:` is a high-level key for the underlying structure. `fs-pvc` is a user-defined storage name. | |
+| `backup.storages.fs-pvc.type`             | Backup storage type                                          | `filysystem` |
+| `backup.storages.fs-pvc.volume.persistentVolumeClaim.accessModes`       | Backup PVC access policy                                   | `["ReadWriteOnce"]` |
+| `backup.storages.fs-pvc.volume.persistentVolumeClaim.resources`         | Backup Pod resources specification      | `{}` |
+| `backup.storages.fs-pvc.volume.persistentVolumeClaim.resources.requests.storage`         | Backup Pod datadir backups size      | `6Gi` |
+| `backup.schedule`         | Backup execution timetable      | `[]` |
+| `backup.schedule.0.name`         | Backup execution timetable name     | `daily-backup` |
+| `backup.schedule.0.schedule`         | Backup execution timetable cron timing     | `0 0 * * *` |
+| `backup.schedule.0.keep`         | Backup items to keep     | `0 0 * * *` |
+| `backup.schedule.0.storageName`         | Backup target storage     | `fs-pvc` |
+| |
+| `secrets.passwords.root`       | Default user secret                             | `insecure-root-password` |
+| `secrets.passwords.xtrabackup`       | Default user secret                             | `insecure-xtrabackup-password` |
+| `secrets.passwords.monitor`       | Default user secret                             | `insecure-monitor-password` |
+| `secrets.passwords.clustercheck`       | Default user secret                             | `insecure-clustercheck-password` |
+| `secrets.passwords.proxyadmin`       | Default user secret                             | `insecure-proxyadmin-password` |
+| `secrets.passwords.pmmserver`       | Default user secret                             | `insecure-pmmserver-password` |
+| `secrets.passwords.operator`       | Default user secret                             | `insecure-operator-password` |
+| `secrets.tls`       | Not needed in case if you're using cert-manager. Structure expects keys `ca.crt`, `tls.crt`, `tls.key` and files contents encoded in base64.                             | `{}` |
+
+
+Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 
 ## Examples
 
@@ -19,7 +151,7 @@ See [values.yaml](./values.yaml) for a comprehensive list of settings that can b
 This is great for a dev cluster as it doesn't require a persistent disk and doesn't bother with a proxy, backups, or TLS.
 
 ```bash
-$ helm install -n dev  --namespace pxc . \
+$ helm install dev  --namespace pxc . \
     --set proxysql.enabled=false --set pxc.disableTLS=true \
     --set pxc.persistence.enabled=false --set backup-enabled=false
 ```
@@ -31,7 +163,7 @@ First you need a working cert-manager installed with appropriate Issuers set up.
 By setting `pxc.certManager=true` we're signaling the Helm chart to not create secrets,which will in turn let the operator know to request appropriate `certificate` resources to be filled by cert-manager.
 
 ```bash
-$ helm install -n dev  --namespace pxc . --set pxc.certManager=true
+$ helm install dev  --namespace pxc . --set pxc.certManager=true
 ```
 
 ### Deploy a production grade cluster
@@ -41,5 +173,5 @@ well on your path to running a production database. It is not fully production g
 there are some requirements for you to provide your own secrets for passwords and TLS to be truly production ready, but it does provide comments on how to do those parts.
 
 ```bash
-$ helm install -n prod --file production-values.yaml --namespace pxc .
+$ helm install prod --file production-values.yaml --namespace pxc .
 ```
