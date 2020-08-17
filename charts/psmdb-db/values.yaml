@@ -80,7 +80,7 @@ replset:
 backup:
   enabled: true
   restartOnFailure: true
-  image: 
+  image:
     repository: percona/percona-server-mongodb-operator
     tag: 1.4.0-backup
   serviceAccountName: percona-server-mongodb-operator
@@ -115,7 +115,7 @@ backup:
   #        enabled: false
   #        schedule: "0 0 * * 0"
   #        storageName: s3-us-west
-  #        compressionType: gzip      
+  #        compressionType: gzip
 
 users:
   MONGODB_BACKUP_USER: YmFja3Vw
