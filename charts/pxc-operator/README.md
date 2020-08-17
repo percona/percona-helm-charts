@@ -6,7 +6,7 @@ This chart implements the Percona XtraDB Cluster Operator deployment. [Percona X
 ## Pre-requisites
 * Kubernetes 1.11+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
-* Requires at least `v2.4.0` version of helm to support
+* At least `v2.4.0` version of helm
 
 ## Deployment Details
 * <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
@@ -36,7 +36,7 @@ The chart can be customized using the following configurable parameters:
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
 | `watchNamespace`                | Set when a different from default namespace is needed to watch                | `""`                                      |
-| `nameOverride`                  | Set if you the chart name is not desired to be operators name                 | `""`                                      |
+| `nameOverride`                  | Set if the chart name is not desired to be the operators name                 | `""`                                      |
 | `fullnameOverride`              | By default operator name will contain chart name concatenated with operator name.<br>Set this variable if you want to set the whole bunch of names  | `""`                                      |
 | `createCRD`                     | Set to false if you don't want the helm chart to automatically create the CRD | `true`                                    |
 
