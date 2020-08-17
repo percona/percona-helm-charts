@@ -1,158 +1,160 @@
-# apiVersion: psmdb.percona.com/v1-4-0
-# kind: PerconaServerMongoDB
-# metadata:
-#   annotations:
-#     kubectl.kubernetes.io/last-applied-configuration: |
-#       {"apiVersion":"psmdb.percona.com/v1-4-0","kind":"PerconaServerMongoDB"}
-  # name: {{ include "psmdb-database.fullname" . }}
-  # labels:
-# {{ include "psmdb-database.labels" . | indent 4 }}
-# spec:
-#   {{- if .Values.platform }}
-#   platform: {{ .Values.platform }}
-#   {{- else }}
-  # {{- if .Values.DNSsuffix }}
-  # clusterServiceDNSSuffix: {{ .Values.DNSsuffix }}
-  # {{- else }}
-  # image: "{{ .image.repository }}:{{ .image.tag }}"
-  # imagePullPolicy: Always
-  # {{- if .Values.allowUnsafeConfigurations }}
-  # allowUnsafeConfigurations: true
-  # {{- end }}
-  # {{- if .Values.imagePullSecrets }}
-  # imagePullSecrets:
-  # {{ .Values.imagePullSecrets | toYaml | indent 4 }}
-  # {{- end }}
-  # {{- if .Values.runUid }}
-  # runUid: {{ .Values.runUid }}
-  # {{- end }}
-  # {{- if .Values.secrets }}
-  # secrets: 
-  # {{ .Values.secrets | toYaml | indent 4 }}
-  # {{- else }}
-  # secrets: 
-  #   users: {{ include "psmdb-database.fullname" . }}-secrets
-  # {{- end }}
-  # {{- if .Values.updateStrategy }}
-  # updateStrategy: {{ .Values.updateStrategy }}
-  # {{- end }}
-  # pmm:
-  #   enabled: {{ .Values.pmm.enabled }}
-  #   image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
-  #   serverHost: {{ .Values.pmm.serverHost }}
-  # replsets:
-  # - name: {{ .Values.replset.name }}
-  #   size: {{ .Values.replset.size }}
-  #   affinity:
-  #     antiAffinityTopologyKey: {{ .Values.replset.antiAffinityTopologyKey }}
-  #   {{- if .Values.replset.priorityClass }}
-  #   priorityClassName: {{ .Values.replset.priorityClass }}
-  #   {{- end }}
-  #   {{- if .Values.replset.annotations }}
-  #   annotations: 
-  #   {{ .Values.replset.annotations | toYaml | indent 6 }}
-  #   {{- end }}
-  #   {{- if .Values.replset.labels }}
-  #   labels: 
-  #   {{ .Values.replset.labels | toYaml | indent 6 }}
-  #   {{- end }}
-  #   {{- if .Values.replset.nodeSelector }}
-  #   nodeSelector: 
-  #   {{ .Values.replset.nodeSelector | toYaml | indent 6 }}
-  #   {{- end }}
-  #   {{- if .Values.replset.livenessProbe }}
-  #   livenessProbe: 
-  #   {{ .Values.replset.livenessProbe | toYaml | indent 6 }}
-  #   {{- end }}
-  #   podDisruptionBudget: 
-  #       {{- if .Values.replset.podDisruptionBudget.maxUnavailable }}
-  #       maxUnavailable: {{ .Values.replset.podDisruptionBudget.maxUnavailable }}
-  #       {{- else }}
-  #       minAvailable: {{ .Values.replset.podDisruptionBudget.minAvailable }}
-  #       {{- end }}
-  #   expose:
-  #     enabled: {{ .Values.replset.expose.enabled }}
-  #     exposeType: {{ .Values.replset.expose.loadBalancer }}
-  #   arbiter:
-  #     enabled: {{ .Values.replset.arbiter.enabled }}
-  #     size: {{ .Values.replset.arbiter.size }}
-  #     affinity:
-  #       antiAffinityTopologyKey: {{ .Values.replset.arbiter.antiAffinityTopologyKey }}
-  #     {{- .Values.replset.arbiter.priorityClass }}
-  #     priorityClassName: {{ .Values.replset.arbiter.priorityClass }}
-  #     {{- end }}
-  #     {{- if .Values.replset.arbiter.annotations }}
-  #     annotations: 
-  #     {{ .Values.replset.arbiter.annotations | toYaml | indent 8 }}
-  #     {{- end }}
-  #     {{- if .Values.replset.arbiter.labels }}
-  #     labels: 
-  #     {{ .Values.replset.arbiter.labels | toYaml | indent 8 }}
-  #     {{- end }}
-  #     {{- if .Values.replset.arbiter.nodeSelector }}
-  #     nodeSelector: 
-  #     {{ .Values.replset.arbiter.nodeSelector | toYaml | indent 8 }}
-  #     {{- end }}
-  #   {{- if .Values.replset.schedulerName }}
-  #   schedulerName: {{ .Values.replset.schedulerName }}
-  #   {{- end }}
-  #   resources:
-  #     {{ .Values.replset.arbiter.resources | toYaml | indent 6 }}
-  #   volumeSpec:
-  #     {{- if .Values.replset.volumeSpec.hostPath }}
-  #     hostPath: 
-  #       path: {{ .Values.replset.volumeSpec.hostPath }}
-  #       type: Directory
-  #     {{- else if .Values.replset.volumeSpec.pvc }}
-  #     persistentVolumeClaim: 
-  #     {{ .Values.replset.replset.volumeSpec.pvc | toYaml | indent 8 }}
-  #     {{- else }}
-  #     emptyDir: {}
-  #     {{- end }}
-  # mongod:
-  #   net:
-  #     port: 27017
-  #     hostPort: 0
-  #   security:
-  #     redactClientLogData: false
-  #     enableEncryption: true
-  #     encryptionKeySecret: my-cluster-name-mongodb-encryption-key
-  #     encryptionCipherMode: AES256-CBC
-  #   setParameter:
-  #     ttlMonitorSleepSecs: 60
-  #     wiredTigerConcurrentReadTransactions: 128
-  #     wiredTigerConcurrentWriteTransactions: 128
-  #   storage:
-  #     engine: wiredTiger
-  #     inMemory:
-  #       engineConfig:
-  #         inMemorySizeRatio: 0.9
-  #     mmapv1:
-  #       nsSize: 16
-  #       smallfiles: false
-  #     wiredTiger:
-  #       engineConfig:
-  #         cacheSizeRatio: 0.5
-  #         directoryForIndexes: false
-  #         journalCompressor: snappy
-  #       collectionConfig:
-  #         blockCompressor: snappy
-  #       indexConfig:
-  #         prefixCompression: true
-  #   operationProfiling:
-  #     mode: slowOp
-  #     slowOpThresholdMs: 100
-  #     rateLimit: 100
-  # backup:
-  #   enabled: {{ .Values.backup.enabled }}
-  #   restartOnFailure: true
-  #   image: "{{ .Values.backup.image.repo }}:{{ .Values.backup.image.tag }}"
-  #   serviceAccountName: percona-server-mongodb-operator
-  #   {{- if .Values.backup.resources }}
-  #   resources:
-  #   {{ .Values.backup.resources | toYaml | indent 6 }}
-  #   {{- end }}
-  #   storages:
-  #     {{ .Values.backup.storages | toYaml | indent 6 }}
-  #   tasks:
-  #     {{ .Values.backup.tasks | toYaml | indent 6 }}    
+apiVersion: psmdb.percona.com/v1-4-0
+kind: PerconaServerMongoDB
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"psmdb.percona.com/v1-4-0","kind":"PerconaServerMongoDB"}
+  name: {{ include "psmdb-database.fullname" . }}
+  labels:
+{{ include "psmdb-database.labels" . | indent 4 }}
+spec:
+  {{- if .Values.platform }}
+  platform: {{ .Values.platform }}
+  {{- end }}
+  {{- if .Values.DNSsuffix }}
+  clusterServiceDNSSuffix: {{ .Values.DNSsuffix }}
+  {{- end }}
+  image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+  imagePullPolicy: Always
+  {{- if .Values.allowUnsafeConfigurations }}
+  allowUnsafeConfigurations: true
+  {{- end }}
+  {{- if .Values.imagePullSecrets }}
+  imagePullSecrets:
+{{ .Values.imagePullSecrets | toYaml | indent 4 }}
+  {{- end }}
+  {{- if .Values.runUid }}
+  runUid: {{ .Values.runUid }}
+  {{- end }}
+  {{- if .Values.secrets }}
+  secrets: 
+  {{ .Values.secrets | toYaml | indent 4 }}
+  {{- else }}
+  secrets: 
+    users: {{ include "psmdb-database.fullname" . }}-secrets
+  {{- end }}
+  {{- if .Values.updateStrategy }}
+  updateStrategy: {{ .Values.updateStrategy }}
+  {{- end }}
+  pmm:
+    enabled: {{ .Values.pmm.enabled }}
+    image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
+    serverHost: {{ .Values.pmm.serverHost }}
+  replsets:
+  - name: {{ .Values.replset.name }}
+    size: {{ .Values.replset.size }}
+    affinity:
+      antiAffinityTopologyKey: {{ .Values.replset.antiAffinityTopologyKey }}
+    {{- if .Values.replset.priorityClass }}
+    priorityClassName: {{ .Values.replset.priorityClass }}
+    {{- end }}
+    {{- if .Values.replset.annotations }}
+    annotations: 
+{{ .Values.replset.annotations | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.replset.labels }}
+    labels: 
+{{ .Values.replset.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.replset.nodeSelector }}
+    nodeSelector: 
+{{ .Values.replset.nodeSelector | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.replset.livenessProbe }}
+    livenessProbe: 
+{{ .Values.replset.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    podDisruptionBudget: 
+      {{- if .Values.replset.podDisruptionBudget.maxUnavailable }}
+      maxUnavailable: {{ .Values.replset.podDisruptionBudget.maxUnavailable }}
+      {{- else }}
+      minAvailable: {{ .Values.replset.podDisruptionBudget.minAvailable }}
+      {{- end }}
+    expose:
+      enabled: {{ .Values.replset.expose.enabled }}
+      exposeType: {{ .Values.replset.expose.loadBalancer }}
+    arbiter:
+      enabled: {{ .Values.replset.arbiter.enabled }}
+      size: {{ .Values.replset.arbiter.size }}
+      affinity:
+        antiAffinityTopologyKey: {{ .Values.replset.arbiter.antiAffinityTopologyKey }}
+      {{- if .Values.replset.arbiter.priorityClass }}
+      priorityClassName: {{ .Values.replset.arbiter.priorityClass }}
+      {{- end }}
+      {{- if .Values.replset.arbiter.annotations }}
+      annotations: 
+{{ .Values.replset.arbiter.annotations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.replset.arbiter.labels }}
+      labels: 
+{{ .Values.replset.arbiter.labels | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.replset.arbiter.nodeSelector }}
+      nodeSelector: 
+{{ .Values.replset.arbiter.nodeSelector | toYaml | indent 8 }}
+      {{- end }}
+    {{- if .Values.replset.schedulerName }}
+    schedulerName: {{ .Values.replset.schedulerName }}
+    {{- end }}
+    resources:
+{{ .Values.replset.resources | toYaml | indent 6 }}
+    volumeSpec:
+      {{- if .Values.replset.volumeSpec.hostPath }}
+      hostPath: 
+        path: {{ .Values.replset.volumeSpec.hostPath }}
+        type: Directory
+      {{- else if .Values.replset.volumeSpec.pvc }}
+      persistentVolumeClaim: 
+{{ .Values.replset.volumeSpec.pvc | toYaml | indent 8 }}
+      {{- else }}
+      emptyDir: {}
+      {{- end }}
+  mongod:
+    net:
+      port: 27017
+      hostPort: 0
+    security:
+      redactClientLogData: false
+      enableEncryption: true
+      encryptionKeySecret: {{ include "psmdb-database.fullname" . }}-mongodb-encryption-key
+      encryptionCipherMode: AES256-CBC
+    setParameter:
+      ttlMonitorSleepSecs: 60
+      wiredTigerConcurrentReadTransactions: 128
+      wiredTigerConcurrentWriteTransactions: 128
+    storage:
+      engine: wiredTiger
+      inMemory:
+        engineConfig:
+          inMemorySizeRatio: 0.9
+      mmapv1:
+        nsSize: 16
+        smallfiles: false
+      wiredTiger:
+        engineConfig:
+          cacheSizeRatio: 0.5
+          directoryForIndexes: false
+          journalCompressor: snappy
+        collectionConfig:
+          blockCompressor: snappy
+        indexConfig:
+          prefixCompression: true
+    operationProfiling:
+      mode: slowOp
+      slowOpThresholdMs: 100
+      rateLimit: 100
+  backup:
+    enabled: {{ .Values.backup.enabled }}
+    restartOnFailure: true
+    image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
+    serviceAccountName: percona-server-mongodb-operator
+    {{- if .Values.backup.resources }}
+    resources:
+    {{ .Values.backup.resources | toYaml | indent 6 }}
+    {{- end }}
+    storages:
+{{ .Values.backup.storages | toYaml | indent 6 }}
+    tasks:
+{{ .Values.backup.tasks | toYaml | indent 6 }}    
+
+  
