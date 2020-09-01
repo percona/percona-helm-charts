@@ -23,7 +23,7 @@ This chart will:
 To install the chart with the `pxc` release name using a dedicated namespace (recommended):
 
 ```sh
-helm repo add percona https://percona-lab.github.io/percona-helm-charts/
+helm repo add percona https://percona.github.io/percona-helm-charts/
 helm install my-db percona/pxc-db --version 0.1.10 --namespace my-namespace
 ```
 
