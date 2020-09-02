@@ -36,11 +36,6 @@ The chart can be customized using the following configurable parameters:
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
 | `watchNamespace`                | Set when a different from default namespace is needed to watch                | `""`                                      |
-| `nameOverride`                  | Set if the chart name is not desired to be the operators name                 | `""`                                      |
-| `fullnameOverride`              | By default operator name will contain chart name concatenated with operator name.<br>Set this variable if you want to set the whole bunch of names  | `""`                                      |
-| `createCRD`                     | Set to false if you don't want the helm chart to automatically create the CRD | `true`                                    |
-| `env.resyncPeriod`              | Period for syncing operator with DB                                           | `5s`                                      |
-| `env.logVerbose`                | Enable/Disable operator verbose logging                                       | `false`                                   |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 
