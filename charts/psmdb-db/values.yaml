@@ -8,16 +8,13 @@
 # Cluster DNS Suffix
 # DNSsuffix: .svc.cluster.local
 
-nameOverride: ""
-fullnameOverride: ""
-
 pause: false
 allowUnsafeConfigurations: false
 # updateStrategy: SmartUpdate
 
 image:
-  repository: percona/percona-server-mongodb-operator
-  tag: 1.4.0-mongod4.2
+  repository: percona/percona-server-mongodb
+  tag: 4.2.8-8
 
 # imagePullSecrets: []
 # runUid: 1001
@@ -27,7 +24,7 @@ pmm:
   enabled: false
   image:
     repository: percona/percona-server-mongodb-operator
-    tag: 1.4.0-pmm
+    tag: 1.5.0-pmm
   serverHost: monitoring-service
 
 replset:
@@ -82,7 +79,7 @@ backup:
   restartOnFailure: true
   image:
     repository: percona/percona-server-mongodb-operator
-    tag: 1.4.0-backup
+    tag: 1.5.0-backup
   serviceAccountName: percona-server-mongodb-operator
   #    resources:
   #      limits:
