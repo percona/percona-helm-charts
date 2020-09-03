@@ -1,9 +1,9 @@
-apiVersion: psmdb.percona.com/v1-4-0
+apiVersion: psmdb.percona.com/v1-5-0
 kind: PerconaServerMongoDB
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"psmdb.percona.com/v1-4-0","kind":"PerconaServerMongoDB"}
+      {"apiVersion":"psmdb.percona.com/v1-5-0","kind":"PerconaServerMongoDB"}
   name: {{ include "psmdb-database.fullname" . }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
@@ -27,10 +27,10 @@ spec:
   runUid: {{ .Values.runUid }}
   {{- end }}
   {{- if .Values.secrets }}
-  secrets: 
+  secrets:
   {{ .Values.secrets | toYaml | indent 4 }}
   {{- else }}
-  secrets: 
+  secrets:
     users: {{ include "psmdb-database.fullname" . }}-secrets
   {{- end }}
   {{- if .Values.updateStrategy }}
@@ -49,22 +49,22 @@ spec:
     priorityClassName: {{ .Values.replset.priorityClass }}
     {{- end }}
     {{- if .Values.replset.annotations }}
-    annotations: 
+    annotations:
 {{ .Values.replset.annotations | toYaml | indent 6 }}
     {{- end }}
     {{- if .Values.replset.labels }}
-    labels: 
+    labels:
 {{ .Values.replset.labels | toYaml | indent 6 }}
     {{- end }}
     {{- if .Values.replset.nodeSelector }}
-    nodeSelector: 
+    nodeSelector:
 {{ .Values.replset.nodeSelector | toYaml | indent 6 }}
     {{- end }}
     {{- if .Values.replset.livenessProbe }}
-    livenessProbe: 
+    livenessProbe:
 {{ .Values.replset.livenessProbe | toYaml | indent 6 }}
     {{- end }}
-    podDisruptionBudget: 
+    podDisruptionBudget:
       {{- if .Values.replset.podDisruptionBudget.maxUnavailable }}
       maxUnavailable: {{ .Values.replset.podDisruptionBudget.maxUnavailable }}
       {{- else }}
@@ -82,15 +82,15 @@ spec:
       priorityClassName: {{ .Values.replset.arbiter.priorityClass }}
       {{- end }}
       {{- if .Values.replset.arbiter.annotations }}
-      annotations: 
+      annotations:
 {{ .Values.replset.arbiter.annotations | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.replset.arbiter.labels }}
-      labels: 
+      labels:
 {{ .Values.replset.arbiter.labels | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.replset.arbiter.nodeSelector }}
-      nodeSelector: 
+      nodeSelector:
 {{ .Values.replset.arbiter.nodeSelector | toYaml | indent 8 }}
       {{- end }}
     {{- if .Values.replset.schedulerName }}
@@ -100,11 +100,11 @@ spec:
 {{ .Values.replset.resources | toYaml | indent 6 }}
     volumeSpec:
       {{- if .Values.replset.volumeSpec.hostPath }}
-      hostPath: 
+      hostPath:
         path: {{ .Values.replset.volumeSpec.hostPath }}
         type: Directory
       {{- else if .Values.replset.volumeSpec.pvc }}
-      persistentVolumeClaim: 
+      persistentVolumeClaim:
 {{ .Values.replset.volumeSpec.pvc | toYaml | indent 8 }}
       {{- else }}
       emptyDir: {}
@@ -155,6 +155,5 @@ spec:
     storages:
 {{ .Values.backup.storages | toYaml | indent 6 }}
     tasks:
-{{ .Values.backup.tasks | toYaml | indent 6 }}    
+{{ .Values.backup.tasks | toYaml | indent 6 }}
 
-  
