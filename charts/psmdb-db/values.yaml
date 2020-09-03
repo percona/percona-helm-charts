@@ -10,7 +10,11 @@
 
 pause: false
 allowUnsafeConfigurations: false
-# updateStrategy: SmartUpdate
+updateStrategy: SmartUpdate
+upgradeOptions:
+  versionServiceEndpoint: https://check.percona.com/versions/
+  apply: recommended
+  schedule: "0 2 * * *"
 
 image:
   repository: percona/percona-server-mongodb

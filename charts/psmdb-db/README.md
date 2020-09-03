@@ -34,6 +34,9 @@ The chart can be customized using the following configurable parameters:
 | `pause`                         | Stop PSMDB Database safely                                                    | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PSMDB cluster pods        | `false`                                   |
 | `updateStrategy`                | Regulates the way how PSMDB Cluster Pods will be updated after setting a new image | `SmartUpdate`                          |
+| `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PSMDB Versions provider	 | `https://check.percona.com/versions/` |
+| `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.2.8-8 | `recommended` |
+| `upgradeOptions.schedule` | Cron formatted time to execute the update | `"0 2 * * *"` |
 | `image.repository`              | PSMDB Container image repository                                           | `percona/percona-server-mongodb` |
 | `image.tag`                     | PSMDB Container image tag                                       | `4.2.8-8`                              |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                | `[]`                                      |

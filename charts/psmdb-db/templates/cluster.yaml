@@ -35,6 +35,10 @@ spec:
   {{- end }}
   {{- if .Values.updateStrategy }}
   updateStrategy: {{ .Values.updateStrategy }}
+  upgradeOptions:
+    versionServiceEndpoint: {{ .Values.updateOptions.versionServiceEndpoint }}
+    apply: {{ .Values.updateOptions.apply }}
+    schedule: {{ .Values.updateOptions.schedule }}
   {{- end }}
   pmm:
     enabled: {{ .Values.pmm.enabled }}
