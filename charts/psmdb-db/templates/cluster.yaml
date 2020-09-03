@@ -8,6 +8,7 @@ metadata:
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
 spec:
+  pause: {{ .Values.pause }}
   {{- if .Values.platform }}
   platform: {{ .Values.platform }}
   {{- end }}
