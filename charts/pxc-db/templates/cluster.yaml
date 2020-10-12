@@ -1,15 +1,16 @@
-apiVersion: pxc.percona.com/v1-5-0
+apiVersion: pxc.percona.com/v1-6-0
 kind: PerconaXtraDBCluster
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"pxc.percona.com/v1-5-0","kind":"PerconaXtraDBCluster"}
+      {"apiVersion":"pxc.percona.com/v1-6-0","kind":"PerconaXtraDBCluster"}
   name: {{ include "pxc-database.fullname" . }}
   labels:
 {{ include "pxc-database.labels" . | indent 4 }}
   finalizers:
 {{ .Values.finalizers | toYaml | indent 4 }}
 spec:
+  crVersion: {{ .Chart.AppVersion }}
   {{- if hasKey .Values.pxc "clusterSecretName" }}
   secretsName: {{ .Values.pxc.clusterSecretName }}
   {{- else }}
