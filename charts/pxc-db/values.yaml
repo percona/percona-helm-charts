@@ -72,7 +72,7 @@ pxc:
     maxUnavailable: 1
     # minAvailable: 0
   persistence:
-    enabled: true
+    enabled: false
     # if persistence is enabled, you can specify a hostPath (not recommended)
     # hostPath: /data/mysql
     # otherwise you can specify values for a storage claim (default)
