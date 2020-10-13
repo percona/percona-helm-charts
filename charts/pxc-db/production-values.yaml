@@ -138,11 +138,6 @@ haproxy:
   podDisruptionBudget:
     maxUnavailable: 1
     # minAvailable: 0
-  persistence:
-    enabled: false
-    # storageClass: "-"
-    accessMode: ReadWriteOnce
-    size: 8Gi
 
 proxysql:
   enabled: false

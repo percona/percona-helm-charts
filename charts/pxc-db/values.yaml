@@ -144,21 +144,6 @@ haproxy:
   podDisruptionBudget:
     maxUnavailable: 1
     # minAvailable: 0
-  persistence:
-    enabled: true
-    # if persistence is enabled, you can specify a hostPath (not recommended)
-    # hostPath: /data/mysql
-    # otherwise you can specify values for a storage claim (default)
-    ## percona data Persistent Volume Storage Class
-    ## If defined, storageClassName: <storageClass>
-    ## If set to "-", storageClassName: "", which disables dynamic provisioning
-    ## If undefined (the default) or set to null, no storageClassName spec is
-    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
-    ##   GKE, AWS & OpenStack)
-    ##
-    # storageClass: "-"
-    accessMode: ReadWriteOnce
-    size: 8Gi
 
 proxysql:
   enabled: false

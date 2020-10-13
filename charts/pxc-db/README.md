@@ -81,11 +81,6 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.tolerations`                   | List of node taints to tolerate for HAProxy Pods                       | `[]`                                      |
 | `haproxy.gracePeriod`                   | Allowed time for graceful shutdown                       | `600`                                      |
 | `haproxy.podDisruptionBudget.maxUnavailable` | Instruct Kubernetes about the failed pods allowed quantity           | `1`                                      |
-| `haproxy.persistence.enabled` | Requests a persistent storage (`hostPath` or `storageClass`) from K8S for HAProxy Pods  | `false`                                      |
-| `haproxy.persistence.hostPath` | Sets datadir path on K8S node for all HAProxy Pods. Available only when `haproxy.persistence.enabled: true` |                             |
-| `haproxy.persistence.storageClass` | Sets K8S storageClass name for all HAProxy Pods PVC. Available only when `haproxy.persistence.enabled: true` | `-`                      |
-| `haproxy.persistence.accessMode` | Sets K8S persistent storage access policy for all HAProxy Pods | `ReadWriteOnce`                      |
-| `haproxy.persistence.size` | Sets K8S persistent storage size for all HAProxy Pods | `8Gi`                      |
 | |
 | `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `true` |
 | `proxysql.size`                      | ProxySQL target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |

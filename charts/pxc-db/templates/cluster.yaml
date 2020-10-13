@@ -132,28 +132,7 @@ spec:
     podDisruptionBudget:
 {{ $haproxy.podDisruptionBudget | toYaml | indent 6 }}
     volumeSpec:
-    {{- if not $haproxy.persistence.enabled }}
       emptyDir: {}
-    {{- else }}
-    {{- if hasKey $haproxy.persistence "hostPath" }}
-      hostPath:
-        path: {{ $haproxy.persistence.hostPath }}
-        type: Directory
-    {{- else }}
-      persistentVolumeClaim:
-        {{- if $haproxy.persistence.storageClass }}
-        {{- if (eq "-" $haproxy.persistence.storageClass) }}
-        storageClassName: ""
-        {{- else }}
-        storageClassName: "{{ $haproxy.persistence.storageClass }}"
-        {{- end }}
-        {{- end }}
-        accessModes: [{{ $haproxy.persistence.accessMode | quote }}]
-        resources:
-          requests:
-            storage: {{ $haproxy.persistence.size | quote }}
-    {{- end }}
-    {{- end }}
     gracePeriod: {{ $haproxy.gracePeriod }}
   {{- end }}
   {{- if not .Values.proxysql.enabled }}
