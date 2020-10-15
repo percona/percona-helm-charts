@@ -39,7 +39,7 @@ The chart can be customized using the following configurable parameters:
 | `upgradeOptions.schedule`          | Cron formatted time to execute the update | `"0 4 * * *"` |
 | `pxc.size`                      | PXC Cluster target member (pod) quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
 | `pxc.image.repository`              | PXC Container image repository                                           | `percona/percona-xtradb-cluster` |
-| `pxc.image.tag`                     | PXC Container image tag                                       | `8.0.19-10.1`                              |
+| `pxc.image.tag`                     | PXC Container image tag                                       | `8.0.20-11.1`                              |
 | `pxc.imagePullSecrets`             | PXC Container pull secret                                                | `[]`                                      |
 | `pxc.annotations`             | PXC Pod user-defined annotations                                         | `{}` |
 | `pxc.priorityClassName`       | PXC Pod priority Class defined by user                                   |  |
@@ -48,7 +48,8 @@ The chart can be customized using the following configurable parameters:
 | `pxc.livenessDelaySec`        | PXC Pod delay for liveness probe in seconds                             | `300` |
 | `pxc.forceUnsafeBootstrap`        | Order PXC Pods to override the previous Pod crash                             | `false` |
 | `pxc.configuration`             | User defined MySQL options according to MySQL configuration file syntax       | ``     |
-| `pxc.resources`                     | PXC Pods resource requests and limits                                    | `{}`                                      |
+| `pxc.resources.requests`                     | PXC Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
+| `pxc.resources.limits`                     | PXC Pods resource limits                                    | `{}`                                      |
 | `pxc.nodeSelector`                  | PXC Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
 | `pxc.affinity.antiAffinityTopologyKey` | PXC Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
 | `pxc.affinity.advanced` | PXC Pods advanced scheduling restriction with match expression engine          | `{}` |
@@ -66,7 +67,7 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.enabled` | Use HAProxy as TCP proxy for PXC cluster | `true` |
 | `haproxy.size`                      | HAProxy target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
 | `haproxy.image.repository`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
-| `haproxy.image.tag`                     | HAProxy Container image tag                                       | `1.5.0-haproxy`                              |
+| `haproxy.image.tag`                     | HAProxy Container image tag                                       | `1.6.0-haproxy`                              |
 | `haproxy.imagePullSecrets`             | HAProxy Container pull secret                                                | `[]`                                      |
 | `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
 | `haproxy.priorityClassName`       | HAProxy Pod priority Class defined by user                                   |  |
@@ -74,7 +75,8 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.readinessDelaySec`       | HAProxy Pod delay for readiness probe in seconds                             | `15` |
 | `haproxy.livenessDelaySec`        | HAProxy Pod delay for liveness probe in seconds                             | `300` |
 | `haproxy.forceUnsafeBootstrap`        | Order HAProxy Pods to override the previous Pod crash                             | `false` |
-| `haproxy.resources`                     | HAProxy Pods resource requests and limits                                    | `{}`                                      |
+| `haproxy.resources.requests`                     | HAProxy Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
+| `haproxy.resources.limits`                     | HAProxy Pods resource limits                                    | `{}`                                      |
 | `haproxy.nodeSelector`                  | HAProxy Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
 | `haproxy.affinity.antiAffinityTopologyKey` | HAProxy Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
 | `haproxy.affinity.advanced` | HAProxy Pods advanced scheduling restriction with match expression engine          | `{}` |
@@ -87,10 +89,10 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.persistence.accessMode` | Sets K8S persistent storage access policy for all HAProxy Pods | `ReadWriteOnce`                      |
 | `haproxy.persistence.size` | Sets K8S persistent storage size for all HAProxy Pods | `8Gi`                      |
 | |
-| `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `true` |
+| `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `false` |
 | `proxysql.size`                      | ProxySQL target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
 | `proxysql.image.repository`              | ProxySQL Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
-| `proxysql.image.tag`                     | ProxySQL Container image tag                                       | `1.5.0-proxysql`                              |
+| `proxysql.image.tag`                     | ProxySQL Container image tag                                       | `1.6.0-proxysql`                              |
 | `proxysql.imagePullSecrets`             | ProxySQL Container pull secret                                                | `[]`                                      |
 | `proxysql.annotations`             | ProxySQL Pod user-defined annotations                                         | `{}` |
 | `proxysql.priorityClassName`       | ProxySQL Pod priority Class defined by user                                   |  |
@@ -98,7 +100,8 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.readinessDelaySec`       | ProxySQL Pod delay for readiness probe in seconds                             | `15` |
 | `proxysql.livenessDelaySec`        | ProxySQL Pod delay for liveness probe in seconds                             | `300` |
 | `proxysql.forceUnsafeBootstrap`        | Order ProxySQL Pods to override the previous Pod crash                             | `false` |
-| `proxysql.resources`                     | ProxySQL Pods resource requests and limits                                    | `{}`                                      |
+| `proxysql.resources.requests`                     | ProxySQL Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
+| `proxysql.resources.limits`                     | ProxySQL Pods resource limits                                    | `{}`                                      |
 | `proxysql.nodeSelector`                  | ProxySQL Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
 | `proxysql.affinity.antiAffinityTopologyKey` | ProxySQL Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
 | `proxysql.affinity.advanced` | ProxySQL Pods advanced scheduling restriction with match expression engine          | `{}` |
