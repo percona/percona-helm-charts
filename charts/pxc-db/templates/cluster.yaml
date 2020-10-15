@@ -47,8 +47,8 @@ spec:
     livenessDelaySec: {{ $pxc.livenessDelaySec }}
     forceUnsafeBootstrap: {{ $pxc.forceUnsafeBootstrap }}
     {{- if $pxc.configuration }}
-    configuration: |
-    {{ $pxc.configuration | nindent 6 }}
+    configuration:
+    {{ tpl $pxc.configuration $ | nindent 6 }}
     {{- end }}
     {{- if $pxc.imagePullSecrets }}
     imagePullSecrets:
@@ -63,9 +63,9 @@ spec:
 {{ $pxc.labels | toYaml | indent 6 }}
     resources:
       requests:
-{{ $pxc.resources.requests | toYaml | indent 8 }}
+{{ tpl ($pxc.resources.requests| toYaml) $ | indent 8}}
       limits:
-{{ $pxc.resources.limits | toYaml | indent 8 }}
+{{ tpl ($pxc.resources.limits | toYaml) $ | indent 8 }}
     nodeSelector:
 {{ $pxc.nodeSelector | toYaml | indent 6 }}
     affinity:
