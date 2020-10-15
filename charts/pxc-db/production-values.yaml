@@ -25,7 +25,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.19-10.1
+    tag: 8.0.20-11.2
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -97,7 +97,7 @@ haproxy:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.5.0-haproxy
+    tag: 1.6.0-haproxy
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -138,18 +138,13 @@ haproxy:
   podDisruptionBudget:
     maxUnavailable: 1
     # minAvailable: 0
-  persistence:
-    enabled: true
-    # storageClass: "-"
-    accessMode: ReadWriteOnce
-    size: 8Gi
 
 proxysql:
   enabled: false
   size: 3
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.5.0-proxysql
+    tag: 1.6.0-proxysql
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -208,7 +203,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.5.0-pxc8.0-backup
+    tag: 1.6.0-pxc8.0-backup
   imagePullSecrets: []
   # - name: private-registry-credentials
   storages:
