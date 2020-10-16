@@ -47,7 +47,7 @@ spec:
     livenessDelaySec: {{ $pxc.livenessDelaySec }}
     forceUnsafeBootstrap: {{ $pxc.forceUnsafeBootstrap }}
     {{- if $pxc.configuration }}
-    configuration:
+    configuration: |
     {{ tpl $pxc.configuration $ | nindent 6 }}
     {{- end }}
     {{- if $pxc.imagePullSecrets }}
