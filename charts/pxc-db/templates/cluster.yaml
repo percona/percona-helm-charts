@@ -210,7 +210,6 @@ spec:
     enabled: false
   {{- end }}
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
-    serviceAccountName: percona-xtradb-cluster-operator
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}
