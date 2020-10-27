@@ -43,3 +43,23 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{/*
+This filters the backup.storages hash for S3 credentials. If we detect them, they go in a separate secret.
+*/}}
+{{- define "pxc-database.storages" -}}
+{{- $storages := dict -}}
+{{- range $key, $value := .Values.backup.storages -}}
+{{- if and (hasKey $value "type") (eq $value.type "s3") (hasKey $value "credentialsAccessKey") (hasKey $value "credentialsSecretKey") -}}
+{{- if hasKey $value "credentialsSecret" -}}
+{{- fail "credentialsSecret and credentialsAccessKey/credentialsSecretKey isn't supported!" -}}
+{{- end -}}
+{{- $secretName := printf "%s-s3-%s" (include "pxc-database.fullname" $) $key -}}
+{{- $_value := set (omit $value "credentialsAccessKey" "credentialsSecretKey") "credentialsSecret" $secretName -}}
+{{- $_ := set $storages $key $_value -}}
+{{- else -}}
+{{- $_ := set $storages $key $value -}}
+{{- end -}}
+{{- end -}}
+{{- $storages | toYaml -}}
+{{- end -}}

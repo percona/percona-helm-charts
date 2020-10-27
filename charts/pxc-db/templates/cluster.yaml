@@ -242,7 +242,7 @@ spec:
       timeBetweenUploads: {{ $backup.pitr.timeBetweenUploads }}
     {{- end }}
     storages:
-{{ $backup.storages | toYaml | indent 6 }}
+{{ include "pxc-database.storages" . | indent 6 }}
 {{- if $backup.enabled }}
     schedule:
 {{ $backup.schedule | toYaml | indent 6 }}

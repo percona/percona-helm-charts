@@ -248,7 +248,10 @@ backup:
     #   type: s3
     #   s3:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
+    #     # Use credentialsSecret OR credentialsAccessKey/credentialsSecretKey
     #     credentialsSecret: my-cluster-name-backup-s3
+    #     #credentialsAccessKey: REPLACE-WITH-AWS-ACCESS-KEY
+    #     #credentialsSecretKey: REPLACE-WITH-AWS-SECRET-KEY
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
     # s3-us-west-binlogs:
