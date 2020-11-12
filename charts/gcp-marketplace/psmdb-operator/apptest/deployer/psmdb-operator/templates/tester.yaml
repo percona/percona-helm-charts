@@ -30,11 +30,11 @@ spec:
     - name: MONGO_USER
       valueFrom:
         secretKeyRef:
-          key: MONGODB_CLUSTER_ADMIN_USER
+          key: MONGODB_USER_ADMIN_USER
           name: {{ .Release.Name }}-secrets
     - name: MONGO_PASSWORD
       valueFrom:
         secretKeyRef:
-          key: MONGODB_CLUSTER_ADMIN_PASSWORD
+          key: MONGODB_USER_ADMIN_PASSWORD
           name: {{ .Release.Name }}-secrets
   restartPolicy: Never
