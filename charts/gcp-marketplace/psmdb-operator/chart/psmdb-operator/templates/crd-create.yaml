@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+  name: {{ template "psmdb-operator.CRDsJob" . }}
+  labels:
+    app.kubernetes.io/name: "{{ .Release.Name }}"
+    app.kubernetes.io/component: crd-job
+spec:
+  backoffLimit: 0
+  completions: 1
+  parallelism: 1
+  template:
+    spec:
+      containers:
+      - command:
+        - "/bin/bash"
+        - "-ec"
+        - |
+          PARENT_UID=$(kubectl get application {{ .Release.Name }} -o jsonpath='{.metadata.uid}')
+          for crd in /crd_to_create/*;
+            do kubectl apply -f $crd;
+          done
+          for cr in /cr_to_create/*;
+            do cat $cr | env -i PARENT_UID=${PARENT_UID} envsubst | kubectl apply -f -;
+          done
+          kubectl patch job/{{ template "psmdb-operator.CRDsJob" . }} --type merge -p='{"metadata":{"ownerReferences":[{"apiVersion": "app.k8s.io/v1beta1","blockOwnerDeletion": true,"kind": "Application","name":"{{ .Release.Name }}","uid": "'"${PARENT_UID}"'"}]}}'
+          kubectl patch deployment/{{ template "psmdb-operator.fullname" . }} --type merge -p='{"metadata":{"ownerReferences":[{"apiVersion": "app.k8s.io/v1beta1","blockOwnerDeletion": true,"kind": "Application","name":"{{ .Release.Name }}","uid": "'"${PARENT_UID}"'"}]}}'
+        image: {{ .Values.deployerHelm.image }}
+        imagePullPolicy: Always
+        name: crd-create
+        volumeMounts:
+        - name: crd-configmap
+          mountPath: /crd_to_create/
+        - name: cr-configmap
+          mountPath: /cr_to_create/
+      dnsPolicy: ClusterFirst
+      restartPolicy: Never
+      serviceAccountName: {{ .Values.CDRJobServiceAccount }}
+      volumes:
+      - name: crd-configmap
+        configMap:
+          name: {{ template "psmdb-operator.CRDsConfigMap" . }}
+      - name: cr-configmap
+        configMap:
+          name: {{ template "psmdb-operator.CRConfigMap" . }}

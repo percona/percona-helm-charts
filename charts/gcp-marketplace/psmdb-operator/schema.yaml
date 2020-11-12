@@ -1,0 +1,239 @@
+x-google-marketplace:
+  schemaVersion: v2
+  applicationApiVersion: v1beta1
+  publishedVersion: "$TAG"
+  publishedVersionMetadata:
+    releaseNote: >-
+      A regular update.
+    releaseTypes:
+      - Feature
+    recommended: false
+  images:
+    '':
+      properties:
+        operator.image.registry:
+          type: REGISTRY
+        operator.image.repository:
+          type: REPO_WITHOUT_REGISTRY
+        operator.image.tag:
+          type: TAG
+    perconaServerMongodb:
+      properties:
+        perconaMongoDB.image.registry:
+          type: REGISTRY
+        perconaMongoDB.image.repository:
+          type: REPO_WITHOUT_REGISTRY
+  clusterConstraints:
+    resources:
+    - replicas: 3
+      requests:
+        cpu: 2
+        memory: 5Gi
+      affinity:
+        simpleNodeAffinity:
+          type: REQUIRE_MINIMUM_NODE_COUNT
+          minimumNodeCount: 3
+    istio:
+      type: UNSUPPORTED
+
+properties:
+  name:
+    type: string
+    title: Percona Server MongoDB Cluster name
+    x-google-marketplace:
+      type: NAME
+    maxLength: 22
+  namespace:
+    type: string
+    title: Target namespace
+    x-google-marketplace:
+      type: NAMESPACE
+  serviceAccountName:
+    type: string
+    title: Percona Server MongoDB Cluster Operator service account
+    x-google-marketplace:
+      type: SERVICE_ACCOUNT
+      serviceAccount:
+        description: >
+          Operator essential privileges
+        roles:
+        - type: ClusterRole
+          rulesType: CUSTOM
+          rules:
+            - apiGroups:
+              - psmdb.percona.com
+              resources:
+              - perconaservermongodbs
+              - perconaservermongodbs/status
+              - perconaservermongodbbackups
+              - perconaservermongodbbackups/status
+              - perconaservermongodbrestores
+              - perconaservermongodbrestores/status
+              verbs:
+              - get
+              - list
+              - update
+              - watch
+              - create
+            - apiGroups:
+              - ""
+              resources:
+              - pods
+              - pods/exec
+              - configmaps
+              - services
+              - persistentvolumeclaims
+              - secrets
+              verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - patch
+              - delete
+            - apiGroups:
+              - apps
+              resources:
+              - deployments
+              - replicasets
+              - statefulsets
+              verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - patch
+              - delete
+            - apiGroups:
+              - batch
+              resources:
+              - jobs
+              - cronjobs
+              verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - patch
+              - delete
+            - apiGroups:
+              - policy
+              resources:
+              - poddisruptionbudgets
+              verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - patch
+              - delete
+            - apiGroups:
+              - certmanager.k8s.io
+              resources:
+              - issuers
+              - certificates
+              verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - patch
+              - delete
+              - deletecollection
+  CDRJobServiceAccount:
+    type: string
+    title: Service account used by CRDs deployer
+    x-google-marketplace:
+      type: SERVICE_ACCOUNT
+      serviceAccount:
+        description: >
+          CRD install essentials
+        roles:
+        - type: ClusterRole
+          rulesType: CUSTOM
+          rules:
+            - apiGroups:
+              - apps
+              resources:
+              - deployments
+              verbs:
+              - get
+              - patch
+            - apiGroups:
+              - batch
+              resources:
+              - jobs
+              - deployments
+              verbs:
+              - get
+              - patch
+            - apiGroups:
+              - app.k8s.io
+              resources:
+              - applications
+              verbs:
+              - get
+            - apiGroups: ["apiextensions.k8s.io"]
+              resources: ["customresourcedefinitions"]
+              verbs: ["get","list","create","patch"]
+            - apiGroups: ["*"]
+              resources: ["serviceaccounts"]
+              verbs: ["get","list","create"]
+            - apiGroups:
+              - psmdb.percona.com
+              resources:
+              - perconaservermongodbs
+              - perconaservermongodbs/status
+              verbs:
+              - get
+              - create
+              - update
+              - patch
+  deployerHelm.image:
+    type: string
+    x-google-marketplace:
+      type: DEPLOYER_IMAGE
+  perconaServerMongodb.image.tag:
+    type: string
+    x-google-marketplace:
+      type: STRING
+    default: "$PSMDB_42"
+    title: Percona Server MongoDB version
+    description: Choose between builds
+    enum:
+    - "$PSMDB_36"
+    - "$PSMDB_40"
+    - "$PSMDB_42"
+  perconaServerMongodb.datadirSize:
+    type: string
+    x-google-marketplace:
+      type: STRING
+    default: 20Gi
+    pattern: '^[1-9][0-9]*(\.[0-9]+)?[TGM]i?$'
+    title: Percona Server MongoDB Cluster datadir size
+    description: Volume size for DB data dir
+  nodeQuantity:
+    type: integer
+    title: Percona Server MongoDB Cluster node quantity
+    description: Number of nodes in Percona Server MongoDB Cluster. In order to maintain cluster safe configuration the number of nodes should be odd and equal or less than nuber of your Kubernetes cluster nodes
+    default: 3
+    enum:
+    - 1
+    - 3
+    - 5
+    - 7
+    - 9
+
+
+required:
+- name
+- namespace
+- serviceAccountName
+- perconaServerMongodb.image.tag
+- perconaServerMongodb.datadirSize
+- nodeQuantity
