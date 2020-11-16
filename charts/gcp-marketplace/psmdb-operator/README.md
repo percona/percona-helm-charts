@@ -1,54 +1,46 @@
 # Overview
 
-Nuclio is a new serverless project, derived from Iguazio's elastic data
-life cycle management service for high-performance events and data processing.
+The Percona Kubernetes Operator for Percona Server for MongoDB automates the creation, modification, or deletion of items in your Percona Server for MongoDB environment. The Operator contains the necessary Kubernetes settings to maintain a consistent Percona Server for MongoDB instance.
 
-Nuclio lets you write source code defining functions in platform-specific
-conventions (including the triggers configuration and stateful data definition).
-Nuclio converts the source code into container images, stores them in a
-configurable Docker registry (for this app, Container Registry), and then
-deploys their workloads to a Kubernetes cluster.
-
-For more information on Nuclio, see the [Nuclio official website](https://www.nuclio.io/).
+The Percona Kubernetes Operators are based on best practices for the configuration of a Percona Server for MongoDB replica set. The Operator provides many benefits but saving time, a consistent environment are the most important.
 
 ## About Google Click to Deploy
 
-Popular open stacks on Kubernetes, packaged by Google.
+Popular open stacks on Kubernetes packaged by Google.
 
 ## Architecture
 
-![Architecture diagram](resources/nuclio-k8s-app-architecture.png)
+![Architecture diagram](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/_images/operator.png)
 
-The app offers Nuclio custom resource definitions (CRDs) and deployments of
-the Nuclio controller and dashboard on a Kubernetes cluster.
+A replica set consists of one primary server and several secondary ones, and the client application accesses the servers via a driver.
 
-To install Nuclio, you must have access to a Docker registry for building and
-deploying Nuclio apps.
+To provide high availability the Operator uses node affinity to run MongoDB instances on separate worker nodes if possible, and the database cluster is deployed as a single Replica Set with at least three nodes. If a node fails, the pod with the mongod process is automatically re-created on another node. If the failed node was hosting the primary server, the replica set initiates elections to select a new primary. If the failed node was running the Operator, Kubernetes will restart the Operator on another node, so normal operation will not be interrupted.
+
+Client applications should use a mongo+srv URI for the connection. This allows the drivers (3.6 and up) to retrieve the list of replica set members from DNS SRV entries without having to list hostnames for the dynamically assigned nodes.
+
+To provide data storage for stateful applications, Kubernetes uses Persistent Volumes. A PersistentVolumeClaim (PVC) is used to implement the automatic storage provisioning to pods. If a failure occurs, the Container Storage Interface (CSI) should be able to re-mount storage on a different node. The PVC StorageClass must support this feature.
 
 # Installation
 
 ## Quick install with Google Cloud Marketplace
 
-Get up and running with a few clicks! Install this Nuclio app to a
-Google Kubernetes Engine cluster by using Google Cloud Marketplace. Follow the
-[on-screen instructions](https://console.cloud.google.com/marketplace/details/google/nuclio).
+Get up and running with a few clicks! Install this app to a
+Google Kubernetes Engine cluster using Google Cloud Marketplace. Follow the
+[on-screen instructions](https://console.cloud.google.com/marketplace/details/percona/percona-server-mongodb-operator).
 
 ## Command line instructions
 
 ### Prerequisites
 
-#### Set up command line tools
+#### Set up command-line tools
 
-You'll need the following tools in your development environment. If you are
-using Cloud Shell, then `gcloud`, `kubectl`, Docker, and Git are installed in
-your environment by default.
+You'll need the following tools in your development environment. If you are using Cloud Shell, these tools are installed in your environment.
 
 - [gcloud](https://cloud.google.com/sdk/gcloud/)
 - [kubectl](https://kubernetes.io/docs/reference/kubectl/overview/)
 - [docker](https://docs.docker.com/install/)
 - [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
 - [helm](https://helm.sh/)
-- [envsubst](https://command-not-found.com/envsubst)
 
 Configure `gcloud` as a Docker credential helper:
 
@@ -56,68 +48,29 @@ Configure `gcloud` as a Docker credential helper:
 gcloud auth configure-docker
 ```
 
-#### Create a service account to access Container Registry
-
-To provide access to Container Registry, you must create a service account for
-the Nuclio app.
-
-1. Open [Cloud Console](https://console.cloud.google.com/) in your browser.
-1. Select **IAM & admin** from the navigation menu sidebar and then click on
-   **Service accounts**.
-1. Click on **+ CREATE SERVICE ACCOUNT**.
-    1. Provide the name for a new service account.
-       Before saving a new account, please take a note of the generated
-       "Service account ID", which will look something like
-       `[SA_NAME]@[PROJECT_ID].iam.gserviceaccount.com`. It will be needed
-       throughout the following steps.
-    1. Click **Done** to proceed.
-1. Click **Continue** to skip the "Grant this service account access to
-   project" step without making any changes.
-1. To complete the "Grant users access to this service account" step, you must
-   create and download a secret key.
-1. Click **CREATE KEY** and choose to use JSON as the key type.
-    1. Click **CREATE**.
-    1. Your JSON key will download automatically. Store the key file in a
-       secure place.
-       It will be required for further configuration steps.
-
-Set up permissions for the created service account:
-
-1. From the navigation menu, select **Storage**.
-1. Find a bucket which is used as the Docker registry, and which has a name
-   similar to `artifacts.[PROJECT_ID].appspot.com`. Click on it to open it.
-1. Switch to the **Permissions** tab.
-1. Click **Add members**.
-    1. Add new members by their service account IDs, as created and saved in the
-       previous steps.
-    1. Choose **Storage** -> **Storage Admin** to add a new role for a service account.
-    1. Click **SAVE** to save the new role.
-
-To create a Kubernetes Secret resource, follow [these instructions](#create-secret-resource-for-gcp-docker-registry).
-
 #### Create a Google Kubernetes Engine (GKE) cluster
 
 Create a new cluster from the command line:
 
 ```shell
-export CLUSTER=nuclio-cluster
+export CLUSTER=psmdb-cluster
 export ZONE=us-west1-a
 
-gcloud container clusters create "${CLUSTER}" --zone "${ZONE}"
+gcloud container clusters create "$CLUSTER" --zone "$ZONE"
 ```
 
 Configure `kubectl` to connect to the new cluster.
 
 ```shell
-gcloud container clusters get-credentials "${CLUSTER}" --zone "${ZONE}"
+gcloud container clusters get-credentials "$CLUSTER" --zone "$ZONE"
 ```
 
 #### Clone this repo
 
-Clone this repo and its associated tools repo:
+Clone this repo and the associated tools repo:
 
 ```shell
-git clone --recursive https://github.com/GoogleCloudPlatform/click-to-deploy.git
+git clone --recursive https://github.com/percona/percona-helm-charts
 ```
 
 #### Install the Application resource definition
@@ -131,134 +84,98 @@ To set up your cluster to understand Application resources, run the following co
 kubectl apply -f "https://raw.githubusercontent.com/GoogleCloudPlatform/marketplace-k8s-app-tools/master/crd/app-crd.yaml"
 ```
 
-You must run this command at least once.
+You need to run this command once.
 
 The Application resource is defined by the
-[Kubernetes SIG-apps](https://github.com/kubernetes/community/tree/master/sig-apps) community.
-The source code can be found at [github.com/kubernetes-sigs/application](https://github.com/kubernetes-sigs/application).
+[Kubernetes SIG-apps](https://github.com/kubernetes/community/tree/master/sig-apps) community. The source code can be found on
+[github.com/kubernetes-sigs/application](https://github.com/kubernetes-sigs/application).
 
-### Install the app
+### Install MariaDB
 
-Navigate to the `nuclio` directory:
+Navigate to the `mariadb` directory:
 
 ```shell
-cd click-to-deploy/k8s/nuclio
+cd percona-helm-charts/charts/gcp-marketplace/psmdb-operator
 ```
 
-#### Configure the app with environment variables
+#### Configure the environment variables
 
 Choose an instance name and
 [namespace](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/)
 for the app. In most cases, you can use the `default` namespace.
 
 ```shell
-export APP_INSTANCE_NAME=nuclio-1
+export APP_INSTANCE_NAME=psmdb-operator
 export NAMESPACE=default
+```
+
+(Optional) Enable Stackdriver Metrics Exporter:
+
+> **NOTE:** Your GCP project must have Stackdriver enabled. If you are using a
+> non-GCP cluster, you cannot export metrics to Stackdriver.
+
+By default, the application does not export metrics to Stackdriver. To enable
+this option, change the value to `true`.
+
+```shell
+export METRICS_EXPORTER_ENABLED=false
 ```
 
 Set up the image tag:
 
 It is advised to use stable image reference which you can find on
-[Marketplace Container Registry](https://marketplace.gcr.io/google/nuclio).
+[Marketplace Container Registry](https://marketplace.gcr.io/google/mariadb).
 Example:
 
 ```shell
-export TAG="1.1.33-20200306-110059"
+export TAG="1.5.0"
 ```
 
-Alternatively you can use short tag which points to the latest image for selected version.
-> Warning: this tag is not stable and referenced image might change over time.
+Configure the container image:
 
 ```shell
-export TAG="1.1"
+export IMAGE_OPERATOR="marketplace.gcr.io/google/percona/percona-server-mongodb-operator"
+export IMAGE_MONGODB="marketplace.gcr.io/google/percona/percona-server-mongodb-operator/mongod"
+export TAG_MONGODB="4.2"
 ```
 
-Configure the container images:
+Set the number of replicas for MariaDB:
 
 ```shell
-export IMAGE_CONTROLLER="marketplace.gcr.io/google/nuclio"
-export IMAGE_DASHBOARD="marketplace.gcr.io/google/nuclio/dashboard"
+export REPLICAS=3
 ```
 
-If you are using the Container Registry Docker registry, you should define the push/pull
-URL, which is different from the login URL.
+For the persistent disk provisioning of the MariaDB StatefulSets, you will need to:
 
-To use the Docker registry from your current project, enter the following command:
-
-```shell
-export PUSH_PULL_URL="gcr.io/$(gcloud config get-value project)/${APP_INSTANCE_NAME}-images"
-```
-
-You also have the option of defining another registry Secret name.
-By default, it is `${APP_INSTANCE_NAME}-registry-credentials`.
+ * Set the persistent disk's size. The default disk size is "32Gi".
 
 ```shell
-export REGISTRY_SECRET="docker-credentials"
-```
-
-You can also specify the number of replicas for the Nuclio dashboard.
-The default - and recommended - value for this is 1.
-
-```shell
-export DASHBOARD_REPLICAS=1
+export MONGODB_DATADIR_SIZE="32Gi"
 ```
 
 #### Create namespace in your Kubernetes cluster
 
-If you use a different namespace than the `default`, run the command
-below to create a new namespace:
+If you use a different namespace than the `default`, run the command below to create a new namespace:
 
 ```shell
-kubectl create namespace "${NAMESPACE}"
+kubectl create namespace "$NAMESPACE"
 ```
-
-#### Create a Secret resource for the Container Registry Docker registry
-
-This step will require a key, which you can create following
-[these instructions](#create-service-account-to-access-gcp-registry).
-
-If you are using a different namespace from the `default`, please create
-it by following
-[these instructions](#create-namespace-in-your-kubernetes-cluster).
-
-To create a Secret resource which contains credentials for the Container
-Registry Docker registry, modify and run the following command:
-
-```shell
-export KEY_JSON=[PATH_TO_KEY]
-kubectl --namespace "${NAMESPACE}" create secret docker-registry ${APP_INSTANCE_NAME}-registry-credentials \
-        --docker-server=gcr.io \
-        --docker-username=_json_key \
-        --docker-password="$(cat ${KEY_JSON})" \
-        --docker-email=email@example.com
-```
-
-where `PATH_TO_KEY` is the path to the key created in
-[the previous step](#create-secret-resource-for-the-container-registry-docker-registry).
-
-If you're using a private Docker registry, you can create this Secret by
-following
-[these steps](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/)
-from the official Kubernetes documentation.
 
 ##### Create dedicated Service accounts
 
 Define the environment variables:
 
 ```shell
-export DASHBOARD_SERVICE_ACCOUNT="${APP_INSTANCE_NAME}-nuclio-dashboard"
-export CONTROLLER_SERVICE_ACCOUNT="${APP_INSTANCE_NAME}-nuclio-controller"
-export CRD_SERVICE_ACCOUNT="${APP_INSTANCE_NAME}-nuclio-crd-creator-job"
+export OPERATOR_SERVICE_ACCOUNT="${APP_INSTANCE_NAME}-sa"
+export CRD_SERVICE_ACCOUNT="${APP_INSTANCE_NAME}-crd-creator-job"
 ```
 
 Expand the manifest to create Service accounts:
 
 ```shell
 cat resources/service-accounts.yaml \
-  | envsubst '${APP_INSTANCE_NAME} \
-              ${NAMESPACE} \
-              ${DASHBOARD_SERVICE_ACCOUNT} \
-              ${CONTROLLER_SERVICE_ACCOUNT} \
+  | envsubst '${NAMESPACE} \
+              ${OPERATOR_SERVICE_ACCOUNT} \
               ${CRD_SERVICE_ACCOUNT}' \
     > "${APP_INSTANCE_NAME}_sa_manifest.yaml"
 ```
@@ -273,23 +190,19 @@ kubectl apply -f "${APP_INSTANCE_NAME}_sa_manifest.yaml" \
 #### Expand the manifest template
 
 Use `helm template` to expand the template. We recommend that you save the
-expanded manifest file for future updates to the app.
+expanded manifest file for future updates to the application.
 
 ```shell
-helm template chart/nuclio \
-  --name ${APP_INSTANCE_NAME} \
+helm template ${APP_INSTANCE_NAME} chart/psmdb-operator \
   --namespace ${NAMESPACE} \
-  --set controller.image.repo=${IMAGE_CONTROLLER} \
-  --set controller.image.tag=${TAG} \
-  --set dashboard.image.repo=${IMAGE_DASHBOARD} \
-  --set dashboard.image.tag=${TAG} \
+  --set operator.image.repo=${IMAGE_OPERATOR} \
+  --set operator.image.tag=${TAG} \
   --set deployerHelm.image="gcr.io/cloud-marketplace-tools/k8s/deployer_helm:0.8.0" \
-  $( [[ -n "${PUSH_PULL_URL}" ]] && echo "--set registry.pushPullUrl=${PUSH_PULL_URL}" ) \
-  $( [[ -n "${REGISTRY_SECRET}" ]] && echo "--set registry.registry.secretName=${REGISTRY_SECRET}" ) \
-  $( [[ -n "${DASHBOARD_REPLICAS}" ]] && echo "--set dashboard.replicas=${DASHBOARD_REPLICAS}" ) \
-  --set dashboard.serviceAccountName=${DASHBOARD_SERVICE_ACCOUNT} \
-  --set controller.serviceAccountName=${CONTROLLER_SERVICE_ACCOUNT} \
+  --set operator.serviceAccountName=${OPERATOR_SERVICE_ACCOUNT} \
   --set CDRJobServiceAccount=${CRD_SERVICE_ACCOUNT} \
+  --set mongod.image.tag=${TAG_MONGODB} \
+  --set mongod.datadirSize=${MONGODB_DATADIR_SIZE} \
+  --set mongod.replicas=${REPLICAS} \
   > ${APP_INSTANCE_NAME}_manifest.yaml
 ```
 
@@ -301,9 +214,9 @@ Use `kubectl` to apply the manifest to your Kubernetes cluster:
 kubectl apply -f "${APP_INSTANCE_NAME}_manifest.yaml" --namespace "${NAMESPACE}"
 ```
 
-#### View the app in the Google Cloud Console
+#### View the app in the Google Cloud Platform Console
 
-To get the Cloud Console URL for your app, run the following command:
+To get the Console URL for your app, run the following command:
 
 ```shell
 echo "https://console.cloud.google.com/kubernetes/application/${ZONE}/${CLUSTER}/${NAMESPACE}/${APP_INSTANCE_NAME}"
@@ -311,84 +224,105 @@ echo "https://console.cloud.google.com/kubernetes/application/${ZONE}/${CLUSTER}
 
 To view the app, open the URL in your browser.
 
-### Access the Nuclio dashboard service (locally)
+### Access Percona Server for MongoDB within the network
 
-The Nuclio dashboard will be available at
-[http://localhost:8070/](http://localhost:8070/).
+You can connect to Percona Server for MongoDB without exposing it to public access, using the
+`mongo` command line interface. We recommend making all connection via the corresponding network service.
 
-```shell
-kubectl --namespace "${NAMESPACE}" port-forward service/${APP_INSTANCE_NAME}-dashboard 8070:8070
-```
+The user credentials are configured on application start up by the operator. More information about user management
+could be foud [here](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/users.html)
 
-# Scaling up or down
+#### Connect to Percona Server for MongoDB using a client Pod
 
-### Nuclio controller
-
-Scaling is not supported for the Nuclio controller.
-
-### Nuclio dashboard
-
-To change the number of dashboard replicas, use the following command:
+Run percona-client and connect its console output to your terminal (running it may require some time to deploy the correspondent Pod):
 
 ```shell
-kubectl scale deployment "${APP_INSTANCE_NAME}-dashboard" \
-  --namespace "${NAMESPACE}" --replicas=<new-replicas>
+kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:4.2.8-8 --restart=Never \
+            --env MONGO_USER=$(kubectl get secret/${APP_INSTANCE_NAME}-secrets -o jsonpath='{.data.MONGODB_USER_ADMIN_USER}' | base64 -d) \
+            --env MONGO_PASSWORD=$(kubectl get secret/${APP_INSTANCE_NAME}-secrets -o jsonpath='{.data.MONGODB_USER_ADMIN_PASSWORD}' | base64 -d) \
+            --env NAMESPACE=${NAMESPACE} \
+            --env NAME=${APP_INSTANCE_NAME} \
+            -- bash -il
+#wait for shell and than run
+mongo "mongodb+srv://${MONGO_USER}:${MONGO_PASSWORD}@${NAME}-rs0.${NAMESPACE}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
 ```
 
-# Backup and restore
+### Access Percona Server for MongoDB through an external IP address
 
-## Back up Nuclio configuration data to your local environment
+By default, the application does not have an external IP address. To create an external IP address, run the following command:
 
-To back up Nuclio resources, use the following command:
+```
+kubectl patch psmdb "${APP_INSTANCE_NAME}" \
+  --namespace "${NAMESPACE}" \
+  --type=json \
+  -p '[{"op":"replace","path":"/spec/replsets/0/expose/enabled","value":"true"}]'
+```
+It adds loadbalancer services to every pod available.
+
+> **NOTE:** It might take some time for the external IP to be provisioned.
+
+### Access the Percona Server for MongoDB service
+
+**Option 1:** If you run your Percona Server for MongoDB cluster behind a LoadBalancer, you can get the external IP of the MariaDB primary instance using the following command:
 
 ```shell
-export NAMESPACE=default
-kubectl --namespace "${NAMESPACE}" get crd \
-   nucliofunctionevents.nuclio.io \
-   nucliofunctions.nuclio.io \
-   nuclioprojects.nuclio.io \
-   --output=yaml > backup_file.yaml
+EXTERNAL_IP-0=$(kubectl get svc ${APP_INSTANCE_NAME}-rs0-0 \
+  --namespace ${NAMESPACE} \
+  --output jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+echo "${EXTERNAL_IP-0}"
 ```
 
-## Restore Nuclio configuration data
-
+If your number of mongodb replicas bigger than one, you can find additional external IPs
 ```shell
-kubectl --namespace "${NAMESPACE}" apply -f backup_file.yaml
+EXTERNAL_IP-1=$(kubectl get svc ${APP_INSTANCE_NAME}-rs0-1 \
+  --namespace ${NAMESPACE} \
+  --output jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+echo "${EXTERNAL_IP-1}"
+...
+EXTERNAL_IP-<N>=$(kubectl get svc ${APP_INSTANCE_NAME}-rs0-<N> \
+  --namespace ${NAMESPACE} \
+  --output jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+echo "${EXTERNAL_IP-<N>}"
 ```
 
-# Upgrading the app
 
-The Nuclio deployment is configured to roll out updates
-automatically. To start an update, patch the deployment with
-a new image reference:
-
-```shell
-kubectl set image deployment ${APP_INSTANCE_NAME}-dashboard --namespace ${NAMESPACE} \
-  "nuclio=[NEW_DASHBOARD_IMAGE_REFERENCE]"
-kubectl set image deployment ${APP_INSTANCE_NAME}-controller --namespace ${NAMESPACE} \
-  "nuclio=[NEW_CONTROLLER_IMAGE_REFERENCE]"
+```bash
+# connect to mongodb server
+mongo "mongodb://<user>:<password@${EXTERNAL_IP-0}:27017/admin?ssl=false\&replicaSet=rs0"
+# also multiple addresses could be used
+mongo "mongodb://<user>:<password@${EXTERNAL_IP-0},${EXTERNAL_IP-1}...${EXTERNAL_IP-N}:27017/admin?ssl=false\&replicaSet=rs0"
 ```
 
-where `[NEW_DASHBOARD_IMAGE_REFERENCE]` and
-`[NEW_CONTROLLER_IMAGE_REFERENCE]` are the Docker image
-references of the new images that you want to use.
+# Scaling
 
-To check the status of Pods in the StatefulSet, and the progress
-of the new image, run the following command:
+## Scaling the cluster up or down
 
-```shell
-kubectl get pods --selector app.kubernetes.io/name=${APP_INSTANCE_NAME} \
-  --namespace ${NAMESPACE}
+By default, Percona Server for MongoDB application is deployed using 3 replicas.
+To change the number of replicas, use the following command:
+
+```
+kubectl patch psmdb "${APP_INSTANCE_NAME}" \
+  --namespace "${NAMESPACE}" \
+  --type=json \
+  -p '[{"op":"replace","path":"/spec/replsets/0/size","value":'${REPLICAS}'}]'
 ```
 
-# Uninstall the app
+Where `REPLICAS` is the number of replicas you want.
 
-## Using the Google Cloud Console
+# Backup and Restore
 
-1. In the Cloud Console, open
-   [Kubernetes Applications](https://console.cloud.google.com/kubernetes/application).
+The detailed set of steps for backup and restores you can find here [Backups and Restores documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/backups.html).
 
-1. From the list of apps, select **Nuclio**.
+# Uninstall the Application
+
+## Using the Google Cloud Platform Console
+
+1. In the GCP Console, open [Kubernetes Applications](https://console.cloud.google.com/kubernetes/application).
+
+1. From the list of applications, click **Percona Server MongoDB Operator**.
 
 1. On the Application Details page, click **Delete**.
 
@@ -399,41 +333,55 @@ kubectl get pods --selector app.kubernetes.io/name=${APP_INSTANCE_NAME} \
 Set your installation name and Kubernetes namespace:
 
 ```shell
-export APP_INSTANCE_NAME=nuclio-1
+export APP_INSTANCE_NAME=psmdb-operator
 export NAMESPACE=default
 ```
 
 ### Delete the resources
 
-> **NOTE:** We recommend that you use a kubectl version that
-is the same as the version of your cluster. Using the same
-versions for kubectl and the cluster helps to avoid unforeseen
-issues.
+> **NOTE:** We recommend using a `kubectl` version that is the same as the version of your cluster. Using the same versions of `kubectl` and the cluster helps avoid unforeseen issues.
 
-To delete the resources, use the expanded manifest file used
-for the installation.
+To delete the resources, use the expanded manifest file used for the
+installation.
 
 Run `kubectl` on the expanded manifest file:
 
 ```shell
-kubectl delete -f ${APP_INSTANCE_NAME}_manifest.yaml --namespace ${NAMESPACE}
+kubectl delete -f ${APP_INSTANCE_NAME}_manifest.yaml --namespace $NAMESPACE
 ```
 
-Otherwise, delete the resources by using types and a label:
+Otherwise, delete the resources using types and a label:
 
 ```shell
 kubectl delete application \
-  --namespace ${NAMESPACE} \
-  --selector app.kubernetes.io/name=${APP_INSTANCE_NAME}
+  --namespace $NAMESPACE \
+  --selector app.kubernetes.io/name=$APP_INSTANCE_NAME
 ```
 
-> **NOTE:** This will delete only the Nuclio app itself. All Nuclio-managed resources will remain available.
+### Delete the persistent volumes of your installation
+
+By design, the removal of StatefulSets in Kubernetes does not remove
+PersistentVolumeClaims that were attached to their Pods. This prevents your
+installations from accidentally deleting stateful data.
+
+To remove the PersistentVolumeClaims with their attached persistent disks, run
+the following `kubectl` commands:
+
+```shell
+# specify the variables values matching your installation:
+export APP_INSTANCE_NAME=psmdb-operator
+export NAMESPACE=default
+
+kubectl delete persistentvolumeclaims \
+  --namespace $NAMESPACE \
+  --selector app.kubernetes.io/name=$APP_INSTANCE_NAME
+```
 
 ### Delete the GKE cluster
 
-Optionally, if you don't need the deployed app or the GKE
-cluster, delete the cluster by using this command:
+Optionally, if you don't need the deployed application or the GKE cluster,
+delete the cluster using this command:
 
 ```shell
-gcloud container clusters delete "${CLUSTER}" --zone "${ZONE}"
+gcloud container clusters delete "$CLUSTER" --zone "$ZONE"
 ```

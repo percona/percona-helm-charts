@@ -40,7 +40,7 @@ spec:
       By default, the app does not have an external IP address. To get the
       status of the cluster, use `kubectl` to execute `mongodb` on a percona mongodb client pod:
       ```
-      kubectl run -i --rm --tty percona-client --image={{ .Values.perconaServerMongodb.image.registry }}/{{ .Values.perconaServerMongodb.image.repository }}:{{ .Values.perconaServerMongodb.image.tag }} --restart=Never -- bash -il
+      kubectl run -i --rm --tty percona-client --image={{ .Values.mongod.image.registry }}/{{ .Values.mongod.image.repository }}:{{ .Values.mongod.image.tag }} --restart=Never -- bash -il
       ```
       Executing this command will open a bash command prompt:
       ```
@@ -52,17 +52,17 @@ spec:
       mongo "mongodb+srv://<user>:<password>@{{ .Release.Name }}-rs0.{{ .Release.Namespace }}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
       ```
   info:
-  - name: Percona Server MongoDB clusterAdmin user
+  - name: Percona Server MongoDB admin user
     type: Reference
     valueFrom:
       secretKeyRef:
-        key: MONGODB_CLUSTER_ADMIN_USER
+        key: MONGODB_USER_ADMIN_USER
         name: {{ .Release.Name }}-secrets
-  - name: Percona Server MongoDB clusterAdmin password
+  - name: Percona Server MongoDB admin password
     type: Reference
     valueFrom:
       secretKeyRef:
-        key: MONGODB_CLUSTER_ADMIN_PASSWORD
+        key: MONGODB_USER_ADMIN_PASSWORD
         name: {{ .Release.Name }}-secrets
   selector:
     matchLabels:

@@ -9,7 +9,7 @@ metadata:
       name: {{ .Release.Name }}
       uid: ${PARENT_UID}
 spec:
-  image: "{{ .Values.perconaServerMongodb.image.registry }}/{{ .Values.perconaServerMongodb.image.repository }}:{{ .Values.perconaServerMongodb.image.tag }}"
+  image: "{{ .Values.mongod.image.registry }}/{{ .Values.mongod.image.repository }}:{{ .Values.mongod.image.tag }}"
   imagePullPolicy: Always
   allowUnsafeConfigurations: false
   updateStrategy: SmartUpdate
@@ -25,7 +25,7 @@ spec:
     serverHost: monitoring-service
   replsets:
   - name: rs0
-    size: 3
+    size: {{ .Values.mongod.replicas }}
     affinity:
       antiAffinityTopologyKey: "kubernetes.io/hostname"
     podDisruptionBudget:
@@ -88,4 +88,4 @@ spec:
     enabled: true
     restartOnFailure: true
     image: "{{ .Values.operator.image.registry }}/{{ .Values.operator.image.repository }}:{{ .Values.operator.image.tag | trunc 5 }}-backup"
-    serviceAccountName: percona-server-mongodb-operator
+    serviceAccountName: {{ .Values.operator.serviceAccountName }}
