@@ -2,6 +2,8 @@ name: Release Charts
 
 on:
   push:
+    path-ignore:
+      - 'charts/gcp-marketplace/**'
     branches:
       - master
 
