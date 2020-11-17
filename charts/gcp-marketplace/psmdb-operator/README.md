@@ -90,9 +90,9 @@ The Application resource is defined by the
 [Kubernetes SIG-apps](https://github.com/kubernetes/community/tree/master/sig-apps) community. The source code can be found on
 [github.com/kubernetes-sigs/application](https://github.com/kubernetes-sigs/application).
 
-### Install MariaDB
+### Install Percona Kubernetes Operator for Percona Server for MongoDB
 
-Navigate to the `mariadb` directory:
+Navigate to the `psmdb-operator` directory:
 
 ```shell
 cd percona-helm-charts/charts/gcp-marketplace/psmdb-operator
@@ -109,22 +109,10 @@ export APP_INSTANCE_NAME=psmdb-operator
 export NAMESPACE=default
 ```
 
-(Optional) Enable Stackdriver Metrics Exporter:
-
-> **NOTE:** Your GCP project must have Stackdriver enabled. If you are using a
-> non-GCP cluster, you cannot export metrics to Stackdriver.
-
-By default, the application does not export metrics to Stackdriver. To enable
-this option, change the value to `true`.
-
-```shell
-export METRICS_EXPORTER_ENABLED=false
-```
-
 Set up the image tag:
 
 It is advised to use stable image reference which you can find on
-[Marketplace Container Registry](https://marketplace.gcr.io/google/mariadb).
+[Marketplace Container Registry](https://marketplace.gcr.io/google/psmdb-operator).
 Example:
 
 ```shell
@@ -139,13 +127,13 @@ export IMAGE_MONGODB="marketplace.gcr.io/google/percona/percona-server-mongodb-o
 export TAG_MONGODB="4.2"
 ```
 
-Set the number of replicas for MariaDB:
+Set the number of replicas for Percona Server for MongoDB:
 
 ```shell
 export REPLICAS=3
 ```
 
-For the persistent disk provisioning of the MariaDB StatefulSets, you will need to:
+For the persistent disk provisioning of the Percona Server for MongoDB StatefulSets, you will need to:
 
  * Set the persistent disk's size. The default disk size is "32Gi".
 
@@ -263,7 +251,7 @@ It adds loadbalancer services to every pod available.
 
 ### Access the Percona Server for MongoDB service
 
-**Option 1:** If you run your Percona Server for MongoDB cluster behind a LoadBalancer, you can get the external IP of the MariaDB primary instance using the following command:
+**Option 1:** If you run your Percona Server for MongoDB cluster behind a LoadBalancer, you can get the external IP of the instance using the following command:
 
 ```shell
 EXTERNAL_IP-0=$(kubectl get svc ${APP_INSTANCE_NAME}-rs0-0 \
