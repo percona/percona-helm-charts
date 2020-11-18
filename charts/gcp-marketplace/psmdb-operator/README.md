@@ -218,7 +218,7 @@ You can connect to Percona Server for MongoDB without exposing it to public acce
 `mongo` command line interface. We recommend making all connection via the corresponding network service.
 
 The user credentials are configured on application start up by the operator. More information about user management
-could be foud [here](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/users.html)
+could be found [here](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/users.html)
 
 #### Connect to Percona Server for MongoDB using a client Pod
 
