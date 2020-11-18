@@ -1,0 +1,48 @@
+actions:
+- name: Wait for all pods
+  bashTest:
+    script: |-
+      TIMEOUT=120
+      INTERVAL=5
+      PERIOD=0
+      while [[ "$(kubectl get psmdb/${APP_INSTANCE_NAME} -o jsonpath='{.status.replsets.rs0.ready}')" \
+                    -ne "$(kubectl get psmdb/${APP_INSTANCE_NAME} -o jsonpath='{.status.replsets.rs0.size}')" ]]; do
+          sleep ${INTERVAL}
+          ((PERIOD+=INTERVAL))
+          if [[ "${PERIOD}" -ge "${TIMEOUT}" ]]; then
+              exit 1
+          fi
+      done
+    expect:
+      exitCode:
+        equals: 0
+- name: Can connect to a database
+  bashTest:
+    script: |-
+      printf "db.runCommand({ ping: 1 }).ok" \
+      | mongo "mongodb+srv://${MONGO_USER}:${MONGO_PASSWORD}@${APP_INSTANCE_NAME}-rs0.${NAMESPACE}.svc.cluster.local/admin?replicaSet=rs0&ssl=false" --quiet
+    expect:
+      stdout:
+        matches: 1
+      exitCode:
+        equals: 0
+- name: Create a user
+  bashTest:
+    script: |-
+      printf 'db.createUser({user: "myApp", pwd: "myPass", roles: [{ db: "myApp", role: "readWrite" }]})' \
+      | mongo "mongodb+srv://${MONGO_USER}:${MONGO_PASSWORD}@${APP_INSTANCE_NAME}-rs0.${NAMESPACE}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
+    expect:
+      stdout:
+        contains: "Successfully added user"
+      exitCode:
+        equals: 0
+- name: Put some data
+  bashTest:
+    script: |-
+      printf 'use myApp\n db.test.insert({ x: 100500 })' \
+      | mongo "mongodb+srv://myApp:myPass@${APP_INSTANCE_NAME}-rs0.${NAMESPACE}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
+    expect:
+      stdout:
+        contains: 'WriteResult({ "nInserted" : 1 })'
+      exitCode:
+        equals: 0
