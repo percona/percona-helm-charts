@@ -6,7 +6,7 @@
 # platform: kubernetes
 
 # Cluster DNS Suffix
-# DNSsuffix: .svc.cluster.local
+# DNSsuffix: svc.cluster.local
 
 pause: false
 allowUnsafeConfigurations: false
