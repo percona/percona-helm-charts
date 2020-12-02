@@ -17,12 +17,31 @@ x-google-marketplace:
           type: REPO_WITHOUT_REGISTRY
         operator.image.tag:
           type: TAG
-    mongod:
+    psmdb:
       properties:
-        mongod.image.registry:
+        psmdb.image.registry:
           type: REGISTRY
-        mongod.image.repository:
+        psmdb.image.repository:
           type: REPO_WITHOUT_REGISTRY
+        psmdb.image.tag:
+          type: TAG
+    backup:
+      properties:
+        backup.image.registry:
+          type: REGISTRY
+        backup.image.repository:
+          type: REPO_WITHOUT_REGISTRY
+        backup.image.tag:
+          type: TAG
+    pmm:
+      properties:
+        pmm.image.registry:
+          type: REGISTRY
+        pmm.image.repository:
+          type: REPO_WITHOUT_REGISTRY
+        pmm.image.tag:
+          type: TAG
+
   clusterConstraints:
     resources:
     - replicas: 3
@@ -198,7 +217,7 @@ properties:
     type: string
     x-google-marketplace:
       type: DEPLOYER_IMAGE
-  mongod.image.tag:
+  psmdb.image.version:
     type: string
     x-google-marketplace:
       type: STRING
@@ -209,7 +228,7 @@ properties:
     - "$PSMDB_36"
     - "$PSMDB_40"
     - "$PSMDB_42"
-  mongod.datadirSize:
+  psmdb.datadirSize:
     type: string
     x-google-marketplace:
       type: STRING
@@ -217,7 +236,7 @@ properties:
     pattern: '^[1-9][0-9]*(\.[0-9]+)?[TGM]i?$'
     title: Percona Server MongoDB Cluster datadir size
     description: Volume size for DB data dir
-  mongod.replicas:
+  psmdb.replicas:
     type: integer
     title: Percona Server MongoDB Cluster node quantity
     description: Number of nodes in Percona Server MongoDB Cluster. In order to maintain cluster safe configuration the number of nodes should be odd and equal or less than nuber of your Kubernetes cluster nodes
@@ -234,6 +253,6 @@ required:
 - name
 - namespace
 - operator.serviceAccountName
-- mongod.image.tag
-- mongod.datadirSize
-- mongod.replicas
+- psmdb.image.version
+- psmdb.datadirSize
+- psmdb.replicas

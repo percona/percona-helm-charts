@@ -9,7 +9,7 @@ metadata:
       name: {{ .Release.Name }}
       uid: ${PARENT_UID}
 spec:
-  image: "{{ .Values.mongod.image.registry }}/{{ .Values.mongod.image.repository }}:{{ .Values.mongod.image.tag }}"
+  image: "{{ .Values.psmdb.image.registry }}/{{ .Values.psmdb.image.repository }}-{{ .Values.psmdb.image.version }}:{{ .Values.psmdb.image.tag }}"
   imagePullPolicy: Always
   allowUnsafeConfigurations: false
   updateStrategy: SmartUpdate
@@ -21,11 +21,11 @@ spec:
     users: {{ .Release.Name | trunc 22 }}-secrets
   pmm:
     enabled: false
-    image: "{{ .Values.operator.image.registry }}/{{ .Values.operator.image.repository }}:{{ .Values.operator.image.tag | trunc 5 }}-pmm"
+    image: "{{ .Values.pmm.image.registry }}/{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
     serverHost: monitoring-service
   replsets:
   - name: rs0
-    size: {{ .Values.mongod.replicas }}
+    size: {{ .Values.psmdb.replicas }}
     affinity:
       antiAffinityTopologyKey: "kubernetes.io/hostname"
     podDisruptionBudget:
@@ -87,5 +87,5 @@ spec:
   backup:
     enabled: true
     restartOnFailure: true
-    image: "{{ .Values.operator.image.registry }}/{{ .Values.operator.image.repository }}:{{ .Values.operator.image.tag | trunc 5 }}-backup"
+    image: "{{ .Values.backup.image.registry }}/{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
     serviceAccountName: {{ .Values.operator.serviceAccountName }}
