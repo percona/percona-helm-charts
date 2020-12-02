@@ -122,8 +122,11 @@ export TAG="1.5.0"
 Configure the container image:
 
 ```shell
-export IMAGE_OPERATOR="marketplace.gcr.io/google/percona/percona-server-mongodb-operator"
-export IMAGE_MONGODB="marketplace.gcr.io/google/percona/percona-server-mongodb-operator/mongod"
+export IMAGE_REGISTRY="marketplace.gcr.io"
+export IMAGE_OPERATOR="google/percona/percona-server-mongodb-operator"
+export IMAGE_MONGODB="${IMAGE_OPERATOR}/psmdb"
+export IMAGE_BACKUP="${IMAGE_OPERATOR}/backup"
+export IMAGE_PMM="${IMAGE_OPERATOR}/pmm"
 export TAG_MONGODB="4.2"
 ```
 
@@ -183,14 +186,24 @@ expanded manifest file for future updates to the application.
 ```shell
 helm template ${APP_INSTANCE_NAME} chart/psmdb-operator \
   --namespace ${NAMESPACE} \
-  --set operator.image.repo=${IMAGE_OPERATOR} \
+  --set operator.image.registry=${IMAGE_REGISTRY} \
+  --set operator.image.repository=${IMAGE_OPERATOR} \
   --set operator.image.tag=${TAG} \
+  --set psmdb.image.registry=${IMAGE_REGISTRY} \
+  --set psmdb.image.repository=${IMAGE_MONGODB} \
+  --set psmdb.image.tag=${TAG} \
+  --set backup.image.registry=${IMAGE_REGISTRY} \
+  --set backup.image.repository=${IMAGE_BACKUP} \
+  --set backup.image.tag=${TAG} \
+  --set pmm.image.registry=${IMAGE_REGISTRY} \
+  --set pmm.image.repository=${IMAGE_PMM} \
+  --set pmm.image.tag=${TAG} \
   --set deployerHelm.image="gcr.io/cloud-marketplace-tools/k8s/deployer_helm:0.8.0" \
   --set operator.serviceAccountName=${OPERATOR_SERVICE_ACCOUNT} \
   --set CDRJobServiceAccount=${CRD_SERVICE_ACCOUNT} \
-  --set mongod.image.tag=${TAG_MONGODB} \
-  --set mongod.datadirSize=${MONGODB_DATADIR_SIZE} \
-  --set mongod.replicas=${REPLICAS} \
+  --set psmdb.image.version=${TAG_MONGODB} \
+  --set psmdb.datadirSize=${MONGODB_DATADIR_SIZE} \
+  --set psmdb.replicas=${REPLICAS} \
   > ${APP_INSTANCE_NAME}_manifest.yaml
 ```
 
