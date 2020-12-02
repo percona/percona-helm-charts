@@ -6,20 +6,30 @@ replicaCount: 1
 
 operator:
   image:
-    registry: docker.io
-    repository: percona/percona-server-mongodb-operator
-    tag: 1.5.0
-    pullPolicy: IfNotPresent
+    registry: null
+    repository: null
+    tag: null
+    pullPolicy: Always
   serviceAccountName: null
 
-mongod:
+psmdb:
   replicas: null
   datadirSize: null
   image:
-    registry: docker.io
-    repository: percona/percona-server-mongodb
-    tag: 4.2
-    name: percona/percona-xtradb-cluster:4.2
+    registry: null
+    repository: null
+    tag: null
+    version: null
+backup:
+  image:
+    registry: null
+    repository: null
+    tag: null
+pmm:
+  image:
+    registry: null
+    repository: null
+    tag: null
 name: null
 
 

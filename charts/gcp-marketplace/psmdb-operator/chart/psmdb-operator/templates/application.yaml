@@ -40,7 +40,7 @@ spec:
       By default, the app does not have an external IP address. To get the
       status of the cluster, use `kubectl` to execute `mongodb` on a percona mongodb client pod:
       ```
-      kubectl run -i --rm --tty percona-client --image={{ .Values.mongod.image.registry }}/{{ .Values.mongod.image.repository }}:{{ .Values.mongod.image.tag }} --restart=Never -- bash -il
+      kubectl run -i --rm --tty percona-client --image={{ .Values.psmdb.image.registry }}/{{ .Values.psmdb.image.repository }}-{{ .Values.psmdb.image.version }}:{{ .Values.psmdb.image.tag }} --restart=Never -- bash -il
       ```
       Executing this command will open a bash command prompt:
       ```
