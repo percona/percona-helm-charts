@@ -56,3 +56,14 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "psmdb-operator.CRConfigMap" -}}
 {{- printf "%s-cr-config-map" .Release.Name | trunc 63 -}}
 {{- end -}}
+
+{{- define "psmdb-operator.mongoImage" -}}
+{{- $pattern := default (printf "%s/%%s:%s" .Values.psmdb.image.registry .Values.psmdb.image.tag) -}}
+{{- if eq .Values.psmdb.image.version "4.2" }}
+{{- printf $pattern .Values.psmdb42.image.repository -}}
+{{- else if eq .Values.psmdb.image.version "4.0" }}
+{{- printf $pattern .Values.psmdb40.image.repository -}}
+{{- else -}}
+{{- printf $pattern .Values.psmdb36.image.repository -}}
+{{- end -}}
+{{- end -}}
