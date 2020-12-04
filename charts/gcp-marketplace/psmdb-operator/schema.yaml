@@ -17,14 +17,22 @@ x-google-marketplace:
           type: REPO_WITHOUT_REGISTRY
         operator.image.tag:
           type: TAG
-    psmdb:
+    psmdb-4.2:
       properties:
         psmdb.image.registry:
           type: REGISTRY
-        psmdb.image.repository:
+        psmdb42.image.repository:
           type: REPO_WITHOUT_REGISTRY
         psmdb.image.tag:
           type: TAG
+    psmdb-4.0:
+      properties:
+        psmdb40.image.repository:
+          type: REPO_WITHOUT_REGISTRY
+    psmdb-3.6:
+      properties:
+        psmdb36.image.repository:
+          type: REPO_WITHOUT_REGISTRY
     backup:
       properties:
         backup.image.registry:

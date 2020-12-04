@@ -189,9 +189,9 @@ helm template ${APP_INSTANCE_NAME} chart/psmdb-operator \
   --set operator.image.registry=${IMAGE_REGISTRY} \
   --set operator.image.repository=${IMAGE_OPERATOR} \
   --set operator.image.tag=${TAG} \
-  --set psmdb.image.registry=${IMAGE_REGISTRY} \
-  --set psmdb.image.repository=${IMAGE_MONGODB} \
-  --set psmdb.image.tag=${TAG} \
+  --set psmdb42.image.repository=${IMAGE_MONGODB}-4.2 \
+  --set psmdb40.image.repository=${IMAGE_MONGODB}-4.0 \
+  --set psmdb36.image.repository=${IMAGE_MONGODB}-3.6 \
   --set backup.image.registry=${IMAGE_REGISTRY} \
   --set backup.image.repository=${IMAGE_BACKUP} \
   --set backup.image.tag=${TAG} \
@@ -201,6 +201,8 @@ helm template ${APP_INSTANCE_NAME} chart/psmdb-operator \
   --set deployerHelm.image="gcr.io/cloud-marketplace-tools/k8s/deployer_helm:0.8.0" \
   --set operator.serviceAccountName=${OPERATOR_SERVICE_ACCOUNT} \
   --set CDRJobServiceAccount=${CRD_SERVICE_ACCOUNT} \
+  --set psmdb.image.registry=${IMAGE_REGISTRY} \
+  --set psmdb.image.tag=${TAG} \
   --set psmdb.image.version=${TAG_MONGODB} \
   --set psmdb.datadirSize=${MONGODB_DATADIR_SIZE} \
   --set psmdb.replicas=${REPLICAS} \

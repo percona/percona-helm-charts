@@ -9,7 +9,7 @@ metadata:
       name: {{ .Release.Name }}
       uid: ${PARENT_UID}
 spec:
-  image: "{{ .Values.psmdb.image.registry }}/{{ .Values.psmdb.image.repository }}-{{ .Values.psmdb.image.version }}:{{ .Values.psmdb.image.tag }}"
+  image: {{ template "psmdb-operator.mongoImage" . }}
   imagePullPolicy: Always
   allowUnsafeConfigurations: false
   updateStrategy: SmartUpdate
