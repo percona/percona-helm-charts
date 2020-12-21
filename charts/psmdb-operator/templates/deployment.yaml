@@ -33,6 +33,10 @@ spec:
           env:
             - name: WATCH_NAMESPACE
               value: {{ default .Release.Namespace .Values.watchNamespace }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: OPERATOR_NAME
               value: {{ default "percona-server-mongodb-operator" .Values.operatorName }}
             - name: RESYNC_PERIOD

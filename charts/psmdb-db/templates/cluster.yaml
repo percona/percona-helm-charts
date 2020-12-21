@@ -1,9 +1,9 @@
-apiVersion: psmdb.percona.com/v1-5-0
+apiVersion: psmdb.percona.com/v1-6-0
 kind: PerconaServerMongoDB
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"psmdb.percona.com/v1-5-0","kind":"PerconaServerMongoDB"}
+      {"apiVersion":"psmdb.percona.com/v1-6-0","kind":"PerconaServerMongoDB"}
   name: {{ include "psmdb-database.fullname" . }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
@@ -114,6 +114,101 @@ spec:
       {{- else }}
       emptyDir: {}
       {{- end }}
+
+  sharding:
+    enabled: {{ .Values.sharding.enabled }}
+
+    configsvrReplSet:
+      size: {{ .Values.sharding.configrs.size }}
+      affinity:
+        antiAffinityTopologyKey: {{ .Values.sharding.configrs.antiAffinityTopologyKey }}
+      {{- if .Values.sharding.configrs.priorityClass }}
+      priorityClassName: {{ .Values.sharding.configrs.priorityClass }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.annotations }}
+      annotations:
+{{ .Values.sharding.configrs.annotations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.labels }}
+      labels:
+{{ .Values.sharding.configrs.labels | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.nodeSelector }}
+      nodeSelector:
+{{ .Values.sharding.configrs.nodeSelector | toYaml | indent 8 }}
+    {{- end }}
+      podDisruptionBudget:
+        {{- if .Values.sharding.configrs.podDisruptionBudget.maxUnavailable }}
+        maxUnavailable: {{ .Values.sharding.configrs.podDisruptionBudget.maxUnavailable }}
+        {{- else }}
+        minAvailable: {{ .Values.sharding.configrs.podDisruptionBudget.minAvailable }}
+        {{- end }}
+      resources:
+        limits:
+          cpu: {{ .Values.sharding.configrs.resources.limits.cpu }}
+          memory: {{ .Values.sharding.configrs.resources.limits.memory }}
+        requests:
+          cpu: {{ .Values.sharding.configrs.resources.requests.cpu }}
+          memory: {{ .Values.sharding.configrs.resources.requests.memory }}
+      volumeSpec:
+        {{- if .Values.sharding.configrs.volumeSpec.hostPath }}
+        hostPath:
+          path: {{ .Values.sharding.configrs.volumeSpec.hostPath }}
+          type: Directory
+        {{- else if .Values.sharding.configrs.volumeSpec.pvc }}
+        persistentVolumeClaim:
+{{ .Values.sharding.configrs.volumeSpec.pvc | toYaml | indent 10 }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+
+    mongos:
+      size: {{ .Values.sharding.mongos.size }}
+      affinity:
+        antiAffinityTopologyKey: {{ .Values.sharding.mongos.antiAffinityTopologyKey }}
+      {{- if .Values.sharding.mongos.priorityClass }}
+      priorityClassName: {{ .Values.sharding.mongos.priorityClass }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.annotations }}
+      annotations:
+{{ .Values.sharding.mongos.annotations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.labels }}
+      labels:
+{{ .Values.sharding.mongos.labels | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.nodeSelector }}
+      nodeSelector:
+{{ .Values.sharding.mongos.nodeSelector | toYaml | indent 8 }}
+      {{- end }}
+      podDisruptionBudget:
+        {{- if .Values.sharding.mongos.podDisruptionBudget.maxUnavailable }}
+        maxUnavailable: {{ .Values.sharding.mongos.podDisruptionBudget.maxUnavailable }}
+        {{- else }}
+        minAvailable: {{ .Values.sharding.mongos.podDisruptionBudget.minAvailable }}
+        {{- end }}
+      resources:
+        limits:
+          cpu: {{ .Values.sharding.mongos.resources.limits.cpu }}
+          memory: {{ .Values.sharding.mongos.resources.limits.memory }}
+        requests:
+          cpu: {{ .Values.sharding.mongos.resources.requests.cpu }}
+          memory: {{ .Values.sharding.mongos.resources.requests.memory }}
+      expose:
+        exposeType: {{ .Values.sharding.mongos.expose.exposeType }}
+      {{- if .Values.sharding.mongos.loadBalancerSourceRanges }}
+      loadBalancerSourceRanges:
+{{ .Values.sharding.mongos.loadBalancerSourceRanges | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.serviceAnnotations }}
+      serviceAnnotations:
+{{ .Values.sharding.mongos.serviceAnnotations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.auditLog }}
+      auditLog:
+{{ .Values.sharding.mongos.auditLog | toYaml | indent 8 }}
+      {{- end }}
+
   mongod:
     net:
       port: 27017
@@ -132,9 +227,6 @@ spec:
       inMemory:
         engineConfig:
           inMemorySizeRatio: 0.9
-      mmapv1:
-        nsSize: 16
-        smallfiles: false
       wiredTiger:
         engineConfig:
           cacheSizeRatio: 0.5
@@ -148,6 +240,7 @@ spec:
       mode: slowOp
       slowOpThresholdMs: 100
       rateLimit: 100
+
   backup:
     enabled: {{ .Values.backup.enabled }}
     restartOnFailure: true
@@ -161,4 +254,3 @@ spec:
 {{ .Values.backup.storages | toYaml | indent 6 }}
     tasks:
 {{ .Values.backup.tasks | toYaml | indent 6 }}
-
