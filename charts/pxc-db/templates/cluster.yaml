@@ -109,7 +109,7 @@ spec:
     image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
     {{- if $haproxy.imagePullSecrets }}
     imagePullSecrets:
-    {{- $haproxy.imagePullSecrets | toYaml | indent 6 }}
+{{ $haproxy.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
 {{- if hasKey $haproxy "priorityClassName" }}
     priorityClassName: {{ $haproxy.priorityClassName }}
