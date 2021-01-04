@@ -1,4 +1,4 @@
-# Default values for pxc-cluster.
+# Default values for psmdb-cluster.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -12,13 +12,13 @@ pause: false
 allowUnsafeConfigurations: false
 updateStrategy: SmartUpdate
 upgradeOptions:
-  versionServiceEndpoint: https://check.percona.com/versions/
+  versionServiceEndpoint: https://check.percona.com
   apply: recommended
   schedule: "0 2 * * *"
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 4.2.8-8
+  tag: 4.4.2-4
 
 # imagePullSecrets: []
 # runUid: 1001
@@ -27,8 +27,8 @@ secrets: {}
 pmm:
   enabled: false
   image:
-    repository: percona/percona-server-mongodb-operator
-    tag: 1.5.0-pmm
+    repository: percona/pmm-client
+    tag: 2.12.0
   serverHost: monitoring-service
 
 replset:
@@ -69,63 +69,122 @@ replset:
       cpu: "300m"
       memory: "0.5G"
   volumeSpec:
-    #      emptyDir: {}
-    #      hostPath:
-    #        path: /data
+    # emptyDir: {}
+    # hostPath:
+    #   path: /data
     pvc:
-    #        storageClassName: standard
-    #        accessModes: [ "ReadWriteOnce" ]
+      # storageClassName: standard
+      # accessModes: [ "ReadWriteOnce" ]
       resources:
         requests:
           storage: 3Gi
+
+sharding:
+  enabled: true
+
+  configrs:
+    size: 3
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # priorityClass: ""
+    # annotations: {}
+    # labels: {}
+    # nodeSelector: {}
+    podDisruptionBudget:
+      maxUnavailable: 1
+    resources:
+      limits:
+        cpu: "300m"
+        memory: "0.5G"
+      requests:
+        cpu: "300m"
+        memory: "0.5G"
+    volumeSpec:
+      # emptyDir: {}
+      # hostPath:
+      #   path: /data
+      #   type: Directory
+      pvc:
+        # storageClassName: standard
+        # accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 3Gi
+
+  mongos:
+    size: 1
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # priorityClass: ""
+    # annotations: {}
+    # labels: {}
+    # nodeSelector: {}
+    podDisruptionBudget:
+      maxUnavailable: 1
+    resources:
+      limits:
+        cpu: "300m"
+        memory: "0.5G"
+      requests:
+        cpu: "300m"
+        memory: "0.5G"
+    expose:
+      exposeType: ClusterIP
+      # loadBalancerSourceRanges:
+      #   - 10.0.0.0/8
+      # serviceAnnotations:
+      #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    # auditLog:
+    #   destination: file
+    #   format: BSON
+    #   filter: '{}'
+
 backup:
   enabled: true
   restartOnFailure: true
   image:
     repository: percona/percona-server-mongodb-operator
-    tag: 1.5.0-backup
+    tag: 1.6.0-backup
   serviceAccountName: percona-server-mongodb-operator
-  #    resources:
-  #      limits:
-  #        cpu: "300m"
-  #        memory: "0.5G"
-  #      requests:
-  #        cpu: "300m"
-  #        memory: "0.5G"
+  # resources:
+  #   limits:
+  #     cpu: "300m"
+  #     memory: "0.5G"
+  #   requests:
+  #     cpu: "300m"
+  #     memory: "0.5G"
   storages:
-  #      s3-us-west:
-  #        type: s3
-  #        s3:
-  #          bucket: S3-BACKUP-BUCKET-NAME-HERE
-  #          credentialsSecret: my-cluster-name-backup-s3
-  #          region: us-west-2
-  #      minio:
-  #        type: s3
-  #        s3:
-  #          bucket: MINIO-BACKUP-BUCKET-NAME-HERE
-  #          region: us-east-1
-  #          credentialsSecret: my-cluster-name-backup-minio
-  #          endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
+  # s3-us-west:
+  #   type: s3
+  #   s3:
+  #     bucket: S3-BACKUP-BUCKET-NAME-HERE
+  #     credentialsSecret: my-cluster-name-backup-s3
+  #     region: us-west-2
+  # minio:
+  #   type: s3
+  #   s3:
+  #     bucket: MINIO-BACKUP-BUCKET-NAME-HERE
+  #     region: us-east-1
+  #     credentialsSecret: my-cluster-name-backup-minio
+  #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
   tasks:
-  #      - name: daily-s3-us-west
-  #        enabled: true
-  #        schedule: "0 0 * * *"
-  #        storageName: s3-us-west
-  #        compressionType: gzip
-  #      - name: weekly-s3-us-west
-  #        enabled: false
-  #        schedule: "0 0 * * 0"
-  #        storageName: s3-us-west
-  #        compressionType: gzip
+  # - name: daily-s3-us-west
+  #   enabled: true
+  #   schedule: "0 0 * * *"
+  #   storageName: s3-us-west
+  #   compressionType: gzip
+  # - name: weekly-s3-us-west
+  #   enabled: false
+  #   schedule: "0 0 * * 0"
+  #   storageName: s3-us-west
+  #   compressionType: gzip
 
 users:
-  MONGODB_BACKUP_USER: YmFja3Vw
-  MONGODB_BACKUP_PASSWORD: YmFja3VwMTIzNDU2
-  MONGODB_CLUSTER_ADMIN_USER: Y2x1c3RlckFkbWlu
-  MONGODB_CLUSTER_ADMIN_PASSWORD: Y2x1c3RlckFkbWluMTIzNDU2
-  MONGODB_CLUSTER_MONITOR_USER: Y2x1c3Rlck1vbml0b3I=
-  MONGODB_CLUSTER_MONITOR_PASSWORD: Y2x1c3Rlck1vbml0b3IxMjM0NTY=
-  MONGODB_USER_ADMIN_USER: dXNlckFkbWlu
-  MONGODB_USER_ADMIN_PASSWORD: dXNlckFkbWluMTIzNDU2
-  PMM_SERVER_USER: cG1t
-  PMM_SERVER_PASSWORD: c3VwYXxefHBheno=
+  MONGODB_BACKUP_USER: backup
+  MONGODB_BACKUP_PASSWORD: backup123456
+  MONGODB_CLUSTER_ADMIN_USER: clusterAdmin
+  MONGODB_CLUSTER_ADMIN_PASSWORD: clusterAdmin123456
+  MONGODB_CLUSTER_MONITOR_USER: clusterMonitor
+  MONGODB_CLUSTER_MONITOR_PASSWORD: clusterMonitor123456
+  MONGODB_USER_ADMIN_USER: userAdmin
+  MONGODB_USER_ADMIN_PASSWORD: userAdmin123456
+  PMM_SERVER_USER: admin
+  PMM_SERVER_PASSWORD: admin

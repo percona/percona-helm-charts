@@ -24,7 +24,7 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 0.1.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 0.1.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -35,16 +35,16 @@ The chart can be customized using the following configurable parameters:
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PSMDB cluster pods        | `false`                                   |
 | `updateStrategy`                | Regulates the way how PSMDB Cluster Pods will be updated after setting a new image | `SmartUpdate`                          |
 | `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PSMDB Versions provider	 | `https://check.percona.com/versions/` |
-| `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.2.8-8 | `recommended` |
+| `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `recommended` |
 | `upgradeOptions.schedule` | Cron formatted time to execute the update | `"0 2 * * *"` |
 | `image.repository`              | PSMDB Container image repository                                           | `percona/percona-server-mongodb` |
-| `image.tag`                     | PSMDB Container image tag                                       | `4.2.8-8`                              |
+| `image.tag`                     | PSMDB Container image tag                                       | `4.4.2-4`                              |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                | `[]`                                      |
 | `runUid`             | Set UserID                                                | `""`                                      |
 | `secrets`             | Users secret structure                                                | `{}`                                   |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
-| `pmm.image.repository`              | PMM Container image repository                                           | `percona/percona-server-mongodb-operator` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `1.5.0-pmm`                              |
+| `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.12.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 ||
 | `replset.name`                      | ReplicaSet name              | `rs0` |
@@ -77,26 +77,60 @@ The chart can be customized using the following configurable parameters:
 | `replset.volumeSpec.pvc.accessModes`       | ReplicaSet Pods PVC access policy                      | `[]` |
 | `replset.volumeSpec.pvc.resources.requests.storage`       | ReplicaSet Pods PVC storage size                      | `3Gi` |
 | |
-| `backup.enabled` | Enable backup PBM agent | `true` |
-| `backup.restartOnFailure` | Backup Pods restart policy | `true` |
-| `backup.image.repository`              | PBM Container image repository                                           | `percona/percona-server-mongodb-operator` |
-| `backup.image.tag`                     | PBM Container image tag                                       | `1.5.0-backup`                              |
-| `backup.serviceAccountName`   | Run PBM Container under specified K8S SA   | `percona-server-mongodb-operator` |
-| `backup.storages`   | Local/remote backup storages settings   | `{}` |
-| `backup.tasks`   | Backup working schedule   | `{}` |
-| `users`   | PSMDB essential users   | `{}` |
+| `sharding.enabled`                             | Enable sharding setup | `true` |
+| `sharding.configrs.size`                       | Config ReplicaSet size (pod quantity) | `3` |
+| `sharding.configrs.antiAffinityTopologyKey`    | Config ReplicaSet Pod affinity | `kubernetes.io/hostname` |
+| `sharding.configrs.priorityClass`              | Config ReplicaSet Pod priorityClassName | `""` |
+| `sharding.configrs.annotations`                | Config ReplicaSet Pod annotations | `{}` |
+| `sharding.configrs.labels`                     | Config ReplicaSet Pod labels | `{}` |
+| `sharding.configrs.nodeSelector`               | Config ReplicaSet Pod nodeSelector labels | `{}` |
+| `sharding.configrs.podDisruptionBudget.maxUnavailable` | Config ReplicaSet failed Pods maximum quantity | `1` |
+| `sharding.configrs.resources.limits.cpu`       | Config ReplicaSet resource limits CPU | `300m` |
+| `sharding.configrs.resources.limits.memory`    | Config ReplicaSet resource limits memory | `0.5G` |
+| `sharding.configrs.resources.requests.cpu`     | Config ReplicaSet resource requests CPU | `300m` |
+| `sharding.configrs.resources.requests.memory`  | Config ReplicaSet resource requests memory | `0.5G` |
+| `sharding.configrs.volumeSpec.hostPath`        | Config ReplicaSet hostPath K8S storage | |
+| `sharding.configrs.volumeSpec.hostPath.path`   | Config ReplicaSet hostPath K8S storage path | `""` |
+| `sharding.configrs.volumeSpec.emptyDir`        | Config ReplicaSet Pods emptyDir K8S storage | |
+| `sharding.configrs.volumeSpec.pvc`             | Config ReplicaSet Pods PVC request parameters | |
+| `sharding.configrs.volumeSpec.pvc.storageClassName` | Config ReplicaSet Pods PVC storageClass | `""` |
+| `sharding.configrs.volumeSpec.pvc.accessModes` | Config ReplicaSet Pods PVC access policy | `[]` |
+| `sharding.configrs.volumeSpec.pvc.resources.requests.storage` | Config ReplicaSet Pods PVC storage size | `3Gi` |
+| `sharding.mongos.size`                         | Mongos size (pod quantity) | `3` |
+| `sharding.mongos.antiAffinityTopologyKey`      | Mongos Pods affinity | `kubernetes.io/hostname` |
+| `sharding.mongos.priorityClass`                | Mongos Pods priorityClassName | `""` |
+| `sharding.mongos.annotations`                  | Mongos Pods annotations | `{}` |
+| `sharding.mongos.labels`                       | Mongos Pods labels | `{}` |
+| `sharding.mongos.nodeSelector`                 | Mongos Pods nodeSelector labels | `{}` |
+| `sharding.mongos.podDisruptionBudget.maxUnavailable` | Mongos failed Pods maximum quantity | `1` |
+| `sharding.mongos.resources.limits.cpu`         | Mongos Pods resource limits CPU | `300m` |
+| `sharding.mongos.resources.limits.memory`      | Mongos Pods resource limits memory | `0.5G` |
+| `sharding.mongos.resources.requests.cpu`       | Mongos Pods resource requests CPU | `300m` |
+| `sharding.mongos.resources.requests.memory`    | Mongos Pods resource requests memory | `0.5G` |
+| `sharding.mongos.expose.exposeType`            | Mongos service exposeType | `ClusterIP` |
+| `sharding.mongos.loadBalancerSourceRanges`     | Limit client IP's access to Load Balancer | `{}` |
+| `sharding.mongos.serviceAnnotations`           | Mongos service annotations | `{}` |
+| |
+| `backup.enabled`            | Enable backup PBM agent                  | `true` |
+| `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
+| `backup.image.repository`   | PBM Container image repository           | `percona/percona-server-mongodb-operator` |
+| `backup.image.tag`          | PBM Container image tag                  | `1.6.0-backup` |
+| `backup.serviceAccountName` | Run PBM Container under specified K8S SA | `percona-server-mongodb-operator` |
+| `backup.storages`           | Local/remote backup storages settings    | `{}` |
+| `backup.tasks`              | Backup working schedule                  | `{}` |
+| `users`                     | PSMDB essential users                    | `{}` |
 
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 
 ## Examples
 
-### Deploy a Cluster with no MySQL Proxy, no backups, and no persistent volumes
+### Deploy a replica set with disabled backups and no mongos pods
 
-This is great for a dev cluster as it doesn't require a persistent disk and doesn't bother with a proxy, backups, or TLS.
+This is great for a dev PSMDB/MongoDB cluster as it doesn't bother with backups and sharding setup.
 
 ```bash
 $ helm install dev  --namespace psmdb . \
     --set runUid=1001 --set replset.volumeSpec.pvc.resources.requests.storage=20Gi \
-    --set backup.enabled=false
+    --set backup.enabled=false --set sharding.enabled=false
 ```

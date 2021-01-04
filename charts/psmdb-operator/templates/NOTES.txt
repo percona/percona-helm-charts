@@ -1,5 +1,5 @@
 1. psmdb-operator deployed.
   If you would like to deploy an psmdb-cluster set cluster.enabled to true in values.yaml
   Check the psmdb-operator logs
-    export POD=$(kubectl get pods -l app={{ template "psmdb-operator.fullname" . }} --namespace {{ .Release.Namespace }} --output name)
+    export POD=$(kubectl get pods -l app.kubernetes.io/name=psmdb-operator --namespace {{ .Release.Namespace }} --output name)
     kubectl logs $POD --namespace={{ .Release.Namespace }}
