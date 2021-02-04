@@ -13,11 +13,12 @@ finalizers:
 nameOverride: "production"
 fullnameOverride: "production"
 
+crVersion: 1.7.0
 pause: false
 allowUnsafeConfigurations: false
 updateStrategy: SmartUpdate
 upgradeOptions:
-  versionServiceEndpoint: https://check.percona.com/versions
+  versionServiceEndpoint: https://check.percona.com
   apply: disabled
   schedule: "0 4 * * *"
 
@@ -25,7 +26,8 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.20-11.2
+    tag: 8.0.21-12.1
+  autoRecovery: true
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -97,7 +99,7 @@ haproxy:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.6.0-haproxy
+    tag: 1.7.0-haproxy
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -144,7 +146,7 @@ proxysql:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.6.0-proxysql
+    tag: 1.7.0-proxysql
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -191,28 +193,38 @@ proxysql:
     accessMode: ReadWriteOnce
     size: 8Gi
 
+logcollector:
+  enabled: true
+  image:
+    repository: percona/percona-xtradb-cluster-operator
+    tag: 1.7.0-logcollector
+
 pmm:
   enabled: false
   image:
-    repository: perconalab/pmm-client
-    tag: 1.17.1
+    repository: percona/pmm-client
+    tag: 2.12.0
   serverHost: monitoring-service
-  serverUser: pmm
+  serverUser: admin
 
 backup:
   enabled: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.6.0-pxc8.0-backup
+    tag: 1.7.0-pxc8.0-backup
   imagePullSecrets: []
   # - name: private-registry-credentials
+  pitr:
+    enabled: false
+    storageName: s3-us-west-binlogs
+    timeBetweenUploads: 60
   storages:
     fs-pvc:
       type: filesystem
       volume:
         persistentVolumeClaim:
         #  storageClassName: standard
-          accessModes: [ "ReadWriteOnce" ]
+          accessModes: ["ReadWriteOnce"]
           resources:
             requests:
               storage: 6Gi
@@ -221,6 +233,13 @@ backup:
     #   type: s3
     #   s3:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
+    #     credentialsSecret: my-cluster-name-backup-s3
+    #     region: us-west-2
+    #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    # s3-us-west-binlogs:
+    #   type: s3
+    #   s3:
+    #     bucket: S3-BACKUP-BUCKET-NAME-HERE/DIRECTORY
     #     credentialsSecret: my-cluster-name-backup-s3
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
