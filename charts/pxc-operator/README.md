@@ -4,9 +4,9 @@ This chart implements the Percona XtraDB Cluster Operator deployment. [Percona X
 * <https://github.com/percona/percona-xtradb-cluster-operator>
 
 ## Pre-requisites
-* Kubernetes 1.11+
+* Kubernetes 1.15+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
-* At least `v2.4.0` version of helm
+* Helm v3
 
 ## Deployment Details
 * <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
@@ -20,7 +20,7 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pxc-operator --version 0.1.9 --namespace my-namespace
+helm install my-operator percona/pxc-operator --version 0.1.11 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -28,7 +28,7 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
 | `image.repository`              | PXC Operator Container image name                                             | `percona/percona-xtradb-cluster-operator` |
-| `image.tag`                     | PXC Operator Container image tag                                              | `1.5.0`                                   |
+| `image.tag`                     | PXC Operator Container image tag                                              | `1.7.0`                                   |
 | `image.pullPolicy`              | PXC Operator Container pull policy                                            | `Always`                                  |
 | `image.pullSecrets`             | PXC Operator Pod pull secret                                                  | `[]`                                      |
 | `replicaCount`                  | PXC Operator Pod quantity                                                     | `1`                                       |

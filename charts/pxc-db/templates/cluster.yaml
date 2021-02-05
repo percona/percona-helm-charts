@@ -1,9 +1,9 @@
-apiVersion: pxc.percona.com/v1-6-0
+apiVersion: pxc.percona.com/v1-7-0
 kind: PerconaXtraDBCluster
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"pxc.percona.com/v1-6-0","kind":"PerconaXtraDBCluster"}
+      {"apiVersion":"pxc.percona.com/v1-7-0","kind":"PerconaXtraDBCluster"}
   name: {{ include "pxc-database.fullname" . }}
   labels:
 {{ include "pxc-database.labels" . | indent 4 }}
@@ -28,6 +28,16 @@ spec:
   sslInternalSecretName: {{ include "pxc-database.fullname" . }}-ssl-internal
   {{- end }}
   {{- end }}
+  {{- if hasKey .Values.pxc "vaultSecretName" }}
+  vaultSecretName: {{ .Values.pxc.vaultSecretName }}
+  {{- else }}
+  vaultSecretName: {{ include "pxc-database.fullname" . }}-vault
+  {{- end }}
+  {{- if hasKey .Values.pxc "logCollectorSecretName" }}
+  logCollectorSecretName: {{ .Values.pxc.logCollectorSecretName }}
+  {{- else }}
+  logCollectorSecretName: {{ include "pxc-database.fullname" . }}-log-collector
+  {{- end }}
   {{- if or .Values.allowUnsafeConfigurations .Values.pxc.disableTLS }}
   allowUnsafeConfigurations: true
   {{- end }}
@@ -43,6 +53,7 @@ spec:
   pxc:
     size: {{ $pxc.size }}
     image: "{{ $pxc.image.repository }}:{{ $pxc.image.tag }}"
+    autoRecovery: {{ $pxc.autoRecovery }}
     readinessDelaySec: {{ $pxc.readinessDelaySec }}
     livenessDelaySec: {{ $pxc.livenessDelaySec }}
     forceUnsafeBootstrap: {{ $pxc.forceUnsafeBootstrap }}
@@ -193,6 +204,14 @@ spec:
     {{- end }}
     gracePeriod: {{ $proxysql.gracePeriod }}
   {{- end }}
+  logcollector:
+  {{- if not .Values.logcollector.enabled }}
+    enabled: false
+  {{- else }}
+    {{- $logcollector := .Values.logcollector }}
+    enabled: true
+    image: {{ $logcollector.image.repository }}:{{ $logcollector.image.tag }}
+  {{- end }}
   pmm:
   {{- if not .Values.pmm.enabled }}
     enabled: false
@@ -213,6 +232,14 @@ spec:
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    pitr:
+    {{- if not $backup.pitr.enabled }}
+      enabled: false
+    {{- else }}
+      enabled: true
+      storageName: {{ $backup.pitr.storageName }}
+      timeBetweenUploads: {{ $backup.pitr.timeBetweenUploads }}
     {{- end }}
     storages:
 {{ $backup.storages | toYaml | indent 6 }}

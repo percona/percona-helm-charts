@@ -8,13 +8,21 @@ spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
+      app.kubernetes.io/component: operator
       app.kubernetes.io/name: {{ include "pxc-operator.name" . }}
       app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/part-of: {{ include "pxc-operator.name" . }}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
   template:
     metadata:
       labels:
+        app.kubernetes.io/component: operator
         app.kubernetes.io/name: {{ include "pxc-operator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/part-of: {{ include "pxc-operator.name" . }}
     spec:
       serviceAccountName: {{ include "pxc-operator.fullname" . }}
     {{- with .Values.imagePullSecrets }}
@@ -26,23 +34,26 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-          - containerPort: 60000
+          - containerPort: 8080
             name: metrics
+            protocol: TCP
           command:
           - percona-xtradb-cluster-operator
           env:
             - name: WATCH_NAMESPACE
               value: {{ default .Release.Namespace .Values.watchNamespace }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: OPERATOR_NAME
               value: {{ default "percona-xtradb-cluster-operator" .Values.operatorName }}
-          # livenessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: metrics
-          # readinessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: metrics
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /metrics
+              port: metrics
+              scheme: HTTP
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

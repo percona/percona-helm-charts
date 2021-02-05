@@ -6,10 +6,10 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: percona-xtradb-cluster-operator-workload
+  name: percona-xtradb-cluster-operator
 ---
 kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ include "pxc-operator.fullname" . }}
   {{- if .Values.watchNamespace }}
