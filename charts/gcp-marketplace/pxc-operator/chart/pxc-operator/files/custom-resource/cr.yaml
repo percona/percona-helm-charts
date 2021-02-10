@@ -1,0 +1,95 @@
+apiVersion: pxc.percona.com/v{{ .Values.operator.image.tag | replace "." "-"}}
+kind: PerconaXtraDBCluster
+metadata:
+  name: {{ .Release.Name | trunc 22 }}
+  finalizers:
+    - delete-pxc-pods-in-order
+  ownerReferences:
+    - apiVersion: app.k8s.io/v1beta1
+      blockOwnerDeletion: true
+      kind: Application
+      name: {{ .Release.Name }}
+      uid: ${PARENT_UID}
+spec:
+  crVersion: "{{ .Values.operator.image.tag }}"
+  secretsName: {{ .Release.Name }}-secrets
+  vaultSecretName: keyring-secret-vault
+  sslSecretName: {{ .Release.Name }}-ssl
+  sslInternalSecretName: {{ .Release.Name }}-ssl-internal
+  allowUnsafeConfigurations: false
+  updateStrategy: SmartUpdate
+  upgradeOptions:
+    versionServiceEndpoint: https://check.percona.com
+    apply: disabled
+    schedule: "0 4 * * *"
+  pxc:
+    serviceAccountName: percona-xtradb-cluster-operator-workload
+    size: {{ .Values.pxc.replicas }}
+    image: {{ template "pxc-operator.pxcVersion" . }}
+    resources:
+      requests:
+        memory: 1G
+        cpu: 600m
+    affinity:
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+    podDisruptionBudget:
+      maxUnavailable: 1
+    volumeSpec:
+      persistentVolumeClaim:
+        resources:
+          requests:
+            storage: {{ .Values.pxc.datadir.size }}
+    gracePeriod: 600
+  haproxy:
+    serviceAccountName: percona-xtradb-cluster-operator-workload
+    enabled: true
+    size: {{ .Values.pxc.replicas }}
+    image: "{{ .Values.haproxy.image.registry }}/{{ .Values.haproxy.image.repository }}:{{ .Values.haproxy.image.tag }}"
+    resources:
+      requests:
+        memory: 1G
+        cpu: 600m
+    affinity:
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+    podDisruptionBudget:
+      maxUnavailable: 1
+    gracePeriod: 30
+  proxysql:
+    serviceAccountName: percona-xtradb-cluster-operator-workload
+    enabled: false
+    size: {{ .Values.pxc.replicas }}
+    image: "{{ .Values.proxysql.image.registry }}/{{ .Values.proxysql.image.repository }}:{{ .Values.proxysql.image.tag }}"
+    resources:
+      requests:
+        memory: 1G
+        cpu: 600m
+    affinity:
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+    volumeSpec:
+      persistentVolumeClaim:
+        resources:
+          requests:
+            storage: 2Gi
+    podDisruptionBudget:
+      maxUnavailable: 1
+    gracePeriod: 30
+  logcollector:
+    enabled: true
+    image: "{{ .Values.logcollector.image.registry }}/{{ .Values.logcollector.image.repository }}:{{ .Values.logcollector.image.tag }}"
+  pmm:
+    enabled: false
+    image: "{{ .Values.operator.image.registry }}/{{ .Values.operator.image.repository }}:{{ .Values.operator.image.tag }}-pmm"
+    serverHost: monitoring-service
+    serverUser: pmm
+  backup:
+    serviceAccountName: percona-xtradb-cluster-operator-workload
+    image: {{ template "pxc-operator.pxcBackupVersion" . }}
+    storages:
+      fs-pvc:
+        type: filesystem
+        volume:
+          persistentVolumeClaim:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: {{ .Values.pxc.datadir.size }}

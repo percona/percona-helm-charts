@@ -1,0 +1,9 @@
+apiVersion: v1
+appVersion: "1.7.0"
+description: A Helm chart for Deploying the Percona XtraDB Cluster Operator Kubernetes
+name: pxc-operator
+home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+version: 0.1.9
+maintainers:
+  - name: paulczar
+    email: username.taken@gmail.com
