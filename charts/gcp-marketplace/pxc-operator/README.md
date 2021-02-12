@@ -88,7 +88,7 @@ The Application resource is defined by the
 [Kubernetes SIG-apps](https://github.com/kubernetes/community/tree/master/sig-apps) community. The source code can be found on
 [github.com/kubernetes-sigs/application](https://github.com/kubernetes-sigs/application).
 
-### Install Percona Kubernetes Operator for Percona Server for MongoDB
+### Install Percona Kubernetes Operator for Percona XtraDB Cluster
 
 Navigate to the `pxc-operator` directory:
 
@@ -110,7 +110,7 @@ export NAMESPACE=default
 Set up the image tag:
 
 It is advised to use stable image reference which you can find on
-[Marketplace Container Registry](https://marketplace.gcr.io/google/psmdb-operator).
+[Marketplace Container Registry](https://marketplace.gcr.io/google/pxc-operator).
 Example:
 
 ```shell
@@ -265,21 +265,21 @@ mysql -h ${NAME}-haproxy -uroot -p${MYSQL_PASSWORD}
 
 ## Scaling the cluster up or down
 
-By default, Percona Server for MongoDB application is deployed using 3 replicas.
+By default, Percona XtraDB Cluster application is deployed using 3 replicas.
 To change the number of replicas, use the following command:
 
 ```
-kubectl patch psmdb "${APP_INSTANCE_NAME}" \
+kubectl patch pxc "${APP_INSTANCE_NAME}" \
   --namespace "${NAMESPACE}" \
   --type=json \
-  -p '[{"op":"replace","path":"/spec/replsets/0/size","value":'${REPLICAS}'}]'
+  -p '[{"op":"replace","path":"/spec/pxc/size","value":'${REPLICAS}'}]'
 ```
 
 Where `REPLICAS` is the number of replicas you want.
 
 # Backup and Restore
 
-The detailed set of steps for backup and restores you can find here [Backups and Restores documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/backups.html).
+The detailed set of steps for backup and restores you can find here [Backups and Restores documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/backups.html).
 
 # Uninstall the Application
 
@@ -287,7 +287,7 @@ The detailed set of steps for backup and restores you can find here [Backups and
 
 1. In the GCP Console, open [Kubernetes Applications](https://console.cloud.google.com/kubernetes/application).
 
-1. From the list of applications, click **Percona Server MongoDB Operator**.
+1. From the list of applications, click **Percona Kubernetes Operator for Percona XtraDB Cluster**.
 
 1. On the Application Details page, click **Delete**.
 
@@ -298,7 +298,7 @@ The detailed set of steps for backup and restores you can find here [Backups and
 Set your installation name and Kubernetes namespace:
 
 ```shell
-export APP_INSTANCE_NAME=psmdb-operator
+export APP_INSTANCE_NAME=pxc-operator
 export NAMESPACE=default
 ```
 
