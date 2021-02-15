@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+  name: {{ template "pxc-operator.CRDsJob" . }}
+  labels:
+    app.kubernetes.io/name: "{{ .Release.Name }}"
+    app.kubernetes.io/component: crd-job
+spec:
+  backoffLimit: 0
+  completions: 1
+  parallelism: 1
+  template:
+    spec:
+      containers:
+      - command:
+        - "/bin/bash"
+        - "-ecx"
+        - |
+          PARENT_UID=$(kubectl get application {{ .Release.Name }} -o jsonpath='{.metadata.uid}')
+          for crd in /crd_to_create/*;
+            do kubectl apply -f $crd;
+          done
+          for cr in /cr_to_create/*;
+            do cat $cr | env -i PARENT_UID=${PARENT_UID} envsubst | kubectl apply -f -;
+          done
+          SA_NAME=$(kubectl get sa -l app.kubernetes.io/name={{ .Release.Name }},marketplace.cloud.google.com/auto-provisioned-for-property=operator.serviceAccountName -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          CLUSTERROLE_NAME=$(kubectl get clusterrole -l app.kubernetes.io/name={{ .Release.Name }},marketplace.cloud.google.com/auto-provisioned-for-property=operator.serviceAccountName -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          CLUSTERROLEBINDING_NAME=$(kubectl get clusterrolebindings -l app.kubernetes.io/name={{ .Release.Name }},marketplace.cloud.google.com/auto-provisioned-for-property=operator.serviceAccountName -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [[ -n ${SA_NAME} ]] \
+             && [[ -n ${CLUSTERROLE_NAME} ]] \
+             && [[ -n ${CLUSTERROLEBINDING_NAME} ]]; then
+              OPERATOR_POD_UID=$(kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ .Chart.Name }} -o jsonpath='{.items[0].metadata.uid}')
+              OPERATOR_POD_NAME=$(kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ .Chart.Name }} -o jsonpath='{.items[0].metadata.name}')
+
+              kubectl patch sa ${SA_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]'
+              kubectl patch clusterrolebinding ${CLUSTERROLEBINDING_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":'${OPERATOR_POD_UID}',"blockOwnerDeletion":true}}]'
+              kubectl patch clusterrole ${CLUSTERROLE_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":'${OPERATOR_POD_NAME}',"uid":'${OPERATOR_POD_UID}',"blockOwnerDeletion":true}}]'
+              kubectl patch sa percona-xtradb-cluster-operator-workload --type json -p='[{"op":"add","path":"/metadata/ownerReferences","value":[{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}]}]'
+          fi
+        image: {{ .Values.deployerHelm.image }}
+        imagePullPolicy: Always
+        name: crd-create
+        volumeMounts:
+        - name: crd-configmap
+          mountPath: /crd_to_create/
+        - name: cr-configmap
+          mountPath: /cr_to_create/
+      dnsPolicy: ClusterFirst
+      restartPolicy: Never
+      serviceAccountName: {{ .Values.CDRJobServiceAccount }}
+      volumes:
+      - name: crd-configmap
+        configMap:
+          name: {{ template "pxc-operator.CRDsConfigMap" . }}
+      - name: cr-configmap
+        configMap:
+          name: {{ template "pxc-operator.CRConfigMap" . }}
