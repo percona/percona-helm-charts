@@ -65,14 +65,6 @@ x-google-marketplace:
           type: REPO_WITHOUT_REGISTRY
         proxysql.image.tag:
           type: TAG
-    proxysql:
-      properties:
-        proxysql.image.registry:
-          type: REGISTRY
-        proxysql.image.repository:
-          type: REPO_WITHOUT_REGISTRY
-        proxysql.image.tag:
-          type: TAG
     logcollector:
       properties:
         logcollector.image.registry:
