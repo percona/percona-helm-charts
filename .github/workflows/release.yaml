@@ -5,7 +5,7 @@ on:
     path-ignore:
       - 'charts/gcp-marketplace/**'
     branches:
-      - master
+      - main
 
 jobs:
   release:
