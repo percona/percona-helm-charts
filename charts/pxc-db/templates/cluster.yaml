@@ -243,5 +243,7 @@ spec:
     {{- end }}
     storages:
 {{ $backup.storages | toYaml | indent 6 }}
+{{- if $backup.enabled }}
     schedule:
 {{ $backup.schedule | toYaml | indent 6 }}
+{{- end }}
