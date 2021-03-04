@@ -1,4 +1,4 @@
-apiVersion: pxc.percona.com/v{{ .Values.operator.image.tag | replace "." "-"}}
+apiVersion: pxc.percona.com/v{{ .Values.operator.image.tag | replace "." "-" | trunc 3 }}-0
 kind: PerconaXtraDBCluster
 metadata:
   name: {{ .Release.Name | trunc 22 }}
