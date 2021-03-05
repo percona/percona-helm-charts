@@ -34,8 +34,8 @@ spec:
               OPERATOR_POD_NAME=$(kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ .Chart.Name }} -o jsonpath='{.items[0].metadata.name}')
 
               kubectl patch sa ${SA_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]'
-              kubectl patch clusterrolebinding ${CLUSTERROLEBINDING_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":'${OPERATOR_POD_UID}',"blockOwnerDeletion":true}}]'
-              kubectl patch clusterrole ${CLUSTERROLE_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":'${OPERATOR_POD_NAME}',"uid":'${OPERATOR_POD_UID}',"blockOwnerDeletion":true}}]'
+              kubectl patch clusterrolebinding ${CLUSTERROLEBINDING_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]'
+              kubectl patch clusterrole ${CLUSTERROLE_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]'
               kubectl patch sa percona-xtradb-cluster-operator-workload --type json -p='[{"op":"add","path":"/metadata/ownerReferences","value":[{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}]}]'
           fi
         image: {{ .Values.deployerHelm.image }}
