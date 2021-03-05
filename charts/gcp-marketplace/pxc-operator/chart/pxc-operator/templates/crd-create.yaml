@@ -24,9 +24,9 @@ spec:
           for cr in /cr_to_create/*;
             do cat $cr | env -i PARENT_UID=${PARENT_UID} envsubst | kubectl apply -f -;
           done
-          SA_NAME=$(kubectl get sa -l app.kubernetes.io/name={{ .Release.Name }},marketplace.cloud.google.com/auto-provisioned-for-property=operator.serviceAccountName -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-          CLUSTERROLE_NAME=$(kubectl get clusterrole -l app.kubernetes.io/name={{ .Release.Name }},marketplace.cloud.google.com/auto-provisioned-for-property=operator.serviceAccountName -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-          CLUSTERROLEBINDING_NAME=$(kubectl get clusterrolebindings -l app.kubernetes.io/name={{ .Release.Name }},marketplace.cloud.google.com/auto-provisioned-for-property=operator.serviceAccountName -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          SA_NAME=$(kubectl get sa -l app.kubernetes.io/name={{ .Release.Name }} -o json 2>/dev/null| jq -r '.items[] | select(.metadata.name | contains("operator-serviceaccountname")) | .metadata.name' || true)
+          CLUSTERROLE_NAME=$(kubectl get clusterrole -l app.kubernetes.io/name={{ .Release.Name }} -o json 2>/dev/null | jq -r '.items[] | select(.metadata.name | contains("operator.serviceAccountName")) | .metadata.name' || true)
+          CLUSTERROLEBINDING_NAME=$(kubectl get clusterrolebindings -l app.kubernetes.io/name={{ .Release.Name }} -o json 2>/dev/null | jq -r '.items[] | select(.metadata.name | contains("operator.serviceAccountName")) | .metadata.name' || true)
           if [[ -n ${SA_NAME} ]] \
              && [[ -n ${CLUSTERROLE_NAME} ]] \
              && [[ -n ${CLUSTERROLEBINDING_NAME} ]]; then
