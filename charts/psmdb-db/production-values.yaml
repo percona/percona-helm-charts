@@ -6,7 +6,11 @@
 # platform: kubernetes
 
 # Cluster DNS Suffix
-# DNSsuffix: .svc.cluster.local
+# DNSsuffix: svc.cluster.local
+
+finalizers:
+## Set this if you want to delete database persistent volumes on cluster deletion
+#  - delete-psmdb-pvc
 
 nameOverride: ""
 fullnameOverride: ""
@@ -21,7 +25,7 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 4.4.2-4
+  tag: 4.4.3-5
 
 # imagePullSecrets: []
 # runUid: 1001
@@ -34,53 +38,59 @@ pmm:
     tag: 2.12.0
   serverHost: monitoring-service
 
-replset:
-  name: rs0
-  size: 3
-  antiAffinityTopologyKey: "kubernetes.io/hostname"
-  # priorityClass: ""
-  # annotations: {}
-  # labels: {}
-  # nodeSelector: {}
-  livenessProbe:
-    failureThreshold: 4
-    initialDelaySeconds: 60
-    periodSeconds: 30
-    successThreshold: 1
-    timeoutSeconds: 5
-    startupDelaySeconds: 7200
-  podDisruptionBudget:
-    maxUnavailable: 1
-  expose:
-    enabled: false
-    exposeType: LoadBalancer
-  arbiter:
-    enabled: false
-    size: 1
+replsets:
+  - name: rs0
+    size: 3
     antiAffinityTopologyKey: "kubernetes.io/hostname"
     # priorityClass: ""
     # annotations: {}
     # labels: {}
     # nodeSelector: {}
-    # livenessProbe: {}
-  # schedulerName: ""
-  resources:
-    limits:
-      cpu: "300m"
-      memory: "0.5G"
-    requests:
-      cpu: "300m"
-      memory: "0.5G"
-  volumeSpec:
-    # emptyDir: {}
-    # hostPath:
-    #   path: /data
-    pvc:
-      # storageClassName: standard
-      # accessModes: [ "ReadWriteOnce" ]
-      resources:
-        requests:
-          storage: 3Gi
+    livenessProbe:
+      failureThreshold: 4
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 5
+      startupDelaySeconds: 7200
+    # runtimeClassName: image-rc
+    # sidecars:
+    # - image: busybox
+    #   command: ["/bin/sh"]
+    #   args: ["-c", "while true; do echo echo $(date -u) 'test' >> /dev/null; sleep 5;done"]
+    #   name: rs-sidecar-1
+    podDisruptionBudget:
+      maxUnavailable: 1
+    expose:
+      enabled: false
+      exposeType: LoadBalancer
+    arbiter:
+      enabled: false
+      size: 1
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+      # priorityClass: ""
+      # annotations: {}
+      # labels: {}
+      # nodeSelector: {}
+      # livenessProbe: {}
+    # schedulerName: ""
+    resources:
+      limits:
+        cpu: "300m"
+        memory: "0.5G"
+      requests:
+        cpu: "300m"
+        memory: "0.5G"
+    volumeSpec:
+      # emptyDir: {}
+      # hostPath:
+      #   path: /data
+      pvc:
+        # storageClassName: standard
+        # accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 3Gi
 
 sharding:
   enabled: true
@@ -92,6 +102,12 @@ sharding:
     # annotations: {}
     # labels: {}
     # nodeSelector: {}
+    # runtimeClassName: image-rc
+    # sidecars:
+    # - image: busybox
+    #   command: ["/bin/sh"]
+    #   args: ["-c", "while true; do echo echo $(date -u) 'test' >> /dev/null; sleep 5;done"]
+    #   name: rs-sidecar-1
     podDisruptionBudget:
       maxUnavailable: 1
     resources:
@@ -120,6 +136,12 @@ sharding:
     # annotations: {}
     # labels: {}
     # nodeSelector: {}
+    # runtimeClassName: image-rc
+    # sidecars:
+    # - image: busybox
+    #   command: ["/bin/sh"]
+    #   args: ["-c", "while true; do echo echo $(date -u) 'test' >> /dev/null; sleep 5;done"]
+    #   name: rs-sidecar-1
     podDisruptionBudget:
       maxUnavailable: 1
     resources:
@@ -145,7 +167,7 @@ backup:
   restartOnFailure: true
   image:
     repository: percona/percona-server-mongodb-operator
-    tag: 1.6.0-backup
+    tag: 1.7.0-backup
   serviceAccountName: percona-server-mongodb-operator
   # resources:
   #   limits:
@@ -172,11 +194,13 @@ backup:
   # - name: daily-s3-us-west
   #   enabled: true
   #   schedule: "0 0 * * *"
+  #   keep: 3
   #   storageName: s3-us-west
   #   compressionType: gzip
   # - name: weekly-s3-us-west
   #   enabled: false
   #   schedule: "0 0 * * 0"
+  #   keep: 5
   #   storageName: s3-us-west
   #   compressionType: gzip
 
