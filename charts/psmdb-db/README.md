@@ -24,7 +24,7 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 0.1.1 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.7.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -38,7 +38,7 @@ The chart can be customized using the following configurable parameters:
 | `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `recommended` |
 | `upgradeOptions.schedule` | Cron formatted time to execute the update | `"0 2 * * *"` |
 | `image.repository`              | PSMDB Container image repository                                           | `percona/percona-server-mongodb` |
-| `image.tag`                     | PSMDB Container image tag                                       | `4.4.2-4`                              |
+| `image.tag`                     | PSMDB Container image tag                                       | `4.4.3-5`                              |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                | `[]`                                      |
 | `runUid`             | Set UserID                                                | `""`                                      |
 | `secrets`             | Users secret structure                                                | `{}`                                   |
