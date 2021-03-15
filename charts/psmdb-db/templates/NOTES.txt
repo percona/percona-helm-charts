@@ -5,7 +5,7 @@ To get a MongoDB prompt inside your new cluster you can run:
 
 And then for replica set:
   $ kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:4.4 --restart=Never \
-  -- mongo "mongodb+srv://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-{{ .Values.replset.name }}.{{ .Release.Namespace }}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
+  -- mongo "mongodb+srv://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-{{ (index .Values.replsets 0).name }}.{{ .Release.Namespace }}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
 
 Or for sharding setup:
   $ kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:4.4 --restart=Never \

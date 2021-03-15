@@ -1,12 +1,14 @@
-apiVersion: psmdb.percona.com/v1-6-0
+apiVersion: psmdb.percona.com/v1-7-0
 kind: PerconaServerMongoDB
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"psmdb.percona.com/v1-6-0","kind":"PerconaServerMongoDB"}
+      {"apiVersion":"psmdb.percona.com/v1-7-0","kind":"PerconaServerMongoDB"}
   name: {{ include "psmdb-database.fullname" . }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
+  finalizers:
+{{ .Values.finalizers | toYaml | indent 4 }}
 spec:
   pause: {{ .Values.pause }}
   {{- if .Values.platform }}
@@ -46,74 +48,83 @@ spec:
     image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
     serverHost: {{ .Values.pmm.serverHost }}
   replsets:
-  - name: {{ .Values.replset.name }}
-    size: {{ .Values.replset.size }}
+  {{- range $replset := .Values.replsets }}
+  - name: {{ $replset.name }}
+    size: {{ $replset.size }}
     affinity:
-      antiAffinityTopologyKey: {{ .Values.replset.antiAffinityTopologyKey }}
-    {{- if .Values.replset.priorityClass }}
-    priorityClassName: {{ .Values.replset.priorityClass }}
+      antiAffinityTopologyKey: {{ $replset.antiAffinityTopologyKey }}
+    {{- if $replset.priorityClass }}
+    priorityClassName: {{ $replset.priorityClass }}
     {{- end }}
-    {{- if .Values.replset.annotations }}
+    {{- if $replset.annotations }}
     annotations:
-{{ .Values.replset.annotations | toYaml | indent 6 }}
+{{ $replset.annotations | toYaml | indent 6 }}
     {{- end }}
-    {{- if .Values.replset.labels }}
+    {{- if $replset.labels }}
     labels:
-{{ .Values.replset.labels | toYaml | indent 6 }}
+{{ $replset.labels | toYaml | indent 6 }}
     {{- end }}
-    {{- if .Values.replset.nodeSelector }}
+    {{- if $replset.nodeSelector }}
     nodeSelector:
-{{ .Values.replset.nodeSelector | toYaml | indent 6 }}
+{{ $replset.nodeSelector | toYaml | indent 6 }}
     {{- end }}
-    {{- if .Values.replset.livenessProbe }}
+    {{- if $replset.livenessProbe }}
     livenessProbe:
-{{ .Values.replset.livenessProbe | toYaml | indent 6 }}
+{{ $replset.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $replset.runtimeClass }}
+    runtimeClassName: {{ $replset.runtimeClass }}
+    {{- end }}
+    {{- if $replset.sidecars }}
+    sidecars:
+{{ $replset.sidecars | toYaml | indent 6 }}
     {{- end }}
     podDisruptionBudget:
-      {{- if .Values.replset.podDisruptionBudget.maxUnavailable }}
-      maxUnavailable: {{ .Values.replset.podDisruptionBudget.maxUnavailable }}
+      {{- if $replset.podDisruptionBudget.maxUnavailable }}
+      maxUnavailable: {{ $replset.podDisruptionBudget.maxUnavailable }}
       {{- else }}
-      minAvailable: {{ .Values.replset.podDisruptionBudget.minAvailable }}
+      minAvailable: {{ $replset.podDisruptionBudget.minAvailable }}
       {{- end }}
     expose:
-      enabled: {{ .Values.replset.expose.enabled }}
-      exposeType: {{ .Values.replset.expose.loadBalancer }}
+      enabled: {{ $replset.expose.enabled }}
+      exposeType: {{ $replset.expose.loadBalancer }}
     arbiter:
-      enabled: {{ .Values.replset.arbiter.enabled }}
-      size: {{ .Values.replset.arbiter.size }}
+      enabled: {{ $replset.arbiter.enabled }}
+      size: {{ $replset.arbiter.size }}
       affinity:
-        antiAffinityTopologyKey: {{ .Values.replset.arbiter.antiAffinityTopologyKey }}
-      {{- if .Values.replset.arbiter.priorityClass }}
-      priorityClassName: {{ .Values.replset.arbiter.priorityClass }}
+        antiAffinityTopologyKey: {{ $replset.arbiter.antiAffinityTopologyKey }}
+      {{- if $replset.arbiter.priorityClass }}
+      priorityClassName: {{ $replset.arbiter.priorityClass }}
       {{- end }}
-      {{- if .Values.replset.arbiter.annotations }}
+      {{- if $replset.arbiter.annotations }}
       annotations:
-{{ .Values.replset.arbiter.annotations | toYaml | indent 8 }}
+{{ $replset.arbiter.annotations | toYaml | indent 8 }}
       {{- end }}
-      {{- if .Values.replset.arbiter.labels }}
+      {{- if $replset.arbiter.labels }}
       labels:
-{{ .Values.replset.arbiter.labels | toYaml | indent 8 }}
+{{ $replset.arbiter.labels | toYaml | indent 8 }}
       {{- end }}
-      {{- if .Values.replset.arbiter.nodeSelector }}
+      {{- if $replset.arbiter.nodeSelector }}
       nodeSelector:
-{{ .Values.replset.arbiter.nodeSelector | toYaml | indent 8 }}
+{{ $replset.arbiter.nodeSelector | toYaml | indent 8 }}
       {{- end }}
-    {{- if .Values.replset.schedulerName }}
-    schedulerName: {{ .Values.replset.schedulerName }}
+    {{- if $replset.schedulerName }}
+    schedulerName: {{ $replset.schedulerName }}
     {{- end }}
     resources:
-{{ .Values.replset.resources | toYaml | indent 6 }}
+{{ $replset.resources | toYaml | indent 6 }}
     volumeSpec:
-      {{- if .Values.replset.volumeSpec.hostPath }}
+      {{- if $replset.volumeSpec.hostPath }}
       hostPath:
-        path: {{ .Values.replset.volumeSpec.hostPath }}
+        path: {{ $replset.volumeSpec.hostPath }}
         type: Directory
-      {{- else if .Values.replset.volumeSpec.pvc }}
+      {{- else if $replset.volumeSpec.pvc }}
       persistentVolumeClaim:
-{{ .Values.replset.volumeSpec.pvc | toYaml | indent 8 }}
+{{ $replset.volumeSpec.pvc | toYaml | indent 8 }}
       {{- else }}
       emptyDir: {}
       {{- end }}
+  {{- end }}
 
   sharding:
     enabled: {{ .Values.sharding.enabled }}
@@ -136,7 +147,14 @@ spec:
       {{- if .Values.sharding.configrs.nodeSelector }}
       nodeSelector:
 {{ .Values.sharding.configrs.nodeSelector | toYaml | indent 8 }}
-    {{- end }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.runtimeClass }}
+      runtimeClassName: {{ .Values.sharding.configrs.runtimeClass }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.sidecars }}
+      sidecars:
+{{ .Values.sharding.configrs.sidecars | toYaml | indent 8 }}
+      {{- end }}
       podDisruptionBudget:
         {{- if .Values.sharding.configrs.podDisruptionBudget.maxUnavailable }}
         maxUnavailable: {{ .Values.sharding.configrs.podDisruptionBudget.maxUnavailable }}
@@ -180,6 +198,13 @@ spec:
       {{- if .Values.sharding.mongos.nodeSelector }}
       nodeSelector:
 {{ .Values.sharding.mongos.nodeSelector | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.runtimeClass }}
+      runtimeClassName: {{ .Values.sharding.mongos.runtimeClass }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.sidecars }}
+      sidecars:
+{{ .Values.sharding.mongos.sidecars | toYaml | indent 8 }}
       {{- end }}
       podDisruptionBudget:
         {{- if .Values.sharding.mongos.podDisruptionBudget.maxUnavailable }}

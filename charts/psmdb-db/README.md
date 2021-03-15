@@ -5,9 +5,9 @@ This chart implements Percona Server MongoDB deployment in Kubernets via Custom 
 
 ## Pre-requisites
 * [PSMDB operator](https://hub.helm.sh/charts/percona/psmdb-operator) running in you K8S cluster
-* Kubernetes 1.11+
+* Kubernetes 1.15+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
-* At least `v2.4.0` version of helm
+* At least `v2.5.0` version of helm
 
 ## Custom Resource Details
 * <https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/>
@@ -24,7 +24,7 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 0.1.1 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.7.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -38,7 +38,7 @@ The chart can be customized using the following configurable parameters:
 | `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `recommended` |
 | `upgradeOptions.schedule` | Cron formatted time to execute the update | `"0 2 * * *"` |
 | `image.repository`              | PSMDB Container image repository                                           | `percona/percona-server-mongodb` |
-| `image.tag`                     | PSMDB Container image tag                                       | `4.4.2-4`                              |
+| `image.tag`                     | PSMDB Container image tag                                       | `4.4.3-5`                              |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                | `[]`                                      |
 | `runUid`             | Set UserID                                                | `""`                                      |
 | `secrets`             | Users secret structure                                                | `{}`                                   |
@@ -47,35 +47,37 @@ The chart can be customized using the following configurable parameters:
 | `pmm.image.tag`                     | PMM Container image tag                                       | `2.12.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 ||
-| `replset.name`                      | ReplicaSet name              | `rs0` |
-| `replset.size`                      | ReplicaSet size (pod quantity)              | `3` |
-| `replset.antiAffinityTopologyKey`   | ReplicaSet Pod affinity              | `kubernetes.io/hostname` |
-| `replset.priorityClass`   | ReplicaSet Pod priorityClassName              | `""` |
-| `replset.annotations`   | ReplicaSet Pod annotations              | `{}` |
-| `replset.labels`   | ReplicaSet Pod labels              | `{}` |
-| `replset.nodeSelector`   | ReplicaSet Pod nodeSelector labels              | `{}` |
-| `replset.livenessProbe`   | ReplicaSet Pod livenessProbe structure              | `{}` |
-| `replset.podDisruptionBudget.maxUnavailable`   | ReplicaSet failed Pods maximum quantity               | `1` |
-| `replset.expose.enabled`   | Allow access to replicaSet from outside of Kubernetes              | `false` |
-| `replset.expose.exposeType`   | Network service access point type              | `LoadBalancer` |
-| `replset.arbiter.enabled`   | Create MongoDB arbiter service              | `false` |
-| `replset.arbiter.size`   | MongoDB arbiter Pod quantity              | `1` |
-| `replset.arbiter.antiAffinityTopologyKey`   | MongoDB arbiter Pod affinity              | `kubernetes.io/hostname` |
-| `replset.arbiter.priorityClass`   | MongoDB arbiter priorityClassName              | `""` |
-| `replset.arbiter.annotations`   | MongoDB arbiter Pod annotations              | `{}` |
-| `replset.arbiter.labels`   | MongoDB arbiter Pod labels              | `{}` |
-| `replset.arbiter.nodeSelector`   | MongoDB arbiter Pod nodeSelector labels              | `{}` |
-| `replset.arbiter.livenessProbe`   | MongoDB arbiter Pod livenessProbe structure              | `{}` |
-| `replset.schedulerName`   | ReplicaSet Pod schedulerName              | `""` |
-| `replset.resources`       | ReplicaSet Pods resource requests and limits                          | `{}`                  |
-| `replset.volumeSpec`       | ReplicaSet Pods storage resources                          | `{}`                  |
-| `replset.volumeSpec.emptyDir`       | ReplicaSet Pods emptyDir K8S storage                          | `{}`                  |
-| `replset.volumeSpec.hostPath`       | ReplicaSet Pods hostPath K8S storage                          |                   |
-| `replset.volumeSpec.hostPath.path`       | ReplicaSet Pods hostPath K8S storage path                       | `""`                  |
-| `replset.volumeSpec.pvc`       | ReplicaSet Pods PVC request parameters                       |                   |
-| `replset.volumeSpec.pvc.storageClassName`       | ReplicaSet Pods PVC target storageClass                      | `""` |
-| `replset.volumeSpec.pvc.accessModes`       | ReplicaSet Pods PVC access policy                      | `[]` |
-| `replset.volumeSpec.pvc.resources.requests.storage`       | ReplicaSet Pods PVC storage size                      | `3Gi` |
+| `replsets[0].name`                      | ReplicaSet name              | `rs0` |
+| `replsets[0].size`                      | ReplicaSet size (pod quantity)              | `3` |
+| `replsets[0].antiAffinityTopologyKey`   | ReplicaSet Pod affinity              | `kubernetes.io/hostname` |
+| `replsets[0].priorityClass`   | ReplicaSet Pod priorityClassName              | `""` |
+| `replsets[0].annotations`   | ReplicaSet Pod annotations              | `{}` |
+| `replsets[0].labels`   | ReplicaSet Pod labels              | `{}` |
+| `replsets[0].nodeSelector`   | ReplicaSet Pod nodeSelector labels              | `{}` |
+| `replsets[0].livenessProbe`   | ReplicaSet Pod livenessProbe structure              | `{}` |
+| `replsets[0].runtimeClass`   | ReplicaSet Pod runtimeClassName              | `""` |
+| `replsets[0].sidecars`   | ReplicaSet Pod sidecars              | `{}` |
+| `replsets[0].podDisruptionBudget.maxUnavailable`   | ReplicaSet failed Pods maximum quantity               | `1` |
+| `replsets[0].expose.enabled`   | Allow access to replicaSet from outside of Kubernetes              | `false` |
+| `replsets[0].expose.exposeType`   | Network service access point type              | `LoadBalancer` |
+| `replsets[0].arbiter.enabled`   | Create MongoDB arbiter service              | `false` |
+| `replsets[0].arbiter.size`   | MongoDB arbiter Pod quantity              | `1` |
+| `replsets[0].arbiter.antiAffinityTopologyKey`   | MongoDB arbiter Pod affinity              | `kubernetes.io/hostname` |
+| `replsets[0].arbiter.priorityClass`   | MongoDB arbiter priorityClassName              | `""` |
+| `replsets[0].arbiter.annotations`   | MongoDB arbiter Pod annotations              | `{}` |
+| `replsets[0].arbiter.labels`   | MongoDB arbiter Pod labels              | `{}` |
+| `replsets[0].arbiter.nodeSelector`   | MongoDB arbiter Pod nodeSelector labels              | `{}` |
+| `replsets[0].arbiter.livenessProbe`   | MongoDB arbiter Pod livenessProbe structure              | `{}` |
+| `replsets[0].schedulerName`   | ReplicaSet Pod schedulerName              | `""` |
+| `replsets[0].resources`       | ReplicaSet Pods resource requests and limits                          | `{}`                  |
+| `replsets[0].volumeSpec`       | ReplicaSet Pods storage resources                          | `{}`                  |
+| `replsets[0].volumeSpec.emptyDir`       | ReplicaSet Pods emptyDir K8S storage                          | `{}`                  |
+| `replsets[0].volumeSpec.hostPath`       | ReplicaSet Pods hostPath K8S storage                          |                   |
+| `replsets[0].volumeSpec.hostPath.path`       | ReplicaSet Pods hostPath K8S storage path                       | `""`                  |
+| `replsets[0].volumeSpec.pvc`       | ReplicaSet Pods PVC request parameters                       |                   |
+| `replsets[0].volumeSpec.pvc.storageClassName`       | ReplicaSet Pods PVC target storageClass                      | `""` |
+| `replsets[0].volumeSpec.pvc.accessModes`       | ReplicaSet Pods PVC access policy                      | `[]` |
+| `replsets[0].volumeSpec.pvc.resources.requests.storage`       | ReplicaSet Pods PVC storage size                      | `3Gi` |
 | |
 | `sharding.enabled`                             | Enable sharding setup | `true` |
 | `sharding.configrs.size`                       | Config ReplicaSet size (pod quantity) | `3` |
@@ -84,6 +86,8 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.annotations`                | Config ReplicaSet Pod annotations | `{}` |
 | `sharding.configrs.labels`                     | Config ReplicaSet Pod labels | `{}` |
 | `sharding.configrs.nodeSelector`               | Config ReplicaSet Pod nodeSelector labels | `{}` |
+| `sharding.configrs.runtimeClass`   | Config ReplicaSet Pod runtimeClassName              | `""` |
+| `sharding.configrs.sidecars`   | Config ReplicaSet Pod sidecars              | `{}` |
 | `sharding.configrs.podDisruptionBudget.maxUnavailable` | Config ReplicaSet failed Pods maximum quantity | `1` |
 | `sharding.configrs.resources.limits.cpu`       | Config ReplicaSet resource limits CPU | `300m` |
 | `sharding.configrs.resources.limits.memory`    | Config ReplicaSet resource limits memory | `0.5G` |
@@ -102,6 +106,8 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.annotations`                  | Mongos Pods annotations | `{}` |
 | `sharding.mongos.labels`                       | Mongos Pods labels | `{}` |
 | `sharding.mongos.nodeSelector`                 | Mongos Pods nodeSelector labels | `{}` |
+| `sharding.mongos.runtimeClass`   | Mongos Pod runtimeClassName              | `""` |
+| `sharding.mongos.sidecars`   | Mongos Pod sidecars              | `{}` |
 | `sharding.mongos.podDisruptionBudget.maxUnavailable` | Mongos failed Pods maximum quantity | `1` |
 | `sharding.mongos.resources.limits.cpu`         | Mongos Pods resource limits CPU | `300m` |
 | `sharding.mongos.resources.limits.memory`      | Mongos Pods resource limits memory | `0.5G` |
@@ -114,7 +120,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.enabled`            | Enable backup PBM agent                  | `true` |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
 | `backup.image.repository`   | PBM Container image repository           | `percona/percona-server-mongodb-operator` |
-| `backup.image.tag`          | PBM Container image tag                  | `1.6.0-backup` |
+| `backup.image.tag`          | PBM Container image tag                  | `1.7.0-backup` |
 | `backup.serviceAccountName` | Run PBM Container under specified K8S SA | `percona-server-mongodb-operator` |
 | `backup.storages`           | Local/remote backup storages settings    | `{}` |
 | `backup.tasks`              | Backup working schedule                  | `{}` |
@@ -122,6 +128,7 @@ The chart can be customized using the following configurable parameters:
 
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
+Notice that you can use multiple replica sets only with sharding enabled.
 
 ## Examples
 
@@ -131,6 +138,6 @@ This is great for a dev PSMDB/MongoDB cluster as it doesn't bother with backups 
 
 ```bash
 $ helm install dev  --namespace psmdb . \
-    --set runUid=1001 --set replset.volumeSpec.pvc.resources.requests.storage=20Gi \
+    --set runUid=1001 --set "replsets[0].volumeSpec.pvc.resources.requests.storage=20Gi" \
     --set backup.enabled=false --set sharding.enabled=false
 ```
