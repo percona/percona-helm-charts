@@ -294,8 +294,17 @@ properties:
     - 1
     - 3
     - 5
-    - 7
-    - 9
+  serviceType:
+    type: string
+    x-google-marketplace:
+      type: STRING
+    default: PublicLB
+    enum:
+    - PublicLB
+    - InternalLB
+    - ClusterIP
+    title: Percona Xtradb Cluster application service type
+    description: The type of the kubernetes network service object for accessing Percona Xtradb Cluster database
 
 
 required:
@@ -305,3 +314,4 @@ required:
 - pxc.version
 - pxc.datadir.size
 - pxc.replicas
+- serviceType
