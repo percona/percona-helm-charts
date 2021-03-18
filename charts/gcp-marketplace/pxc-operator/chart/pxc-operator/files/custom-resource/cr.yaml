@@ -16,7 +16,7 @@ spec:
   vaultSecretName: keyring-secret-vault
   sslSecretName: {{ .Release.Name }}-ssl
   sslInternalSecretName: {{ .Release.Name }}-ssl-internal
-  allowUnsafeConfigurations: false
+  allowUnsafeConfigurations: {{ template "pxc-operator.unsafeConfigurations" . }}
   updateStrategy: SmartUpdate
   upgradeOptions:
     versionServiceEndpoint: https://check.percona.com
@@ -54,6 +54,12 @@ spec:
     podDisruptionBudget:
       maxUnavailable: 1
     gracePeriod: 30
+    {{ if eq .Values.serviceType "InternalLB" }}
+    serviceAnnotations:
+      cloud.google.com/load-balancer-type: "Internal"
+    {{ end }}
+    serviceType: {{ template "pxc-operator.serviceType" . }}
+    replicasServiceType: {{ template "pxc-operator.serviceType" . }}
   proxysql:
     serviceAccountName: percona-xtradb-cluster-operator-workload
     enabled: false
@@ -73,6 +79,11 @@ spec:
     podDisruptionBudget:
       maxUnavailable: 1
     gracePeriod: 30
+    {{ if eq .Values.serviceType "InternalLB" }}
+    serviceAnnotations:
+      cloud.google.com/load-balancer-type: "Internal"
+    {{ end }}
+    serviceType: {{ template "pxc-operator.serviceType" . }}
   logcollector:
     enabled: true
     image: "{{ .Values.logcollector.image.registry }}/{{ .Values.logcollector.image.repository }}:{{ .Values.logcollector.image.tag }}"

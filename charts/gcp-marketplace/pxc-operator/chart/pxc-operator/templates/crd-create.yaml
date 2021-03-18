@@ -33,10 +33,21 @@ spec:
               OPERATOR_POD_UID=$(kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ .Chart.Name }} -o jsonpath='{.items[0].metadata.uid}')
               OPERATOR_POD_NAME=$(kubectl get pod -l app.kubernetes.io/instance={{ .Release.Name }},app.kubernetes.io/name={{ .Chart.Name }} -o jsonpath='{.items[0].metadata.name}')
 
-              kubectl patch sa ${SA_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]'
-              kubectl patch clusterrolebinding ${CLUSTERROLEBINDING_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]'
-              kubectl patch clusterrole ${CLUSTERROLE_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]'
-              kubectl patch sa percona-xtradb-cluster-operator-workload --type json -p='[{"op":"add","path":"/metadata/ownerReferences","value":[{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}]}]'
+              [[ -n $(kubectl get sa ${SA_NAME} -o jsonpath='{.metadata.ownerReferences}') ]] \
+                && kubectl patch sa ${SA_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]' \
+                || echo "Service account ${SA_NAME} has no ownerReferences"
+
+              [[ -n $(kubectl get clusterrolebinding ${CLUSTERROLEBINDING_NAME} -o jsonpath='{.metadata.ownerReferences}') ]] \
+                && kubectl patch clusterrolebinding ${CLUSTERROLEBINDING_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]' \
+                || echo "Clusterrolebinding ${CLUSTERROLEBINDING_NAME} has no ownerReferences"
+
+              [[ -n $(kubectl get clusterrole ${CLUSTERROLE_NAME} -o jsonpath='{.metadata.ownerReferences}') ]] \
+                && kubectl patch clusterrole ${CLUSTERROLE_NAME} --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]' \
+                || echo "Clusterrole ${CLUSTERROLE_NAME} has no ownerReferences"
+
+              [[ -n $(kubectl get sa percona-xtradb-cluster-operator-workload -o jsonpath='{.metadata.ownerReferences}') ]] \
+                && kubectl patch sa percona-xtradb-cluster-operator-workload --type json -p='[{"op":"add","path":"/metadata/ownerReferences","value":[{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}]}]' \
+                || echo "Service account percona-xtradb-cluster-operator-workload has no ownerReferences"
           fi
         image: {{ .Values.deployerHelm.image }}
         imagePullPolicy: Always

@@ -71,3 +71,19 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{ .Values.pxc57backup.image.registry }}/{{ .Values.pxc57backup.image.repository }}:{{ .Values.pxc57backup.image.tag }}
 {{- end -}}
 {{- end -}}
+
+{{- define "pxc-operator.unsafeConfigurations" -}}
+{{- if eq .Values.pxc.replicas 1.0 -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end -}}
+
+{{- define "pxc-operator.serviceType" -}}
+{{- if or (eq .Values.serviceType "InternalLB") (eq .Values.serviceType "PublicLB") -}}
+LoadBalancer
+{{- else -}}
+ClusterIP
+{{- end -}}
+{{- end -}}

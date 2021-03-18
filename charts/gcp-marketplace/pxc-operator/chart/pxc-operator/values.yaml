@@ -18,6 +18,7 @@ pxc:
   version: null
   replicas: null
 name: null
+serviceType: null
 
 
 # set if you want to specify a namespace to watch
