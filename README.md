@@ -1,11 +1,16 @@
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 # Percona Helm Charts
 
-This repository contains Helm charts for various Percona products.
+[Percona](https://www.percona.com/) is commited to simplify the deployment and management of databases on Kubernetes. [Helm](https://helm.sh/) enables users to package, run, share and manage even complex applications.
+This repository contains Helm charts for the following Percona products.
 
 * [Percona XtraDB Cluster Operator](charts/pxc-operator/)
 * [Percona XtraDB Cluster](charts/pxc-db/)
 * [Percona Server for MongoDB Operator](charts/psmdb-operator/)
 * [Percona Server for MongoDB](charts/psmdb-db/)
+
+Read more about Percona Kubernetes Operators [here](https://www.percona.com/software/percona-kubernetes-operators).
 
 ## Installing Charts from this Repository
 
