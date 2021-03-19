@@ -1,49 +1,39 @@
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 # Percona Helm Charts
 
-This repository contains Helm charts for various Percona products.
+[Percona](https://www.percona.com/) is committed to simplify the deployment and management of databases on Kubernetes. [Helm](https://helm.sh/) enables users to package, run, share and manage even complex applications.
+This repository contains Helm charts for the following Percona products.
 
 * [Percona XtraDB Cluster Operator](charts/pxc-operator/)
 * [Percona XtraDB Cluster](charts/pxc-db/)
 * [Percona Server for MongoDB Operator](charts/psmdb-operator/)
 * [Percona Server for MongoDB](charts/psmdb-db/)
 
+Read more about Percona Kubernetes Operators [here](https://www.percona.com/software/percona-kubernetes-operators).
+
 ## Installing Charts from this Repository
 
-If you're using Helm2 please install CRD manually for Percona XtraDB Cluster Operator:
-```bash
-kubectl apply -f https://raw.githubusercontent.com/percona/percona-helm-charts/master/charts/pxc-operator/crds/crd.yaml
-```
-or for Percona Server for MongoDB Operator:
-```bash
-kubectl apply -f https://raw.githubusercontent.com/percona/percona-helm-charts/master/charts/psmdb-operator/crds/crd.yaml
-```
+You will need [Helm v3](https://github.com/helm/helm) for the installation.
 
-Add the Repository to Helm:
+See detailed installation instructions in the README file of each chart:
 
-```bash
-helm repo add percona https://percona.github.io/percona-helm-charts
-```
+* [Percona XtraDB Cluster Operator](pxc-operator/README.md)
+* [Percona XtraDB Cluster](pxc-db/README.md)
+* [Percona Server for MongoDB Operator](psmdb-operator/README.md)
+* [Percona Server for MongoDB](psmdb-db/README.md)
 
-Install Percona XtraDB Cluster Operator:
+# Contributing
 
-```bash
-helm install percona/pxc-operator
-```
+Percona welcomes and encourages community contributions to help improve Percona Kubernetes Operators as well as other Percona's projects.
 
-Install Percona XtraDB Cluster:
+See the [Contribution Guide](CONTRIBUTING.md) for more information.
 
-```bash
-helm install percona/pxc-db
-```
+# Submitting Bug Reports
 
-Install Percona Server for MongoDB Operator:
+If you find a bug related to one of these Helm charts, please submit a report to the appropriate project's Jira issue tracker:
 
-```bash
-helm install percona/psmdb-operator
-```
+* [Percona XtraDB Cluster and Percona XtraDB Cluster Operator](https://jira.percona.com/projects/K8SPXC/)
+* [Percona Server for MongoDB and Percona Server for MongoDB Operator](https://jira.percona.com/projects/K8SPSMDB)
 
-Install Percona Server for MongoDB:
-
-```bash
-helm install percona/psmdb-db
-```
+Learn more about submitting bugs, new feature ideas, and improvements in the [Contribution Guide](CONTRIBUTING.md).
