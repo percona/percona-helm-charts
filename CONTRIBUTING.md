@@ -21,7 +21,7 @@ Improvement and bugfix tasks for Percona's projects are tracked in Jira:
 * [Percona XtraDB Cluster and Percona XtraDB Cluster Operator](https://jira.percona.com/projects/K8SPXC/)
 * [Percona Server for MongoDB and Percona Server for MongoDB Operator](https://jira.percona.com/projects/K8SPSMDB)
 
-Although not mandatory, it is a good practice to examine already open Jira issues before submitting a pull request. For bigger contributions, we suggest creating a Jira issue first and discussing it with the engineering team and community before proposing any code changes.
+Although not mandatory, it is a good practice to examine already open Jira issues first. For bigger contributions, we suggest creating a Jira issue and discussing it with the engineering team and community before proposing any code changes.
 
 Another good place to discuss Percona's projects with developers and other community members is the [community forum](https://forums.percona.com).
 
