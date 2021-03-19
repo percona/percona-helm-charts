@@ -2,7 +2,7 @@
 
 # Percona Helm Charts
 
-[Percona](https://www.percona.com/) is commited to simplify the deployment and management of databases on Kubernetes. [Helm](https://helm.sh/) enables users to package, run, share and manage even complex applications.
+[Percona](https://www.percona.com/) is committed to simplify the deployment and management of databases on Kubernetes. [Helm](https://helm.sh/) enables users to package, run, share and manage even complex applications.
 This repository contains Helm charts for the following Percona products.
 
 * [Percona XtraDB Cluster Operator](charts/pxc-operator/)
@@ -33,9 +33,7 @@ See the [Contribution Guide](CONTRIBUTING.md) for more information.
 
 If you find a bug related to one of these Helm charts, please submit a report to the appropriate project's Jira issue tracker:
 
-* [Percona XtraDB Cluster Operator](https://jira.percona.com/projects/K8SPXC/)
-* [Percona XtraDB Cluster](https://jira.percona.com/projects/PXC)
-* [Percona Server for MongoDB Operator](https://jira.percona.com/projects/K8SPSMDB)
-* [Percona Server for MongoDB](https://jira.percona.com/projects/PSMDB)
+* [Percona XtraDB Cluster and Percona XtraDB Cluster Operator](https://jira.percona.com/projects/K8SPXC/)
+* [Percona Server for MongoDB and Percona Server for MongoDB Operator](https://jira.percona.com/projects/K8SPSMDB)
 
-Learn more about submitting bugs, new features ideas and improvements in the [Contribution Guide](CONTRIBUTING.md).
+Learn more about submitting bugs, new feature ideas, and improvements in the [Contribution Guide](CONTRIBUTING.md).
