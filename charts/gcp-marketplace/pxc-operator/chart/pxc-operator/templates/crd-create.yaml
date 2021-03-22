@@ -46,8 +46,8 @@ spec:
                 || echo "Clusterrole ${CLUSTERROLE_NAME} has no ownerReferences"
 
               [[ -n $(kubectl get sa percona-xtradb-cluster-operator-workload -o jsonpath='{.metadata.ownerReferences}') ]] \
-                && kubectl patch sa percona-xtradb-cluster-operator-workload --type json -p='[{"op":"add","path":"/metadata/ownerReferences","value":[{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}]}]' \
-                || echo "Service account percona-xtradb-cluster-operator-workload has no ownerReferences"
+                && kubectl patch sa percona-xtradb-cluster-operator-workload --type json -p='[{"op":"replace","path":"/metadata/ownerReferences/0","value":{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}}]' \
+                || kubectl patch sa percona-xtradb-cluster-operator-workload --type json -p='[{"op":"add","path":"/metadata/ownerReferences","value":[{"apiVersion":"v1","kind":"Pod","name":"'"${OPERATOR_POD_NAME}"'","uid":"'"${OPERATOR_POD_UID}"'","blockOwnerDeletion":true}]}]'
           fi
         image: {{ .Values.deployerHelm.image }}
         imagePullPolicy: Always
