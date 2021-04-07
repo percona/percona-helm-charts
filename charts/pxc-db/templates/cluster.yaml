@@ -125,6 +125,19 @@ spec:
 {{- if hasKey $haproxy "priorityClassName" }}
     priorityClassName: {{ $haproxy.priorityClassName }}
 {{- end }}
+{{- if hasKey $haproxy "externalTrafficPolicy" }}
+    externalTrafficPolicy: {{ $haproxy.externalTrafficPolicy }}
+{{- end }}
+{{- if hasKey $haproxy "loadBalancerSourceRanges" }}
+    loadBalancerSourceRanges: {{ $haproxy.loadBalancerSourceRanges }}
+{{- end }}
+{{- if hasKey $haproxy "serviceType" }}
+    serviceType: {{ $haproxy.serviceType }}
+{{- end }}
+{{- if hasKey $haproxy "serviceAnnotations" }}
+    serviceAnnotations:
+{{ $haproxy.serviceAnnotations | toYaml | indent 6 }}
+{{- end }}
     annotations:
 {{ $haproxy.annotations | toYaml | indent 6 }}
     labels:
@@ -161,6 +174,19 @@ spec:
     {{- end }}
 {{- if hasKey $proxysql "priorityClassName" }}
     priorityClassName: {{ $proxysql.priorityClassName }}
+{{- end }}
+{{- if hasKey $proxysql "externalTrafficPolicy" }}
+    externalTrafficPolicy: {{ $proxysql.externalTrafficPolicy }}
+{{- end }}
+{{- if hasKey $proxysql "loadBalancerSourceRanges" }}
+    loadBalancerSourceRanges: {{ $proxysql.loadBalancerSourceRanges }}
+{{- end }}
+{{- if hasKey $proxysql "serviceType" }}
+    serviceType: {{ $proxysql.serviceType }}
+{{- end }}
+{{- if hasKey $proxysql "serviceAnnotations" }}
+    serviceAnnotations:
+{{ $proxysql.serviceAnnotations | toYaml | indent 6 }}
 {{- end }}
     annotations:
 {{ $proxysql.annotations | toYaml | indent 6 }}
