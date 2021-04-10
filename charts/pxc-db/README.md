@@ -37,6 +37,9 @@ The chart can be customized using the following configurable parameters:
 | `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PXC Versions provider                             | `https://check.percona.com/versions`      |
 | `upgradeOptions.apply`          | PXC image to apply from version service - `recommended`, `latest`, actual version like `8.0.19-10.1` | `recommended` |
 | `upgradeOptions.schedule`          | Cron formatted time to execute the update | `"0 4 * * *"` |
+| `finalizers:delete-pxc-pods-in-order`  | Set this if you want to delete PXC pods in order on cluster deletion |  |
+| `finalizers:delete-proxysql-pvc`  | Set this if you want to delete proxysql persistent volumes on cluster deletion |  |
+| `finalizers:delete-pxc-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion |  |
 | `pxc.size`                      | PXC Cluster target member (pod) quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
 | `pxc.image.repository`              | PXC Container image repository                                           | `percona/percona-xtradb-cluster` |
 | `pxc.image.tag`                     | PXC Container image tag                                       | `8.0.21-12.1`                              |
