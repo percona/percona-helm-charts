@@ -13,7 +13,7 @@ finalizers:
 nameOverride: "production"
 fullnameOverride: "production"
 
-crVersion: 1.7.0
+crVersion: 1.8.0
 pause: false
 allowUnsafeConfigurations: false
 updateStrategy: SmartUpdate
@@ -26,7 +26,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.21-12.1
+    tag: 8.0.22-13.1
   autoRecovery: true
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -99,13 +99,19 @@ haproxy:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.7.0-haproxy
+    tag: 1.8.0-haproxy
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
   #  iam.amazonaws.com/role: role-arn
   labels: {}
   #  rack: rack-22
+  # serviceType: ClusterIP
+  # externalTrafficPolicy: Cluster
+  # loadBalancerSourceRanges:
+  #   - 10.0.0.0/8
+  # serviceAnnotations:
+  #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
   # priorityClassName:
   readinessDelaySec: 15
   livenessDelaySec: 300
@@ -146,13 +152,19 @@ proxysql:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.7.0-proxysql
+    tag: 1.8.0-proxysql
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
   #  iam.amazonaws.com/role: role-arn
   labels: {}
   #  rack: rack-22
+  # serviceType: ClusterIP
+  # externalTrafficPolicy: Cluster
+  # loadBalancerSourceRanges:
+  #   - 10.0.0.0/8
+  # serviceAnnotations:
+  #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
   # priorityClassName:
   readinessDelaySec: 15
   livenessDelaySec: 300
@@ -197,7 +209,7 @@ logcollector:
   enabled: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.7.0-logcollector
+    tag: 1.8.0-logcollector
 
 pmm:
   enabled: false
@@ -211,7 +223,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.7.0-pxc8.0-backup
+    tag: 1.8.0-pxc8.0-backup
   imagePullSecrets: []
   # - name: private-registry-credentials
   pitr:
@@ -233,7 +245,10 @@ backup:
     #   type: s3
     #   s3:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
+    #     # Use credentialsSecret OR credentialsAccessKey/credentialsSecretKey
     #     credentialsSecret: my-cluster-name-backup-s3
+    #     #credentialsAccessKey: REPLACE-WITH-AWS-ACCESS-KEY
+    #     #credentialsSecretKey: REPLACE-WITH-AWS-SECRET-KEY
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
     # s3-us-west-binlogs:
