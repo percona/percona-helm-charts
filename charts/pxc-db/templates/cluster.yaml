@@ -1,9 +1,9 @@
-apiVersion: pxc.percona.com/v1-7-0
+apiVersion: pxc.percona.com/v1-8-0
 kind: PerconaXtraDBCluster
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"pxc.percona.com/v1-7-0","kind":"PerconaXtraDBCluster"}
+      {"apiVersion":"pxc.percona.com/v1-8-0","kind":"PerconaXtraDBCluster"}
   name: {{ include "pxc-database.fullname" . }}
   labels:
 {{ include "pxc-database.labels" . | indent 4 }}
@@ -125,6 +125,20 @@ spec:
 {{- if hasKey $haproxy "priorityClassName" }}
     priorityClassName: {{ $haproxy.priorityClassName }}
 {{- end }}
+{{- if hasKey $haproxy "externalTrafficPolicy" }}
+    externalTrafficPolicy: {{ $haproxy.externalTrafficPolicy }}
+{{- end }}
+{{- if hasKey $haproxy "loadBalancerSourceRanges" }}
+    loadBalancerSourceRanges:
+{{ $haproxy.loadBalancerSourceRanges | toYaml | indent 6 }}
+{{- end }}
+{{- if hasKey $haproxy "serviceType" }}
+    serviceType: {{ $haproxy.serviceType }}
+{{- end }}
+{{- if hasKey $haproxy "serviceAnnotations" }}
+    serviceAnnotations:
+{{ $haproxy.serviceAnnotations | toYaml | indent 6 }}
+{{- end }}
     annotations:
 {{ $haproxy.annotations | toYaml | indent 6 }}
     labels:
@@ -161,6 +175,20 @@ spec:
     {{- end }}
 {{- if hasKey $proxysql "priorityClassName" }}
     priorityClassName: {{ $proxysql.priorityClassName }}
+{{- end }}
+{{- if hasKey $proxysql "externalTrafficPolicy" }}
+    externalTrafficPolicy: {{ $proxysql.externalTrafficPolicy }}
+{{- end }}
+{{- if hasKey $proxysql "loadBalancerSourceRanges" }}
+    loadBalancerSourceRanges:
+{{ $proxysql.loadBalancerSourceRanges | toYaml | indent 6 }}
+{{- end }}
+{{- if hasKey $proxysql "serviceType" }}
+    serviceType: {{ $proxysql.serviceType }}
+{{- end }}
+{{- if hasKey $proxysql "serviceAnnotations" }}
+    serviceAnnotations:
+{{ $proxysql.serviceAnnotations | toYaml | indent 6 }}
 {{- end }}
     annotations:
 {{ $proxysql.annotations | toYaml | indent 6 }}
@@ -242,7 +270,7 @@ spec:
       timeBetweenUploads: {{ $backup.pitr.timeBetweenUploads }}
     {{- end }}
     storages:
-{{ $backup.storages | toYaml | indent 6 }}
+{{ include "pxc-database.storages" . | indent 6 }}
 {{- if $backup.enabled }}
     schedule:
 {{ $backup.schedule | toYaml | indent 6 }}
