@@ -41,7 +41,11 @@ spec:
           - percona-xtradb-cluster-operator
           env:
             - name: WATCH_NAMESPACE
+              {{- if .Values.watchAllNamespaces }}
+              value: ""
+              {{- else }}
               value: {{ default .Release.Namespace .Values.watchNamespace }}
+              {{- end }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
