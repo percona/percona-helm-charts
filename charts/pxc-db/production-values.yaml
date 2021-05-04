@@ -50,6 +50,7 @@ pxc:
       cpu: 600m
     # db resources are sacred, so don't limit it.
     limits: {}
+  securityContext: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:
@@ -122,6 +123,7 @@ haproxy:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  securityContext: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:

@@ -56,6 +56,11 @@ spec:
               scheme: HTTP
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+        {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

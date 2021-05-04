@@ -77,6 +77,8 @@ spec:
 {{ tpl ($pxc.resources.requests| toYaml) $ | indent 8}}
       limits:
 {{ tpl ($pxc.resources.limits | toYaml) $ | indent 8 }}
+    securityContext:
+{{ $pxc.securityContext | toYaml | indent 6 }}
     nodeSelector:
 {{ $pxc.nodeSelector | toYaml | indent 6 }}
     affinity:
@@ -148,6 +150,8 @@ spec:
 {{ $haproxy.resources.requests | toYaml | indent 8 }}
       limits:
 {{ $haproxy.resources.limits | toYaml | indent 8 }}
+    securityContext:
+{{ $haproxy.securityContext | toYaml | indent 6 }}
     nodeSelector:
 {{ $haproxy.nodeSelector | toYaml | indent 6 }}
     affinity:

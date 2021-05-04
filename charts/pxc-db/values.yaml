@@ -49,6 +49,7 @@ pxc:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  securityContext: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:
@@ -128,6 +129,7 @@ haproxy:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  securityContext: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:
