@@ -22,10 +22,11 @@ upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
   apply: disabled
   schedule: "0 2 * * *"
+  setFCV: false
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 4.4.3-5
+  tag: 4.4.5-7
 
 # imagePullSecrets: []
 # runUid: 1001
@@ -167,7 +168,7 @@ backup:
   restartOnFailure: true
   image:
     repository: percona/percona-server-mongodb-operator
-    tag: 1.7.0-backup
+    tag: 1.8.0-backup
   serviceAccountName: percona-server-mongodb-operator
   # resources:
   #   limits:
@@ -190,6 +191,8 @@ backup:
   #     region: us-east-1
   #     credentialsSecret: my-cluster-name-backup-minio
   #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
+  pitr:
+    enabled: false
   tasks:
   # - name: daily-s3-us-west
   #   enabled: true
