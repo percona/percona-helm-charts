@@ -5,7 +5,7 @@ This chart implements Percona Server MongoDB deployment in Kubernets via Custom 
 
 ## Pre-requisites
 * [PSMDB operator](https://hub.helm.sh/charts/percona/psmdb-operator) running in you K8S cluster
-* Kubernetes 1.15+
+* Kubernetes 1.16+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
 * At least `v2.5.0` version of helm
 
@@ -24,7 +24,7 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.7.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.8.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -35,10 +35,11 @@ The chart can be customized using the following configurable parameters:
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PSMDB cluster pods        | `false`                                   |
 | `updateStrategy`                | Regulates the way how PSMDB Cluster Pods will be updated after setting a new image | `SmartUpdate`                          |
 | `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PSMDB Versions provider	 | `https://check.percona.com/versions/` |
-| `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `recommended` |
+| `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `4.4-recommended` |
 | `upgradeOptions.schedule` | Cron formatted time to execute the update | `"0 2 * * *"` |
+| `upgradeOptions.setFCV` | Set feature compatibility version on major upgrade | `false` |
 | `image.repository`              | PSMDB Container image repository                                           | `percona/percona-server-mongodb` |
-| `image.tag`                     | PSMDB Container image tag                                       | `4.4.3-5`                              |
+| `image.tag`                     | PSMDB Container image tag                                       | `4.4.5-7`                              |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                | `[]`                                      |
 | `runUid`             | Set UserID                                                | `""`                                      |
 | `secrets`             | Users secret structure                                                | `{}`                                   |
@@ -120,9 +121,10 @@ The chart can be customized using the following configurable parameters:
 | `backup.enabled`            | Enable backup PBM agent                  | `true` |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
 | `backup.image.repository`   | PBM Container image repository           | `percona/percona-server-mongodb-operator` |
-| `backup.image.tag`          | PBM Container image tag                  | `1.7.0-backup` |
+| `backup.image.tag`          | PBM Container image tag                  | `1.8.0-backup` |
 | `backup.serviceAccountName` | Run PBM Container under specified K8S SA | `percona-server-mongodb-operator` |
 | `backup.storages`           | Local/remote backup storages settings    | `{}` |
+| `backup.pitr.enabled`       | Enable point in time recovery for backup | `false` |
 | `backup.tasks`              | Backup working schedule                  | `{}` |
 | `users`                     | PSMDB essential users                    | `{}` |
 
