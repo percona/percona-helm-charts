@@ -79,6 +79,11 @@ spec:
 {{ tpl ($pxc.resources.limits | toYaml) $ | indent 8 }}
     nodeSelector:
 {{ $pxc.nodeSelector | toYaml | indent 6 }}
+    sidecarResources:
+      requests:
+{{ tpl ($pxc.sidecar.resources.requests| toYaml) $ | indent 8}}
+      limits:
+{{ tpl ($pxc.sidecar.resources.limits| toYaml) $ | indent 8}}
     affinity:
 {{ $pxc.affinity | toYaml | indent 6 }}
     tolerations:
@@ -239,6 +244,11 @@ spec:
     {{- $logcollector := .Values.logcollector }}
     enabled: true
     image: {{ $logcollector.image.repository }}:{{ $logcollector.image.tag }}
+    resources:
+      requests:
+{{ tpl (.Values.logcollector.resources.requests| toYaml) $ | indent 8}}
+      limits:
+{{ tpl (.Values.logcollector.resources.limits| toYaml) $ | indent 8}}
   {{- end }}
   pmm:
   {{- if not .Values.pmm.enabled }}
@@ -249,6 +259,11 @@ spec:
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
     serverHost: {{ $pmm.serverHost }}
     serverUser: {{ $pmm.serverUser }}
+    resources:
+      requests:
+{{ tpl (.Values.pmm.resources.requests| toYaml) $ | indent 8}}
+      limits:
+{{ tpl (.Values.pmm.resources.limits| toYaml) $ | indent 8}}
   {{- end }}
   {{- $backup := .Values.backup }}
 
