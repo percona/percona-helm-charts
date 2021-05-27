@@ -49,6 +49,7 @@ pxc:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  sidecars: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:

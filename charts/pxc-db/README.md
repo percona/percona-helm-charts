@@ -54,6 +54,7 @@ The chart can be customized using the following configurable parameters:
 | `pxc.configuration`             | User defined MySQL options according to MySQL configuration file syntax       | ``     |
 | `pxc.resources.requests`                     | PXC Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
 | `pxc.resources.limits`                     | PXC Pods resource limits                                    | `{}`                                      |
+| `pxc.sidecars`                     | PXC Pods sidecars                                                 | `{}`                                            |
 | `pxc.nodeSelector`                  | PXC Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
 | `pxc.affinity.antiAffinityTopologyKey` | PXC Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
 | `pxc.affinity.advanced` | PXC Pods advanced scheduling restriction with match expression engine          | `{}` |
