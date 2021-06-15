@@ -1,5 +1,5 @@
 apiVersion: v2
-name: postgres-operator
+name: pg-operator
 description: 'A Helm chart for Deploying the Percona Kubernetes Operator for Percona PostgreSQL'
 type: application
 version: 0.2.0
