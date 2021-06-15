@@ -1,0 +1,4 @@
+1. postgres operator deployed.
+  Check the postgres operator logs
+    export POD=$(kubectl get pods -l name=postgres-operator --namespace {{ .Release.Namespace }} --output name)
+    kubectl logs $POD --namespace={{ .Release.Namespace }} -c operator
