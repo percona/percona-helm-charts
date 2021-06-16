@@ -98,6 +98,10 @@ values.yaml: |
 {{- if not (has $index $ignore_fields) }}
 {{- if has $index $namespace_fields }}
 {{ $index | indent 2 }}: {{ $namespace | quote }}
+{{- else if eq $index "pgo_image_tag" }}
+{{ $index | indent 2 }}: {{ $.Chart.AppVersion | quote }}
+{{- else if eq $index "ccp_image_tag" }}
+{{ $index | indent 2 }}: "{{ $.Chart.AppVersion }}-postgres-ha"
 {{- else }}
 {{ $index | indent 2 }}: {{ $value | quote }}
 {{- end }}
