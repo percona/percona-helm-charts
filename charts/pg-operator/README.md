@@ -23,7 +23,7 @@ To install the chart with the `postgres-operator` release name using a dedicated
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/postgres-operator --version 0.2.0 --namespace my-namespace
+helm install my-operator percona/postgres-operator --version 0.1.0 --namespace my-namespace
 ```
 
 ## Configuration
@@ -38,7 +38,3 @@ Chart.
 | rbac.useClusterAdmin | false | If enabled the ServiceAccount will be given cluster-admin privileges. |
 | serviceAccount.create | true | If false a ServiceAccount will not be created. A ServiceAccount must be created manually. |
 | serviceAccount.name | "" | Use to override the default ServiceAccount name. If serviceAccount.create is false this ServiceAccount will be used. |
-
-{{% notice tip %}}
-If installing into an OpenShift 3.11 or Kubernetes 1.11 cluster `rbac.useClusterAdmin` must be enabled.
-{{% /notice %}}
