@@ -1,5 +1,29 @@
 apiVersion: v1
 entries:
+  pg-operator:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2021-06-24T11:54:30.842976032Z"
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona PostgreSQL
+    digest: 40eac7cc83bf12342fe23f97ca95e4a5052aa55f0c5731da9b90fb7dfc044f6c
+    home: https://github.com/percona/percona-postgresql-operator
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    name: pg-operator
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-operator-0.1.0/pg-operator-0.1.0.tgz
+    version: 0.1.0
   psmdb-db:
   - apiVersion: v1
     appVersion: 1.8.0
