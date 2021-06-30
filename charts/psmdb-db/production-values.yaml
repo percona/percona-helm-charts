@@ -26,7 +26,7 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 4.4.5-7
+  tag: 4.4.6-8
 
 # imagePullSecrets: []
 # runUid: 1001
@@ -36,12 +36,17 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.12.0
+    tag: 2.18.0
   serverHost: monitoring-service
 
 replsets:
   - name: rs0
     size: 3
+    # configuration: |
+    #   operationProfiling:
+    #     mode: slowOp
+    #   systemLog:
+    #     verbosity: 1
     antiAffinityTopologyKey: "kubernetes.io/hostname"
     # priorityClass: ""
     # annotations: {}
@@ -98,6 +103,11 @@ sharding:
 
   configrs:
     size: 3
+    # configuration: |
+    #   operationProfiling:
+    #     mode: slowOp
+    #   systemLog:
+    #     verbosity: 1
     antiAffinityTopologyKey: "kubernetes.io/hostname"
     # priorityClass: ""
     # annotations: {}
@@ -132,6 +142,9 @@ sharding:
 
   mongos:
     size: 3
+    # configuration: |
+    #   systemLog:
+    #     verbosity: 1
     antiAffinityTopologyKey: "kubernetes.io/hostname"
     # priorityClass: ""
     # annotations: {}
@@ -168,7 +181,7 @@ backup:
   restartOnFailure: true
   image:
     repository: percona/percona-server-mongodb-operator
-    tag: 1.8.0-backup
+    tag: 1.9.0-backup
   serviceAccountName: percona-server-mongodb-operator
   # resources:
   #   limits:

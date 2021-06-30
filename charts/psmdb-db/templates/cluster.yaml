@@ -1,9 +1,9 @@
-apiVersion: psmdb.percona.com/v1-8-0
+apiVersion: psmdb.percona.com/v1-9-0
 kind: PerconaServerMongoDB
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"psmdb.percona.com/v1-8-0","kind":"PerconaServerMongoDB"}
+      {"apiVersion":"psmdb.percona.com/v1-9-0","kind":"PerconaServerMongoDB"}
   name: {{ include "psmdb-database.fullname" . }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
@@ -52,6 +52,10 @@ spec:
   {{- range $replset := .Values.replsets }}
   - name: {{ $replset.name }}
     size: {{ $replset.size }}
+    {{- if $replset.configuration }}
+    configuration: |
+{{ $replset.configuration | indent 6 }}
+    {{- end }}
     affinity:
       antiAffinityTopologyKey: {{ $replset.antiAffinityTopologyKey }}
     {{- if $replset.priorityClass }}
@@ -132,6 +136,10 @@ spec:
 
     configsvrReplSet:
       size: {{ .Values.sharding.configrs.size }}
+      {{- if .Values.sharding.configrs.configuration }}
+      configuration: |
+{{ .Values.sharding.configrs.configuration | indent 8 }}
+      {{- end }}
       affinity:
         antiAffinityTopologyKey: {{ .Values.sharding.configrs.antiAffinityTopologyKey }}
       {{- if .Values.sharding.configrs.priorityClass }}
@@ -183,6 +191,10 @@ spec:
 
     mongos:
       size: {{ .Values.sharding.mongos.size }}
+      {{- if .Values.sharding.mongos.configuration }}
+      configuration: |
+{{ .Values.sharding.mongos.configuration | indent 8 }}
+      {{- end }}
       affinity:
         antiAffinityTopologyKey: {{ .Values.sharding.mongos.antiAffinityTopologyKey }}
       {{- if .Values.sharding.mongos.priorityClass }}

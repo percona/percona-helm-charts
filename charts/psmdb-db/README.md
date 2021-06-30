@@ -24,7 +24,7 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.8.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.9.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -38,19 +38,20 @@ The chart can be customized using the following configurable parameters:
 | `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `4.4-recommended` |
 | `upgradeOptions.schedule` | Cron formatted time to execute the update | `"0 2 * * *"` |
 | `upgradeOptions.setFCV` | Set feature compatibility version on major upgrade | `false` |
-| `finalizers:delete-psmdb-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion |   |
+| `finalizers:delete-psmdb-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion | `[]` |
 | `image.repository`              | PSMDB Container image repository                                           | `percona/percona-server-mongodb` |
-| `image.tag`                     | PSMDB Container image tag                                       | `4.4.5-7`                              |
+| `image.tag`                     | PSMDB Container image tag                                       | `4.4.6-8`                              |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                | `[]`                                      |
 | `runUid`             | Set UserID                                                | `""`                                      |
 | `secrets`             | Users secret structure                                                | `{}`                                   |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.12.0`                              |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.18.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 ||
 | `replsets[0].name`                      | ReplicaSet name              | `rs0` |
 | `replsets[0].size`                      | ReplicaSet size (pod quantity)              | `3` |
+| `replsets[0].configuration`             | Custom config for mongod in replica set     | `""` |
 | `replsets[0].antiAffinityTopologyKey`   | ReplicaSet Pod affinity              | `kubernetes.io/hostname` |
 | `replsets[0].priorityClass`   | ReplicaSet Pod priorityClassName              | `""` |
 | `replsets[0].annotations`   | ReplicaSet Pod annotations              | `{}` |
@@ -83,6 +84,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `sharding.enabled`                             | Enable sharding setup | `true` |
 | `sharding.configrs.size`                       | Config ReplicaSet size (pod quantity) | `3` |
+| `sharding.configrs.configuration`              | Custom config for mongod in config replica set | `""` |
 | `sharding.configrs.antiAffinityTopologyKey`    | Config ReplicaSet Pod affinity | `kubernetes.io/hostname` |
 | `sharding.configrs.priorityClass`              | Config ReplicaSet Pod priorityClassName | `""` |
 | `sharding.configrs.annotations`                | Config ReplicaSet Pod annotations | `{}` |
@@ -103,6 +105,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.volumeSpec.pvc.accessModes` | Config ReplicaSet Pods PVC access policy | `[]` |
 | `sharding.configrs.volumeSpec.pvc.resources.requests.storage` | Config ReplicaSet Pods PVC storage size | `3Gi` |
 | `sharding.mongos.size`                         | Mongos size (pod quantity) | `3` |
+| `sharding.mongos.configuration`                | Custom config for mongos   | `""` |
 | `sharding.mongos.antiAffinityTopologyKey`      | Mongos Pods affinity | `kubernetes.io/hostname` |
 | `sharding.mongos.priorityClass`                | Mongos Pods priorityClassName | `""` |
 | `sharding.mongos.annotations`                  | Mongos Pods annotations | `{}` |
@@ -122,7 +125,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.enabled`            | Enable backup PBM agent                  | `true` |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
 | `backup.image.repository`   | PBM Container image repository           | `percona/percona-server-mongodb-operator` |
-| `backup.image.tag`          | PBM Container image tag                  | `1.8.0-backup` |
+| `backup.image.tag`          | PBM Container image tag                  | `1.9.0-backup` |
 | `backup.serviceAccountName` | Run PBM Container under specified K8S SA | `percona-server-mongodb-operator` |
 | `backup.storages`           | Local/remote backup storages settings    | `{}` |
 | `backup.pitr.enabled`       | Enable point in time recovery for backup | `false` |

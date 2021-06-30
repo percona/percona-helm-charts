@@ -20,7 +20,7 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/psmdb-operator --version 1.8.0 --namespace my-namespace
+helm install my-operator percona/psmdb-operator --version 1.9.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -28,7 +28,7 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
 | `image.repository`              | PSMDB Operator Container image name                                           | `percona/percona-server-mongodb-operator` |
-| `image.tag`                     | PSMDB Operator Container image tag                                            | `1.8.0`                                   |
+| `image.tag`                     | PSMDB Operator Container image tag                                            | `1.9.0`                                   |
 | `image.pullPolicy`              | PSMDB Operator Container pull policy                                          | `Always`                                  |
 | `image.pullSecrets`             | PSMDB Operator Pod pull secret                                                | `[]`                                      |
 | `replicaCount`                  | PSMDB Operator Pod quantity                                                   | `1`                                       |
