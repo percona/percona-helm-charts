@@ -38,6 +38,7 @@ The chart can be customized using the following configurable parameters:
 | `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `4.4-recommended` |
 | `upgradeOptions.schedule` | Cron formatted time to execute the update | `"0 2 * * *"` |
 | `upgradeOptions.setFCV` | Set feature compatibility version on major upgrade | `false` |
+| `finalizers:delete-psmdb-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion |   |
 | `image.repository`              | PSMDB Container image repository                                           | `percona/percona-server-mongodb` |
 | `image.tag`                     | PSMDB Container image tag                                       | `4.4.5-7`                              |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                | `[]`                                      |
