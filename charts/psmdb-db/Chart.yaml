@@ -1,4 +1,4 @@
-apiVersion: v1
+apiVersion: v2
 appVersion: "1.9.0"
 description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
 name: psmdb-db
