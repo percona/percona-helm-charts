@@ -210,6 +210,14 @@ logcollector:
   image:
     repository: percona/percona-xtradb-cluster-operator
     tag: 1.8.0-logcollector
+  # configuration: |
+  #   [OUTPUT]
+  #         Name  es
+  #         Match *
+  #         Host  192.168.2.3
+  #         Port  9200
+  #         Index my_index
+  #         Type  my_type
 
 pmm:
   enabled: false

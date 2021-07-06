@@ -239,6 +239,10 @@ spec:
     {{- $logcollector := .Values.logcollector }}
     enabled: true
     image: {{ $logcollector.image.repository }}:{{ $logcollector.image.tag }}
+    {{- if $logcollector.configuration }}
+    configuration: |
+    {{ tpl $logcollector.configuration $ | nindent 6 }}
+    {{- end }}
   {{- end }}
   pmm:
   {{- if not .Values.pmm.enabled }}
