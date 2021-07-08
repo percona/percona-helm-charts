@@ -18,10 +18,10 @@ You will need [Helm v3](https://github.com/helm/helm) for the installation.
 
 See detailed installation instructions in the README file of each chart:
 
-* [Percona XtraDB Cluster Operator](pxc-operator/README.md)
-* [Percona XtraDB Cluster](pxc-db/README.md)
-* [Percona Server for MongoDB Operator](psmdb-operator/README.md)
-* [Percona Server for MongoDB](psmdb-db/README.md)
+* [Percona XtraDB Cluster Operator](charts/pxc-operator/README.md)
+* [Percona XtraDB Cluster](charts/pxc-db/README.md)
+* [Percona Server for MongoDB Operator](charts/psmdb-operator/README.md)
+* [Percona Server for MongoDB](charts/psmdb-db/README.md)
 
 # Contributing
 
