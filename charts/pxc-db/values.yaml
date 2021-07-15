@@ -147,7 +147,7 @@ haproxy:
     #   operator: "Exists"
     #   effect: "NoExecute"
     #   tolerationSeconds: 6000
-  gracePeriod: 600
+  gracePeriod: 30
   # only one of `maxUnavailable` or `minAvailable` can be set.
   podDisruptionBudget:
     maxUnavailable: 1
@@ -200,7 +200,7 @@ proxysql:
     #   operator: "Exists"
     #   effect: "NoExecute"
     #   tolerationSeconds: 6000
-  gracePeriod: 600
+  gracePeriod: 30
   # only one of `maxUnavailable` or `minAvailable` can be set.
   podDisruptionBudget:
     maxUnavailable: 1
