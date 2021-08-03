@@ -1,0 +1,8 @@
+To get a PostgreSQL prompt inside your new cluster you can run:
+
+  POSTGRES_USER=$(kubectl -n {{ .Release.Namespace }} get secrets {{ include "pg-database.fullname" . }}-{{ .Values.defaultUser }}-secret -o jsonpath="{.data.username}" | base64 --decode)
+  POSTGRES_PASSWORD=$(kubectl -n {{ .Release.Namespace }} get secrets {{ include "pg-database.fullname" . }}-{{ .Values.defaultUser }}-secret -o jsonpath="{.data.password}" | base64 --decode)
+
+And then
+  $ kubectl run -i --rm --tty percona-client --image=perconalab/percona-distribution-postgresql:13.2 --restart=Never \
+  -- psql "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@{{ include "pg-database.fullname" . }}-pgbouncer.{{ .Release.Namespace }}.svc.cluster.local/{{ .Values.defaultDatabase }}"

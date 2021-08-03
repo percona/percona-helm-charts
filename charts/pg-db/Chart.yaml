@@ -1,0 +1,19 @@
+apiVersion: v2
+name: pg-db
+description: 'A Helm chart for Deploying the Percona PostgreSQL database by Percona PostgreSQL operator'
+type: application
+version: 0.2.0
+appVersion: 0.2.0
+home: https://github.com/percona/percona-postgresql-operator
+maintainers:
+  - name: cap1984
+    email: ivan.pylypenko@percona.com
+  - name: tplavcic
+    email: tomislav.plavcic@percona.com
+keywords:
+  - PostgreSQL
+  - Operator
+  - Database
+  - Postgres
+  - SQL
+  - RDBMS
