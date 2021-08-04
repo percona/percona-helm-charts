@@ -1,6 +1,6 @@
-# pg-db: A chart for installing Percona PostgreSQL Operator managed Databases
+# pg-db: A chart for installing Percona Distribution for PostgreSQL Operator managed Databases
 
-This chart implements Percona PostgreSQL deployment in Kubernets via Custom Resource object. The project itself can be found here:
+This chart implements Percona Distribution for PostgreSQL deployment in Kubernets via Custom Resource object. The project itself can be found here:
 
 * <https://github.com/percona/percona-postgresql-operator>
 
@@ -23,7 +23,7 @@ This chart implements Percona PostgreSQL deployment in Kubernets via Custom Reso
 
 This chart will:
 
-* deploy PG database Pods (Custom Resource -> Deployments) for the further PostgreSQL Cluster creation in K8S.
+* deploy PG database Pods (Custom Resource -> Deployments) for the further Percona Distribution for PostgreSQL Cluster creation in K8S.
 
 ### Installing the Chart
 
@@ -114,7 +114,7 @@ Notice that you can use multiple replica sets only with sharding enabled.
 
 ### Deploy a replica set with disabled backups and no mongos pods
 
-This is great for a dev Percona PostgreSQL cluster as it doesn't bother with backups.
+This is great for a dev Percona Distribution for PostgreSQL cluster as it doesn't bother with backups.
 
 ```bash
 $ helm install dev  --namespace pgdb .
