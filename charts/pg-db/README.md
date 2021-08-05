@@ -1,12 +1,12 @@
 # pg-db: A chart for installing Percona Distribution for PostgreSQL Operator managed Databases
 
-This chart implements Percona Distribution for PostgreSQL deployment in Kubernets via Custom Resource object. The project itself can be found here:
+This chart implements Percona Distribution for PostgreSQL deployment on Kubernets via a Custom Resource object. The project itself can be found here:
 
 * <https://github.com/percona/percona-postgresql-operator>
 
 ## Pre-requisites
 
-* [PG operator](https://hub.helm.sh/charts/percona/pg-operator) running in you K8S cluster
+* [Percona Distribution for PostgreSQL Operator](https://hub.helm.sh/charts/percona/pg-operator) running in you K8S cluster
 * Kubernetes 1.16+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
 * At least `v3.2.3` version of helm
@@ -41,12 +41,12 @@ The chart can be customized using the following configurable parameters:
 | `pause`                         | Stop PostgreSQL Database safely                                                    | `false`                                   |
 | `standby`                         | Switch/start PostgreSQL Database in standby mode                                                    | `false`                                   |
 | `disableAutofail`                         | Disables the high availability capabilities of a PostgreSQL cluster                                                    | `false`                                   |
-| `keepData`                         | Keep database container PVC intact after cluster removal                                                    | `false`                                   |
-| `keepBackups`                         | Keep backups intact after cluster removal                                                    | `false`                                   |
-| `restoreFrom`                         | Set cluster/backup name as data source for newly created cluster                                                    | `false`                                   |
+| `keepData`                         | Keep database container PVC intact after the cluster removal                                                    | `false`                                   |
+| `keepBackups`                         | Keep backups intact after the cluster removal                                                    | `false`                                   |
+| `restoreFrom`                         | Set cluster/backup name as data source for a newly created cluster                                                    | `false`                                   |
 | `restoreOpts`                         | Set restore (`pgBackrest`) options for restore action                                                    | `false`                                   |
 | `defaultUser`                         | Default unprivileged database username                                                    | `pguser`                                   |
-| `defaultDatabase`                         | Default user database created from cluster start                                                    | `pgdb`                                   |
+| `defaultDatabase`                         | Default user database created from the cluster start                                                    | `pgdb`                                   |
 | `targetPort`                         | PostgreSQL port                                                    | `5432`                                   |
 | `image.repo`              | PostgreSQL container image repository                                           | `percona/percona-postgresql-operator` |
 | `image.pgver`                     | PostgreSQL container version tag                                       | `ppg13`                              |
@@ -54,23 +54,23 @@ The chart can be customized using the following configurable parameters:
 | `bucket.secret`                     | S3-compatible bucket secret key                                        |``|
 | `bucket.json`                     | GCS storage json secret (base64 encoded)                                        |``|
 | `bucket.s3ca`                     | Put custom CA certificate for your S3-compatible storage                                        |``|
-| `pgPrimary.image`                     | Set this variable if you need to use custom PostgreSQL image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-postgres-ha`                              |
-| `pgPrimary.resources.requests.memory`                     | Container resource request limits RAM                                        | `128Mi`                              |
+| `pgPrimary.image`                     | Set this variable if you need to use a custom PostgreSQL image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-postgres-ha`                              |
+| `pgPrimary.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                              |
 | `pgPrimary.tolerations`                     | PostgreSQL container deployment tolerations | `[]`                              |
 | `pgPrimary.volumeSpec.size`                     | PostgreSQL container PVC size | `1G`                              |
 | `pgPrimary.volumeSpec.accessmode`                     | PostgreSQL container PVC accessmode | `ReadWriteOnce`                              |
 | `pgPrimary.volumeSpec.storagetype`                     | PostgreSQL container PVC storagetype | `dynamic`                              |
 | `pgPrimary.volumeSpec.storageclass`                     | PostgreSQL container PVC storageclass | `standard`                              |
-| `pgPrimary.expose.serviceType`                     | K8S service type for PostgreSQL deployment | `ClusterIP`                              |
+| `pgPrimary.expose.serviceType`                     | K8S service type for the PostgreSQL deployment | `ClusterIP`                              |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
 | `pmm.image.tag`                     | PMM Container image tag                                       | `2.18.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
-| `pmm.resources.requests.memory`                    | Container resource request limits RAM              | `200M` |
-| `pmm.resources.requests.cpu`                    | Container resource request limits CPU              | `500m` |
-| `backup.image`                     | Set this variable if you need to use custom pgBackrest image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-pgbackrest`                              |
-| `backup.backrestRepoImage`                     | Set this variable if you need to use custom pgBackrest repo image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-pgbackrest-repo`                              |
-| `backup.resources.requests.memory`                     | Container resource request limits RAM                                        | `48Mi`                              |
+| `pmm.resources.requests.memory`                    | Container resource request for RAM              | `200M` |
+| `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m` |
+| `backup.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-pgbackrest`                              |
+| `backup.backrestRepoImage`                     | Set this variable if you need to use a custom pgBackrest repo image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-pgbackrest-repo`                              |
+| `backup.resources.requests.memory`                     | Container resource request for RAM                                        | `48Mi`                              |
 | `backup.volumeSpec.size`                     | PostgreSQL pgBackrest container PVC size | `1G`                              |
 | `backup.volumeSpec.accessmode`                     | PostgreSQL pgBackrest container PVC accessmode | `ReadWriteOnce`                              |
 | `backup.volumeSpec.storagetype`                     | PostgreSQL pgBackrest container PVC storagetype | `dynamic`                              |
@@ -82,23 +82,23 @@ The chart can be customized using the following configurable parameters:
 | `backup.storages.storage0.region`                     | `Should be stated explicitly for S3` S3-compatible storage region |``|
 | `backup.storages.storage0.uriStyle`                     | (Optional) S3-compatible storage URI style |`path`|
 | `backup.storages.storage0.verifyTLS`                     | (Optional) S3-compatible storage URI style |`true`|
-| `pgBouncer.image`                     | Set this variable if you need to use custom pgbouncer image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-pgbouncer`                              |
+| `pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-pgbouncer`                              |
 | `pgBouncer.size`                     | The number of pgbouncer instanses                                        | `1`                              |
-| `pgBouncer.resources.requests.cpu`                     | Container resource request limits CPU                                        | `1`                              |
-| `pgBouncer.resources.requests.memory`                     | Container resource request limits RAM                                        | `128Mi`                              |
-| `pgBouncer.resources.limits.cpu`                     | Container resource limits CPU                                        | `2`                              |
-| `pgBouncer.resources.limits.memory`                     | Container resource limits RAM                                        | `512Mi`                              |
-| `pgBouncer.expose.serviceType`                     | K8S service type for pgbouncer deployment | `ClusterIP`                              |
+| `pgBouncer.resources.requests.cpu`                     | Container resource request for CPU                                        | `1`                              |
+| `pgBouncer.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                              |
+| `pgBouncer.resources.limits.cpu`                     | Container resource limits for CPU                                        | `2`                              |
+| `pgBouncer.resources.limits.memory`                     | Container resource limits for RAM                                        | `512Mi`                              |
+| `pgBouncer.expose.serviceType`                     | K8S service type for the pgbouncer deployment | `ClusterIP`                              |
 | `replicas.size`                     | The number of PostgreSQL replicas | `0`                              |
-| `replicas.resources.requests.cpu`                     | Container resource request limits CPU                                        | `1`                              |
-| `replicas.resources.requests.memory`                     | Container resource request limits RAM                                        | `128Mi`                              |
-| `replicas.resources.limits.cpu`                     | Container resource limits CPU                                        | `1`                              |
-| `replicas.resources.limits.memory`                     | Container resource limits RAM                                        | `128Mi`                              |
+| `replicas.resources.requests.cpu`                     | Container resource request for CPU                                        | `1`                              |
+| `replicas.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                              |
+| `replicas.resources.limits.cpu`                     | Container resource limits for CPU                                        | `1`                              |
+| `replicas.resources.limits.memory`                     | Container resource limits for RAM                                        | `128Mi`                              |
 | `replicas.volumeSpec.size`                     | PostgreSQL replicas PVC size | `1G`                              |
 | `replicas.volumeSpec.accessmode`                     | PostgreSQL replica PVC accessmode | `ReadWriteOnce`                              |
 | `replicas.volumeSpec.storagetype`                     | PostgreSQL replica PVC storagetype | `dynamic`                              |
 | `replicas.volumeSpec.storageclass`                     | PostgreSQL replica PVC storageclass | `standard`                              |
-| `replicas.expose.serviceType`                     | K8S service type for replica deployments | `ClusterIP`                              |
+| `replicas.expose.serviceType`                     | K8S service type for the replica deployments | `ClusterIP`                              |
 | `pgBadger.enabled` | Switch on pgBadger | `false` |
 | `pgBadger.image`              | pgBadger image                                            | `percona/percona-postgresql-operator:0.2.0-ppg13-pgbadger` |
 | `pgBadger.port`                     | pgBadger port                                       | `10000` |
@@ -112,9 +112,7 @@ Notice that you can use multiple replica sets only with sharding enabled.
 
 ## Examples
 
-### Deploy a replica set with disabled backups and no mongos pods
-
-This is great for a dev Percona Distribution for PostgreSQL cluster as it doesn't bother with backups.
+This is great one for a dev Percona Distribution for PostgreSQL cluster as it doesn't bother with backups.
 
 ```bash
 $ helm install dev  --namespace pgdb .
@@ -127,7 +125,7 @@ TEST SUITE: None
 NOTES:
 ```
 
-You can start up cluster with only S3 backup storage like this
+You can start up the cluster with only S3 backup storage like this
 
 ```bash
 $ helm install dev  --namespace pgdb . \
