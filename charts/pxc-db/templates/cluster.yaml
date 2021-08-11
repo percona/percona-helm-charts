@@ -122,6 +122,10 @@ spec:
     imagePullSecrets:
 {{ $haproxy.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
+    {{- if $haproxy.configuration }}
+    configuration: |
+    {{ tpl $haproxy.configuration $ | nindent 6 }}
+    {{- end }}
 {{- if hasKey $haproxy "priorityClassName" }}
     priorityClassName: {{ $haproxy.priorityClassName }}
 {{- end }}
@@ -172,6 +176,10 @@ spec:
     {{- if $proxysql.imagePullSecrets }}
     imagePullSecrets:
     {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $proxysql.configuration }}
+    configuration: |
+    {{ tpl $proxysql.configuration $ | nindent 6 }}
     {{- end }}
 {{- if hasKey $proxysql "priorityClassName" }}
     priorityClassName: {{ $proxysql.priorityClassName }}

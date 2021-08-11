@@ -73,6 +73,7 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.image.repository`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
 | `haproxy.image.tag`                     | HAProxy Container image tag                                       | `1.8.0-haproxy`                              |
 | `haproxy.imagePullSecrets`             | HAProxy Container pull secret                                                | `[]`                                      |
+| `haproxy.configuration`             | User defined HAProxy options according to HAProxy configuration file syntax       | ``     |
 | `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
 | `haproxy.priorityClassName`       | HAProxy Pod priority Class defined by user                                   |  |
 | `haproxy.externalTrafficPolicy`   | Desire service to route external traffic to node-local or cluster-wide endpoints  |  |
@@ -97,6 +98,7 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.image.repository`              | ProxySQL Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
 | `proxysql.image.tag`                     | ProxySQL Container image tag                                       | `1.8.0-proxysql`                              |
 | `proxysql.imagePullSecrets`             | ProxySQL Container pull secret                                                | `[]`                                      |
+| `proxysql.configuration`             | User defined ProxySQL options according to ProxySQL configuration file syntax       | ``     |
 | `proxysql.annotations`             | ProxySQL Pod user-defined annotations                                         | `{}` |
 | `proxysql.priorityClassName`       | ProxySQL Pod priority Class defined by user                                   |  |
 | `proxysql.externalTrafficPolicy`   | Desire service to route external traffic to node-local or cluster-wide endpoints  |  |
