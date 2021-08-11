@@ -91,7 +91,7 @@ Generate Configmap based on Values defined in values.yaml
 {{- define "postgres-operator.values" -}}
 {{- $namespace := .Release.Namespace -}}
 {{- $namespace_fields := list "namespace" "pgo_operator_namespace" }}
-{{- $ignore_fields := list "fullnameOverride" "rbac" "serviceAccount" }}
+{{- $ignore_fields := list "fullnameOverride" "rbac" "serviceAccount" "disableFSGroup" }}
 values.yaml: |
   ---
 {{- range $index, $value := .Values }}
@@ -102,6 +102,8 @@ values.yaml: |
 {{ $index | indent 2 }}: {{ $.Chart.AppVersion | quote }}
 {{- else if eq $index "ccp_image_tag" }}
 {{ $index | indent 2 }}: "{{ $.Chart.AppVersion }}-postgres-ha"
+{{- else if eq $index "disable_fsgroup" }}
+{{ $index | indent 2 }}: "{{ $.Values.disableFSGroup }}"
 {{- else }}
 {{ $index | indent 2 }}: {{ $value | quote }}
 {{- end }}
