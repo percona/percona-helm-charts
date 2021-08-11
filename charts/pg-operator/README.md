@@ -1,4 +1,4 @@
-# postgres-operator: A chart for installing the Percona Kubernetes operator for PostgreSQL
+# pg-operator: A chart for installing the Percona Kubernetes operator for PostgreSQL
 
 This chart implements Percona PostgreSQL operator deployment. The Operator itself can be found here:
 * <https://github.com/percona/percona-postgresql-operator>
@@ -19,11 +19,11 @@ This chart will:
 * deploy a PG Operator Pod for the further PostgreSQL creation in K8S.
 
 ### Installing the Chart
-To install the chart with the `postgres-operator` release name using a dedicated namespace (recommended):
+To install the chart with the `pg-operator` release name using a dedicated namespace (recommended):
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/postgres-operator --version 0.1.0 --namespace my-namespace
+helm install my-operator percona/pg-operator --version 0.1.0 --namespace my-namespace
 ```
 
 ## Configuration
