@@ -1,0 +1,129 @@
+apiVersion: pg.percona.com/v1
+kind: PerconaPGCluster
+metadata:
+  annotations:
+    current-primary: {{ include "pg-database.fullname" . }}
+  labels:
+    crunchy-pgha-scope: {{ include "pg-database.fullname" . }}
+    deployment-name: {{ include "pg-database.fullname" . }}
+    name: {{ include "pg-database.fullname" . }}
+    pg-cluster: {{ include "pg-database.fullname" . }}
+    pgo-version: {{ .Chart.AppVersion }}
+    pgouser: admin
+{{ include "pg-database.labels" . | indent 4 }}
+  name: {{ include "pg-database.fullname" . }}
+spec:
+  database: {{ .Values.defaultDatabase }}
+  namespace: {{ .Release.Namespace }}
+  port: {{ .Values.targetPort | quote }}
+  user: {{ .Values.defaultUser }}
+  disableAutofail: {{ .Values.disableAutofail }}
+  tlsOnly: false
+  standby: {{ .Values.standby }}
+  pause: {{ .Values.pause }}
+  {{- if .Values.keepData }}
+  keepData: {{ .Values.keepData }}
+  {{- end }}
+  {{- if .Values.keepBackups }}
+  keepBackups: {{ .Values.keepBackups }}
+  {{- end }}
+  {{- if and .Values.restoreFrom .Values.restoreOpts }}
+  pgDataSource:
+    restoreFrom: {{ .Values.restoreFrom }}
+    restoreOpts: {{ .Values.restoreOpts }}
+  {{- else if .Values.restoreFrom }}
+  pgDataSource:
+    restoreFrom: {{ .Values.restoreFrom }}
+  {{- end }}
+  userLabels:
+    pgo-version: {{ .Chart.AppVersion }}
+  pgPrimary:
+    image: {{ include "pg-database.primary-image" . }}
+    resources:
+      requests:
+        memory: {{ .Values.pgPrimary.resources.requests.memory }}
+    tolerations: {{ .Values.pgPrimary.tolerations }}
+    volumeSpec:
+      size: {{ .Values.pgPrimary.volumeSpec.size }}
+      accessmode: {{ .Values.pgPrimary.volumeSpec.accessmode }}
+      storagetype: {{ .Values.pgPrimary.volumeSpec.storagetype }}
+      storageclass: {{ .Values.pgPrimary.volumeSpec.storageclass }}
+    expose:
+      serviceType: {{ .Values.pgPrimary.expose.serviceType }}
+      {{- if eq .Values.pgPrimary.expose.serviceType "LoadBalancer" }}
+      loadBalancerSourceRanges:
+        annotations:
+          pg-cluster-annot: {{ include "pg-database.fullname" . }}
+        labels:
+          pg-cluster-label: {{ include "pg-database.fullname" . }}
+      {{- end }}
+  pmm:
+    enabled: {{ .Values.pmm.enabled }}
+    image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
+    serverHost: {{ .Values.pmm.serverHost }}
+    serverUser: admin
+    pmmSecret: {{ include "pg-database.fullname" . }}-pmm-secret
+    resources:
+      requests:
+        memory: {{ .Values.pmm.resources.requests.memory }}
+        cpu: {{ .Values.pmm.resources.requests.cpu }}
+  backup:
+    image: {{ include "pg-database.backup-image" . }}
+    backrestRepoImage: {{ include "pg-database.backup-repo-image" . }}
+    resources:
+      requests:
+        memory: {{ .Values.backup.resources.requests.memory }}
+    volumeSpec:
+      size: {{ .Values.backup.volumeSpec.size }}
+      accessmode: {{ .Values.backup.volumeSpec.accessmode }}
+      storagetype: {{ .Values.backup.volumeSpec.storagetype }}
+      storageclass: {{ .Values.backup.volumeSpec.storageclass }}
+{{- include "pg-database.backup-storages" . | indent 4 }}
+  pgBouncer:
+    image: {{ include "pg-database.pgbouncer-image" .}}
+    size: {{ .Values.pgBouncer.size}}
+    resources:
+      requests:
+        cpu: {{ .Values.pgBouncer.resources.requests.cpu }}
+        memory: {{ .Values.pgBouncer.resources.requests.memory }}
+      limits:
+        cpu: {{ .Values.pgBouncer.resources.limits.cpu }}
+        memory: {{ .Values.pgBouncer.resources.limits.memory }}
+    expose:
+      serviceType: {{ .Values.pgBouncer.expose.serviceType }}
+      {{- if eq .Values.pgBouncer.expose.serviceType "LoadBalancer" }}
+      loadBalancerSourceRanges:
+        annotations:
+          pg-cluster-annot: {{ include "pg-database.fullname" . }}
+        labels:
+          pg-cluster-label: {{ include "pg-database.fullname" . }}
+      {{- end }}
+  pgReplicas:
+    hotStandby:
+      size: {{ .Values.replicas.size }}
+      resources:
+        requests:
+          cpu: {{ .Values.replicas.resources.requests.cpu }}
+          memory: {{ .Values.replicas.resources.requests.memory }}
+        limits:
+          cpu: {{ .Values.replicas.resources.limits.cpu }}
+          memory: {{ .Values.replicas.resources.limits.memory }}
+      volumeSpec:
+        size: {{ .Values.replicas.volumeSpec.size }}
+        accessmode: {{ .Values.replicas.volumeSpec.accessmode }}
+        storagetype: {{ .Values.replicas.volumeSpec.storagetype }}
+        storageclass: {{ .Values.replicas.volumeSpec.storageclass }}
+      enableSyncStandby: {{ .Values.replicas.enableSyncStandby }}
+      expose:
+        serviceType: {{ .Values.replicas.expose.serviceType }}
+        {{- if eq .Values.replicas.expose.serviceType "LoadBalancer" }}
+        loadBalancerSourceRanges:
+          annotations:
+            pg-cluster-annot: {{ include "pg-database.fullname" . }}
+          labels:
+            pg-cluster-label: {{ include "pg-database.fullname" . }}
+        {{- end }}
+  pgBadger:
+    enabled: {{ .Values.pgBadger.enabled }}
+    image: {{ include "pg-database.pgbadger-image" .}}
+    port: {{ .Values.pgBadger.port }}

@@ -1,0 +1,106 @@
+# Default values for psmdb-cluster.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+pause: false
+standby: false
+disableAutofail: false
+keepData: false
+keepBackups: false
+restoreFrom: false
+restoreOpts: false
+defaultUser: pguser
+defaultDatabase: pgdb
+targetPort: "5432"
+
+image:
+  repo: percona/percona-postgresql-operator
+  pgver: ppg13
+
+bucket:
+  key:
+  secret:
+  json:
+# Replace default AWS S3 CA with a custom one here
+  s3ca:
+
+pgPrimary:
+  image: ""
+  resources:
+    requests:
+      memory: "128Mi"
+  tolerations: []
+  volumeSpec:
+    size: 1G
+    accessmode: ReadWriteOnce
+    storagetype: dynamic
+    storageclass: "standard"
+  expose:
+    serviceType: ClusterIP
+
+pmm:
+  enabled: false
+  image:
+    repository: percona/pmm-client
+    tag: 2.18.0
+  serverHost: monitoring-service
+  resources:
+      requests:
+        memory: 200M
+        cpu: 500m
+
+backup:
+  image: ""
+  backrestRepoImage: ""
+  resources:
+    requests:
+      memory: "48Mi"
+  volumeSpec:
+    size: 1G
+    accessmode: ReadWriteOnce
+    storagetype: dynamic
+    storageclass: "standard"
+
+pgBouncer:
+  image: ""
+  size: 1
+  resources:
+    requests:
+      cpu: "1"
+      memory: "128Mi"
+    limits:
+      cpu: "2"
+      memory: "512Mi"
+  expose:
+    serviceType: ClusterIP
+
+replicas:
+  size: 0
+  resources:
+    requests:
+      cpu: "1"
+      memory: "128Mi"
+    limits:
+      cpu: "1"
+      memory: "128Mi"
+  volumeSpec:
+    accessmode: ReadWriteOnce
+    size: 1G
+    storagetype: dynamic
+    storageclass: "standard"
+  enableSyncStandby: false
+  expose:
+    serviceType: ClusterIP
+
+pgBadger:
+  enabled: false
+  image: perconalab/percona-postgresql-operator:main-ppg13-pgbadger
+  port: 10000
+
+secrets:
+  # replication user password
+  primaryuser:
+  # superuser password
+  postgres:
+  # pgbouncer user password
+  pgbouncer:
