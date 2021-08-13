@@ -12,7 +12,9 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.8.0
+operatorImageRepository: percona/percona-xtradb-cluster-operator
+
+crVersion: 1.9.0
 pause: false
 allowUnsafeConfigurations: false
 updateStrategy: SmartUpdate
@@ -25,7 +27,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.22-13.1
+    tag: 8.0.23-14.1
   autoRecovery: true
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -99,13 +101,23 @@ pxc:
   # If this is set will not create secrets from values and will instead try to use
   # a pre-existing secret of the same name.
   # clusterSecretName:
+  readinessProbes:
+    initialDelaySeconds: 15
+    timeoutSeconds: 15
+    periodSeconds: 30
+    successThreshold: 1
+    failureThreshold: 5
+  livenessProbes:
+      initialDelaySeconds: 300
+      timeoutSeconds: 5
+      periodSeconds: 10
+      successThreshold: 1
+      failureThreshold: 3
 
 haproxy:
   enabled: true
   size: 3
-  image:
-    repository: percona/percona-xtradb-cluster-operator
-    tag: 1.8.0-haproxy
+  image: ""
   imagePullSecrets: []
 #  configuration: |
 #    global
@@ -179,13 +191,23 @@ haproxy:
   podDisruptionBudget:
     maxUnavailable: 1
     # minAvailable: 0
+  readinessProbes:
+    initialDelaySeconds: 15
+    timeoutSeconds: 1
+    periodSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
+  livenessProbes:
+    initialDelaySeconds: 60
+    timeoutSeconds: 5
+    periodSeconds: 30
+    successThreshold: 1
+    failureThreshold: 4
 
 proxysql:
   enabled: false
   size: 3
-  image:
-    repository: percona/percona-xtradb-cluster-operator
-    tag: 1.8.0-proxysql
+  image: ""
   imagePullSecrets: []
 #  configuration: |
 #    datadir="/var/lib/proxysql"
@@ -298,23 +320,19 @@ proxysql:
 
 logcollector:
   enabled: true
-  image:
-    repository: percona/percona-xtradb-cluster-operator
-    tag: 1.8.0-logcollector
+  image: ""
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.12.0
+    tag: 2.18.0
   serverHost: monitoring-service
   serverUser: admin
 
 backup:
   enabled: true
-  image:
-    repository: percona/percona-xtradb-cluster-operator
-    tag: 1.8.0-pxc8.0-backup
+  image: ""
   imagePullSecrets: []
   # - name: private-registry-credentials
   pitr:

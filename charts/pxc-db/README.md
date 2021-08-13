@@ -67,11 +67,20 @@ The chart can be customized using the following configurable parameters:
 | `pxc.persistence.size` | Sets K8S persistent storage size for all PXC Pods | `8Gi`                      |
 | `pxc.disableTLS` | Disable PXC Pod communication with TLS | `false`                      |
 | `pxc.certManager` | Enable this option if you want the operator to request certificates from `cert-manager` | `false`                      |
+| `pxc.readinessProbes.failureThreshold` | When a probe fails, Kubernetes will try failureThreshold times before giving up | `5`                      |
+| `pxc.readinessProbes.initialDelaySeconds` | Number of seconds after the container has started before liveness or readiness probes are initiated | `15`                      |
+| `pxc.readinessProbes.periodSeconds` | How often (in seconds) to perform the probe | `30`                      |
+| `pxc.readinessProbes.successThreshold` | Minimum consecutive successes for the probe to be considered successful after having failed | `1`                      |
+| `pxc.readinessProbes.timeoutSeconds` | Number of seconds after which the probe times out | `15`                      |
+| `pxc.livenessProbes.failureThreshold` | When a probe fails, Kubernetes will try failureThreshold times before giving up | `3`                      |
+| `pxc.livenessProbes.initialDelaySeconds` | Number of seconds after the container has started before liveness or readiness probes are initiated | `300`                      |
+| `pxc.livenessProbes.periodSeconds` | How often (in seconds) to perform the probe | `10`                      |
+| `pxc.livenessProbes.successThreshold` | Minimum consecutive successes for the probe to be considered successful after having failed | `1`                      |
+| `pxc.livenessProbes.timeoutSeconds` | Number of seconds after which the probe times out | `5`                      |
 | |
 | `haproxy.enabled` | Use HAProxy as TCP proxy for PXC cluster | `true` |
 | `haproxy.size`                      | HAProxy target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
-| `haproxy.image.repository`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
-| `haproxy.image.tag`                     | HAProxy Container image tag                                       | `1.8.0-haproxy`                              |
+| `haproxy.image`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator:1.9.0-haproxy`|
 | `haproxy.imagePullSecrets`             | HAProxy Container pull secret                                                | `[]`                                      |
 | `haproxy.configuration`             | User defined HAProxy options according to HAProxy configuration file syntax       | ``     |
 | `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
@@ -92,11 +101,20 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.tolerations`                   | List of node taints to tolerate for HAProxy Pods                       | `[]`                                      |
 | `haproxy.gracePeriod`                   | Allowed time for graceful shutdown                       | `600`                                      |
 | `haproxy.podDisruptionBudget.maxUnavailable` | Instruct Kubernetes about the failed pods allowed quantity           | `1`                                      |
+| `haproxy.readinessProbes.failureThreshold` | When a probe fails, Kubernetes will try failureThreshold times before giving up | `5`                      |
+| `haproxy.readinessProbes.initialDelaySeconds` | Number of seconds after the container has started before liveness or readiness probes are initiated | `15`                      |
+| `haproxy.readinessProbes.periodSeconds` | How often (in seconds) to perform the probe | `30`                      |
+| `haproxy.readinessProbes.successThreshold` | Minimum consecutive successes for the probe to be considered successful after having failed | `1`                      |
+| `haproxy.readinessProbes.timeoutSeconds` | Number of seconds after which the probe times out | `15`                      |
+| `haproxy.livenessProbes.failureThreshold` | When a probe fails, Kubernetes will try failureThreshold times before giving up | `3`                      |
+| `haproxy.livenessProbes.initialDelaySeconds` | Number of seconds after the container has started before liveness or readiness probes are initiated | `300`                      |
+| `haproxy.livenessProbes.periodSeconds` | How often (in seconds) to perform the probe | `10`                      |
+| `haproxy.livenessProbes.successThreshold` | Minimum consecutive successes for the probe to be considered successful after having failed | `1`                      |
+| `haproxy.livenessProbes.timeoutSeconds` | Number of seconds after which the probe times out | `5` |
 | |
 | `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `false` |
 | `proxysql.size`                      | ProxySQL target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
-| `proxysql.image.repository`              | ProxySQL Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
-| `proxysql.image.tag`                     | ProxySQL Container image tag                                       | `1.8.0-proxysql`                              |
+| `proxysql.image`              | ProxySQL Container image                                           | `percona/percona-xtradb-cluster-operator:1.9.0-proxysql` |
 | `proxysql.imagePullSecrets`             | ProxySQL Container pull secret                                                | `[]`                                      |
 | `proxysql.configuration`             | User defined ProxySQL options according to ProxySQL configuration file syntax       | ``     |
 | `proxysql.annotations`             | ProxySQL Pod user-defined annotations                                         | `{}` |
@@ -124,18 +142,16 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.persistence.size` | Sets K8S persistent storage size for all ProxySQL Pods | `8Gi`                      |
 | |
 | `logcollector.enabled` | Enable log collector container | `true` |
-| `logcollector.image.repository`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator` |
-| `logcollector.image.tag`                     | Log collector image tag                                       | `1.8.0-logcollector`                              |
+| `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.9.0-logcollector` |
 | |
 | `pmm.enabled` | Enable integration with [Percona Monitoting and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.12.0`                              |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.18.0`                              |
 | `pmm.serverHost`                      | PMM server related K8S service hostname              | `monitoring-service` |
 | `pmm.serverUser`                      | Username for accessing PXC database internals | `admin` |
 | |
 | `backup.enabled` | Enables backups for PXC cluster | `true` |
-| `backup.image.repository`              | Backup Container image repository                                           | `percona/percona-xtradb-cluster-operator` |
-| `backup.image.tag`                     | Backup Container image tag                      | `1.8.0-pxc8.0-backup`                              |
+| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.9.0-pxc8.0-backup` |
 | `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                      |
 | `backup.pitr.enabled`             | Enable point in time recovery                                                | `false`                                      |
 | `backup.pitr.storageName`             | Storage name for PITR                                                | `s3-us-west-binlogs`                                      |
