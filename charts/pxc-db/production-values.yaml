@@ -69,6 +69,9 @@ pxc:
       cpu: 600m
     # db resources are sacred, so don't limit it.
     limits: {}
+  sidecarResources:
+    requests: {}
+    limits: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:
@@ -323,6 +326,9 @@ proxysql:
 logcollector:
   enabled: true
   image: ""
+  resources:
+    requests: {}
+    limits: {}
 
 pmm:
   enabled: false
@@ -331,6 +337,9 @@ pmm:
     tag: 2.18.0
   serverHost: monitoring-service
   serverUser: admin
+  resources:
+    requests: {}
+    limits: {}
 
 backup:
   enabled: true
