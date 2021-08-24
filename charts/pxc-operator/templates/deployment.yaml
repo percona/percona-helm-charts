@@ -72,3 +72,18 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+{{- if .Values.watchAllNamespaces }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pxc-operator.name" . }}
+  labels:
+    name: {{ include "pxc-operator.name" . }}
+spec:
+  ports:
+    - port: 443
+      targetPort: 9443
+  selector:
+    app.kubernetes.io/name: {{ include "pxc-operator.name" . }}
+{{- end }}

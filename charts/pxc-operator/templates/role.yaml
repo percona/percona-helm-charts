@@ -26,6 +26,7 @@ rules:
   - update
   - patch
   - delete
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
 - apiGroups:
   - admissionregistration.k8s.io
   resources:
@@ -38,6 +39,7 @@ rules:
   - update
   - patch
   - delete
+{{- end }}
 - apiGroups:
   - ""
   resources:
