@@ -1,9 +1,9 @@
-apiVersion: pxc.percona.com/v1-8-0
+apiVersion: pxc.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}
 kind: PerconaXtraDBCluster
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"pxc.percona.com/v1-8-0","kind":"PerconaXtraDBCluster"}
+      {"apiVersion":"pxc.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}","kind":"PerconaXtraDBCluster"}
   name: {{ include "pxc-database.fullname" . }}
   labels:
 {{ include "pxc-database.labels" . | indent 4 }}
@@ -72,6 +72,14 @@ spec:
 {{ $pxc.annotations | toYaml | indent 6 }}
     labels:
 {{ $pxc.labels | toYaml | indent 6 }}
+    {{- if $pxc.expose }}
+    expose:
+{{ tpl ($pxc.expose | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $pxc.replicationChannels }}
+    replicationChannels:
+{{ tpl ($pxc.replicationChannels | toYaml) $ | indent 6 }}
+    {{- end }}
     resources:
       requests:
 {{ tpl ($pxc.resources.requests| toYaml) $ | indent 8}}
@@ -109,7 +117,12 @@ spec:
     {{- end }}
     {{- end }}
     gracePeriod: {{ $pxc.gracePeriod }}
-  {{- if not .Values.haproxy.enabled }}
+    readinessProbes:
+{{ tpl ($pxc.readinessProbes | toYaml) $ | indent 6 }}
+    livenessProbes:
+{{ tpl ($pxc.livenessProbes | toYaml) $ | indent 6 }}
+
+  {{- if or (not .Values.haproxy.enabled) .Values.proxysql.enabled }}
   haproxy:
     enabled: false
   {{- else }}
@@ -117,10 +130,14 @@ spec:
   haproxy:
     enabled: true
     size: {{ $haproxy.size }}
-    image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
+    image: {{ include "pxc-db.haproxy-image" . }}
     {{- if $haproxy.imagePullSecrets }}
     imagePullSecrets:
 {{ $haproxy.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.configuration }}
+    configuration: |
+    {{ tpl $haproxy.configuration $ | nindent 6 }}
     {{- end }}
 {{- if hasKey $haproxy "priorityClassName" }}
     priorityClassName: {{ $haproxy.priorityClassName }}
@@ -159,6 +176,10 @@ spec:
     volumeSpec:
       emptyDir: {}
     gracePeriod: {{ $haproxy.gracePeriod }}
+    readinessProbes:
+{{ tpl ($haproxy.readinessProbes | toYaml) $ | indent 6 }}
+    livenessProbes:
+{{ tpl ($haproxy.livenessProbes | toYaml) $ | indent 6 }}
   {{- end }}
   {{- if not .Values.proxysql.enabled }}
   proxysql:
@@ -168,10 +189,14 @@ spec:
   proxysql:
     enabled: true
     size: {{ $proxysql.size }}
-    image: {{ $proxysql.image.repository }}:{{ $proxysql.image.tag }}
+    image: {{ include "pxc-db.proxysql-image" . }}
     {{- if $proxysql.imagePullSecrets }}
     imagePullSecrets:
     {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $proxysql.configuration }}
+    configuration: |
+    {{ tpl $proxysql.configuration $ | nindent 6 }}
     {{- end }}
 {{- if hasKey $proxysql "priorityClassName" }}
     priorityClassName: {{ $proxysql.priorityClassName }}
@@ -238,7 +263,7 @@ spec:
   {{- else }}
     {{- $logcollector := .Values.logcollector }}
     enabled: true
-    image: {{ $logcollector.image.repository }}:{{ $logcollector.image.tag }}
+    image: {{ include "pxc-db.logcollector-image" . }}
   {{- end }}
   pmm:
   {{- if not .Values.pmm.enabled }}
@@ -256,7 +281,7 @@ spec:
   {{- if not $backup.enabled }}
     enabled: false
   {{- end }}
-    image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
+    image: {{ include "pxc-db.backup-image" . }}
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}
