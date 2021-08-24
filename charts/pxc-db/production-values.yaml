@@ -13,6 +13,8 @@ finalizers:
 nameOverride: "production"
 fullnameOverride: "production"
 
+operatorImageRepository: percona/percona-xtradb-cluster-operator
+
 crVersion: 1.9.0
 pause: false
 allowUnsafeConfigurations: false
