@@ -20,21 +20,20 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pxc-operator --version 0.1.12 --namespace my-namespace
+helm install my-operator percona/pxc-operator --version 1.9.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
-| Parameter                       | Description                                                                   | Default                                   |
-| ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
-| `image.repository`              | PXC Operator Container image name                                             | `percona/percona-xtradb-cluster-operator` |
-| `image.tag`                     | PXC Operator Container image tag                                              | `1.8.0`                                   |
-| `image.pullPolicy`              | PXC Operator Container pull policy                                            | `Always`                                  |
-| `image.pullSecrets`             | PXC Operator Pod pull secret                                                  | `[]`                                      |
-| `replicaCount`                  | PXC Operator Pod quantity                                                     | `1`                                       |
-| `tolerations`                   | List of node taints to tolerate                                               | `[]`                                      |
-| `resources`                     | Resource requests and limits                                                  | `{}`                                      |
-| `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
+| Parameter                       | Description                                                             | Default                                         |
+| ------------------------------- | ------------------------------------------------------------------------| ------------------------------------------------|
+| `image`                         | PXC Operator Container image full path                                  | `percona/percona-xtradb-cluster-operator:1.9.0` |
+| `imagePullPolicy`               | PXC Operator Container pull policy                                      | `Always`                                        |
+| `imagePullSecrets`              | PXC Operator Pod pull secret                                            | `[]`                                            |
+| `replicaCount`                  | PXC Operator Pod quantity                                               | `1`                                             |
+| `tolerations`                   | List of node taints to tolerate                                         | `[]`                                            |
+| `resources`                     | Resource requests and limits                                            | `{}`                                            |
+| `nodeSelector`                  | Labels for Pod assignment                                               | `{}`                                            |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 

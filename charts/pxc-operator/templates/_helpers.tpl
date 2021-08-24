@@ -43,3 +43,14 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{/*
+Functions returns image URI according to parameters set
+*/}}
+{{- define "pxc-operator.image" -}}
+{{- if .Values.image }}
+{{- .Values.image }}
+{{- else }}
+{{- printf "%s:%s" .Values.operatorImageRepository .Chart.AppVersion }}
+{{- end }}
+{{- end -}}

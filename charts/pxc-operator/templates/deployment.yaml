@@ -31,8 +31,8 @@ spec:
     {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: {{ include "pxc-operator.image" . }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
           ports:
           - containerPort: 8080
             name: metrics
