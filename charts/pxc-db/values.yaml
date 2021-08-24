@@ -342,6 +342,14 @@ proxysql:
 logcollector:
   enabled: true
   image: ""
+  # configuration: |
+  #   [OUTPUT]
+  #         Name  es
+  #         Match *
+  #         Host  192.168.2.3
+  #         Port  9200
+  #         Index my_index
+  #         Type  my_type
   resources:
     requests: {}
     limits: {}
