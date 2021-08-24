@@ -4,10 +4,9 @@
 
 replicaCount: 1
 
-image:
-  repository: percona/percona-xtradb-cluster-operator
-  tag: 1.8.0
-  pullPolicy: IfNotPresent
+operatorImageRepository: percona/percona-xtradb-cluster-operator
+imagePullPolicy: IfNotPresent
+image: ""
 
 # set if you want to specify a namespace to watch
 # defaults to `.Release.namespace` if left blank
