@@ -24,7 +24,7 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 0.1.17 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.9.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -64,6 +64,8 @@ The chart can be customized using the following configurable parameters:
 | `pxc.resources.requests`                    | PXC Pods resource requests                                                                                               | `{"memory": "1G", "cpu": "600m"}`|
 | `pxc.resources.limits`                      | PXC Pods resource limits                                                                                                 | `{}`                             |
 | `pxc.sidecars`                              | PXC Pods sidecars                                                                                                        | `{}`                             |
+| `pxc.sidecarResources.requests`             | PXC sidecar resource requests                                                                                            | `{}`                             |
+| `pxc.sidecarResources.limits`               | PXC sidecar resource limits                                                                                              | `{}`                             |
 | `pxc.nodeSelector`                          | PXC Pods key-value pairs setting for K8S node assingment                                                                 | `{}`                             |
 | `pxc.affinity.antiAffinityTopologyKey`      | PXC Pods simple scheduling restriction on/off for host, zone, region                                                     | `"kubernetes.io/hostname"`       |
 | `pxc.affinity.advanced`                     | PXC Pods advanced scheduling restriction with match expression engine                                                    | `{}`                             |
@@ -151,14 +153,19 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.persistence.accessMode` | Sets K8S persistent storage access policy for all ProxySQL Pods | `ReadWriteOnce`                      |
 | `proxysql.persistence.size` | Sets K8S persistent storage size for all ProxySQL Pods | `8Gi`                      |
 | |
-| `logcollector.enabled` | Enable log collector container | `true` |
+| `logcollector.enabled`            | Enable log collector container                                           | `true` |
 | `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.9.0-logcollector` |
+| `logcollector.configuration`      | User defined configuration for logcollector                              |  ``  |
+| `logcollector.resources.requests` | Log collector resource requests                                          | `{}` |
+| `logcollector.resources.limits`   | Log collector resource limits                                            | `{}` |
 | |
-| `pmm.enabled` | Enable integration with [Percona Monitoting and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false` |
+| `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.18.0`                              |
-| `pmm.serverHost`                      | PMM server related K8S service hostname              | `monitoring-service` |
-| `pmm.serverUser`                      | Username for accessing PXC database internals | `admin` |
+| `pmm.image.tag`                     | PMM Container image tag                                                  | `2.18.0`             |
+| `pmm.serverHost`                    | PMM server related K8S service hostname                                  | `monitoring-service` |
+| `pmm.serverUser`                    | Username for accessing PXC database internals                            | `admin` |
+| `pmm.resources.requests`            | PMM Container resource requests                                          | `{}` |
+| `pmm.resources.limits`              | PMM Container resource limits                                            | `{}` |
 | |
 | `backup.enabled` | Enables backups for PXC cluster | `true` |
 | `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.9.0-pxc8.0-backup` |
