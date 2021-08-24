@@ -69,6 +69,7 @@ pxc:
       cpu: 600m
     # db resources are sacred, so don't limit it.
     limits: {}
+  sidecars: {}
   sidecarResources:
     requests: {}
     limits: {}

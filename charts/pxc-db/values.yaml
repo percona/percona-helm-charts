@@ -68,6 +68,7 @@ pxc:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  sidecars: {}
   sidecarResources:
     requests: {}
     limits: {}
