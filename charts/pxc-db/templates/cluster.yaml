@@ -72,6 +72,14 @@ spec:
 {{ $pxc.annotations | toYaml | indent 6 }}
     labels:
 {{ $pxc.labels | toYaml | indent 6 }}
+    {{- if $pxc.expose }}
+    expose:
+{{ tpl ($pxc.expose | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $pxc.replicationChannels }}
+    replicationChannels:
+{{ tpl ($pxc.replicationChannels | toYaml) $ | indent 6 }}
+    {{- end }}
     resources:
       requests:
 {{ tpl ($pxc.resources.requests| toYaml) $ | indent 8}}
@@ -122,7 +130,7 @@ spec:
   haproxy:
     enabled: true
     size: {{ $haproxy.size }}
-    image: {{ include "pxc-db.haproxy-image" .}}
+    image: {{ include "pxc-db.haproxy-image" . }}
     {{- if $haproxy.imagePullSecrets }}
     imagePullSecrets:
 {{ $haproxy.imagePullSecrets | toYaml | indent 6 }}
@@ -181,7 +189,7 @@ spec:
   proxysql:
     enabled: true
     size: {{ $proxysql.size }}
-    image: {{ include "pxc-db.proxysql-image" .}}
+    image: {{ include "pxc-db.proxysql-image" . }}
     {{- if $proxysql.imagePullSecrets }}
     imagePullSecrets:
     {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
@@ -255,7 +263,7 @@ spec:
   {{- else }}
     {{- $logcollector := .Values.logcollector }}
     enabled: true
-    image: {{ include "pxc-db.logcollector-image" .}}
+    image: {{ include "pxc-db.logcollector-image" . }}
   {{- end }}
   pmm:
   {{- if not .Values.pmm.enabled }}
@@ -273,7 +281,7 @@ spec:
   {{- if not $backup.enabled }}
     enabled: false
   {{- end }}
-    image: {{ include "pxc-db.backup-image" .}}
+    image: {{ include "pxc-db.backup-image" . }}
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}

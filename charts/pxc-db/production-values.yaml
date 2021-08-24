@@ -28,6 +28,23 @@ pxc:
     repository: percona/percona-xtradb-cluster
     tag: 8.0.23-14.1
   autoRecovery: true
+  # expose:
+  #   enabled: true
+  #   type: LoadBalancer
+  #   trafficPolicy: Local
+  #   loadBalancerSourceRanges:
+  #   - 10.0.0.0/8
+  #   annotations:
+  #     networking.gke.io/load-balancer-type: "Internal"
+  # replicationChannels:
+  # - name: pxc1_to_pxc2
+  #   isSource: true
+  # - name: pxc2_to_pxc1
+  #   isSource: false
+  #   sourcesList:
+  #   - host: 10.95.251.101
+  #     port: 3306
+  #     weight: 100
   imagePullSecrets: []
   # - name: private-registry-credentials
   annotations: {}
@@ -372,6 +389,7 @@ secrets:
     proxyadmin: insecure-proxyadmin-password
     pmmserver: insecure-pmmserver-password
     operator: insecure-operator-password
+    replication: insecure-replication-password
   ## If you are using `cert-manager` you can skip this next section.
   ## If not using cert-manager, you should set these!!!!
   tls: {}
