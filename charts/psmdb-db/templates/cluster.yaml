@@ -88,15 +88,20 @@ spec:
     sidecars:
 {{ $replset.sidecars | toYaml | indent 6 }}
     {{- end }}
+    {{- if $replset.podDisruptionBudget }}
     podDisruptionBudget:
       {{- if $replset.podDisruptionBudget.maxUnavailable }}
       maxUnavailable: {{ $replset.podDisruptionBudget.maxUnavailable }}
       {{- else }}
       minAvailable: {{ $replset.podDisruptionBudget.minAvailable }}
       {{- end }}
+    {{- end }}
+    {{- if $replset.expose }}
     expose:
       enabled: {{ $replset.expose.enabled }}
       exposeType: {{ $replset.expose.loadBalancer }}
+    {{- end }}
+    {{- if $replset.arbiter }}
     arbiter:
       enabled: {{ $replset.arbiter.enabled }}
       size: {{ $replset.arbiter.size }}
@@ -121,11 +126,13 @@ spec:
       tolerations:
 {{ $replset.arbiter.tolerations | toYaml | indent 6 }}
       {{- end }}
+    {{- end }}
     {{- if $replset.schedulerName }}
     schedulerName: {{ $replset.schedulerName }}
     {{- end }}
     resources:
 {{ $replset.resources | toYaml | indent 6 }}
+    {{- if $replset.volumeSpec }}
     volumeSpec:
       {{- if $replset.volumeSpec.hostPath }}
       hostPath:
@@ -137,6 +144,7 @@ spec:
       {{- else }}
       emptyDir: {}
       {{- end }}
+    {{- end }}
   {{- end }}
 
   sharding:
