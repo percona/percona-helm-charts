@@ -63,7 +63,7 @@ The chart can be customized using the following configurable parameters:
 | `pxc.configuration`                         | User defined MySQL options according to MySQL configuration file syntax                                                  | ``                               |
 | `pxc.resources.requests`                    | PXC Pods resource requests                                                                                               | `{"memory": "1G", "cpu": "600m"}`|
 | `pxc.resources.limits`                      | PXC Pods resource limits                                                                                                 | `{}`                             |
-| `pxc.sidecars`                              | PXC Pods sidecars                                                                                                        | `{}`                             |
+| `pxc.sidecars`                              | PXC Pods sidecars                                                                                                        | `[]`                             |
 | `pxc.sidecarResources.requests`             | PXC sidecar resource requests                                                                                            | `{}`                             |
 | `pxc.sidecarResources.limits`               | PXC sidecar resource limits                                                                                              | `{}`                             |
 | `pxc.nodeSelector`                          | PXC Pods key-value pairs setting for K8S node assingment                                                                 | `{}`                             |
