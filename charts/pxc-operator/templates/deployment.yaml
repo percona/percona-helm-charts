@@ -51,7 +51,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
-              value: {{ default "percona-xtradb-cluster-operator" .Values.operatorName }}
+              value: {{ include "pxc-operator.fullname" . }}
           livenessProbe:
             failureThreshold: 3
             httpGet:
