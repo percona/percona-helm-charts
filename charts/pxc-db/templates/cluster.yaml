@@ -87,13 +87,13 @@ spec:
 {{ tpl ($pxc.resources.limits | toYaml) $ | indent 8 }}
     sidecars:
 {{ $pxc.sidecars | toYaml | indent 6 }}
-    nodeSelector:
-{{ $pxc.nodeSelector | toYaml | indent 6 }}
     sidecarResources:
       requests:
 {{ tpl ($pxc.sidecarResources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($pxc.sidecarResources.limits | toYaml) $ | indent 8 }}
+    nodeSelector:
+{{ $pxc.nodeSelector | toYaml | indent 6 }}
     affinity:
 {{ $pxc.affinity | toYaml | indent 6 }}
     tolerations:
@@ -172,6 +172,13 @@ spec:
 {{ $haproxy.resources.requests | toYaml | indent 8 }}
       limits:
 {{ $haproxy.resources.limits | toYaml | indent 8 }}
+    sidecars:
+{{ $haproxy.sidecars | toYaml | indent 6 }}
+    sidecarResources:
+      requests:
+{{ tpl ($haproxy.sidecarResources.requests | toYaml) $ | indent 8 }}
+      limits:
+{{ tpl ($haproxy.sidecarResources.limits | toYaml) $ | indent 8 }}
     nodeSelector:
 {{ $haproxy.nodeSelector | toYaml | indent 6 }}
     affinity:
@@ -231,6 +238,13 @@ spec:
 {{ $proxysql.resources.requests | toYaml | indent 8 }}
       limits:
 {{ $proxysql.resources.limits | toYaml | indent 8 }}
+    sidecars:
+{{ $proxysql.sidecars | toYaml | indent 6 }}
+    sidecarResources:
+      requests:
+{{ tpl ($proxysql.sidecarResources.requests | toYaml) $ | indent 8 }}
+      limits:
+{{ tpl ($proxysql.sidecarResources.limits | toYaml) $ | indent 8 }}
     nodeSelector:
 {{ $proxysql.nodeSelector | toYaml | indent 6 }}
     affinity:

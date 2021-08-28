@@ -107,6 +107,9 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.forceUnsafeBootstrap`        | Order HAProxy Pods to override the previous Pod crash                             | `false` |
 | `haproxy.resources.requests`                     | HAProxy Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
 | `haproxy.resources.limits`                     | HAProxy Pods resource limits                                    | `{}`                                      |
+| `haproxy.sidecars`                              | HAProxy Pods sidecars                                                                                                        | `[]`                             |
+| `haproxy.sidecarResources.requests`             | HAProxy sidecar resource requests                                                                                            | `{}`                             |
+| `haproxy.sidecarResources.limits`               | HAProxy sidecar resource limits                                                                                              | `{}`                             |
 | `haproxy.nodeSelector`                  | HAProxy Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
 | `haproxy.affinity.antiAffinityTopologyKey` | HAProxy Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
 | `haproxy.affinity.advanced` | HAProxy Pods advanced scheduling restriction with match expression engine          | `{}` |
@@ -141,6 +144,9 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.forceUnsafeBootstrap`        | Order ProxySQL Pods to override the previous Pod crash                             | `false` |
 | `proxysql.resources.requests`                     | ProxySQL Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
 | `proxysql.resources.limits`                     | ProxySQL Pods resource limits                                    | `{}`                                      |
+| `proxysql.sidecars`                              | ProxySQL Pods sidecars                                                                                                        | `[]`                             |
+| `proxysql.sidecarResources.requests`             | ProxySQL sidecar resource requests                                                                                            | `{}`                             |
+| `proxysql.sidecarResources.limits`               | ProxySQL sidecar resource limits                                                                                              | `{}`                             |
 | `proxysql.nodeSelector`                  | ProxySQL Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
 | `proxysql.affinity.antiAffinityTopologyKey` | ProxySQL Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
 | `proxysql.affinity.advanced` | ProxySQL Pods advanced scheduling restriction with match expression engine          | `{}` |

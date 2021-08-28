@@ -188,6 +188,10 @@ haproxy:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  sidecars: []
+  sidecarResources:
+    requests: {}
+    limits: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:
@@ -299,6 +303,10 @@ proxysql:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  sidecars: []
+  sidecarResources:
+    requests: {}
+    limits: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:
