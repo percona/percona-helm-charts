@@ -53,6 +53,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].size`                      | ReplicaSet size (pod quantity)              | `3` |
 | `replsets[0].configuration`             | Custom config for mongod in replica set     | `""` |
 | `replsets[0].antiAffinityTopologyKey`   | ReplicaSet Pod affinity              | `kubernetes.io/hostname` |
+| `replsets[0].tolerations`     | ReplicaSet Pod tolerations                    | `[]` |
 | `replsets[0].priorityClass`   | ReplicaSet Pod priorityClassName              | `""` |
 | `replsets[0].annotations`   | ReplicaSet Pod annotations              | `{}` |
 | `replsets[0].labels`   | ReplicaSet Pod labels              | `{}` |
@@ -66,6 +67,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].arbiter.enabled`   | Create MongoDB arbiter service              | `false` |
 | `replsets[0].arbiter.size`   | MongoDB arbiter Pod quantity              | `1` |
 | `replsets[0].arbiter.antiAffinityTopologyKey`   | MongoDB arbiter Pod affinity              | `kubernetes.io/hostname` |
+| `replsets[0].arbiter.tolerations`     | MongoDB arbiter Pod tolerations                | `[]` |
 | `replsets[0].arbiter.priorityClass`   | MongoDB arbiter priorityClassName              | `""` |
 | `replsets[0].arbiter.annotations`   | MongoDB arbiter Pod annotations              | `{}` |
 | `replsets[0].arbiter.labels`   | MongoDB arbiter Pod labels              | `{}` |
@@ -86,6 +88,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.size`                       | Config ReplicaSet size (pod quantity) | `3` |
 | `sharding.configrs.configuration`              | Custom config for mongod in config replica set | `""` |
 | `sharding.configrs.antiAffinityTopologyKey`    | Config ReplicaSet Pod affinity | `kubernetes.io/hostname` |
+| `sharding.configrs.tolerations`                | Config ReplicaSet Pod tolerations       | `[]` |
 | `sharding.configrs.priorityClass`              | Config ReplicaSet Pod priorityClassName | `""` |
 | `sharding.configrs.annotations`                | Config ReplicaSet Pod annotations | `{}` |
 | `sharding.configrs.labels`                     | Config ReplicaSet Pod labels | `{}` |
@@ -107,6 +110,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.size`                         | Mongos size (pod quantity) | `3` |
 | `sharding.mongos.configuration`                | Custom config for mongos   | `""` |
 | `sharding.mongos.antiAffinityTopologyKey`      | Mongos Pods affinity | `kubernetes.io/hostname` |
+| `sharding.mongos.tolerations`                  | Mongos Pods tolerations       | `[]` |
 | `sharding.mongos.priorityClass`                | Mongos Pods priorityClassName | `""` |
 | `sharding.mongos.annotations`                  | Mongos Pods annotations | `{}` |
 | `sharding.mongos.labels`                       | Mongos Pods labels | `{}` |

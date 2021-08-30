@@ -48,6 +48,7 @@ replsets:
     #   systemLog:
     #     verbosity: 1
     antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # tolerations: []
     # priorityClass: ""
     # annotations: {}
     # labels: {}
@@ -74,6 +75,7 @@ replsets:
       enabled: false
       size: 1
       antiAffinityTopologyKey: "kubernetes.io/hostname"
+      # tolerations: []
       # priorityClass: ""
       # annotations: {}
       # labels: {}
@@ -109,6 +111,7 @@ sharding:
     #   systemLog:
     #     verbosity: 1
     antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # tolerations: []
     # priorityClass: ""
     # annotations: {}
     # labels: {}
@@ -146,6 +149,7 @@ sharding:
     #   systemLog:
     #     verbosity: 1
     antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # tolerations: []
     # priorityClass: ""
     # annotations: {}
     # labels: {}

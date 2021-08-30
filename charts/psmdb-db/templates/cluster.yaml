@@ -73,6 +73,10 @@ spec:
     nodeSelector:
 {{ $replset.nodeSelector | toYaml | indent 6 }}
     {{- end }}
+    {{- if $replset.tolerations }}
+    tolerations:
+{{ $replset.tolerations | toYaml | indent 6 }}
+    {{- end }}
     {{- if $replset.livenessProbe }}
     livenessProbe:
 {{ $replset.livenessProbe | toYaml | indent 6 }}
@@ -84,15 +88,20 @@ spec:
     sidecars:
 {{ $replset.sidecars | toYaml | indent 6 }}
     {{- end }}
+    {{- if $replset.podDisruptionBudget }}
     podDisruptionBudget:
       {{- if $replset.podDisruptionBudget.maxUnavailable }}
       maxUnavailable: {{ $replset.podDisruptionBudget.maxUnavailable }}
       {{- else }}
       minAvailable: {{ $replset.podDisruptionBudget.minAvailable }}
       {{- end }}
+    {{- end }}
+    {{- if $replset.expose }}
     expose:
       enabled: {{ $replset.expose.enabled }}
       exposeType: {{ $replset.expose.loadBalancer }}
+    {{- end }}
+    {{- if $replset.arbiter }}
     arbiter:
       enabled: {{ $replset.arbiter.enabled }}
       size: {{ $replset.arbiter.size }}
@@ -113,11 +122,17 @@ spec:
       nodeSelector:
 {{ $replset.arbiter.nodeSelector | toYaml | indent 8 }}
       {{- end }}
+      {{- if $replset.arbiter.tolerations }}
+      tolerations:
+{{ $replset.arbiter.tolerations | toYaml | indent 6 }}
+      {{- end }}
+    {{- end }}
     {{- if $replset.schedulerName }}
     schedulerName: {{ $replset.schedulerName }}
     {{- end }}
     resources:
 {{ $replset.resources | toYaml | indent 6 }}
+    {{- if $replset.volumeSpec }}
     volumeSpec:
       {{- if $replset.volumeSpec.hostPath }}
       hostPath:
@@ -129,6 +144,7 @@ spec:
       {{- else }}
       emptyDir: {}
       {{- end }}
+    {{- end }}
   {{- end }}
 
   sharding:
@@ -156,6 +172,10 @@ spec:
       {{- if .Values.sharding.configrs.nodeSelector }}
       nodeSelector:
 {{ .Values.sharding.configrs.nodeSelector | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.tolerations }}
+      tolerations:
+{{ .Values.sharding.configrs.tolerations | toYaml | indent 6 }}
       {{- end }}
       {{- if .Values.sharding.configrs.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.configrs.runtimeClass }}
@@ -211,6 +231,10 @@ spec:
       {{- if .Values.sharding.mongos.nodeSelector }}
       nodeSelector:
 {{ .Values.sharding.mongos.nodeSelector | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.tolerations }}
+      tolerations:
+{{ .Values.sharding.mongos.tolerations | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.mongos.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.mongos.runtimeClass }}
