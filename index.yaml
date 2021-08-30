@@ -280,6 +280,24 @@ entries:
   pxc-db:
   - apiVersion: v2
     appVersion: 1.9.0
+    created: "2021-08-30T11:11:39.461576404Z"
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    digest: 7603c4ee3ca0f4e765333fac88f175b07913eeebd9134ae828cbe3d297b86e09
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: pxc-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-db-1.9.1/pxc-db-1.9.1.tgz
+    version: 1.9.1
+  - apiVersion: v2
+    appVersion: 1.9.0
     created: "2021-08-24T10:20:29.29582059Z"
     description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
     digest: 424caa07cf71638773383fb1f685b7f6394f7fa2159543f0a393741c949a2af7
@@ -502,6 +520,22 @@ entries:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.5/pxc-db-0.1.5.tgz
     version: 0.1.5
   pxc-operator:
+  - apiVersion: v2
+    appVersion: 1.9.0
+    created: "2021-08-30T11:11:39.59738314Z"
+    description: A Helm chart for Deploying the Percona XtraDB Cluster Operator Kubernetes
+    digest: 9bf8182823b5706612b9a325968fa3628791c274ec6f45c07c9d0dc133404c78
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    name: pxc-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-operator-1.9.1/pxc-operator-1.9.1.tgz
+    version: 1.9.1
   - apiVersion: v2
     appVersion: 1.9.0
     created: "2021-08-24T10:18:58.054444888Z"
