@@ -68,6 +68,10 @@ pxc:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  sidecars: []
+  sidecarResources:
+    requests: {}
+    limits: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:
@@ -184,6 +188,10 @@ haproxy:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  sidecars: []
+  sidecarResources:
+    requests: {}
+    limits: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:
@@ -295,6 +303,10 @@ proxysql:
     limits: {}
       # memory: 1G
       # cpu: 600m
+  sidecars: []
+  sidecarResources:
+    requests: {}
+    limits: {}
   nodeSelector: {}
   #  disktype: ssd
   affinity:
@@ -338,6 +350,17 @@ proxysql:
 logcollector:
   enabled: true
   image: ""
+  # configuration: |
+  #   [OUTPUT]
+  #         Name  es
+  #         Match *
+  #         Host  192.168.2.3
+  #         Port  9200
+  #         Index my_index
+  #         Type  my_type
+  resources:
+    requests: {}
+    limits: {}
 
 pmm:
   enabled: false
@@ -346,6 +369,9 @@ pmm:
     tag: 2.18.0
   serverHost: monitoring-service
   serverUser: admin
+  resources:
+    requests: {}
+    limits: {}
 
 backup:
   enabled: true

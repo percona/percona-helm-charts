@@ -41,13 +41,17 @@ spec:
           - percona-xtradb-cluster-operator
           env:
             - name: WATCH_NAMESPACE
+              {{- if .Values.watchAllNamespaces }}
+              value: ""
+              {{- else }}
               value: {{ default .Release.Namespace .Values.watchNamespace }}
+              {{- end }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
-              value: {{ default "percona-xtradb-cluster-operator" .Values.operatorName }}
+              value: {{ include "pxc-operator.fullname" . }}
           livenessProbe:
             failureThreshold: 3
             httpGet:
@@ -68,3 +72,18 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+{{- if .Values.watchAllNamespaces }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pxc-operator.name" . }}
+  labels:
+    name: {{ include "pxc-operator.name" . }}
+spec:
+  ports:
+    - port: 443
+      targetPort: 9443
+  selector:
+    app.kubernetes.io/name: {{ include "pxc-operator.name" . }}
+{{- end }}
