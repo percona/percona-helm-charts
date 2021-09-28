@@ -47,6 +47,7 @@ rules:
       - get
       - create
       - delete
+      - patch
   - apiGroups:
       - ''
     resources:
@@ -58,6 +59,7 @@ rules:
       - create
       - delete
       - list
+      - patch
   - apiGroups:
       - ''
     resources:
@@ -116,8 +118,9 @@ rules:
       - delete
       - list
   - apiGroups:
-      - crunchydata.com
+      - pg.percona.com
     resources:
+      - perconapgclusters
       - pgclusters
       - pgreplicas
       - pgpolicies

@@ -99,11 +99,9 @@ values.yaml: |
 {{- if has $index $namespace_fields }}
 {{ $index | indent 2 }}: {{ $namespace | quote }}
 {{- else if eq $index "pgo_image_tag" }}
-{{ $index | indent 2 }}: {{ $.Chart.AppVersion | quote }}
+{{ $index | indent 2 }}: {{ $value | default $.Chart.AppVersion | quote }}
 {{- else if eq $index "ccp_image_tag" }}
-{{ $index | indent 2 }}: "{{ $.Chart.AppVersion }}-postgres-ha"
-{{- else if eq $index "disable_fsgroup" }}
-{{ $index | indent 2 }}: "{{ $.Values.disableFSGroup }}"
+{{ $index | indent 2 }}: "{{ $value | default $.Chart.AppVersion }}-postgres-ha"
 {{- else }}
 {{ $index | indent 2 }}: {{ $value | quote }}
 {{- end }}
