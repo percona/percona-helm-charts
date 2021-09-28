@@ -18,9 +18,22 @@ spec:
   port: {{ .Values.targetPort | quote }}
   user: {{ .Values.defaultUser }}
   disableAutofail: {{ .Values.disableAutofail }}
-  tlsOnly: false
   standby: {{ .Values.standby }}
   pause: {{ .Values.pause }}
+  {{- if .Values.tlsOnly }}
+  tlsOnly: {{ .Values.tlsOnly }}
+  {{- else }}
+  tlsOnly: false
+  {{- end }}
+  {{- if .Values.sslCA }}
+  sslCA: {{ .Values.sslCA }}
+  {{- end }}
+  {{- if .Values.sslSecretName }}
+  sslSecretName: {{ .Values.sslSecretName }}
+  {{- end }}
+  {{- if .Values.sslReplicationSecretName }}
+  sslReplicationSecretName: {{ .Values.sslReplicationSecretName }}
+  {{- end }}
   {{- if .Values.keepData }}
   keepData: {{ .Values.keepData }}
   {{- end }}
@@ -78,6 +91,10 @@ spec:
       accessmode: {{ .Values.backup.volumeSpec.accessmode }}
       storagetype: {{ .Values.backup.volumeSpec.storagetype }}
       storageclass: {{ .Values.backup.volumeSpec.storageclass }}
+    {{- if .Values.backup.schedule }}
+    schedule:
+{{ toYaml .Values.backup.schedule | indent 4 }}
+    {{- end}}
 {{- include "pg-database.backup-storages" . | indent 4 }}
   pgBouncer:
     image: {{ include "pg-database.pgbouncer-image" .}}

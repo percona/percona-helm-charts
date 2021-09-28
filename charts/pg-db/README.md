@@ -31,14 +31,18 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 0.2.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 1.0.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
-| `pause`                         | Stop PostgreSQL Database safely                                                    | `false`                                   |
+| `pause`                         | Stop PostgreSQL Database safely                                               | `false`                                   |
+| `tlsOnly`                       | Force PostgreSQL accept only tls connections                                  | `false`                                   |
+| `sslCA`                         | Secret name with CA certificate for PostgreSQL                                | ``                                        |
+| `sslSecretName`                 | Secret name with server certificate and key for PostgreSQL                    | ``                                        |
+| `sslReplicationSecretName`      | Secret name with server certificate and key for PostgreSQL replication paries | ``                                        |
 | `standby`                         | Switch/start PostgreSQL Database in standby mode                                                    | `false`                                   |
 | `disableAutofail`                         | Disables the high availability capabilities of a PostgreSQL cluster                                                    | `false`                                   |
 | `keepData`                         | Keep database container PVC intact after the cluster removal                                                    | `false`                                   |
@@ -54,7 +58,7 @@ The chart can be customized using the following configurable parameters:
 | `bucket.secret`                     | S3-compatible bucket secret key                                        |``|
 | `bucket.json`                     | GCS storage json secret (base64 encoded)                                        |``|
 | `bucket.s3ca`                     | Put custom CA certificate for your S3-compatible storage                                        |``|
-| `pgPrimary.image`                     | Set this variable if you need to use a custom PostgreSQL image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-postgres-ha`                              |
+| `pgPrimary.image`                     | Set this variable if you need to use a custom PostgreSQL image                                        | `percona/percona-postresql-operator:1.0.0-ppg13-postgres-ha`                              |
 | `pgPrimary.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                              |
 | `pgPrimary.tolerations`                     | PostgreSQL container deployment tolerations | `[]`                              |
 | `pgPrimary.volumeSpec.size`                     | PostgreSQL container PVC size | `1G`                              |
@@ -68,13 +72,18 @@ The chart can be customized using the following configurable parameters:
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 | `pmm.resources.requests.memory`                    | Container resource request for RAM              | `200M` |
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m` |
-| `backup.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-pgbackrest`                              |
-| `backup.backrestRepoImage`                     | Set this variable if you need to use a custom pgBackrest repo image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-pgbackrest-repo`                              |
+| `backup.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:1.0.0-ppg13-pgbackrest`                              |
+| `backup.backrestRepoImage`                     | Set this variable if you need to use a custom pgBackrest repo image                                        | `percona/percona-postresql-operator:1.0.0-ppg13-pgbackrest-repo`                              |
 | `backup.resources.requests.memory`                     | Container resource request for RAM                                        | `48Mi`                              |
 | `backup.volumeSpec.size`                     | PostgreSQL pgBackrest container PVC size | `1G`                              |
 | `backup.volumeSpec.accessmode`                     | PostgreSQL pgBackrest container PVC accessmode | `ReadWriteOnce`                              |
 | `backup.volumeSpec.storagetype`                     | PostgreSQL pgBackrest container PVC storagetype | `dynamic`                              |
 | `backup.volumeSpec.storageclass`                     | PostgreSQL pgBackrest container PVC storageclass | `standard`                              |
+| `backup.schedule[0].name`                     | Backup schedule name |``|
+| `backup.schedule[0].schedule`                 | Backup `cron` like schedule |``|
+| `backup.schedule[0].keep`                     | Keep specified number of backups |``|
+| `backup.schedule[0].type`                     | PgBackrest backup type `full/incr/diff` |``|
+| `backup.schedule[0].storage`                  | Backup storage name `local/gcs/s3` |``|
 | `backup.storages.storage0.bucket`                     | `Should be stated explicitly` Storage bucket |``|
 | `backup.storages.storage0.name`                     | `Should be stated explicitly for S3` S3-compatible storage name |``|
 | `backup.storages.storage0.type`                     | `Should be stated explicitly for S3` S3-compatible storage type |`s3`|
@@ -82,7 +91,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.storages.storage0.region`                     | `Should be stated explicitly for S3` S3-compatible storage region |``|
 | `backup.storages.storage0.uriStyle`                     | (Optional) S3-compatible storage URI style |`path`|
 | `backup.storages.storage0.verifyTLS`                     | (Optional) S3-compatible storage URI style |`true`|
-| `pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postresql-operator:0.2.0-ppg13-pgbouncer`                              |
+| `pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postresql-operator:1.0.0-ppg13-pgbouncer`                              |
 | `pgBouncer.size`                     | The number of pgbouncer instanses                                        | `1`                              |
 | `pgBouncer.resources.requests.cpu`                     | Container resource request for CPU                                        | `1`                              |
 | `pgBouncer.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                              |
@@ -100,7 +109,7 @@ The chart can be customized using the following configurable parameters:
 | `replicas.volumeSpec.storageclass`                     | PostgreSQL replica PVC storageclass | `standard`                              |
 | `replicas.expose.serviceType`                     | K8S service type for the replica deployments | `ClusterIP`                              |
 | `pgBadger.enabled` | Switch on pgBadger | `false` |
-| `pgBadger.image`              | pgBadger image                                            | `percona/percona-postgresql-operator:0.2.0-ppg13-pgbadger` |
+| `pgBadger.image`              | pgBadger image                                            | `percona/percona-postgresql-operator:1.0.0-ppg13-pgbadger` |
 | `pgBadger.port`                     | pgBadger port                                       | `10000` |
 | `secrets.primaryuser`                     | primary user password (in use for replication only)                                       |`autogrenerated by operator`|
 | `secrets.postgres`                     | postges user password (superuser, not accessible via pgbouncer)                                       |`autogrenerated by operator`|
@@ -161,4 +170,15 @@ $ helm install dev  --namespace pgdb . \
   --set backup.storages.my-gcs.name=my-gcs \
   --set backup.storages.my-gcs.bucket=my-gcs-bucket \
   --set backup.storages.my-local.type=local
+```
+
+Set backup schedule as following:
+
+```bash
+$ helm install dev  --namespace pgdb . \
+  --set "backup.schedule[0].name=sat-night-backup" \
+  --set 'backup.schedule[0].schedule="0 0 * * 6"' \
+  --set "backup.schedule[0].keep=3" \
+  --set "backup.schedule[0].type=full" \
+  --set "backup.schedule[0].storage=local"
 ```
