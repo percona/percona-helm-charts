@@ -177,7 +177,7 @@ Set backup schedule as following:
 ```bash
 $ helm install dev  --namespace pgdb . \
   --set "backup.schedule[0].name=sat-night-backup" \
-  --set 'backup.schedule[0].schedule="0 0 * * 6"' \
+  --set "backup.schedule[0].schedule=0 0 * * 6" \
   --set "backup.schedule[0].keep=3" \
   --set "backup.schedule[0].type=full" \
   --set "backup.schedule[0].storage=local"
