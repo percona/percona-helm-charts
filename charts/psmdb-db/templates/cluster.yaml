@@ -116,7 +116,7 @@ spec:
       {{- end }}
       affinity:
         antiAffinityTopologyKey: {{ $replset.nonvoting.antiAffinityTopologyKey }}
-      {{- if $replset.arbiter.priorityClass }}
+      {{- if $replset.nonvoting.priorityClass }}
       priorityClassName: {{ $replset.nonvoting.priorityClass }}
       {{- end }}
       {{- if $replset.nonvoting.annotations }}
