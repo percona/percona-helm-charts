@@ -374,7 +374,7 @@ spec:
     enabled: {{ .Values.backup.enabled }}
     restartOnFailure: true
     image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
-    serviceAccountName: percona-server-mongodb-operator
+    serviceAccountName: {{ .Values.backup.serviceAccountName }}
     {{- if .Values.backup.resources }}
     resources:
     {{ .Values.backup.resources | toYaml | indent 6 }}
