@@ -1,9 +1,9 @@
-apiVersion: psmdb.percona.com/v1-9-0
+apiVersion: psmdb.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}
 kind: PerconaServerMongoDB
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"psmdb.percona.com/v1-9-0","kind":"PerconaServerMongoDB"}
+      {"apiVersion":"psmdb.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}","kind":"PerconaServerMongoDB"}
   name: {{ include "psmdb-database.fullname" . }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
@@ -11,6 +11,7 @@ metadata:
 {{ .Values.finalizers | toYaml | indent 4 }}
 spec:
   pause: {{ .Values.pause }}
+  unmanaged: {{ .Values.unmanaged }}
   {{- if .Values.platform }}
   platform: {{ .Values.platform }}
   {{- end }}
@@ -52,6 +53,10 @@ spec:
   {{- range $replset := .Values.replsets }}
   - name: {{ $replset.name }}
     size: {{ $replset.size }}
+    {{- if $replset.externalNodes }}
+    externalNodes:
+{{ $replset.externalNodes | toYaml | indent 6 }}
+    {{- end }}
     {{- if $replset.configuration }}
     configuration: |
 {{ $replset.configuration | indent 6 }}
@@ -99,7 +104,60 @@ spec:
     {{- if $replset.expose }}
     expose:
       enabled: {{ $replset.expose.enabled }}
-      exposeType: {{ $replset.expose.loadBalancer }}
+      exposeType: {{ $replset.expose.exposeType }}
+    {{- end }}
+    {{- if $replset.nonvoting }}
+    nonvoting:
+      enabled: {{ $replset.nonvoting.enabled }}
+      size: {{ $replset.nonvoting.size }}
+      {{- if $replset.nonvoting.configuration }}
+      configuration: |
+{{ $replset.nonvoting.configuration | indent 8 }}
+      {{- end }}
+      affinity:
+        antiAffinityTopologyKey: {{ $replset.nonvoting.antiAffinityTopologyKey }}
+      {{- if $replset.nonvoting.priorityClass }}
+      priorityClassName: {{ $replset.nonvoting.priorityClass }}
+      {{- end }}
+      {{- if $replset.nonvoting.annotations }}
+      annotations:
+{{ $replset.nonvoting.annotations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.labels }}
+      labels:
+{{ $replset.nonvoting.labels | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.nodeSelector }}
+      nodeSelector:
+{{ $replset.nonvoting.nodeSelector | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.tolerations }}
+      tolerations:
+{{ $replset.nonvoting.tolerations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.podDisruptionBudget }}
+      podDisruptionBudget:
+        {{- if $replset.nonvoting.podDisruptionBudget.maxUnavailable }}
+        maxUnavailable: {{ $replset.nonvoting.podDisruptionBudget.maxUnavailable }}
+        {{- else }}
+        minAvailable: {{ $replset.nonvoting.podDisruptionBudget.minAvailable }}
+        {{- end }}
+      {{- end }}
+      resources:
+{{ $replset.nonvoting.resources | toYaml | indent 8 }}
+      {{- if $replset.nonvoting.volumeSpec }}
+      volumeSpec:
+        {{- if $replset.nonvoting.volumeSpec.hostPath }}
+        hostPath:
+          path: {{ $replset.nonvoting.volumeSpec.hostPath }}
+          type: Directory
+        {{- else if $replset.nonvoting.volumeSpec.pvc }}
+        persistentVolumeClaim:
+{{ $replset.nonvoting.volumeSpec.pvc | toYaml | indent 10 }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- end }}
     {{- end }}
     {{- if $replset.arbiter }}
     arbiter:
@@ -124,7 +182,7 @@ spec:
       {{- end }}
       {{- if $replset.arbiter.tolerations }}
       tolerations:
-{{ $replset.arbiter.tolerations | toYaml | indent 6 }}
+{{ $replset.arbiter.tolerations | toYaml | indent 8 }}
       {{- end }}
     {{- end }}
     {{- if $replset.schedulerName }}
@@ -152,6 +210,10 @@ spec:
 
     configsvrReplSet:
       size: {{ .Values.sharding.configrs.size }}
+      {{- if .Values.sharding.configrs.externalNodes }}
+      externalNodes:
+{{ .Values.sharding.configrs.externalNodes | toYaml | indent 8 }}
+      {{- end }}
       {{- if .Values.sharding.configrs.configuration }}
       configuration: |
 {{ .Values.sharding.configrs.configuration | indent 8 }}
@@ -190,6 +252,11 @@ spec:
         {{- else }}
         minAvailable: {{ .Values.sharding.configrs.podDisruptionBudget.minAvailable }}
         {{- end }}
+      {{- if .Values.sharding.configrs.expose }}
+      expose:
+        enabled: {{ .Values.sharding.configrs.expose.enabled }}
+        exposeType: {{ .Values.sharding.configrs.expose.exposeType }}
+      {{- end }}
       resources:
         limits:
           cpu: {{ .Values.sharding.configrs.resources.limits.cpu }}
@@ -307,7 +374,7 @@ spec:
     enabled: {{ .Values.backup.enabled }}
     restartOnFailure: true
     image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
-    serviceAccountName: percona-server-mongodb-operator
+    serviceAccountName: {{ .Values.backup.serviceAccountName }}
     {{- if .Values.backup.resources }}
     resources:
     {{ .Values.backup.resources | toYaml | indent 6 }}
