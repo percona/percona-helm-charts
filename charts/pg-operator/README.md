@@ -7,9 +7,9 @@ A job will be created based on `helm` `install`, `upgrade`, or `uninstall`. Afte
 job has completed the RBAC will be cleaned up.
 
 ## Pre-requisites
-* Kubernetes 1.16+
+* Kubernetes 1.18+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
-* At least `v2.5.0` version of helm
+* At least `v3.2.3` version of helm
 
 ## Deployment Details
 * <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
