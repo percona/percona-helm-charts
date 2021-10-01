@@ -7,7 +7,7 @@ This chart implements Percona Distribution for PostgreSQL deployment on Kubernet
 ## Pre-requisites
 
 * [Percona Distribution for PostgreSQL Operator](https://hub.helm.sh/charts/percona/pg-operator) running in you K8S cluster
-* Kubernetes 1.16+
+* Kubernetes 1.18+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
 * At least `v3.2.3` version of helm
 
