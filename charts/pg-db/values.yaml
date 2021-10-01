@@ -17,6 +17,11 @@ image:
   repo: percona/percona-postgresql-operator
   pgver: ppg13
 
+sslCA: ""
+sslSecretName: ""
+sslReplicationSecretName: ""
+tlsOnly: false
+
 bucket:
   key:
   secret:
@@ -60,6 +65,7 @@ backup:
     accessmode: ReadWriteOnce
     storagetype: dynamic
     storageclass: "standard"
+  schedule:
 
 pgBouncer:
   image: ""
