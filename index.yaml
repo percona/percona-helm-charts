@@ -2,29 +2,6 @@ apiVersion: v1
 entries:
   pg-db:
   - apiVersion: v2
-    appVersion: 1.0.0
-    created: "2021-10-01T18:58:44.373677856Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
-    digest: eecda2bd0d61edb787b384df9dd0546a81109dac0a517a3813f17516573634cf
-    home: https://github.com/percona/percona-postgresql-operator
-    keywords:
-    - PostgreSQL
-    - Operator
-    - Database
-    - Postgres
-    - SQL
-    - RDBMS
-    maintainers:
-    - email: ivan.pylypenko@percona.com
-      name: cap1984
-    - email: tomislav.plavcic@percona.com
-      name: tplavcic
-    name: pg-db
-    type: application
-    urls:
-    - https://github.com/percona/percona-helm-charts/releases/download/pg-db-1.0.0/pg-db-1.0.0.tgz
-    version: 1.0.0
-  - apiVersion: v2
     appVersion: 0.2.0
     created: "2021-08-12T14:04:45.222868865Z"
     description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
@@ -48,6 +25,29 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/pg-db-0.2.0/pg-db-0.2.0.tgz
     version: 0.2.0
   pg-operator:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2021-10-01T18:58:56.715778517Z"
+    description: A Helm chart to deploy the Percona Distribution for PostgreSQL Operator
+    digest: df195e2e1dbfac8387a3a3143f2faae646765869c9266e75f861f1cbfac1969d
+    home: https://github.com/percona/percona-postgresql-operator
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    name: pg-operator
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-operator-1.0.0/pg-operator-1.0.0.tgz
+    version: 1.0.0
   - apiVersion: v2
     appVersion: 0.2.0
     created: "2021-08-11T07:52:47.189489918Z"
