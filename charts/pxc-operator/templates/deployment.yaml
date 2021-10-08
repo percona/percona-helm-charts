@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "pxc-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "pxc-operator.labels" . | indent 4 }}
 spec:
@@ -78,6 +79,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "pxc-operator.name" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     name: {{ include "pxc-operator.name" . }}
 spec:
