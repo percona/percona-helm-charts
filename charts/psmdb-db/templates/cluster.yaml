@@ -19,7 +19,7 @@ spec:
   clusterServiceDNSSuffix: {{ .Values.DNSsuffix }}
   {{- end }}
   image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-  imagePullPolicy: Always
+  imagePullPolicy: "{{ .Values.imagePullPolicy }}"
   {{- if .Values.allowUnsafeConfigurations }}
   allowUnsafeConfigurations: true
   {{- end }}
