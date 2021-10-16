@@ -15,6 +15,7 @@ finalizers:
 pause: false
 unmanaged: false
 allowUnsafeConfigurations: false
+imagePullPolicy: Always
 updateStrategy: SmartUpdate
 upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
