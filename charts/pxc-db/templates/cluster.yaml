@@ -311,11 +311,8 @@ spec:
 {{ tpl ($pmm.resources.limits | toYaml) $ | indent 8 }}
   {{- end }}
   {{- $backup := .Values.backup }}
-
+  {{- if $backup.enabled }}
   backup:
-  {{- if not $backup.enabled }}
-    enabled: false
-  {{- end }}
     image: {{ include "pxc-db.backup-image" . }}
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
@@ -331,7 +328,6 @@ spec:
     {{- end }}
     storages:
 {{ include "pxc-database.storages" . | indent 6 }}
-{{- if $backup.enabled }}
     schedule:
 {{ $backup.schedule | toYaml | indent 6 }}
 {{- end }}
