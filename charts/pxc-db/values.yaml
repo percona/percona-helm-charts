@@ -134,6 +134,11 @@ pxc:
     periodSeconds: 10
     successThreshold: 1
     failureThreshold: 3
+  # A custom Kubernetes Security Context for a Pod to be used instead of the default one
+  #podSecurityContext:
+  #  fsGroup: 1001
+  #  supplementalGroups:
+  #  - 1001
 
 haproxy:
   enabled: true
@@ -228,6 +233,11 @@ haproxy:
     periodSeconds: 30
     successThreshold: 1
     failureThreshold: 4
+  # A custom Kubernetes Security Context for a Pod to be used instead of the default one
+  #podSecurityContext:
+  #  fsGroup: 1001
+  #  supplementalGroups:
+  #  - 1001
 
 proxysql:
   enabled: false
@@ -346,6 +356,11 @@ proxysql:
     # storageClass: "-"
     accessMode: ReadWriteOnce
     size: 8Gi
+  # A custom Kubernetes Security Context for a Pod to be used instead of the default one
+  #podSecurityContext:
+  #  fsGroup: 1001
+  #  supplementalGroups:
+  #  - 1001
 
 logcollector:
   enabled: true

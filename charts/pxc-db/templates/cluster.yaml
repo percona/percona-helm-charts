@@ -128,7 +128,10 @@ spec:
 {{ tpl ($pxc.readinessProbes | toYaml) $ | indent 6 }}
     livenessProbes:
 {{ tpl ($pxc.livenessProbes | toYaml) $ | indent 6 }}
-
+    {{- if $pxc.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($pxc.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
   {{- if or (not .Values.haproxy.enabled) .Values.proxysql.enabled }}
   haproxy:
     enabled: false
@@ -194,6 +197,10 @@ spec:
 {{ tpl ($haproxy.readinessProbes | toYaml) $ | indent 6 }}
     livenessProbes:
 {{ tpl ($haproxy.livenessProbes | toYaml) $ | indent 6 }}
+    {{- if $haproxy.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($haproxy.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
   {{- end }}
   {{- if not .Values.proxysql.enabled }}
   proxysql:
@@ -277,6 +284,10 @@ spec:
     {{- end }}
     {{- end }}
     gracePeriod: {{ $proxysql.gracePeriod }}
+    {{- if $proxysql.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($proxysql.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
   {{- end }}
   logcollector:
   {{- if not .Values.logcollector.enabled }}
