@@ -377,7 +377,7 @@ spec:
     serviceAccountName: {{ .Values.backup.serviceAccountName }}
     {{- if .Values.backup.resources }}
     resources:
-    {{ .Values.backup.resources | toYaml | indent 6 }}
+{{ .Values.backup.resources | toYaml | indent 6 }}
     {{- end }}
     storages:
 {{ .Values.backup.storages | toYaml | indent 6 }}
