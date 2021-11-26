@@ -5,7 +5,7 @@ This chart implements Percona XtraDB Cluster deployment in Kubernets via Custom 
 
 ## Pre-requisites
 * [PXC operator](https://hub.helm.sh/charts/percona/pxc-operator) running in you K8S cluster
-* Kubernetes 1.16+
+* Kubernetes 1.17+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
 * Helm v3
 
@@ -24,7 +24,7 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.9.1 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.10.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -33,6 +33,7 @@ The chart can be customized using the following configurable parameters:
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
 | `pause`                         | Stop PXC Database safely                                                      | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PXC cluster pods          | `false`                                   |
+| `initImage`                     | An alternative image for the initial Operator installation                    | `""`                                      |
 | `updateStrategy`                | Regulates the way how PXC Cluster Pods will be updated after setting a new image | `SmartUpdate`                          |
 | `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PXC Versions provider                             | `https://check.percona.com/versions`      |
 | `upgradeOptions.apply`          | PXC image to apply from version service - `recommended`, `latest`, actual version like `8.0.19-10.1` | `8.0-recommended` |
@@ -43,6 +44,7 @@ The chart can be customized using the following configurable parameters:
 | `pxc.size`                                  | PXC Cluster target member (pod) quantity. Can't even if `allowUnsafeConfigurations` is `true`                            | `3`                              |
 | `pxc.image.repository`                      | PXC Container image repository                                                                                           | `percona/percona-xtradb-cluster` |
 | `pxc.image.tag`                             | PXC Container image tag                                                                                                  | `8.0.23-14.1`                    |
+| `pxc.imagePullPolicy`                       | The policy used to update images                                                                                         | ``                               |
 | `pxc.autoRecovery`                          | Enable full cluster crash auto recovery                                                                                  | `true`                           |
 | `pxc.expose.enabled`                        | Enable or disable exposing `Percona XtraDB Cluster` nodes with dedicated IP addresses                                    | `true`                           |
 | `pxc.expose.type`                           | The Kubernetes Service Type used for exposure                                                                            | `LoadBalancer`                   |
@@ -56,11 +58,13 @@ The chart can be customized using the following configurable parameters:
 | `pxc.imagePullSecrets`                      | PXC Container pull secret                                                                                                | `[]`                             |
 | `pxc.annotations`                           | PXC Pod user-defined annotations                                                                                         | `{}`                             |
 | `pxc.priorityClassName`                     | PXC Pod priority Class defined by user                                                                                   |                                  |
+| `pxc.runtimeClassName`                      | Name of the Kubernetes Runtime Class for PXC Pods                                                                        |                                  |
 | `pxc.labels`                                | PXC Pod user-defined labels                                                                                              | `{}`                             |
+| `pxc.schedulerName`                         | The Kubernetes Scheduler                                                                                                 |                                  |
 | `pxc.readinessDelaySec`                     | PXC Pod delay for readiness probe in seconds                                                                             | `15`                             |
 | `pxc.livenessDelaySec`                      | PXC Pod delay for liveness probe in seconds                                                                              | `300`                            |
-| `pxc.forceUnsafeBootstrap`                  | Order PXC Pods to override the previous Pod crash                                                                        | `false`                          |
 | `pxc.configuration`                         | User defined MySQL options according to MySQL configuration file syntax                                                  | ``                               |
+| `pxc.envVarsSecret`                         | A secret with environment variables                                                                                      | ``                               |
 | `pxc.resources.requests`                    | PXC Pods resource requests                                                                                               | `{"memory": "1G", "cpu": "600m"}`|
 | `pxc.resources.limits`                      | PXC Pods resource limits                                                                                                 | `{}`                             |
 | `pxc.sidecars`                              | PXC Pods sidecars                                                                                                        | `[]`                             |
@@ -89,22 +93,28 @@ The chart can be customized using the following configurable parameters:
 | `pxc.livenessProbes.periodSeconds`          | How often (in seconds) to perform the probe                                                                              | `10`                             |
 | `pxc.livenessProbes.successThreshold`       | Minimum consecutive successes for the probe to be considered successful after having failed                              | `1`                              |
 | `pxc.livenessProbes.timeoutSeconds`         | Number of seconds after which the probe times out                                                                        | `5`                              |
+| `pxc.containerSecurityContext`              | A custom Kubernetes Security Context for a Container to be used instead of the default one                               | `{}`                             |
+| `pxc.podSecurityContext`                    | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                     | `{}`                             |
 | |
 | `haproxy.enabled` | Use HAProxy as TCP proxy for PXC cluster | `true` |
 | `haproxy.size`                      | HAProxy target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
-| `haproxy.image`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator:1.9.0-haproxy`|
+| `haproxy.image`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator:1.10.0-haproxy`|
+| `haproxy.imagePullPolicy`              | The policy used to update images                                             | ``     |
+| `haproxy.replicasServiceEnabled`       | Allow disabling k8s service for haproxy-replicas                             | `true` |
 | `haproxy.imagePullSecrets`             | HAProxy Container pull secret                                                | `[]`                                      |
 | `haproxy.configuration`             | User defined HAProxy options according to HAProxy configuration file syntax       | ``     |
 | `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
 | `haproxy.priorityClassName`       | HAProxy Pod priority Class defined by user                                   |  |
+| `haproxy.runtimeClassName`        | Name of the Kubernetes Runtime Class for HAProxy Pods                        |  |
 | `haproxy.externalTrafficPolicy`   | Desire service to route external traffic to node-local or cluster-wide endpoints  |  |
 | `haproxy.loadBalancerSourceRanges` | Limit which client IP's can access the Network Load Balancer                | `[]` |
 | `haproxy.serviceType`             | Specify what kind of Service you want                                        | `ClusterIP` |
 | `haproxy.serviceAnnotations`      | Specify service annotations                                                  | `{}` |
 | `haproxy.labels`                  | HAProxy Pod user-defined labels                                              | `{}` |
+| `haproxy.schedulerName`           | The Kubernetes Scheduler                                                     |      |
 | `haproxy.readinessDelaySec`       | HAProxy Pod delay for readiness probe in seconds                             | `15` |
-| `haproxy.livenessDelaySec`        | HAProxy Pod delay for liveness probe in seconds                             | `300` |
-| `haproxy.forceUnsafeBootstrap`        | Order HAProxy Pods to override the previous Pod crash                             | `false` |
+| `haproxy.livenessDelaySec`        | HAProxy Pod delay for liveness probe in seconds                              | `300` |
+| `haproxy.envVarsSecret`           | A secret with environment variables                                          | `` |
 | `haproxy.resources.requests`                     | HAProxy Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
 | `haproxy.resources.limits`                     | HAProxy Pods resource limits                                    | `{}`                                      |
 | `haproxy.sidecars`                              | HAProxy Pods sidecars                                                                                                        | `[]`                             |
@@ -126,22 +136,27 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.livenessProbes.periodSeconds` | How often (in seconds) to perform the probe | `10`                      |
 | `haproxy.livenessProbes.successThreshold` | Minimum consecutive successes for the probe to be considered successful after having failed | `1`                      |
 | `haproxy.livenessProbes.timeoutSeconds` | Number of seconds after which the probe times out | `5` |
+| `haproxy.containerSecurityContext`      | A custom Kubernetes Security Context for a Container to be used instead of the default one                               | `{}` |
+| `haproxy.podSecurityContext`            | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                     | `{}` |
 | |
 | `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `false` |
 | `proxysql.size`                      | ProxySQL target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
-| `proxysql.image`              | ProxySQL Container image                                           | `percona/percona-xtradb-cluster-operator:1.9.0-proxysql` |
+| `proxysql.image`              | ProxySQL Container image                                           | `percona/percona-xtradb-cluster-operator:1.10.0-proxysql` |
+| `proxysql.imagePullPolicy`              | The policy used to update images                                              | `` |
 | `proxysql.imagePullSecrets`             | ProxySQL Container pull secret                                                | `[]`                                      |
 | `proxysql.configuration`             | User defined ProxySQL options according to ProxySQL configuration file syntax       | ``     |
 | `proxysql.annotations`             | ProxySQL Pod user-defined annotations                                         | `{}` |
 | `proxysql.priorityClassName`       | ProxySQL Pod priority Class defined by user                                   |  |
+| `proxysql.runtimeClassName`        | Name of the Kubernetes Runtime Class for ProxySQL Pods                        |  |
 | `proxysql.externalTrafficPolicy`   | Desire service to route external traffic to node-local or cluster-wide endpoints  |  |
 | `proxysql.loadBalancerSourceRanges` | Limit which client IP's can access the Network Load Balancer                 | `[]` |
 | `proxysql.serviceType`             | Specify what kind of Service you want                                         | `ClusterIP` |
 | `proxysql.serviceAnnotations`      | Specify service annotations                                                   | `{}` |
 | `proxysql.labels`                  | ProxySQL Pod user-defined labels                                              | `{}` |
+| `proxysql.schedulerName`           | The Kubernetes Scheduler                                                      |      |
 | `proxysql.readinessDelaySec`       | ProxySQL Pod delay for readiness probe in seconds                             | `15` |
-| `proxysql.livenessDelaySec`        | ProxySQL Pod delay for liveness probe in seconds                             | `300` |
-| `proxysql.forceUnsafeBootstrap`        | Order ProxySQL Pods to override the previous Pod crash                             | `false` |
+| `proxysql.livenessDelaySec`        | ProxySQL Pod delay for liveness probe in seconds                              | `300` |
+| `proxysql.envVarsSecret`           | A secret with environment variables                                           | `` |
 | `proxysql.resources.requests`                     | ProxySQL Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
 | `proxysql.resources.limits`                     | ProxySQL Pods resource limits                                    | `{}`                                      |
 | `proxysql.sidecars`                              | ProxySQL Pods sidecars                                                                                                        | `[]`                             |
@@ -158,23 +173,25 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.persistence.storageClass` | Sets K8S storageClass name for all ProxySQL Pods PVC. Available only when `proxysql.persistence.enabled: true` | `-`                      |
 | `proxysql.persistence.accessMode` | Sets K8S persistent storage access policy for all ProxySQL Pods | `ReadWriteOnce`                      |
 | `proxysql.persistence.size` | Sets K8S persistent storage size for all ProxySQL Pods | `8Gi`                      |
+| `proxysql.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one                             | `{}` |
+| `proxysql.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                     | `{}` |
 | |
 | `logcollector.enabled`            | Enable log collector container                                           | `true` |
-| `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.9.0-logcollector` |
+| `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.10.0-logcollector` |
 | `logcollector.configuration`      | User defined configuration for logcollector                              |  ``  |
-| `logcollector.resources.requests` | Log collector resource requests                                          | `{}` |
+| `logcollector.resources.requests` | Log collector resource requests                                          | `{"memory": "100M", "cpu": "200m"}` |
 | `logcollector.resources.limits`   | Log collector resource limits                                            | `{}` |
 | |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                                  | `2.18.0`             |
+| `pmm.image.tag`                     | PMM Container image tag                                                  | `2.23.0`             |
 | `pmm.serverHost`                    | PMM server related K8S service hostname                                  | `monitoring-service` |
 | `pmm.serverUser`                    | Username for accessing PXC database internals                            | `admin` |
-| `pmm.resources.requests`            | PMM Container resource requests                                          | `{}` |
+| `pmm.resources.requests`            | PMM Container resource requests                                          | `{"memory": "150M", "cpu": "300m"}` |
 | `pmm.resources.limits`              | PMM Container resource limits                                            | `{}` |
 | |
 | `backup.enabled` | Enables backups for PXC cluster | `true` |
-| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.9.0-pxc8.0-backup` |
+| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.10.0-pxc8.0-backup` |
 | `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                      |
 | `backup.pitr.enabled`             | Enable point in time recovery                                                | `false`                                      |
 | `backup.pitr.storageName`             | Storage name for PITR                                                | `s3-us-west-binlogs`                                      |
