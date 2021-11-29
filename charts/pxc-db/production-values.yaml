@@ -24,6 +24,16 @@ upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
   apply: disabled
   schedule: "0 4 * * *"
+enableCRValidationWebhook: false
+tls: {}
+  # SANs:
+  #   - pxc-1.example.com
+  #   - pxc-2.example.com
+  #   - pxc-3.example.com
+  # issuerConf:
+  #   name: special-selfsigned-issuer
+  #   kind: ClusterIssuer
+  #   group: cert-manager.io
 
 pxc:
   size: 3

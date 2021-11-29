@@ -33,6 +33,7 @@ The chart can be customized using the following configurable parameters:
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
 | `pause`                         | Stop PXC Database safely                                                      | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PXC cluster pods          | `false`                                   |
+| `enableCRValidationWebhook`     | Enables or disables schema validation before applying custom resource         | `false`                                   |
 | `initImage`                     | An alternative image for the initial Operator installation                    | `""`                                      |
 | `updateStrategy`                | Regulates the way how PXC Cluster Pods will be updated after setting a new image | `SmartUpdate`                          |
 | `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PXC Versions provider                             | `https://check.percona.com/versions`      |
@@ -40,7 +41,11 @@ The chart can be customized using the following configurable parameters:
 | `upgradeOptions.schedule`          | Cron formatted time to execute the update | `"0 4 * * *"` |
 | `finalizers:delete-pxc-pods-in-order`  | Set this if you want to delete PXC pods in order on cluster deletion |   |
 | `finalizers:delete-proxysql-pvc`  | Set this if you want to delete proxysql persistent volumes on cluster deletion |   |
-| `finalizers:delete-pxc-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion |   |
+| `finalizers:delete-pxc-pvc`       | Set this if you want to delete database persistent volumes on cluster deletion |   |
+| `tls.SANs`                        | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]` |
+| `tls.issuerConf.name`             | A cert-manager issuer name  | `""` |
+| `tls.issuerConf.kind`             | A cert-manager issuer type  | `""` |
+| `tls.issuerConf.group`            | A cert-manager issuer group | `""` |
 | `pxc.size`                                  | PXC Cluster target member (pod) quantity. Can't even if `allowUnsafeConfigurations` is `true`                            | `3`                              |
 | `pxc.image.repository`                      | PXC Container image repository                                                                                           | `percona/percona-xtradb-cluster` |
 | `pxc.image.tag`                             | PXC Container image tag                                                                                                  | `8.0.23-14.1`                    |

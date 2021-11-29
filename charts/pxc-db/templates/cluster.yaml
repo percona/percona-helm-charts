@@ -44,6 +44,9 @@ spec:
   {{- if or .Values.allowUnsafeConfigurations .Values.pxc.disableTLS }}
   allowUnsafeConfigurations: true
   {{- end }}
+  {{- if .Values.enableCRValidationWebhook }}
+  enableCRValidationWebhook: {{ .Values.enableCRValidationWebhook }}
+  {{- end }}
   pause: {{ .Values.pause }}
   updateStrategy: {{ .Values.updateStrategy }}
   {{- if hasKey .Values.upgradeOptions "versionServiceEndpoint" }}
@@ -52,6 +55,20 @@ spec:
     apply: {{ .Values.upgradeOptions.apply }}
     schedule: {{ .Values.upgradeOptions.schedule }}
   {{- end }}
+  {{- if .Values.tls }}
+  tls:
+  {{- if hasKey .Values.tls "SANs" }}
+    SANs:
+{{ .Values.tls.SANs | toYaml | indent 6 }}
+  {{- end }}
+  {{- if hasKey .Values.tls "issuerConf" }}
+    issuerConf:
+      name: {{ .Values.tls.issuerConf.name }}
+      kind: {{ .Values.tls.issuerConf.kind }}
+      group: {{ .Values.tls.issuerConf.group }}
+  {{- end }}
+  {{- end }}
+
   {{- $pxc := .Values.pxc }}
   pxc:
     size: {{ $pxc.size }}
