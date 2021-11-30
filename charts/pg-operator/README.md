@@ -7,7 +7,7 @@ A job will be created based on `helm` `install`, `upgrade`, or `uninstall`. Afte
 job has completed the RBAC will be cleaned up.
 
 ## Pre-requisites
-* Kubernetes 1.18+
+* Kubernetes 1.19+
 * PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
 * At least `v3.2.3` version of helm
 
@@ -23,7 +23,7 @@ To install the chart with the `pg-operator` release name using a dedicated names
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pg-operator --version 1.0.0 --namespace my-namespace
+helm install my-operator percona/pg-operator --version 1.1.0 --namespace my-namespace
 ```
 
 ## Configuration
