@@ -38,9 +38,7 @@ spec:
   {{- else }}
   logCollectorSecretName: {{ include "pxc-database.fullname" . }}-log-collector
   {{- end }}
-  {{- if .Values.initImage }}
   initImage: {{ .Values.initImage }}
-  {{- end }}
   {{- if or .Values.allowUnsafeConfigurations .Values.pxc.disableTLS }}
   allowUnsafeConfigurations: true
   {{- end }}
