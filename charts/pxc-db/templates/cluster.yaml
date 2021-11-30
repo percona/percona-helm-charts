@@ -44,9 +44,7 @@ spec:
   {{- if or .Values.allowUnsafeConfigurations .Values.pxc.disableTLS }}
   allowUnsafeConfigurations: true
   {{- end }}
-  {{- if .Values.enableCRValidationWebhook }}
   enableCRValidationWebhook: {{ .Values.enableCRValidationWebhook }}
-  {{- end }}
   pause: {{ .Values.pause }}
   updateStrategy: {{ .Values.updateStrategy }}
   {{- if hasKey .Values.upgradeOptions "versionServiceEndpoint" }}
