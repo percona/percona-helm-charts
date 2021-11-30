@@ -111,6 +111,8 @@ secrets:
   postgres:
   # pgbouncer user password
   pgbouncer:
+  # pguser user password
+  pguser:
 
 versionService:
   url: "https://check.percona.com"
