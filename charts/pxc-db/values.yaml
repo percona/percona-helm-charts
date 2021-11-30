@@ -165,7 +165,7 @@ haproxy:
   enabled: true
   size: 3
   image: ""
-  # replicasServiceEnabled: false
+  replicasServiceEnabled: true
   # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials

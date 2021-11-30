@@ -179,9 +179,7 @@ spec:
     enabled: true
     size: {{ $haproxy.size }}
     image: {{ include "pxc-db.haproxy-image" . }}
-    {{- if $haproxy.replicasServiceEnabled }}
     replicasServiceEnabled: {{ $haproxy.replicasServiceEnabled }}
-    {{- end }}
     {{- if $haproxy.imagePullPolicy }}
     imagePullPolicy: {{ $haproxy.imagePullPolicy }}
     {{- end }}
