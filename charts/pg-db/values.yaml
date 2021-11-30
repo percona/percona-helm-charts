@@ -5,8 +5,8 @@
 pause: false
 standby: false
 disableAutofail: false
-keepData: false
-keepBackups: false
+keepData: true
+keepBackups: true
 restoreFrom: false
 restoreOpts: false
 defaultUser: pguser
@@ -15,7 +15,7 @@ targetPort: "5432"
 
 image:
   repo: percona/percona-postgresql-operator
-  pgver: ppg13
+  pgver: ppg14
 
 sslCA: ""
 sslSecretName: ""
@@ -47,7 +47,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.18.0
+    tag: 2.21.0
   serverHost: monitoring-service
   resources:
     requests:
@@ -69,7 +69,7 @@ backup:
 
 pgBouncer:
   image: ""
-  size: 1
+  size: 3
   resources:
     requests:
       cpu: "1"
@@ -104,9 +104,15 @@ pgBadger:
   port: 10000
 
 secrets:
+  name:
   # replication user password
   primaryuser:
   # superuser password
   postgres:
   # pgbouncer user password
   pgbouncer:
+
+versionService:
+  url: "https://check.percona.com"
+  apply: "recommended"
+  schedule: "0 4 * * *"
