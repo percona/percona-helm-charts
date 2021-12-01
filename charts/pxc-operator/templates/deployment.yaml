@@ -29,6 +29,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+      terminationGracePeriodSeconds: 600
       containers:
         - name: {{ .Chart.Name }}
           image: {{ include "pxc-operator.image" . }}

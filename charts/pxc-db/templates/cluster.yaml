@@ -23,7 +23,7 @@ spec:
   sslSecretName: {{ include "pxc-database.fullname" . }}-ssl
   {{- end }}
   {{- if hasKey .Values.secrets.tls "internal" }}
-  sslInternalSecretName: {{ hasKey .Values.secrets.tls.cluster }}
+  sslInternalSecretName: {{ .Values.secrets.tls.internal }}
   {{- else }}
   sslInternalSecretName: {{ include "pxc-database.fullname" . }}-ssl-internal
   {{- end }}
@@ -38,9 +38,11 @@ spec:
   {{- else }}
   logCollectorSecretName: {{ include "pxc-database.fullname" . }}-log-collector
   {{- end }}
+  initImage: {{ .Values.initImage }}
   {{- if or .Values.allowUnsafeConfigurations .Values.pxc.disableTLS }}
   allowUnsafeConfigurations: true
   {{- end }}
+  enableCRValidationWebhook: {{ .Values.enableCRValidationWebhook }}
   pause: {{ .Values.pause }}
   updateStrategy: {{ .Values.updateStrategy }}
   {{- if hasKey .Values.upgradeOptions "versionServiceEndpoint" }}
@@ -49,25 +51,44 @@ spec:
     apply: {{ .Values.upgradeOptions.apply }}
     schedule: {{ .Values.upgradeOptions.schedule }}
   {{- end }}
+  {{- if .Values.tls }}
+  tls:
+  {{- if hasKey .Values.tls "SANs" }}
+    SANs:
+{{ .Values.tls.SANs | toYaml | indent 6 }}
+  {{- end }}
+  {{- if hasKey .Values.tls "issuerConf" }}
+    issuerConf:
+      name: {{ .Values.tls.issuerConf.name }}
+      kind: {{ .Values.tls.issuerConf.kind }}
+      group: {{ .Values.tls.issuerConf.group }}
+  {{- end }}
+  {{- end }}
+
   {{- $pxc := .Values.pxc }}
   pxc:
     size: {{ $pxc.size }}
     image: "{{ $pxc.image.repository }}:{{ $pxc.image.tag }}"
     autoRecovery: {{ $pxc.autoRecovery }}
+    {{- if $pxc.schedulerName }}
+    schedulerName: {{ $pxc.schedulerName }}
+    {{- end }}
     readinessDelaySec: {{ $pxc.readinessDelaySec }}
     livenessDelaySec: {{ $pxc.livenessDelaySec }}
-    forceUnsafeBootstrap: {{ $pxc.forceUnsafeBootstrap }}
     {{- if $pxc.configuration }}
     configuration: |
     {{ tpl $pxc.configuration $ | nindent 6 }}
+    {{- end }}
+    {{- if $pxc.imagePullPolicy }}
+    imagePullPolicy: {{ $pxc.imagePullPolicy }}
     {{- end }}
     {{- if $pxc.imagePullSecrets }}
     imagePullSecrets:
 {{ $pxc.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
-{{- if hasKey $pxc "priorityClassName" }}
+    {{- if $pxc.priorityClassName }}
     priorityClassName: {{ $pxc.priorityClassName }}
-{{- end }}
+    {{- end }}
     annotations:
 {{ $pxc.annotations | toYaml | indent 6 }}
     labels:
@@ -79,6 +100,12 @@ spec:
     {{- if $pxc.replicationChannels }}
     replicationChannels:
 {{ tpl ($pxc.replicationChannels | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $pxc.runtimeClassName }}
+    runtimeClassName: {{ $pxc.runtimeClassName }}
+    {{- end }}
+    {{- if $pxc.envVarsSecret }}
+    envVarsSecret: {{ $pxc.envVarsSecret }}
     {{- end }}
     resources:
       requests:
@@ -128,7 +155,17 @@ spec:
 {{ tpl ($pxc.readinessProbes | toYaml) $ | indent 6 }}
     livenessProbes:
 {{ tpl ($pxc.livenessProbes | toYaml) $ | indent 6 }}
-
+    {{- if $pxc.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($pxc.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $pxc.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($pxc.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $pxc.serviceAccountName }}
+    serviceAccountName: {{ $pxc.serviceAccountName }}
+    {{- end }}
   {{- if or (not .Values.haproxy.enabled) .Values.proxysql.enabled }}
   haproxy:
     enabled: false
@@ -138,35 +175,48 @@ spec:
     enabled: true
     size: {{ $haproxy.size }}
     image: {{ include "pxc-db.haproxy-image" . }}
+    replicasServiceEnabled: {{ $haproxy.replicasServiceEnabled }}
+    {{- if $haproxy.imagePullPolicy }}
+    imagePullPolicy: {{ $haproxy.imagePullPolicy }}
+    {{- end }}
     {{- if $haproxy.imagePullSecrets }}
     imagePullSecrets:
 {{ $haproxy.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.schedulerName }}
+    schedulerName: {{ $haproxy.schedulerName }}
     {{- end }}
     {{- if $haproxy.configuration }}
     configuration: |
     {{ tpl $haproxy.configuration $ | nindent 6 }}
     {{- end }}
-{{- if hasKey $haproxy "priorityClassName" }}
+    {{- if $haproxy.priorityClassName }}
     priorityClassName: {{ $haproxy.priorityClassName }}
-{{- end }}
-{{- if hasKey $haproxy "externalTrafficPolicy" }}
+    {{- end }}
+    {{- if $haproxy.externalTrafficPolicy }}
     externalTrafficPolicy: {{ $haproxy.externalTrafficPolicy }}
-{{- end }}
-{{- if hasKey $haproxy "loadBalancerSourceRanges" }}
+    {{- end }}
+    {{- if $haproxy.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ $haproxy.loadBalancerSourceRanges | toYaml | indent 6 }}
-{{- end }}
-{{- if hasKey $haproxy "serviceType" }}
+    {{- end }}
+    {{- if $haproxy.serviceType }}
     serviceType: {{ $haproxy.serviceType }}
-{{- end }}
-{{- if hasKey $haproxy "serviceAnnotations" }}
+    {{- end }}
+    {{- if $haproxy.serviceAnnotations }}
     serviceAnnotations:
 {{ $haproxy.serviceAnnotations | toYaml | indent 6 }}
-{{- end }}
+    {{- end }}
     annotations:
 {{ $haproxy.annotations | toYaml | indent 6 }}
     labels:
 {{ $haproxy.labels | toYaml | indent 6 }}
+    {{- if $haproxy.runtimeClassName }}
+    runtimeClassName: {{ $haproxy.runtimeClassName }}
+    {{- end }}
+    {{- if $haproxy.envVarsSecret }}
+    envVarsSecret: {{ $haproxy.envVarsSecret }}
+    {{- end }}
     resources:
       requests:
 {{ $haproxy.resources.requests | toYaml | indent 8 }}
@@ -179,6 +229,9 @@ spec:
 {{ tpl ($haproxy.sidecarResources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($haproxy.sidecarResources.limits | toYaml) $ | indent 8 }}
+    {{- if $haproxy.serviceAccountName }}
+    serviceAccountName: {{ $haproxy.serviceAccountName }}
+    {{- end }}
     nodeSelector:
 {{ $haproxy.nodeSelector | toYaml | indent 6 }}
     affinity:
@@ -190,10 +243,24 @@ spec:
     volumeSpec:
       emptyDir: {}
     gracePeriod: {{ $haproxy.gracePeriod }}
+    {{- if $haproxy.readinessDelaySec }}
+    readinessDelaySec: {{ $haproxy.readinessDelaySec }}
+    {{- end }}
+    {{- if $haproxy.livenessDelaySec }}
+    livenessDelaySec: {{ $pxc.livenessDelaySec }}
+    {{- end }}
     readinessProbes:
 {{ tpl ($haproxy.readinessProbes | toYaml) $ | indent 6 }}
     livenessProbes:
 {{ tpl ($haproxy.livenessProbes | toYaml) $ | indent 6 }}
+    {{- if $haproxy.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($haproxy.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($haproxy.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
   {{- end }}
   {{- if not .Values.proxysql.enabled }}
   proxysql:
@@ -204,35 +271,47 @@ spec:
     enabled: true
     size: {{ $proxysql.size }}
     image: {{ include "pxc-db.proxysql-image" . }}
+    {{- if $proxysql.imagePullPolicy }}
+    imagePullPolicy: {{ $proxysql.imagePullPolicy }}
+    {{- end }}
     {{- if $proxysql.imagePullSecrets }}
     imagePullSecrets:
     {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $proxysql.schedulerName }}
+    schedulerName: {{ $proxysql.schedulerName }}
     {{- end }}
     {{- if $proxysql.configuration }}
     configuration: |
     {{ tpl $proxysql.configuration $ | nindent 6 }}
     {{- end }}
-{{- if hasKey $proxysql "priorityClassName" }}
+    {{- if $proxysql.priorityClassName }}
     priorityClassName: {{ $proxysql.priorityClassName }}
-{{- end }}
-{{- if hasKey $proxysql "externalTrafficPolicy" }}
+    {{- end }}
+    {{- if $proxysql.externalTrafficPolicy }}
     externalTrafficPolicy: {{ $proxysql.externalTrafficPolicy }}
-{{- end }}
-{{- if hasKey $proxysql "loadBalancerSourceRanges" }}
+    {{- end }}
+    {{- if $proxysql.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ $proxysql.loadBalancerSourceRanges | toYaml | indent 6 }}
-{{- end }}
-{{- if hasKey $proxysql "serviceType" }}
+    {{- end }}
+    {{- if $proxysql.serviceType }}
     serviceType: {{ $proxysql.serviceType }}
-{{- end }}
-{{- if hasKey $proxysql "serviceAnnotations" }}
+    {{- end }}
+    {{- if $proxysql.serviceAnnotations }}
     serviceAnnotations:
 {{ $proxysql.serviceAnnotations | toYaml | indent 6 }}
-{{- end }}
+    {{- end }}
     annotations:
 {{ $proxysql.annotations | toYaml | indent 6 }}
     labels:
 {{ $proxysql.labels | toYaml | indent 6 }}
+    {{- if $proxysql.runtimeClassName }}
+    runtimeClassName: {{ $proxysql.runtimeClassName }}
+    {{- end }}
+    {{- if $proxysql.envVarsSecret }}
+    envVarsSecret: {{ $proxysql.envVarsSecret }}
+    {{- end }}
     resources:
       requests:
 {{ $proxysql.resources.requests | toYaml | indent 8 }}
@@ -245,6 +324,9 @@ spec:
 {{ tpl ($proxysql.sidecarResources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($proxysql.sidecarResources.limits | toYaml) $ | indent 8 }}
+    {{- if $proxysql.serviceAccountName }}
+    serviceAccountName: {{ $proxysql.serviceAccountName }}
+    {{- end }}
     nodeSelector:
 {{ $proxysql.nodeSelector | toYaml | indent 6 }}
     affinity:
@@ -277,6 +359,14 @@ spec:
     {{- end }}
     {{- end }}
     gracePeriod: {{ $proxysql.gracePeriod }}
+    {{- if $proxysql.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($proxysql.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $proxysql.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($proxysql.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
   {{- end }}
   logcollector:
   {{- if not .Values.logcollector.enabled }}
@@ -311,12 +401,12 @@ spec:
 {{ tpl ($pmm.resources.limits | toYaml) $ | indent 8 }}
   {{- end }}
   {{- $backup := .Values.backup }}
-
+  {{- if $backup.enabled }}
   backup:
-  {{- if not $backup.enabled }}
-    enabled: false
-  {{- end }}
     image: {{ include "pxc-db.backup-image" . }}
+    {{- if $backup.serviceAccountName }}
+    serviceAccountName: {{ $backup.serviceAccountName }}
+    {{- end }}
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}
@@ -331,7 +421,6 @@ spec:
     {{- end }}
     storages:
 {{ include "pxc-database.storages" . | indent 6 }}
-{{- if $backup.enabled }}
     schedule:
 {{ $backup.schedule | toYaml | indent 6 }}
 {{- end }}
