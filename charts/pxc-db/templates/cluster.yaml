@@ -23,7 +23,7 @@ spec:
   sslSecretName: {{ include "pxc-database.fullname" . }}-ssl
   {{- end }}
   {{- if hasKey .Values.secrets.tls "internal" }}
-  sslInternalSecretName: {{ hasKey .Values.secrets.tls.cluster }}
+  sslInternalSecretName: {{ .Values.secrets.tls.internal }}
   {{- else }}
   sslInternalSecretName: {{ include "pxc-database.fullname" . }}-ssl-internal
   {{- end }}
