@@ -13,7 +13,7 @@ metadata:
 {{ include "pg-database.labels" . | indent 4 }}
   name: {{ include "pg-database.fullname" . }}
 spec:
-  secretsName: {{ .Values.secrets.name | default (printf "%s-users-secrets" (include "pg-database.fullname" .)) }}
+  secretsName: {{ .Values.secrets.name }}
   upgradeOptions:
     versionServiceEndpoint: {{ .Values.versionService.url }}
     apply: {{ .Values.versionService.apply }}
