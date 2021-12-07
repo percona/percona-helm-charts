@@ -13,8 +13,12 @@ metadata:
 {{ include "pg-database.labels" . | indent 4 }}
   name: {{ include "pg-database.fullname" . }}
 spec:
+  secretsName: {{ .Values.secrets.name }}
+  upgradeOptions:
+    versionServiceEndpoint: {{ .Values.versionService.url }}
+    apply: {{ .Values.versionService.apply }}
+    schedule: {{ .Values.versionService.schedule }}
   database: {{ .Values.defaultDatabase }}
-  namespace: {{ .Release.Namespace }}
   port: {{ .Values.targetPort | quote }}
   user: {{ .Values.defaultUser }}
   disableAutofail: {{ .Values.disableAutofail }}
