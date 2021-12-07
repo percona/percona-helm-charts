@@ -104,9 +104,17 @@ pgBadger:
   port: 10000
 
 secrets:
+  name:
   # replication user password
   primaryuser:
   # superuser password
   postgres:
   # pgbouncer user password
   pgbouncer:
+  # pguser user password
+  pguser:
+
+versionService:
+  url: "https://check.percona.com"
+  apply: "disabled"
+  schedule: "0 4 * * *"
