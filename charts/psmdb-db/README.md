@@ -147,8 +147,8 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.resources.requests.cpu`       | Mongos Pods resource requests CPU | `300m` |
 | `sharding.mongos.resources.requests.memory`    | Mongos Pods resource requests memory | `0.5G` |
 | `sharding.mongos.expose.exposeType`            | Mongos service exposeType | `ClusterIP` |
-| `sharding.mongos.loadBalancerSourceRanges`     | Limit client IP's access to Load Balancer | `{}` |
-| `sharding.mongos.serviceAnnotations`           | Mongos service annotations | `{}` |
+| `sharding.mongos.expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}` |
+| `sharding.mongos.expose.serviceAnnotations`    | Mongos service annotations | `{}` |
 | |
 | `backup.enabled`            | Enable backup PBM agent                  | `true` |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
