@@ -86,12 +86,24 @@ spec:
     livenessProbe:
 {{ $replset.livenessProbe | toYaml | indent 6 }}
     {{- end }}
+    {{- if $replset.readinessProbe }}
+    readinessProbe:
+{{ $replset.readinessProbe | toYaml | indent 6 }}
+    {{- end }}
     {{- if $replset.runtimeClass }}
     runtimeClassName: {{ $replset.runtimeClass }}
     {{- end }}
     {{- if $replset.sidecars }}
     sidecars:
 {{ $replset.sidecars | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $replset.sidecarVolumes }}
+    sidecarVolumes:
+{{ $replset.sidecarVolumes | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $replset.sidecarPVCs }}
+    sidecarPVCs:
+{{ $replset.sidecarPVCs | toYaml | indent 6 }}
     {{- end }}
     {{- if $replset.podDisruptionBudget }}
     podDisruptionBudget:
@@ -237,7 +249,15 @@ spec:
       {{- end }}
       {{- if .Values.sharding.configrs.tolerations }}
       tolerations:
-{{ .Values.sharding.configrs.tolerations | toYaml | indent 6 }}
+{{ .Values.sharding.configrs.tolerations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.livenessProbe }}
+      livenessProbe:
+{{ .Values.sharding.configrs.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.readinessProbe }}
+      readinessProbe:
+{{ .Values.sharding.configrs.readinessProbe | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.configrs.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.configrs.runtimeClass }}
@@ -245,6 +265,14 @@ spec:
       {{- if .Values.sharding.configrs.sidecars }}
       sidecars:
 {{ .Values.sharding.configrs.sidecars | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.sidecarVolumes }}
+      sidecarVolumes:
+{{ .Values.sharding.configrs.sidecarVolumes | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.sidecarPVCs }}
+      sidecarPVCs:
+{{ .Values.sharding.configrs.sidecarPVCs | toYaml | indent 8 }}
       {{- end }}
       podDisruptionBudget:
         {{- if .Values.sharding.configrs.podDisruptionBudget.maxUnavailable }}
@@ -303,12 +331,28 @@ spec:
       tolerations:
 {{ .Values.sharding.mongos.tolerations | toYaml | indent 8 }}
       {{- end }}
+      {{- if .Values.sharding.mongos.livenessProbe }}
+      livenessProbe:
+{{ .Values.sharding.mongos.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.readinessProbe }}
+      readinessProbe:
+{{ .Values.sharding.mongos.readinessProbe | toYaml | indent 8 }}
+      {{- end }}
       {{- if .Values.sharding.mongos.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.mongos.runtimeClass }}
       {{- end }}
       {{- if .Values.sharding.mongos.sidecars }}
       sidecars:
 {{ .Values.sharding.mongos.sidecars | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.sidecarVolumes }}
+      sidecarVolumes:
+{{ .Values.sharding.mongos.sidecarVolumes | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.sidecarPVCs }}
+      sidecarPVCs:
+{{ .Values.sharding.mongos.sidecarPVCs | toYaml | indent 8 }}
       {{- end }}
       podDisruptionBudget:
         {{- if .Values.sharding.mongos.podDisruptionBudget.maxUnavailable }}
@@ -372,6 +416,10 @@ spec:
 
   backup:
     enabled: {{ .Values.backup.enabled }}
+    {{- if .Values.backup.annotations }}
+    annotations:
+{{ .Values.backup.annotations | toYaml | indent 6 }}
+    {{- end }}
     restartOnFailure: true
     image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
     serviceAccountName: {{ .Values.backup.serviceAccountName }}
@@ -384,6 +432,9 @@ spec:
     pitr:
     {{- if and .Values.backup.enabled .Values.backup.pitr.enabled }}
       enabled: true
+      {{- if .Values.backup.pitr.oplogSpanMin }}
+      oplogSpanMin: {{ .Values.backup.pitr.oplogSpanMin }}
+      {{- end }}
     {{- else }}
       enabled: false
     {{- end }}
