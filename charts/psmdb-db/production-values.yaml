@@ -299,6 +299,7 @@ backup:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
     #     credentialsSecret: my-cluster-name-backup-s3
     #     region: us-west-2
+    #     prefix: ""
     # minio:
     #   type: s3
     #   s3:
@@ -306,8 +307,10 @@ backup:
     #     region: us-east-1
     #     credentialsSecret: my-cluster-name-backup-minio
     #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
+    #     prefix: ""
     #   azure-blob:
     #     type: azure
+    #     azure:
     #       container: CONTAINER-NAME
     #       prefix: PREFIX-NAME
     #       credentialsSecret: SECRET-NAME
