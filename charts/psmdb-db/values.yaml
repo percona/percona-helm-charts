@@ -30,6 +30,9 @@ imagePullPolicy: Always
 # imagePullSecrets: []
 # runUid: 1001
 secrets: {}
+  # If you set users secret here, it will not be constructed from the values at the
+  # bottom of this file, but the operator will use existing one or generate random values
+  # users: my-cluster-name-secrets
 
 pmm:
   enabled: false

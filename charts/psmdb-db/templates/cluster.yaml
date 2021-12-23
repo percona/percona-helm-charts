@@ -32,7 +32,7 @@ spec:
   {{- end }}
   {{- if .Values.secrets }}
   secrets:
-  {{ .Values.secrets | toYaml | indent 4 }}
+{{ .Values.secrets | toYaml | indent 4 }}
   {{- else }}
   secrets:
     users: {{ include "psmdb-database.fullname" . }}-secrets
