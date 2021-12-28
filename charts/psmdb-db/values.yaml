@@ -24,17 +24,21 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 4.4.8-9
+  tag: 4.4.10-11
 
+imagePullPolicy: Always
 # imagePullSecrets: []
 # runUid: 1001
 secrets: {}
+  # If you set users secret here, it will not be constructed from the values at the
+  # bottom of this file, but the operator will use existing one or generate random values
+  # users: my-cluster-name-secrets
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.21.0
+    tag: 2.24.0
   serverHost: monitoring-service
 
 replsets:
@@ -58,19 +62,50 @@ replsets:
     # annotations: {}
     # labels: {}
     # nodeSelector: {}
-    livenessProbe:
-      failureThreshold: 4
-      initialDelaySeconds: 60
-      periodSeconds: 30
-      successThreshold: 1
-      timeoutSeconds: 5
-      startupDelaySeconds: 7200
+    # livenessProbe:
+    #   failureThreshold: 4
+    #   initialDelaySeconds: 60
+    #   periodSeconds: 30
+    #   timeoutSeconds: 10
+    #   startupDelaySeconds: 7200
+    # readinessProbe:
+    #   failureThreshold: 8
+    #   initialDelaySeconds: 10
+    #   periodSeconds: 3
+    #   successThreshold: 1
+    #   timeoutSeconds: 2
     # runtimeClassName: image-rc
     # sidecars:
     # - image: busybox
     #   command: ["/bin/sh"]
     #   args: ["-c", "while true; do echo echo $(date -u) 'test' >> /dev/null; sleep 5;done"]
     #   name: rs-sidecar-1
+    #   volumeMounts:
+    #     - mountPath: /volume1
+    #       name: sidecar-volume-claim
+    #     - mountPath: /secret
+    #       name: sidecar-secret
+    #     - mountPath: /configmap
+    #       name: sidecar-config
+    # sidecarVolumes:
+    # - name: sidecar-secret
+    #   secret:
+    #     secretName: mysecret
+    # - name: sidecar-config
+    #   configMap:
+    #     name: myconfigmap
+    # sidecarPVCs:
+    # - apiVersion: v1
+    #   kind: PersistentVolumeClaim
+    #   metadata:
+    #     name: sidecar-volume-claim
+    #   spec:
+    #     resources:
+    #       requests:
+    #         storage: 1Gi
+    #     volumeMode: Filesystem
+    #     accessModes:
+    #       - ReadWriteOnce
     podDisruptionBudget:
       maxUnavailable: 1
     expose:
@@ -118,7 +153,6 @@ replsets:
       # annotations: {}
       # labels: {}
       # nodeSelector: {}
-      # livenessProbe: {}
     # schedulerName: ""
     resources:
       limits:
@@ -161,12 +195,19 @@ sharding:
     # annotations: {}
     # labels: {}
     # nodeSelector: {}
+    # livenessProbe: {}
+    # readinessProbe: {}
     # runtimeClassName: image-rc
     # sidecars:
     # - image: busybox
     #   command: ["/bin/sh"]
     #   args: ["-c", "while true; do echo echo $(date -u) 'test' >> /dev/null; sleep 5;done"]
     #   name: rs-sidecar-1
+    #   volumeMounts:
+    #     - mountPath: /volume1
+    #       name: sidecar-volume-claim
+    # sidecarPVCs: []
+    # sidecarVolumes: []
     podDisruptionBudget:
       maxUnavailable: 1
     expose:
@@ -202,12 +243,19 @@ sharding:
     # annotations: {}
     # labels: {}
     # nodeSelector: {}
+    # livenessProbe: {}
+    # readinessProbe: {}
     # runtimeClassName: image-rc
     # sidecars:
     # - image: busybox
     #   command: ["/bin/sh"]
     #   args: ["-c", "while true; do echo echo $(date -u) 'test' >> /dev/null; sleep 5;done"]
     #   name: rs-sidecar-1
+    #   volumeMounts:
+    #     - mountPath: /volume1
+    #       name: sidecar-volume-claim
+    # sidecarPVCs: []
+    # sidecarVolumes: []
     podDisruptionBudget:
       maxUnavailable: 1
     resources:
@@ -233,8 +281,10 @@ backup:
   restartOnFailure: true
   image:
     repository: percona/percona-server-mongodb-operator
-    tag: 1.10.0-backup
+    tag: 1.11.0-backup
   serviceAccountName: percona-server-mongodb-operator
+  # annotations:
+  #   iam.amazonaws.com/role: role-arn
   # resources:
   #   limits:
   #     cpu: "300m"
@@ -243,21 +293,30 @@ backup:
   #     cpu: "300m"
   #     memory: "0.5G"
   storages:
-  # s3-us-west:
-  #   type: s3
-  #   s3:
-  #     bucket: S3-BACKUP-BUCKET-NAME-HERE
-  #     credentialsSecret: my-cluster-name-backup-s3
-  #     region: us-west-2
-  # minio:
-  #   type: s3
-  #   s3:
-  #     bucket: MINIO-BACKUP-BUCKET-NAME-HERE
-  #     region: us-east-1
-  #     credentialsSecret: my-cluster-name-backup-minio
-  #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
+    # s3-us-west:
+    #   type: s3
+    #   s3:
+    #     bucket: S3-BACKUP-BUCKET-NAME-HERE
+    #     credentialsSecret: my-cluster-name-backup-s3
+    #     region: us-west-2
+    #     prefix: ""
+    # minio:
+    #   type: s3
+    #   s3:
+    #     bucket: MINIO-BACKUP-BUCKET-NAME-HERE
+    #     region: us-east-1
+    #     credentialsSecret: my-cluster-name-backup-minio
+    #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
+    #     prefix: ""
+    #   azure-blob:
+    #     type: azure
+    #     azure:
+    #       container: CONTAINER-NAME
+    #       prefix: PREFIX-NAME
+    #       credentialsSecret: SECRET-NAME
   pitr:
     enabled: false
+    # oplogSpanMin: 10
   tasks:
   # - name: daily-s3-us-west
   #   enabled: true
