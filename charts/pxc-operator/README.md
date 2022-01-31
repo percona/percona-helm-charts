@@ -1,21 +1,20 @@
-# pxс-operator: A chart for installing Percona Kubernetes Operator for Percona XtraDB Cluster
+# Percona Distribution For MySQL Operator
 
-This chart implements the Percona XtraDB Cluster Operator deployment. [Percona XtraDB Cluster](https://www.percona.com/doc/percona-xtradb-cluster/LATEST/index.html) is a database clustering solution for MySQL. The Operator itself can be found here:
-* <https://github.com/percona/percona-xtradb-cluster-operator>
+[Percona XtraDB Cluster (PXC)](https://www.percona.com/doc/percona-xtradb-cluster/LATEST/index.html) is a database clustering solution for MySQL. Percona Distribution for MySQL Operator allows users to deploy and manage Percona XtraDB Clusters on Kubernetes.
+
+Useful links
+* [Operator Github repository](https://github.com/percona/percona-xtradb-cluster-operator)
+* [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/index.html)
 
 ## Pre-requisites
 * Kubernetes 1.17+
-* PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
 * Helm v3
 
-## Deployment Details
-* <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
+# Installation
 
-## Chart Details
-This chart will:
-* deploy a PXC Operator Pod for the further MySQL XtraDB Cluster creation in K8S.
+This chart will deploy the Operator Pod for the further Percona XtraDB Cluster creation in Kubernetes.
 
-### Installing the Chart
+## Installing the Chart
 To install the chart with the `pxc` release name using a dedicated namespace (recommended):
 
 ```sh
@@ -42,3 +41,13 @@ Alternatively a YAML file that specifies the values for the parameters can be pr
 ```sh
 helm install pxc-operator -f values.yaml percona/pxc-operator
 ```
+
+## Deploy the database
+
+To deploy Percona XtraDB Cluster run the following command:
+
+```sh
+helm install my-db percona/pxc-db
+```
+
+See more about PXC in its chart [here](https://github.com/percona/percona-helm-charts/blob/main/charts/pxc-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html).
