@@ -50,4 +50,4 @@ To deploy Percona XtraDB Cluster run the following command:
 helm install my-db percona/pxc-db
 ```
 
-See more about PXC in its chart [here](https://github.com/percona/percona-helm-charts/blob/main/charts/pxc-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html).
+See more about Percona XtraDB Cluster in its chart [here](https://github.com/percona/percona-helm-charts/blob/main/charts/pxc-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html).
