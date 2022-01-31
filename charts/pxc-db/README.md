@@ -7,7 +7,7 @@ Useful links
 * [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/index.html)
 
 ## Pre-requisites
-* [Percona Distribution for MySQL Operator](https://hub.helm.sh/charts/percona/pxc-operator) running in you Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pxc-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html).
+* [Percona Distribution for MySQL Operator](https://hub.helm.sh/charts/percona/pxc-operator) running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pxc-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html).
 * Kubernetes 1.17+
 * Helm v3
 
