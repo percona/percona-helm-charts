@@ -12,7 +12,7 @@ Useful links
 * Helm v3
 
 ## Chart Details
-This chart will deploy Percona XtraDB Cluster in Kubernetes. It will create a Custom Resource and Operator will trigger the creation of corresponding Kubernetes primitives: StatefulSets, Pods, Secrets, etc.
+This chart will deploy Percona XtraDB Cluster in Kubernetes. It will create a Custom Resource, and the Operator will trigger the creation of corresponding Kubernetes primitives: StatefulSets, Pods, Secrets, etc.
 
 ### Installing the Chart
 To install the chart with the `pxc` release name using a dedicated namespace (recommended):
