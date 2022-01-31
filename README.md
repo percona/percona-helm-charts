@@ -1,6 +1,9 @@
 # Percona Helm Charts
 
-This repository contains Helm charts for various Percona products.
+This repository contains Percona supported Helm charts to deploy MySQL, PostgreSQL and MongoDB clusters on Kubernetes.
+To deploy and manage the databases you must deploy the corresponding Operator first.
+
+Helm charts in this repository:
 
 * [Percona Distribution for MySQL Operator](charts/pxc-operator/)
 * [Percona XtraDB Cluster](charts/pxc-db/)
@@ -9,9 +12,7 @@ This repository contains Helm charts for various Percona products.
 * [Percona Distribution for PostgreSQL Operator](charts/pg-operator/)
 * [Percona Distribution for PostgreSQL](charts/pg-db/)
 
-To deploy and manage the databases you must deploy the corresponding Operator first.
-
-## Installing Charts from this Repository
+# Quick start installation
 
 You will need Helm v3 for the installation.
 
@@ -22,7 +23,7 @@ helm repo add percona https://percona.github.io/percona-helm-charts/
 helm repo update
 ```
 
-### Percona Distribution for MySQL Operator - quick start
+## Percona Distribution for MySQL Operator
 
 Install the Operator:
 
@@ -41,7 +42,7 @@ See more details in:
 - [Operator chart parameter reference](https://github.com/percona/percona-helm-charts/tree/main/charts/pxc-operator)
 - [Percona XtraDB Cluster parameters reference](https://github.com/percona/percona-helm-charts/tree/main/charts/pxc-db)
 
-### Percona Distribution for MongoDB Operator - quick start
+## Percona Distribution for MongoDB Operator
 
 Install the Operator:
 
@@ -60,7 +61,7 @@ See more details in:
 - [Operator chart parameter reference](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator)
 - [Percona Server for MongoDB parameters reference](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-db)
 
-### Percona Distribution for MongoDB PostgreSQL - quick start
+## Percona Distribution for PostgreSQL Operator
 
 Install the Operator:
 
