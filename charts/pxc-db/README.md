@@ -1,23 +1,18 @@
-# pxc-db: A chart for installing Percona XtraDB Operator managed Databases
+# Percona XtraDB Cluster
 
-This chart implements Percona XtraDB Cluster deployment in Kubernets via Custom Resource object. The project itself can be found here:
-* <https://github.com/percona/percona-xtradb-cluster-operator>
+[Percona XtraDB Cluster (PXC)](https://www.percona.com/doc/percona-xtradb-cluster/LATEST/index.html) is a database clustering solution for MySQL. This chart deploys Percona XtraDB Cluster on Kubernetes controlled by Percona Distribution for MySQL Operator.
+
+Useful links
+* [Operator Github repository](https://github.com/percona/percona-xtradb-cluster-operator)
+* [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/index.html)
 
 ## Pre-requisites
-* [PXC operator](https://hub.helm.sh/charts/percona/pxc-operator) running in you K8S cluster
+* [Percona Distribution for MySQL Operator](https://hub.helm.sh/charts/percona/pxc-operator) running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pxc-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html).
 * Kubernetes 1.17+
-* PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
 * Helm v3
 
-## Custom Resource Details
-* <https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/>
-
-## StatefulSet Details
-* <https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/>
-
 ## Chart Details
-This chart will:
-* deploy a PXC database Pods (Custom Resource -> StatefulSet) for the further XtraDB Cluster creation in K8S.
+This chart will deploy Percona XtraDB Cluster in Kubernetes. It will create a Custom Resource, and the Operator will trigger the creation of corresponding Kubernetes primitives: StatefulSets, Pods, Secrets, etc.
 
 ### Installing the Chart
 To install the chart with the `pxc` release name using a dedicated namespace (recommended):
