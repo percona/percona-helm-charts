@@ -1,25 +1,20 @@
-# psmdb-db: A chart for installing Percona Server MongoDB Operator managed Databases
+# Percona Server for MongoDB
 
-This chart implements Percona Server MongoDB deployment in Kubernets via Custom Resource object. The project itself can be found here:
-* <https://github.com/percona/percona-server-mongodb-operator>
+This chart deploys Percona Server for MongoDB Cluster on Kubernetes controlled by Percona Distribution for MongoDB Operator.
+
+Useful links:
+- [Operator Github repository](https://github.com/percona/percona-server-mongodb-operator)
+- [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html)
 
 ## Pre-requisites
-* [PSMDB operator](https://hub.helm.sh/charts/percona/psmdb-operator) running in you K8S cluster
+* Percona Distribution for MongoDB Operator running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
 * Kubernetes 1.18+
-* PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
-* At least `v2.5.0` version of helm
+* Helm v3
 
-## Custom Resource Details
-* <https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/>
+# Chart Details
+This chart will deploy Percona Server for MongoDB Cluster in Kubernetes. It will create a Custom Resource, and the Operator will trigger the creation of corresponding Kubernetes primitives: StatefulSets, Pods, Secrets, etc.
 
-## StatefulSet Details
-* <https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/>
-
-## Chart Details
-This chart will:
-* deploy PSMDB database Pods (Custom Resource -> StatefulSet) for the further MongoDB Cluster creation in K8S.
-
-### Installing the Chart
+## Installing the Chart
 To install the chart with the `psmdb` release name using a dedicated namespace (recommended):
 
 ```sh
