@@ -1,21 +1,20 @@
-# psmdb-operator: A chart for installing the Percona Kubernetes operator for MongoDB
+# Percona Distribution for MongoDB Operator
 
-This chart implements Percona Server MongoDB operator deployment. The Operator itself can be found here:
-* <https://github.com/percona/percona-server-mongodb-operator>
+Percona Distribution for MongoDB Operator allows users to deploy and manage Percona Server for MongoDB Clusters on Kubernetes.
+Useful links:
+- [Operator Github repository](https://github.com/percona/percona-server-mongodb-operator)
+- [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html)
 
 ## Pre-requisites
 * Kubernetes 1.18+
-* PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
-* At least `v2.5.0` version of helm
+* Helm v3
 
-## Deployment Details
-* <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
+# Installation
 
-## Chart Details
-This chart will:
-* deploy a PSMDB Operator Pod for the further MongoDB creation in K8S.
+This chart will deploy the Operator Pod for the further Percona Server for MongoDB creation in Kubernetes.
 
-### Installing the Chart
+## Installing the chart
+
 To install the chart with the `psmdb` release name using a dedicated namespace (recommended):
 
 ```sh
@@ -44,3 +43,13 @@ Alternatively a YAML file that specifies the values for the parameters can be pr
 ```sh
 helm install psmdb-operator -f values.yaml percona/psmdb-operator
 ```
+
+## Deploy the database
+
+To deploy Percona Server for MongoDB run the following command:
+
+```sh
+helm install my-db percona/psmdb-db
+```
+
+See more about Percona Server for MongoDB deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/psmdb-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
