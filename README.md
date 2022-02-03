@@ -5,12 +5,12 @@ To deploy and manage the databases you must deploy the corresponding Operator fi
 
 Helm charts in this repository:
 
-* [Percona Distribution for MySQL Operator](charts/pxc-operator/)
-* [Percona XtraDB Cluster](charts/pxc-db/)
-* [Percona Distribution for MongoDB Operator](charts/psmdb-operator/)
-* [Percona Server for MongoDB](charts/psmdb-db/)
-* [Percona Distribution for PostgreSQL Operator](charts/pg-operator/)
-* [Percona Distribution for PostgreSQL](charts/pg-db/)
+* [Percona Distribution for MySQL Operator](https://github.com/percona/percona-helm-charts/blob/main/charts/pxc-operator)
+* [Percona XtraDB Cluster](https://github.com/percona/percona-helm-charts/blob/main/charts/pxc-db)
+* [Percona Distribution for MongoDB Operator](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator)
+* [Percona Server for MongoDB](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-db)
+* [Percona Distribution for PostgreSQL Operator](https://github.com/percona/percona-helm-charts/blob/main/charts/pg-operator)
+* [Percona Distribution for PostgreSQL](https://github.com/percona/percona-helm-charts/blob/main/charts/pg-db)
 
 # Quick start installation
 
