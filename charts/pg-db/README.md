@@ -1,37 +1,28 @@
-# pg-db: A chart for installing Percona Distribution for PostgreSQL Operator managed Databases
+# Percona Distribution for PostgreSQL
 
-This chart implements Percona Distribution for PostgreSQL deployment on Kubernets via a Custom Resource object. The project itself can be found here:
+This chart deploys Percona Distribution for PostgreSQL on Kubernetes controlled by Percona Operator.
 
-* <https://github.com/percona/percona-postgresql-operator>
+Useful links:
+- [Operator Github repository](https://github.com/percona/percona-postgresql-operator)
+- [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/index.html)
 
 ## Pre-requisites
 
-* [Percona Distribution for PostgreSQL Operator](https://hub.helm.sh/charts/percona/pg-operator) running in you K8S cluster
+* [Percona Distribution for PostgreSQL Operator](https://hub.helm.sh/charts/percona/pg-operator) running in you Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
 * Kubernetes 1.18+
-* PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
 * At least `v3.2.3` version of helm
 
-## Custom Resource Details
+# Installation
 
-* <https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/>
+This chart will deploy a PostgreSQL cluster in Kubernetes. It will create a Custom Resource, and the Operator will trigger the creation of corresponding Kubernetes primitives: Deployments, Pods, Secrets, etc.
 
-## StatefulSet Details
-
-* <https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/>
-
-## Chart Details
-
-This chart will:
-
-* deploy PG database Pods (Custom Resource -> Deployments) for the further Percona Distribution for PostgreSQL Cluster creation in K8S.
-
-### Installing the Chart
+## Installing the Chart
 
 To install the chart with the `pg` release name using a dedicated namespace (recommended):
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 1.0.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 1.1.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
