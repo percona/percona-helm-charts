@@ -43,3 +43,12 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{/*
+Watch namespace
+*/}}
+{{- define "psmdb-operator.watch" -}}
+{{- if ne .Values.watchNamespace "all" }}
+{{- default .Release.Namespace .Values.watchNamespace }}
+{{- end }}
+{{- end -}}

@@ -1,28 +1,50 @@
+{{- $watch := include "psmdb-operator.watch" . -}}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
 ---
+{{- if $watch }}
 kind: RoleBinding
+{{- else }}
+kind: ClusterRoleBinding
+{{- end }}
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: service-account-{{ include "psmdb-operator.fullname" . }}
-  {{- if .Values.watchNamespace }}
-  namespace: {{ .Values.watchNamespace }}
+  {{- if $watch }}
+  namespace: {{ $watch }}
   {{- end }}
   labels:
 {{ include "psmdb-operator.labels" . | indent 4 }}
 subjects:
 - kind: ServiceAccount
   name: {{ include "psmdb-operator.fullname" . }}
-  {{- if .Values.watchNamespace }}
   namespace: {{ .Release.Namespace }}
-  {{- end }}
 roleRef:
-  {{- if .Values.watchNamespace }}
-  kind: ClusterRole
-  {{- else }}
+  {{- if $watch }}
   kind: Role
+  {{- else }}
+  kind: ClusterRole
   {{- end }}
   name: {{ include "psmdb-operator.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
+{{- if $watch }}
+{{- if ne $watch .Release.Namespace }}
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: service-account-{{ include "psmdb-operator.fullname" . }}
+  labels:
+{{ include "psmdb-operator.labels" . | indent 4 }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "psmdb-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "psmdb-operator.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end }}

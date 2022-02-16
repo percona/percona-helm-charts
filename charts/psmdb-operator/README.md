@@ -44,6 +44,9 @@ Alternatively a YAML file that specifies the values for the parameters can be pr
 helm install psmdb-operator -f values.yaml percona/psmdb-operator
 ```
 
+Please note that by default (if no `watchNamespace` specified) operator namespace is used as `watchNamespace`.
+Also operator will be watching cluster wide in case `all` is specified for `watchNamespace`.
+
 ## Deploy the database
 
 To deploy Percona Server for MongoDB run the following command:
