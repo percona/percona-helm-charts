@@ -218,6 +218,8 @@ haproxy:
   #  rack: rack-22
   # serviceType: ClusterIP
   # externalTrafficPolicy: Cluster
+  # replicasServiceType: ClusterIP
+  # replicasExternalTrafficPolicy: Cluster
   # runtimeClassName: image-rc
   # loadBalancerSourceRanges:
   #   - 10.0.0.0/8
