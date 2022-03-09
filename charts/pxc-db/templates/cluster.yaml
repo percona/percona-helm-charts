@@ -375,6 +375,13 @@ spec:
     {{- $logcollector := .Values.logcollector }}
     enabled: true
     image: {{ include "pxc-db.logcollector-image" . }}
+    {{- if $logcollector.imagePullPolicy }}
+    imagePullPolicy: {{ $logcollector.imagePullPolicy }}
+    {{- end }}
+    {{- if $logcollector.imagePullSecrets }}
+    imagePullSecrets:
+    {{- $logcollector.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
     {{- if $logcollector.configuration }}
     configuration: |
     {{ tpl $logcollector.configuration $ | nindent 6 }}
