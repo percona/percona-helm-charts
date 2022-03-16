@@ -1,29 +1,28 @@
-# pg-operator: A chart for installing the Percona Kubernetes operator for PostgreSQL
+# Percona Distribution for PostgreSQL Operator
 
-This chart implements Percona PostgreSQL operator deployment. The Operator itself can be found here:
-* <https://github.com/percona/percona-postgresql-operator>
+This helm chart deploys the Kubernetes Operator to manage Percona Distribution for PostgreSQL. 
+
+Useful links:
+- [Operator Github repository](https://github.com/percona/percona-postgresql-operator/)
+- [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/index.html)
 
 A job will be created based on `helm` `install`, `upgrade`, or `uninstall`. After the
 job has completed the RBAC will be cleaned up.
 
 ## Pre-requisites
 * Kubernetes 1.19+
-* PV support on the underlying infrastructure - only if you are provisioning persistent volume(s).
 * At least `v3.2.3` version of helm
 
-## Deployment Details
-* <https://kubernetes.io/docs/concepts/workloads/controllers/deployment/>
+# Installation
 
-## Chart Details
-This chart will:
-* deploy a PG Operator Pod for the further PostgreSQL creation in K8S.
+This chart will deploy the Operator Pod for the further PostgreSQL creation in Kubernetes.
 
-### Installing the Chart
+## Installing the chart
 To install the chart with the `pg-operator` release name using a dedicated namespace (recommended):
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pg-operator --version 1.1.0 --namespace my-namespace
+helm install my-operator percona/pg-operator --version 1.1.0 --namespace my-namespace --create-namespace
 ```
 
 ## Configuration
@@ -38,3 +37,13 @@ Chart.
 | rbac.useClusterAdmin | false | If enabled the ServiceAccount will be given cluster-admin privileges. |
 | serviceAccount.create | true | If false a ServiceAccount will not be created. A ServiceAccount must be created manually. |
 | serviceAccount.name | "" | Use to override the default ServiceAccount name. If serviceAccount.create is false this ServiceAccount will be used. |
+
+## Deploy the database
+
+To deploy Percona Distribution for PostgreSQL cluster run the following command:
+
+```sh
+helm install my-db percona/pg-db --version 1.1.0 --namespace my-namespace
+```
+
+See more about Percona Distribution for PostgreSQL deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
