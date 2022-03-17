@@ -1,4 +1,4 @@
-{{- if .Values.watchNamespace }}
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
 kind: ClusterRole
 {{- else }}
 kind: Role

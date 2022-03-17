@@ -48,5 +48,9 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 Resolve the effective value of WATCH_NAMESPACE env var.
 */}}
 {{- define "psmdb-operator.watch-namespace" -}}
+{{- if .Values.watchAllNamespaces }}
+""
+{{- else -}}
 {{- default .Release.Namespace .Values.watchNamespace -}}
+{{- end }}
 {{- end -}}
