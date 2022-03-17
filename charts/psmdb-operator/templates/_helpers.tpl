@@ -43,3 +43,10 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{/*
+Resolve the effective value of WATCH_NAMESPACE env var.
+*/}}
+{{- define "psmdb-operator.watch-namespace" -}}
+{{- default .Release.Namespace .Values.watchNamespace -}}
+{{- end -}}

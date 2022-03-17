@@ -32,7 +32,7 @@ spec:
           - percona-server-mongodb-operator
           env:
             - name: WATCH_NAMESPACE
-              value: {{ default .Release.Namespace .Values.watchNamespace }}
+              value: {{ include "psmdb-operator.watch-namespace" . }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
