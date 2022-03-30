@@ -1,6 +1,6 @@
-# Percona Distribution for PostgreSQL Operator
+# Percona Operator for PostgreSQL
 
-This helm chart deploys the Kubernetes Operator to manage Percona Distribution for PostgreSQL. 
+This helm chart deploys the Kubernetes Operator to manage Percona Distribution for PostgreSQL.
 
 Useful links:
 - [Operator Github repository](https://github.com/percona/percona-postgresql-operator/)
@@ -22,7 +22,7 @@ To install the chart with the `pg-operator` release name using a dedicated names
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pg-operator --version 1.1.0 --namespace my-namespace --create-namespace
+helm install my-operator percona/pg-operator --version 1.2.0 --namespace my-namespace --create-namespace
 ```
 
 ## Configuration
@@ -40,10 +40,10 @@ Chart.
 
 ## Deploy the database
 
-To deploy Percona Distribution for PostgreSQL cluster run the following command:
+To deploy Percona Operator for PostgreSQL cluster run the following command:
 
 ```sh
-helm install my-db percona/pg-db --version 1.1.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 1.2.0 --namespace my-namespace
 ```
 
-See more about Percona Distribution for PostgreSQL deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
+See more about Percona Operator for PostgreSQL deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
