@@ -8,7 +8,7 @@ Useful links:
 
 ## Pre-requisites
 
-* [Percona Distribution for PostgreSQL Operator](https://hub.helm.sh/charts/percona/pg-operator) running in you Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
+* [Percona Operator for PostgreSQL](https://hub.helm.sh/charts/percona/pg-operator) running in you Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
 * Kubernetes 1.18+
 * At least `v3.2.3` version of helm
 
