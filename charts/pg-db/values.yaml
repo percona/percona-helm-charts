@@ -47,7 +47,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.24.0
+    tag: 2.26.1
   serverHost: monitoring-service
   resources:
     requests:
@@ -116,5 +116,5 @@ secrets:
 
 versionService:
   url: "https://check.percona.com"
-  apply: "disabled"
+  apply: "14-recommended"
   schedule: "0 4 * * *"
