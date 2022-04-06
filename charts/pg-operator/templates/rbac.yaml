@@ -90,6 +90,7 @@ rules:
       - get
       - create
       - delete
+      - patch
   - apiGroups:
       - rbac.authorization.k8s.io
     resources:
@@ -121,6 +122,7 @@ rules:
       - pg.percona.com
     resources:
       - perconapgclusters
+      - perconapgclusters/status
       - pgclusters
       - pgreplicas
       - pgpolicies
