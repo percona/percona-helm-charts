@@ -19,7 +19,7 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.10.0 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.10.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -98,7 +98,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `haproxy.enabled` | Use HAProxy as TCP proxy for PXC cluster | `true` |
 | `haproxy.size`                      | HAProxy target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
-| `haproxy.image`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator:1.10.0-haproxy`|
+| `haproxy.image`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator:1.10.0-haproxy` |
 | `haproxy.imagePullPolicy`              | The policy used to update images                                             | ``     |
 | `haproxy.replicasServiceEnabled`       | Allow disabling k8s service for haproxy-replicas                             | `true` |
 | `haproxy.imagePullSecrets`             | HAProxy Container pull secret                                                | `[]`                                      |
