@@ -15,17 +15,29 @@ spec:
   {{- if .Values.platform }}
   platform: {{ .Values.platform }}
   {{- end }}
-  {{- if .Values.DNSsuffix }}
-  clusterServiceDNSSuffix: {{ .Values.DNSsuffix }}
+  {{- if .Values.clusterServiceDNSSuffix }}
+  clusterServiceDNSSuffix: {{ .Values.clusterServiceDNSSuffix }}
+  {{- end }}
+  {{- if .Values.clusterServiceDNSMode }}
+  clusterServiceDNSMode: {{ .Values.clusterServiceDNSMode }}
   {{- end }}
   image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
   imagePullPolicy: "{{ .Values.imagePullPolicy }}"
   {{- if .Values.allowUnsafeConfigurations }}
   allowUnsafeConfigurations: true
   {{- end }}
+  {{- if .Values.multiCluster }}
+  multiCluster:
+    enabled: {{ .Values.multiCluster.enabled }}
+    DNSSuffix: {{ .Values.multiCluster.DNSSuffix }}
+  {{- end }}
   {{- if .Values.imagePullSecrets }}
   imagePullSecrets:
 {{ .Values.imagePullSecrets | toYaml | indent 4 }}
+  {{- end }}
+  {{- if .Values.tls }}
+  tls:
+{{ .Values.tls | toYaml | indent 4 }}
   {{- end }}
   {{- if .Values.runUid }}
   runUid: {{ .Values.runUid }}
@@ -36,6 +48,7 @@ spec:
   {{- else }}
   secrets:
     users: {{ include "psmdb-database.fullname" . }}-secrets
+    encryptionKey: {{ include "psmdb-database.fullname" . }}-mongodb-encryption-key
   {{- end }}
   {{- if .Values.updateStrategy }}
   updateStrategy: {{ .Values.updateStrategy }}
@@ -90,6 +103,16 @@ spec:
     readinessProbe:
 {{ $replset.readinessProbe | toYaml | indent 6 }}
     {{- end }}
+    {{- if $replset.storage }}
+    storage:
+{{ $replset.storage | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $replset.podSecurityContext }}
+    podSecurityContext: {{ $replset.podSecurityContext }}
+    {{- end }}
+    {{- if $replset.containerSecurityContext }}
+    containerSecurityContext: {{ $replset.containerSecurityContext }}
+    {{- end }}
     {{- if $replset.runtimeClass }}
     runtimeClassName: {{ $replset.runtimeClass }}
     {{- end }}
@@ -138,6 +161,12 @@ spec:
       {{- if $replset.nonvoting.labels }}
       labels:
 {{ $replset.nonvoting.labels | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.podSecurityContext }}
+      podSecurityContext: {{ $replset.nonvoting.podSecurityContext }}
+      {{- end }}
+      {{- if $replset.nonvoting.containerSecurityContext }}
+      containerSecurityContext: {{ $replset.nonvoting.containerSecurityContext }}
       {{- end }}
       {{- if $replset.nonvoting.nodeSelector }}
       nodeSelector:
@@ -259,6 +288,16 @@ spec:
       readinessProbe:
 {{ .Values.sharding.configrs.readinessProbe | toYaml | indent 8 }}
       {{- end }}
+      {{- if .Values.sharding.configrs.storage }}
+      storage:
+{{ .Values.sharding.configrs.storage | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.podSecurityContext }}
+      podSecurityContext: {{ .Values.sharding.configrs.podSecurityContext }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.containerSecurityContext }}
+      containerSecurityContext: {{ .Values.sharding.configrs.containerSecurityContext }}
+      {{- end }}
       {{- if .Values.sharding.configrs.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.configrs.runtimeClass }}
       {{- end }}
@@ -339,6 +378,12 @@ spec:
       readinessProbe:
 {{ .Values.sharding.mongos.readinessProbe | toYaml | indent 8 }}
       {{- end }}
+      {{- if .Values.sharding.mongos.podSecurityContext }}
+      podSecurityContext: {{ .Values.sharding.mongos.podSecurityContext }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.containerSecurityContext }}
+      containerSecurityContext: {{ .Values.sharding.mongos.containerSecurityContext }}
+      {{- end }}
       {{- if .Values.sharding.mongos.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.mongos.runtimeClass }}
       {{- end }}
@@ -369,6 +414,9 @@ spec:
           memory: {{ .Values.sharding.mongos.resources.requests.memory }}
       expose:
         exposeType: {{ .Values.sharding.mongos.expose.exposeType }}
+        {{- if .Values.sharding.mongos.expose.servicePerPod }}
+        servicePerPod: {{ .Values.sharding.mongos.expose.servicePerPod }}
+        {{- end }}
         {{- if .Values.sharding.mongos.expose.loadBalancerSourceRanges }}
         loadBalancerSourceRanges:
 {{ .Values.sharding.mongos.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
@@ -382,45 +430,12 @@ spec:
 {{ .Values.sharding.mongos.auditLog | toYaml | indent 8 }}
       {{- end }}
 
-  mongod:
-    net:
-      port: 27017
-      hostPort: 0
-    security:
-      redactClientLogData: false
-      enableEncryption: true
-      encryptionKeySecret: {{ include "psmdb-database.fullname" . }}-mongodb-encryption-key
-      encryptionCipherMode: AES256-CBC
-    setParameter:
-      ttlMonitorSleepSecs: 60
-      wiredTigerConcurrentReadTransactions: 128
-      wiredTigerConcurrentWriteTransactions: 128
-    storage:
-      engine: wiredTiger
-      inMemory:
-        engineConfig:
-          inMemorySizeRatio: 0.9
-      wiredTiger:
-        engineConfig:
-          cacheSizeRatio: 0.5
-          directoryForIndexes: false
-          journalCompressor: snappy
-        collectionConfig:
-          blockCompressor: snappy
-        indexConfig:
-          prefixCompression: true
-    operationProfiling:
-      mode: slowOp
-      slowOpThresholdMs: 100
-      rateLimit: 100
-
   backup:
     enabled: {{ .Values.backup.enabled }}
     {{- if .Values.backup.annotations }}
     annotations:
 {{ .Values.backup.annotations | toYaml | indent 6 }}
     {{- end }}
-    restartOnFailure: true
     image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
     serviceAccountName: {{ .Values.backup.serviceAccountName }}
     {{- if .Values.backup.resources }}
@@ -434,6 +449,12 @@ spec:
       enabled: true
       {{- if .Values.backup.pitr.oplogSpanMin }}
       oplogSpanMin: {{ .Values.backup.pitr.oplogSpanMin }}
+      {{- end }}
+      {{- if .Values.backup.pitr.compressionType }}
+      compressionType: {{ .Values.backup.pitr.compressionType }}
+      {{- end }}
+      {{- if .Values.backup.pitr.compressionLevel }}
+      compressionLevel: {{ .Values.backup.pitr.compressionLevel }}
       {{- end }}
     {{- else }}
       enabled: false
