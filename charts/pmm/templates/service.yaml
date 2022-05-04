@@ -15,9 +15,9 @@ metadata:
 spec:
   type: {{ .Values.service.type }}
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: http
+    - port: 443
+      targetPort: https
       protocol: TCP
-      name: http
+      name: https
   selector:
     {{- include "pmm.selectorLabels" . | nindent 4 }}

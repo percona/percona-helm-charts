@@ -16,19 +16,18 @@ pmmEnv:
 # PMM secrets
 secret:
   name: pmm-secret
-  #
-  # if PMM admin password is not set, it will be generated
-  # to get password execute `kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode`
-  #  pmm_password: admin12345
-  #
-  # optional secrets for Percona Portal SSO
-  # oauth_client_id: 
-  # oauth_client_secret: 
+#
+#   if PMM admin password is not set, it will be generated
+#   to get password execute `kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode`
+#    pmm_password: admin12345
+#
+#   optional secrets to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
+#   GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+#   GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
 
 service:
   name: monitoring-service
   type: ClusterIP
-  port: 443
 
 storage:
   name: pmm-storage

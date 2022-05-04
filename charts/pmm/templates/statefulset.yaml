@@ -44,10 +44,14 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          # environment passed to PMM, defined in configMap
           envFrom:
             - configMapRef:
                 name: {{ include "pmm.fullname" . }}
                 optional: true
+
+          # additional secrets that could be used for Grafana iDP 
           env:
             - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
               valueFrom:

@@ -10,5 +10,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "pmm.serviceAccountName" . }}
-  namespace: {{ .Release.Namespace }}
 {{- end }}
