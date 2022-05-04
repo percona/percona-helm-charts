@@ -48,6 +48,9 @@ Selector labels
 {{- define "pmm.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "pmm.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- if .Values.extraLabels }}
+{{ toYaml .Values.extraLabels }}
+{{- end }}
 {{- end }}
 
 {{/*

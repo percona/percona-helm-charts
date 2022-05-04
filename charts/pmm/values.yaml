@@ -36,6 +36,10 @@ storage:
 imagePullSecrets: []
 nameOverride: ""
 
+extraLabels:
+  app.kubernetes.io/component: pmm-server
+  app.kubernetes.io/part-of: platform
+
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
