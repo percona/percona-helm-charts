@@ -44,3 +44,15 @@ jobs:
 
       - name: Run chart-testing (install)
         run: ct install --config .github/ct.yaml
+
+      - name: Build chart package
+        id: list-changed
+        run: |
+          helm package .
+
+      - name: Upload helm chart
+        uses: actions/upload-artifact@v3
+        with:
+          name: chart
+          path: *.tgz
+          retention-days: 30

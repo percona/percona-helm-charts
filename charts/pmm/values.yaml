@@ -38,7 +38,7 @@ nameOverride: ""
 
 extraLabels:
   app.kubernetes.io/component: pmm-server
-  app.kubernetes.io/part-of: platform
+  app.kubernetes.io/part-of: percona-platform
 
 serviceAccount:
   # Specifies whether a service account should be created
