@@ -19,7 +19,7 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.10.1 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.10.2 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -196,6 +196,8 @@ The chart can be customized using the following configurable parameters:
 | `backup.pitr.enabled`             | Enable point in time recovery                                                | `false`                                      |
 | `backup.pitr.storageName`             | Storage name for PITR                                                | `s3-us-west-binlogs`                                      |
 | `backup.pitr.timeBetweenUploads`             | Time between uploads for PITR                                                | `60`                                      |
+| `backup.pitr.resources.requests` | PITR Container resource requests                                          | `{}` |
+| `backup.pitr.resources.limits`   | PITR Container resource limits                                            | `{}` |
 | `backup.storages.fs-pvc` | Backups storage configuration, where `storages:` is a high-level key for the underlying structure. `fs-pvc` is a user-defined storage name. | |
 | `backup.storages.fs-pvc.type`             | Backup storage type                                          | `filysystem` |
 | `backup.storages.fs-pvc.volume.persistentVolumeClaim.accessModes`       | Backup PVC access policy                                   | `["ReadWriteOnce"]` |
