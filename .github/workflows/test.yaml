@@ -32,7 +32,6 @@ jobs:
           changed=$(ct list-changed --config .github/ct.yaml)
           if [[ -n "$changed" ]]; then
             echo "::set-output name=changed::true"
-            echo "$changed"
           fi
 
       - name: Run chart-testing (lint)
@@ -47,14 +46,13 @@ jobs:
         run: ct install --config .github/ct.yaml
 
       - name: Build chart package
-        id: package
         run: |
           changed=$(ct list-changed --config .github/ct.yaml)
-          helm package $changed
+          [ $(echo -n "$changed" | grep -c '^') == 1 ] && helm package $changed || echo "skipping package"
 
       - name: Upload helm chart
         uses: actions/upload-artifact@v3
         with:
-          name: charts
           path: ./*.tgz
           retention-days: 30
+          if-no-files-found: ignore
