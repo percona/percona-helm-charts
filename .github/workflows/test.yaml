@@ -49,11 +49,12 @@ jobs:
       - name: Build chart package
         id: package
         run: |
-          helm package .
+          changed=$(ct list-changed --config .github/ct.yaml)
+          helm package $changed
 
       - name: Upload helm chart
         uses: actions/upload-artifact@v3
         with:
-          name: chart
+          name: charts
           path: ./*.tgz
           retention-days: 30
