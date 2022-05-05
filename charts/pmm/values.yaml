@@ -27,7 +27,7 @@ secret:
 
 service:
   name: monitoring-service
-  type: ClusterIP
+  type: LoadBalancer
 
 storage:
   name: pmm-storage

@@ -10,6 +10,8 @@ spec:
   selector:
     matchLabels:
       {{- include "pmm.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
   template:
     metadata:
       {{- with .Values.podAnnotations }}
