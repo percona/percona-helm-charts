@@ -54,5 +54,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: chart
-          path: *.tgz
+          path: ./*.tgz
           retention-days: 30
