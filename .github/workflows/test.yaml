@@ -46,7 +46,7 @@ jobs:
         run: ct install --config .github/ct.yaml
 
       - name: Build chart package
-        id: list-changed
+        id: package
         run: |
           helm package .
 
