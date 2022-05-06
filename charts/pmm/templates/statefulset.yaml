@@ -81,6 +81,11 @@ spec:
           volumeMounts:
             - name: {{ .Values.storage.name }}
               mountPath: /srv
+            {{- if .Values.certs }}
+            - name: {{ .Values.certs.name }}
+              mountPath: /srv/nginx
+              readOnly: true
+            {{- end }}
       initContainers: # Execute a set of changes in persistent volume and ensure they are met on each deployment.
         - name: {{ .Chart.Name }}-init
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -118,7 +123,13 @@ spec:
           volumeMounts:
             - name: {{ .Values.storage.name }}
               mountPath: /srv-init
-
+      {{- if .Values.certs }}
+      volumes:
+        - name: {{ .Values.certs.name }}
+          secret:
+            secretName: {{ .Values.certs.name }}
+            optional: false
+      {{- end }}
   volumeClaimTemplates:
     - metadata:
         name: {{ .Values.storage.name }}
