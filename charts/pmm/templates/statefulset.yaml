@@ -81,7 +81,7 @@ spec:
           volumeMounts:
             - name: {{ .Values.storage.name }}
               mountPath: /srv
-            {{- if .Values.certs }}
+            {{- if .Values.certs.name }}
             - name: {{ .Values.certs.name }}
               mountPath: /srv/nginx
               readOnly: true
@@ -123,7 +123,7 @@ spec:
           volumeMounts:
             - name: {{ .Values.storage.name }}
               mountPath: /srv-init
-      {{- if .Values.certs }}
+      {{- if .Values.certs.name }}
       volumes:
         - name: {{ .Values.certs.name }}
           secret:

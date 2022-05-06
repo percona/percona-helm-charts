@@ -34,7 +34,7 @@ secret:
 #   GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
 
 # please provide your own signed ssl certificates by uncommenting `certs` section
-#certs:
+certs: {}
 #  name: pmm-certs
 #
 #### certificate file content after fixed names
