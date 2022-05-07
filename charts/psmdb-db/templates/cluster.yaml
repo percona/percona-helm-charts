@@ -432,6 +432,7 @@ spec:
 
   backup:
     enabled: {{ .Values.backup.enabled }}
+    debug: {{ .Values.backup.debug }}
     {{- if .Values.backup.annotations }}
     annotations:
 {{ .Values.backup.annotations | toYaml | indent 6 }}

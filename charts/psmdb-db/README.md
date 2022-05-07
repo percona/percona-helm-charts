@@ -174,6 +174,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.expose.serviceAnnotations`    | Mongos service annotations | `{}` |
 | |
 | `backup.enabled`            | Enable backup PBM agent                  | `true` |
+| `backup.debug`              | Enables or disables debug mode for backups | `false` |
 | `backup.annotations`        | Backup job annotations                   | `{}`   |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
 | `backup.image.repository`   | PBM Container image repository           | `percona/percona-backup-mongodb` |
