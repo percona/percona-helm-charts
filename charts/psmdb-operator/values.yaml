@@ -17,10 +17,6 @@ image:
 # defaults to `percona-server-mongodb-operator`
 # operatorName:
 
-# set to false if you don't want the helm chart to
-# automatically create the CRD.
-createCRD: true
-
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
