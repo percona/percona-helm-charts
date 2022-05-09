@@ -178,6 +178,8 @@ The chart can be customized using the following configurable parameters:
 | |
 | `logcollector.enabled`            | Enable log collector container                                           | `true` |
 | `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.10.0-logcollector` |
+| `logcollector.imagePullSecrets`   | Log collector pull secret                                                | `[]` |
+| `logcollector.imagePullPolicy`    | The policy used to update images                                         |  ``  |
 | `logcollector.configuration`      | User defined configuration for logcollector                              |  ``  |
 | `logcollector.resources.requests` | Log collector resource requests                                          | `{"memory": "100M", "cpu": "200m"}` |
 | `logcollector.resources.limits`   | Log collector resource limits                                            | `{}` |
@@ -185,6 +187,8 @@ The chart can be customized using the following configurable parameters:
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
 | `pmm.image.tag`                     | PMM Container image tag                                                  | `2.23.0`             |
+| `pmm.imagePullSecrets`              | PMM Container pull secret                                                | `[]` |
+| `pmm.imagePullPolicy`               | The policy used to update images                                         |  ``  |
 | `pmm.serverHost`                    | PMM server related K8S service hostname                                  | `monitoring-service` |
 | `pmm.serverUser`                    | Username for accessing PXC database internals                            | `admin` |
 | `pmm.resources.requests`            | PMM Container resource requests                                          | `{"memory": "150M", "cpu": "300m"}` |
@@ -193,6 +197,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.enabled` | Enables backups for PXC cluster | `true` |
 | `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.10.0-pxc8.0-backup` |
 | `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                      |
+| `backup.imagePullPolicy`              | The policy used to update images                                         |  ``  |
 | `backup.pitr.enabled`             | Enable point in time recovery                                                | `false`                                      |
 | `backup.pitr.storageName`             | Storage name for PITR                                                | `s3-us-west-binlogs`                                      |
 | `backup.pitr.timeBetweenUploads`             | Time between uploads for PITR                                                | `60`                                      |

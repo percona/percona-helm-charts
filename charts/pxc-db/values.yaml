@@ -428,6 +428,8 @@ proxysql:
 logcollector:
   enabled: true
   image: ""
+  # imagePullPolicy: Always
+  imagePullSecrets: []
   # configuration: |
   #   [OUTPUT]
   #         Name  es
@@ -447,6 +449,8 @@ pmm:
   image:
     repository: percona/pmm-client
     tag: 2.23.0
+  # imagePullPolicy: Always
+  imagePullSecrets: []
   serverHost: monitoring-service
   serverUser: admin
   resources:
@@ -459,6 +463,7 @@ backup:
   enabled: true
   image: ""
   # serviceAccountName: percona-xtradb-cluster-operator
+  # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
   pitr:
