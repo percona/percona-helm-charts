@@ -305,7 +305,6 @@ sharding:
 
 backup:
   enabled: true
-  debug: false
   image:
     repository: percona/percona-backup-mongodb
     tag: 1.7.0
