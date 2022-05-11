@@ -26,11 +26,11 @@ spec:
   {{- if .Values.allowUnsafeConfigurations }}
   allowUnsafeConfigurations: true
   {{- end }}
-  {{- if .Values.multiCluster }}
   multiCluster:
     enabled: {{ .Values.multiCluster.enabled }}
+    {{- if .Values.multiCluster.DNSSuffix }}
     DNSSuffix: {{ .Values.multiCluster.DNSSuffix }}
-  {{- end }}
+    {{- end }}
   {{- if .Values.imagePullSecrets }}
   imagePullSecrets:
 {{ .Values.imagePullSecrets | toYaml | indent 4 }}
@@ -108,10 +108,12 @@ spec:
 {{ $replset.storage | toYaml | indent 6 }}
     {{- end }}
     {{- if $replset.podSecurityContext }}
-    podSecurityContext: {{ $replset.podSecurityContext }}
+    podSecurityContext:
+{{ $replset.podSecurityContext | toYaml | indent 6 }}
     {{- end }}
     {{- if $replset.containerSecurityContext }}
-    containerSecurityContext: {{ $replset.containerSecurityContext }}
+    containerSecurityContext:
+{{ $replset.containerSecurityContext | toYaml | indent 6 }}
     {{- end }}
     {{- if $replset.runtimeClass }}
     runtimeClassName: {{ $replset.runtimeClass }}
@@ -163,10 +165,12 @@ spec:
 {{ $replset.nonvoting.labels | toYaml | indent 8 }}
       {{- end }}
       {{- if $replset.nonvoting.podSecurityContext }}
-      podSecurityContext: {{ $replset.nonvoting.podSecurityContext }}
+      podSecurityContext:
+{{ $replset.nonvoting.podSecurityContext | toYaml | indent 8 }}
       {{- end }}
       {{- if $replset.nonvoting.containerSecurityContext }}
-      containerSecurityContext: {{ $replset.nonvoting.containerSecurityContext }}
+      containerSecurityContext:
+{{ $replset.nonvoting.containerSecurityContext | toYaml | indent 8 }}
       {{- end }}
       {{- if $replset.nonvoting.nodeSelector }}
       nodeSelector:
@@ -293,10 +297,12 @@ spec:
 {{ .Values.sharding.configrs.storage | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.configrs.podSecurityContext }}
-      podSecurityContext: {{ .Values.sharding.configrs.podSecurityContext }}
+      podSecurityContext:
+{{ .Values.sharding.configrs.podSecurityContext | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.configrs.containerSecurityContext }}
-      containerSecurityContext: {{ .Values.sharding.configrs.containerSecurityContext }}
+      containerSecurityContext:
+{{ .Values.sharding.configrs.containerSecurityContext | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.configrs.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.configrs.runtimeClass }}
@@ -379,10 +385,12 @@ spec:
 {{ .Values.sharding.mongos.readinessProbe | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.mongos.podSecurityContext }}
-      podSecurityContext: {{ .Values.sharding.mongos.podSecurityContext }}
+      podSecurityContext:
+{{ .Values.sharding.mongos.podSecurityContext | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.mongos.containerSecurityContext }}
-      containerSecurityContext: {{ .Values.sharding.mongos.containerSecurityContext }}
+      containerSecurityContext:
+{{ .Values.sharding.mongos.containerSecurityContext | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.mongos.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.mongos.runtimeClass }}
