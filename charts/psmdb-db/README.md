@@ -8,7 +8,7 @@ Useful links:
 
 ## Pre-requisites
 * Percona Distribution for MongoDB Operator running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-* Kubernetes 1.18+
+* Kubernetes 1.19+
 * Helm v3
 
 # Chart Details
@@ -19,7 +19,7 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.11.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.12.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -29,21 +29,27 @@ The chart can be customized using the following configurable parameters:
 | `pause`                         | Stop PSMDB Database safely                                                    | `false`                                   |
 | `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PSMDB cluster pods        | `false`                                   |
+| `clusterServiceDNSSuffix`       | The (non-standard) cluster domain to be used as a suffix of the Service name  | `""`                                      |
+| `clusterServiceDNSMode`         | Mode for the cluster service dns (Internal/ServiceMesh)                       | `""`                                      |
+| `multiCluster.enabled`          | Enable Multi Cluster Services (MCS) cluster mode                              | `false`                                   |
+| `multiCluster.DNSSuffix`        | The cluster domain to be used as a suffix for multi-cluster Services used by Kubernetes | `""`                            |
 | `updateStrategy`                | Regulates the way how PSMDB Cluster Pods will be updated after setting a new image | `SmartUpdate`                        |
 | `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PSMDB Versions provider	 | `https://check.percona.com/versions/` |
-| `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `4.4-recommended` |
+| `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `5.0-recommended` |
 | `upgradeOptions.schedule` | Cron formatted time to execute the update | `"0 2 * * *"` |
 | `upgradeOptions.setFCV` | Set feature compatibility version on major upgrade | `false` |
 | `finalizers:delete-psmdb-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion | `[]` |
+| `finalizers:delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)     | `[]` |
 | `image.repository`             | PSMDB Container image repository                                               | `percona/percona-server-mongodb`          |
-| `image.tag`                    | PSMDB Container image tag                                                      | `4.4.10-11`                               |
+| `image.tag`                    | PSMDB Container image tag                                                      | `5.0.7-6`                                 |
 | `imagePullPolicy`              | The policy used to update images                                               | `Always`                                  |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                    | `[]`                                      |
+| `tls.certValidityDuration`     | The validity duration of the external certificate for cert manager             | `""`                                      |
 | `runUid`             | Set UserID                                                | `""`                                      |
-| `secrets`             | Users secret structure                                                | `{}`                                   |
+| `secrets`             | Operator secrets section                                 | `{}`                                      |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.24.0`                              |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.27.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 ||
 | `replsets[0].name`                      | ReplicaSet name              | `rs0` |
@@ -58,6 +64,9 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].nodeSelector`   | ReplicaSet Pod nodeSelector labels              | `{}` |
 | `replsets[0].livenessProbe`   | ReplicaSet Pod livenessProbe structure              | `{}` |
 | `replsets[0].readinessProbe`  | ReplicaSet Pod readinessProbe structure             | `{}` |
+| `replsets[0].storage`         | Set cacheSizeRatio or other custom MongoDB storage options | `{}` |
+| `replsets[0].podSecurityContext` | Set the security context for a Pod               | `{}` |
+| `replsets[0].containerSecurityContext` | Set the security context for a Container   | `{}` |
 | `replsets[0].runtimeClass`   | ReplicaSet Pod runtimeClassName              | `""` |
 | `replsets[0].sidecars`   | ReplicaSet Pod sidecars                          | `{}` |
 | `replsets[0].sidecarVolumes`   | ReplicaSet Pod sidecar volumes             | `[]` |
@@ -66,6 +75,8 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].expose.enabled`   | Allow access to replicaSet from outside of Kubernetes              | `false` |
 | `replsets[0].expose.exposeType`   | Network service access point type              | `ClusterIP` |
 | `replsets[0].nonvoting.enabled`        | Add MongoDB nonvoting Pods                | `false` |
+| `replsets[0].nonvoting.podSecurityContext` | Set the security context for a Pod               | `{}` |
+| `replsets[0].nonvoting.containerSecurityContext` | Set the security context for a Container   | `{}` |
 | `replsets[0].nonvoting.size`           | Number of nonvoting Pods                  | `1` |
 | `replsets[0].nonvoting.configuration`  | Custom config for mongod nonvoting member | `""` |
 | `replsets[0].nonvoting.antiAffinityTopologyKey`   | Nonvoting Pods affinity        | `kubernetes.io/hostname` |
@@ -115,6 +126,9 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.nodeSelector`               | Config ReplicaSet Pod nodeSelector labels | `{}` |
 | `sharding.configrs.livenessProbe`              | Config ReplicaSet Pod livenessProbe structure | `{}` |
 | `sharding.configrs.readinessProbe`             | Config ReplicaSet Pod readinessProbe structure | `{}` |
+| `sharding.configrs.storage`                    | Set cacheSizeRatio or other custom MongoDB storage options | `{}` |
+| `sharding.configrs.podSecurityContext`         | Set the security context for a Pod             | `{}` |
+| `sharding.configrs.containerSecurityContext`   | Set the security context for a Container       | `{}` |
 | `sharding.configrs.runtimeClass`     | Config ReplicaSet Pod runtimeClassName            | `""` |
 | `sharding.configrs.sidecars`         | Config ReplicaSet Pod sidecars                    | `{}` |
 | `sharding.configrs.sidecarVolumes`   | Config ReplicaSet Pod sidecar volumes             | `[]` |
@@ -143,6 +157,8 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.nodeSelector`                 | Mongos Pods nodeSelector labels | `{}` |
 | `sharding.mongos.livenessProbe`                | Mongos Pod livenessProbe structure | `{}` |
 | `sharding.mongos.readinessProbe`               | Mongos Pod readinessProbe structure | `{}` |
+| `sharding.mongos.podSecurityContext`           | Set the security context for a Pod  | `{}` |
+| `sharding.mongos.containerSecurityContext`     | Set the security context for a Container | `{}` |
 | `sharding.mongos.runtimeClass`                 | Mongos Pod runtimeClassName         | `""` |
 | `sharding.mongos.sidecars`                     | Mongos Pod sidecars                 | `{}` |
 | `sharding.mongos.sidecarVolumes`               | Mongos Pod sidecar volumes          | `[]` |
@@ -153,18 +169,21 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.resources.requests.cpu`       | Mongos Pods resource requests CPU | `300m` |
 | `sharding.mongos.resources.requests.memory`    | Mongos Pods resource requests memory | `0.5G` |
 | `sharding.mongos.expose.exposeType`            | Mongos service exposeType | `ClusterIP` |
+| `sharding.mongos.expose.servicePerPod`         | Create a separate ClusterIP Service for each mongos instance | `false` |
 | `sharding.mongos.expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}` |
 | `sharding.mongos.expose.serviceAnnotations`    | Mongos service annotations | `{}` |
 | |
 | `backup.enabled`            | Enable backup PBM agent                  | `true` |
 | `backup.annotations`        | Backup job annotations                   | `{}`   |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
-| `backup.image.repository`   | PBM Container image repository           | `percona/percona-server-mongodb-operator` |
-| `backup.image.tag`          | PBM Container image tag                  | `1.11.0-backup` |
+| `backup.image.repository`   | PBM Container image repository           | `percona/percona-backup-mongodb` |
+| `backup.image.tag`          | PBM Container image tag                  | `1.7.0` |
 | `backup.serviceAccountName` | Run PBM Container under specified K8S SA | `percona-server-mongodb-operator` |
 | `backup.storages`           | Local/remote backup storages settings    | `{}` |
 | `backup.pitr.enabled`       | Enable point in time recovery for backup | `false` |
 | `backup.pitr.oplogSpanMin`  | Number of minutes between the uploads of oplogs | `10` |
+| `backup.pitr.compressionType`  | The point-in-time-recovery chunks compression format | `""` |
+| `backup.pitr.compressionLevel` | The point-in-time-recovery chunks compression level | `""` |
 | `backup.tasks`              | Backup working schedule                  | `{}` |
 | `users`                     | PSMDB essential users                    | `{}` |
 

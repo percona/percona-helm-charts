@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.11.0
+  tag: 1.12.0
   pullPolicy: IfNotPresent
 
 # set if you want to specify a namespace to watch
@@ -16,10 +16,6 @@ image:
 # set if you want to use a different operator name
 # defaults to `percona-server-mongodb-operator`
 # operatorName:
-
-# set to false if you don't want the helm chart to
-# automatically create the CRD.
-createCRD: true
 
 imagePullSecrets: []
 nameOverride: ""

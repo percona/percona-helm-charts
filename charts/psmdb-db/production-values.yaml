@@ -6,9 +6,12 @@
 # platform: kubernetes
 
 # Cluster DNS Suffix
-# DNSsuffix: svc.cluster.local
+# clusterServiceDNSSuffix: svc.cluster.local
+# clusterServiceDNSMode: "Internal"
 
 finalizers:
+## Set this if you want that operator deletes the primary pod last
+  - delete-psmdb-pods-in-order
 ## Set this if you want to delete database persistent volumes on cluster deletion
 #  - delete-psmdb-pvc
 
@@ -18,6 +21,9 @@ fullnameOverride: ""
 pause: false
 unmanaged: false
 allowUnsafeConfigurations: false
+multiCluster:
+  enabled: false
+  # DNSSuffix: svc.clusterset.local
 updateStrategy: SmartUpdate
 upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
@@ -27,21 +33,25 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 4.4.10-11
+  tag: 5.0.7-6
 
 imagePullPolicy: Always
 # imagePullSecrets: []
+# tls:
+#   # 90 days in hours
+#   certValidityDuration: 2160h
 # runUid: 1001
 secrets: {}
   # If you set users secret here, it will not be constructed from the values at the
   # bottom of this file, but the operator will use existing one or generate random values
   # users: my-cluster-name-secrets
+  # encryptionKey: my-cluster-name-mongodb-encryption-key
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.24.0
+    tag: 2.27.0
   serverHost: monitoring-service
 
 replsets:
@@ -78,6 +88,20 @@ replsets:
     #   successThreshold: 1
     #   timeoutSeconds: 2
     # runtimeClassName: image-rc
+    # storage:
+    #   engine: wiredTiger
+    #   wiredTiger:
+    #     engineConfig:
+    #       cacheSizeRatio: 0.5
+    #       directoryForIndexes: false
+    #       journalCompressor: snappy
+    #     collectionConfig:
+    #       blockCompressor: snappy
+    #     indexConfig:
+    #       prefixCompression: true
+    #   inMemory:
+    #     engineConfig:
+    #        inMemorySizeRatio: 0.5
     # sidecars:
     # - image: busybox
     #   command: ["/bin/sh"]
@@ -116,6 +140,8 @@ replsets:
       exposeType: ClusterIP
     nonvoting:
       enabled: false
+      # podSecurityContext: {}
+      # containerSecurityContext: {}
       size: 3
       # configuration: |
       #   operationProfiling:
@@ -270,6 +296,7 @@ sharding:
         memory: "0.5G"
     expose:
       exposeType: ClusterIP
+      # servicePerPod: true
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
       # serviceAnnotations:
@@ -281,10 +308,9 @@ sharding:
 
 backup:
   enabled: true
-  restartOnFailure: true
   image:
-    repository: percona/percona-server-mongodb-operator
-    tag: 1.11.0-backup
+    repository: percona/percona-backup-mongodb
+    tag: 1.7.0
   serviceAccountName: percona-server-mongodb-operator
   # annotations:
   #   iam.amazonaws.com/role: role-arn
@@ -303,6 +329,10 @@ backup:
     #     credentialsSecret: my-cluster-name-backup-s3
     #     region: us-west-2
     #     prefix: ""
+    #     uploadPartSize: 10485760
+    #     maxUploadParts: 10000
+    #     storageClass: STANDARD
+    #     insecureSkipTLSVerify: false
     # minio:
     #   type: s3
     #   s3:
@@ -320,6 +350,8 @@ backup:
   pitr:
     enabled: false
     # oplogSpanMin: 10
+    # compressionType: gzip
+    # compressionLevel: 6
   tasks:
   # - name: daily-s3-us-west
   #   enabled: true
