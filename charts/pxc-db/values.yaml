@@ -472,13 +472,9 @@ backup:
     enabled: false
     storageName: s3-us-west-binlogs
     timeBetweenUploads: 60
-#    resources:
-#      requests:
-#        memory: 0.1G
-#        cpu: 100m
-#      limits:
-#        memory: 1G
-#        cpu: 700m
+    resources:
+      requests: {}
+      limits: {}
   storages:
     fs-pvc:
       type: filesystem
