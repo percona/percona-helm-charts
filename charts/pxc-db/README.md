@@ -106,9 +106,11 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
 | `haproxy.priorityClassName`       | HAProxy Pod priority Class defined by user                                   |  |
 | `haproxy.runtimeClassName`        | Name of the Kubernetes Runtime Class for HAProxy Pods                        |  |
-| `haproxy.externalTrafficPolicy`   | Desire service to route external traffic to node-local or cluster-wide endpoints  |  |
+| `haproxy.externalTrafficPolicy`   | Desire service to route external traffic for HAProxy to node-local or cluster-wide endpoints  |  |
+| `haproxy.replicasExternalTrafficPolicy` | Desire service to route external traffic for HAProxy replicas to node-local or cluster-wide endpoints  |  |
 | `haproxy.loadBalancerSourceRanges` | Limit which client IP's can access the Network Load Balancer                | `[]` |
-| `haproxy.serviceType`             | Specify what kind of Service you want                                        | `ClusterIP` |
+| `haproxy.serviceType`             | Specify what kind of Service you want for HAProxy                            | `ClusterIP` |
+| `haproxy.replicasServiceType`     | Specify what kind of Service you want for HAProxy Replicas                   | `ClusterIP` |
 | `haproxy.serviceAnnotations`      | Specify service annotations                                                  | `{}` |
 | `haproxy.labels`                  | HAProxy Pod user-defined labels                                              | `{}` |
 | `haproxy.schedulerName`           | The Kubernetes Scheduler                                                     |      |

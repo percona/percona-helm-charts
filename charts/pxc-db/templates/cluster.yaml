@@ -196,12 +196,18 @@ spec:
     {{- if $haproxy.externalTrafficPolicy }}
     externalTrafficPolicy: {{ $haproxy.externalTrafficPolicy }}
     {{- end }}
+    {{- if $haproxy.replicasExternalTrafficPolicy }}
+    replicasExternalTrafficPolicy: {{ $haproxy.replicasExternalTrafficPolicy }}
+    {{- end }}
     {{- if $haproxy.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ $haproxy.loadBalancerSourceRanges | toYaml | indent 6 }}
     {{- end }}
     {{- if $haproxy.serviceType }}
     serviceType: {{ $haproxy.serviceType }}
+    {{- end }}
+    {{- if $haproxy.replicasServiceType }}
+    replicasServiceType: {{ $haproxy.replicasServiceType }}
     {{- end }}
     {{- if $haproxy.serviceAnnotations }}
     serviceAnnotations:
