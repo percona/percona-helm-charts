@@ -386,7 +386,7 @@ spec:
     {{- end }}
     {{- if $logcollector.imagePullSecrets }}
     imagePullSecrets:
-    {{- $logcollector.imagePullSecrets | toYaml | indent 6 }}
+    {{- $logcollector.imagePullSecrets | toYaml | nindent 6 }}
     {{- end }}
     {{- if $logcollector.configuration }}
     configuration: |
@@ -410,7 +410,7 @@ spec:
     {{- end }}
     {{- if $pmm.imagePullSecrets }}
     imagePullSecrets:
-    {{- $pmm.imagePullSecrets | toYaml | indent 6 }}
+    {{- $pmm.imagePullSecrets | toYaml | nindent 6 }}
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
     serverUser: {{ $pmm.serverUser }}
