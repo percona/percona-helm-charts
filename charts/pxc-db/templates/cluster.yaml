@@ -442,8 +442,10 @@ spec:
       storageName: {{ $backup.pitr.storageName }}
       timeBetweenUploads: {{ $backup.pitr.timeBetweenUploads }}
       resources:
-        requests: {{ tpl ($backup.pitr.resources.requests | toYaml) $ | indent 8 }}
-        limits: {{ tpl ($backup.pitr.resources.limits | toYaml) $ | indent 8 }}
+        requests:
+{{ tpl ($backup.pitr.resources.requests | toYaml) $ | indent 10 }}
+        limits:
+{{ tpl ($backup.pitr.resources.limits | toYaml) $ | indent 10 }}
     {{- end }}
     storages:
 {{ include "pxc-database.storages" . | indent 6 }}
