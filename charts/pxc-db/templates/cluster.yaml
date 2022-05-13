@@ -381,6 +381,13 @@ spec:
     {{- $logcollector := .Values.logcollector }}
     enabled: true
     image: {{ include "pxc-db.logcollector-image" . }}
+    {{- if $logcollector.imagePullPolicy }}
+    imagePullPolicy: {{ $logcollector.imagePullPolicy }}
+    {{- end }}
+    {{- if $logcollector.imagePullSecrets }}
+    imagePullSecrets:
+    {{- $logcollector.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
     {{- if $logcollector.configuration }}
     configuration: |
     {{ tpl $logcollector.configuration $ | nindent 6 }}
@@ -398,6 +405,13 @@ spec:
     {{- $pmm := .Values.pmm }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
+    {{- if $pmm.imagePullPolicy }}
+    imagePullPolicy: {{ $pmm.imagePullPolicy }}
+    {{- end }}
+    {{- if $pmm.imagePullSecrets }}
+    imagePullSecrets:
+    {{- $pmm.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
     serverHost: {{ $pmm.serverHost }}
     serverUser: {{ $pmm.serverUser }}
     resources:
@@ -412,6 +426,9 @@ spec:
     image: {{ include "pxc-db.backup-image" . }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
+    {{- end }}
+    {{- if $backup.imagePullPolicy }}
+    imagePullPolicy: {{ $backup.imagePullPolicy }}
     {{- end }}
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
