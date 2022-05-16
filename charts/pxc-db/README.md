@@ -19,7 +19,7 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.10.1 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.10.2 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -106,9 +106,11 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
 | `haproxy.priorityClassName`       | HAProxy Pod priority Class defined by user                                   |  |
 | `haproxy.runtimeClassName`        | Name of the Kubernetes Runtime Class for HAProxy Pods                        |  |
-| `haproxy.externalTrafficPolicy`   | Desire service to route external traffic to node-local or cluster-wide endpoints  |  |
+| `haproxy.externalTrafficPolicy`   | Desire service to route external traffic for HAProxy to node-local or cluster-wide endpoints  |  |
+| `haproxy.replicasExternalTrafficPolicy` | Desire service to route external traffic for HAProxy replicas to node-local or cluster-wide endpoints  |  |
 | `haproxy.loadBalancerSourceRanges` | Limit which client IP's can access the Network Load Balancer                | `[]` |
-| `haproxy.serviceType`             | Specify what kind of Service you want                                        | `ClusterIP` |
+| `haproxy.serviceType`             | Specify what kind of Service you want for HAProxy                            | `ClusterIP` |
+| `haproxy.replicasServiceType`     | Specify what kind of Service you want for HAProxy Replicas                   | `ClusterIP` |
 | `haproxy.serviceAnnotations`      | Specify service annotations                                                  | `{}` |
 | `haproxy.labels`                  | HAProxy Pod user-defined labels                                              | `{}` |
 | `haproxy.schedulerName`           | The Kubernetes Scheduler                                                     |      |
@@ -178,6 +180,8 @@ The chart can be customized using the following configurable parameters:
 | |
 | `logcollector.enabled`            | Enable log collector container                                           | `true` |
 | `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.10.0-logcollector` |
+| `logcollector.imagePullSecrets`   | Log collector pull secret                                                | `[]` |
+| `logcollector.imagePullPolicy`    | The policy used to update images                                         |  ``  |
 | `logcollector.configuration`      | User defined configuration for logcollector                              |  ``  |
 | `logcollector.resources.requests` | Log collector resource requests                                          | `{"memory": "100M", "cpu": "200m"}` |
 | `logcollector.resources.limits`   | Log collector resource limits                                            | `{}` |
@@ -185,6 +189,8 @@ The chart can be customized using the following configurable parameters:
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
 | `pmm.image.tag`                     | PMM Container image tag                                                  | `2.23.0`             |
+| `pmm.imagePullSecrets`              | PMM Container pull secret                                                | `[]` |
+| `pmm.imagePullPolicy`               | The policy used to update images                                         |  ``  |
 | `pmm.serverHost`                    | PMM server related K8S service hostname                                  | `monitoring-service` |
 | `pmm.serverUser`                    | Username for accessing PXC database internals                            | `admin` |
 | `pmm.resources.requests`            | PMM Container resource requests                                          | `{"memory": "150M", "cpu": "300m"}` |
@@ -193,9 +199,12 @@ The chart can be customized using the following configurable parameters:
 | `backup.enabled` | Enables backups for PXC cluster | `true` |
 | `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.10.0-pxc8.0-backup` |
 | `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                      |
+| `backup.imagePullPolicy`              | The policy used to update images                                         |  ``  |
 | `backup.pitr.enabled`             | Enable point in time recovery                                                | `false`                                      |
 | `backup.pitr.storageName`             | Storage name for PITR                                                | `s3-us-west-binlogs`                                      |
 | `backup.pitr.timeBetweenUploads`             | Time between uploads for PITR                                                | `60`                                      |
+| `backup.pitr.resources.requests` | PITR Container resource requests                                          | `{}` |
+| `backup.pitr.resources.limits`   | PITR Container resource limits                                            | `{}` |
 | `backup.storages.fs-pvc` | Backups storage configuration, where `storages:` is a high-level key for the underlying structure. `fs-pvc` is a user-defined storage name. | |
 | `backup.storages.fs-pvc.type`             | Backup storage type                                          | `filysystem` |
 | `backup.storages.fs-pvc.volume.persistentVolumeClaim.accessModes`       | Backup PVC access policy                                   | `["ReadWriteOnce"]` |

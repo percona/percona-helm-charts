@@ -196,12 +196,18 @@ spec:
     {{- if $haproxy.externalTrafficPolicy }}
     externalTrafficPolicy: {{ $haproxy.externalTrafficPolicy }}
     {{- end }}
+    {{- if $haproxy.replicasExternalTrafficPolicy }}
+    replicasExternalTrafficPolicy: {{ $haproxy.replicasExternalTrafficPolicy }}
+    {{- end }}
     {{- if $haproxy.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ $haproxy.loadBalancerSourceRanges | toYaml | indent 6 }}
     {{- end }}
     {{- if $haproxy.serviceType }}
     serviceType: {{ $haproxy.serviceType }}
+    {{- end }}
+    {{- if $haproxy.replicasServiceType }}
+    replicasServiceType: {{ $haproxy.replicasServiceType }}
     {{- end }}
     {{- if $haproxy.serviceAnnotations }}
     serviceAnnotations:
@@ -375,6 +381,13 @@ spec:
     {{- $logcollector := .Values.logcollector }}
     enabled: true
     image: {{ include "pxc-db.logcollector-image" . }}
+    {{- if $logcollector.imagePullPolicy }}
+    imagePullPolicy: {{ $logcollector.imagePullPolicy }}
+    {{- end }}
+    {{- if $logcollector.imagePullSecrets }}
+    imagePullSecrets:
+    {{- $logcollector.imagePullSecrets | toYaml | nindent 6 }}
+    {{- end }}
     {{- if $logcollector.configuration }}
     configuration: |
     {{ tpl $logcollector.configuration $ | nindent 6 }}
@@ -392,6 +405,13 @@ spec:
     {{- $pmm := .Values.pmm }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
+    {{- if $pmm.imagePullPolicy }}
+    imagePullPolicy: {{ $pmm.imagePullPolicy }}
+    {{- end }}
+    {{- if $pmm.imagePullSecrets }}
+    imagePullSecrets:
+    {{- $pmm.imagePullSecrets | toYaml | nindent 6 }}
+    {{- end }}
     serverHost: {{ $pmm.serverHost }}
     serverUser: {{ $pmm.serverUser }}
     resources:
@@ -407,6 +427,9 @@ spec:
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
     {{- end }}
+    {{- if $backup.imagePullPolicy }}
+    imagePullPolicy: {{ $backup.imagePullPolicy }}
+    {{- end }}
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}
@@ -418,6 +441,11 @@ spec:
       enabled: true
       storageName: {{ $backup.pitr.storageName }}
       timeBetweenUploads: {{ $backup.pitr.timeBetweenUploads }}
+      resources:
+        requests:
+{{ tpl ($backup.pitr.resources.requests | toYaml) $ | indent 10 }}
+        limits:
+{{ tpl ($backup.pitr.resources.limits | toYaml) $ | indent 10 }}
     {{- end }}
     storages:
 {{ include "pxc-database.storages" . | indent 6 }}

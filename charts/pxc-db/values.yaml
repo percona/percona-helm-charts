@@ -224,6 +224,8 @@ haproxy:
   #  rack: rack-22
   # serviceType: ClusterIP
   # externalTrafficPolicy: Cluster
+  # replicasServiceType: ClusterIP
+  # replicasExternalTrafficPolicy: Cluster
   # runtimeClassName: image-rc
   # loadBalancerSourceRanges:
   #   - 10.0.0.0/8
@@ -428,6 +430,8 @@ proxysql:
 logcollector:
   enabled: true
   image: ""
+  # imagePullPolicy: Always
+  imagePullSecrets: []
   # configuration: |
   #   [OUTPUT]
   #         Name  es
@@ -447,6 +451,8 @@ pmm:
   image:
     repository: percona/pmm-client
     tag: 2.23.0
+  # imagePullPolicy: Always
+  imagePullSecrets: []
   serverHost: monitoring-service
   serverUser: admin
   resources:
@@ -459,12 +465,16 @@ backup:
   enabled: true
   image: ""
   # serviceAccountName: percona-xtradb-cluster-operator
+  # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
   pitr:
     enabled: false
     storageName: s3-us-west-binlogs
     timeBetweenUploads: 60
+    resources:
+      requests: {}
+      limits: {}
   storages:
     fs-pvc:
       type: filesystem
