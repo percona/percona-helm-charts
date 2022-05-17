@@ -6,7 +6,7 @@ image:
   repository: percona/pmm-server
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "2.27.0"
+  tag: "2.28.0"
 
 # PMM environment variables
 # https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables
