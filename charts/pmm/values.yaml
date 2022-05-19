@@ -24,14 +24,14 @@ pmmEnv:
 # PMM secrets
 secret:
   name: pmm-secret
-#
+#   initial PMM password - it changes only on the first deployment, ignored if PMM was already provisioned and just restarted
 #  pmm_password: admin
 #   if PMM admin password is not set, it will be generated
 #   to get password execute `kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode`
 #
 #   optional secrets to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
-#   GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
-#   GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+#  GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+#  GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
 
 # please provide your own signed ssl certificates by uncommenting `certs` section
 certs: {}
