@@ -25,9 +25,10 @@ pmmEnv:
 secret:
   name: pmm-secret
 #
+#   PMM admin password base64 encoded: echo -n 'admin' | base64
+    pmm_password: YWRtaW4=
 #   if PMM admin password is not set, it will be generated
 #   to get password execute `kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode`
-#    pmm_password: admin12345
 #
 #   optional secrets to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
 #   GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
