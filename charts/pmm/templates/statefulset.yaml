@@ -98,14 +98,14 @@ spec:
               # Check if this is a first deployment on empty PV
               if [ ! -f /srv-init/pmm-distribution ]; then
                 
+                set +ex
                 # set admin password if exists
                 if [ ! -v $ADMIN_PASSWORD ]; then
-                  set -e
-                  #echo "changing admin password..."
-                  #change-admin-password $ADMIN_PASSWORD
-                  #echo "admin password was changed"
-                  set -ex
+                  
+                  echo "changing admin password..."
+                  change-admin-password $ADMIN_PASSWORD
                 fi;
+                set -ex
 
                 # Copies /srv from pmm-server into the volume if the volume is empty.
                 cp --archive --verbose /srv/* /srv-init
