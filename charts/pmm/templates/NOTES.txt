@@ -20,3 +20,7 @@ Get the application URL by running these commands:
   echo "Visit https://127.0.0.1:8080 to use your application"
   kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
 {{- end }}
+
+Get password for the "admin" user:
+  export ADMIN_PASS=$(kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode)
+  echo $ADMIN_PASS
