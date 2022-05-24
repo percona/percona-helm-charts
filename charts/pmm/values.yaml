@@ -4,7 +4,7 @@
 
 image:
   repository: percona/pmm-server
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "2.28.0"
 
@@ -50,6 +50,7 @@ service:
 
 storage:
   name: pmm-storage
+#  storageClassName: default
   size: 10Gi
 
 imagePullSecrets: []

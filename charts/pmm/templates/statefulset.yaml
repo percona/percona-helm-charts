@@ -134,8 +134,12 @@ spec:
     - metadata:
         name: {{ .Values.storage.name }}
       spec:
+        {{ if .Values.storage.storageClassName }}
+        storageClassName: {{ .Values.storage.storageClassName }}
+        {{ end }}
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
             storage: {{ .Values.storage.size }}
+
