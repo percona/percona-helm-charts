@@ -35,7 +35,7 @@ jobs:
           fi
 
       - name: Run chart-testing (lint)
-        run: ct lint --config .github/ct.yaml --trailing-spaces disable
+        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.2.0
