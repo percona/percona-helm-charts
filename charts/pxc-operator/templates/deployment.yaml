@@ -45,7 +45,7 @@ spec:
               {{- if .Values.watchAllNamespaces }}
               value: ""
               {{- else }}
-              value: {{ default .Release.Namespace .Values.watchNamespace }}
+              value: "{{ default .Release.Namespace .Values.watchNamespace }}"
               {{- end }}
             - name: POD_NAME
               valueFrom:
