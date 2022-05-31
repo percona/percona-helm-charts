@@ -48,6 +48,8 @@ Selector labels
 {{- define "pmm.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "pmm.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: pmm-server
+app.kubernetes.io/part-of: percona-platform
 {{- if .Values.extraLabels }}
 {{ toYaml .Values.extraLabels }}
 {{- end }}

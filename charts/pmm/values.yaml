@@ -8,12 +8,14 @@
 ## @param image.repository PMM image repository
 ## @param image.pullPolicy PMM image pull policy
 ## @param image.tag PMM image tag (immutable tags are recommended)
+## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
   repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "2.28.0"
+  imagePullSecrets: []
 
 ## PMM environment variables
 ## ref: https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables
@@ -30,6 +32,27 @@ pmmEnv:
 #  GF_AUTH_GENERIC_OAUTH_TOKEN_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_API_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: ''
+
+## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server)
+    ##  pmmResources:
+    ##    requests:
+    ##      memory: "32Gi"
+    ##      cpu: "8"
+    ##    limits:
+    ##      memory: "64Gi"
+    ##      cpu: "32"
+pmmResources: {}
+
+## Readiness probe Config
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
+## @param readyProbeConf.initialDelaySeconds  Number of seconds after the container has started before readiness probes is initiated
+## @param readyProbeConf.periodSeconds How often (in seconds) to perform the probe
+## @param readyProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up
+##
+readyProbeConf:
+  initialDelaySeconds: 1
+  periodSeconds: 5
+  failureThreshold: 6
 
 ## PMM secrets
 ##
@@ -86,25 +109,17 @@ storage:
   ##
   storageClassName: ""
   ##
-  ## @param storage.size size of storage depends on number of monitored services and data retention
-  ## ref: https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server
+  ## @param storage.size size of storage [depends](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) on number of monitored services and data retention
   ##
   size: 10Gi
 
-## @param imagePullSecrets Global Docker registry secret names as an array
-##
-imagePullSecrets: []
 ## @param nameOverride String to partially override common.names.fullname template with a string (will prepend the release name)
 ##
 nameOverride: ""
 
-## Labels to add to all deployed objects
-## @param extraLabels.app.kubernetes.io/component The component within the architecture 
-## @param extraLabels.app.kubernetes.io/part-of The name of a higher level application this one is part of
+## @param extraLabels Labels to add to all deployed objects
 ##
-extraLabels:
-  app.kubernetes.io/component: pmm-server
-  app.kubernetes.io/part-of: percona-platform
+extraLabels: {}
 
 ## Pods Service Account
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/

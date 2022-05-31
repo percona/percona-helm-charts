@@ -21,7 +21,7 @@ spec:
       labels:
         {{- include "pmm.selectorLabels" . | nindent 8 }}
     spec:
-      {{- with .Values.imagePullSecrets }}
+      {{- with .Values.image.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -44,10 +44,16 @@ spec:
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+          
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.pmmResources }}
+          resources:
+            {{- toYaml .Values.pmmResources | nindent 12 }}
+          {{- end }}
 
           # environment passed to PMM, defined in configMap
           envFrom:
@@ -69,6 +75,12 @@ spec:
                   name: {{ .Values.secret.name }}
                   key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
                   optional: true
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+                  optional: true
           ports:
             - name: http
               containerPort: 80
@@ -78,6 +90,9 @@ spec:
             httpGet:
               path: /v1/readyz
               port: http
+          {{- if .Values.readyProbeConf }} 
+            {{- toYaml .Values.readyProbeConf | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: {{ .Values.storage.name }}
               mountPath: /srv
@@ -86,7 +101,9 @@ spec:
               mountPath: /srv/nginx
               readOnly: true
             {{- end }}
-      initContainers: # Execute a set of changes in persistent volume and ensure they are met on each deployment.
+      # Execute a set of changes in persistent volume and ensure they are met on each deployment.
+      # initContainer will be removed in future releases as changes will be done to entry point if main container
+      initContainers:
         - name: {{ .Chart.Name }}-init
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
