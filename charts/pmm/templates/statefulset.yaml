@@ -1,0 +1,162 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pmm.fullname" . }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ .Values.service.name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "pmm.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "pmm.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.pmmResources }}
+          resources:
+            {{- toYaml .Values.pmmResources | nindent 12 }}
+          {{- end }}
+
+          # environment passed to PMM, defined in configMap
+          envFrom:
+            - configMapRef:
+                name: {{ include "pmm.fullname" . }}
+                optional: true
+
+          # additional secrets that could be used for Grafana iDP 
+          env:
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+                  optional: true
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+                  optional: true
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+                  optional: true
+          ports:
+            - name: http
+              containerPort: 80
+            - name: https
+              containerPort: 443
+          readinessProbe:
+            httpGet:
+              path: /v1/readyz
+              port: http
+          {{- if .Values.readyProbeConf }} 
+            {{- toYaml .Values.readyProbeConf | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+            {{- if .Values.certs.name }}
+            - name: {{ .Values.certs.name }}
+              mountPath: /srv/nginx
+              readOnly: true
+            {{- end }}
+      # Execute a set of changes in persistent volume and ensure they are met on each deployment.
+      # initContainer will be removed in future releases as changes will be done to entry point if main container
+      initContainers:
+        - name: {{ .Chart.Name }}-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/bash"]
+          args:
+            - "-c"
+            - |
+              set -ex
+              # Check if this is a first deployment on empty PV
+              if [ ! -f /srv-init/pmm-distribution ]; then
+                
+                set +ex
+                # set admin password if exists
+                if [ ! -v $ADMIN_PASSWORD ]; then
+                  
+                  echo "changing admin password..."
+                  change-admin-password $ADMIN_PASSWORD
+                fi;
+                set -ex
+
+                # Copies /srv from pmm-server into the volume if the volume is empty.
+                cp --archive --verbose /srv/* /srv-init
+
+              fi;
+
+          env:
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+                  optional: true
+
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv-init
+      {{- if .Values.certs.name }}
+      volumes:
+        - name: {{ .Values.certs.name }}
+          secret:
+            secretName: {{ .Values.certs.name }}
+            optional: false
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ .Values.storage.name }}
+      spec:
+        {{ if .Values.storage.storageClassName }}
+        storageClassName: {{ .Values.storage.storageClassName }}
+        {{ end }}
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}
+

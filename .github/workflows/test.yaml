@@ -24,7 +24,7 @@ jobs:
           python-version: 3.7
 
       - name: Set up chart-testing
-        uses: helm/chart-testing-action@v2.1.0
+        uses: helm/chart-testing-action@v2.2.1
 
       - name: Run chart-testing (list-changed)
         id: list-changed
@@ -35,7 +35,7 @@ jobs:
           fi
 
       - name: Run chart-testing (lint)
-        run: ct lint --config .github/ct.yaml
+        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.2.0
@@ -44,3 +44,15 @@ jobs:
 
       - name: Run chart-testing (install)
         run: ct install --config .github/ct.yaml
+
+      - name: Build chart package
+        run: |
+          changed=$(ct list-changed --config .github/ct.yaml)
+          [ $(echo -n "$changed" | grep -c '^') == 1 ] && helm package $changed || echo "skipping package"
+
+      - name: Upload helm chart
+        uses: actions/upload-artifact@v3
+        with:
+          path: ./*.tgz
+          retention-days: 30
+          if-no-files-found: ignore
