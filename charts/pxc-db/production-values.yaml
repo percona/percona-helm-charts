@@ -15,7 +15,7 @@ fullnameOverride: "production"
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.10.0
+crVersion: 1.11.0
 pause: false
 initImage: ""
 allowUnsafeConfigurations: false
@@ -39,7 +39,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.23-14.1
+    tag: 8.0.27-18.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
@@ -225,6 +225,8 @@ haproxy:
   #   - 10.0.0.0/8
   # serviceAnnotations:
   #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+  # serviceLabels:
+  #   rack: rack-23
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
   readinessDelaySec: 15
@@ -356,6 +358,8 @@ proxysql:
   #   - 10.0.0.0/8
   # serviceAnnotations:
   #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+  # serviceLabels:
+  #   rack: rack-23
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
   readinessDelaySec: 15
@@ -434,7 +438,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.23.0
+    tag: 2.28.0
   # imagePullPolicy: Always
   imagePullSecrets: []
   serverHost: monitoring-service
@@ -448,6 +452,7 @@ pmm:
 backup:
   enabled: true
   image: ""
+  #    backoffLimit: 6
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
@@ -472,6 +477,7 @@ backup:
     ## Set up backups to your S3 bucket!!!
     # s3-us-west:
     #   type: s3
+    #   verifyTLS: true
     #   nodeSelector:
     #     storage: tape
     #     backupWorker: 'True'
