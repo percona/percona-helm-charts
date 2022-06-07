@@ -1,13 +1,13 @@
 # Percona Server for MongoDB
 
-This chart deploys Percona Server for MongoDB Cluster on Kubernetes controlled by Percona Distribution for MongoDB Operator.
+This chart deploys Percona Server for MongoDB Cluster on Kubernetes controlled by Percona Operator for MongoDB.
 
 Useful links:
 - [Operator Github repository](https://github.com/percona/percona-server-mongodb-operator)
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html)
 
 ## Pre-requisites
-* Percona Distribution for MongoDB Operator running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
+* Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
 * Kubernetes 1.19+
 * Helm v3
 
