@@ -213,6 +213,10 @@ spec:
     serviceAnnotations:
 {{ $haproxy.serviceAnnotations | toYaml | indent 6 }}
     {{- end }}
+    {{- if $haproxy.serviceLabels }}
+    serviceLabels:
+{{ $haproxy.serviceLabels | toYaml | indent 6 }}
+    {{ - end }}
     annotations:
 {{ $haproxy.annotations | toYaml | indent 6 }}
     labels:
@@ -308,6 +312,10 @@ spec:
     serviceAnnotations:
 {{ $proxysql.serviceAnnotations | toYaml | indent 6 }}
     {{- end }}
+    {{- if $proxysql.serviceLabels }}
+    serviceLabels:
+{{ $proxysql.serviceLabels | toYaml | indent 6 }}
+    {{ - end }}
     annotations:
 {{ $proxysql.annotations | toYaml | indent 6 }}
     labels:
@@ -424,6 +432,9 @@ spec:
   {{- if $backup.enabled }}
   backup:
     image: {{ include "pxc-db.backup-image" . }}
+    {{ - if $backup.backoffLimit }}
+    backoffLimit: {{ $backup.backoffLimit }}
+    {{ - end }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
     {{- end }}
