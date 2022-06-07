@@ -1,6 +1,6 @@
-# Percona Distribution for MongoDB Operator
+# Percona Operator for MongoDB
 
-Percona Distribution for MongoDB Operator allows users to deploy and manage Percona Server for MongoDB Clusters on Kubernetes.
+Percona Operator for MongoDB allows users to deploy and manage Percona Server for MongoDB Clusters on Kubernetes.
 Useful links:
 - [Operator Github repository](https://github.com/percona/percona-server-mongodb-operator)
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html)
