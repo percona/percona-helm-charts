@@ -1,6 +1,6 @@
-# Percona Distribution For MySQL Operator
+# Percona Operator For MySQL
 
-[Percona XtraDB Cluster (PXC)](https://www.percona.com/doc/percona-xtradb-cluster/LATEST/index.html) is a database clustering solution for MySQL. Percona Distribution for MySQL Operator allows users to deploy and manage Percona XtraDB Clusters on Kubernetes.
+[Percona XtraDB Cluster (PXC)](https://www.percona.com/doc/percona-xtradb-cluster/LATEST/index.html) is a database clustering solution for MySQL. Percona Operator For MySQL allows users to deploy and manage Percona XtraDB Clusters on Kubernetes.
 
 Useful links
 * [Operator Github repository](https://github.com/percona/percona-xtradb-cluster-operator)

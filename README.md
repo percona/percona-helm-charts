@@ -5,14 +5,17 @@
 [Percona](https://www.percona.com/) is committed to simplify the deployment and management of databases on Kubernetes. [Helm](https://helm.sh/) enables users to package, run, share and manage even complex applications.
 This repository contains Helm charts for the following Percona products.
 
-* [Percona Distribution for MySQL Operator](charts/pxc-operator/)
+* [Percona Operator for MySQL](charts/pxc-operator/)
 * [Percona XtraDB Cluster](charts/pxc-db/)
-* [Percona Distribution for MongoDB Operator](charts/psmdb-operator/)
+* [Percona Operator for MongoDB](charts/psmdb-operator/)
 * [Percona Server for MongoDB](charts/psmdb-db/)
-* [Percona Distribution for PostgreSQL Operator](charts/pg-operator/)
+* [Percona Operator for PostgreSQL](charts/pg-operator/)
 * [Percona Distribution for PostgreSQL](charts/pg-db/)
+* [Percona Monitoring and Management (PMM)](charts/pmm/)
 
-Read more about Percona Kubernetes Operators [here](https://www.percona.com/software/percona-kubernetes-operators).
+Useful links:
+* [About Percona Kubernetes Operators](https://www.percona.com/software/percona-kubernetes-operators).
+* [About Percona Monitoring and Management](https://www.percona.com/software/database-tools/percona-monitoring-and-management)
 
 ## Installing Charts from this Repository
 
@@ -28,8 +31,9 @@ See the [Contribution Guide](CONTRIBUTING.md) for more information.
 
 If you find a bug related to one of these Helm charts, please submit a report to the appropriate project's Jira issue tracker:
 
-* [Percona Distribution for MySQL Operator](https://jira.percona.com/projects/K8SPXC)
-* [Percona Distribution for MongoDB Operator](https://jira.percona.com/projects/K8SPSMDB)
-* [Percona Distribution for PostgreSQL Operator](https://jira.percona.com/projects/K8SPG)
+* [Percona Operator for MySQL](https://jira.percona.com/projects/K8SPXC)
+* [Percona Operator for MongoDB](https://jira.percona.com/projects/K8SPSMDB)
+* [Percona Operator for PostgreSQL](https://jira.percona.com/projects/K8SPG)
+* [Percona Monitoring and Management](https://jira.percona.com/projects/PMM)
 
 Learn more about submitting bugs, new feature ideas, and improvements in the [Contribution Guide](CONTRIBUTING.md).
