@@ -37,7 +37,6 @@ imagePullPolicy: Always
 # tls:
 #   # 90 days in hours
 #   certValidityDuration: 2160h
-# runUid: 1001
 secrets: {}
   # If you set users secret here, it will not be constructed from the values at the
   # bottom of this file, but the operator will use existing one or generate random values

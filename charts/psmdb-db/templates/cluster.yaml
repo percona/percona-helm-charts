@@ -39,9 +39,6 @@ spec:
   tls:
 {{ .Values.tls | toYaml | indent 4 }}
   {{- end }}
-  {{- if .Values.runUid }}
-  runUid: {{ .Values.runUid }}
-  {{- end }}
   {{- if .Values.secrets }}
   secrets:
 {{ .Values.secrets | toYaml | indent 4 }}
