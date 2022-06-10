@@ -200,7 +200,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.limits`              | PMM Container resource limits                                            | `{}` |
 | |
 | `backup.enabled` | Enables backups for PXC cluster | `true` |
-| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.10.0-pxc8.0-backup` |
+| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.11.0-pxc8.0-backup` |
 | `backup.backoffLimit` | The number of retries to make a backup  | `10` |
 | `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                      |
 | `backup.imagePullPolicy`              | The policy used to update images                                         |  ``  |
