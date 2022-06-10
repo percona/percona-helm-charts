@@ -235,6 +235,21 @@ entries:
   psmdb-db:
   - apiVersion: v2
     appVersion: 1.12.0
+    created: "2022-06-10T09:36:32.292106577Z"
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    digest: 514a76ab944ba9ddd7b0e49aa02f6b92a54c11786f088924bbe71b6b4ecf074b
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    name: psmdb-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-1.12.1/psmdb-db-1.12.1.tgz
+    version: 1.12.1
+  - apiVersion: v2
+    appVersion: 1.12.0
     created: "2022-05-12T08:06:34.086959116Z"
     description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
     digest: 45a65f928624ea201cde97c0fc2af3db1c287427741c3f13865c669c3ad202d6
@@ -421,6 +436,21 @@ entries:
   psmdb-operator:
   - apiVersion: v2
     appVersion: 1.12.0
+    created: "2022-06-10T09:36:32.558806184Z"
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    digest: 31d9cecc9295b3b7733cdf9fec7e3117586b58dbe1202d4f5a0babd6f687dc90
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    name: psmdb-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-1.12.1/psmdb-operator-1.12.1.tgz
+    version: 1.12.1
+  - apiVersion: v2
+    appVersion: 1.12.0
     created: "2022-05-12T08:06:34.248747737Z"
     description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
     digest: 2161ae2cd571c85c224d9cf2c8444d2a16c22a4c7c2baf892fe870455671dbc0
@@ -554,6 +584,26 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-0.1.0/psmdb-operator-0.1.0.tgz
     version: 0.1.0
   pxc-db:
+  - apiVersion: v2
+    appVersion: 1.11.0
+    created: "2022-06-10T09:36:32.830905137Z"
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    digest: 77ad69755ae5f7cd53fbec39a0e04525381b02ee9bbce993e52d4ca67b406cf5
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: pxc-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-db-1.11.0/pxc-db-1.11.0.tgz
+    version: 1.11.0
   - apiVersion: v2
     appVersion: 1.10.0
     created: "2022-05-16T10:50:35.304727162Z"
@@ -850,6 +900,24 @@ entries:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.5/pxc-db-0.1.5.tgz
     version: 0.1.5
   pxc-operator:
+  - apiVersion: v2
+    appVersion: 1.11.0
+    created: "2022-06-10T09:36:33.083480321Z"
+    description: A Helm chart for Deploying the Percona XtraDB Cluster Operator Kubernetes
+    digest: 87b3f57a0abc6fbdae2a4233249cb7fbe25abbd7e3dfefdbea15ff44d19ec948
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: pxc-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-operator-1.11.0/pxc-operator-1.11.0.tgz
+    version: 1.11.0
   - apiVersion: v2
     appVersion: 1.10.0
     created: "2022-05-27T11:32:11.251424048Z"
