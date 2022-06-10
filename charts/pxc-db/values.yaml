@@ -14,7 +14,7 @@ fullnameOverride: ""
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.10.0
+crVersion: 1.11.0
 pause: false
 initImage: ""
 allowUnsafeConfigurations: false
@@ -38,7 +38,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.23-14.1
+    tag: 8.0.27-18.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
@@ -450,7 +450,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.23.0
+    tag: 2.28.0
   # imagePullPolicy: Always
   imagePullSecrets: []
   serverHost: monitoring-service
