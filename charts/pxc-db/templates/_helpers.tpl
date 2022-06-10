@@ -99,3 +99,11 @@ Functions returns image URI according to parameters set
 {{- printf "%s:%s-pxc8.0-backup" .Values.operatorImageRepository .Chart.AppVersion }}
 {{- end }}
 {{- end -}}
+
+{{- define "pxc-db.operator-image" -}}
+{{- if .Values.image }}
+{{- .Values.image }}
+{{- else }}
+{{- printf "%s:%s" .Values.operatorImageRepository .Chart.AppVersion }}
+{{- end }}
+{{- end -}}
