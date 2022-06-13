@@ -45,7 +45,6 @@ The chart can be customized using the following configurable parameters:
 | `imagePullPolicy`              | The policy used to update images                                               | `Always`                                  |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                    | `[]`                                      |
 | `tls.certValidityDuration`     | The validity duration of the external certificate for cert manager             | `""`                                      |
-| `runUid`             | Set UserID                                                | `""`                                      |
 | `secrets`             | Operator secrets section                                 | `{}`                                      |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
