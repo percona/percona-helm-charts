@@ -77,8 +77,8 @@ Specify each parameter using the `--set key=value[,key=value]` argument to `helm
 
 ```sh
 helm install pmm \
-  --set pmmEnv.ENABLE_DBAAS="1" \
-  --set service.type="LoadBalancer" \
+  --set-string pmmEnv.ENABLE_DBAAS="1" \
+  --set service.type="NodePort" \
   --set storage.storageClassName="linode-block-storage-retain" \
     percona/pmm
 ```
