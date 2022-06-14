@@ -1,0 +1,198 @@
+apiVersion: ps.percona.com/v1alpha1
+kind: PerconaServerMySQL
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"ps.percona.com/v1alpha1","kind":"PerconaServerMySQL"}
+  name: {{ include "ps-database.fullname" . }}
+  labels:
+{{ include "ps-database.labels" . | indent 4 }}
+
+spec:
+  crVersion: {{ .Chart.AppVersion }}
+  {{- if .Values.secretsName }}
+  secretsName: {{ .Values.secretsName }}
+  {{- else }}
+  secretsName: {{ include "ps-database.fullname" . }}-secrets
+  {{- end }}
+  {{- if .Values.sslSecretName }}
+  sslSecretName: {{ .Values.sslSecretName }}
+  {{- else }}
+  sslSecretName: {{ include "ps-database.fullname" . }}-ssl
+  {{- end }}
+
+  {{- $mysql := .Values.mysql }}
+  mysql:
+    {{- if $mysql.image }}
+    image: "{{ $mysql.image.repository }}:{{ $mysql.image.tag }}"
+    {{- end }}
+    {{- if $mysql.imagePullPolicy }}
+    imagePullPolicy: {{ $mysql.imagePullPolicy }}
+    {{- end }}
+    {{- if $mysql.imagePullSecrets }}
+    imagePullSecrets:
+{{ $mysql.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.size }}
+    size: {{ $mysql.size }}
+    {{- end }}
+    {{- if $mysql.sizeSemiSync }}
+    sizeSemiSync: {{ $mysql.sizeSemiSync }}
+    {{- end }}
+    affinity:
+{{ $mysql.affinity | toYaml | indent 6 }}
+    {{- if $mysql.priorityClassName }}
+    priorityClassName: {{ $mysql.priorityClassName }}
+    {{- end }}
+    annotations:
+{{ $mysql.annotations | toYaml | indent 6 }}
+    labels:
+{{ $mysql.labels | toYaml | indent 6 }}
+    resources:
+      requests:
+{{ tpl ($mysql.resources.requests | toYaml) $ | indent 8 }}
+      limits:
+{{ tpl ($mysql.resources.limits | toYaml) $ | indent 8 }}
+    tolerations:
+{{ $mysql.tolerations | toYaml | indent 6 }}
+    nodeSelector:
+{{ $mysql.nodeSelector | toYaml | indent 6 }}
+    podDisruptionBudget:
+{{ $mysql.podDisruptionBudget | toYaml | indent 6 }}
+    expose:
+      {{- if $mysql.expose.enabled }}
+{{ tpl ($mysql.expose | toYaml) $ | indent 6 }}
+      {{- else }}
+      enabled: false
+      {{- end }}
+    {{- if $mysql.volumeSpec }}
+    volumeSpec:
+      {{- if $mysql.volumeSpec.hostPath }}
+      hostPath:
+        path: {{ $mysql.volumeSpec.hostPath }}
+        type: Directory
+      {{- else if $mysql.volumeSpec.pvc }}
+      persistentVolumeClaim:
+{{ $mysql.volumeSpec.pvc | toYaml | indent 8 }}
+      {{- else }}
+      emptyDir: {}
+      {{- end }}
+    {{- end }}
+    {{- if $mysql.configuration }}
+    configuration: |
+{{ tpl $mysql.configuration $ | nindent 6 }}
+    {{- end }}
+    {{- if $mysql.sidecars }}
+    sidecars:
+{{ $mysql.sidecars | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.sidecarVolumes }}
+    sidecarVolumes:
+{{ $mysql.sidecarVolumes | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.sidecarPVCs }}
+    sidecarPVCs:
+{{ $mysql.sidecarPVCs | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.schedulerName }}
+    schedulerName: {{ $mysql.schedulerName }}
+    {{- end }}
+    {{- if $mysql.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($mysql.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $mysql.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($mysql.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $mysql.serviceAccountName }}
+    serviceAccountName: {{ $mysql.serviceAccountName }}
+    {{- end }}
+    {{- if $mysql.runtimeClassName }}
+    runtimeClassName: {{ $mysql.runtimeClassName }}
+    {{- end }}
+
+  {{- $orc := .Values.orchestrator }}
+  {{ if .Values.orchestrator }}
+  orchestrator:
+    image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
+    {{- if $orc.imagePullPolicy }}
+    imagePullPolicy: {{ $orc.imagePullPolicy }}
+    {{- end }}
+    {{- if $orc.imagePullSecrets }}
+    imagePullSecrets:
+{{ $orc.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.size }}
+    size: {{ $orc.size }}
+    {{- end }}
+    affinity:
+{{ $orc.affinity | toYaml | indent 6 }}
+    {{- if $orc.priorityClassName }}
+    priorityClassName: {{ $orc.priorityClassName }}
+    {{- end }}
+    annotations:
+{{ $orc.annotations | toYaml | indent 6 }}
+    labels:
+{{ $orc.labels | toYaml | indent 6 }}
+    tolerations:
+{{ $orc.tolerations | toYaml | indent 6 }}
+    nodeSelector:
+{{ $orc.nodeSelector | toYaml | indent 6 }}
+    podDisruptionBudget:
+{{ $orc.podDisruptionBudget | toYaml | indent 6 }}
+    resources:
+      requests:
+{{ tpl ($orc.resources.requests | toYaml) $ | indent 8 }}
+      limits:
+{{ tpl ($orc.resources.limits | toYaml) $ | indent 8 }}
+    {{- if $orc.volumeSpec }}
+    volumeSpec:
+      {{- if $orc.volumeSpec.hostPath }}
+      hostPath:
+        path: {{ $orc.volumeSpec.hostPath }}
+        type: Directory
+      {{- else if $orc.volumeSpec.pvc }}
+      persistentVolumeClaim:
+{{ $orc.volumeSpec.pvc | toYaml | indent 8 }}
+      {{- else }}
+      emptyDir: {}
+      {{- end }}
+    {{- end }}
+    {{- if $orc.schedulerName }}
+    schedulerName: {{ $orc.schedulerName }}
+    {{- end }}
+    {{- if $orc.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($orc.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $orc.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($orc.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $orc.serviceAccountName }}
+    serviceAccountName: {{ $orc.serviceAccountName }}
+    {{- end }}
+    {{- if $orc.runtimeClassName }}
+    runtimeClassName: {{ $orc.runtimeClassName }}
+    {{- end }}
+  {{- end }}
+
+  pmm:
+  {{- if not .Values.pmm.enabled }}
+    enabled: false
+  {{- else }}
+    {{- $pmm := .Values.pmm }}
+    enabled: true
+    image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
+    {{- if $pmm.imagePullPolicy }}
+    imagePullPolicy: {{ $pmm.imagePullPolicy }}
+    {{- end }}
+    serverHost: {{ $pmm.serverHost }}
+    serverUser: {{ $pmm.serverUser }}
+    resources:
+      requests:
+{{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
+      limits:
+{{ tpl ($pmm.resources.limits | toYaml) $ | indent 8 }}
+  {{- end }}
