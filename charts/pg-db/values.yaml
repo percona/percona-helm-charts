@@ -49,6 +49,8 @@ pmm:
     repository: percona/pmm-client
     tag: 2.26.1
   serverHost: monitoring-service
+  username: admin
+  password: admin
   resources:
     requests:
       memory: 200M

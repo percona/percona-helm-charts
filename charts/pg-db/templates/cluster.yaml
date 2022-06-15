@@ -78,7 +78,7 @@ spec:
     enabled: {{ .Values.pmm.enabled }}
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
     serverHost: {{ .Values.pmm.serverHost }}
-    serverUser: admin
+    serverUser: {{ .Values.pmm.username | default "admin" }} 
     pmmSecret: {{ include "pg-database.fullname" . }}-pmm-secret
     resources:
       requests:
