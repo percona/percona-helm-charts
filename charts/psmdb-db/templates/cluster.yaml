@@ -139,6 +139,14 @@ spec:
     expose:
       enabled: {{ $replset.expose.enabled }}
       exposeType: {{ $replset.expose.exposeType }}
+      {{- if $replset.expose.loadBalancerSourceRanges }}
+      loadBalancerSourceRanges:
+{{ $replset.expose.loadBalancerSourceRanges | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.expose.serviceAnnotations }}
+      serviceAnnotations:
+{{ $replset.expose.serviceAnnotations | toYaml | indent 8 }}
+      {{- end }}
     {{- end }}
     {{- if $replset.nonvoting }}
     nonvoting:
@@ -326,6 +334,14 @@ spec:
       expose:
         enabled: {{ .Values.sharding.configrs.expose.enabled }}
         exposeType: {{ .Values.sharding.configrs.expose.exposeType }}
+        {{- if .Values.sharding.configrs.expose.loadBalancerSourceRanges }}
+        loadBalancerSourceRanges:
+{{ .Values.sharding.configrs.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.sharding.configrs.expose.serviceAnnotations }}
+        serviceAnnotations:
+{{ .Values.sharding.configrs.expose.serviceAnnotations | toYaml | indent 10 }}
+        {{- end }}
       {{- end }}
       resources:
         limits:

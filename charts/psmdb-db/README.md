@@ -73,6 +73,8 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].podDisruptionBudget.maxUnavailable`   | ReplicaSet failed Pods maximum quantity               | `1` |
 | `replsets[0].expose.enabled`   | Allow access to replicaSet from outside of Kubernetes              | `false` |
 | `replsets[0].expose.exposeType`   | Network service access point type              | `ClusterIP` |
+| `replsets[0].expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}` |
+| `replsets[0].expose.serviceAnnotations`  | ReplicaSet service annotations | `{}` |
 | `replsets[0].nonvoting.enabled`        | Add MongoDB nonvoting Pods                | `false` |
 | `replsets[0].nonvoting.podSecurityContext` | Set the security context for a Pod               | `{}` |
 | `replsets[0].nonvoting.containerSecurityContext` | Set the security context for a Container   | `{}` |
@@ -135,6 +137,8 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.podDisruptionBudget.maxUnavailable` | Config ReplicaSet failed Pods maximum quantity | `1` |
 | `sharding.configrs.expose.enabled`             | Allow access to cfg replica from outside of Kubernetes       | `false` |
 | `sharding.configrs.expose.exposeType`          | Network service access point type              | `ClusterIP` |
+| `sharding.configrs.expose.loadBalancerSourceRanges`  | Limit client IP's access to Load Balancer | `{}` |
+| `sharding.configrs.expose.serviceAnnotations`  | Config ReplicaSet service annotations | `{}` |
 | `sharding.configrs.resources.limits.cpu`       | Config ReplicaSet resource limits CPU | `300m` |
 | `sharding.configrs.resources.limits.memory`    | Config ReplicaSet resource limits memory | `0.5G` |
 | `sharding.configrs.resources.requests.cpu`     | Config ReplicaSet resource requests CPU | `300m` |
