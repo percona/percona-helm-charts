@@ -94,6 +94,30 @@ service:
   ##
   type: NodePort
 
+ingress:
+  # ingress.enabled -- Enable ingress controller resource
+  enabled: false
+  # ingress.annotations -- Ingress annotations configuration
+  annotations: {}
+
+  # ingress.ingressClassName -- Sets the ingress controller class name to use.
+  ingressClassName: ""
+
+  # ingress.hosts -- Ingress resource hostnames and path mappings
+  hosts:
+    - host: chart-example.local
+      paths: []
+
+  # ingress.pathType -- How ingress paths should be treated.
+  pathType: Prefix
+
+  # ingress.tls -- Ingress TLS configuration
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+
 ## Claiming storage for PMM using Persistent Volume Claims (PVC)
 ## ref: https://kubernetes.io/docs/user-guide/persistent-volumes/
 ##
