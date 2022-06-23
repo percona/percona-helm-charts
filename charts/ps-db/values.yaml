@@ -5,6 +5,9 @@
 nameOverride: ""
 fullnameOverride: ""
 
+pause: false
+allowUnsafeConfigurations: false
+
 # If this is set will not create secrets from values and will instead try to use
 # a pre-existing secret of the same name.
 # secretsName: cluster1-secrets

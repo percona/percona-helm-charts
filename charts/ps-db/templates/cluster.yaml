@@ -9,7 +9,12 @@ metadata:
 {{ include "ps-database.labels" . | indent 4 }}
 
 spec:
-  crVersion: {{ .Chart.AppVersion }}
+  {{- if .Values.allowUnsafeConfigurations }}
+  allowUnsafeConfigurations: {{ .Values.allowUnsafeConfigurations }}
+  {{- end }}
+  {{- if .Values.pause }}
+  pause: {{ .Values.pause }}
+  {{- end }}
   {{- if .Values.secretsName }}
   secretsName: {{ .Values.secretsName }}
   {{- else }}

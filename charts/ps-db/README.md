@@ -26,6 +26,8 @@ The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
+| `pause`                         | Stop PS Cluster safely                                                        | `false`                                   |
+| `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of Orchestrator pods         | `false`                                   |
 | `secretsName`                   | Secret name for user passwords                                                | `{}`                                      |
 | `sslSecretName`                 | Secret name for ssl certificates                                              | `{}`                                      |
 | `mysql.image.repository`        | PS Container image repository                                                 | `percona/percona-server`                  |
