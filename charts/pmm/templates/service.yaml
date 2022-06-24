@@ -18,10 +18,9 @@ metadata:
   {{- end }}
 spec:
   type: {{ $serviceType }}
+  {{- with .Values.service.ports }}
   ports:
-    - port: 443
-      targetPort: https
-      protocol: TCP
-      name: https
+    {{- toYaml . | nindent 8 }}
+  {{- end }}
   selector:
     {{- include "pmm.selectorLabels" . | nindent 4 }}
