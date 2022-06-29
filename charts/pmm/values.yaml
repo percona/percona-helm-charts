@@ -94,6 +94,46 @@ service:
   ##
   type: NodePort
 
+  ## Ports 80 and/or 443
+  ##
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 443
+      targetPort: https
+      protocol: TCP
+      name: https
+
+ingress:
+  # ingress.enabled -- Enable ingress controller resource
+  enabled: false
+  # ingress.annotations -- Ingress annotations configuration
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+    ##  nginx proxy to https
+    # nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+
+  # ingress.ingressClassName -- Sets the ingress controller class name to use.
+  ingressClassName: ""
+
+  # ingress.hosts -- Ingress resource hostnames and path mappings
+  hosts:
+    - host: chart-example.local
+      paths: []
+
+  # ingress.pathType -- How ingress paths should be treated.
+  pathType: Prefix
+
+  # ingress.tls -- Ingress TLS configuration
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+
 ## Claiming storage for PMM using Persistent Volume Claims (PVC)
 ## ref: https://kubernetes.io/docs/user-guide/persistent-volumes/
 ##

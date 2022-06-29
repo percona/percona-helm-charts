@@ -4,8 +4,14 @@ Percona Monitoring and Management (PMM)
 An open source database monitoring, observability and management tool
 Check more info here: https://docs.percona.com/percona-monitoring-and-management/index.html
 
-Get the application URL by running these commands:
-{{- if contains "NodePort" .Values.service.type }}
+Get the application URL:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ . }}
+  {{- end }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
   export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ .Values.service.name }})
   export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
   echo https://$NODE_IP:$NODE_PORT
@@ -22,5 +28,5 @@ Get the application URL by running these commands:
 {{- end }}
 
 Get password for the "admin" user:
-  export ADMIN_PASS=$(kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode)
+  export ADMIN_PASS=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode)
   echo $ADMIN_PASS
