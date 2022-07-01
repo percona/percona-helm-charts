@@ -69,6 +69,7 @@ The chart can be customized using the following configurable parameters:
 | `pxc.resources.requests`                    | PXC Pods resource requests                                                                                               | `{"memory": "1G", "cpu": "600m"}`|
 | `pxc.resources.limits`                      | PXC Pods resource limits                                                                                                 | `{}`                             |
 | `pxc.sidecars`                              | PXC Pods sidecars                                                                                                        | `[]`                             |
+| `pxc.sidecarVolumes`                        | PXC Pods sidecarVolumes                                                                                                  | `[]`                             |
 | `pxc.sidecarResources.requests`             | PXC sidecar resource requests                                                                                            | `{}`                             |
 | `pxc.sidecarResources.limits`               | PXC sidecar resource limits                                                                                              | `{}`                             |
 | `pxc.nodeSelector`                          | PXC Pods key-value pairs setting for K8S node assingment                                                                 | `{}`                             |
@@ -120,9 +121,10 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.envVarsSecret`           | A secret with environment variables                                          | `` |
 | `haproxy.resources.requests`                     | HAProxy Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
 | `haproxy.resources.limits`                     | HAProxy Pods resource limits                                    | `{}`                                      |
-| `haproxy.sidecars`                              | HAProxy Pods sidecars                                                                                                        | `[]`                             |
-| `haproxy.sidecarResources.requests`             | HAProxy sidecar resource requests                                                                                            | `{}`                             |
-| `haproxy.sidecarResources.limits`               | HAProxy sidecar resource limits                                                                                              | `{}`                             |
+| `haproxy.sidecars`                              | HAProxy Pods sidecars                                          | `[]`                             |
+| `haproxy.sidecarVolumes`                        | HAProxy Pods sidecarVolumes                                    | `[]`                             |
+| `haproxy.sidecarResources.requests`             | HAProxy sidecar resource requests                              | `{}`                             |
+| `haproxy.sidecarResources.limits`               | HAProxy sidecar resource limits                                | `{}`                             |
 | `haproxy.nodeSelector`                  | HAProxy Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
 | `haproxy.affinity.antiAffinityTopologyKey` | HAProxy Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
 | `haproxy.affinity.advanced` | HAProxy Pods advanced scheduling restriction with match expression engine          | `{}` |
@@ -163,9 +165,10 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.envVarsSecret`           | A secret with environment variables                                           | `` |
 | `proxysql.resources.requests`                     | ProxySQL Pods resource requests                                    | `{"memory": "1G", "cpu": "600m"}`                                      |
 | `proxysql.resources.limits`                     | ProxySQL Pods resource limits                                    | `{}`                                      |
-| `proxysql.sidecars`                              | ProxySQL Pods sidecars                                                                                                        | `[]`                             |
-| `proxysql.sidecarResources.requests`             | ProxySQL sidecar resource requests                                                                                            | `{}`                             |
-| `proxysql.sidecarResources.limits`               | ProxySQL sidecar resource limits                                                                                              | `{}`                             |
+| `proxysql.sidecars`                              | ProxySQL Pods sidecars                                          | `[]`                             |
+| `proxysql.sidecarVolumes`                        | ProxySQL Pods sidecarVolumes                                    | `[]`                             |
+| `proxysql.sidecarResources.requests`             | ProxySQL sidecar resource requests                              | `{}`                             |
+| `proxysql.sidecarResources.limits`               | ProxySQL sidecar resource limits                                | `{}`                             |
 | `proxysql.nodeSelector`                  | ProxySQL Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
 | `proxysql.affinity.antiAffinityTopologyKey` | ProxySQL Pods simple scheduling restriction on/off for host, zone, region         | `"kubernetes.io/hostname"` |
 | `proxysql.affinity.advanced` | ProxySQL Pods advanced scheduling restriction with match expression engine          | `{}` |
