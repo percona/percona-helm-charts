@@ -30,8 +30,8 @@ The chart can be customized using the following configurable parameters:
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of Orchestrator pods         | `false`                                   |
 | `secretsName`                   | Secret name for user passwords                                                | `{}`                                      |
 | `sslSecretName`                 | Secret name for ssl certificates                                              | `{}`                                      |
-| `mysql.image.repository`        | PS Container image repository                                                 | `percona/percona-server`                  |
-| `mysql.image.tag`               | PS Container image tag                                                        | `8.0.25`                                  |
+| `mysql.image.repository`        | MySQL Container image repository                                              | `percona/percona-server`                  |
+| `mysql.image.tag`               | MySQL Container image tag                                                     | `8.0.25`                                  |
 | `mysql.imagePullPolicy`         | The policy used to update images                                              | `Always`                                  |
 | `mysql.imagePullSecrets`        | MySQL Container pull secret                                                   | `[]`                                      |
 | `mysql.size`                    | Number of MySQL pods                                                          | `3`                                       |
@@ -43,8 +43,8 @@ The chart can be customized using the following configurable parameters:
 | `mysql.schedulerName`           | The Kubernetes Scheduler                                                      | `""`                                      |
 | `mysql.resources`               | MySQL Pods resource requests and limits                                       | `{}`                                      |
 | `mysql.nodeSelector`            | MySQL Pods key-value pairs setting for K8S node assingment                    | `{}`                                      |
-| `mysql.affinity.antiAffinityTopologyKey` | PXC Pods simple scheduling restriction on/off for host, zone, region | `"kubernetes.io/hostname"`                |
-| `mysql.affinity.advanced`       | PXC Pods advanced scheduling restriction with match expression engine         | `{}`                                      |
+| `mysql.affinity.antiAffinityTopologyKey` | MySQL Pods simple scheduling restriction on/off for host, zone, region | `"kubernetes.io/hostname"`              |
+| `mysql.affinity.advanced`       | MySQL Pods advanced scheduling restriction with match expression engine       | `{}`                                      |
 | `mysql.tolerations`             | List of node taints to tolerate for MySQL Pods                                | `[]`                                      |
 | `mysql.podDisruptionBudget.maxUnavailable`  | Instruct Kubernetes about the failed pods allowed quantity        | `1`                                       |
 | `mysql.expose.enabled`          | Allow access to MySQL from outside of Kubernetes                              | `false`                                   |
