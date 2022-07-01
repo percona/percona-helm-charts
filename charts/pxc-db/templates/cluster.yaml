@@ -241,7 +241,7 @@ spec:
     sidecars:
 {{ $haproxy.sidecars | toYaml | indent 6 }}
     sidecarVolumes:
-{{ $pxc.sidecarVolumes | toYaml | indent 6 }}
+{{ $haproxy.sidecarVolumes | toYaml | indent 6 }}
     sidecarResources:
       requests:
 {{ tpl ($haproxy.sidecarResources.requests | toYaml) $ | indent 8 }}
