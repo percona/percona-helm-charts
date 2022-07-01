@@ -342,7 +342,7 @@ spec:
     sidecars:
 {{ $proxysql.sidecars | toYaml | indent 6 }}
     sidecarVolumes:
-{{ $pxc.sidecarVolumes | toYaml | indent 6 }}
+{{ $proxysql.sidecarVolumes | toYaml | indent 6 }}
     sidecarResources:
       requests:
 {{ tpl ($proxysql.sidecarResources.requests | toYaml) $ | indent 8 }}
