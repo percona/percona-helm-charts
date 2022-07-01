@@ -88,6 +88,7 @@ pxc:
   # runtimeClassName: image-rc
   sidecars: []
   sidecarVolumes: []
+  sidecarPVCs: []
   sidecarResources:
     requests: {}
     limits: {}
@@ -242,6 +243,7 @@ haproxy:
       # cpu: 600m
   sidecars: []
   sidecarVolumes: []
+  sidecarPVCs: []
   sidecarResources:
     requests: {}
     limits: {}
@@ -376,6 +378,7 @@ proxysql:
       # cpu: 600m
   sidecars: []
   sidecarVolumes: []
+  sidecarPVCs: []
   sidecarResources:
     requests: {}
     limits: {}
