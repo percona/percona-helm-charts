@@ -70,6 +70,7 @@ The chart can be customized using the following configurable parameters:
 | `pxc.resources.limits`                      | PXC Pods resource limits                                                                                                 | `{}`                             |
 | `pxc.sidecars`                              | PXC Pods sidecars                                                                                                        | `[]`                             |
 | `pxc.sidecarVolumes`                        | PXC Pods sidecarVolumes                                                                                                  | `[]`                             |
+| `pxc.sidecarPVCs`                           | PXC Pods sidecar PVCs                                                                                                    | `[]`                             |
 | `pxc.sidecarResources.requests`             | PXC sidecar resource requests                                                                                            | `{}`                             |
 | `pxc.sidecarResources.limits`               | PXC sidecar resource limits                                                                                              | `{}`                             |
 | `pxc.nodeSelector`                          | PXC Pods key-value pairs setting for K8S node assingment                                                                 | `{}`                             |
@@ -123,6 +124,7 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.resources.limits`                     | HAProxy Pods resource limits                                    | `{}`                                      |
 | `haproxy.sidecars`                              | HAProxy Pods sidecars                                          | `[]`                             |
 | `haproxy.sidecarVolumes`                        | HAProxy Pods sidecarVolumes                                    | `[]`                             |
+| `haproxy.sidecarPVCs`                           | HAProxy Pods sidecar PVCs                                      | `[]`                             |
 | `haproxy.sidecarResources.requests`             | HAProxy sidecar resource requests                              | `{}`                             |
 | `haproxy.sidecarResources.limits`               | HAProxy sidecar resource limits                                | `{}`                             |
 | `haproxy.nodeSelector`                  | HAProxy Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
@@ -167,6 +169,7 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.resources.limits`                     | ProxySQL Pods resource limits                                    | `{}`                                      |
 | `proxysql.sidecars`                              | ProxySQL Pods sidecars                                          | `[]`                             |
 | `proxysql.sidecarVolumes`                        | ProxySQL Pods sidecarVolumes                                    | `[]`                             |
+| `proxysql.sidecarPVCs`                           | ProxySQL Pods sidecar PVCs                                      | `[]`                             |
 | `proxysql.sidecarResources.requests`             | ProxySQL sidecar resource requests                              | `{}`                             |
 | `proxysql.sidecarResources.limits`               | ProxySQL sidecar resource limits                                | `{}`                             |
 | `proxysql.nodeSelector`                  | ProxySQL Pods key-value pairs setting for K8S node assingment                 | `{}`                                      |
