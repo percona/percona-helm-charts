@@ -190,7 +190,7 @@ spec:
     {{- if $router.runtimeClassName }}
     runtimeClassName: {{ $router.runtimeClassName }}
     {{- end }}
-    {{- if $router.expose.type }}
+    {{- if $router.expose }}
     expose:
       type: {{ $router.expose.type }}
     {{- end }}
@@ -302,11 +302,13 @@ spec:
     containerSecurityContext:
 {{ tpl ($backup.containerSecurityContext | toYaml) $ | indent 6 }}
     {{- end }}
+    {{- if $backup.resources }}
     resources:
       requests:
 {{ tpl ($backup.resources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($backup.resources.limits | toYaml) $ | indent 8 }}
+    {{- end }}
     storages:
 {{ $backup.storages | toYaml | indent 6 }}
   {{- end }}
