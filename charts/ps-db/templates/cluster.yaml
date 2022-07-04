@@ -291,6 +291,7 @@ spec:
     {{- if $backup.imagePullPolicy }}
     imagePullPolicy: {{ $backup.imagePullPolicy }}
     {{- end }}
+    {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
