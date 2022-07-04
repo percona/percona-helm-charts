@@ -28,6 +28,9 @@ spec:
 
   {{- $mysql := .Values.mysql }}
   mysql:
+    {{- if $mysql.clusterType }}
+    clusterType: {{ $mysql.clusterType }}
+    {{- end }}
     {{- if $mysql.image }}
     image: "{{ $mysql.image.repository }}:{{ $mysql.image.tag }}"
     {{- end }}
@@ -43,6 +46,12 @@ spec:
     {{- end }}
     {{- if $mysql.sizeSemiSync }}
     sizeSemiSync: {{ $mysql.sizeSemiSync }}
+    {{- end }}
+    {{- if $mysql.primaryServiceType }}
+    primaryServiceType: {{ $mysql.primaryServiceType }}
+    {{- end }}
+    {{- if $mysql.replicasServiceType }}
+    replicasServiceType: {{ $mysql.replicasServiceType }}
     {{- end }}
     affinity:
 {{ $mysql.affinity | toYaml | indent 6 }}
@@ -116,6 +125,76 @@ spec:
     {{- if $mysql.runtimeClassName }}
     runtimeClassName: {{ $mysql.runtimeClassName }}
     {{- end }}
+
+  {{- $router := .Values.router }}
+  {{ if .Values.router }}
+  router:
+    image: {{ $router.image.repository }}:{{ $router.image.tag }}
+    {{- if $router.imagePullPolicy }}
+    imagePullPolicy: {{ $router.imagePullPolicy }}
+    {{- end }}
+    {{- if $router.imagePullSecrets }}
+    imagePullSecrets:
+{{ $router.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $router.size }}
+    size: {{ $router.size }}
+    {{- end }}
+    affinity:
+{{ $router.affinity | toYaml | indent 6 }}
+    {{- if $router.priorityClassName }}
+    priorityClassName: {{ $router.priorityClassName }}
+    {{- end }}
+    annotations:
+{{ $router.annotations | toYaml | indent 6 }}
+    labels:
+{{ $router.labels | toYaml | indent 6 }}
+    tolerations:
+{{ $router.tolerations | toYaml | indent 6 }}
+    nodeSelector:
+{{ $router.nodeSelector | toYaml | indent 6 }}
+    podDisruptionBudget:
+{{ $router.podDisruptionBudget | toYaml | indent 6 }}
+    resources:
+      requests:
+{{ tpl ($router.resources.requests | toYaml) $ | indent 8 }}
+      limits:
+{{ tpl ($router.resources.limits | toYaml) $ | indent 8 }}
+    {{- if $router.volumeSpec }}
+    volumeSpec:
+      {{- if $router.volumeSpec.hostPath }}
+      hostPath:
+        path: {{ $router.volumeSpec.hostPath }}
+        type: Directory
+      {{- else if $router.volumeSpec.pvc }}
+      persistentVolumeClaim:
+{{ $router.volumeSpec.pvc | toYaml | indent 8 }}
+      {{- else }}
+      emptyDir: {}
+      {{- end }}
+    {{- end }}
+    {{- if $router.schedulerName }}
+    schedulerName: {{ $router.schedulerName }}
+    {{- end }}
+    {{- if $router.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($router.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $router.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($router.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $router.serviceAccountName }}
+    serviceAccountName: {{ $router.serviceAccountName }}
+    {{- end }}
+    {{- if $router.runtimeClassName }}
+    runtimeClassName: {{ $router.runtimeClassName }}
+    {{- end }}
+    {{- if $router.expose.type }}
+    expose:
+      type: {{ $router.expose.type }}
+    {{- end }}
+  {{- end }}
 
   {{- $orc := .Values.orchestrator }}
   {{ if .Values.orchestrator }}
@@ -200,4 +279,33 @@ spec:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($pmm.resources.limits | toYaml) $ | indent 8 }}
+  {{- end }}
+
+  backup:
+  {{- if not .Values.backup.enabled }}
+    enabled: false
+  {{- else }}
+    {{- $backup := .Values.backup }}
+    enabled: true
+    image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
+    {{- if $backup.imagePullPolicy }}
+    imagePullPolicy: {{ $backup.imagePullPolicy }}
+    {{- end }}
+    imagePullSecrets:
+{{ $backup.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $backup.serviceAccountName }}
+    serviceAccountName: {{ $backup.serviceAccountName }}
+    {{- end }}
+    {{- if $backup.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($backup.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    resources:
+      requests:
+{{ tpl ($backup.resources.requests | toYaml) $ | indent 8 }}
+      limits:
+{{ tpl ($backup.resources.limits | toYaml) $ | indent 8 }}
+    storages:
+{{ $backup.storages | toYaml | indent 6 }}
   {{- end }}

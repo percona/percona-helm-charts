@@ -17,7 +17,7 @@ mysql:
   clusterType: async
   image:
     repository: percona/percona-server
-    tag: 8.0.25
+    tag: 8.0.28
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
