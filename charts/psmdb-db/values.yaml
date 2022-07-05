@@ -134,6 +134,10 @@ replsets:
     expose:
       enabled: false
       exposeType: ClusterIP
+      # loadBalancerSourceRanges:
+      #   - 10.0.0.0/8
+      # serviceAnnotations:
+      #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
     nonvoting:
       enabled: false
       # podSecurityContext: {}
@@ -238,6 +242,10 @@ sharding:
     expose:
       enabled: false
       exposeType: ClusterIP
+      # loadBalancerSourceRanges:
+      #   - 10.0.0.0/8
+      # serviceAnnotations:
+      #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
     resources:
       limits:
         cpu: "300m"
