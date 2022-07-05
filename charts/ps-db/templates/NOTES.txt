@@ -1,0 +1,6 @@
+To get a MySQL prompt inside your new cluster you can run:
+
+  ROOT_PASSWORD=$(kubectl -n {{ .Release.Namespace }} get secrets {{ include "ps-database.fullname" . }}-secrets -o jsonpath="{.data.root}" | base64 --decode)
+  kubectl -n {{ .Release.Namespace }} exec -ti \
+    {{ include "ps-database.fullname" . }}-mysql-0 -- mysql -uroot -p"$ROOT_PASSWORD"
+

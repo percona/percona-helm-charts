@@ -1,0 +1,4 @@
+1. ps-operator deployed.
+  Check the ps-operator logs
+    export POD=$(kubectl get pods -l app.kubernetes.io/name=ps-operator --namespace {{ .Release.Namespace }} --output name)
+    kubectl logs $POD --namespace={{ .Release.Namespace }}

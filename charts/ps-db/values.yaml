@@ -1,0 +1,308 @@
+# Default values for ps-cluster.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+nameOverride: ""
+fullnameOverride: ""
+
+pause: false
+allowUnsafeConfigurations: false
+
+# If this is set will not create secrets from values and will instead try to use
+# a pre-existing secret of the same name.
+# secretsName: cluster1-secrets
+# sslSecretName: cluster1-ssl
+
+mysql:
+  clusterType: async
+  image:
+    repository: percona/percona-server
+    tag: 8.0.28
+  imagePullPolicy: Always
+  imagePullSecrets: []
+  # - name: private-registry-credentials
+
+  size: 3
+  sizeSemiSync: 0
+  # primaryServiceType: LoadBalancer
+  # replicasServiceType: ClusterIP
+
+  # configuration: |
+  #   max_connections=250
+
+  resources:
+    requests:
+      memory: 512M
+    limits:
+      memory: 1G
+
+  affinity:
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # advanced:
+    #   nodeAffinity:
+    #     requiredDuringSchedulingIgnoredDuringExecution:
+    #       nodeSelectorTerms:
+    #       - matchExpressions:
+    #         - key: kubernetes.io/e2e-az-name
+    #           operator: In
+    #           values:
+    #           - e2e-az1
+    #           - e2e-az2
+
+  expose:
+    enabled: false
+    type: ClusterIP
+
+  volumeSpec:
+    pvc:
+      resources:
+        requests:
+          storage: 3G
+
+  # runtimeClassName: image-rc
+  # priorityClassName: high-priority
+  # schedulerName: mycustom-scheduler
+  annotations: {}
+    # iam.amazonaws.com/role: role-arn
+  labels: {}
+    # rack: rack-22
+  nodeSelector: {}
+    # disktype: ssd
+  tolerations: []
+    # - key: "node.alpha.kubernetes.io/unreachable"
+    #   operator: "Exists"
+    #   effect: "NoExecute"
+    #   tolerationSeconds: 6000
+  podDisruptionBudget:
+    # only one of maxUnavailable or minAvaliable can be set
+    maxUnavailable: 1
+    # minAvailable: 0
+  # A custom Kubernetes Security Context for a Container to be used instead of the default one
+  # containerSecurityContext:
+  #   privileged: false
+  # A custom Kubernetes Security Context for a Pod to be used instead of the default one
+  # podSecurityContext:
+  #   fsGroup: 1001
+  #   supplementalGroups:
+  #   - 1001
+  # serviceAccountName: percona-server-mysql-operator-workload
+  # sidecars:
+  # - name: noop-memory
+  #   image: busybox
+  #   command: ["sleep", "30d"]
+  #   volumeMounts:
+  #   - name: "memory-vol"
+  #     mountPath: "/var/log/app/memory"
+  #   resources:
+  #     requests:
+  #       memory: 16M
+  # - name: noop-pvc
+  #   image: busybox
+  #   command: ["sleep", "30d"]
+  #   volumeMounts:
+  #   - name: "pvc-vol"
+  #     mountPath: "/var/log/app/pvc"
+  # sidecarVolumes:
+  # - name: "memory-vol"
+  #   emptyDir:
+  #     medium: "Memory"
+  # sidecarPVCs:
+  # - name: pvc-vol
+  #   spec:
+  #     resources:
+  #       requests:
+  #         storage: 1G
+
+router:
+  image:
+    repository: percona/percona-server-mysql-operator
+    tag: 0.2.0-router
+  imagePullPolicy: Always
+  imagePullSecrets: []
+
+  size: 3
+
+  resources:
+    requests:
+      memory: 256M
+    limits:
+      memory: 256M
+
+  affinity:
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # advanced:
+    #   nodeAffinity:
+    #     requiredDuringSchedulingIgnoredDuringExecution:
+    #       nodeSelectorTerms:
+    #       - matchExpressions:
+    #         - key: kubernetes.io/e2e-az-name
+    #           operator: In
+    #           values:
+    #           - e2e-az1
+    #           - e2e-az2
+
+  # runtimeClassName: image-rc
+  # priorityClassName: high-priority
+  # schedulerName: mycustom-scheduler
+  annotations: {}
+    # iam.amazonaws.com/role: role-arn
+  labels: {}
+    # rack: rack-22
+  nodeSelector: {}
+    # disktype: ssd
+  tolerations: []
+    # - key: "node.alpha.kubernetes.io/unreachable"
+    #   operator: "Exists"
+    #   effect: "NoExecute"
+    #   tolerationSeconds: 6000
+  podDisruptionBudget:
+    # only one of maxUnavailable or minAvaliable can be set
+    maxUnavailable: 1
+    # minAvailable: 0
+  # A custom Kubernetes Security Context for a Container to be used instead of the default one
+  # containerSecurityContext:
+  #   privileged: false
+  # A custom Kubernetes Security Context for a Pod to be used instead of the default one
+  # podSecurityContext:
+  #   fsGroup: 1001
+  #   supplementalGroups:
+  #   - 1001
+  # serviceAccountName: percona-server-mysql-operator-workload
+  # expose:
+  #   type: ClusterIP
+
+orchestrator:
+  image:
+    repository: percona/percona-server-mysql-operator
+    tag: 0.2.0-orchestrator
+  imagePullPolicy: Always
+  imagePullSecrets: []
+  # - name: private-registry-credentials
+
+  size: 3
+
+  resources:
+    requests:
+      memory: 128M
+    limits:
+      memory: 256M
+
+  affinity:
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+
+  volumeSpec:
+    pvc:
+      resources:
+        requests:
+          storage: 1G
+
+  # runtimeClassName: image-rc
+  # priorityClassName: high-priority
+  # schedulerName: mycustom-scheduler
+  annotations: {}
+    # iam.amazonaws.com/role: role-arn
+  labels: {}
+    # rack: rack-22
+  nodeSelector: {}
+    # disktype: ssd
+  tolerations: []
+    # - key: "node.alpha.kubernetes.io/unreachable"
+    #   operator: "Exists"
+    #   effect: "NoExecute"
+    #   tolerationSeconds: 6000
+  podDisruptionBudget:
+    # only one of maxUnavailable or minAvaliable can be set
+    maxUnavailable: 1
+    # minAvailable: 0
+  # A custom Kubernetes Security Context for a Container to be used instead of the default one
+  # containerSecurityContext:
+  #   privileged: false
+  # A custom Kubernetes Security Context for a Pod to be used instead of the default one
+  # podSecurityContext:
+  #   fsGroup: 1001
+  #   supplementalGroups:
+  #   - 1001
+  # serviceAccountName: percona-server-mysql-operator-workload
+
+pmm:
+  enabled: false
+  image:
+    repository: percona/pmm-client
+    tag: 2.28.0
+  imagePullPolicy: Always
+  serverHost: monitoring-service
+  serverUser: admin
+  resources:
+    requests:
+      memory: 150M
+      cpu: 300m
+    limits: {}
+
+backup:
+  enabled: true
+  image:
+    repository: percona/percona-server-mysql-operator
+    tag: 0.2.0-backup
+  imagePullPolicy: Always
+  imagePullSecrets: []
+  # resources:
+  #   limits:
+  #     cpu: "300m"
+  #     memory: "0.5G"
+  #   requests:
+  #     cpu: "300m"
+  #     memory: "0.5G"
+  # containerSecurityContext:
+  #   privileged: false
+  # serviceAccountName: percona-server-mysql-operator-workload
+  storages: {}
+    # s3-us-west:
+    #   type: s3
+    #   verifyTLS: true
+    #   nodeSelector:
+    #     storage: tape
+    #     backupWorker: 'True'
+    #   resources:
+    #     requests:
+    #       memory: 1G
+    #       cpu: 600m
+    #   affinity:
+    #     nodeAffinity:
+    #       requiredDuringSchedulingIgnoredDuringExecution:
+    #         nodeSelectorTerms:
+    #         - matchExpressions:
+    #           - key: backupWorker
+    #             operator: In
+    #             values:
+    #             - 'True'
+    #   tolerations:
+    #     - key: "backupWorker"
+    #       operator: "Equal"
+    #       value: "True"
+    #       effect: "NoSchedule"
+    #   annotations:
+    #     testName: scheduled-backup
+    #   labels:
+    #     backupWorker: 'True'
+    #   schedulerName: 'default-scheduler'
+    #   priorityClassName: 'high-priority'
+    #   containerSecurityContext:
+    #     privileged: true
+    #   podSecurityContext:
+    #     fsGroup: 1001
+    #     supplementalGroups: [1001, 1002, 1003]
+    #   s3:
+    #     bucket: S3-BACKUP-BUCKET-NAME-HERE
+    #     credentialsSecret: cluster1-s3-credentials
+    #     region: us-west-2
+
+secrets:
+  passwords:
+    root: insecure_root_password
+    xtrabackup: insecure_backup_password
+    monitor: insecure_monitor_password
+    clustercheck: insecure_clustercheck_password
+    pmmserver: insecure_pmmserver_password
+    operator: insecure_operator_password
+    replication: insecure_replication_password
+    orchestrator: insecure_orchestrator_password
