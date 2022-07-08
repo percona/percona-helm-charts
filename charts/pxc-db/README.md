@@ -233,6 +233,7 @@ The chart can be customized using the following configurable parameters:
 | `secrets.passwords.clustercheck` | Default user secret | `insecure-clustercheck-password` |
 | `secrets.passwords.proxyadmin`   | Default user secret | `insecure-proxyadmin-password`   |
 | `secrets.passwords.pmmserver`    | Default user secret | `insecure-pmmserver-password`    |
+| `secrets.passwords.pmmserverkey` | PMM server API key  | ``                               |
 | `secrets.passwords.operator`     | Default user secret | `insecure-operator-password`     |
 | `secrets.passwords.replication`  | Default user secret | `insecure-replication-password`  |
 | `secrets.tls`       | Not needed in case if you're using cert-manager. Structure expects keys `ca.crt`, `tls.crt`, `tls.key` and files contents encoded in base64.                             | `{}` |
