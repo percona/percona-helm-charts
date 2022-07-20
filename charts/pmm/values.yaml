@@ -14,7 +14,7 @@ image:
   repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "2.28.0"
+  tag: "2.29.0"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -54,7 +54,7 @@ readyProbeConf:
   periodSeconds: 5
   failureThreshold: 6
 
-## PMM secrets
+## @section PMM secrets
 ##
 secret:
   ## @param secret.name Defines the name of the k8s secret that holds passwords and other secrets
@@ -84,6 +84,7 @@ secret:
   ##  dhparam.pem:
 certs: {}
 
+## @section PMM network configuration
 ## Service configuration
 ##
 service:
@@ -94,46 +95,58 @@ service:
   ##
   type: NodePort
 
-  ## Ports 80 and/or 443
+  ## Ports 443 and/or 80
   ##
   ports:
-    - port: 80
-      targetPort: http
-      protocol: TCP
-      name: http
+    ## @param service.ports[0].port https port number
     - port: 443
+      ## @param service.ports[0].targetPort target port to map for statefulset and ingress
       targetPort: https
+      ## @param service.ports[0].protocol protocol for https
       protocol: TCP
+      ## @param service.ports[0].name port name
       name: https
+    ## @param service.ports[1].port http port number
+    - port: 80
+      ## @param service.ports[1].targetPort target port to map for statefulset and ingress
+      targetPort: http
+      ## @param service.ports[1].protocol protocol for http
+      protocol: TCP
+      ## @param service.ports[1].name port name
+      name: http
 
+## Ingress controller configuration
+##
 ingress:
-  # ingress.enabled -- Enable ingress controller resource
+  ## @param ingress.enabled -- Enable ingress controller resource
   enabled: false
-  # ingress.annotations -- Ingress annotations configuration
+  ## @param ingress.annotations -- Ingress annotations configuration
   annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
-    ##  nginx proxy to https
-    # nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    ## kubernetes.io/ingress.class: nginx
+    ## kubernetes.io/tls-acme: "true"
+    ###  nginx proxy to https
+    ## nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
 
-  # ingress.ingressClassName -- Sets the ingress controller class name to use.
+  ## @param ingress.ingressClassName -- Sets the ingress controller class name to use.
   ingressClassName: ""
 
-  # ingress.hosts -- Ingress resource hostnames and path mappings
+  ## Ingress resource hostnames and path mappings
   hosts:
+    ## @param ingress.hosts[0].host hostname
     - host: chart-example.local
+    ## @param ingress.hosts[0].paths path mapping
       paths: []
 
-  # ingress.pathType -- How ingress paths should be treated.
+  ## @param ingress.pathType -- How ingress paths should be treated.
   pathType: Prefix
 
-  # ingress.tls -- Ingress TLS configuration
+  ## @param ingress.tls -- Ingress TLS configuration
   tls: []
-  #  - secretName: chart-example-tls
-  #    hosts:
-  #      - chart-example.local
+  ##  - secretName: chart-example-tls
+  ##    hosts:
+  ##      - chart-example.local
 
-
+## @section PMM storage configuration
 ## Claiming storage for PMM using Persistent Volume Claims (PVC)
 ## ref: https://kubernetes.io/docs/user-guide/persistent-volumes/
 ##
@@ -153,6 +166,7 @@ storage:
   ##
   size: 10Gi
 
+## @section PMM kubernetes configurations
 ## @param nameOverride String to partially override common.names.fullname template with a string (will prepend the release name)
 ##
 nameOverride: ""

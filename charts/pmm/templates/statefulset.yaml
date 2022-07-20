@@ -75,7 +75,7 @@ spec:
                   name: {{ .Values.secret.name }}
                   key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
                   optional: true
-            - name: ADMIN_PASSWORD
+            - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
@@ -101,45 +101,6 @@ spec:
               mountPath: /srv/nginx
               readOnly: true
             {{- end }}
-      # Execute a set of changes in persistent volume and ensure they are met on each deployment.
-      # initContainer will be removed in future releases as changes will be done to entry point if main container
-      initContainers:
-        - name: {{ .Chart.Name }}-init
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["/bin/bash"]
-          args:
-            - "-c"
-            - |
-              set -ex
-              # Check if this is a first deployment on empty PV
-              if [ ! -f /srv-init/pmm-distribution ]; then
-                
-                set +ex
-                # set admin password if exists
-                if [ ! -v $ADMIN_PASSWORD ]; then
-                  
-                  echo "changing admin password..."
-                  change-admin-password $ADMIN_PASSWORD
-                fi;
-                set -ex
-
-                # Copies /srv from pmm-server into the volume if the volume is empty.
-                cp --archive --verbose /srv/* /srv-init
-
-              fi;
-
-          env:
-            - name: ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: PMM_ADMIN_PASSWORD
-                  optional: true
-
-          volumeMounts:
-            - name: {{ .Values.storage.name }}
-              mountPath: /srv-init
       {{- if .Values.certs.name }}
       volumes:
         - name: {{ .Values.certs.name }}
