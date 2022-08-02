@@ -22,7 +22,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 1.2.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 1.3.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -49,7 +49,7 @@ The chart can be customized using the following configurable parameters:
 | `bucket.secret`                     | S3-compatible bucket secret key                                        |``|
 | `bucket.json`                     | GCS storage json secret (base64 encoded)                                        |``|
 | `bucket.s3ca`                     | Put custom CA certificate for your S3-compatible storage                                        |``|
-| `pgPrimary.image`                     | Set this variable if you need to use a custom PostgreSQL image                                        | `percona/percona-postresql-operator:1.2.0-ppg14-postgres-ha`                              |
+| `pgPrimary.image`                     | Set this variable if you need to use a custom PostgreSQL image                                        | `percona/percona-postresql-operator:1.3.0-ppg14-postgres-ha`                              |
 | `pgPrimary.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                              |
 | `pgPrimary.tolerations`                     | PostgreSQL container deployment tolerations | `[]`                              |
 | `pgPrimary.volumeSpec.size`                     | PostgreSQL container PVC size | `1G`                              |
@@ -57,14 +57,19 @@ The chart can be customized using the following configurable parameters:
 | `pgPrimary.volumeSpec.storagetype`                     | PostgreSQL container PVC storagetype | `dynamic`                              |
 | `pgPrimary.volumeSpec.storageclass`                     | PostgreSQL container PVC storageclass | `standard`                              |
 | `pgPrimary.expose.serviceType`                     | K8S service type for the PostgreSQL deployment | `ClusterIP`                              |
+| `pgPrimary.affinity.antiAffinityType`                     | Pod antiAffinity for PostreSQL db pods `preferred/required/disabled` | `preferred`                              |
+
+| `pgPrimary.affinity.nodeAffinityType`                     | Node antiAffinity for PostreSQL db pods `preferred/required/disabled` | `preferred`                              |
+| `pgPrimary.affinity.nodeLabel`                     | Key/value map with node lables specified for nodeAffinity | `key/value`                              |
+| `pgPrimary.affinity.advanced`                     | User defined affinity structure to be passed to pods without any processing | `key/value`                              |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.26.1`                              |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.29.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 | `pmm.resources.requests.memory`                    | Container resource request for RAM              | `200M` |
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m` |
-| `backup.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:1.2.0-ppg14-pgbackrest`                              |
-| `backup.backrestRepoImage`                     | Set this variable if you need to use a custom pgBackrest repo image                                        | `percona/percona-postresql-operator:1.2.0-ppg14-pgbackrest-repo`                              |
+| `backup.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:1.3.0-ppg14-pgbackrest`                              |
+| `backup.backrestRepoImage`                     | Set this variable if you need to use a custom pgBackrest repo image                                        | `percona/percona-postresql-operator:1.3.0-ppg14-pgbackrest-repo`                              |
 | `backup.resources.requests.memory`                     | Container resource request for RAM                                        | `48Mi`                              |
 | `backup.volumeSpec.size`                     | PostgreSQL pgBackrest container PVC size | `1G`                              |
 | `backup.volumeSpec.accessmode`                     | PostgreSQL pgBackrest container PVC accessmode | `ReadWriteOnce`                              |
@@ -82,13 +87,16 @@ The chart can be customized using the following configurable parameters:
 | `backup.storages.storage0.region`                     | `Should be stated explicitly for S3` S3-compatible storage region |``|
 | `backup.storages.storage0.uriStyle`                     | (Optional) S3-compatible storage URI style |`path`|
 | `backup.storages.storage0.verifyTLS`                     | (Optional) S3-compatible storage URI style |`true`|
-| `pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postresql-operator:1.2.0-ppg14-pgbouncer`                              |
+| `backup.antiAffinityType`                     | Pod antiAffinity for backup pods `preferred/required/disabled` | `preferred`                              |
+| `pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postresql-operator:1.3.0-ppg14-pgbouncer`                              |
 | `pgBouncer.size`                     | The number of pgbouncer instanses                                        | `3`                              |
 | `pgBouncer.resources.requests.cpu`                     | Container resource request for CPU                                        | `1`                              |
 | `pgBouncer.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                              |
 | `pgBouncer.resources.limits.cpu`                     | Container resource limits for CPU                                        | `2`                              |
 | `pgBouncer.resources.limits.memory`                     | Container resource limits for RAM                                        | `512Mi`                              |
 | `pgBouncer.expose.serviceType`                     | K8S service type for the pgbouncer deployment | `ClusterIP`                              |
+| `pgBouncer.exposePostgresUser`                     | Expose root postgres user via pgBouncer | `false`                              |
+| `pgBouncer.antiAffinityType`                     | Pod antiAffinity for pgBouncer pods `preferred/required/disabled`| `preferred`                              |
 | `replicas.size`                     | The number of PostgreSQL replicas | `0`                              |
 | `replicas.resources.requests.cpu`                     | Container resource request for CPU                                        | `1`                              |
 | `replicas.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                              |
@@ -100,7 +108,7 @@ The chart can be customized using the following configurable parameters:
 | `replicas.volumeSpec.storageclass`                     | PostgreSQL replica PVC storageclass | `standard`                              |
 | `replicas.expose.serviceType`                     | K8S service type for the replica deployments | `ClusterIP`                              |
 | `pgBadger.enabled`        | Switch on pgBadger                                                            | `false` |
-| `pgBadger.image`          | pgBadger image                                                                | `percona/percona-postgresql-operator:1.2.0-ppg14-pgbadger` |
+| `pgBadger.image`          | pgBadger image                                                                | `percona/percona-postgresql-operator:1.3.0-ppg14-pgbadger` |
 | `pgBadger.port`           | pgBadger port                                                                 | `10000` |
 | `secrets.name`            | Database secrets object name. Object will be autogenerated if the name is not explicitly specified       |`<cluster_name>-users`|
 | `secrets.primaryuser`     | primary user password (in use for replication only)                           |`autogrenerated by operator`|
@@ -108,7 +116,7 @@ The chart can be customized using the following configurable parameters:
 | `secrets.pgbouncer`       | pgbouncer user password                                                       |`autogrenerated by operator`|
 | `secrets.<default_user>`  | Default user password                                                         |`autogrenerated by operator`|
 | `versionService.url`      | Get availabe product component containers via Version service URL             |`https://check.percona.com`|
-| `versionService.apply`    | Filter out available containers from Version service by specified channel     |`recommended`|
+| `versionService.apply`    | Filter out available containers from Version service by specified channel     |`disabled`|
 | `versionService.schedule` | Cron-like time period for calling Version service                             |`0 4 * * *`|
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
@@ -176,4 +184,25 @@ $ helm install dev  --namespace pgdb . \
   --set "backup.schedule[0].keep=3" \
   --set "backup.schedule[0].type=full" \
   --set "backup.schedule[0].storage=local"
+```
+
+Override all affinity defaults. For instance, user wants the following structure
+```yaml
+nodeAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/e2e-az-name
+          operator: In
+          values:
+          - e2e-az1
+          - e2e-az2
+```
+to be put on PostreSQL pods. Here is the corresponding cli call:
+
+```bash
+$ helm install dev  --namespace pgdb . \
+  --set 'pgPrimary.affinity.advanced.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=kubernetes.io/e2e-az-name' \
+  --set 'pgPrimary.affinity.advanced.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In' \
+  --set 'pgPrimary.affinity.advanced.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values={e2e-az1,e2e-az2}'
 ```

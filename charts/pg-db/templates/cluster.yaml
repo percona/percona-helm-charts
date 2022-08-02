@@ -74,6 +74,19 @@ spec:
         labels:
           pg-cluster-label: {{ include "pg-database.fullname" . }}
       {{- end }}
+    affinity:
+      antiAffinityType: {{ .Values.pgPrimary.affinity.antiAffinityType}}
+      {{- if .Values.pgPrimary.affinity.nodeAffinityType }}
+      nodeAffinityType: {{ .Values.pgPrimary.affinity.nodeAffinityType }}
+      {{- end }}
+      {{- if .Values.pgPrimary.affinity.nodeLabel }}
+      nodeLabel:
+{{ toYaml .Values.pgPrimary.affinity.nodeLabel | indent 8 }}
+      {{- end }}
+      {{- if .Values.pgPrimary.affinity.advanced }}
+      advanced:
+{{ toYaml .Values.pgPrimary.affinity.advanced | indent 8 }}
+      {{- end }}
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
@@ -100,6 +113,8 @@ spec:
 {{ toYaml .Values.backup.schedule | indent 4 }}
     {{- end}}
 {{- include "pg-database.backup-storages" . | indent 4 }}
+    affinity:
+      antiAffinityType: {{ .Values.backup.antiAffinityType}}
   pgBouncer:
     image: {{ include "pg-database.pgbouncer-image" .}}
     size: {{ .Values.pgBouncer.size}}
@@ -119,6 +134,9 @@ spec:
         labels:
           pg-cluster-label: {{ include "pg-database.fullname" . }}
       {{- end }}
+    exposePostgresUser: {{ .Values.pgBouncer.exposePostgresUser }}
+    affinity:
+      antiAffinityType: {{ .Values.pgBouncer.antiAffinityType}}
   pgReplicas:
     hotStandby:
       size: {{ .Values.replicas.size }}

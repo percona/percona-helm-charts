@@ -42,12 +42,17 @@ pgPrimary:
     storageclass: "standard"
   expose:
     serviceType: ClusterIP
+  affinity:
+    antiAffinityType: preferred
+    nodeAffinityType:
+    nodeLabel:
+    advanced:
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.26.1
+    tag: 2.29.0
   serverHost: monitoring-service
   resources:
     requests:
@@ -66,6 +71,7 @@ backup:
     storagetype: dynamic
     storageclass: "standard"
   schedule:
+  antiAffinityType: preferred
 
 pgBouncer:
   image: ""
@@ -79,6 +85,8 @@ pgBouncer:
       memory: "512Mi"
   expose:
     serviceType: ClusterIP
+  exposePostgresUser: false
+  antiAffinityType: preferred
 
 replicas:
   size: 0
@@ -116,5 +124,5 @@ secrets:
 
 versionService:
   url: "https://check.percona.com"
-  apply: "14-recommended"
+  apply: "disabled"
   schedule: "0 4 * * *"
