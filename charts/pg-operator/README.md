@@ -22,7 +22,7 @@ To install the chart with the `pg-operator` release name using a dedicated names
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pg-operator --version 1.2.0 --namespace my-namespace --create-namespace
+helm install my-operator percona/pg-operator --version 1.3.0 --namespace my-namespace --create-namespace
 ```
 
 ## Configuration
@@ -37,13 +37,15 @@ Chart.
 | rbac.useClusterAdmin | false | If enabled the ServiceAccount will be given cluster-admin privileges. |
 | serviceAccount.create | true | If false a ServiceAccount will not be created. A ServiceAccount must be created manually. |
 | serviceAccount.name | "" | Use to override the default ServiceAccount name. If serviceAccount.create is false this ServiceAccount will be used. |
+| disable_telemetry | false | Check actual images version at https://check.percona.com. Set `true` for disabling the feature |
+
 
 ## Deploy the database
 
-To deploy Percona Operator for PostgreSQL cluster run the following command:
+To deploy Percona Operator for PostgreSQL cluster with disabled telemetry run the following command:
 
 ```sh
-helm install my-db percona/pg-db --version 1.2.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 1.3.0 --namespace my-namespace --set disable_telemetry="true"
 ```
 
 See more about Percona Operator for PostgreSQL deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
