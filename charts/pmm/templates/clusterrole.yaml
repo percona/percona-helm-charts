@@ -13,6 +13,8 @@ rules:
   - services
   - nodes
   - pods
+  - secrets
+  - serviceaccounts
   verbs:
   - get
   - watch
