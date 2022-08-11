@@ -60,6 +60,7 @@ It removes all of the resources associated with the last release of the chart as
 
 | Name                  | Description                                                                                                                                                                        | Value        |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `secret.create`       | If false, then the secret is not a part of the chart and should be created before the chart is released. So, no value from this section is assigned to any secret field.           | `true`       |
 | `secret.name`         | Defines the name of the k8s secret that holds passwords and other secrets                                                                                                          | `pmm-secret` |
 | `secret.pmm_password` | Initial PMM password - it changes only on the first deployment, ignored if PMM was already provisioned and just restarted. If PMM admin password is not set, it will be generated. | `""`         |
 | `certs`               | Optional certificates, if not provided PMM would use generated self-signed certificates,                                                                                           | `{}`         |
@@ -146,7 +147,7 @@ Percona will release a new chart updating its containers if a new version of the
 
 ### PMM admin password
 
-PMM admin password would be set only on the first deployment. That setting is ignored if PMM was already provisioned and just restarted and/or updated.
+PMM admin password would be set only on the first deployment. That setting is ignored if PMM was already provisioned and just restarted and/or updated. In real-life situations it is recommended to create the `pmm-secret` secret manually before the release and set `secret.create` to false. The chart then won't overwrite secret during install or upgrade and values.yaml won't contain any secret.
 
 If PMM admin password is not set explicitly (default), it will be generated.
 
