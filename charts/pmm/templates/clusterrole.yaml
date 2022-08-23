@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 rules:
-- apiGroups: [""] # "" indicates the core API group
+- apiGroups: ["", "apiextensions.k8s.io", "apps", "rbac.authorization.k8s.io"] # "" indicates the core API group
   resources:
   - namespaces
   - endpoints
@@ -15,10 +15,17 @@ rules:
   - pods
   - secrets
   - serviceaccounts
+  - customresourcedefinitions
+  - deployments
+  - roles
+  - rolebindings
   verbs:
   - get
   - watch
+  - create
   - list
+  - patch
+  - delete
 - nonResourceURLs:
   - /metrics
   verbs:
