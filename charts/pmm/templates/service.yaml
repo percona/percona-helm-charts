@@ -1,7 +1,4 @@
 {{- $serviceType := .Values.service.type -}}
-{{- if .Values.ingress.enabled -}}
-{{- $serviceType = "ClusterIP" -}}
-{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -17,7 +14,7 @@ metadata:
     {{- toYaml . | nindent 8 }}
   {{- end }}
 spec:
-  type: {{ $serviceType }}
+  type: {{ $serviceType | default "ClusterIP" }}
   {{- with .Values.service.ports }}
   ports:
     {{- toYaml . | nindent 8 }}
