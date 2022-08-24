@@ -258,6 +258,28 @@ entries:
   pmm:
   - apiVersion: v2
     appVersion: 2.29.1
+    created: "2022-08-24T12:22:57.915532888Z"
+    description: A Helm chart for Percona Monitoring and Management (PMM)
+    digest: 24e385dafd97426ea2c438aad7b9fbfe457347eab45b62bcecc7d8d5ddb766b0
+    home: https://github.com/percona/pmm
+    icon: https://www.percona.com/sites/default/files/pmm-logo.png
+    keywords:
+    - PMM
+    - Monitoring
+    maintainers:
+    - email: nikita.beletskii@percona.com
+      name: nikita-b
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: denys.kondratenko@percona.com
+      name: denisok
+    name: pmm
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-0.3.4/pmm-0.3.4.tgz
+    version: 0.3.4
+  - apiVersion: v2
+    appVersion: 2.29.1
     created: "2022-08-22T08:15:27.018806569Z"
     description: A Helm chart for Percona Monitoring and Management (PMM)
     digest: 9115a5fa4e065e92bff2c1c99a8ccafdfcb121054de716a355e02a314d0b9b22
