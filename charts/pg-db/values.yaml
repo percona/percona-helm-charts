@@ -42,6 +42,7 @@ pgPrimary:
     storageclass: "standard"
   expose:
     serviceType: ClusterIP
+    loadBalancerSourceRanges: []
   affinity:
     antiAffinityType: preferred
     nodeAffinityType:
@@ -85,11 +86,12 @@ pgBouncer:
       memory: "512Mi"
   expose:
     serviceType: ClusterIP
+    loadBalancerSourceRanges: []
   exposePostgresUser: false
   antiAffinityType: preferred
 
 replicas:
-  size: 0
+  size: 2
   resources:
     requests:
       cpu: "1"

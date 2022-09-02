@@ -22,7 +22,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 1.3.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 1.3.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -57,8 +57,8 @@ The chart can be customized using the following configurable parameters:
 | `pgPrimary.volumeSpec.storagetype`                     | PostgreSQL container PVC storagetype | `dynamic`                              |
 | `pgPrimary.volumeSpec.storageclass`                     | PostgreSQL container PVC storageclass | `standard`                              |
 | `pgPrimary.expose.serviceType`                     | K8S service type for the PostgreSQL deployment | `ClusterIP`                              |
+| `pgPrimary.expose.loadBalancerSourceRanges`                     | Allow specific IP source ranges for accessing PostgreSQL | `[]`                              |
 | `pgPrimary.affinity.antiAffinityType`                     | Pod antiAffinity for PostreSQL db pods `preferred/required/disabled` | `preferred`                              |
-
 | `pgPrimary.affinity.nodeAffinityType`                     | Node antiAffinity for PostreSQL db pods `preferred/required/disabled` | `preferred`                              |
 | `pgPrimary.affinity.nodeLabel`                     | Key/value map with node lables specified for nodeAffinity | `key/value`                              |
 | `pgPrimary.affinity.advanced`                     | User defined affinity structure to be passed to pods without any processing | `key/value`                              |
@@ -95,9 +95,10 @@ The chart can be customized using the following configurable parameters:
 | `pgBouncer.resources.limits.cpu`                     | Container resource limits for CPU                                        | `2`                              |
 | `pgBouncer.resources.limits.memory`                     | Container resource limits for RAM                                        | `512Mi`                              |
 | `pgBouncer.expose.serviceType`                     | K8S service type for the pgbouncer deployment | `ClusterIP`                              |
+| `pgBouncer.expose.loadBalancerSourceRanges`                     | Allow specific IP source ranges for accessing pgBouncer | `[]`                              |
 | `pgBouncer.exposePostgresUser`                     | Expose root postgres user via pgBouncer | `false`                              |
 | `pgBouncer.antiAffinityType`                     | Pod antiAffinity for pgBouncer pods `preferred/required/disabled`| `preferred`                              |
-| `replicas.size`                     | The number of PostgreSQL replicas | `0`                              |
+| `replicas.size`                     | The number of PostgreSQL replicas | `2`                              |
 | `replicas.resources.requests.cpu`                     | Container resource request for CPU                                        | `1`                              |
 | `replicas.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                              |
 | `replicas.resources.limits.cpu`                     | Container resource limits for CPU                                        | `1`                              |

@@ -68,11 +68,14 @@ spec:
     expose:
       serviceType: {{ .Values.pgPrimary.expose.serviceType }}
       {{- if eq .Values.pgPrimary.expose.serviceType "LoadBalancer" }}
+      {{- if .Values.pgPrimary.expose.loadBalancerSourceRanges }}
       loadBalancerSourceRanges:
-        annotations:
-          pg-cluster-annot: {{ include "pg-database.fullname" . }}
-        labels:
-          pg-cluster-label: {{ include "pg-database.fullname" . }}
+{{ toYaml .Values.pgPrimary.expose.loadBalancerSourceRanges | indent 6  }}
+      {{- end }}
+      annotations:
+        pg-cluster-annot: {{ include "pg-database.fullname" . }}
+      labels:
+        pg-cluster-label: {{ include "pg-database.fullname" . }}
       {{- end }}
     affinity:
       antiAffinityType: {{ .Values.pgPrimary.affinity.antiAffinityType}}
@@ -128,11 +131,14 @@ spec:
     expose:
       serviceType: {{ .Values.pgBouncer.expose.serviceType }}
       {{- if eq .Values.pgBouncer.expose.serviceType "LoadBalancer" }}
+      {{- if .Values.pgBouncer.expose.loadBalancerSourceRanges }}
       loadBalancerSourceRanges:
-        annotations:
-          pg-cluster-annot: {{ include "pg-database.fullname" . }}
-        labels:
-          pg-cluster-label: {{ include "pg-database.fullname" . }}
+{{ toYaml .Values.pgBouncer.expose.loadBalancerSourceRanges | indent 6  }}
+      {{- end }}
+      annotations:
+        pg-cluster-annot: {{ include "pg-database.fullname" . }}
+      labels:
+        pg-cluster-label: {{ include "pg-database.fullname" . }}
       {{- end }}
     exposePostgresUser: {{ .Values.pgBouncer.exposePostgresUser }}
     affinity:
