@@ -10,6 +10,7 @@ metadata:
   finalizers:
 {{ .Values.finalizers | toYaml | indent 4 }}
 spec:
+  crVersion: {{ .Values.crVersion }}
   pause: {{ .Values.pause }}
   unmanaged: {{ .Values.unmanaged }}
   {{- if .Values.platform }}
