@@ -14,7 +14,7 @@ finalizers:
   - delete-psmdb-pods-in-order
 ## Set this if you want to delete database persistent volumes on cluster deletion
   - delete-psmdb-pvc
-crVersion: 1.12.0
+crVersion: 1.12.1
 pause: false
 unmanaged: false
 allowUnsafeConfigurations: false
