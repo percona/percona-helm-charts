@@ -26,6 +26,7 @@ The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
+| `crVersion`                     | CR Cluster Manifest version                                                   | `1.12.0`                                  |
 | `pause`                         | Stop PSMDB Database safely                                                    | `false`                                   |
 | `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PSMDB cluster pods        | `false`                                   |
