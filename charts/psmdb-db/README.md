@@ -26,7 +26,7 @@ The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
-| `crVersion`                     | CR Cluster Manifest version                                                   | `1.12.0`                                  |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `1.13.0`                                  |
 | `pause`                         | Stop PSMDB Database safely                                                    | `false`                                   |
 | `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PSMDB cluster pods        | `false`                                   |
@@ -36,20 +36,20 @@ The chart can be customized using the following configurable parameters:
 | `multiCluster.DNSSuffix`        | The cluster domain to be used as a suffix for multi-cluster Services used by Kubernetes | `""`                            |
 | `updateStrategy`                | Regulates the way how PSMDB Cluster Pods will be updated after setting a new image | `SmartUpdate`                        |
 | `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PSMDB Versions provider	 | `https://check.percona.com/versions/` |
-| `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `5.0-recommended` |
+| `upgradeOptions.apply` | PSMDB image to apply from version service - recommended, latest, actual version like 4.4.2-4 | `disabled` |
 | `upgradeOptions.schedule` | Cron formatted time to execute the update | `"0 2 * * *"` |
 | `upgradeOptions.setFCV` | Set feature compatibility version on major upgrade | `false` |
 | `finalizers:delete-psmdb-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion | `[]` |
 | `finalizers:delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)     | `[]` |
 | `image.repository`             | PSMDB Container image repository                                               | `percona/percona-server-mongodb`          |
-| `image.tag`                    | PSMDB Container image tag                                                      | `5.0.7-6`                                 |
+| `image.tag`                    | PSMDB Container image tag                                                      | `5.0.11-10`                                 |
 | `imagePullPolicy`              | The policy used to update images                                               | `Always`                                  |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                    | `[]`                                      |
 | `tls.certValidityDuration`     | The validity duration of the external certificate for cert manager             | `""`                                      |
 | `secrets`             | Operator secrets section                                 | `{}`                                      |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.27.0`                              |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.30.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 ||
 | `replsets[0].name`                      | ReplicaSet name              | `rs0` |
@@ -76,6 +76,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].expose.exposeType`   | Network service access point type              | `ClusterIP` |
 | `replsets[0].expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}` |
 | `replsets[0].expose.serviceAnnotations`  | ReplicaSet service annotations | `{}` |
+| `replsets[0].expose.serviceLabels`    | ReplicaSet service labels | `{}` |
 | `replsets[0].nonvoting.enabled`        | Add MongoDB nonvoting Pods                | `false` |
 | `replsets[0].nonvoting.podSecurityContext` | Set the security context for a Pod               | `{}` |
 | `replsets[0].nonvoting.containerSecurityContext` | Set the security context for a Container   | `{}` |
@@ -140,6 +141,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.expose.exposeType`          | Network service access point type              | `ClusterIP` |
 | `sharding.configrs.expose.loadBalancerSourceRanges`  | Limit client IP's access to Load Balancer | `{}` |
 | `sharding.configrs.expose.serviceAnnotations`  | Config ReplicaSet service annotations | `{}` |
+| `sharding.configrs.expose.serviceLabels`  | Config ReplicaSet service labels | `{}` |
 | `sharding.configrs.resources.limits.cpu`       | Config ReplicaSet resource limits CPU | `300m` |
 | `sharding.configrs.resources.limits.memory`    | Config ReplicaSet resource limits memory | `0.5G` |
 | `sharding.configrs.resources.requests.cpu`     | Config ReplicaSet resource requests CPU | `300m` |
@@ -176,12 +178,13 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.expose.servicePerPod`         | Create a separate ClusterIP Service for each mongos instance | `false` |
 | `sharding.mongos.expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}` |
 | `sharding.mongos.expose.serviceAnnotations`    | Mongos service annotations | `{}` |
+| `sharding.mongos.expose.serviceLabels`    | Mongos service labels | `{}` |
 | |
 | `backup.enabled`            | Enable backup PBM agent                  | `true` |
 | `backup.annotations`        | Backup job annotations                   | `{}`   |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
 | `backup.image.repository`   | PBM Container image repository           | `percona/percona-backup-mongodb` |
-| `backup.image.tag`          | PBM Container image tag                  | `1.7.0` |
+| `backup.image.tag`          | PBM Container image tag                  | `1.8.1` |
 | `backup.serviceAccountName` | Run PBM Container under specified K8S SA | `percona-server-mongodb-operator` |
 | `backup.storages`           | Local/remote backup storages settings    | `{}` |
 | `backup.pitr.enabled`       | Enable point in time recovery for backup | `false` |

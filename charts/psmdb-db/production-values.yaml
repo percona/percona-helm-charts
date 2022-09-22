@@ -18,7 +18,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.12.0
+crVersion: 1.13.0
 pause: false
 unmanaged: false
 allowUnsafeConfigurations: false
@@ -383,5 +383,6 @@ users:
   MONGODB_CLUSTER_MONITOR_PASSWORD: clusterMonitor123456
   MONGODB_USER_ADMIN_USER: userAdmin
   MONGODB_USER_ADMIN_PASSWORD: userAdmin123456
-  PMM_SERVER_USER: admin
-  PMM_SERVER_PASSWORD: admin
+  PMM_SERVER_API_KEY: apikey
+  # PMM_SERVER_USER: admin
+  # PMM_SERVER_PASSWORD: admin
