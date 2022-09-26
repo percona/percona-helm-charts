@@ -33,7 +33,7 @@ spec:
           - percona-server-mongodb-operator
           env:
             - name: WATCH_NAMESPACE
-              value: {{ default .Release.Namespace .Values.watchNamespace }}
+              value: {{ if kindIs "invalid" .Values.watchNamespace }}{{ .Release.Namespace }}{{ else }}{{ .Values.watchNamespace | quote }}{{ end }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
