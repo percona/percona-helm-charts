@@ -1,14 +1,13 @@
-1. Percona Operator for MySQL is deployed. 
-
-2. Check if Operator is running:
+1. Percona Operator for MySQL is deployed. Check if Operator is running:
 
     kubectl get pods -l app.kubernetes.io/name={{ template "pxc-operator.name" . }} --namespace {{ .Release.Namespace }}
 
 Troubleshoot by checking the logs:
+
     export POD=$(kubectl get pods -l app.kubernetes.io/name={{ template "pxc-operator.name" . }} --namespace {{ .Release.Namespace }} --output name)
     kubectl logs $POD --namespace={{ .Release.Namespace }}
 
-3. Deploy the cluster with the following command:
+2. Deploy the cluster with the following command:
 
     helm install my-db percona/pxc-db
 
