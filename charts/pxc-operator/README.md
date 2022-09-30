@@ -19,7 +19,7 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pxc-operator 
+helm install my-op percona/pxc-operator 
 ```
 
 The chart can be customized using the following configurable parameters:
