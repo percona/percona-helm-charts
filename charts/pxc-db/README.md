@@ -16,11 +16,10 @@ Useful links
 This chart will deploy Percona XtraDB Cluster in Kubernetes. It will create a Custom Resource, and the Operator will trigger the creation of corresponding Kubernetes primitives: StatefulSets, Pods, Secrets, etc.
 
 ### Installing the Chart
-To install the chart with the `pxc` release name using a dedicated namespace (recommended):
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.11.0 --namespace my-namespace
+helm install my-db percona/pxc-db 
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -248,7 +247,7 @@ Specify parameters using `--set key=value[,key=value]` argument to `helm install
 This is great for a dev cluster as it doesn't require a persistent disk and doesn't bother with a proxy, backups, or TLS.
 
 ```bash
-$ helm install dev  --namespace pxc . \
+$ helm install dev . \
     --set proxysql.enabled=false --set pxc.disableTLS=true \
     --set pxc.persistence.enabled=false --set backup-enabled=false
 ```
@@ -260,7 +259,7 @@ First you need a working cert-manager installed with appropriate Issuers set up.
 By setting `pxc.certManager=true` we're signaling the Helm chart to not create secrets,which will in turn let the operator know to request appropriate `certificate` resources to be filled by cert-manager.
 
 ```bash
-$ helm install dev  --namespace pxc . --set pxc.certManager=true
+$ helm install dev . --set pxc.certManager=true
 ```
 
 ### Deploy a production grade cluster
@@ -270,5 +269,5 @@ well on your path to running a production database. It is not fully production g
 there are some requirements for you to provide your own secrets for passwords and TLS to be truly production ready, but it does provide comments on how to do those parts.
 
 ```bash
-$ helm install prod --file production-values.yaml --namespace pxc .
+$ helm install prod --file production-values.yaml .
 ```
