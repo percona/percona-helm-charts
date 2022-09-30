@@ -5,22 +5,37 @@
 nameOverride: ""
 fullnameOverride: ""
 
+finalizers:
+  - delete-mysql-pods-in-order
+
+crVersion: 0.3.0
 pause: false
 allowUnsafeConfigurations: false
+# initImage: percona/percona-server-mysql-operator:0.3.0
 
 # If this is set will not create secrets from values and will instead try to use
 # a pre-existing secret of the same name.
 # secretsName: cluster1-secrets
 # sslSecretName: cluster1-ssl
+# tls:
+#   SANs:
+#     - mysql-1.example.com
+#     - mysql-2.example.com
+#     - mysql-3.example.com
+#   issuerConf:
+#     name: special-selfsigned-issuer
+#     kind: ClusterIssuer
+#     group: cert-manager.io
 
 mysql:
   clusterType: async
   image:
     repository: percona/percona-server
-    tag: 8.0.28
+    tag: 8.0.29
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
+  # initImage: percona/percona-server-mysql-operator:0.3.0
 
   size: 3
   sizeSemiSync: 0
@@ -113,12 +128,72 @@ mysql:
   #       requests:
   #         storage: 1G
 
+haproxy:
+  enabled: true
+
+  size: 3
+
+  image: percona/percona-server-mysql-operator:0.3.0-haproxy
+  imagePullPolicy: Always
+  imagePullSecrets: []
+  # initImage: percona/percona-server-mysql-operator:0.3.0
+
+  resources:
+    requests:
+      memory: 1G
+      cpu: 600m
+    limits: {}
+
+  affinity:
+    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    # advanced:
+    #   nodeAffinity:
+    #     requiredDuringSchedulingIgnoredDuringExecution:
+    #       nodeSelectorTerms:
+    #       - matchExpressions:
+    #         - key: kubernetes.io/e2e-az-name
+    #           operator: In
+    #           values:
+    #           - e2e-az1
+    #           - e2e-az2
+
+  # runtimeClassName: image-rc
+  # priorityClassName: high-priority
+  # schedulerName: mycustom-scheduler
+  annotations: {}
+    # iam.amazonaws.com/role: role-arn
+  labels: {}
+    # rack: rack-22
+  nodeSelector: {}
+    # disktype: ssd
+  tolerations: []
+    # - key: "node.alpha.kubernetes.io/unreachable"
+    #   operator: "Exists"
+    #   effect: "NoExecute"
+    #   tolerationSeconds: 6000
+  podDisruptionBudget:
+    # only one of maxUnavailable or minAvaliable can be set
+    maxUnavailable: 1
+    # minAvailable: 0
+  # A custom Kubernetes Security Context for a Container to be used instead of the default one
+  # containerSecurityContext:
+  #   privileged: false
+  # A custom Kubernetes Security Context for a Pod to be used instead of the default one
+  # podSecurityContext:
+  #   fsGroup: 1001
+  #   supplementalGroups:
+  #   - 1001
+  # serviceAccountName: percona-server-mysql-operator-workload
+  # expose:
+  #   type: ClusterIP
+
 router:
   image:
     repository: percona/percona-server-mysql-operator
-    tag: 0.2.0-router
+    tag: 0.3.0-router
   imagePullPolicy: Always
   imagePullSecrets: []
+  # initImage: percona/percona-server-mysql-operator:0.3.0
 
   size: 3
 
@@ -174,10 +249,11 @@ router:
 orchestrator:
   image:
     repository: percona/percona-server-mysql-operator
-    tag: 0.2.0-orchestrator
+    tag: 0.3.0-orchestrator
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
+  # initImage: percona/percona-server-mysql-operator:0.3.0
 
   size: 3
 
@@ -223,12 +299,14 @@ orchestrator:
   #   supplementalGroups:
   #   - 1001
   # serviceAccountName: percona-server-mysql-operator-workload
+  # expose:
+  #   type: ClusterIP
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.28.0
+    tag: 2.30.0
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
@@ -242,16 +320,12 @@ backup:
   enabled: true
   image:
     repository: percona/percona-server-mysql-operator
-    tag: 0.2.0-backup
+    tag: 0.3.0-backup
   imagePullPolicy: Always
   imagePullSecrets: []
-  # resources:
-  #   limits:
-  #     cpu: "300m"
-  #     memory: "0.5G"
-  #   requests:
-  #     cpu: "300m"
-  #     memory: "0.5G"
+  resources:
+    requests: {}
+    limits: {}
   # containerSecurityContext:
   #   privileged: false
   # serviceAccountName: percona-server-mysql-operator-workload
@@ -295,14 +369,23 @@ backup:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
     #     credentialsSecret: cluster1-s3-credentials
     #     region: us-west-2
+    #     prefix: ""
+
+toolkit:
+  repository: percona/percona-server-mysql-operator
+  tag: 0.3.0-toolkit
+  imagePullPolicy: Always
+  resources:
+    requests: {}
+    limits: {}
 
 secrets:
   passwords:
     root: insecure_root_password
     xtrabackup: insecure_backup_password
     monitor: insecure_monitor_password
-    clustercheck: insecure_clustercheck_password
-    pmmserver: insecure_pmmserver_password
+    pmmserverkey: my_pmm_server_key
     operator: insecure_operator_password
     replication: insecure_replication_password
     orchestrator: insecure_orchestrator_password
+    heartbeat: heartbeat_password
