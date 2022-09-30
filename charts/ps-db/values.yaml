@@ -130,13 +130,14 @@ mysql:
 
 haproxy:
   enabled: true
-
-  size: 3
-
-  image: percona/percona-server-mysql-operator:0.3.0-haproxy
+  image:
+    repository: percona/percona-server-mysql-operator
+    tag: 0.3.0-haproxy
   imagePullPolicy: Always
   imagePullSecrets: []
   # initImage: percona/percona-server-mysql-operator:0.3.0
+
+  size: 3
 
   resources:
     requests:
