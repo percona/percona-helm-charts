@@ -5,7 +5,7 @@
 Troubleshoot by checking the logs:
 
     export POD=$(kubectl get pods -l app.kubernetes.io/name={{ template "pxc-operator.name" . }} --namespace {{ .Release.Namespace }} --output name)
-    kubectl logs $POD --namespace={{ .Release.Namespace }}
+    kubectl logs $POD -c pxc --namespace={{ .Release.Namespace }}
 
 2. Deploy the cluster with the following command:
 
