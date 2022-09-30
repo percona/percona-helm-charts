@@ -373,8 +373,9 @@ backup:
     #     prefix: ""
 
 toolkit:
-  repository: percona/percona-server-mysql-operator
-  tag: 0.3.0-toolkit
+  image:
+    repository: percona/percona-server-mysql-operator
+    tag: 0.3.0-toolkit
   imagePullPolicy: Always
   resources:
     requests: {}
