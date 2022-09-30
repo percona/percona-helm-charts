@@ -7,7 +7,7 @@
 2. To connect an Application running in the same Kubernetes cluster you can connect with:
 
     ROOT_PASSWORD=`kubectl -n {{ .Release.Namespace }} get secrets {{ include "pxc-database.fullname" . }} -o jsonpath="{.data.root}" | base64 --decode`
-{{- if .Values.proxysql.enabled }}
+{{- if eq .Values.proxysql.enabled "true" }}
 
   kubectl run -i --tty --rm percona-client --image=percona --restart=Never \
   -- mysql -h {{ template "pxc-database.fullname" . }}-proxysql.{{ .Release.Namespace }}.svc.cluster.local -uroot -p"$ROOT_PASSWORD"
