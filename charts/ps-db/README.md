@@ -58,7 +58,6 @@ The chart can be customized using the following configurable parameters:
 | `mysql.affinity.antiAffinityTopologyKey` | MySQL Pods simple scheduling restriction on/off for host, zone, region | `"kubernetes.io/hostname"`              |
 | `mysql.affinity.advanced`       | MySQL Pods advanced scheduling restriction with match expression engine       | `{}`                                      |
 | `mysql.tolerations`             | List of node taints to tolerate for MySQL Pods                                | `[]`                                      |
-| `mysql.podDisruptionBudget.maxUnavailable`  | Instruct Kubernetes about the failed pods allowed quantity        | `1`                                       |
 | `mysql.expose.enabled`          | Allow access to MySQL from outside of Kubernetes                              | `false`                                   |
 | `mysql.expose.exposeType`       | Network service access point type                                             | `ClusterIP`                               |
 | `mysql.volumeSpec`              | MySQL Pods storage resources                                                  | `{}`                                      |
@@ -90,7 +89,6 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.affinity.antiAffinityTopologyKey`  | HAProxy Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"`        |
 | `haproxy.affinity.advanced`      | HAProxy Pods advanced scheduling restriction with match expression engine    | `{}`                                      |
 | `haproxy.tolerations`            | List of node taints to tolerate for HAProxy Pods                             | `[]`                                      |
-| `haproxy.podDisruptionBudget.maxUnavailable`  | Instruct Kubernetes about the failed pods allowed quantity      | `1`                                       |
 | `haproxy.resources.requests`     | HAProxy Pods resource requests                                               | `memory: 1G cpu: 600m`                    |
 | `haproxy.resources.limits`       | HAProxy Pods resource limits                                                 | `{}`                                      |
 | `haproxy.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                    |
@@ -113,7 +111,6 @@ The chart can be customized using the following configurable parameters:
 | `router.affinity.antiAffinityTopologyKey`  | Router Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"`          |
 | `router.affinity.advanced`      | Router Pods advanced scheduling restriction with match expression engine      | `{}`                                      |
 | `router.tolerations`            | List of node taints to tolerate for Router Pods                               | `[]`                                      |
-| `router.podDisruptionBudget.maxUnavailable`  | Instruct Kubernetes about the failed pods allowed quantity       | `1`                                       |
 | `router.resources.requests`     | Router Pods resource requests                                                 | `memory: 256M`                            |
 | `router.resources.limits`       | Router Pods resource limits                                                   | `memory: 256M`                            |
 | `router.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                     |
@@ -136,7 +133,6 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.affinity.antiAffinityTopologyKey` | Orchestrator Pods simple scheduling restriction on/off for host, zone, region | `"kubernetes.io/hostname"` |
 | `orchestrator.affinity.advanced`  | Orchestrator Pods advanced scheduling restriction with match expression engine  | `{}`                                  |
 | `orchestrator.tolerations`      | List of node taints to tolerate for Orchestrator Pods                         | `[]`                                      |
-| `orchestrator.podDisruptionBudget.maxUnavailable`  | Instruct Kubernetes about the failed pods allowed quantity | `1`                                       |
 | `orchestrator.resources.requests` | Orchestrator Pods resource requests                                         | `memory: 128M`                            |
 | `orchestrator.resources.limits` | Orchestrator Pods resource limits                                             | `memory: 256M`                            |
 | `orchestrator.volumeSpec`       | Orchestrator Pods storage resources                                           | `{}`                                      |

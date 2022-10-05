@@ -88,10 +88,6 @@ mysql:
     #   operator: "Exists"
     #   effect: "NoExecute"
     #   tolerationSeconds: 6000
-  podDisruptionBudget:
-    # only one of maxUnavailable or minAvaliable can be set
-    maxUnavailable: 1
-    # minAvailable: 0
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
@@ -172,10 +168,6 @@ haproxy:
     #   operator: "Exists"
     #   effect: "NoExecute"
     #   tolerationSeconds: 6000
-  podDisruptionBudget:
-    # only one of maxUnavailable or minAvaliable can be set
-    maxUnavailable: 1
-    # minAvailable: 0
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
@@ -231,10 +223,6 @@ router:
     #   operator: "Exists"
     #   effect: "NoExecute"
     #   tolerationSeconds: 6000
-  podDisruptionBudget:
-    # only one of maxUnavailable or minAvaliable can be set
-    maxUnavailable: 1
-    # minAvailable: 0
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
@@ -287,10 +275,6 @@ orchestrator:
     #   operator: "Exists"
     #   effect: "NoExecute"
     #   tolerationSeconds: 6000
-  podDisruptionBudget:
-    # only one of maxUnavailable or minAvaliable can be set
-    maxUnavailable: 1
-    # minAvailable: 0
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
@@ -320,8 +304,8 @@ pmm:
 backup:
   enabled: true
   image:
-    repository: percona/percona-server-mysql-operator
-    tag: 0.3.0-backup
+    repository: percona/percona-xtrabackup
+    tag: 8.0.29-22
   imagePullPolicy: Always
   imagePullSecrets: []
   resources:

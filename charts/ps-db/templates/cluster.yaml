@@ -93,8 +93,6 @@ spec:
 {{ $mysql.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $mysql.nodeSelector | toYaml | indent 6 }}
-    podDisruptionBudget:
-{{ $mysql.podDisruptionBudget | toYaml | indent 6 }}
     expose:
       {{- if $mysql.expose.enabled }}
 {{ tpl ($mysql.expose | toYaml) $ | indent 6 }}
@@ -182,8 +180,6 @@ spec:
 {{ $haproxy.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $haproxy.nodeSelector | toYaml | indent 6 }}
-    podDisruptionBudget:
-{{ $haproxy.podDisruptionBudget | toYaml | indent 6 }}
     resources:
       requests:
 {{ tpl ($haproxy.resources.requests | toYaml) $ | indent 8 }}
@@ -256,8 +252,6 @@ spec:
 {{ $router.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $router.nodeSelector | toYaml | indent 6 }}
-    podDisruptionBudget:
-{{ $router.podDisruptionBudget | toYaml | indent 6 }}
     resources:
       requests:
 {{ tpl ($router.resources.requests | toYaml) $ | indent 8 }}
@@ -329,8 +323,6 @@ spec:
 {{ $orc.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $orc.nodeSelector | toYaml | indent 6 }}
-    podDisruptionBudget:
-{{ $orc.podDisruptionBudget | toYaml | indent 6 }}
     resources:
       requests:
 {{ tpl ($orc.resources.requests | toYaml) $ | indent 8 }}
