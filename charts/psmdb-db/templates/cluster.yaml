@@ -1,15 +1,16 @@
-apiVersion: psmdb.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}
+apiVersion: psmdb.percona.com/v1
 kind: PerconaServerMongoDB
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"psmdb.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}","kind":"PerconaServerMongoDB"}
+      {"apiVersion":"psmdb.percona.com/v1","kind":"PerconaServerMongoDB"}
   name: {{ include "psmdb-database.fullname" . }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
   finalizers:
 {{ .Values.finalizers | toYaml | indent 4 }}
 spec:
+  crVersion: {{ .Values.crVersion }}
   pause: {{ .Values.pause }}
   unmanaged: {{ .Values.unmanaged }}
   {{- if .Values.platform }}
@@ -146,6 +147,10 @@ spec:
       {{- if $replset.expose.serviceAnnotations }}
       serviceAnnotations:
 {{ $replset.expose.serviceAnnotations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.expose.serviceLabels }}
+      serviceLabels:
+{{ $replset.expose.serviceLabels | toYaml | indent 8 }}
       {{- end }}
     {{- end }}
     {{- if $replset.nonvoting }}
@@ -342,6 +347,10 @@ spec:
         serviceAnnotations:
 {{ .Values.sharding.configrs.expose.serviceAnnotations | toYaml | indent 10 }}
         {{- end }}
+        {{- if .Values.sharding.configrs.expose.serviceLabels }}
+        serviceLabels:
+{{ .Values.sharding.configrs.expose.serviceLabels | toYaml | indent 10 }}
+        {{- end }}
       {{- end }}
       resources:
         limits:
@@ -445,6 +454,10 @@ spec:
         {{- if .Values.sharding.mongos.expose.serviceAnnotations }}
         serviceAnnotations:
 {{ .Values.sharding.mongos.expose.serviceAnnotations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.sharding.mongos.expose.serviceLabels }}
+        serviceLabels:
+{{ .Values.sharding.mongos.expose.serviceLabels | toYaml | indent 10 }}
         {{- end }}
       {{- if .Values.sharding.mongos.auditLog }}
       auditLog:

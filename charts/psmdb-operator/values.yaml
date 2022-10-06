@@ -6,12 +6,15 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.12.0
+  tag: 1.13.0
   pullPolicy: IfNotPresent
 
 # set if you want to specify a namespace to watch
 # defaults to `.Release.namespace` if left blank
 # watchNamespace:
+
+# set if operator should be deployed in cluster wide mode. defaults to false
+watchAllNamespaces: false
 
 # set if you want to use a different operator name
 # defaults to `percona-server-mongodb-operator`

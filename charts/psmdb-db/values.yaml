@@ -15,6 +15,7 @@ finalizers:
 ## Set this if you want to delete database persistent volumes on cluster deletion
   - delete-psmdb-pvc
 
+crVersion: 1.13.0
 pause: false
 unmanaged: false
 allowUnsafeConfigurations: false
@@ -24,13 +25,13 @@ multiCluster:
 updateStrategy: SmartUpdate
 upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
-  apply: 5.0-recommended
+  apply: disabled
   schedule: "0 2 * * *"
   setFCV: false
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 5.0.7-6
+  tag: 5.0.11-10
 
 imagePullPolicy: Always
 # imagePullSecrets: []
@@ -47,7 +48,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.27.0
+    tag: 2.30.0
   serverHost: monitoring-service
 
 replsets:
@@ -138,6 +139,8 @@ replsets:
       #   - 10.0.0.0/8
       # serviceAnnotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+      # serviceLabels: 
+      #   some-label: some-key
     nonvoting:
       enabled: false
       # podSecurityContext: {}
@@ -246,6 +249,8 @@ sharding:
       #   - 10.0.0.0/8
       # serviceAnnotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+      # serviceLabels: 
+      #   some-label: some-key
     resources:
       limits:
         cpu: "300m"
@@ -305,6 +310,8 @@ sharding:
       #   - 10.0.0.0/8
       # serviceAnnotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+      # serviceLabels: 
+      #   some-label: some-key
     # auditLog:
     #   destination: file
     #   format: BSON
@@ -314,7 +321,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 1.7.0
+    tag: 1.8.1
   serviceAccountName: percona-server-mongodb-operator
   # annotations:
   #   iam.amazonaws.com/role: role-arn
@@ -373,11 +380,14 @@ backup:
 users:
   MONGODB_BACKUP_USER: backup
   MONGODB_BACKUP_PASSWORD: backup123456
+  MONGODB_DATABASE_ADMIN_USER: databaseAdmin
+  MONGODB_DATABASE_ADMIN_PASSWORD: databaseAdmin123456
   MONGODB_CLUSTER_ADMIN_USER: clusterAdmin
   MONGODB_CLUSTER_ADMIN_PASSWORD: clusterAdmin123456
   MONGODB_CLUSTER_MONITOR_USER: clusterMonitor
   MONGODB_CLUSTER_MONITOR_PASSWORD: clusterMonitor123456
   MONGODB_USER_ADMIN_USER: userAdmin
   MONGODB_USER_ADMIN_PASSWORD: userAdmin123456
-  PMM_SERVER_USER: admin
-  PMM_SERVER_PASSWORD: admin
+  PMM_SERVER_API_KEY: apikey
+  # PMM_SERVER_USER: admin
+  # PMM_SERVER_PASSWORD: admin

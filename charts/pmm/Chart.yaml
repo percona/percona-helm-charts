@@ -6,8 +6,8 @@ version: 0.3.8
 appVersion: "2.31.0"
 home: https://github.com/percona/pmm
 maintainers:
-  - name: nikita-b
-    email: nikita.beletskii@percona.com
+  - name: gen1us2k
+    email: andrew.minkin@percona.com
   - name: tplavcic
     email: tomislav.plavcic@percona.com
   - name: denisok
