@@ -22,6 +22,10 @@ spec:
         command:
         - /usr/local/bin/percona-server-mysql-operator
         env:
+        - name: LOG_STRUCTURED
+          value: "{{ .Values.env.logStructured }}"
+        - name: LOG_LEVEL
+          value: "{{ .Values.env.logLevel }}"
         - name: WATCH_NAMESPACE
           valueFrom:
             fieldRef:

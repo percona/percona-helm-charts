@@ -7,10 +7,16 @@ metadata:
   name: {{ include "ps-database.fullname" . }}
   labels:
 {{ include "ps-database.labels" . | indent 4 }}
+  finalizers:
+{{ .Values.finalizers | toYaml | indent 4 }}
 
 spec:
+  crVersion: {{ .Chart.AppVersion }}
   {{- if .Values.allowUnsafeConfigurations }}
   allowUnsafeConfigurations: {{ .Values.allowUnsafeConfigurations }}
+  {{- end }}
+  {{- if .Values.initImage }}
+  initImage: {{ .Values.initImage }}
   {{- end }}
   {{- if .Values.pause }}
   pause: {{ .Values.pause }}
@@ -24,6 +30,19 @@ spec:
   sslSecretName: {{ .Values.sslSecretName }}
   {{- else }}
   sslSecretName: {{ include "ps-database.fullname" . }}-ssl
+  {{- end }}
+  {{- if .Values.tls }}
+  tls:
+  {{- if hasKey .Values.tls "SANs" }}
+    SANs:
+{{ .Values.tls.SANs | toYaml | indent 6 }}
+  {{- end }}
+  {{- if hasKey .Values.tls "issuerConf" }}
+    issuerConf:
+      name: {{ .Values.tls.issuerConf.name }}
+      kind: {{ .Values.tls.issuerConf.kind }}
+      group: {{ .Values.tls.issuerConf.group }}
+  {{- end }}
   {{- end }}
 
   {{- $mysql := .Values.mysql }}
@@ -40,6 +59,9 @@ spec:
     {{- if $mysql.imagePullSecrets }}
     imagePullSecrets:
 {{ $mysql.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.initImage }}
+    initImage: "{{ $mysql.initImage }}"
     {{- end }}
     {{- if $mysql.size }}
     size: {{ $mysql.size }}
@@ -71,8 +93,6 @@ spec:
 {{ $mysql.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $mysql.nodeSelector | toYaml | indent 6 }}
-    podDisruptionBudget:
-{{ $mysql.podDisruptionBudget | toYaml | indent 6 }}
     expose:
       {{- if $mysql.expose.enabled }}
 {{ tpl ($mysql.expose | toYaml) $ | indent 6 }}
@@ -125,6 +145,79 @@ spec:
     {{- if $mysql.runtimeClassName }}
     runtimeClassName: {{ $mysql.runtimeClassName }}
     {{- end }}
+  {{ $haproxy := .Values.haproxy }}
+  haproxy:
+  {{- if not $haproxy.enabled }}
+    enabled: false
+  {{- else }}
+    enabled: true
+    image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
+    {{- if $haproxy.imagePullPolicy }}
+    imagePullPolicy: {{ $haproxy.imagePullPolicy }}
+    {{- end }}
+    {{- if $haproxy.imagePullSecrets }}
+    imagePullSecrets:
+{{ $haproxy.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.initImage }}
+    initImage: "{{ $haproxy.initImage }}"
+    {{- end }}
+    {{- if $haproxy.size }}
+    size: {{ $haproxy.size }}
+    {{- end }}
+    affinity:
+{{ $haproxy.affinity | toYaml | indent 6 }}
+    {{- if $haproxy.priorityClassName }}
+    priorityClassName: {{ $haproxy.priorityClassName }}
+    {{- end }}
+    annotations:
+{{ $haproxy.annotations | toYaml | indent 6 }}
+    labels:
+{{ $haproxy.labels | toYaml | indent 6 }}
+    tolerations:
+{{ $haproxy.tolerations | toYaml | indent 6 }}
+    nodeSelector:
+{{ $haproxy.nodeSelector | toYaml | indent 6 }}
+    resources:
+      requests:
+{{ tpl ($haproxy.resources.requests | toYaml) $ | indent 8 }}
+      limits:
+{{ tpl ($haproxy.resources.limits | toYaml) $ | indent 8 }}
+    {{- if $haproxy.volumeSpec }}
+    volumeSpec:
+      {{- if $haproxy.volumeSpec.hostPath }}
+      hostPath:
+        path: {{ $haproxy.volumeSpec.hostPath }}
+        type: Directory
+      {{- else if $haproxy.volumeSpec.pvc }}
+      persistentVolumeClaim:
+{{ $haproxy.volumeSpec.pvc | toYaml | indent 8 }}
+      {{- else }}
+      emptyDir: {}
+      {{- end }}
+    {{- end }}
+    {{- if $haproxy.schedulerName }}
+    schedulerName: {{ $haproxy.schedulerName }}
+    {{- end }}
+    {{- if $haproxy.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($haproxy.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.podSecurityContext }}
+    podSecurityContext:
+{{ tpl ($haproxy.podSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.serviceAccountName }}
+    serviceAccountName: {{ $haproxy.serviceAccountName }}
+    {{- end }}
+    {{- if $haproxy.runtimeClassName }}
+    runtimeClassName: {{ $haproxy.runtimeClassName }}
+    {{- end }}
+    {{- if $haproxy.expose }}
+    expose:
+      type: {{ $haproxy.expose.type }}
+    {{- end }}
+  {{- end }}
 
   {{- $router := .Values.router }}
   {{ if .Values.router }}
@@ -136,6 +229,9 @@ spec:
     {{- if $router.imagePullSecrets }}
     imagePullSecrets:
 {{ $router.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $router.initImage }}
+    initImage: "{{ $router.initImage }}"
     {{- end }}
     {{- if $router.size }}
     size: {{ $router.size }}
@@ -153,8 +249,6 @@ spec:
 {{ $router.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $router.nodeSelector | toYaml | indent 6 }}
-    podDisruptionBudget:
-{{ $router.podDisruptionBudget | toYaml | indent 6 }}
     resources:
       requests:
 {{ tpl ($router.resources.requests | toYaml) $ | indent 8 }}
@@ -207,6 +301,9 @@ spec:
     imagePullSecrets:
 {{ $orc.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
+    {{- if $orc.initImage }}
+    initImage: "{{ $orc.initImage }}"
+    {{- end }}
     {{- if $orc.size }}
     size: {{ $orc.size }}
     {{- end }}
@@ -223,8 +320,6 @@ spec:
 {{ $orc.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $orc.nodeSelector | toYaml | indent 6 }}
-    podDisruptionBudget:
-{{ $orc.podDisruptionBudget | toYaml | indent 6 }}
     resources:
       requests:
 {{ tpl ($orc.resources.requests | toYaml) $ | indent 8 }}
@@ -260,6 +355,10 @@ spec:
     {{- if $orc.runtimeClassName }}
     runtimeClassName: {{ $orc.runtimeClassName }}
     {{- end }}
+    {{- if $orc.expose }}
+    expose:
+      type: {{ $orc.expose.type }}
+    {{- end }}
   {{- end }}
 
   pmm:
@@ -281,6 +380,22 @@ spec:
 {{ tpl ($pmm.resources.limits | toYaml) $ | indent 8 }}
   {{- end }}
 
+  {{- $toolkit := .Values.toolkit }}
+  {{ if .Values.toolkit }}
+  toolkit:
+    image: {{ $toolkit.image.repository }}:{{ $toolkit.image.tag }}
+    {{- if $toolkit.imagePullPolicy }}
+    imagePullPolicy: {{ $toolkit.imagePullPolicy }}
+    {{- end }}
+    {{- if $toolkit.resources }}
+    resources:
+      requests:
+{{ tpl ($toolkit.resources.requests | toYaml) $ | indent 8 }}
+      limits:
+{{ tpl ($toolkit.resources.limits | toYaml) $ | indent 8 }}
+    {{- end }}
+  {{- end }}
+
   backup:
   {{- if not .Values.backup.enabled }}
     enabled: false
@@ -294,6 +409,9 @@ spec:
     {{- if $backup.imagePullSecrets }}
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $backup.initImage }}
+    initImage: "{{ $backup.initImage }}"
     {{- end }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
