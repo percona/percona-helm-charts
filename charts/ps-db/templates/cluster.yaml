@@ -145,9 +145,7 @@ spec:
     {{- if $mysql.runtimeClassName }}
     runtimeClassName: {{ $mysql.runtimeClassName }}
     {{- end }}
-
-  {{ if .Values.haproxy }}
-  {{- $haproxy := .Values.haproxy }}
+  {{ $haproxy := .Values.haproxy }}
   haproxy:
   {{- if not $haproxy.enabled }}
     enabled: false
@@ -219,7 +217,6 @@ spec:
     expose:
       type: {{ $haproxy.expose.type }}
     {{- end }}
-  {{- end }}
   {{- end }}
 
   {{- $router := .Values.router }}
