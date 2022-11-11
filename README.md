@@ -14,7 +14,7 @@ This repository contains Helm charts for the following Percona products.
 * [Percona Monitoring and Management (PMM)](charts/pmm/)
 
 Useful links:
-* [About Percona Kubernetes Operators](https://www.percona.com/software/percona-kubernetes-operators).
+* [About Percona Kubernetes Operators](https://www.percona.com/software/percona-kubernetes-operators)
 * [About Percona Monitoring and Management](https://www.percona.com/software/database-tools/percona-monitoring-and-management)
 
 ## Installing Charts from this Repository
