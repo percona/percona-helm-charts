@@ -1,4 +1,15 @@
-1. ps-operator deployed.
-  Check the ps-operator logs
+1. Percona Operator for MySQL is deployed.
+  See if the operator Pod is running:
+
+    kubectl get pods -l app.kubernetes.io/name=ps-operator --namespace {{ .Release.Namespace }}
+
+  Check the operator logs if the Pod is not starting:
+
     export POD=$(kubectl get pods -l app.kubernetes.io/name=ps-operator --namespace {{ .Release.Namespace }} --output name)
     kubectl logs $POD --namespace={{ .Release.Namespace }}
+
+2. Deploy the database cluster from ps-db chart:
+
+    helm install my-db percona/ps-db --namespace={{ .Release.Namespace }}
+
+Read more in our documentation: https://docs.percona.com/percona-operator-for-mysql/ps/

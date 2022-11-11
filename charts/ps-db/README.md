@@ -37,7 +37,7 @@ The chart can be customized using the following configurable parameters:
 | `tls.issuerConf.name`           | A cert-manager issuer name                                                    | `""`                                      |
 | `tls.issuerConf.kind`           | A cert-manager issuer type                                                    | `""`                                      |
 | `tls.issuerConf.group`          | A cert-manager issuer group                                                   | `""`                                      |
-| `mysql.clusterType`             | MySQL Cluster type (async | group-replication)                                | `async`                                   |
+| `mysql.clusterType`             | MySQL Cluster type (`async` or `group-replication`)                           | `async`                                   |
 | `mysql.image.repository`        | MySQL Container image repository                                              | `percona/percona-server`                  |
 | `mysql.image.tag`               | MySQL Container image tag                                                     | `8.0.29`                                  |
 | `mysql.imagePullPolicy`         | The policy used to update images                                              | `Always`                                  |
