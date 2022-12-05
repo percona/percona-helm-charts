@@ -40,3 +40,7 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+jsonOnlyLogs: 'false'
+logLevel: "INFO"
+telemetryOff: 'false'
