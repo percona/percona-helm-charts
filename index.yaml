@@ -1223,6 +1223,26 @@ entries:
     version: 0.1.0
   pxc-db:
   - apiVersion: v2
+    appVersion: 1.12.0
+    created: "2022-12-07T18:36:12.573921681Z"
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    digest: d769d9e9cf412d33b828540d9b18a7694420ae68b69bcbbcdf5e4ba76130b58d
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: pxc-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-db-1.12.0/pxc-db-1.12.0.tgz
+    version: 1.12.0
+  - apiVersion: v2
     appVersion: 1.11.0
     created: "2022-07-08T09:27:42.680562152Z"
     description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
@@ -1638,6 +1658,26 @@ entries:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.5/pxc-db-0.1.5.tgz
     version: 0.1.5
   pxc-operator:
+  - apiVersion: v2
+    appVersion: 1.12.0
+    created: "2022-12-07T18:36:12.714980437Z"
+    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    digest: eaae164682ef14ae3495a24fdd73ef3fa4dfeefde468d35719ec02bd759c1448
+    home: https://docs.percona.com/percona-operator-for-mysql/pxc/
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: pxc-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-operator-1.12.0/pxc-operator-1.12.0.tgz
+    version: 1.12.0
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2022-11-11T14:11:34.796699513Z"
