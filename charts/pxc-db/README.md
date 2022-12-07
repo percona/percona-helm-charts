@@ -20,31 +20,36 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.11.0 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.12.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
+| `crVersion`                     | Version of the Operator the Custom Resource belongs to                        | `1.12.0`                                  |
+| `ignoreAnnotations`             | Operator will not remove following annotations                                | `[]`                                      |
+| `ignoreLabels`                  | Operator will not remove following labels                                     | `[]`                                      |
 | `pause`                         | Stop PXC Database safely                                                      | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PXC cluster pods          | `false`                                   |
 | `enableCRValidationWebhook`     | Enables or disables schema validation before applying custom resource         | `false`                                   |
 | `initImage`                     | An alternative image for the initial Operator installation                    | `""`                                      |
 | `updateStrategy`                | Regulates the way how PXC Cluster Pods will be updated after setting a new image | `SmartUpdate`                          |
 | `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PXC Versions provider                             | `https://check.percona.com/versions`      |
-| `upgradeOptions.apply`          | PXC image to apply from version service - `recommended`, `latest`, actual version like `8.0.19-10.1` | `8.0-recommended` |
+| `upgradeOptions.apply`          | PXC image to apply from version service - `recommended`, `latest`, actual version like `8.0.19-10.1` | `disabled` |
 | `upgradeOptions.schedule`          | Cron formatted time to execute the update | `"0 4 * * *"` |
-| `finalizers:delete-pxc-pods-in-order`  | Set this if you want to delete PXC pods in order on cluster deletion |   |
-| `finalizers:delete-proxysql-pvc`  | Set this if you want to delete proxysql persistent volumes on cluster deletion |   |
-| `finalizers:delete-pxc-pvc`       | Set this if you want to delete database persistent volumes on cluster deletion |   |
+| `finalizers:delete-pxc-pods-in-order`  | Set this if you want to delete PXC pods in order on cluster deletion      | [] |
+| `finalizers:delete-proxysql-pvc`  | Set this if you want to delete proxysql persistent volumes on cluster deletion | [] |
+| `finalizers:delete-pxc-pvc`       | Set this if you want to delete database persistent volumes on cluster deletion | [] |
+| `finalizers:delete-ssl`           | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion | [] |
 | `tls.SANs`                        | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]` |
 | `tls.issuerConf.name`             | A cert-manager issuer name  | `""` |
 | `tls.issuerConf.kind`             | A cert-manager issuer type  | `""` |
 | `tls.issuerConf.group`            | A cert-manager issuer group | `""` |
 | `pxc.size`                                  | PXC Cluster target member (pod) quantity. Can't even if `allowUnsafeConfigurations` is `true`                            | `3`                              |
+| `pxc.clusterSecretName`        | Specify if you want to use custom or Operator generated users secret (if the one specified doesn't exist)                             | `` |
 | `pxc.image.repository`                      | PXC Container image repository                                                                                           | `percona/percona-xtradb-cluster` |
-| `pxc.image.tag`                             | PXC Container image tag                                                                                                  | `8.0.27-18.1`                    |
+| `pxc.image.tag`                             | PXC Container image tag                                                                                                  | `8.0.29-21.1`                    |
 | `pxc.imagePullPolicy`                       | The policy used to update images                                                                                         | ``                               |
 | `pxc.autoRecovery`                          | Enable full cluster crash auto recovery                                                                                  | `true`                           |
 | `pxc.expose.enabled`                        | Enable or disable exposing `Percona XtraDB Cluster` nodes with dedicated IP addresses                                    | `true`                           |
@@ -101,20 +106,24 @@ The chart can be customized using the following configurable parameters:
 | |
 | `haproxy.enabled` | Use HAProxy as TCP proxy for PXC cluster | `true` |
 | `haproxy.size`                      | HAProxy target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
-| `haproxy.image`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator:1.11.0-haproxy` |
+| `haproxy.image`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator:1.12.0-haproxy` |
 | `haproxy.imagePullPolicy`              | The policy used to update images                                             | ``     |
-| `haproxy.replicasServiceEnabled`       | Allow disabling k8s service for haproxy-replicas                             | `true` |
 | `haproxy.imagePullSecrets`             | HAProxy Container pull secret                                                | `[]`                                      |
 | `haproxy.configuration`             | User defined HAProxy options according to HAProxy configuration file syntax       | ``     |
-| `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
 | `haproxy.priorityClassName`       | HAProxy Pod priority Class defined by user                                   |  |
 | `haproxy.runtimeClassName`        | Name of the Kubernetes Runtime Class for HAProxy Pods                        |  |
 | `haproxy.externalTrafficPolicy`   | Desire service to route external traffic for HAProxy to node-local or cluster-wide endpoints  |  |
-| `haproxy.replicasExternalTrafficPolicy` | Desire service to route external traffic for HAProxy replicas to node-local or cluster-wide endpoints  |  |
 | `haproxy.loadBalancerSourceRanges` | Limit which client IP's can access the Network Load Balancer                | `[]` |
+| `haproxy.loadBalancerIP`          | The static IP-address for the load balancer                                  | `` |
 | `haproxy.serviceType`             | Specify what kind of Service you want for HAProxy                            | `ClusterIP` |
+| `haproxy.replicasServiceEnabled`       | Allow disabling k8s service for haproxy-replicas                        | `true` |
 | `haproxy.replicasServiceType`     | Specify what kind of Service you want for HAProxy Replicas                   | `ClusterIP` |
+| `haproxy.replicasExternalTrafficPolicy` | Desire service to route external traffic for HAProxy replicas to node-local or cluster-wide endpoints  |  |
+| `haproxy.replicasServiceAnnotations` | The Kubernetes annotations metadata for the haproxy-replicas Service      | {} |
+| `haproxy.replicasServiceLabels`   | The Kubernetes labels for the haproxy-replicas Service                       | {} |
 | `haproxy.serviceAnnotations`      | Specify service annotations                                                  | `{}` |
+| `haproxy.serviceLabels`           | Specify service labels                                                       | `{}` |
+| `haproxy.annotations`             | HAProxy Pod user-defined annotations                                         | `{}` |
 | `haproxy.labels`                  | HAProxy Pod user-defined labels                                              | `{}` |
 | `haproxy.schedulerName`           | The Kubernetes Scheduler                                                     |      |
 | `haproxy.readinessDelaySec`       | HAProxy Pod delay for readiness probe in seconds                             | `15` |
@@ -145,21 +154,22 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.livenessProbes.timeoutSeconds` | Number of seconds after which the probe times out | `5` |
 | `haproxy.containerSecurityContext`      | A custom Kubernetes Security Context for a Container to be used instead of the default one                               | `{}` |
 | `haproxy.podSecurityContext`            | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                     | `{}` |
-| `haproxy.serviceLabels`                | The Kubernetes labels for the load balancer Service                                | `{}` |
 | |
 | `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `false` |
 | `proxysql.size`                      | ProxySQL target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
-| `proxysql.image`              | ProxySQL Container image                                           | `percona/percona-xtradb-cluster-operator:1.11.0-proxysql` |
+| `proxysql.image`              | ProxySQL Container image                                           | `percona/percona-xtradb-cluster-operator:1.12.0-proxysql` |
 | `proxysql.imagePullPolicy`              | The policy used to update images                                              | `` |
 | `proxysql.imagePullSecrets`             | ProxySQL Container pull secret                                                | `[]`                                      |
 | `proxysql.configuration`             | User defined ProxySQL options according to ProxySQL configuration file syntax       | ``     |
-| `proxysql.annotations`             | ProxySQL Pod user-defined annotations                                         | `{}` |
 | `proxysql.priorityClassName`       | ProxySQL Pod priority Class defined by user                                   |  |
 | `proxysql.runtimeClassName`        | Name of the Kubernetes Runtime Class for ProxySQL Pods                        |  |
 | `proxysql.externalTrafficPolicy`   | Desire service to route external traffic to node-local or cluster-wide endpoints  |  |
 | `proxysql.loadBalancerSourceRanges` | Limit which client IP's can access the Network Load Balancer                 | `[]` |
+| `proxysql.loadBalancerIP`          | The static IP-address for the load balancer                                   | `` |
 | `proxysql.serviceType`             | Specify what kind of Service you want                                         | `ClusterIP` |
 | `proxysql.serviceAnnotations`      | Specify service annotations                                                   | `{}` |
+| `proxysql.serviceLabels`           | Specify service labels                                                        | `{}` |
+| `proxysql.annotations`             | ProxySQL Pod user-defined annotations                                         | `{}` |
 | `proxysql.labels`                  | ProxySQL Pod user-defined labels                                              | `{}` |
 | `proxysql.schedulerName`           | The Kubernetes Scheduler                                                      |      |
 | `proxysql.readinessDelaySec`       | ProxySQL Pod delay for readiness probe in seconds                             | `15` |
@@ -185,10 +195,9 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.persistence.size` | Sets K8S persistent storage size for all ProxySQL Pods | `8Gi`                      |
 | `proxysql.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one                             | `{}` |
 | `proxysql.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                     | `{}` |
-| `proxysql.serviceLabels`                |  The Kubernetes labels for the load balancer Service                                    | `{}` |
 | |
 | `logcollector.enabled`            | Enable log collector container                                           | `true` |
-| `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.11.0-logcollector` |
+| `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.12.0-logcollector` |
 | `logcollector.imagePullSecrets`   | Log collector pull secret                                                | `[]` |
 | `logcollector.imagePullPolicy`    | The policy used to update images                                         |  ``  |
 | `logcollector.configuration`      | User defined configuration for logcollector                              |  ``  |
@@ -197,7 +206,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                                  | `2.28.0`             |
+| `pmm.image.tag`                     | PMM Container image tag                                                  | `2.32.0`             |
 | `pmm.imagePullSecrets`              | PMM Container pull secret                                                | `[]` |
 | `pmm.imagePullPolicy`               | The policy used to update images                                         |  ``  |
 | `pmm.serverHost`                    | PMM server related K8S service hostname                                  | `monitoring-service` |
@@ -206,7 +215,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.limits`              | PMM Container resource limits                                            | `{}` |
 | |
 | `backup.enabled` | Enables backups for PXC cluster | `true` |
-| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.11.0-pxc8.0-backup` |
+| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.12.0-pxc8.0-backup` |
 | `backup.backoffLimit` | The number of retries to make a backup  | `10` |
 | `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                      |
 | `backup.imagePullPolicy`              | The policy used to update images                                         |  ``  |
@@ -236,7 +245,10 @@ The chart can be customized using the following configurable parameters:
 | `secrets.passwords.pmmserverkey` | PMM server API key  | ``                               |
 | `secrets.passwords.operator`     | Default user secret | `insecure-operator-password`     |
 | `secrets.passwords.replication`  | Default user secret | `insecure-replication-password`  |
-| `secrets.tls`       | Not needed in case if you're using cert-manager. Structure expects keys `ca.crt`, `tls.crt`, `tls.key` and files contents encoded in base64.                             | `{}` |
+| `secrets.tls.cluster`  | Specify secret name for TLS. Not needed in case if you're using cert-manager. Structure expects keys `ca.crt`, `tls.crt`, `tls.key` and files contents encoded in base64. | `` |
+| `secrets.tls.internal` | Specify internal secret name for TLS. | `` |
+| `secrets.logCollector` | Specify secret name used for Fluent Bit Log Collector | `` |
+| `secrets.vault`        | Specify secret name used for HashiCorp Vault to carry on Data at Rest Encryption | `` |
 
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
