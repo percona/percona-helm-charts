@@ -41,6 +41,6 @@ tolerations: []
 
 affinity: {}
 
-jsonOnlyLogs: 'false'
+logStructured: false
 logLevel: "INFO"
-telemetryOff: 'false'
+disableTelemetry: false

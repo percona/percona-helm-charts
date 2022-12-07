@@ -33,9 +33,9 @@ The chart can be customized using the following configurable parameters:
 | `tolerations`                   | List of node taints to tolerate                                         | `[]`                                             |
 | `resources`                     | Resource requests and limits                                            | `{}`                                             |
 | `nodeSelector`                  | Labels for Pod assignment                                               | `{}`                                             |
-| `jsonOnlyLogs`                  | Force PXC operator to print JSON-wrapped log messages                   | `false`                                          |
+| `logStructured`                 | Force PXC operator to print JSON-wrapped log messages                   | `false`                                          |
 | `logLevel`                      | PXC Operator logging level                                              | `INFO`                                           |
-| `telemetryOff`                  | Send PXC Operator telemetry data to Percona or not                      | `false`                                          |
+| `disableTelemetry`              | Disable sending PXC Operator telemetry data to Percona                  | `false`                                          |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 

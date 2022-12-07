@@ -54,11 +54,11 @@ spec:
             - name: OPERATOR_NAME
               value: {{ include "pxc-operator.fullname" . }}
             - name: LOG_STRUCTURED
-              value: "{{ .Values.jsonOnlyLogs }}"
+              value: "{{ .Values.logStructured }}"
             - name: LOG_LEVEL
               value: "{{ .Values.logLevel }}"
             - name: DISABLE_TELEMETRY
-              value: "{{ .Values.telemetryOff }}"
+              value: "{{ .Values.disableTelemetry }}"
           livenessProbe:
             failureThreshold: 3
             httpGet:
