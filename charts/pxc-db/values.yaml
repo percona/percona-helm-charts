@@ -63,6 +63,9 @@ pxc:
   #   configuration:
   #     sourceRetryCount: 3
   #     sourceConnectRetry: 60
+  #     ssl: false
+  #     sslSkipVerify: true
+  #     ca: '/etc/mysql/ssl/ca.crt'
   #   sourcesList:
   #   - host: 10.95.251.101
   #     port: 3306
