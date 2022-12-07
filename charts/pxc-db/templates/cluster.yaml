@@ -219,6 +219,13 @@ spec:
     serviceType: {{ $haproxy.serviceType }}
     {{- end }}
     replicasServiceEnabled: {{ $haproxy.replicasServiceEnabled }}
+    {{- if $haproxy.replicasLoadBalancerSourceRanges }}
+    replicasLoadBalancerSourceRanges:
+{{ $haproxy.replicasLoadBalancerSourceRanges | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.replicasLoadBalancerIP }}
+    replicasLoadBalancerIP: {{ $haproxy.replicasLoadBalancerIP }}
+    {{- end }}
     {{- if $haproxy.replicasServiceType }}
     replicasServiceType: {{ $haproxy.replicasServiceType }}
     {{- end }}

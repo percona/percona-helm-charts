@@ -117,6 +117,8 @@ The chart can be customized using the following configurable parameters:
 | `haproxy.loadBalancerIP`          | The static IP-address for the load balancer                                  | `` |
 | `haproxy.serviceType`             | Specify what kind of Service you want for HAProxy                            | `ClusterIP` |
 | `haproxy.replicasServiceEnabled`       | Allow disabling k8s service for haproxy-replicas                        | `true` |
+| `haproxy.replicasLoadBalancerSourceRanges` | Limit which client IP's can access the Network Load Balancer for HAProxy Replicas  | `[]` |
+| `haproxy.replicasLoadBalancerIP`           | The static IP-address for the load balancer for HAProxy Replicas                   | `` |
 | `haproxy.replicasServiceType`     | Specify what kind of Service you want for HAProxy Replicas                   | `ClusterIP` |
 | `haproxy.replicasExternalTrafficPolicy` | Desire service to route external traffic for HAProxy replicas to node-local or cluster-wide endpoints  |  |
 | `haproxy.replicasServiceAnnotations` | The Kubernetes annotations metadata for the haproxy-replicas Service      | {} |

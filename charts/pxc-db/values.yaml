@@ -243,6 +243,9 @@ haproxy:
   # serviceLabels:
   #   rack: rack-23
   replicasServiceEnabled: true
+  # replicasLoadBalancerSourceRanges:
+  #   - 10.0.0.0/8
+  # replicasLoadBalancerIP: 127.0.0.1
   # replicasServiceType: ClusterIP
   # replicasExternalTrafficPolicy: Cluster
   # replicasServiceAnnotations:
