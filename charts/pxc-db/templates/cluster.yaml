@@ -1,9 +1,6 @@
-apiVersion: pxc.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}
+apiVersion: pxc.percona.com/v1
 kind: PerconaXtraDBCluster
 metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"pxc.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}","kind":"PerconaXtraDBCluster"}
   name: {{ include "pxc-database.fullname" . }}
   labels:
 {{ include "pxc-database.labels" . | indent 4 }}
@@ -11,6 +8,14 @@ metadata:
 {{ .Values.finalizers | toYaml | indent 4 }}
 spec:
   crVersion: {{ .Chart.AppVersion }}
+  {{- if .Values.ignoreAnnotations }}
+  ignoreAnnotations:
+{{ .Values.ignoreAnnotations | toYaml | indent 4 }}
+  {{- end }}
+  {{- if .Values.ignoreLabels }}
+  ignoreLabels:
+{{ .Values.ignoreLabels | toYaml | indent 4 }}
+  {{- end }}
   {{- if hasKey .Values.pxc "clusterSecretName" }}
   secretsName: {{ .Values.pxc.clusterSecretName }}
   {{- else }}
@@ -28,13 +33,13 @@ spec:
   sslInternalSecretName: {{ include "pxc-database.fullname" . }}-ssl-internal
   {{- end }}
   {{- end }}
-  {{- if hasKey .Values.pxc "vaultSecretName" }}
-  vaultSecretName: {{ .Values.pxc.vaultSecretName }}
+  {{- if hasKey .Values.secrets "vault" }}
+  vaultSecretName: {{ .Values.secrets.vault }}
   {{- else }}
   vaultSecretName: {{ include "pxc-database.fullname" . }}-vault
   {{- end }}
-  {{- if hasKey .Values.pxc "logCollectorSecretName" }}
-  logCollectorSecretName: {{ .Values.pxc.logCollectorSecretName }}
+  {{- if hasKey .Values.secrets "logCollector" }}
+  logCollectorSecretName: {{ .Values.secrets.logCollector }}
   {{- else }}
   logCollectorSecretName: {{ include "pxc-database.fullname" . }}-log-collector
   {{- end }}
@@ -183,7 +188,6 @@ spec:
     enabled: true
     size: {{ $haproxy.size }}
     image: {{ include "pxc-db.haproxy-image" . }}
-    replicasServiceEnabled: {{ $haproxy.replicasServiceEnabled }}
     {{- if $haproxy.imagePullPolicy }}
     imagePullPolicy: {{ $haproxy.imagePullPolicy }}
     {{- end }}
@@ -204,18 +208,41 @@ spec:
     {{- if $haproxy.externalTrafficPolicy }}
     externalTrafficPolicy: {{ $haproxy.externalTrafficPolicy }}
     {{- end }}
-    {{- if $haproxy.replicasExternalTrafficPolicy }}
-    replicasExternalTrafficPolicy: {{ $haproxy.replicasExternalTrafficPolicy }}
-    {{- end }}
     {{- if $haproxy.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ $haproxy.loadBalancerSourceRanges | toYaml | indent 6 }}
     {{- end }}
+    {{- if $haproxy.loadBalancerIP }}
+    loadBalancerIP: {{ $haproxy.loadBalancerIP }}
+    {{- end }}
     {{- if $haproxy.serviceType }}
     serviceType: {{ $haproxy.serviceType }}
     {{- end }}
+    replicasServiceEnabled: {{ $haproxy.replicasServiceEnabled }}
+    {{- if $haproxy.replicasLoadBalancerSourceRanges }}
+    replicasLoadBalancerSourceRanges:
+{{ $haproxy.replicasLoadBalancerSourceRanges | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.replicasLoadBalancerIP }}
+    replicasLoadBalancerIP: {{ $haproxy.replicasLoadBalancerIP }}
+    {{- end }}
     {{- if $haproxy.replicasServiceType }}
     replicasServiceType: {{ $haproxy.replicasServiceType }}
+    {{- end }}
+    {{- if $haproxy.replicasExternalTrafficPolicy }}
+    replicasExternalTrafficPolicy: {{ $haproxy.replicasExternalTrafficPolicy }}
+    {{- end }}
+    {{- if $haproxy.replicasServiceAnnotations }}
+    replicasServiceAnnotations:
+{{ $haproxy.replicasServiceAnnotations | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.replicasServiceLabels }}
+    replicasServiceLabels:
+{{ $haproxy.replicasServiceLabels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $haproxy.serviceLabels }}
+    serviceLabels:
+{{ $haproxy.serviceLabels | toYaml | indent 6 }}
     {{- end }}
     {{- if $haproxy.serviceAnnotations }}
     serviceAnnotations:
@@ -316,6 +343,9 @@ spec:
     {{- if $proxysql.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ $proxysql.loadBalancerSourceRanges | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $proxysql.loadBalancerIP }}
+    loadBalancerIP: {{ $proxysql.loadBalancerIP }}
     {{- end }}
     {{- if $proxysql.serviceType }}
     serviceType: {{ $proxysql.serviceType }}

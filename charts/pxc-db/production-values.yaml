@@ -9,13 +9,19 @@ finalizers:
   - delete-proxysql-pvc
 ## Don't delete database PVCs.
 #  - delete-pxc-pvc
+## Set this if you want to delete cert manager certificates on cluster deletion
+#  - delete-ssl
 
 nameOverride: "production"
 fullnameOverride: "production"
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.11.0
+crVersion: 1.12.0
+ignoreAnnotations: []
+  # - iam.amazonaws.com/role
+ignoreLabels: []
+  # - rack
 pause: false
 initImage: ""
 allowUnsafeConfigurations: false
@@ -39,7 +45,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.27-18.1
+    tag: 8.0.29-21.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
@@ -58,6 +64,9 @@ pxc:
   #   configuration:
   #     sourceRetryCount: 3
   #     sourceConnectRetry: 60
+  #     ssl: false
+  #     sslSkipVerify: true
+  #     ca: '/etc/mysql/ssl/ca.crt'
   #   sourcesList:
   #   - host: 10.95.251.101
   #     port: 3306
@@ -161,7 +170,6 @@ haproxy:
   enabled: true
   size: 3
   image: ""
-  replicasServiceEnabled: true
   # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -220,14 +228,23 @@ haproxy:
   #  rack: rack-22
   # serviceType: ClusterIP
   # externalTrafficPolicy: Cluster
-  # replicasServiceType: ClusterIP
-  # replicasExternalTrafficPolicy: Cluster
   # runtimeClassName: image-rc
   # loadBalancerSourceRanges:
   #   - 10.0.0.0/8
+  # loadBalancerIP: 127.0.0.1
   # serviceAnnotations:
   #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
   # serviceLabels:
+  #   rack: rack-23
+  replicasServiceEnabled: true
+  # replicasLoadBalancerSourceRanges:
+  #   - 10.0.0.0/8
+  # replicasLoadBalancerIP: 127.0.0.1
+  # replicasServiceType: ClusterIP
+  # replicasExternalTrafficPolicy: Cluster
+  # replicasServiceAnnotations:
+  #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+  # replicasServiceLabels:
   #   rack: rack-23
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
@@ -360,6 +377,7 @@ proxysql:
   # runtimeClassName: image-rc
   # loadBalancerSourceRanges:
   #   - 10.0.0.0/8
+  # loadBalancerIP: 127.0.0.1
   # serviceAnnotations:
   #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
   # serviceLabels:
@@ -444,7 +462,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.28.0
+    tag: 2.32.0
   # imagePullPolicy: Always
   imagePullSecrets: []
   serverHost: monitoring-service
@@ -531,6 +549,13 @@ backup:
     #     credentialsSecret: my-cluster-name-backup-s3
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    # azure-blob:
+    #   type: azure
+    #   azure:
+    #     credentialsSecret: azure-secret
+    #     container: test
+    #     endpointUrl: https://accountName.blob.core.windows.net
+    #     storageClass: Hot
 
   schedule:
     - name: "daily-backup"
@@ -544,7 +569,7 @@ backup:
     #   storageName: s3-us-west
 
 secrets:
-  ## You should be overriding these with your own.
+  ## You should be overriding these with your own or specify name for clusterSecretName.
   passwords:
     root: insecure-root-password
     xtrabackup: insecure-xtrabackup-password
@@ -570,3 +595,5 @@ secrets:
     # If not set the Helm chart will attempt to create certificates
     # for you [not recommended for prod]:
     # internal:
+  # logCollector: cluster1-log-collector-secrets
+  # vault: keyring-secret-vault
