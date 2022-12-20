@@ -59,7 +59,10 @@ spec:
     resources:
       requests:
         memory: {{ .Values.pgPrimary.resources.requests.memory }}
-    tolerations: {{ .Values.pgPrimary.tolerations }}
+    tolerations:
+{{- if .Values.pgPrimary.tolerations }}
+{{ toYaml .Values.pgPrimary.tolerations | indent 8 }}
+{{- end }}
     volumeSpec:
       size: {{ .Values.pgPrimary.volumeSpec.size }}
       accessmode: {{ .Values.pgPrimary.volumeSpec.accessmode }}
