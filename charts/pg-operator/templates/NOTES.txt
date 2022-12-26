@@ -1,12 +1,12 @@
 1. Percona Operator for PostgreSQL is deployed. 
   See if the operator Pod is running:
 
-    kubectl get pods -l name=postgres-operator --namespace {{ .Release.Namespace }}
+    kubectl get pods -l app.kubernetes.io/name={{ include "postgres-operator.name" . }} --namespace {{ .Release.Namespace }}
 
   Check the operator logs if the Pod is not starting:
 
-    export POD=$(kubectl get pods -l name=postgres-operator --namespace {{ .Release.Namespace }} --output name)
-    kubectl logs $POD --namespace={{ .Release.Namespace }} -c operator
+    export POD=$(kubectl get pods -l app.kubernetes.io/name={{ include "postgres-operator.name" . }} --namespace {{ .Release.Namespace }} --output name)
+    kubectl logs $POD --namespace={{ .Release.Namespace }}
 
 2. Deploy the database cluster from pg-db chart:
 
