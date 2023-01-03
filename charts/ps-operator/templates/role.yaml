@@ -162,3 +162,28 @@ rules:
   - patch
   - update
   - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+{{- if .Values.watchNamespace }}
+kind: ClusterRole
+{{- else }}
+kind: Role
+{{- end }}
+metadata:
+  name: percona-server-mysql-operator-orchestrator
+  labels:
+{{ include "ps-operator.labels" . | indent 4 }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - list
+  - patch
+- apiGroups:
+  - ps.percona.com
+  resources:
+  - perconaservermysqls
+  verbs:
+  - get

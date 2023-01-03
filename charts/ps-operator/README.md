@@ -19,7 +19,7 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/ps-operator --version 0.3.0 --namespace my-namespace
+helm install my-operator percona/ps-operator --version 0.4.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -27,7 +27,7 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
 | `image.repository`              | PS Operator Container image name                                              | `percona/percona-server-mysql-operator`   |
-| `image.tag`                     | PS Operator Container image tag                                               | `0.3.0`                                   |
+| `image.tag`                     | PS Operator Container image tag                                               | `0.4.0`                                   |
 | `image.pullPolicy`              | PS Operator Container pull policy                                             | `Always`                                  |
 | `image.pullSecrets`             | PS Operator Pod pull secret                                                   | `[]`                                      |
 | `replicaCount`                  | PS Operator Pod quantity                                                      | `1`                                       |
