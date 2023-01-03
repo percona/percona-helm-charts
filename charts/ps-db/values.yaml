@@ -8,10 +8,10 @@ fullnameOverride: ""
 finalizers:
   - delete-mysql-pods-in-order
 
-crVersion: 0.3.0
+crVersion: 0.4.0
 pause: false
 allowUnsafeConfigurations: false
-# initImage: percona/percona-server-mysql-operator:0.3.0
+# initImage: percona/percona-server-mysql-operator:0.4.0
 
 # If this is set will not create secrets from values and will instead try to use
 # a pre-existing secret of the same name.
@@ -27,20 +27,23 @@ allowUnsafeConfigurations: false
 #     kind: ClusterIssuer
 #     group: cert-manager.io
 
+# ignoreAnnotations:
+#   - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
+# ignoreLabels:
+#   - rack
+
 mysql:
-  clusterType: async
+  clusterType: group-replication
   image:
     repository: percona/percona-server
-    tag: 8.0.29
+    tag: 8.0.30-22
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
-  # initImage: percona/percona-server-mysql-operator:0.3.0
+  # initImage: percona/percona-server-mysql-operator:0.4.0
 
   size: 3
   sizeSemiSync: 0
-  # primaryServiceType: LoadBalancer
-  # replicasServiceType: ClusterIP
 
   # configuration: |
   #   max_connections=250
@@ -67,6 +70,15 @@ mysql:
   expose:
     enabled: false
     type: ClusterIP
+    # annotations:
+    #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    # externalTrafficPolicy: Cluster
+    # internalTrafficPolicy: Cluster
+    # labels:
+    #   rack: rack-22
+    # loadBalancerIP: 127.0.0.1
+    # loadBalancerSourceRanges:
+    #   - 10.0.0.0/8
 
   volumeSpec:
     pvc:
@@ -124,125 +136,146 @@ mysql:
   #       requests:
   #         storage: 1G
 
-haproxy:
-  enabled: true
-  image:
-    repository: percona/percona-server-mysql-operator
-    tag: 0.3.0-haproxy
-  imagePullPolicy: Always
-  imagePullSecrets: []
-  # initImage: percona/percona-server-mysql-operator:0.3.0
+proxy:
+  haproxy:
+    enabled: false
+    image:
+      repository: percona/percona-server-mysql-operator
+      tag: 0.4.0-haproxy
+    imagePullPolicy: Always
+    imagePullSecrets: []
+    # initImage: percona/percona-server-mysql-operator:0.4.0
 
-  size: 3
+    size: 3
 
-  resources:
-    requests:
-      memory: 1G
-      cpu: 600m
-    limits: {}
+    resources:
+      requests:
+        memory: 1G
+        cpu: 600m
+      limits: {}
 
-  affinity:
-    antiAffinityTopologyKey: "kubernetes.io/hostname"
-    # advanced:
-    #   nodeAffinity:
-    #     requiredDuringSchedulingIgnoredDuringExecution:
-    #       nodeSelectorTerms:
-    #       - matchExpressions:
-    #         - key: kubernetes.io/e2e-az-name
-    #           operator: In
-    #           values:
-    #           - e2e-az1
-    #           - e2e-az2
+    affinity:
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+      # advanced:
+      #   nodeAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #       nodeSelectorTerms:
+      #       - matchExpressions:
+      #         - key: kubernetes.io/e2e-az-name
+      #           operator: In
+      #           values:
+      #           - e2e-az1
+      #           - e2e-az2
 
-  # runtimeClassName: image-rc
-  # priorityClassName: high-priority
-  # schedulerName: mycustom-scheduler
-  annotations: {}
-    # iam.amazonaws.com/role: role-arn
-  labels: {}
-    # rack: rack-22
-  nodeSelector: {}
-    # disktype: ssd
-  tolerations: []
-    # - key: "node.alpha.kubernetes.io/unreachable"
-    #   operator: "Exists"
-    #   effect: "NoExecute"
-    #   tolerationSeconds: 6000
-  # A custom Kubernetes Security Context for a Container to be used instead of the default one
-  # containerSecurityContext:
-  #   privileged: false
-  # A custom Kubernetes Security Context for a Pod to be used instead of the default one
-  # podSecurityContext:
-  #   fsGroup: 1001
-  #   supplementalGroups:
-  #   - 1001
-  # serviceAccountName: percona-server-mysql-operator-workload
-  # expose:
-  #   type: ClusterIP
+    # runtimeClassName: image-rc
+    # priorityClassName: high-priority
+    # schedulerName: mycustom-scheduler
+    annotations: {}
+      # iam.amazonaws.com/role: role-arn
+    labels: {}
+      # rack: rack-22
+    nodeSelector: {}
+      # disktype: ssd
+    tolerations: []
+      # - key: "node.alpha.kubernetes.io/unreachable"
+      #   operator: "Exists"
+      #   effect: "NoExecute"
+      #   tolerationSeconds: 6000
+    # A custom Kubernetes Security Context for a Container to be used instead of the default one
+    # containerSecurityContext:
+    #   privileged: false
+    # A custom Kubernetes Security Context for a Pod to be used instead of the default one
+    # podSecurityContext:
+    #   fsGroup: 1001
+    #   supplementalGroups:
+    #   - 1001
+    # serviceAccountName: percona-server-mysql-operator-workload
+    # expose:
+      # type: ClusterIP
+      # annotations:
+      #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+      # externalTrafficPolicy: Cluster
+      # internalTrafficPolicy: Cluster
+      # labels:
+      #   rack: rack-22
+      # loadBalancerIP: 127.0.0.1
+      # loadBalancerSourceRanges:
+      #   - 10.0.0.0/8
 
-router:
-  image:
-    repository: percona/percona-server-mysql-operator
-    tag: 0.3.0-router
-  imagePullPolicy: Always
-  imagePullSecrets: []
-  # initImage: percona/percona-server-mysql-operator:0.3.0
+  router:
+    image:
+      repository: percona/percona-server-mysql-operator
+      tag: 0.4.0-router
+    imagePullPolicy: Always
+    imagePullSecrets: []
+    # initImage: percona/percona-server-mysql-operator:0.4.0
 
-  size: 3
+    size: 3
 
-  resources:
-    requests:
-      memory: 256M
-    limits:
-      memory: 256M
+    resources:
+      requests:
+        memory: 256M
+      limits:
+        memory: 256M
 
-  affinity:
-    antiAffinityTopologyKey: "kubernetes.io/hostname"
-    # advanced:
-    #   nodeAffinity:
-    #     requiredDuringSchedulingIgnoredDuringExecution:
-    #       nodeSelectorTerms:
-    #       - matchExpressions:
-    #         - key: kubernetes.io/e2e-az-name
-    #           operator: In
-    #           values:
-    #           - e2e-az1
-    #           - e2e-az2
+    affinity:
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+      # advanced:
+      #   nodeAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #       nodeSelectorTerms:
+      #       - matchExpressions:
+      #         - key: kubernetes.io/e2e-az-name
+      #           operator: In
+      #           values:
+      #           - e2e-az1
+      #           - e2e-az2
 
-  # runtimeClassName: image-rc
-  # priorityClassName: high-priority
-  # schedulerName: mycustom-scheduler
-  annotations: {}
-    # iam.amazonaws.com/role: role-arn
-  labels: {}
-    # rack: rack-22
-  nodeSelector: {}
-    # disktype: ssd
-  tolerations: []
-    # - key: "node.alpha.kubernetes.io/unreachable"
-    #   operator: "Exists"
-    #   effect: "NoExecute"
-    #   tolerationSeconds: 6000
-  # A custom Kubernetes Security Context for a Container to be used instead of the default one
-  # containerSecurityContext:
-  #   privileged: false
-  # A custom Kubernetes Security Context for a Pod to be used instead of the default one
-  # podSecurityContext:
-  #   fsGroup: 1001
-  #   supplementalGroups:
-  #   - 1001
-  # serviceAccountName: percona-server-mysql-operator-workload
-  # expose:
-  #   type: ClusterIP
+    # runtimeClassName: image-rc
+    # priorityClassName: high-priority
+    # schedulerName: mycustom-scheduler
+    annotations: {}
+      # iam.amazonaws.com/role: role-arn
+    labels: {}
+      # rack: rack-22
+    nodeSelector: {}
+      # disktype: ssd
+    tolerations: []
+      # - key: "node.alpha.kubernetes.io/unreachable"
+      #   operator: "Exists"
+      #   effect: "NoExecute"
+      #   tolerationSeconds: 6000
+    # A custom Kubernetes Security Context for a Container to be used instead of the default one
+    # containerSecurityContext:
+    #   privileged: false
+    # A custom Kubernetes Security Context for a Pod to be used instead of the default one
+    # podSecurityContext:
+    #   fsGroup: 1001
+    #   supplementalGroups:
+    #   - 1001
+    # serviceAccountName: percona-server-mysql-operator-workload
+    # expose:
+      # type: ClusterIP
+      # annotations:
+      #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+      # externalTrafficPolicy: Cluster
+      # internalTrafficPolicy: Cluster
+      # labels:
+      #   rack: rack-22
+      # loadBalancerIP: 127.0.0.1
+      # loadBalancerSourceRanges:
+      #   - 10.0.0.0/8
 
 orchestrator:
+  enabled: false
   image:
     repository: percona/percona-server-mysql-operator
-    tag: 0.3.0-orchestrator
+    tag: 0.4.0-orchestrator
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
-  # initImage: percona/percona-server-mysql-operator:0.3.0
+  # serviceAccountName: percona-server-mysql-operator-orchestrator
+  # initImage: percona/percona-server-mysql-operator:0.4.0
 
   size: 3
 
@@ -285,13 +318,22 @@ orchestrator:
   #   - 1001
   # serviceAccountName: percona-server-mysql-operator-workload
   # expose:
-  #   type: ClusterIP
+    # type: ClusterIP
+    # annotations:
+    #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    # externalTrafficPolicy: Cluster
+    # internalTrafficPolicy: Cluster
+    # labels:
+    #   rack: rack-22
+    # loadBalancerIP: 127.0.0.1
+    # loadBalancerSourceRanges:
+    #   - 10.0.0.0/8
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.30.0
+    tag: 2.33.0
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
@@ -305,7 +347,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.0.29-22
+    tag: 8.0.30-23
   imagePullPolicy: Always
   imagePullSecrets: []
   resources:
@@ -359,7 +401,7 @@ backup:
 toolkit:
   image:
     repository: percona/percona-server-mysql-operator
-    tag: 0.3.0-toolkit
+    tag: 0.4.0-toolkit
   imagePullPolicy: Always
   resources:
     requests: {}

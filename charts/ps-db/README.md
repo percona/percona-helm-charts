@@ -19,34 +19,34 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 0.3.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 0.4.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
-| `crVersion`                     | CR Cluster Manifest version                                                   | `0.3.0`                                   |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `0.4.0`                                   |
 | `finalizers`                    | Set this if you want to delete MySQL pods in order on cluster deletion        | `delete-mysql-pods-in-order`              |
 | `pause`                         | Stop PS Cluster safely                                                        | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of Orchestrator pods         | `false`                                   |
 | `initImage`                     | An alternative image for the initial Operator installation                    | `""`                                      |
 | `secretsName`                   | Secret name for user passwords                                                | `{}`                                      |
 | `sslSecretName`                 | Secret name for ssl certificates                                              | `{}`                                      |
+| `ignoreAnnotations`             | Mark annotations which will be ignored by the operator                        | `[]`                                      |
+| `ignoreLabels`                  | Mark labels which will be ignored by the operator                             | `[]`                                      |
 | `tls.SANs`                      | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]`         |
 | `tls.issuerConf.name`           | A cert-manager issuer name                                                    | `""`                                      |
 | `tls.issuerConf.kind`           | A cert-manager issuer type                                                    | `""`                                      |
 | `tls.issuerConf.group`          | A cert-manager issuer group                                                   | `""`                                      |
-| `mysql.clusterType`             | MySQL Cluster type (`async` or `group-replication`)                           | `async`                                   |
+| `mysql.clusterType`             | MySQL Cluster type (`async` or `group-replication`)                           | `group-replication`                       |
 | `mysql.image.repository`        | MySQL Container image repository                                              | `percona/percona-server`                  |
-| `mysql.image.tag`               | MySQL Container image tag                                                     | `8.0.29`                                  |
+| `mysql.image.tag`               | MySQL Container image tag                                                     | `8.0.30-22`                               |
 | `mysql.imagePullPolicy`         | The policy used to update images                                              | `Always`                                  |
 | `mysql.imagePullSecrets`        | MySQL Container pull secret                                                   | `[]`                                      |
 | `mysql.initImage`               | An alternative image for the initial mysql setup                              | `""`                                      |
 | `mysql.size`                    | Number of MySQL pods                                                          | `3`                                       |
 | `mysql.sizeSemiSync`            | Number of MySQL pods with enabled semi-sync replication                       | `0`                                       |
-| `mysql.primaryServiceType`      | MySQL primary service type                                                    | ``                                        |
-| `mysql.replicasServiceType`     | MySQL replicas service type                                                   | ``                                        |
 | `mysql.annotations`             | MySQL Pods user-defined annotations                                           | `{}`                                      |
 | `mysql.priorityClassName`       | MySQL Pods priority Class defined by user                                     | `""`                                      |
 | `mysql.runtimeClassName`        | Name of the Kubernetes Runtime Class for MySQL Pods                           | `""`                                      |
@@ -59,7 +59,13 @@ The chart can be customized using the following configurable parameters:
 | `mysql.affinity.advanced`       | MySQL Pods advanced scheduling restriction with match expression engine       | `{}`                                      |
 | `mysql.tolerations`             | List of node taints to tolerate for MySQL Pods                                | `[]`                                      |
 | `mysql.expose.enabled`          | Allow access to MySQL from outside of Kubernetes                              | `false`                                   |
-| `mysql.expose.exposeType`       | Network service access point type                                             | `ClusterIP`                               |
+| `mysql.expose.type`             | Network service access point type                                             | `ClusterIP`                               |
+| `mysql.expose.annotations`      | Network service annotations                                                   | `{}`                                      |
+| `mysql.expose.externalTrafficPolicy`    | Network service externalTrafficPolicy                                 | ``                                        |
+| `mysql.expose.internalTrafficPolicy`    | Network service internalTrafficPolicy                                 | ``                                        |
+| `mysql.expose.labels`           | Network service labels                                                        | `{}`                                      |
+| `mysql.expose.loadBalancerIP`   | The static IP-address for the load balancer                                   | `""`                                      |
+| `mysql.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                          |
 | `mysql.volumeSpec`              | MySQL Pods storage resources                                                  | `{}`                                      |
 | `mysql.volumeSpec.pvc`          | MySQL Pods PVC request parameters                                             |                                           |
 | `mysql.volumeSpec.pvc.storageClassName`  | MySQL Pods PVC target storageClass                                   | `""`                                      |
@@ -73,55 +79,69 @@ The chart can be customized using the following configurable parameters:
 | `mysql.podSecurityContext`      | A custom Kubernetes Security Context for a Pod to be used instead of the default one         | `{}`                       |
 | `mysql.serviceAccountName`      | A custom service account to be used instead of the default one                | `""`                                      |
 ||
-| `haproxy.enabled`                | Enable/Disable HAProxy pods in async replication                             | `true`                                    |
-| `haproxy.image.repository`       | HAProxy Container image repository                                           | `percona/percona-server-mysql-operator`   |
-| `haproxy.image.tag`              | HAProxy Container image tag                                                  | `0.3.0-haproxy`                           |
-| `haproxy.imagePullPolicy`        | The policy used to update images                                             | `Always`                                  |
-| `haproxy.imagePullSecrets`       | HAProxy Container pull secret                                                | `[]`                                      |
-| `haproxy.initImage`              | An alternative image for the initial haproxy setup                           | `""`                                      |
-| `haproxy.size`                   | HAProxy size (pod quantity)                                                  | `3`                                       |
-| `haproxy.annotations`            | HAProxy Pods user-defined annotations                                        | `{}`                                      |
-| `haproxy.priorityClassName`      | HAProxy Pods priority Class defined by user                                  | `""`                                      |
-| `haproxy.runtimeClassName`       | Name of the Kubernetes Runtime Class for HAProxy Pods                        | `""`                                      |
-| `haproxy.labels`                 | HAProxy Pods user-defined labels                                             | `{}`                                      |
-| `haproxy.schedulerName`          | The Kubernetes Scheduler                                                     | `""`                                      |
-| `haproxy.nodeSelector`           | HAProxy Pods key-value pairs setting for K8S node assignment                 | `{}`                                      |
-| `haproxy.affinity.antiAffinityTopologyKey`  | HAProxy Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"`        |
-| `haproxy.affinity.advanced`      | HAProxy Pods advanced scheduling restriction with match expression engine    | `{}`                                      |
-| `haproxy.tolerations`            | List of node taints to tolerate for HAProxy Pods                             | `[]`                                      |
-| `haproxy.resources.requests`     | HAProxy Pods resource requests                                               | `memory: 1G cpu: 600m`                    |
-| `haproxy.resources.limits`       | HAProxy Pods resource limits                                                 | `{}`                                      |
-| `haproxy.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                    |
-| `haproxy.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one  | `{}`                             |
-| `haproxy.serviceAccountName`     | A custom service account to be used instead of the default one               | `""`                                      |
-| `haproxy.expose.exposeType`      | Network service access point type                                            | `""`                                      |
+| `proxy.haproxy.enabled`                | Enable/Disable HAProxy pods in async replication                       | `false`                                   |
+| `proxy.haproxy.image.repository`       | HAProxy Container image repository                                     | `percona/percona-server-mysql-operator`   |
+| `proxy.haproxy.image.tag`              | HAProxy Container image tag                                            | `0.4.0-haproxy`                           |
+| `proxy.haproxy.imagePullPolicy`        | The policy used to update images                                       | `Always`                                  |
+| `proxy.haproxy.imagePullSecrets`       | HAProxy Container pull secret                                          | `[]`                                      |
+| `proxy.haproxy.initImage`              | An alternative image for the initial haproxy setup                     | `""`                                      |
+| `proxy.haproxy.size`                   | HAProxy size (pod quantity)                                            | `3`                                       |
+| `proxy.haproxy.annotations`            | HAProxy Pods user-defined annotations                                  | `{}`                                      |
+| `proxy.haproxy.priorityClassName`      | HAProxy Pods priority Class defined by user                            | `""`                                      |
+| `proxy.haproxy.runtimeClassName`       | Name of the Kubernetes Runtime Class for HAProxy Pods                  | `""`                                      |
+| `proxy.haproxy.labels`                 | HAProxy Pods user-defined labels                                       | `{}`                                      |
+| `proxy.haproxy.schedulerName`          | The Kubernetes Scheduler                                               | `""`                                      |
+| `proxy.haproxy.nodeSelector`           | HAProxy Pods key-value pairs setting for K8S node assignment           | `{}`                                      |
+| `proxy.haproxy.affinity.antiAffinityTopologyKey`  | HAProxy Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"`  |
+| `proxy.haproxy.affinity.advanced`      | HAProxy Pods advanced scheduling restriction with match expression engine  | `{}`                                  |
+| `proxy.haproxy.tolerations`            | List of node taints to tolerate for HAProxy Pods                       | `[]`                                      |
+| `proxy.haproxy.resources.requests`     | HAProxy Pods resource requests                                         | `memory: 1G cpu: 600m`                    |
+| `proxy.haproxy.resources.limits`       | HAProxy Pods resource limits                                           | `{}`                                      |
+| `proxy.haproxy.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`              |
+| `proxy.haproxy.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one  | `{}`                       |
+| `proxy.haproxy.serviceAccountName`     | A custom service account to be used instead of the default one         | `""`                                      |
+| `proxy.haproxy.expose.type`            | Network service access point type                                      | `""`                                      |
+| `proxy.haproxy.expose.annotations`     | Network service annotations                                            | `{}`                                      |
+| `proxy.haproxy.expose.externalTrafficPolicy`  | Network service externalTrafficPolicy                           | ``                                        |
+| `proxy.haproxy.expose.internalTrafficPolicy`  | Network service internalTrafficPolicy                           | ``                                        |
+| `proxy.haproxy.expose.labels`          | Network service labels                                                 | `{}`                                      |
+| `proxy.haproxy.expose.loadBalancerIP`  | The static IP-address for the load balancer                            | `""`                                      |
+| `proxy.haproxy.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                  |
 ||
-| `router.image.repository`       | Router Container image repository                                             | `percona/percona-server-mysql-operator`   |
-| `router.image.tag`              | Router Container image tag                                                    | `0.3.0-router`                            |
-| `router.imagePullPolicy`        | The policy used to update images                                              | `Always`                                  |
-| `router.imagePullSecrets`       | Router Container pull secret                                                  | `[]`                                      |
-| `router.initImage`              | An alternative image for the initial router setup                             | `""`                                      |
-| `router.size`                   | Router size (pod quantity)                                                    | `3`                                       |
-| `router.annotations`            | Router Pods user-defined annotations                                          | `{}`                                      |
-| `router.priorityClassName`      | Router Pods priority Class defined by user                                    | `""`                                      |
-| `router.runtimeClassName`       | Name of the Kubernetes Runtime Class for Router Pods                          | `""`                                      |
-| `router.labels`                 | Router Pods user-defined labels                                               | `{}`                                      |
-| `router.schedulerName`          | The Kubernetes Scheduler                                                      | `""`                                      |
-| `router.nodeSelector`           | Router Pods key-value pairs setting for K8S node assignment                   | `{}`                                      |
-| `router.affinity.antiAffinityTopologyKey`  | Router Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"`          |
-| `router.affinity.advanced`      | Router Pods advanced scheduling restriction with match expression engine      | `{}`                                      |
-| `router.tolerations`            | List of node taints to tolerate for Router Pods                               | `[]`                                      |
-| `router.resources.requests`     | Router Pods resource requests                                                 | `memory: 256M`                            |
-| `router.resources.limits`       | Router Pods resource limits                                                   | `memory: 256M`                            |
-| `router.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                     |
-| `router.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one  | `{}`                              |
-| `router.serviceAccountName`     | A custom service account to be used instead of the default one                | `""`                                      |
-| `router.expose.exposeType`      | Network service access point type                                             | `""`                                      |
+| `proxy.router.image.repository`       | Router Container image repository                                             | `percona/percona-server-mysql-operator`   |
+| `proxy.router.image.tag`              | Router Container image tag                                                    | `0.4.0-router`                            |
+| `proxy.router.imagePullPolicy`        | The policy used to update images                                              | `Always`                                  |
+| `proxy.router.imagePullSecrets`       | Router Container pull secret                                                  | `[]`                                      |
+| `proxy.router.initImage`              | An alternative image for the initial router setup                             | `""`                                      |
+| `proxy.router.size`                   | Router size (pod quantity)                                                    | `3`                                       |
+| `proxy.router.annotations`            | Router Pods user-defined annotations                                          | `{}`                                      |
+| `proxy.router.priorityClassName`      | Router Pods priority Class defined by user                                    | `""`                                      |
+| `proxy.router.runtimeClassName`       | Name of the Kubernetes Runtime Class for Router Pods                          | `""`                                      |
+| `proxy.router.labels`                 | Router Pods user-defined labels                                               | `{}`                                      |
+| `proxy.router.schedulerName`          | The Kubernetes Scheduler                                                      | `""`                                      |
+| `proxy.router.nodeSelector`           | Router Pods key-value pairs setting for K8S node assignment                   | `{}`                                      |
+| `proxy.router.affinity.antiAffinityTopologyKey`  | Router Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"`          |
+| `proxy.router.affinity.advanced`      | Router Pods advanced scheduling restriction with match expression engine      | `{}`                                      |
+| `proxy.router.tolerations`            | List of node taints to tolerate for Router Pods                               | `[]`                                      |
+| `proxy.router.resources.requests`     | Router Pods resource requests                                                 | `memory: 256M`                            |
+| `proxy.router.resources.limits`       | Router Pods resource limits                                                   | `memory: 256M`                            |
+| `proxy.router.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                     |
+| `proxy.router.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one  | `{}`                              |
+| `proxy.router.serviceAccountName`     | A custom service account to be used instead of the default one                | `""`                                      |
+| `proxy.router.expose.type`            | Network service access point type                                             | `""`                                      |
+| `proxy.router.expose.annotations`     | Network service annotations                                                   | `{}`                                      |
+| `proxy.router.expose.externalTrafficPolicy`  | Network service externalTrafficPolicy                                  | ``                                        |
+| `proxy.router.expose.internalTrafficPolicy`  | Network service internalTrafficPolicy                                  | ``                                        |
+| `proxy.router.expose.labels`          | Network service labels                                                        | `{}`                                      |
+| `proxy.router.expose.loadBalancerIP`  | The static IP-address for the load balancer                                   | `""`                                      |
+| `proxy.router.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                         |
 ||
+| `orchestrator.enabled`          | Enable/Disable orchestrator pods in async replication                         | `false`                                   |
 | `orchestrator.image.repository` | Orchestrator Container image repository                                       | `percona/percona-server-mysql-operator`   |
-| `orchestrator.image.tag`        | Orchestrator Container image tag                                              | `0.3.0-orchestrator`                      |
+| `orchestrator.image.tag`        | Orchestrator Container image tag                                              | `0.4.0-orchestrator`                      |
 | `orchestrator.imagePullPolicy`  | The policy used to update images                                              | `Always`                                  |
 | `orchestrator.imagePullSecrets` | Orchestrator Container pull secret                                            | `[]`                                      |
+| `orchestrator.serviceAccountName` | A custom service account to be used instead of the default one              | `""`                                      |
 | `orchestrator.initImage`        | An alternative image for the initial orchestrator setup                       | `""`                                      |
 | `orchestrator.size`             | Orchestrator size (pod quantity)                                              | `3`                                       |
 | `orchestrator.annotations`      | Orchestrator Pods user-defined annotations                                    | `{}`                                      |
@@ -142,11 +162,16 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.volumeSpec.pvc.resources.requests.storage`  | Orchestrator Pods PVC storage size                  | `1G`                                      |
 | `orchestrator.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                |
 | `orchestrator.podSecurityContext` | A custom Kubernetes Security Context for a Pod to be used instead of the default one       | `{}`                       |
-| `orchestrator.serviceAccountName` | A custom service account to be used instead of the default one              | `""`                                      |
-| `orchestrator.expose.exposeType`  | Network service access point type                                           | `""`                                      |
+| `orchestrator.expose.type`      | Network service access point type                                             | `""`                                      |
+| `orchestrator.expose.annotations` | Network service annotations                                                 | `{}`                                      |
+| `orchestrator.expose.externalTrafficPolicy`  | Network service externalTrafficPolicy                            | ``                                        |
+| `orchestrator.expose.internalTrafficPolicy`  | Network service internalTrafficPolicy                            | ``                                        |
+| `orchestrator.expose.labels`          | Network service labels                                                  | `{}`                                      |
+| `orchestrator.expose.loadBalancerIP`  | The static IP-address for the load balancer                             | `""`                                      |
+| `orchestrator.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                   |
 ||
 | `pmm.image.repository`          | PMM Container image repository                                                | `percona/pmm-client`                      |
-| `pmm.image.tag`                 | PMM Container image tag                                                       | `2.30.0`                                  |
+| `pmm.image.tag`                 | PMM Container image tag                                                       | `2.33.0`                                  |
 | `pmm.imagePullPolicy`           | The policy used to update images                                              |  ``                                       |
 | `pmm.serverHost`                | PMM server related K8S service hostname                                       | `monitoring-service`                      |
 | `pmm.serverUser`                | PMM server user                                                               | `admin`                                   |
@@ -154,14 +179,14 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.limits`          | PMM Container resource limits                                                 | `{}`                                      |
 ||
 | `toolkit.image.repository`      | Percona Toolkit Container image repository                                    | `percona/percona-server-mysql-operator`   |
-| `toolkit.image.tag`             | Percona Toolkit Container image tag                                           | `0.3.0-toolkit`                           |
+| `toolkit.image.tag`             | Percona Toolkit Container image tag                                           | `0.4.0-toolkit`                           |
 | `toolkit.imagePullPolicy`       | The policy used to update images                                              |  ``                                       |
 | `toolkit.resources.requests`    | Toolkit Container resource requests                                           | `{}`                                      |
 | `toolkit.resources.limits`      | Toolkit Container resource limits                                             | `{}`                                      |
 ||
 | `backup.enabled`                | Enable backups                                                                | `true`                                    |
-| `backup.image.repository`       | Backup Container image repository                                             | `percona/percona-server-mysql-operator`   |
-| `backup.image.tag`              | Backup Container image tag                                                    | `0.3.0-backup`                            |
+| `backup.image.repository`       | Backup Container image repository                                             | `percona/percona-xtrabackup`              |
+| `backup.image.tag`              | Backup Container image tag                                                    | `8.0.30-23`                               |
 | `backup.imagePullPolicy`        | The policy used to update images                                              | `Always`                                  |
 | `backup.imagePullSecrets`       | Backup Container pull secret                                                  | `[]`                                      |
 | `backup.initImage`              | An alternative image for the backup setup                                     | `""`                                      |
