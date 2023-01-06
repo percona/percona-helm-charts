@@ -6,6 +6,33 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 rules:
+# DBaaS operator rules
+- apiGroups:
+  - dbaas.percona.com
+  resources:
+  - databaseclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - dbaas.percona.com
+  resources:
+  - databaseclusters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - dbaas.percona.com
+  resources:
+  - databaseclusters/status
+  verbs:
+  - get
+  - patch
+  - update
 # PXC rules
 - apiGroups:
   - pxc.percona.com
