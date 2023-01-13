@@ -33,6 +33,32 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - dbaas.percona.com
+  resources:
+  - databaseengines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - dbaas.percona.com
+  resources:
+  - databaseengines/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - dbaas.percona.com
+  resources:
+  - databaseengines/status
+  verbs:
+  - get
+  - patch
+  - update
 # PXC rules
 - apiGroups:
   - pxc.percona.com
