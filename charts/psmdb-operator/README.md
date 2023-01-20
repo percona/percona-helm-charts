@@ -35,6 +35,8 @@ The chart can be customized using the following configurable parameters:
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
 | `watchNamespace`                | Set when a different from default namespace is needed to watch                | `""`                                      |
+| `rbac.create`                   | If false RBAC will not be created. RBAC resources will need to be created manually  | `true`                              |
+| `serviceAccount.create`         | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually  | `true`                  |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 

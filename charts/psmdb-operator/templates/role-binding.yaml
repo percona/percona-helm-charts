@@ -1,8 +1,11 @@
+{{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
 ---
+{{- end }}
+{{- if .Values.rbac.create }}
 {{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
 kind: ClusterRoleBinding
 {{- else }}
@@ -30,3 +33,4 @@ roleRef:
   {{- end }}
   name: {{ include "psmdb-operator.fullname" . }}
   apiGroup: rbac.authorization.k8s.io
+{{- end }}
