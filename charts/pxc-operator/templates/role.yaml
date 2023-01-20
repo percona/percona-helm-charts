@@ -1,3 +1,4 @@
+{{- if .Values.rbac.create }}
 {{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
 kind: ClusterRole
 {{- else }}
@@ -131,3 +132,4 @@ rules:
   - patch
   - delete
   - deletecollection
+{{- end }}
