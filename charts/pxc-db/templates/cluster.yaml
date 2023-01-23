@@ -19,7 +19,7 @@ spec:
   {{- if hasKey .Values.pxc "clusterSecretName" }}
   secretsName: {{ .Values.pxc.clusterSecretName }}
   {{- else }}
-  secretsName: {{ include "pxc-database.fullname" . }}
+  secretsName: {{ include "pxc-database.fullname" . }}-secrets
   {{- end }}
   {{- if not .Values.pxc.disableTLS }}
   {{- if hasKey .Values.secrets.tls "cluster" }}

@@ -7,7 +7,7 @@ finalizers:
 ## Set this if you want to delete proxysql persistent volumes on cluster deletion
   - delete-proxysql-pvc
 ## Set this if you want to delete database persistent volumes on cluster deletion
-  - delete-pxc-pvc
+#  - delete-pxc-pvc
 ## Set this if you want to delete cert manager certificates on cluster deletion
 #  - delete-ssl
 
@@ -125,10 +125,7 @@ pxc:
     maxUnavailable: 1
     # minAvailable: 0
   persistence:
-    enabled: false
-    # if persistence is enabled, you can specify a hostPath (not recommended)
-    # hostPath: /data/mysql
-    # otherwise you can specify values for a storage claim (default)
+    enabled: true
     ## percona data Persistent Volume Storage Class
     ## If defined, storageClassName: <storageClass>
     ## If set to "-", storageClassName: "", which disables dynamic provisioning
@@ -149,7 +146,7 @@ pxc:
 
   # If this is set will not create secrets from values and will instead try to use
   # a pre-existing secret of the same name.
-  # clusterSecretName:
+  # clusterSecretName: cluster1-secrets
   readinessProbes:
     initialDelaySeconds: 15
     timeoutSeconds: 15
@@ -433,10 +430,7 @@ proxysql:
     # minAvailable: 0
   persistence:
     enabled: true
-    # if persistence is enabled, you can specify a hostPath (not recommended)
-    # hostPath: /data/mysql
-    # otherwise you can specify values for a storage claim (default)
-    ## percona data Persistent Volume Storage Class
+    ## Percona data Persistent Volume Storage Class
     ## If defined, storageClassName: <storageClass>
     ## If set to "-", storageClassName: "", which disables dynamic provisioning
     ## If undefined (the default) or set to null, no storageClassName spec is
@@ -492,6 +486,7 @@ pmm:
 backup:
   enabled: true
   image: ""
+  # backoffLimit: 6
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
@@ -583,17 +578,17 @@ backup:
 
 secrets:
   ## You should be overriding these with your own or specify name for clusterSecretName.
-  passwords:
-    root: insecure-root-password
-    xtrabackup: insecure-xtrabackup-password
-    monitor: insecure-monitor-password
-    clustercheck: insecure-clustercheck-password
-    proxyadmin: insecure-proxyadmin-password
-    pmmserver: insecure-pmmserver-password
-    # If pmmserverkey is set in that case pmmserver pass will not be included
-    # pmmserverkey: set-pmmserver-api-key
-    operator: insecure-operator-password
-    replication: insecure-replication-password
+  # passwords:
+  #  root: insecure-root-password
+  #  xtrabackup: insecure-xtrabackup-password
+  #  monitor: insecure-monitor-password
+  #  clustercheck: insecure-clustercheck-password
+  #  proxyadmin: insecure-proxyadmin-password
+  #  pmmserver: insecure-pmmserver-password
+  #  # If pmmserverkey is set in that case pmmserver pass will not be included
+  #  # pmmserverkey: set-pmmserver-api-key
+  #  operator: insecure-operator-password
+  #  replication: insecure-replication-password
   ## If you are using `cert-manager` you can skip this next section.
   tls: {}
     # This should be the name of a secret that contains certificates.
