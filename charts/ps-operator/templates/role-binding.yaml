@@ -7,7 +7,7 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "ps-operator.fullname" . }}-orchestrator
+  name: percona-server-mysql-operator-orchestrator
 ---
 {{- end }}
 {{- if .Values.rbac.create }}
@@ -72,5 +72,5 @@ roleRef:
   name: {{ include "ps-operator.fullname" . }}-orchestrator
 subjects:
 - kind: ServiceAccount
-  name: {{ include "ps-operator.fullname" . }}-orchestrator
+  name: percona-server-mysql-operator-orchestrator
 {{- end }}
