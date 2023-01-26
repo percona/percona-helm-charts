@@ -13,6 +13,16 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# rbac: settings for deployer RBAC creation
+rbac:
+  # rbac.create: if false RBAC resources should be in place
+  create: true
+
+# serviceAccount: settings for Service Accounts used by the deployer
+serviceAccount:
+  # serviceAccount.create: Whether to create the Service Accounts or not
+  create: true
+
 env:
   logStructured: false
   logLevel: "INFO"

@@ -34,6 +34,8 @@ The chart can be customized using the following configurable parameters:
 | `tolerations`                   | List of node taints to tolerate                                               | `[]`                                      |
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
+| `rbac.create`                   | If false RBAC will not be created. RBAC resources will need to be created manually  | `true`                              |
+| `serviceAccount.create`         | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually  | `true`                  |
 | `env.logStructured`             | Enable JSON format for logs                                                   | `false`                                   |
 | `env.logLevel`                  | Set appropriate log level (INFO, DEBUG, ERROR)                                | `INFO`                                    |
 

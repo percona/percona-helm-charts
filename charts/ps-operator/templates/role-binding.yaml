@@ -1,3 +1,4 @@
+{{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -8,6 +9,8 @@ kind: ServiceAccount
 metadata:
   name: {{ include "ps-operator.fullname" . }}-orchestrator
 ---
+{{- end }}
+{{- if .Values.rbac.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -70,3 +73,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "ps-operator.fullname" . }}-orchestrator
+{{- end }}
