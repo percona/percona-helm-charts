@@ -44,6 +44,14 @@ spec:
       group: {{ .Values.tls.issuerConf.group }}
   {{- end }}
   {{- end }}
+  {{- if .Values.ignoreAnnotations }}
+  ignoreAnnotations:
+{{ .Values.imagePullSecrets | toYaml | indent 4 }}
+  {{- end }}
+  {{- if .Values.ignoreLabels }}
+  ignoreLabels:
+{{ .Values.ignoreLabels | toYaml | indent 4 }}
+  {{- end }}
 
   {{- $mysql := .Values.mysql }}
   mysql:
@@ -68,12 +76,6 @@ spec:
     {{- end }}
     {{- if $mysql.sizeSemiSync }}
     sizeSemiSync: {{ $mysql.sizeSemiSync }}
-    {{- end }}
-    {{- if $mysql.primaryServiceType }}
-    primaryServiceType: {{ $mysql.primaryServiceType }}
-    {{- end }}
-    {{- if $mysql.replicasServiceType }}
-    replicasServiceType: {{ $mysql.replicasServiceType }}
     {{- end }}
     affinity:
 {{ $mysql.affinity | toYaml | indent 6 }}
@@ -145,154 +147,159 @@ spec:
     {{- if $mysql.runtimeClassName }}
     runtimeClassName: {{ $mysql.runtimeClassName }}
     {{- end }}
-  {{ $haproxy := .Values.haproxy }}
-  haproxy:
-  {{- if not $haproxy.enabled }}
-    enabled: false
-  {{- else }}
-    enabled: true
-    image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
-    {{- if $haproxy.imagePullPolicy }}
-    imagePullPolicy: {{ $haproxy.imagePullPolicy }}
-    {{- end }}
-    {{- if $haproxy.imagePullSecrets }}
-    imagePullSecrets:
-{{ $haproxy.imagePullSecrets | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $haproxy.initImage }}
-    initImage: "{{ $haproxy.initImage }}"
-    {{- end }}
-    {{- if $haproxy.size }}
-    size: {{ $haproxy.size }}
-    {{- end }}
-    affinity:
-{{ $haproxy.affinity | toYaml | indent 6 }}
-    {{- if $haproxy.priorityClassName }}
-    priorityClassName: {{ $haproxy.priorityClassName }}
-    {{- end }}
-    annotations:
-{{ $haproxy.annotations | toYaml | indent 6 }}
-    labels:
-{{ $haproxy.labels | toYaml | indent 6 }}
-    tolerations:
-{{ $haproxy.tolerations | toYaml | indent 6 }}
-    nodeSelector:
-{{ $haproxy.nodeSelector | toYaml | indent 6 }}
-    resources:
-      requests:
-{{ tpl ($haproxy.resources.requests | toYaml) $ | indent 8 }}
-      limits:
-{{ tpl ($haproxy.resources.limits | toYaml) $ | indent 8 }}
-    {{- if $haproxy.volumeSpec }}
-    volumeSpec:
-      {{- if $haproxy.volumeSpec.hostPath }}
-      hostPath:
-        path: {{ $haproxy.volumeSpec.hostPath }}
-        type: Directory
-      {{- else if $haproxy.volumeSpec.pvc }}
-      persistentVolumeClaim:
-{{ $haproxy.volumeSpec.pvc | toYaml | indent 8 }}
-      {{- else }}
-      emptyDir: {}
+
+  proxy:
+    {{- $haproxy := .Values.proxy.haproxy }}
+    haproxy:
+    {{- if or (not $haproxy.enabled) (ne .Values.mysql.clusterType "async") }}
+      enabled: false
+    {{- else }}
+      enabled: true
+      image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
+      {{- if $haproxy.imagePullPolicy }}
+      imagePullPolicy: {{ $haproxy.imagePullPolicy }}
+      {{- end }}
+      {{- if $haproxy.imagePullSecrets }}
+      imagePullSecrets:
+{{ $haproxy.imagePullSecrets | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $haproxy.initImage }}
+      initImage: "{{ $haproxy.initImage }}"
+      {{- end }}
+      {{- if $haproxy.size }}
+      size: {{ $haproxy.size }}
+      {{- end }}
+      affinity:
+{{ $haproxy.affinity | toYaml | indent 8 }}
+      {{- if $haproxy.priorityClassName }}
+      priorityClassName: {{ $haproxy.priorityClassName }}
+      {{- end }}
+      annotations:
+{{ $haproxy.annotations | toYaml | indent 8 }}
+      labels:
+{{ $haproxy.labels | toYaml | indent 8 }}
+      tolerations:
+{{ $haproxy.tolerations | toYaml | indent 8 }}
+      nodeSelector:
+{{ $haproxy.nodeSelector | toYaml | indent 8 }}
+      resources:
+        requests:
+{{ tpl ($haproxy.resources.requests | toYaml) $ | indent 10 }}
+        limits:
+{{ tpl ($haproxy.resources.limits | toYaml) $ | indent 10 }}
+      {{- if $haproxy.volumeSpec }}
+      volumeSpec:
+        {{- if $haproxy.volumeSpec.hostPath }}
+        hostPath:
+          path: {{ $haproxy.volumeSpec.hostPath }}
+          type: Directory
+        {{- else if $haproxy.volumeSpec.pvc }}
+        persistentVolumeClaim:
+{{ $haproxy.volumeSpec.pvc | toYaml | indent 10 }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- end }}
+      {{- if $haproxy.schedulerName }}
+      schedulerName: {{ $haproxy.schedulerName }}
+      {{- end }}
+      {{- if $haproxy.containerSecurityContext }}
+      containerSecurityContext:
+{{ tpl ($haproxy.containerSecurityContext | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if $haproxy.podSecurityContext }}
+      podSecurityContext:
+{{ tpl ($haproxy.podSecurityContext | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if $haproxy.serviceAccountName }}
+      serviceAccountName: {{ $haproxy.serviceAccountName }}
+      {{- end }}
+      {{- if $haproxy.runtimeClassName }}
+      runtimeClassName: {{ $haproxy.runtimeClassName }}
+      {{- end }}
+      {{- if $haproxy.expose }}
+      expose:
+{{ tpl ($haproxy.expose | toYaml) $ | indent 8 }}
       {{- end }}
     {{- end }}
-    {{- if $haproxy.schedulerName }}
-    schedulerName: {{ $haproxy.schedulerName }}
-    {{- end }}
-    {{- if $haproxy.containerSecurityContext }}
-    containerSecurityContext:
-{{ tpl ($haproxy.containerSecurityContext | toYaml) $ | indent 6 }}
-    {{- end }}
-    {{- if $haproxy.podSecurityContext }}
-    podSecurityContext:
-{{ tpl ($haproxy.podSecurityContext | toYaml) $ | indent 6 }}
-    {{- end }}
-    {{- if $haproxy.serviceAccountName }}
-    serviceAccountName: {{ $haproxy.serviceAccountName }}
-    {{- end }}
-    {{- if $haproxy.runtimeClassName }}
-    runtimeClassName: {{ $haproxy.runtimeClassName }}
-    {{- end }}
-    {{- if $haproxy.expose }}
-    expose:
-      type: {{ $haproxy.expose.type }}
-    {{- end }}
-  {{- end }}
 
-  {{- $router := .Values.router }}
-  {{ if .Values.router }}
-  router:
-    image: {{ $router.image.repository }}:{{ $router.image.tag }}
-    {{- if $router.imagePullPolicy }}
-    imagePullPolicy: {{ $router.imagePullPolicy }}
-    {{- end }}
-    {{- if $router.imagePullSecrets }}
-    imagePullSecrets:
-{{ $router.imagePullSecrets | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $router.initImage }}
-    initImage: "{{ $router.initImage }}"
-    {{- end }}
-    {{- if $router.size }}
-    size: {{ $router.size }}
-    {{- end }}
-    affinity:
-{{ $router.affinity | toYaml | indent 6 }}
-    {{- if $router.priorityClassName }}
-    priorityClassName: {{ $router.priorityClassName }}
-    {{- end }}
-    annotations:
-{{ $router.annotations | toYaml | indent 6 }}
-    labels:
-{{ $router.labels | toYaml | indent 6 }}
-    tolerations:
-{{ $router.tolerations | toYaml | indent 6 }}
-    nodeSelector:
-{{ $router.nodeSelector | toYaml | indent 6 }}
-    resources:
-      requests:
-{{ tpl ($router.resources.requests | toYaml) $ | indent 8 }}
-      limits:
-{{ tpl ($router.resources.limits | toYaml) $ | indent 8 }}
-    {{- if $router.volumeSpec }}
-    volumeSpec:
-      {{- if $router.volumeSpec.hostPath }}
-      hostPath:
-        path: {{ $router.volumeSpec.hostPath }}
-        type: Directory
-      {{- else if $router.volumeSpec.pvc }}
-      persistentVolumeClaim:
-{{ $router.volumeSpec.pvc | toYaml | indent 8 }}
-      {{- else }}
-      emptyDir: {}
+    {{- $router := .Values.proxy.router }}
+    {{ if .Values.proxy.router }}
+    router:
+      image: {{ $router.image.repository }}:{{ $router.image.tag }}
+      {{- if $router.imagePullPolicy }}
+      imagePullPolicy: {{ $router.imagePullPolicy }}
+      {{- end }}
+      {{- if $router.imagePullSecrets }}
+      imagePullSecrets:
+{{ $router.imagePullSecrets | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.initImage }}
+      initImage: "{{ $router.initImage }}"
+      {{- end }}
+      {{- if $router.size }}
+      size: {{ $router.size }}
+      {{- end }}
+      affinity:
+{{ $router.affinity | toYaml | indent 8 }}
+      {{- if $router.priorityClassName }}
+      priorityClassName: {{ $router.priorityClassName }}
+      {{- end }}
+      annotations:
+{{ $router.annotations | toYaml | indent 8 }}
+      labels:
+{{ $router.labels | toYaml | indent 8 }}
+      tolerations:
+{{ $router.tolerations | toYaml | indent 8 }}
+      nodeSelector:
+{{ $router.nodeSelector | toYaml | indent 8 }}
+      resources:
+        requests:
+{{ tpl ($router.resources.requests | toYaml) $ | indent 10 }}
+        limits:
+{{ tpl ($router.resources.limits | toYaml) $ | indent 10 }}
+      {{- if $router.volumeSpec }}
+      volumeSpec:
+        {{- if $router.volumeSpec.hostPath }}
+        hostPath:
+          path: {{ $router.volumeSpec.hostPath }}
+          type: Directory
+        {{- else if $router.volumeSpec.pvc }}
+        persistentVolumeClaim:
+{{ $router.volumeSpec.pvc | toYaml | indent 10 }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- end }}
+      {{- if $router.schedulerName }}
+      schedulerName: {{ $router.schedulerName }}
+      {{- end }}
+      {{- if $router.containerSecurityContext }}
+      containerSecurityContext:
+{{ tpl ($router.containerSecurityContext | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if $router.podSecurityContext }}
+      podSecurityContext:
+{{ tpl ($router.podSecurityContext | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if $router.serviceAccountName }}
+      serviceAccountName: {{ $router.serviceAccountName }}
+      {{- end }}
+      {{- if $router.runtimeClassName }}
+      runtimeClassName: {{ $router.runtimeClassName }}
+      {{- end }}
+      {{- if $router.expose }}
+      expose:
+{{ tpl ($router.expose | toYaml) $ | indent 8 }}
       {{- end }}
     {{- end }}
-    {{- if $router.schedulerName }}
-    schedulerName: {{ $router.schedulerName }}
-    {{- end }}
-    {{- if $router.containerSecurityContext }}
-    containerSecurityContext:
-{{ tpl ($router.containerSecurityContext | toYaml) $ | indent 6 }}
-    {{- end }}
-    {{- if $router.podSecurityContext }}
-    podSecurityContext:
-{{ tpl ($router.podSecurityContext | toYaml) $ | indent 6 }}
-    {{- end }}
-    {{- if $router.serviceAccountName }}
-    serviceAccountName: {{ $router.serviceAccountName }}
-    {{- end }}
-    {{- if $router.runtimeClassName }}
-    runtimeClassName: {{ $router.runtimeClassName }}
-    {{- end }}
-    {{- if $router.expose }}
-    expose:
-      type: {{ $router.expose.type }}
-    {{- end }}
-  {{- end }}
 
-  {{- $orc := .Values.orchestrator }}
-  {{ if .Values.orchestrator }}
   orchestrator:
+  {{- $orc := .Values.orchestrator }}
+    {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
+    enabled: false
+    {{- else }}
+    enabled: true
     image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
     {{- if $orc.imagePullPolicy }}
     imagePullPolicy: {{ $orc.imagePullPolicy }}
@@ -300,6 +307,9 @@ spec:
     {{- if $orc.imagePullSecrets }}
     imagePullSecrets:
 {{ $orc.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.serviceAccountName }}
+    serviceAccountName: {{ $orc.serviceAccountName }}
     {{- end }}
     {{- if $orc.initImage }}
     initImage: "{{ $orc.initImage }}"
@@ -349,15 +359,12 @@ spec:
     podSecurityContext:
 {{ tpl ($orc.podSecurityContext | toYaml) $ | indent 6 }}
     {{- end }}
-    {{- if $orc.serviceAccountName }}
-    serviceAccountName: {{ $orc.serviceAccountName }}
-    {{- end }}
     {{- if $orc.runtimeClassName }}
     runtimeClassName: {{ $orc.runtimeClassName }}
     {{- end }}
     {{- if $orc.expose }}
     expose:
-      type: {{ $orc.expose.type }}
+{{ tpl ($orc.expose | toYaml) $ | indent 8 }}
     {{- end }}
   {{- end }}
 
