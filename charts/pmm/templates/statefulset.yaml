@@ -14,10 +14,8 @@ spec:
     type: RollingUpdate
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "pmm.podAnnotations" . | nindent 8 }}
       labels:
         {{- include "pmm.selectorLabels" . | nindent 8 }}
     spec:
@@ -81,6 +79,10 @@ spec:
                   name: {{ .Values.secret.name }}
                   key: PMM_ADMIN_PASSWORD
                   optional: true
+            - name: PMM_INSTALL_METHOD
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
           ports:
             - name: http
               containerPort: 80
@@ -96,13 +98,24 @@ spec:
           volumeMounts:
             - name: {{ .Values.storage.name }}
               mountPath: /srv
+            - name: annotations
+              mountPath: "/var/run/pmm/annotations"
+              readOnly: true
             {{- if .Values.certs.name }}
             - name: {{ .Values.certs.name }}
               mountPath: /srv/nginx
               readOnly: true
             {{- end }}
-      {{- if .Values.certs.name }}
       volumes:
+        - name: annotations
+          projected:
+            sources:
+            - downwardAPI:
+                items:
+                  - path: "annotations"
+                    fieldRef:
+                      fieldPath: metadata.annotations
+      {{- if .Values.certs.name }}
         - name: {{ .Values.certs.name }}
           secret:
             secretName: {{ .Values.certs.name }}
@@ -120,4 +133,3 @@ spec:
         resources:
           requests:
             storage: {{ .Values.storage.size }}
-
