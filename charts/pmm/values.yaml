@@ -168,6 +168,24 @@ storage:
   ## @param storage.size size of storage [depends](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) on number of monitored services and data retention
   ##
   size: 10Gi
+  ##
+  ## @param storage.dataSource VolumeSnapshot to start from
+  ##
+  dataSource: {}
+    ## name: before-vX.Y.Z-upgrade
+    ## kind: VolumeSnapshot
+    ## apiGroup: snapshot.storage.k8s.io
+  ##
+  ## @param storage.selector select existing PersistentVolume
+  ##
+  selector: {}
+  ##   matchLabels:
+  ##     release: "stable"
+  ##   matchExpressions:
+  ##     - key: environment
+  ##       operator: In
+  ##       values:
+  ##         - dev
 
 ## @section PMM kubernetes configurations
 ## @param nameOverride String to partially override common.names.fullname template with a string (will prepend the release name)

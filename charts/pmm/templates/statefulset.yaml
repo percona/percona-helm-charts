@@ -125,9 +125,17 @@ spec:
     - metadata:
         name: {{ .Values.storage.name }}
       spec:
+        {{- if .Values.storage.selector }}
+        selector:
+          {{- toYaml .Values.storage.selector | nindent 10 }}
+        {{- end }}
         {{ if .Values.storage.storageClassName }}
         storageClassName: {{ .Values.storage.storageClassName }}
         {{ end }}
+        {{- if .Values.storage.dataSource }}
+        dataSource:
+          {{- toYaml .Values.storage.dataSource | nindent 10 }}
+        {{- end }}
         accessModes:
           - ReadWriteOnce
         resources:
