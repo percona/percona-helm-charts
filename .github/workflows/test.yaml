@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -19,9 +19,9 @@ jobs:
         with:
           version: v3.9.2
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: '3.7'
 
       - name: Set up chart-testing
         uses: helm/chart-testing-action@v2.3.1
@@ -38,7 +38,7 @@ jobs:
         run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1.2.0
+        uses: helm/kind-action@v1.5.0
         # Only build a kind cluster if there are chart changes to test.
         if: steps.list-changed.outputs.changed == 'true'
 
