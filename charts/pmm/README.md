@@ -188,7 +188,7 @@ Before updating the helm chart,  it is recommended to pre-pull the image on the 
 PMM updates should happen in a standard way:
 
 ```sh
-helm repo update percon
+helm repo update percona
 helm upgrade pmm -f values.yaml percona/pmm
 ```
 
