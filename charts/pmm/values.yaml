@@ -131,6 +131,7 @@ ingress:
     ## kubernetes.io/tls-acme: "true"
     ###  nginx proxy to https
     ## nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+  ## @param ingress.community.annotations -- Ingress annotations configuration for community managed ingress (nginxInc = false)
   community:
     annotations: {}
       ## kubernetes.io/ingress.class: nginx
