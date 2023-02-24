@@ -6,6 +6,8 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 rules:
+{{- with .Values.pmmEnv }}
+{{- if eq .ENABLE_DBAAS "1" }}
 # DBaaS operator rules
 - apiGroups:
   - dbaas.percona.com
@@ -853,5 +855,26 @@ rules:
   - /metrics
   verbs:
   - get
-
+{{- else }}
+# standard RBAC
+- apiGroups: [""] # "" indicates the core API group
+  resources:
+  - namespaces
+  - endpoints
+  - services
+  - nodes
+  - pods
+  - secrets
+  - serviceaccounts
+  verbs:
+  - get
+  - watch
+  - list
+- nonResourceURLs:
+  - /metrics
+  - /metrics/resources
+  verbs:
+  - get
+{{- end }}
+{{- end }}
 {{- end }}
