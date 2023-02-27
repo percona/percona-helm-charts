@@ -5,8 +5,14 @@ metadata:
   name: {{ include "pmm.fullname" . }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
+{{- with .Values.pmmEnv }}
+{{- if eq .ENABLE_DBAAS "1" }}
+  kind: ClusterRole
+  name: cluster-admin
+{{- else }}
   kind: ClusterRole
   name: {{ include "pmm.fullname" . }}
+{{- end }}
 subjects:
 - kind: ServiceAccount
   name: {{ include "pmm.serviceAccountName" . }}
