@@ -1,21 +1,29 @@
 {{- if .Values.serviceAccount.create -}}
+{{- if .Values.pmmEnv.ENABLE_DBAAS -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: {{ include "pmm.fullname" . }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-{{- with .Values.pmmEnv }}
-{{- if .ENABLE_DBAAS }}
   kind: ClusterRole
   name: cluster-admin
-{{- else }}
-  kind: ClusterRole
-  name: {{ include "pmm.fullname" . }}
-{{- end }}
-{{- end }}
 subjects:
 - kind: ServiceAccount
   name: {{ include "pmm.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
+{{- else }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "pmm.fullname" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "pmm.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "pmm.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}
