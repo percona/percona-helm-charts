@@ -13,6 +13,7 @@ roleRef:
   kind: ClusterRole
   name: {{ include "pmm.fullname" . }}
 {{- end }}
+{{- end }}
 subjects:
 - kind: ServiceAccount
   name: {{ include "pmm.serviceAccountName" . }}
