@@ -68,25 +68,27 @@ It removes all of the resources associated with the last release of the chart as
 
 ### PMM network configuration
 
-| Name                          | Description                                                                                                                                    | Value                 |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `service.name`                | Service name that is dns name monitoring services would send data to. `monitoring-service` used by default by pmm-client in Percona operators. | `monitoring-service`  |
-| `service.type`                | Kubernetes Service type                                                                                                                        | `NodePort`            |
-| `service.ports[0].port`       | https port number                                                                                                                              | `443`                 |
-| `service.ports[0].targetPort` | target port to map for statefulset and ingress                                                                                                 | `https`               |
-| `service.ports[0].protocol`   | protocol for https                                                                                                                             | `TCP`                 |
-| `service.ports[0].name`       | port name                                                                                                                                      | `https`               |
-| `service.ports[1].port`       | http port number                                                                                                                               | `80`                  |
-| `service.ports[1].targetPort` | target port to map for statefulset and ingress                                                                                                 | `http`                |
-| `service.ports[1].protocol`   | protocol for http                                                                                                                              | `TCP`                 |
-| `service.ports[1].name`       | port name                                                                                                                                      | `http`                |
-| `ingress.enabled`             | -- Enable ingress controller resource                                                                                                          | `false`               |
-| `ingress.annotations`         | -- Ingress annotations configuration                                                                                                           | `{}`                  |
-| `ingress.ingressClassName`    | -- Sets the ingress controller class name to use.                                                                                              | `""`                  |
-| `ingress.hosts[0].host`       | hostname                                                                                                                                       | `chart-example.local` |
-| `ingress.hosts[0].paths`      | path mapping                                                                                                                                   | `[]`                  |
-| `ingress.pathType`            | -- How ingress paths should be treated.                                                                                                        | `Prefix`              |
-| `ingress.tls`                 | -- Ingress TLS configuration                                                                                                                   | `[]`                  |
+| Name                              | Description                                                                                                                                    | Value                 |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `service.name`                    | Service name that is dns name monitoring services would send data to. `monitoring-service` used by default by pmm-client in Percona operators. | `monitoring-service`  |
+| `service.type`                    | Kubernetes Service type                                                                                                                        | `NodePort`            |
+| `service.ports[0].port`           | https port number                                                                                                                              | `443`                 |
+| `service.ports[0].targetPort`     | target port to map for statefulset and ingress                                                                                                 | `https`               |
+| `service.ports[0].protocol`       | protocol for https                                                                                                                             | `TCP`                 |
+| `service.ports[0].name`           | port name                                                                                                                                      | `https`               |
+| `service.ports[1].port`           | http port number                                                                                                                               | `80`                  |
+| `service.ports[1].targetPort`     | target port to map for statefulset and ingress                                                                                                 | `http`                |
+| `service.ports[1].protocol`       | protocol for http                                                                                                                              | `TCP`                 |
+| `service.ports[1].name`           | port name                                                                                                                                      | `http`                |
+| `ingress.enabled`                 | -- Enable ingress controller resource                                                                                                          | `false`               |
+| `ingress.nginxInc`                | -- Using ingress controller from NGINX Inc                                                                                                     | `false`               |
+| `ingress.annotations`             | -- Ingress annotations configuration                                                                                                           | `{}`                  |
+| `ingress.community.annotations`   | -- Ingress annotations configuration for community managed ingress (nginxInc = false)                                                          | `{}`                  |
+| `ingress.ingressClassName`        | -- Sets the ingress controller class name to use.                                                                                              | `""`                  |
+| `ingress.hosts[0].host`           | hostname                                                                                                                                       | `chart-example.local` |
+| `ingress.hosts[0].paths`          | path mapping                                                                                                                                   | `[]`                  |
+| `ingress.pathType`                | -- How ingress paths should be treated.                                                                                                        | `Prefix`              |
+| `ingress.tls`                     | -- Ingress TLS configuration                                                                                                                   | `[]`                  |
 
 
 ### PMM storage configuration

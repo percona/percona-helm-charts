@@ -123,13 +123,19 @@ service:
 ingress:
   ## @param ingress.enabled -- Enable ingress controller resource
   enabled: false
+  ## @param ingress.nginxInc -- Using ingress controller from NGINX Inc
+  nginxInc: false
   ## @param ingress.annotations -- Ingress annotations configuration
   annotations: {}
     ## kubernetes.io/ingress.class: nginx
     ## kubernetes.io/tls-acme: "true"
     ###  nginx proxy to https
     ## nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
-
+  ## @param ingress.community.annotations -- Ingress annotations configuration for community managed ingress (nginxInc = false)
+  community:
+    annotations: {}
+      ## kubernetes.io/ingress.class: nginx
+      ## kubernetes.io/tls-acme: "true"
   ## @param ingress.ingressClassName -- Sets the ingress controller class name to use.
   ingressClassName: ""
 
