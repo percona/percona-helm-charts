@@ -306,6 +306,30 @@ entries:
   pmm:
   - apiVersion: v2
     appVersion: 2.35.0
+    created: "2023-03-03T13:24:57.797461007Z"
+    description: A Helm chart for Percona Monitoring and Management (PMM)
+    digest: 6e98b72de5f5d8617e24f9078d3029a771dacdf59e2e781753478bd5dabf366c
+    home: https://github.com/percona/pmm
+    icon: https://www.percona.com/sites/default/files/pmm-logo.png
+    keywords:
+    - PMM
+    - Monitoring
+    maintainers:
+    - email: andrew.minkin@percona.com
+      name: gen1us2k
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: denys.kondratenko@percona.com
+      name: denisok
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: pmm
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-1.2.0/pmm-1.2.0.tgz
+    version: 1.2.0
+  - apiVersion: v2
+    appVersion: 2.35.0
     created: "2023-02-28T08:04:42.981394435Z"
     description: A Helm chart for Percona Monitoring and Management (PMM)
     digest: 12bab6ea2b7ef45c06e83e3c405b72d6b9b38479b70e15ed04c2a23b1acdf25b
@@ -929,6 +953,21 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/ps-operator-0.2.0/ps-operator-0.2.0.tgz
     version: 0.2.0
   psmdb-db:
+  - apiVersion: v2
+    appVersion: 1.13.0
+    created: "2023-03-03T13:24:57.985982731Z"
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    digest: 52ca7a23141f27f6f2ab8e680fa8b97b9c7a9abc01d19840dcd1c2cb73047aeb
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    name: psmdb-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-1.13.1/psmdb-db-1.13.1.tgz
+    version: 1.13.1
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2022-09-23T13:29:10.170100795Z"
