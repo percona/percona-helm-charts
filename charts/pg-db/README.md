@@ -62,6 +62,7 @@ The chart can be customized using the following configurable parameters:
 | `pgPrimary.affinity.nodeAffinityType`                     | Node antiAffinity for PostreSQL db pods `preferred/required/disabled` | `preferred`                              |
 | `pgPrimary.affinity.nodeLabel`                     | Key/value map with node lables specified for nodeAffinity | `key/value`                              |
 | `pgPrimary.affinity.advanced`                     | User defined affinity structure to be passed to pods without any processing | `key/value`                              |
+| `pgPrimary.customconfig`                     |  Name of your ConfigMap with custom options for the cluster | ``                              |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
 | `pmm.image.tag`                     | PMM Container image tag                                       | `2.29.0`                              |
