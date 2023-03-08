@@ -15,10 +15,14 @@ finalizers:
 ## Set this if you want to delete database persistent volumes on cluster deletion
   - delete-psmdb-pvc
 
-crVersion: 1.13.0
+crVersion: 1.14.0
 pause: false
 unmanaged: false
 allowUnsafeConfigurations: false
+# ignoreAnnotations:
+#   - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
+# ignoreLabels:
+#   - rack
 multiCluster:
   enabled: false
   # DNSSuffix: svc.clusterset.local
@@ -31,10 +35,14 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 5.0.11-10
+  tag: 6.0.4-3
 
 imagePullPolicy: Always
 # imagePullSecrets: []
+# initImage:
+#   repository: percona/percona-server-mongodb-operator
+#   tag: 1.14.0
+# initContainerSecurityContext: {}
 # tls:
 #   # 90 days in hours
 #   certValidityDuration: 2160h
@@ -48,7 +56,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.30.0
+    tag: 2.35.0
   serverHost: monitoring-service
 
 replsets:
@@ -171,6 +179,10 @@ replsets:
         # hostPath:
         #   path: /data
         pvc:
+          # annotations:
+          #   volume.beta.kubernetes.io/storage-class: example-hostpath
+          # labels:
+          #   rack: rack-22
           # storageClassName: standard
           # accessModes: [ "ReadWriteOnce" ]
           resources:
@@ -198,6 +210,10 @@ replsets:
       # hostPath:
       #   path: /data
       pvc:
+        # annotations:
+        #   volume.beta.kubernetes.io/storage-class: example-hostpath
+        # labels:
+        #   rack: rack-22
         # storageClassName: standard
         # accessModes: [ "ReadWriteOnce" ]
         resources:
@@ -264,6 +280,10 @@ sharding:
       #   path: /data
       #   type: Directory
       pvc:
+        # annotations:
+        #   volume.beta.kubernetes.io/storage-class: example-hostpath
+        # labels:
+        #   rack: rack-22
         # storageClassName: standard
         # accessModes: [ "ReadWriteOnce" ]
         resources:
@@ -321,7 +341,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 1.8.1
+    tag: 2.0.4
   serviceAccountName: percona-server-mongodb-operator
   # annotations:
   #   iam.amazonaws.com/role: role-arn
@@ -376,6 +396,14 @@ backup:
   #   keep: 5
   #   storageName: s3-us-west
   #   compressionType: gzip
+  # - name: weekly-s3-us-west-physical
+  #   enabled: false
+  #   schedule: "0 5 * * 0"
+  #   keep: 5
+  #   type: physical
+  #   storageName: s3-us-west
+  #   compressionType: gzip
+  #   compressionLevel: 6
 
 users:
   MONGODB_BACKUP_USER: backup
