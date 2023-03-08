@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.13.0
+  tag: 1.14.0
   pullPolicy: IfNotPresent
 
 # set if you want to specify a namespace to watch
