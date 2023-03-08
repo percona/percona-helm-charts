@@ -48,6 +48,7 @@ pgPrimary:
     nodeAffinityType:
     nodeLabel:
     advanced:
+  customconfig: ''
 
 pmm:
   enabled: false

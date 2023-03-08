@@ -90,6 +90,7 @@ spec:
       advanced:
 {{ toYaml .Values.pgPrimary.affinity.advanced | indent 8 }}
       {{- end }}
+    customconfig: {{ .Values.pgPrimary.customconfig }}
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
