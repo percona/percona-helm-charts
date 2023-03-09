@@ -50,8 +50,8 @@ imagePullPolicy: Always
 #   # 90 days in hours
 #   certValidityDuration: 2160h
 secrets: {}
-  # If you set users secret here, it will not be constructed from the values at the
-  # bottom of this file, but the operator will use existing one or generate random values
+  # If you set users secret here the operator will use existing one or generate random values
+  # If not set the operator generates the default secret with name <cluster_name>-secrets
   # users: my-cluster-name-secrets
   # encryptionKey: my-cluster-name-mongodb-encryption-key
 
@@ -408,17 +408,18 @@ backup:
   #   compressionType: gzip
   #   compressionLevel: 6
 
-users:
-  MONGODB_BACKUP_USER: backup
-  MONGODB_BACKUP_PASSWORD: backup123456
-  MONGODB_DATABASE_ADMIN_USER: databaseAdmin
-  MONGODB_DATABASE_ADMIN_PASSWORD: databaseAdmin123456
-  MONGODB_CLUSTER_ADMIN_USER: clusterAdmin
-  MONGODB_CLUSTER_ADMIN_PASSWORD: clusterAdmin123456
-  MONGODB_CLUSTER_MONITOR_USER: clusterMonitor
-  MONGODB_CLUSTER_MONITOR_PASSWORD: clusterMonitor123456
-  MONGODB_USER_ADMIN_USER: userAdmin
-  MONGODB_USER_ADMIN_PASSWORD: userAdmin123456
-  PMM_SERVER_API_KEY: apikey
-  # PMM_SERVER_USER: admin
-  # PMM_SERVER_PASSWORD: admin
+# If you set users here the secret will be constructed by helm with these values
+# users:
+#   MONGODB_BACKUP_USER: backup
+#   MONGODB_BACKUP_PASSWORD: backup123456
+#   MONGODB_DATABASE_ADMIN_USER: databaseAdmin
+#   MONGODB_DATABASE_ADMIN_PASSWORD: databaseAdmin123456
+#   MONGODB_CLUSTER_ADMIN_USER: clusterAdmin
+#   MONGODB_CLUSTER_ADMIN_PASSWORD: clusterAdmin123456
+#   MONGODB_CLUSTER_MONITOR_USER: clusterMonitor
+#   MONGODB_CLUSTER_MONITOR_PASSWORD: clusterMonitor123456
+#   MONGODB_USER_ADMIN_USER: userAdmin
+#   MONGODB_USER_ADMIN_PASSWORD: userAdmin123456
+#   PMM_SERVER_API_KEY: apikey
+#   # PMM_SERVER_USER: admin
+#   # PMM_SERVER_PASSWORD: admin
