@@ -61,7 +61,6 @@ spec:
   {{- else }}
   secrets:
     users: {{ include "psmdb-database.fullname" . }}-secrets
-    encryptionKey: {{ include "psmdb-database.fullname" . }}-mongodb-encryption-key
   {{- end }}
   {{- if .Values.updateStrategy }}
   updateStrategy: {{ .Values.updateStrategy }}
