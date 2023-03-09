@@ -8,7 +8,7 @@ Useful links:
 
 ## Pre-requisites
 * Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-* Kubernetes 1.19+
+* Kubernetes 1.22+
 * Helm v3
 
 # Chart Details
