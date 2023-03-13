@@ -8,7 +8,7 @@ Useful links:
 
 ## Pre-requisites
 * Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-* Kubernetes 1.19+
+* Kubernetes 1.22+
 * Helm v3
 
 # Chart Details
@@ -19,19 +19,21 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.13.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.14.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
-| `crVersion`                     | CR Cluster Manifest version                                                   | `1.13.0`                                  |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `1.14.0`                                  |
 | `pause`                         | Stop PSMDB Database safely                                                    | `false`                                   |
 | `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PSMDB cluster pods        | `false`                                   |
 | `clusterServiceDNSSuffix`       | The (non-standard) cluster domain to be used as a suffix of the Service name  | `""`                                      |
 | `clusterServiceDNSMode`         | Mode for the cluster service dns (Internal/ServiceMesh)                       | `""`                                      |
+| `ignoreAnnotations`             | The list of annotations to be ignored by the Operator                         | `[]`                                      |
+| `ignoreLabels`                  | The list of labels to be ignored by the Operator                              | `[]`                                      |
 | `multiCluster.enabled`          | Enable Multi Cluster Services (MCS) cluster mode                              | `false`                                   |
 | `multiCluster.DNSSuffix`        | The cluster domain to be used as a suffix for multi-cluster Services used by Kubernetes | `""`                            |
 | `updateStrategy`                | Regulates the way how PSMDB Cluster Pods will be updated after setting a new image | `SmartUpdate`                        |
@@ -42,14 +44,17 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:delete-psmdb-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion | `[]` |
 | `finalizers:delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)     | `[]` |
 | `image.repository`             | PSMDB Container image repository                                               | `percona/percona-server-mongodb`          |
-| `image.tag`                    | PSMDB Container image tag                                                      | `5.0.11-10`                                 |
+| `image.tag`                    | PSMDB Container image tag                                                      | `6.0.4-3`                                 |
 | `imagePullPolicy`              | The policy used to update images                                               | `Always`                                  |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                    | `[]`                                      |
+| `initImage.repository`         | Repository for custom init image                                               | `""`                                      |
+| `initImage.tag`                | Tag for custom init image                                                      | `""`                                      |
+| `initContainerSecurityContext` | A custom Kubernetes Security Context for a Container for the initImage         | `{}`                                      |
 | `tls.certValidityDuration`     | The validity duration of the external certificate for cert manager             | `""`                                      |
 | `secrets`             | Operator secrets section                                 | `{}`                                      |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.30.0`                              |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.35.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 ||
 | `replsets[0].name`                      | ReplicaSet name              | `rs0` |
@@ -95,6 +100,8 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].nonvoting.volumeSpec.hostPath`       | Nonvoting Pods hostPath K8S storage                  |      |
 | `replsets[0].nonvoting.volumeSpec.hostPath.path`  | Nonvoting Pods hostPath K8S storage path             | `""` |
 | `replsets[0].nonvoting.volumeSpec.pvc`            | Nonvoting Pods PVC request parameters                |      |
+| `replsets[0].nonvoting.volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}` |
+| `replsets[0].nonvoting.volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}` |
 | `replsets[0].nonvoting.volumeSpec.pvc.storageClassName`  | Nonvoting Pods PVC target storageClass        | `""` |
 | `replsets[0].nonvoting.volumeSpec.pvc.accessModes`       | Nonvoting Pods PVC access policy              | `[]` |
 | `replsets[0].nonvoting.volumeSpec.pvc.resources.requests.storage`    | Nonvoting Pods PVC storage size   | `3Gi` |
@@ -112,8 +119,10 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].volumeSpec.emptyDir`       | ReplicaSet Pods emptyDir K8S storage                          | `{}`                  |
 | `replsets[0].volumeSpec.hostPath`       | ReplicaSet Pods hostPath K8S storage                          |                   |
 | `replsets[0].volumeSpec.hostPath.path`       | ReplicaSet Pods hostPath K8S storage path                       | `""`                  |
-| `replsets[0].volumeSpec.pvc`       | ReplicaSet Pods PVC request parameters                       |                   |
-| `replsets[0].volumeSpec.pvc.storageClassName`       | ReplicaSet Pods PVC target storageClass                      | `""` |
+| `replsets[0].volumeSpec.pvc`                   | ReplicaSet Pods PVC request parameters                       |                   |
+| `replsets[0].volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}` |
+| `replsets[0].volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}` |
+| `replsets[0].volumeSpec.pvc.storageClassName`  | ReplicaSet Pods PVC target storageClass                      | `""` |
 | `replsets[0].volumeSpec.pvc.accessModes`       | ReplicaSet Pods PVC access policy                      | `[]` |
 | `replsets[0].volumeSpec.pvc.resources.requests.storage`       | ReplicaSet Pods PVC storage size                      | `3Gi` |
 | |
@@ -150,6 +159,8 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.volumeSpec.hostPath.path`   | Config ReplicaSet hostPath K8S storage path | `""` |
 | `sharding.configrs.volumeSpec.emptyDir`        | Config ReplicaSet Pods emptyDir K8S storage | |
 | `sharding.configrs.volumeSpec.pvc`             | Config ReplicaSet Pods PVC request parameters | |
+| `sharding.configrs.volumeSpec.pvc.annotations` | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}` |
+| `sharding.configrs.volumeSpec.pvc.labels`      | The Kubernetes labels metadata for Persistent Volume Claim       | `{}` |
 | `sharding.configrs.volumeSpec.pvc.storageClassName` | Config ReplicaSet Pods PVC storageClass | `""` |
 | `sharding.configrs.volumeSpec.pvc.accessModes` | Config ReplicaSet Pods PVC access policy | `[]` |
 | `sharding.configrs.volumeSpec.pvc.resources.requests.storage` | Config ReplicaSet Pods PVC storage size | `3Gi` |
@@ -184,7 +195,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.annotations`        | Backup job annotations                   | `{}`   |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
 | `backup.image.repository`   | PBM Container image repository           | `percona/percona-backup-mongodb` |
-| `backup.image.tag`          | PBM Container image tag                  | `1.8.1` |
+| `backup.image.tag`          | PBM Container image tag                  | `2.0.4` |
 | `backup.serviceAccountName` | Run PBM Container under specified K8S SA | `percona-server-mongodb-operator` |
 | `backup.storages`           | Local/remote backup storages settings    | `{}` |
 | `backup.pitr.enabled`       | Enable point in time recovery for backup | `false` |
