@@ -26,6 +26,25 @@ serviceAccount:
   # serviceAccount.create: Whether to create the Service Accounts or not
   create: true
 
+podAnnotations: {}
+  # prometheus.io/scrape: "true"
+  # prometheus.io/port: "8080"
+
+podSecurityContext: {}
+  # runAsNonRoot: true
+  # runAsUser: 2
+  # runAsGroup: 2
+  # fsGroup: 2
+  # fsGroupChangePolicy: "OnRootMismatch"
+
+securityContext: {}
+  # allowPrivilegeEscalation: false
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # seccompProfile:
+  #   type: RuntimeDefault
+
 # set if you want to use a different operator name
 # defaults to `percona-server-mongodb-operator`
 # operatorName:
