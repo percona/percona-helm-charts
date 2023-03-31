@@ -18,6 +18,11 @@ spec:
   {{- if .Values.initImage }}
   initImage: {{ .Values.initImage }}
   {{- end }}
+  {{- if hasKey .Values.upgradeOptions "versionServiceEndpoint" }}
+  upgradeOptions:
+    versionServiceEndpoint: {{ .Values.upgradeOptions.versionServiceEndpoint }}
+    apply: {{ .Values.upgradeOptions.apply }}
+  {{- end }}
   {{- if .Values.pause }}
   pause: {{ .Values.pause }}
   {{- end }}
@@ -242,6 +247,10 @@ spec:
       {{- end }}
       affinity:
 {{ $router.affinity | toYaml | indent 8 }}
+      {{- if $router.configuration }}
+      configuration: |
+{{ tpl $router.configuration $ | nindent 8 }}
+      {{- end }}
       {{- if $router.priorityClassName }}
       priorityClassName: {{ $router.priorityClassName }}
       {{- end }}
@@ -284,6 +293,8 @@ spec:
       {{- end }}
       {{- if $router.serviceAccountName }}
       serviceAccountName: {{ $router.serviceAccountName }}
+      {{- else }}
+      serviceAccountName: {{ include "ps-database.fullname" . }}-orchestrator
       {{- end }}
       {{- if $router.runtimeClassName }}
       runtimeClassName: {{ $router.runtimeClassName }}

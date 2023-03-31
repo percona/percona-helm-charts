@@ -7,11 +7,16 @@ fullnameOverride: ""
 
 finalizers:
   - delete-mysql-pods-in-order
+  # - delete-ssl
 
-crVersion: 0.4.0
+crVersion: 0.5.0
 pause: false
 allowUnsafeConfigurations: false
-# initImage: percona/percona-server-mysql-operator:0.4.0
+# initImage: percona/percona-server-mysql-operator:0.5.0
+
+upgradeOptions:
+  versionServiceEndpoint: https://check.percona.com
+  apply: disabled
 
 # Default secret name will be <cluster_name>-secrets unless different name specified below.
 # secretsName: cluster1-secrets
@@ -35,11 +40,11 @@ mysql:
   clusterType: group-replication
   image:
     repository: percona/percona-server
-    tag: 8.0.30-22
+    tag: 8.0.32-24
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
-  # initImage: percona/percona-server-mysql-operator:0.4.0
+  # initImage: percona/percona-server-mysql-operator:0.5.0
 
   size: 3
   sizeSemiSync: 0
@@ -139,11 +144,11 @@ proxy:
   haproxy:
     enabled: false
     image:
-      repository: percona/percona-server-mysql-operator
-      tag: 0.4.0-haproxy
+      repository: percona/haproxy
+      tag: 2.5.12
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.4.0
+    # initImage: percona/percona-server-mysql-operator:0.5.0
 
     size: 3
 
@@ -203,11 +208,11 @@ proxy:
 
   router:
     image:
-      repository: percona/percona-server-mysql-operator
-      tag: 0.4.0-router
+      repository: percona/percona-mysql-router
+      tag: 8.0.32
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.4.0
+    # initImage: percona/percona-server-mysql-operator:0.5.0
 
     size: 3
 
@@ -229,6 +234,12 @@ proxy:
       #           values:
       #           - e2e-az1
       #           - e2e-az2
+
+    # configuration: |
+    #   [default]
+    #   logging_folder=/tmp/router/log
+    #   [logger]
+    #   level=DEBUG
 
     # runtimeClassName: image-rc
     # priorityClassName: high-priority
@@ -268,13 +279,13 @@ proxy:
 orchestrator:
   enabled: false
   image:
-    repository: percona/percona-server-mysql-operator
-    tag: 0.4.0-orchestrator
+    repository: percona/percona-orchestrator
+    tag: 3.2.6-8
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.4.0
+  # initImage: percona/percona-server-mysql-operator:0.5.0
 
   size: 3
 
@@ -332,7 +343,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.33.0
+    tag: 2.36.0
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
@@ -346,7 +357,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.0.30-23
+    tag: 8.0.32-25
   imagePullPolicy: Always
   imagePullSecrets: []
   resources:
@@ -400,7 +411,7 @@ backup:
 toolkit:
   image:
     repository: percona/percona-server-mysql-operator
-    tag: 0.4.0-toolkit
+    tag: 0.5.0-toolkit
   imagePullPolicy: Always
   resources:
     requests: {}
