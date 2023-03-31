@@ -31,9 +31,9 @@ The chart can be customized using the following configurable parameters:
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
 | `pause`                         | Stop PostgreSQL Database safely                                               | `false`                                   |
 | `tlsOnly`                       | Force PostgreSQL accept only tls connections                                  | `false`                                   |
-| `sslCA`                         | Secret name with CA certificate for PostgreSQL                                | ``                                        |
-| `sslSecretName`                 | Secret name with server certificate and key for PostgreSQL                    | ``                                        |
-| `sslReplicationSecretName`      | Secret name with server certificate and key for PostgreSQL replication paries | ``                                        |
+| `sslCA`                         | Secret name with CA certificate for PostgreSQL                                | `<cluster-name>-ssl-ca`                                        |
+| `sslSecretName`                 | Secret name with server certificate and key for PostgreSQL                    | `<cluster-name>-ssl-keypair`                                        |
+| `sslReplicationSecretName`      | Secret name with server certificate and key for PostgreSQL replication paries | `<cluster-name>-replication-ssl-keypair`                                        |
 | `standby`                         | Switch/start PostgreSQL Database in standby mode                                                    | `false`                                   |
 | `disableAutofail`                         | Disables the high availability capabilities of a PostgreSQL cluster                                                    | `false`                                   |
 | `keepData`                         | Keep database container PVC intact after the cluster removal                                                    | `true`                                   |

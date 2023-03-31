@@ -29,15 +29,9 @@ spec:
   {{- else }}
   tlsOnly: false
   {{- end }}
-  {{- if .Values.sslCA }}
-  sslCA: {{ .Values.sslCA }}
-  {{- end }}
-  {{- if .Values.sslSecretName }}
-  sslSecretName: {{ .Values.sslSecretName }}
-  {{- end }}
-  {{- if .Values.sslReplicationSecretName }}
-  sslReplicationSecretName: {{ .Values.sslReplicationSecretName }}
-  {{- end }}
+  sslCA: {{ .Values.sslCA | default (printf "%s-ssl-ca" (include "pg-database.fullname" .)) }}
+  sslSecretName: {{ .Values.sslSecretName | default (printf "%s-ssl-keypair" (include "pg-database.fullname" .)) }}
+  sslReplicationSecretName: {{ .Values.sslReplicationSecretName | default (printf "%s-replication-ssl-keypair" (include "pg-database.fullname" .)) }}
   {{- if .Values.keepData }}
   keepData: {{ .Values.keepData }}
   {{- end }}
@@ -120,7 +114,7 @@ spec:
     {{- end}}
 {{- include "pg-database.backup-storages" . | indent 4 }}
     affinity:
-      antiAffinityType: {{ default .Values.backup.affinity.antiAffinityType .Values.backup.antiAffinityType }}
+      antiAffinityType: {{ .Values.backup.antiAffinityType | default .Values.backup.affinity.antiAffinityType }}
       {{- if .Values.backup.affinity.nodeAffinityType }}
       nodeAffinityType: {{ .Values.backup.affinity.nodeAffinityType }}
       {{- end}}
