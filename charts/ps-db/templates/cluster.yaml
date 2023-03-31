@@ -158,6 +158,7 @@ spec:
     haproxy:
     {{- if or (not $haproxy.enabled) (ne .Values.mysql.clusterType "async") }}
       enabled: false
+      image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
     {{- else }}
       enabled: true
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
@@ -309,6 +310,7 @@ spec:
   {{- $orc := .Values.orchestrator }}
     {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
     enabled: false
+    image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
     {{- else }}
     enabled: true
     image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
@@ -380,10 +382,11 @@ spec:
   {{- end }}
 
   pmm:
-  {{- if not .Values.pmm.enabled }}
+  {{- $pmm := .Values.pmm }}
+  {{- if not $pmm.enabled }}
     enabled: false
+    image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
   {{- else }}
-    {{- $pmm := .Values.pmm }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
     {{- if $pmm.imagePullPolicy }}
