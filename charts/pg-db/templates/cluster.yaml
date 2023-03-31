@@ -72,6 +72,9 @@ spec:
       loadBalancerSourceRanges:
 {{ toYaml .Values.pgPrimary.expose.loadBalancerSourceRanges | indent 6  }}
       {{- end }}
+      {{- if .Values.pgPrimary.expose.loadBalancerIP }}
+      loadBalancerIP: {{ .Values.pgPrimary.expose.loadBalancerIP }}
+      {{- end  }}
       annotations:
         pg-cluster-annot: {{ include "pg-database.fullname" . }}
       labels:
@@ -117,7 +120,18 @@ spec:
     {{- end}}
 {{- include "pg-database.backup-storages" . | indent 4 }}
     affinity:
-      antiAffinityType: {{ .Values.backup.antiAffinityType}}
+      antiAffinityType: {{ default .Values.backup.affinity.antiAffinityType .Values.backup.antiAffinityType }}
+      {{- if .Values.backup.affinity.nodeAffinityType }}
+      nodeAffinityType: {{ .Values.backup.affinity.nodeAffinityType }}
+      {{- end}}
+      {{- if .Values.backup.affinity.nodeLabel }}
+      nodeLabel:
+{{ toYaml .Values.backup.affinity.nodeLabel | indent 8 }}
+      {{- end}}
+      {{- if .Values.backup.affinity.advanced }}
+      advanced:
+{{ toYaml .Values.backup.affinity.advanced | indent 8 }}
+      {{- end}}
   pgBouncer:
     image: {{ include "pg-database.pgbouncer-image" .}}
     size: {{ .Values.pgBouncer.size}}
@@ -135,6 +149,9 @@ spec:
       loadBalancerSourceRanges:
 {{ toYaml .Values.pgBouncer.expose.loadBalancerSourceRanges | indent 6  }}
       {{- end }}
+      {{- if .Values.pgBouncer.expose.loadBalancerIP }}
+      loadBalancerIP: {{ .Values.pgPrimary.expose.loadBalancerIP }}
+      {{- end  }}
       annotations:
         pg-cluster-annot: {{ include "pg-database.fullname" . }}
       labels:
