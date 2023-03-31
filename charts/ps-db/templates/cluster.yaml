@@ -121,7 +121,7 @@ spec:
     {{- end }}
     {{- if $mysql.configuration }}
     configuration: |
-{{ tpl $mysql.configuration $ | nindent 6 }}
+{{- tpl $mysql.configuration $ | nindent 6 }}
     {{- end }}
     {{- if $mysql.sidecars }}
     sidecars:
@@ -250,7 +250,7 @@ spec:
 {{ $router.affinity | toYaml | indent 8 }}
       {{- if $router.configuration }}
       configuration: |
-{{ tpl $router.configuration $ | nindent 8 }}
+{{- tpl $router.configuration $ | nindent 8 }}
       {{- end }}
       {{- if $router.priorityClassName }}
       priorityClassName: {{ $router.priorityClassName }}
