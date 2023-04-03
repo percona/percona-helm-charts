@@ -1,5 +1,5 @@
 {{- if .Values.serviceAccount.create -}}
-{{- if .Values.pmmEnv.ENABLE_DBAAS -}}
+{{- if or (.Values.pmmEnv.ENABLE_DBAAS) (.Values.pmmEnv.DBAAS_ENABLED) -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
