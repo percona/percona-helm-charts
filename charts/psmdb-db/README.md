@@ -62,6 +62,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].externalNodes`             | ReplicaSet external nodes (cross cluster replication)           | `[]` |
 | `replsets[0].configuration`             | Custom config for mongod in replica set     | `""` |
 | `replsets[0].antiAffinityTopologyKey`   | ReplicaSet Pod affinity              | `kubernetes.io/hostname` |
+| `replsets[0].affinityAdvanced`          | ReplicaSet Pod advanced affinity     | `{}` |
 | `replsets[0].tolerations`     | ReplicaSet Pod tolerations                    | `[]` |
 | `replsets[0].priorityClass`   | ReplicaSet Pod priorityClassName              | `""` |
 | `replsets[0].annotations`   | ReplicaSet Pod annotations              | `{}` |
@@ -87,7 +88,8 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].nonvoting.containerSecurityContext` | Set the security context for a Container   | `{}` |
 | `replsets[0].nonvoting.size`           | Number of nonvoting Pods                  | `1` |
 | `replsets[0].nonvoting.configuration`  | Custom config for mongod nonvoting member | `""` |
-| `replsets[0].nonvoting.antiAffinityTopologyKey`   | Nonvoting Pods affinity        | `kubernetes.io/hostname` |
+| `replsets[0].nonvoting.antiAffinityTopologyKey`   | Nonvoting Pods affinity          | `kubernetes.io/hostname` |
+| `replsets[0].nonvoting.affinityAdvanced`          | Nonvoting Pods advanced affinity | `{}` |
 | `replsets[0].nonvoting.tolerations`    | Nonvoting Pod tolerations                 | `[]` |
 | `replsets[0].nonvoting.priorityClass`  | Nonvoting Pod priorityClassName           | `""` |
 | `replsets[0].nonvoting.annotations`    | Nonvoting Pod annotations                 | `{}` |
@@ -108,6 +110,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].arbiter.enabled`   | Create MongoDB arbiter service              | `false` |
 | `replsets[0].arbiter.size`   | MongoDB arbiter Pod quantity              | `1` |
 | `replsets[0].arbiter.antiAffinityTopologyKey`   | MongoDB arbiter Pod affinity              | `kubernetes.io/hostname` |
+| `replsets[0].arbiter.affinityAdvanced`          | MongoDB arbiter Pod advanced affinity     | `{}` |
 | `replsets[0].arbiter.tolerations`     | MongoDB arbiter Pod tolerations                | `[]` |
 | `replsets[0].arbiter.priorityClass`   | MongoDB arbiter priorityClassName              | `""` |
 | `replsets[0].arbiter.annotations`   | MongoDB arbiter Pod annotations              | `{}` |
@@ -131,6 +134,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.externalNodes`              | Config ReplicaSet external nodes (cross cluster replication)         | `[]` |
 | `sharding.configrs.configuration`              | Custom config for mongod in config replica set | `""` |
 | `sharding.configrs.antiAffinityTopologyKey`    | Config ReplicaSet Pod affinity | `kubernetes.io/hostname` |
+| `sharding.configrs.affinityAdvanced`           | Config ReplicaSet Pod advanced affinity | `{}` |
 | `sharding.configrs.tolerations`                | Config ReplicaSet Pod tolerations       | `[]` |
 | `sharding.configrs.priorityClass`              | Config ReplicaSet Pod priorityClassName | `""` |
 | `sharding.configrs.annotations`                | Config ReplicaSet Pod annotations | `{}` |
@@ -167,6 +171,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.size`                         | Mongos size (pod quantity) | `3` |
 | `sharding.mongos.configuration`                | Custom config for mongos   | `""` |
 | `sharding.mongos.antiAffinityTopologyKey`      | Mongos Pods affinity | `kubernetes.io/hostname` |
+| `sharding.mongos.affinityAdvanced`             | Mongos Pods advanced affinity | `{}` |
 | `sharding.mongos.tolerations`                  | Mongos Pods tolerations       | `[]` |
 | `sharding.mongos.priorityClass`                | Mongos Pods priorityClassName | `""` |
 | `sharding.mongos.annotations`                  | Mongos Pods annotations | `{}` |
