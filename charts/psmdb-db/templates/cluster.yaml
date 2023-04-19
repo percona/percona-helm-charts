@@ -87,12 +87,7 @@ spec:
 {{ $replset.configuration | indent 6 }}
     {{- end }}
     affinity:
-      {{- if $replset.antiAffinityTopologyKey }}
-      antiAffinityTopologyKey: {{ $replset.antiAffinityTopologyKey }}
-      {{- else }}
-      advanced:
-{{ $replset.affinityAdvanced | toYaml | indent 8 }}
-      {{- end }}
+{{ $replset.affinity | toYaml | indent 6 }}
     {{- if $replset.priorityClass }}
     priorityClassName: {{ $replset.priorityClass }}
     {{- end }}
@@ -181,12 +176,7 @@ spec:
 {{ $replset.nonvoting.configuration | indent 8 }}
       {{- end }}
       affinity:
-        {{- if $replset.nonvoting.antiAffinityTopologyKey }}
-        antiAffinityTopologyKey: {{ $replset.nonvoting.antiAffinityTopologyKey }}
-        {{- else }}
-        advanced:
-{{ $replset.nonvoting.affinityAdvanced | toYaml | indent 10 }}
-        {{- end }}
+{{ $replset.nonvoting.affinity | toYaml | indent 8 }}
       {{- if $replset.nonvoting.priorityClass }}
       priorityClassName: {{ $replset.nonvoting.priorityClass }}
       {{- end }}
@@ -243,12 +233,7 @@ spec:
       enabled: {{ $replset.arbiter.enabled }}
       size: {{ $replset.arbiter.size }}
       affinity:
-        {{- if $replset.arbiter.antiAffinityTopologyKey }}
-        antiAffinityTopologyKey: {{ $replset.arbiter.antiAffinityTopologyKey }}
-        {{- else }}
-        advanced:
-{{ $replset.arbiter.affinityAdvanced | toYaml | indent 10 }}
-        {{- end }}
+{{ $replset.arbiter.affinity | toYaml | indent 8 }}
       {{- if $replset.arbiter.priorityClass }}
       priorityClassName: {{ $replset.arbiter.priorityClass }}
       {{- end }}
@@ -303,12 +288,7 @@ spec:
 {{ .Values.sharding.configrs.configuration | indent 8 }}
       {{- end }}
       affinity:
-        {{- if .Values.sharding.configrs.antiAffinityTopologyKey }}
-        antiAffinityTopologyKey: {{ .Values.sharding.configrs.antiAffinityTopologyKey }}
-        {{- else }}
-        advanced:
-{{ .Values.sharding.configrs.affinityAdvanced | toYaml | indent 10 }}
-        {{- end }}
+{{ .Values.sharding.configrs.affinity | toYaml | indent 8 }}
       {{- if .Values.sharding.configrs.priorityClass }}
       priorityClassName: {{ .Values.sharding.configrs.priorityClass }}
       {{- end }}
@@ -412,12 +392,7 @@ spec:
 {{ .Values.sharding.mongos.configuration | indent 8 }}
       {{- end }}
       affinity:
-        {{- if .Values.sharding.mongos.antiAffinityTopologyKey }}
-        antiAffinityTopologyKey: {{ .Values.sharding.mongos.antiAffinityTopologyKey }}
-        {{- else }}
-        advanced:
-{{ .Values.sharding.mongos.affinityAdvanced | toYaml | indent 10 }}
-        {{- end }}
+{{ .Values.sharding.mongos.affinity | toYaml | indent 8 }}
       {{- if .Values.sharding.mongos.priorityClass }}
       priorityClassName: {{ .Values.sharding.mongos.priorityClass }}
       {{- end }}
