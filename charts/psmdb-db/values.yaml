@@ -77,7 +77,18 @@ replsets:
     #     mode: slowOp
     #   systemLog:
     #     verbosity: 1
-    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    affinity:
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+      # advanced:
+      #   podAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #     - labelSelector:
+      #         matchExpressions:
+      #         - key: security
+      #           operator: In
+      #           values:
+      #           - S1
+      #       topologyKey: failure-domain.beta.kubernetes.io/zone
     # tolerations: []
     # priorityClass: ""
     # annotations: {}
@@ -162,7 +173,18 @@ replsets:
       #     mode: slowOp
       #   systemLog:
       #     verbosity: 1
-      antiAffinityTopologyKey: "kubernetes.io/hostname"
+      affinity:
+        antiAffinityTopologyKey: "kubernetes.io/hostname"
+        # advanced:
+        #   podAffinity:
+        #     requiredDuringSchedulingIgnoredDuringExecution:
+        #     - labelSelector:
+        #         matchExpressions:
+        #         - key: security
+        #           operator: In
+        #           values:
+        #           - S1
+        #       topologyKey: failure-domain.beta.kubernetes.io/zone
       # tolerations: []
       # priorityClass: ""
       # annotations: {}
@@ -194,7 +216,18 @@ replsets:
     arbiter:
       enabled: false
       size: 1
-      antiAffinityTopologyKey: "kubernetes.io/hostname"
+      affinity:
+        antiAffinityTopologyKey: "kubernetes.io/hostname"
+        # advanced:
+        #   podAffinity:
+        #     requiredDuringSchedulingIgnoredDuringExecution:
+        #     - labelSelector:
+        #         matchExpressions:
+        #         - key: security
+        #           operator: In
+        #           values:
+        #           - S1
+        #       topologyKey: failure-domain.beta.kubernetes.io/zone
       # tolerations: []
       # priorityClass: ""
       # annotations: {}
@@ -240,7 +273,18 @@ sharding:
     #     mode: slowOp
     #   systemLog:
     #     verbosity: 1
-    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    affinity:
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+      # advanced:
+      #   podAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #     - labelSelector:
+      #         matchExpressions:
+      #         - key: security
+      #           operator: In
+      #           values:
+      #           - S1
+      #       topologyKey: failure-domain.beta.kubernetes.io/zone
     # tolerations: []
     # priorityClass: ""
     # annotations: {}
@@ -298,7 +342,18 @@ sharding:
     # configuration: |
     #   systemLog:
     #     verbosity: 1
-    antiAffinityTopologyKey: "kubernetes.io/hostname"
+    affinity:
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+      # advanced:
+      #   podAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #     - labelSelector:
+      #         matchExpressions:
+      #         - key: security
+      #           operator: In
+      #           values:
+      #           - S1
+      #       topologyKey: failure-domain.beta.kubernetes.io/zone
     # tolerations: []
     # priorityClass: ""
     # annotations: {}
