@@ -43,6 +43,7 @@ pgPrimary:
   expose:
     serviceType: ClusterIP
     loadBalancerSourceRanges: []
+    loadBalancerIP:
   affinity:
     antiAffinityType: preferred
     nodeAffinityType:
@@ -54,7 +55,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.29.0
+    tag: 2.36.0
   serverHost: monitoring-service
   resources:
     requests:
@@ -73,7 +74,9 @@ backup:
     storagetype: dynamic
     storageclass: "standard"
   schedule:
-  antiAffinityType: preferred
+  antiAffinityType:
+  affinity:
+    antiAffinityType: preferred
 
 pgBouncer:
   image: ""
@@ -88,6 +91,7 @@ pgBouncer:
   expose:
     serviceType: ClusterIP
     loadBalancerSourceRanges: []
+    loadBalancerIP:
   exposePostgresUser: false
   antiAffinityType: preferred
 

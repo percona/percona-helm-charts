@@ -27,6 +27,14 @@ spec:
   {{- if .Values.allowUnsafeConfigurations }}
   allowUnsafeConfigurations: true
   {{- end }}
+  {{- if .Values.ignoreAnnotations }}
+  ignoreAnnotations:
+{{ .Values.ignoreAnnotations | toYaml | indent 4 }}
+  {{- end }}
+  {{- if .Values.ignoreLabels }}
+  ignoreLabels:
+{{ .Values.ignoreLabels | toYaml | indent 4 }}
+  {{- end }}
   multiCluster:
     enabled: {{ .Values.multiCluster.enabled }}
     {{- if .Values.multiCluster.DNSSuffix }}
@@ -35,6 +43,13 @@ spec:
   {{- if .Values.imagePullSecrets }}
   imagePullSecrets:
 {{ .Values.imagePullSecrets | toYaml | indent 4 }}
+  {{- end }}
+  {{- if .Values.initImage }}
+  initImage: "{{ .Values.initImage.repository }}:{{ .Values.initImage.tag }}"
+  {{- end }}
+  {{- if .Values.initContainerSecurityContext }}
+  initContainerSecurityContext:
+{{ .Values.initContainerSecurityContext | toYaml | indent 4 }}
   {{- end }}
   {{- if .Values.tls }}
   tls:
@@ -46,7 +61,6 @@ spec:
   {{- else }}
   secrets:
     users: {{ include "psmdb-database.fullname" . }}-secrets
-    encryptionKey: {{ include "psmdb-database.fullname" . }}-mongodb-encryption-key
   {{- end }}
   {{- if .Values.updateStrategy }}
   updateStrategy: {{ .Values.updateStrategy }}
@@ -73,7 +87,7 @@ spec:
 {{ $replset.configuration | indent 6 }}
     {{- end }}
     affinity:
-      antiAffinityTopologyKey: {{ $replset.antiAffinityTopologyKey }}
+{{ $replset.affinity | toYaml | indent 6 }}
     {{- if $replset.priorityClass }}
     priorityClassName: {{ $replset.priorityClass }}
     {{- end }}
@@ -162,7 +176,7 @@ spec:
 {{ $replset.nonvoting.configuration | indent 8 }}
       {{- end }}
       affinity:
-        antiAffinityTopologyKey: {{ $replset.nonvoting.antiAffinityTopologyKey }}
+{{ $replset.nonvoting.affinity | toYaml | indent 8 }}
       {{- if $replset.nonvoting.priorityClass }}
       priorityClassName: {{ $replset.nonvoting.priorityClass }}
       {{- end }}
@@ -219,7 +233,7 @@ spec:
       enabled: {{ $replset.arbiter.enabled }}
       size: {{ $replset.arbiter.size }}
       affinity:
-        antiAffinityTopologyKey: {{ $replset.arbiter.antiAffinityTopologyKey }}
+{{ $replset.arbiter.affinity | toYaml | indent 8 }}
       {{- if $replset.arbiter.priorityClass }}
       priorityClassName: {{ $replset.arbiter.priorityClass }}
       {{- end }}
@@ -274,7 +288,7 @@ spec:
 {{ .Values.sharding.configrs.configuration | indent 8 }}
       {{- end }}
       affinity:
-        antiAffinityTopologyKey: {{ .Values.sharding.configrs.antiAffinityTopologyKey }}
+{{ .Values.sharding.configrs.affinity | toYaml | indent 8 }}
       {{- if .Values.sharding.configrs.priorityClass }}
       priorityClassName: {{ .Values.sharding.configrs.priorityClass }}
       {{- end }}
@@ -378,7 +392,7 @@ spec:
 {{ .Values.sharding.mongos.configuration | indent 8 }}
       {{- end }}
       affinity:
-        antiAffinityTopologyKey: {{ .Values.sharding.mongos.antiAffinityTopologyKey }}
+{{ .Values.sharding.mongos.affinity | toYaml | indent 8 }}
       {{- if .Values.sharding.mongos.priorityClass }}
       priorityClassName: {{ .Values.sharding.mongos.priorityClass }}
       {{- end }}
