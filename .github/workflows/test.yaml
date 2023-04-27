@@ -43,7 +43,11 @@ jobs:
         if: steps.list-changed.outputs.changed == 'true'
 
       - name: Run chart-testing (install)
-        run: ct install --config .github/ct.yaml
+        run: |
+          OPERATOR_INSTALL=$(ct list-changed --config .github/ct.yaml | sed 's:charts/::' | grep "\-db$" | sed 's/-db$/-operator/')
+          if [ -n "$OPERATOR_INSTALL" ]; then helm install $OPERATOR_INSTALL charts/$OPERATOR_INSTALL/.; fi
+          ct install --config .github/ct.yaml
+          if [ -n "$OPERATOR_INSTALL" ]; then helm uninstall $OPERATOR_INSTALL; fi
 
       - name: Build chart package
         run: |
