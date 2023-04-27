@@ -57,7 +57,7 @@ spec:
             - name: LOG_VERBOSE
               value: "{{ .Values.env.logVerbose }}"
             - name: DISABLE_TELEMETRY
-              value: {{ .Values.disableTelemetry }}
+              value: "{{ .Values.disableTelemetry }}"
           # livenessProbe:
           #   httpGet:
           #     path: /
