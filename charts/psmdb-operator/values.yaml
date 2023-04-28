@@ -9,6 +9,12 @@ image:
   tag: 1.14.0
   pullPolicy: IfNotPresent
 
+# disableTelemetry: according to
+# https://docs.percona.com/percona-operator-for-mongodb/telemetry.html
+# this is how you can disable telemetry collection
+# default is false which means telemetry will be collected
+disableTelemetry: false
+
 # set if you want to specify a namespace to watch
 # defaults to `.Release.namespace` if left blank
 # watchNamespace:

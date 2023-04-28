@@ -56,6 +56,8 @@ spec:
               value: "{{ .Values.env.resyncPeriod }}"
             - name: LOG_VERBOSE
               value: "{{ .Values.env.logVerbose }}"
+            - name: DISABLE_TELEMETRY
+              value: "{{ .Values.disableTelemetry }}"
           # livenessProbe:
           #   httpGet:
           #     path: /
