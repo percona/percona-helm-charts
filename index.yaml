@@ -1385,6 +1385,23 @@ entries:
   psmdb-operator:
   - apiVersion: v2
     appVersion: 1.14.0
+    created: "2023-04-28T10:23:18.647268879Z"
+    description: A Helm chart for deploying the Percona Operator for MongoDB
+    digest: 768d90efc3b09ad0cadec6212e25c7bfaa06fdd41e43859d1c395195519ee1f3
+    home: https://docs.percona.com/percona-operator-for-mongodb/
+    maintainers:
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: psmdb-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-1.14.2/psmdb-operator-1.14.2.tgz
+    version: 1.14.2
+  - apiVersion: v2
+    appVersion: 1.14.0
     created: "2023-03-20T07:52:14.623793558Z"
     description: A Helm chart for deploying the Percona Operator for MongoDB
     digest: 8f98be2eb346add9a6b0c4c4da02398cb5d93921a17ae02d36f15b38a39a5b1c
