@@ -13,7 +13,6 @@ image:
 # https://docs.percona.com/percona-operator-for-mongodb/telemetry.html
 # this is how you can disable telemetry collection
 # default is false which means telemetry will be collected
-# NOTE: "true" or "false" must be a string
 disableTelemetry: false
 
 # set if you want to specify a namespace to watch
