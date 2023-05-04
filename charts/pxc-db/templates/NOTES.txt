@@ -1,3 +1,25 @@
+#
+
+                    %                        _____
+                   %%%                      |  __ \
+                 ###%%%%%%%%%%%%*           | |__) |__ _ __ ___ ___  _ __   __ _
+                ###  ##%%      %%%%         |  ___/ _ \ '__/ __/ _ \| '_ \ / _` |
+              ####     ##%       %%%%       | |  |  __/ | | (_| (_) | | | | (_| |
+             ###        ####      %%%       |_|   \___|_|  \___\___/|_| |_|\__,_|
+           ,((###         ###     %%%        _      _          _____                       _
+          (((( (###        ####  %%%%       | |   / _ \       / ____|                     | |
+         (((     ((#         ######         | | _| (_) |___  | (___   __ _ _   _  __ _  __| |
+       ((((       (((#        ####          | |/ /> _ </ __|  \___ \ / _` | | | |/ _` |/ _` |
+      /((          ,(((        *###         |   <| (_) \__ \  ____) | (_| | |_| | (_| | (_| |
+    ////             (((         ####       |_|\_\\___/|___/ |_____/ \__, |\__,_|\__,_|\__,_|
+   ///                ((((        ####                                  | |
+ /////////////(((((((((((((((((########                                 |_|   Join @ percona.com/k8s
+
+
+Join Percona Squad! Get early access to new product features, invite-only ”ask me anything” sessions with Percona Kubernetes experts, and monthly swag raffles.
+
+>>> https://percona.com/k8s <<<
+
 1. To get a MySQL prompt inside your new cluster you can run:
 
     ROOT_PASSWORD=`kubectl -n {{ .Release.Namespace }} get secrets {{ include "pxc-database.fullname" . }} -o jsonpath="{.data.root}" | base64 --decode`
