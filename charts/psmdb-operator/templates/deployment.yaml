@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "psmdb-operator.labels" . | indent 4 }}
 spec:

@@ -3,6 +3,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
 ---
 {{- end }}
 {{- if .Values.rbac.create }}
@@ -16,6 +17,8 @@ metadata:
   name: service-account-{{ include "psmdb-operator.fullname" . }}
   {{- if .Values.watchNamespace }}
   namespace: {{ .Values.watchNamespace }}
+  {{- else if not .Values.watchAllNamespaces }}
+  namespace: {{ .Release.Namespace }}
   {{- end }}
   labels:
 {{ include "psmdb-operator.labels" . | indent 4 }}
