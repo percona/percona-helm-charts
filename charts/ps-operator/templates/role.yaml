@@ -7,6 +7,7 @@ kind: Role
 {{- end }}
 metadata:
   name: {{ include "ps-operator.fullname" . }}-leaderelection
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "ps-operator.labels" . | indent 4 }}
 rules:
@@ -51,6 +52,7 @@ kind: Role
 metadata:
   creationTimestamp: null
   name: {{ include "ps-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "ps-operator.labels" . | indent 4 }}
 rules:

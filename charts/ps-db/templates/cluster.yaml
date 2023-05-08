@@ -5,6 +5,7 @@ metadata:
     kubectl.kubernetes.io/last-applied-configuration: |
       {"apiVersion":"ps.percona.com/v1alpha1","kind":"PerconaServerMySQL"}
   name: {{ include "ps-database.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "ps-database.labels" . | indent 4 }}
   finalizers:
