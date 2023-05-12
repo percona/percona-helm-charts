@@ -1,0 +1,233 @@
+# Default values for prom-rds-exporter.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/percona/rds_exporter
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: 2.35.0
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+containerPort: 9042
+
+service:
+  type: ClusterIP
+  port: 9042
+  portName: http
+  annotations: {}
+  labels: {}
+
+pod:
+  labels: {}
+  annotations: {}
+
+# Labels and annotations to attach to the deployment resource
+deployment:
+  labels: {}
+  annotations: {}
+
+# Extra environment variables
+extraEnv:
+  # - name: foo
+  #   value: baa
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+aws:
+  role: arn:aws:iam::xxxxxxxxxxxx:role/prom-rds-exporter
+  # Enables usage of regional STS endpoints rather than global which is default
+  stsRegional:
+    enabled: false
+
+  # The name of a pre-created secret in which AWS credentials are stored. When
+  # set, aws_access_key_id is assumed to be in a field called access_key,
+  # aws_secret_access_key is assumed to be in a field called secret_key, and the
+  # session token, if it exists, is assumed to be in a field called
+  # security_token
+  secret:
+    name:
+    includesSessionToken: false
+
+  # Note: Do not specify the aws_access_key_id and aws_secret_access_key if you specified role or secret.name before
+  aws_access_key_id:
+  aws_secret_access_key:
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Will add the provided map to the annotations for the created serviceAccount
+  # e.g.
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/prom-rds-exporter-oidc
+  #   eks.amazonaws.com/sts-regional-endpoints: "true"
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::xxxxxxxxxxxx:role/prom-rds-exporter
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+  # Specifies whether to automount API credentials for the ServiceAccount.
+  automountServiceAccountToken: true
+
+rbac:
+  # Specifies whether RBAC resources should be created
+  create: true
+
+# Configuration is rendered with `tpl` function, therefore you can use any Helm variables and/or templates here
+config: |-
+  # This is the default configuration for prom-rds-exporter
+  instances:
+    - region: us-east-2
+      instance: rds-name
+      disable_basic_metrics: true
+      disable_enhanced_metrics: false
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Configurable health checks against the /healthy and /ready endpoints
+livenessProbe:
+  path: /enhanced
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  path: /enhanced
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+serviceMonitor:
+  # When set true then use a ServiceMonitor to configure scraping
+  enabled: true
+  # Set the namespace the ServiceMonitor should be deployed
+  namespace: monitoring
+  # Set how frequently Prometheus should scrape
+  interval: 15s
+  # Set path to rds-exporter telemtery-path
+  telemetryPath: /enhanced
+  # Set labels for the ServiceMonitor, use this to define your scrape label for Prometheus Operator
+  # labels:
+  # Set timeout for scrape
+  timeout: 10s
+  # Set relabelings for the ServiceMonitor, use to apply to samples before scraping
+  # relabelings: []
+  # Set metricRelabelings for the ServiceMonitor, use to apply to samples for ingestion
+  # metricRelabelings: []
+  #
+  # Example - note the Kubernetes convention of camelCase instead of Prometheus' snake_case
+  # metricRelabelings:
+  #   - sourceLabels: [dbinstance_identifier]
+  #     action: replace
+  #     replacement: mydbname
+  #     targetLabel: dbname
+
+prometheusRule:
+  # Specifies whether a PrometheusRule should be created
+  enabled: false
+  # Set the namespace the PrometheusRule should be deployed
+  # namespace: monitoring
+  # Set labels for the PrometheusRule, use this to define your scrape label for Prometheus Operator
+  # labels:
+  # Example - note the Kubernetes convention of camelCase instead of Prometheus'
+  # rules:
+  #    - alert: RDSEnhancedHighCPU
+  #      annotations:
+  #        message: RDS instance {{`{{`}} $labels.exported_instance {{`}}`}} in region {{`{{`}} $labels.region{{`}}`}} is experiencing high CPU over 70%.
+  #      expr: rdsosmetrics_cpuUtilization_total{job="prom-rds-exporter"} >= 70
+  #      for: 1m
+  #      labels:
+  #        severity: critical
+  #    - alert: RDSEnhancedHighMemory
+  #      annotations:
+  #        message: RDS instance {{`{{`}} $labels.exported_instance {{`}}`}} in region {{`{{`}} $labels.region{{`}}`}} is using over 70% memory.
+  #      expr: (node_memory_Active_bytes{job="prom-rds-exporter"})/(node_memory_MemTotal_bytes{job="prom-rds-exporter"})*100 >= 70
+  #      for: 1m
+  #      labels:
+  #        severity: critical
+  #    - alert: RDSEnhancedHighRootPartition
+  #      annotations:
+  #        message: RDS instance {{`{{`}} $labels.exported_instance {{`}}`}} in region {{`{{`}} $labels.region{{`}}`}} is using more than 70% of root partition /.
+  #      expr: 100-((node_filesystem_avail_bytes{job="prom-rds-exporter",mountpoint="/"})/(node_filesystem_size_bytes{job="prom-rds-exporter",mountpoint="/"})*100) >= 70
+  #      for: 1m
+  #      labels:
+  #        severity: critical
+  #    - alert: RDSEnhancedHighDataPartition
+  #      annotations:
+  #        message: RDS instance {{`{{`}} $labels.exported_instance {{`}}`}} in region {{`{{`}} $labels.region{{`}}`}} is using more than 70% of data partition /rdsdbdata.
+  #      expr: 100-((node_filesystem_avail_bytes{job="prom-rds-exporter",mountpoint="/rdsdbdata"})/(node_filesystem_size_bytes{job="prom-rds-exporter",mountpoint="/rdsdbdata"})*100) >= 70
+  #      for: 1m
+  #      labels:
+  #        severity: critical
+    #    - alert: RDSEnhancedHighLoadAverage
+  #      annotations:
+  #        message: RDS instance {{`{{`}} $labels.exported_instance {{`}}`}} in region {{`{{`}} $labels.region{{`}}`}} is having a high Load Average.
+  #      expr: rdsosmetrics_loadAverageMinute_one{job="prom-rds-exporter"} >= rdsosmetrics_General_numVCPUs{job="prom-rds-exporter"}
+  #      for: 1m
+  #      labels:
+  #        severity: critical
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+securityContext:
+  runAsUser: 65534  # run as nobody user instead of root
+  fsGroup: 65534  # necessary to be able to read the EKS IAM token
+
+containerSecurityContext: {}
+  # allowPrivilegeEscalation: false
+  # readOnlyRootFilesystem: true
+
+# Leverage a PriorityClass to ensure your pods survive resource shortages
+# ref: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
+# priorityClassName: system-cluster-critical
+priorityClassName: ""
