@@ -65,7 +65,7 @@ The chart can be customized using the following configurable parameters:
 | `pgPrimary.affinity.advanced`                     | User defined affinity structure to be passed to pods without any processing | `key/value`                              |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.36.0`                              |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.37.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 | `pmm.resources.requests.memory`                    | Container resource request for RAM              | `200M` |
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m` |
