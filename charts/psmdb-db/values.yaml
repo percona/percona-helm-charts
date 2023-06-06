@@ -193,9 +193,9 @@ replsets:
       podDisruptionBudget:
         maxUnavailable: 1
       resources:
-        limits:
-          cpu: "300m"
-          memory: "0.5G"
+        # limits:
+        #   cpu: "300m"
+        #   memory: "0.5G"
         requests:
           cpu: "300m"
           memory: "0.5G"
@@ -235,9 +235,9 @@ replsets:
       # nodeSelector: {}
     # schedulerName: ""
     resources:
-      limits:
-        cpu: "300m"
-        memory: "0.5G"
+      # limits:
+      #   cpu: "300m"
+      #   memory: "0.5G"
       requests:
         cpu: "300m"
         memory: "0.5G"
@@ -315,9 +315,9 @@ sharding:
       # serviceLabels: 
       #   some-label: some-key
     resources:
-      limits:
-        cpu: "300m"
-        memory: "0.5G"
+      # limits:
+      #   cpu: "300m"
+      #   memory: "0.5G"
       requests:
         cpu: "300m"
         memory: "0.5G"
@@ -375,9 +375,9 @@ sharding:
     podDisruptionBudget:
       maxUnavailable: 1
     resources:
-      limits:
-        cpu: "300m"
-        memory: "0.5G"
+      # limits:
+      #   cpu: "300m"
+      #   memory: "0.5G"
       requests:
         cpu: "300m"
         memory: "0.5G"
