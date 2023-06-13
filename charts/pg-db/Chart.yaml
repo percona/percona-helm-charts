@@ -2,8 +2,8 @@ apiVersion: v2
 name: pg-db
 description: 'A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator'
 type: application
-version: 1.3.1
-appVersion: 1.3.0
+version: 1.4.2
+appVersion: 1.4.0
 home: https://github.com/percona/percona-postgresql-operator
 maintainers:
   - name: cap1984

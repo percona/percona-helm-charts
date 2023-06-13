@@ -42,6 +42,8 @@ pgPrimary:
     storageclass: "standard"
   expose:
     serviceType: ClusterIP
+    loadBalancerSourceRanges: []
+    loadBalancerIP:
 
 pmm:
   enabled: false
@@ -79,6 +81,8 @@ pgBouncer:
       memory: "512Mi"
   expose:
     serviceType: ClusterIP
+    loadBalancerSourceRanges: []
+    loadBalancerIP:
 
 replicas:
   size: 0

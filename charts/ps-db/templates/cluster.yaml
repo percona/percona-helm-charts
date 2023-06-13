@@ -18,6 +18,11 @@ spec:
   {{- if .Values.initImage }}
   initImage: {{ .Values.initImage }}
   {{- end }}
+  {{- if hasKey .Values.upgradeOptions "versionServiceEndpoint" }}
+  upgradeOptions:
+    versionServiceEndpoint: {{ .Values.upgradeOptions.versionServiceEndpoint }}
+    apply: {{ .Values.upgradeOptions.apply }}
+  {{- end }}
   {{- if .Values.pause }}
   pause: {{ .Values.pause }}
   {{- end }}
@@ -116,7 +121,7 @@ spec:
     {{- end }}
     {{- if $mysql.configuration }}
     configuration: |
-{{ tpl $mysql.configuration $ | nindent 6 }}
+{{- tpl $mysql.configuration $ | nindent 6 }}
     {{- end }}
     {{- if $mysql.sidecars }}
     sidecars:
@@ -153,6 +158,7 @@ spec:
     haproxy:
     {{- if or (not $haproxy.enabled) (ne .Values.mysql.clusterType "async") }}
       enabled: false
+      image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
     {{- else }}
       enabled: true
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
@@ -242,6 +248,10 @@ spec:
       {{- end }}
       affinity:
 {{ $router.affinity | toYaml | indent 8 }}
+      {{- if $router.configuration }}
+      configuration: |
+{{- tpl $router.configuration $ | nindent 8 }}
+      {{- end }}
       {{- if $router.priorityClassName }}
       priorityClassName: {{ $router.priorityClassName }}
       {{- end }}
@@ -284,6 +294,8 @@ spec:
       {{- end }}
       {{- if $router.serviceAccountName }}
       serviceAccountName: {{ $router.serviceAccountName }}
+      {{- else }}
+      serviceAccountName: {{ include "ps-database.fullname" . }}-orchestrator
       {{- end }}
       {{- if $router.runtimeClassName }}
       runtimeClassName: {{ $router.runtimeClassName }}
@@ -298,6 +310,7 @@ spec:
   {{- $orc := .Values.orchestrator }}
     {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
     enabled: false
+    image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
     {{- else }}
     enabled: true
     image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
@@ -369,10 +382,11 @@ spec:
   {{- end }}
 
   pmm:
-  {{- if not .Values.pmm.enabled }}
+  {{- $pmm := .Values.pmm }}
+  {{- if not $pmm.enabled }}
     enabled: false
+    image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
   {{- else }}
-    {{- $pmm := .Values.pmm }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
     {{- if $pmm.imagePullPolicy }}
