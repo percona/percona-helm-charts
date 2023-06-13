@@ -5,7 +5,7 @@
 finalizers:
   - delete-pxc-pods-in-order
 ## Set this if you want to delete proxysql persistent volumes on cluster deletion
-  - delete-proxysql-pvc
+#  - delete-proxysql-pvc
 ## Set this if you want to delete database persistent volumes on cluster deletion
 #  - delete-pxc-pvc
 ## Set this if you want to delete cert manager certificates on cluster deletion
