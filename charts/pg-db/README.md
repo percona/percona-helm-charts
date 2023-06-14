@@ -1,5 +1,4 @@
 # Percona Distribution for PostgreSQL
-
 This chart deploys Percona Distribution for PostgreSQL on Kubernetes controlled by Percona Operator.
 
 Useful links:
@@ -7,17 +6,20 @@ Useful links:
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/index.html)
 
 ## Pre-requisites
-
 * [Percona Operator for PostgreSQL](https://hub.helm.sh/charts/percona/pg-operator) running in you Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
 * Kubernetes 1.22+
 * At least `v3.2.3` version of helm
 
 # Installation
-
 This chart will deploy a PostgreSQL cluster in Kubernetes. It will create a Custom Resource, and the Operator will trigger the creation of corresponding Kubernetes primitives: Deployments, Pods, Secrets, etc.
+NOTE:
+```
+The PG Operator v2 is not directly compatible with old v1 so it is advised to always specify `--version`
+when installing pg-operator or pg-db charts to not accidentally cause upgrade to v2 if you were using v1
+previously.
+```
 
 ## Installing the Chart
-
 To install the chart with the `pg` release name using a dedicated namespace (recommended):
 
 ```sh
@@ -129,7 +131,6 @@ Specify parameters using `--set key=value[,key=value]` argument to `helm install
 Notice that you can use multiple replica sets only with sharding enabled.
 
 ## Examples
-
 This is great one for a dev Percona Distribution for PostgreSQL cluster as it doesn't bother with backups.
 
 ```bash
