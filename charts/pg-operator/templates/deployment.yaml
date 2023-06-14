@@ -43,7 +43,7 @@ spec:
             - name: PGO_NAMESPACE
               valueFrom:
                 fieldRef:
-                  fieldPath: metadata.namespace 
+                  fieldPath: metadata.namespace
             {{- if and (not .Values.watchNamespace) (not .Values.watchAllNamespaces) }}
             - name: PGO_TARGET_NAMESPACE
               valueFrom:
