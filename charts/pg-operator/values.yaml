@@ -15,10 +15,6 @@ image: ""
 # set if operator should be deployed in cluster wide mode. defaults to false
 watchAllNamespaces: false
 
-# set if you want to use a different operator name
-# defaults to `percona-xtradb-cluster-operator`
-# operatorName:
-
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
