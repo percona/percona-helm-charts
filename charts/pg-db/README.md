@@ -24,7 +24,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 1.4.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.2.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
