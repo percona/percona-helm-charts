@@ -73,6 +73,7 @@ rules:
   - apps
   resources:
   - deployments
+  - replicasets
   - statefulsets
   verbs:
   - create
@@ -94,7 +95,7 @@ rules:
   - patch
   - watch
 - apiGroups:
-  - pg.percona.com
+  - pgv2.percona.com
   resources:
   - perconapgbackups
   - perconapgrestores
@@ -103,7 +104,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - pg.percona.com
+  - pgv2.percona.com
   resources:
   - perconapgbackups/status
   - perconapgclusters/status
@@ -112,7 +113,7 @@ rules:
   - patch
   - update
 - apiGroups:
-  - pg.percona.com
+  - pgv2.percona.com
   resources:
   - perconapgclusters
   verbs:
@@ -136,26 +137,37 @@ rules:
 - apiGroups:
   - postgres-operator.crunchydata.com
   resources:
-  - postgresclusters
+  - pgupgrades
   verbs:
-  - create
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - postgres-operator.crunchydata.com
   resources:
+  - pgupgrades/finalizers
   - postgresclusters/finalizers
   verbs:
   - update
 - apiGroups:
   - postgres-operator.crunchydata.com
   resources:
+  - pgupgrades/status
   - postgresclusters/status
   verbs:
   - patch
+- apiGroups:
+  - postgres-operator.crunchydata.com
+  resources:
+  - postgresclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:

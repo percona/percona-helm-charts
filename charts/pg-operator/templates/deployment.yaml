@@ -4,12 +4,12 @@ metadata:
   name: {{ include "postgres-operator.fullname" . }}
   labels:
 {{ include "postgres-operator.labels" . | indent 4 }}
-    pg.percona.com/control-plane: postgres-operator
+    pgv2.percona.com/control-plane: postgres-operator
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      pg.percona.com/control-plane: postgres-operator
+      pgv2.percona.com/control-plane: postgres-operator
       app.kubernetes.io/component: operator
       app.kubernetes.io/name: {{ include "postgres-operator.name" . }}
       app.kubernetes.io/instance: {{ .Release.Name }}
@@ -23,7 +23,7 @@ spec:
         app.kubernetes.io/name: {{ include "postgres-operator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/part-of: {{ include "postgres-operator.name" . }}
-        pg.percona.com/control-plane: postgres-operator
+        pgv2.percona.com/control-plane: postgres-operator
     spec:
       serviceAccountName: {{ include "postgres-operator.fullname" . }}
     {{- with .Values.imagePullSecrets }}
