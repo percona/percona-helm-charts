@@ -1801,6 +1801,24 @@ entries:
   pxc-db:
   - apiVersion: v2
     appVersion: 1.12.0
+    created: "2023-06-14T06:31:10.57457644Z"
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    digest: 42589a72942a63c83a6254e2cc70b7469530807cd4928e338da80fcd2bd4f57b
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: pxc-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-db-1.12.3/pxc-db-1.12.3.tgz
+    version: 1.12.3
+  - apiVersion: v2
+    appVersion: 1.12.0
     created: "2023-05-04T18:12:44.440332344Z"
     description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
     digest: b6412f761fa60e70e241d25893b70fb164748f2745af7cd6a67e8036e124c714
@@ -2275,6 +2293,24 @@ entries:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.5/pxc-db-0.1.5.tgz
     version: 0.1.5
   pxc-operator:
+  - apiVersion: v2
+    appVersion: 1.12.0
+    created: "2023-06-14T06:31:10.722592652Z"
+    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    digest: 054b6c7e924ee3b591b61cc81129f5956519292957c15e972df35759341ef1cc
+    home: https://docs.percona.com/percona-operator-for-mysql/pxc/
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: pxc-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-operator-1.12.2/pxc-operator-1.12.2.tgz
+    version: 1.12.2
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2023-01-20T13:54:12.772941558Z"
