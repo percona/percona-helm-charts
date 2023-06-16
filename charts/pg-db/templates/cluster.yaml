@@ -59,6 +59,14 @@ spec:
       accessmode: {{ .Values.pgPrimary.volumeSpec.accessmode }}
       storagetype: {{ .Values.pgPrimary.volumeSpec.storagetype }}
       storageclass: {{ .Values.pgPrimary.volumeSpec.storageclass }}
+    {{- if .Values.pgPrimary.annotations }}
+    annotations:
+      {{ toYaml .Values.pgPrimary.annotations | indent 4  }}
+    {{- end }}
+    {{- if .Values.pgPrimary.labels }}
+    labels:
+      {{ toYaml .Values.pgPrimary.labels | indent 4  }}
+    {{- end }}
     expose:
       serviceType: {{ .Values.pgPrimary.expose.serviceType }}
       {{- if eq .Values.pgPrimary.expose.serviceType "LoadBalancer" }}
