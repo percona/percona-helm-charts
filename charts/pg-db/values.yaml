@@ -35,6 +35,8 @@ pgPrimary:
     requests:
       memory: "128Mi"
   tolerations: []
+  annotations: []
+  labels: []
   volumeSpec:
     size: 1G
     accessmode: ReadWriteOnce
