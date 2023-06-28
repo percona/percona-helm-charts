@@ -9,9 +9,8 @@ finalizers:
 #  - percona.com/delete-ssl
 
 crVersion: 2.2.0
-image:
-  repository: percona/percona-postgresql-operator
-  postgres: ""
+repository: percona/percona-postgresql-operator
+image: ""
 imagePullPolicy: Always
 postgresVersion: 15
 # port: 5432
