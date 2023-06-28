@@ -12,4 +12,4 @@
 
     helm install my-db percona/pg-db --namespace={{ .Release.Namespace }}
 
-Read more in our documentation: https://docs.percona.com/percona-operator-for-postgresql/
+Read more in our documentation: https://docs.percona.com/percona-operator-for-postgresql/2.0/

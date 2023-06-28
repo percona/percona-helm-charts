@@ -9,7 +9,7 @@ A job will be created based on `helm` `install`, `upgrade`, or `uninstall`. Afte
 job has completed the RBAC will be cleaned up.
 
 ## Pre-requisites
-* Kubernetes 1.22+
+* Kubernetes 1.23+
 * At least `v3.2.3` version of helm
 
 # Installation
@@ -37,16 +37,12 @@ Chart.
 | ------------------------------- | ------------------------------------------------------------------------| -------------------------------------------------|
 | `image`| PG Operator Container image full path| `percona/percona-postgresql-operator:2.2.0` |
 | `imagePullPolicy`| PG Operator Container pull policy| `Always`|
-| `imagePullSecrets`| PG Operator Pod pull secret| `[]`|
-| `replicaCount`| PG Operator Pod quantity| `1`|
-| `tolerations`| List of node taints to tolerate| `[]`|
 | `resources`| Resource requests and limits| `{}`|
 | `nodeSelector`| Labels for Pod assignment| `{}`|
 | `disableTelemetry`| Disable sending PXC Operator telemetry data to Percona| `false`|
 | `operatorDebug`| Enable/disable operators' extended log output | `false` |
 | `watchNamespace`| Set this variable if the target cluster namespace differs from operators namespace | `` |
 | `watchAllNamespaces`| K8S Cluster-wide operation | `false` |
-
 
 ## Deploy the database
 To deploy Percona Operator for PostgreSQL cluster with disabled telemetry run the following command:

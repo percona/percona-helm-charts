@@ -13,173 +13,71 @@ metadata:
 {{ include "pg-database.labels" . | indent 4 }}
   name: {{ include "pg-database.fullname" . }}
 spec:
-  secretsName: {{ .Values.secrets.name }}
-  upgradeOptions:
-    versionServiceEndpoint: {{ .Values.versionService.url }}
-    apply: {{ .Values.versionService.apply }}
-    schedule: {{ .Values.versionService.schedule }}
-  database: {{ .Values.defaultDatabase }}
-  port: {{ .Values.targetPort | quote }}
-  user: {{ .Values.defaultUser }}
-  disableAutofail: {{ .Values.disableAutofail }}
+  crVersion: {{ .Values.crVersion}}
+  image: {{ include "pg-database.postgres-image" .}}
+  imagePullPolicy: Always
+  postgresVersion: {{ .Values.postgresVersion}}
   standby: {{ .Values.standby }}
   pause: {{ .Values.pause }}
-  {{- if .Values.tlsOnly }}
-  tlsOnly: {{ .Values.tlsOnly }}
-  {{- else }}
-  tlsOnly: false
-  {{- end }}
-  sslCA: {{ .Values.sslCA | default (printf "%s-ssl-ca" (include "pg-database.fullname" .)) }}
-  sslSecretName: {{ .Values.sslSecretName | default (printf "%s-ssl-keypair" (include "pg-database.fullname" .)) }}
-  sslReplicationSecretName: {{ .Values.sslReplicationSecretName | default (printf "%s-replication-ssl-keypair" (include "pg-database.fullname" .)) }}
-  {{- if .Values.keepData }}
-  keepData: {{ .Values.keepData }}
-  {{- end }}
-  {{- if .Values.keepBackups }}
-  keepBackups: {{ .Values.keepBackups }}
-  {{- end }}
-  {{- if and .Values.restoreFrom .Values.restoreOpts }}
-  pgDataSource:
-    restoreFrom: {{ .Values.restoreFrom }}
-    restoreOpts: {{ .Values.restoreOpts }}
-  {{- else if .Values.restoreFrom }}
-  pgDataSource:
-    restoreFrom: {{ .Values.restoreFrom }}
-  {{- end }}
-  userLabels:
-    pgo-version: {{ .Chart.AppVersion }}
-  pgPrimary:
-    image: {{ include "pg-database.primary-image" . }}
-    resources:
-      requests:
-        memory: {{ .Values.pgPrimary.resources.requests.memory }}
-    tolerations: {{ .Values.pgPrimary.tolerations }}
-    volumeSpec:
-      size: {{ .Values.pgPrimary.volumeSpec.size }}
-      accessmode: {{ .Values.pgPrimary.volumeSpec.accessmode }}
-      storagetype: {{ .Values.pgPrimary.volumeSpec.storagetype }}
-      storageclass: {{ .Values.pgPrimary.volumeSpec.storageclass }}
-    expose:
-      serviceType: {{ .Values.pgPrimary.expose.serviceType }}
-      {{- if eq .Values.pgPrimary.expose.serviceType "LoadBalancer" }}
-      {{- if .Values.pgPrimary.expose.loadBalancerSourceRanges }}
-      loadBalancerSourceRanges:
-{{ toYaml .Values.pgPrimary.expose.loadBalancerSourceRanges | indent 6  }}
-      {{- end }}
-      {{- if .Values.pgPrimary.expose.loadBalancerIP }}
-      loadBalancerIP: {{ .Values.pgPrimary.expose.loadBalancerIP }}
-      {{- end  }}
-      annotations:
-        pg-cluster-annot: {{ include "pg-database.fullname" . }}
-      labels:
-        pg-cluster-label: {{ include "pg-database.fullname" . }}
-      {{- end }}
-    affinity:
-      antiAffinityType: {{ .Values.pgPrimary.affinity.antiAffinityType}}
-      {{- if .Values.pgPrimary.affinity.nodeAffinityType }}
-      nodeAffinityType: {{ .Values.pgPrimary.affinity.nodeAffinityType }}
-      {{- end }}
-      {{- if .Values.pgPrimary.affinity.nodeLabel }}
-      nodeLabel:
-{{ toYaml .Values.pgPrimary.affinity.nodeLabel | indent 8 }}
-      {{- end }}
-      {{- if .Values.pgPrimary.affinity.advanced }}
-      advanced:
-{{ toYaml .Values.pgPrimary.affinity.advanced | indent 8 }}
-      {{- end }}
+  instances:
+    - name: instance1
+      replicas: {{ .Values.instances[0].replicas}}
+      dataVolumeClaimSpec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.instances[0].dataVolumeClaimSpec.resources.requests.storage}}
+
+  proxy:
+    pgBouncer:
+      image: {{ include "pg-database.pgbouncer-image" .}}
+      replicas: {{ .Values.proxy.pgBouncer.replicas}}
+      exposeSuperusers: {{ .Values.proxy.pgBouncer.exposeSuperusers | default true }}
+      {{- if .Values.proxy.pgBouncer.resources }}
+      resources:
+        {{- if .Values.proxy.pgBouncer.resources.requests }}
+        requests:
+          cpu: {{ .Values.proxy.pgBouncer.resources.requests.cpu }}
+          memory: {{ .Values.proxy.pgBouncer.resources.requests.memory }}
+         {{- end}}
+        {{- if .Values.proxy.pgBouncer.resources.limits }}
+        limits:
+          cpu: {{ .Values.proxy.pgBouncer.resources.limits.cpu }}
+          memory: {{ .Values.proxy.pgBouncer.resources.limits.memory }}
+      {{- end}}
+      {{- end}}
+      {- if .Values.proxy.pgBouncer.expose }}
+      expose:
+        type: {{ .Values.proxy.pgBouncer.expose.type }}
+        annotations:
+          pg-cluster-annot: {{ include "pg-database.fullname" . }}
+        labels:
+          pg-cluster-label: {{ include "pg-database.fullname" . }}
+        {{- end }}
+
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
     serverHost: {{ .Values.pmm.serverHost }}
     serverUser: admin
     pmmSecret: {{ include "pg-database.fullname" . }}-pmm-secret
-    resources:
-      requests:
-        memory: {{ .Values.pmm.resources.requests.memory }}
-        cpu: {{ .Values.pmm.resources.requests.cpu }}
+
   backup:
-    image: {{ include "pg-database.backup-image" . }}
-    backrestRepoImage: {{ include "pg-database.backup-repo-image" . }}
-    resources:
-      requests:
-        memory: {{ .Values.backup.resources.requests.memory }}
-    volumeSpec:
-      size: {{ .Values.backup.volumeSpec.size }}
-      accessmode: {{ .Values.backup.volumeSpec.accessmode }}
-      storagetype: {{ .Values.backup.volumeSpec.storagetype }}
-      storageclass: {{ .Values.backup.volumeSpec.storageclass }}
-    {{- if .Values.backup.schedule }}
-    schedule:
-{{ toYaml .Values.backup.schedule | indent 4 }}
-    {{- end}}
-{{- include "pg-database.backup-storages" . | indent 4 }}
-    affinity:
-      antiAffinityType: {{ .Values.backup.antiAffinityType | default .Values.backup.affinity.antiAffinityType }}
-      {{- if .Values.backup.affinity.nodeAffinityType }}
-      nodeAffinityType: {{ .Values.backup.affinity.nodeAffinityType }}
-      {{- end}}
-      {{- if .Values.backup.affinity.nodeLabel }}
-      nodeLabel:
-{{ toYaml .Values.backup.affinity.nodeLabel | indent 8 }}
-      {{- end}}
-      {{- if .Values.backup.affinity.advanced }}
-      advanced:
-{{ toYaml .Values.backup.affinity.advanced | indent 8 }}
-      {{- end}}
-  pgBouncer:
-    image: {{ include "pg-database.pgbouncer-image" .}}
-    size: {{ .Values.pgBouncer.size}}
-    resources:
-      requests:
-        cpu: {{ .Values.pgBouncer.resources.requests.cpu }}
-        memory: {{ .Values.pgBouncer.resources.requests.memory }}
-      limits:
-        cpu: {{ .Values.pgBouncer.resources.limits.cpu }}
-        memory: {{ .Values.pgBouncer.resources.limits.memory }}
-    expose:
-      serviceType: {{ .Values.pgBouncer.expose.serviceType }}
-      {{- if eq .Values.pgBouncer.expose.serviceType "LoadBalancer" }}
-      {{- if .Values.pgBouncer.expose.loadBalancerSourceRanges }}
-      loadBalancerSourceRanges:
-{{ toYaml .Values.pgBouncer.expose.loadBalancerSourceRanges | indent 6  }}
-      {{- end }}
-      {{- if .Values.pgBouncer.expose.loadBalancerIP }}
-      loadBalancerIP: {{ .Values.pgPrimary.expose.loadBalancerIP }}
-      {{- end  }}
-      annotations:
-        pg-cluster-annot: {{ include "pg-database.fullname" . }}
-      labels:
-        pg-cluster-label: {{ include "pg-database.fullname" . }}
-      {{- end }}
-    exposePostgresUser: {{ .Values.pgBouncer.exposePostgresUser }}
-    affinity:
-      antiAffinityType: {{ .Values.pgBouncer.antiAffinityType}}
-  pgReplicas:
-    hotStandby:
-      size: {{ .Values.replicas.size }}
-      resources:
-        requests:
-          cpu: {{ .Values.replicas.resources.requests.cpu }}
-          memory: {{ .Values.replicas.resources.requests.memory }}
-        limits:
-          cpu: {{ .Values.replicas.resources.limits.cpu }}
-          memory: {{ .Values.replicas.resources.limits.memory }}
-      volumeSpec:
-        size: {{ .Values.replicas.volumeSpec.size }}
-        accessmode: {{ .Values.replicas.volumeSpec.accessmode }}
-        storagetype: {{ .Values.replicas.volumeSpec.storagetype }}
-        storageclass: {{ .Values.replicas.volumeSpec.storageclass }}
-      enableSyncStandby: {{ .Values.replicas.enableSyncStandby }}
-      expose:
-        serviceType: {{ .Values.replicas.expose.serviceType }}
-        {{- if eq .Values.replicas.expose.serviceType "LoadBalancer" }}
-        loadBalancerSourceRanges:
-          annotations:
-            pg-cluster-annot: {{ include "pg-database.fullname" . }}
-          labels:
-            pg-cluster-label: {{ include "pg-database.fullname" . }}
-        {{- end }}
-  pgBadger:
-    enabled: {{ .Values.pgBadger.enabled }}
-    image: {{ include "pg-database.pgbadger-image" .}}
-    port: {{ .Values.pgBadger.port }}
+    pgbackrest:
+      image: {{ include "pg-database.backup-image" . }}
+      manual:
+        repoName: repo1
+        options:
+         - --type=full
+      repos:
+      - name: repo1
+        schedules:
+          full: "0 0 * * 6"
+        volume:
+          volumeClaimSpec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi

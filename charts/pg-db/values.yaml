@@ -11,6 +11,7 @@ finalizers:
 crVersion: 2.2.0
 image:
   repository: percona/percona-postgresql-operator
+  postgres: ""
 imagePullPolicy: Always
 postgresVersion: 15
 # port: 5432
@@ -120,6 +121,8 @@ proxy:
   pgBouncer:
     replicas: 3
     image: ""
+    pause: false
+    standby: false
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -261,7 +264,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.37.0
+    tag: 2.38.0
 #   imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service

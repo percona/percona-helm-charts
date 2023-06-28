@@ -37,5 +37,10 @@ tolerations: []
 
 affinity: {}
 
+# disableTelemetry: according to
+# https://docs.percona.com/percona-operator-for-postgresql/2.0/telemetry.html
+# this is how you can disable telemetry collection
+# default is false which means telemetry will be collected
 disableTelemetry: false
+
 operatorDebug: false
