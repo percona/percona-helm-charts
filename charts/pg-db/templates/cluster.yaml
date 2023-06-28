@@ -20,6 +20,17 @@ spec:
   standby:
     enabled: {{ .Values.standby.enabled }}
   pause: {{ .Values.pause }}
+  {{- if or (.Values.customTLSSecret.name) (.Values.customReplicationTLSSecret.name) }}
+  secrets:
+    {{- if .Values.customTLSSecret.name }}
+    customTLSSecret:
+      name: {{ .Values.customTLSSecret.name }}
+    {{- end}}
+    {{- if .Values.customReplicationTLSSecret.name }}
+    customReplicationTLSSecret:
+      name: .Values.customReplicationTLSSecret.name
+    {{- end }}
+  {{- end }}
   instances:
     - name: instance1
       replicas: 3
