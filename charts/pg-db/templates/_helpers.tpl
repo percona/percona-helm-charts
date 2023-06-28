@@ -48,7 +48,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- if .Values.image }}
 {{- .Values.image.postgres }}
 {{- else }}
-{{- printf "%s:%s-ppg%f-postgres" .Values.image.repository .Chart.AppVersion .Values.postgresVersion | replace ".000000" "" }}
+{{- printf "%s:%s-ppg%d-postgres" .Values.image.repository .Chart.AppVersion (.Values.postgresVersion | int ) }}
 {{- end }}
 {{- end -}}
 
@@ -56,7 +56,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- if .Values.backups.pgbackrest.image }}
 {{- .Values.backups.pgbackrest.image }}
 {{- else }}
-{{- printf "%s:%s-ppg%f-pgbackrest" .Values.image.repository .Chart.AppVersion .Values.postgresVersion | replace ".000000" "" }}
+{{- printf "%s:%s-ppg%d-pgbackrest" .Values.image.repository .Chart.AppVersion (.Values.postgresVersion | int ) }}
 {{- end }}
 {{- end -}}
 
@@ -64,7 +64,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- if .Values.proxy.pgBouncer.image }}
 {{- .Values.proxy.pgBouncer.image }}
 {{- else }}
-{{- printf "%s:%s-ppg%f-pgbouncer" .Values.image.repository .Chart.AppVersion .Values.postgresVersion | replace ".000000" ""}}
+{{- printf "%s:%s-ppg%d-pgbouncer" .Values.image.repository .Chart.AppVersion (.Values.postgresVersion | int )}}
 {{- end }}
 {{- end -}}
 
