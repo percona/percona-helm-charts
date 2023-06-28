@@ -48,23 +48,23 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- if .Values.image }}
 {{- .Values.image.postgres }}
 {{- else }}
-{{- printf "%s:%s-ppg%s-postgres" .Values.image.repository .Chart.AppVersion .Values.postgresVersion }}
+{{- printf "%s:%s-ppg%f-postgres" .Values.image.repository .Chart.AppVersion .Values.postgresVersion | replace ".000000" "" }}
 {{- end }}
 {{- end -}}
 
 {{- define "pg-database.backup-image" -}}
-{{- if .Values.backup.image }}
-{{- .Values.backup.image }}
+{{- if .Values.backups.pgbackrest.image }}
+{{- .Values.backups.pgbackrest.image }}
 {{- else }}
-{{- printf "%s:%s-ppg%s-pgbackrest" .Values.image.repository .Chart.AppVersion .Values.postgresVersion }}
+{{- printf "%s:%s-ppg%f-pgbackrest" .Values.image.repository .Chart.AppVersion .Values.postgresVersion | replace ".000000" "" }}
 {{- end }}
 {{- end -}}
 
 {{- define "pg-database.pgbouncer-image" -}}
-{{- if .Values.pgBouncer.image }}
-{{- .Values.pgBouncer.image }}
+{{- if .Values.proxy.pgBouncer.image }}
+{{- .Values.proxy.pgBouncer.image }}
 {{- else }}
-{{- printf "%s:%s-ppg%s-pgbouncer" .Values.image.repository .Chart.AppVersion .Values.postgresVersion }}
+{{- printf "%s:%s-ppg%f-pgbouncer" .Values.image.repository .Chart.AppVersion .Values.postgresVersion | replace ".000000" ""}}
 {{- end }}
 {{- end -}}
 
@@ -83,5 +83,7 @@ repos:
 {{- end }}
 {{- if $repo.azure }}
     container: {{ $repo.container}}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

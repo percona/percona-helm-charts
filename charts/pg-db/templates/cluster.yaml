@@ -17,18 +17,18 @@ spec:
   image: {{ include "pg-database.postgres-image" .}}
   imagePullPolicy: Always
   postgresVersion: {{ .Values.postgresVersion}}
-  standby: {{ .Values.standby }}
+  standby:
+    enabled: {{ .Values.standby.enabled }}
   pause: {{ .Values.pause }}
   instances:
     - name: instance1
-      replicas: {{ .Values.instances[0].replicas}}
+      replicas: 3
       dataVolumeClaimSpec:
         accessModes:
         - ReadWriteOnce
         resources:
           requests:
-            storage: {{ .Values.instances[0].dataVolumeClaimSpec.resources.requests.storage}}
-
+            storage: 5Gi
   proxy:
     pgBouncer:
       image: {{ include "pg-database.pgbouncer-image" .}}
@@ -40,30 +40,29 @@ spec:
         requests:
           cpu: {{ .Values.proxy.pgBouncer.resources.requests.cpu }}
           memory: {{ .Values.proxy.pgBouncer.resources.requests.memory }}
-         {{- end}}
+        {{- end}}
         {{- if .Values.proxy.pgBouncer.resources.limits }}
         limits:
           cpu: {{ .Values.proxy.pgBouncer.resources.limits.cpu }}
           memory: {{ .Values.proxy.pgBouncer.resources.limits.memory }}
+        {{- end}}
       {{- end}}
-      {{- end}}
-      {- if .Values.proxy.pgBouncer.expose }}
+      {{- if .Values.proxy.pgBouncer.expose }}
       expose:
         type: {{ .Values.proxy.pgBouncer.expose.type }}
         annotations:
           pg-cluster-annot: {{ include "pg-database.fullname" . }}
         labels:
           pg-cluster-label: {{ include "pg-database.fullname" . }}
-        {{- end }}
+      {{- end }}
 
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
     serverHost: {{ .Values.pmm.serverHost }}
-    serverUser: admin
-    pmmSecret: {{ include "pg-database.fullname" . }}-pmm-secret
+    secret: {{ include "pg-database.fullname" . }}-pmm-secret
 
-  backup:
+  backups:
     pgbackrest:
       image: {{ include "pg-database.backup-image" . }}
       manual:
