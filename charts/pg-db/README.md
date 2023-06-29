@@ -39,7 +39,7 @@ The chart can be customized using the following configurable parameters:
 | `defaultDatabase`                         | Default user database created from the cluster start                                                    | `pgdb`                                   |
 | `targetPort`                         | PostgreSQL port                                                    | `5432`                                   |
 | `repository`              | PostgreSQL container image repository                                           | `percona/percona-postgresql-operator` |
-| `postgresVersion`                     | PostgreSQL container version tag                                       | `14`                              |
+| `postgresVersion`                     | PostgreSQL container version tag                                       | `15`                              |
 | `bucket.key`                     | S3-compatible bucket access key                                        |``|
 | `bucket.secret`                     | S3-compatible bucket secret key                                        |``|
 | `bucket.json`                     | GCS storage json secret (base64 encoded)                                        |``|
