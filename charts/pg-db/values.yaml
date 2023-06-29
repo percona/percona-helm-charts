@@ -16,17 +16,16 @@ postgresVersion: 15
 # port: 5432
 pause: false
 unmanaged: false
+standby:
+ enabled: false
+ #  host: "<primary-ip>"
+ #  port: "<primary-port>"
+ #  repoName: repo1
 
 customTLSSecret:
  name: ""
 customReplicationTLSSecret:
  name: ""
-
-standby:
- enabled: false
-#  host: "<primary-ip>"
-#  port: "<primary-port>"
-#  repoName: repo1
 
 # openshift: true
 
@@ -119,11 +118,11 @@ proxy:
  pgBouncer:
   replicas: 3
   image: ""
-#    exposeSuperusers: true
-#    resources:
-#      limits:
-#        cpu: 200m
-#        memory: 128Mi
+#  exposeSuperusers: true
+#  resources:
+#    limits:
+#      cpu: 200m
+#      memory: 128Mi
 #
 #    expose:
 #      annotations:
