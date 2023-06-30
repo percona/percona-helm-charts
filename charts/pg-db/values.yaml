@@ -17,15 +17,15 @@ postgresVersion: 15
 pause: false
 unmanaged: false
 standby:
- enabled: false
- #  host: "<primary-ip>"
- #  port: "<primary-port>"
- #  repoName: repo1
+  enabled: false
+  # host: "<primary-ip>"
+  # port: "<primary-port>"
+  # repoName: repo1
 
 customTLSSecret:
- name: ""
+  name: ""
 customReplicationTLSSecret:
- name: ""
+  name: ""
 
 # openshift: true
 
@@ -101,77 +101,77 @@ instances:
 #  priorityClassName: high-priority
 #
 #  walVolumeClaimSpec:
-#     accessModes:
-#     - "ReadWriteOnce"
-#     resources:
-#       requests:
-#         storage: 1Gi
+#    accessModes:
+#    - "ReadWriteOnce"
+#    resources:
+#      requests:
+#        storage: 1Gi
 #
   dataVolumeClaimSpec:
-   accessModes:
-   - ReadWriteOnce
-   resources:
-    requests:
-     storage: 5Gi
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
 
 proxy:
- pgBouncer:
-  replicas: 3
-  image: ""
-#  exposeSuperusers: true
-#  resources:
-#    limits:
-#      cpu: 200m
-#      memory: 128Mi
+  pgBouncer:
+    replicas: 3
+    image: ""
+#    exposeSuperusers: true
+#    resources:
+#      limits:
+#        cpu: 200m
+#        memory: 128Mi
 #
-#    expose:
-#      annotations:
-#        my-annotation: value1
-#      labels:
-#        my-label: value2
-#      type: LoadBalancer
+#      expose:
+#        annotations:
+#          my-annotation: value1
+#        labels:
+#          my-label: value2
+#        type: LoadBalancer
 #
-#    affinity:
-#      podAntiAffinity:
-#        preferredDuringSchedulingIgnoredDuringExecution:
-#        - weight: 1
-#          podAffinityTerm:
-#            labelSelector:
-#              matchLabels:
-#                postgres-operator.crunchydata.com/cluster: keycloakdb
-#                postgres-operator.crunchydata.com/role: pgbouncer
-#            topologyKey: kubernetes.io/hostname
+#      affinity:
+#        podAntiAffinity:
+#          preferredDuringSchedulingIgnoredDuringExecution:
+#          - weight: 1
+#            podAffinityTerm:
+#              labelSelector:
+#                matchLabels:
+#                  postgres-operator.crunchydata.com/cluster: keycloakdb
+#                  postgres-operator.crunchydata.com/role: pgbouncer
+#              topologyKey: kubernetes.io/hostname
 #
-#    tolerations:
-#    - effect: NoSchedule
-#      key: role
-#      operator: Equal
-#      value: connection-poolers
+#      tolerations:
+#      - effect: NoSchedule
+#        key: role
+#        operator: Equal
+#        value: connection-poolers
 #
-#    topologySpreadConstraints:
-#      - maxSkew: 1
-#        topologyKey: my-node-label
-#        whenUnsatisfiable: ScheduleAnyway
-#        labelSelector:
-#          matchLabels:
-#            postgres-operator.crunchydata.com/role: pgbouncer
+#      topologySpreadConstraints:
+#        - maxSkew: 1
+#          topologyKey: my-node-label
+#          whenUnsatisfiable: ScheduleAnyway
+#          labelSelector:
+#            matchLabels:
+#              postgres-operator.crunchydata.com/role: pgbouncer
 #
-#    sidecars:
-#    - name: bouncertestcontainer1
-#      image: mycontainer1:latest
+#      sidecars:
+#      - name: bouncertestcontainer1
+#        image: mycontainer1:latest
 #
-#    customTLSSecret:
-#      name: keycloakdb-pgbouncer.tls
+#      customTLSSecret:
+#        name: keycloakdb-pgbouncer.tls
 #
-#    config:
-#      global:
-#        pool_mode: transaction
+#      config:
+#        global:
+#          pool_mode: transaction
 
 backups:
- pgbackrest:
+  pgbackrest:
 #    metadata:
-#      labels:
-  image: ""
+#    labels:
+    image: ""
 #    configuration:
 #      - secret:
 #          name: cluster1-pgbackrest-secrets
@@ -216,22 +216,22 @@ backups:
 #               postgres-operator.crunchydata.com/cluster: keycloakdb
 #               postgres-operator.crunchydata.com/role: pgbouncer
 #             topologyKey: kubernetes.io/hostname
-  manual:
-   repoName: repo1
-   options:
-   - --type=full
-  repos:
-  - name: repo1
-    schedules:
-     full: "0 0 * * 6"
-#    differential: "0 1 * * 1-6"
-     volume:
-      volumeClaimSpec:
-       accessModes:
-       - ReadWriteOnce
-       resources:
-        requests:
-         storage: 1Gi
+    manual:
+      repoName: repo1
+      options:
+      - --type=full
+    repos:
+    - name: repo1
+      schedules:
+        full: "0 0 * * 6"
+#        differential: "0 1 * * 1-6"
+      volume:
+        volumeClaimSpec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
 #    - name: repo2
 #      s3:
 #        bucket: "<YOUR_AWS_S3_BUCKET_NAME>"
@@ -255,17 +255,17 @@ backups:
 #     - --db-include=hippo
 
 pmm:
- enabled: false
- image:
-  repository: percona/pmm-client
-  tag: 2.37.0
-#   imagePullPolicy: IfNotPresent
- secret: cluster1-pmm-secret
- serverHost: monitoring-service
-#   resources:
-#     requests:
-#       memory: 200M
-#       cpu: 500m
+  enabled: false
+  image:
+    repository: percona/pmm-client
+    tag: 2.37.0
+#  imagePullPolicy: IfNotPresent
+  secret: cluster1-pmm-secret
+  serverHost: monitoring-service
+#  resources:
+#    requests:
+#      memory: 200M
+#      cpu: 500m
 
 # patroni:
 #   dynamicConfiguration:
@@ -277,12 +277,12 @@ pmm:
 #         work_mem: 2MB
 
 secrets:
- name:
+  name:
   # replication user password
- primaryuser:
+  primaryuser:
   # superuser password
- postgres:
+  postgres:
   # pgbouncer user password
- pgbouncer:
+  pgbouncer:
   # pguser user password
- pguser:
+  pguser:
