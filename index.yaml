@@ -2,6 +2,31 @@ apiVersion: v1
 entries:
   pg-db:
   - apiVersion: v2
+    appVersion: 2.2.0
+    created: "2023-07-01T16:41:58.241504189Z"
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    digest: 28dfa68f14a4ff76c92fa8347bf6fcc13d8f4de05dfbc2b92817a40f3754ec11
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    name: pg-db
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-db-2.2.0/pg-db-2.2.0.tgz
+    version: 2.2.0
+  - apiVersion: v2
     appVersion: 1.4.0
     created: "2023-05-15T10:26:55.985445287Z"
     description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
@@ -186,6 +211,31 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/pg-db-0.2.0/pg-db-0.2.0.tgz
     version: 0.2.0
   pg-operator:
+  - apiVersion: v2
+    appVersion: 2.2.0
+    created: "2023-07-01T16:41:58.452265105Z"
+    description: A Helm chart to deploy the v2 version of Percona Operator for PostgreSQL.
+    digest: 19bf560d5b42c921c7135b836c74e54e928250075b1fe58aa0f8ec114297ed79
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    name: pg-operator
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-operator-2.2.0/pg-operator-2.2.0.tgz
+    version: 2.2.0
   - apiVersion: v2
     appVersion: 1.4.0
     created: "2023-03-31T11:49:30.470829852Z"
