@@ -20,7 +20,6 @@ spec:
   postgresVersion: {{ .Values.postgresVersion}}
   standby:
     enabled: {{ .Values.standby.enabled }}
-  pause: {{ .Values.pause }}
   {{- if or (.Values.customTLSSecret.name) (.Values.customReplicationTLSSecret.name) }}
   secrets:
     {{- if .Values.customTLSSecret.name }}
