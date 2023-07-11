@@ -77,7 +77,7 @@ spec:
   {{- $pxc := .Values.pxc }}
   pxc:
     size: {{ $pxc.size }}
-    image: "{{ $pxc.image.repository }}:{{ $pxc.image.tag }}"
+    image: {{ $pxc.image.repository }}:{{ $pxc.image.tag }}
     autoRecovery: {{ $pxc.autoRecovery }}
     {{- if $pxc.schedulerName }}
     schedulerName: {{ $pxc.schedulerName }}
@@ -477,7 +477,10 @@ spec:
   {{- $backup := .Values.backup }}
   {{- if $backup.enabled }}
   backup:
-    image: {{ include "pxc-db.backup-image" . }}
+    {{- if $backup.allowParallel }}
+    allowParallel: {{ $backup.allowParallel }}
+    {{- end }}
+    image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
     {{- if $backup.backoffLimit }}
     backoffLimit: {{ $backup.backoffLimit }}
     {{- end }}

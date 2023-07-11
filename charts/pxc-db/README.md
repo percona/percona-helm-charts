@@ -8,7 +8,7 @@ Useful links
 
 ## Pre-requisites
 * [Percona Operator for MySQL](https://hub.helm.sh/charts/percona/pxc-operator) running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pxc-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html).
-* Kubernetes 1.20+
+* Kubernetes 1.23+
 
 * Helm v3
 
@@ -20,14 +20,14 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.12.0 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.13.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
-| `crVersion`                     | Version of the Operator the Custom Resource belongs to                        | `1.12.0`                                  |
+| `crVersion`                     | Version of the Operator the Custom Resource belongs to                        | `1.13.0`                                  |
 | `ignoreAnnotations`             | Operator will not remove following annotations                                | `[]`                                      |
 | `ignoreLabels`                  | Operator will not remove following labels                                     | `[]`                                      |
 | `pause`                         | Stop PXC Database safely                                                      | `false`                                   |
@@ -49,7 +49,7 @@ The chart can be customized using the following configurable parameters:
 | `pxc.size`                                  | PXC Cluster target member (pod) quantity. Can't even if `allowUnsafeConfigurations` is `true`                            | `3`                              |
 | `pxc.clusterSecretName`        | Specify if you want to use custom or Operator generated users secret (if the one specified doesn't exist)                             | `` |
 | `pxc.image.repository`                      | PXC Container image repository                                                                                           | `percona/percona-xtradb-cluster` |
-| `pxc.image.tag`                             | PXC Container image tag                                                                                                  | `8.0.29-21.1`                    |
+| `pxc.image.tag`                             | PXC Container image tag                                                                                                  | `8.0.32-24.2`                    |
 | `pxc.imagePullPolicy`                       | The policy used to update images                                                                                         | ``                               |
 | `pxc.autoRecovery`                          | Enable full cluster crash auto recovery                                                                                  | `true`                           |
 | `pxc.expose.enabled`                        | Enable or disable exposing `Percona XtraDB Cluster` nodes with dedicated IP addresses                                    | `true`                           |
@@ -106,7 +106,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `haproxy.enabled` | Use HAProxy as TCP proxy for PXC cluster | `true` |
 | `haproxy.size`                      | HAProxy target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
-| `haproxy.image`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator:1.12.0-haproxy` |
+| `haproxy.image`              | HAProxy Container image repository                                           | `percona/percona-xtradb-cluster-operator:1.13.0-haproxy` |
 | `haproxy.imagePullPolicy`              | The policy used to update images                                             | ``     |
 | `haproxy.imagePullSecrets`             | HAProxy Container pull secret                                                | `[]`                                      |
 | `haproxy.configuration`             | User defined HAProxy options according to HAProxy configuration file syntax       | ``     |
@@ -159,7 +159,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `false` |
 | `proxysql.size`                      | ProxySQL target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3` |
-| `proxysql.image`              | ProxySQL Container image                                           | `percona/percona-xtradb-cluster-operator:1.12.0-proxysql` |
+| `proxysql.image`              | ProxySQL Container image                                           | `percona/percona-xtradb-cluster-operator:1.13.0-proxysql` |
 | `proxysql.imagePullPolicy`              | The policy used to update images                                              | `` |
 | `proxysql.imagePullSecrets`             | ProxySQL Container pull secret                                                | `[]`                                      |
 | `proxysql.configuration`             | User defined ProxySQL options according to ProxySQL configuration file syntax       | ``     |
@@ -199,7 +199,7 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                     | `{}` |
 | |
 | `logcollector.enabled`            | Enable log collector container                                           | `true` |
-| `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.12.0-logcollector` |
+| `logcollector.image`              | Log collector image repository                                           | `percona/percona-xtradb-cluster-operator:1.13.0-logcollector` |
 | `logcollector.imagePullSecrets`   | Log collector pull secret                                                | `[]` |
 | `logcollector.imagePullPolicy`    | The policy used to update images                                         |  ``  |
 | `logcollector.configuration`      | User defined configuration for logcollector                              |  ``  |
@@ -208,7 +208,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                                  | `2.32.0`             |
+| `pmm.image.tag`                     | PMM Container image tag                                                  | `2.38.0`             |
 | `pmm.imagePullSecrets`              | PMM Container pull secret                                                | `[]` |
 | `pmm.imagePullPolicy`               | The policy used to update images                                         |  ``  |
 | `pmm.serverHost`                    | PMM server related K8S service hostname                                  | `monitoring-service` |
@@ -216,8 +216,9 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.requests`            | PMM Container resource requests                                          | `{"memory": "150M", "cpu": "300m"}` |
 | `pmm.resources.limits`              | PMM Container resource limits                                            | `{}` |
 | |
-| `backup.enabled` | Enables backups for PXC cluster | `true` |
-| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.12.0-pxc8.0-backup` |
+| `backup.enabled`                    | Enables backups for PXC cluster                                          | `true` |
+| `backup.allowParallel`              | Allow taking multiple backups in parallel                                | `true` |
+| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.13.0-pxc8.0-backup-pxb8.0.32` |
 | `backup.backoffLimit` | The number of retries to make a backup  | `10` |
 | `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                      |
 | `backup.imagePullPolicy`              | The policy used to update images                                         |  ``  |
