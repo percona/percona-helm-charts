@@ -116,6 +116,7 @@ rules:
   - pgv2.percona.com
   resources:
   - perconapgclusters
+  - perconapgclusters/finalizers
   verbs:
   - create
   - get
