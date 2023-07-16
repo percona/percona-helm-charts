@@ -11,6 +11,8 @@ metadata:
     pgo-version: {{ .Chart.AppVersion }}
     pgouser: admin
 {{ include "pg-database.labels" . | indent 4 }}
+  finalizers:
+{{ .Values.finalizers | toYaml | indent 4 }}    
   name: {{ include "pg-database.fullname" . }}
 spec:
   crVersion: {{ .Values.crVersion}}
@@ -39,15 +41,23 @@ spec:
   {{- if .Values.users }}
   users:
   {{- range $user := .Values.users }}
-    - name: {{ .Values.users.name }}
+    - name: {{ $user.name }}
+      {{- if $user.databases }} 
       databases:
-      {{- range $database := $user.databeses}}
-        - $database
+      {{- range $database := $user.databases }}
+        - {{ $database }}
       {{- end }}
-      options: {{ .Values.users.options }}
+      {{- end }}
+      {{- if $user.options }}
+      options: {{ $user.options }}
+      {{- end }}
+      {{- if $user.password }}
       password:
-        type: {{ .Values.users.password.type }}
-      secretName: {{ .Values.users.secretName }}
+        type: {{ $user.password.type }}
+      {{- end }}
+      {{- if $user.secretName }}
+      secretName: {{ $user.secretName }}
+      {{- end }}
   {{- end }}
   {{- end }}
 
