@@ -157,31 +157,25 @@ Specify parameters using `--set key=value[,key=value]` argument to `helm install
 Notice that you can use multiple replica sets only with sharding enabled.
 
 ## Examples
-This is great one for a dev Percona Distribution for PostgreSQL cluster as it doesn't bother with backups.
 
+### Deploy for tests - single PostgreSQL node, disabled backups and automated PVCs deletion
+
+Such a setup is good for testing, as it does not require a lot of compute power 
+and performs and automated clean up of the Persistent Volume Claims (PVCs).
+It also deploys just one pgBouncer node, instead of 3.
 ```bash
-$ helm install dev  --namespace pgdb .
-NAME: dev
-LAST DEPLOYED:
-NAMESPACE: pgdb
-STATUS: deployed
-REVISION: 1
-TEST SUITE: None
-NOTES:
+$ helm install my-test percona/pg-db  \
+  --set instances[0].name=test \
+  --set instances[0].replicas=1 \
+  --set proxy.pgBouncer.replicas=1 \
+  --set finalizers={'percona\.com\/delete-pvc,percona\.com\/delete-ssl'}
+  --set instances[0].dataVolumeClaimSpec.resources.requests.storage=1Gi
 ```
 
-You can start up the cluster with only S3 backup storage like this
+### Expose pgBouncer with a Load Balancer
+Expose the cluster's pgBouncer with a LoadBalancer:
 
 ```bash
-$ helm install dev  --namespace pgdb . \
-  --set backup.repos.repo1.s3.bucket=my-s3-bucket \
-  --set backup.repos.repo1.s3.endpoint='s3.amazonaws.com' \
-  --set backup.repos.repo1.s3.region='us-east-1' \
-```
-
-GCS and local backup storages:
-
-```bash
-$ helm install dev  --namespace pgdb . \
-  --set backup.repos.repo2.gcs.bucket=my-gcs-bucket 
+$ helm install my-test percona/pg-db  \
+  --set proxy.pgBouncer.expose.type=LoadBalancer 
 ```
