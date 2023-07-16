@@ -164,12 +164,12 @@ Such a setup is good for testing, as it does not require a lot of compute power
 and performs and automated clean up of the Persistent Volume Claims (PVCs).
 It also deploys just one pgBouncer node, instead of 3.
 ```bash
-$ helm install my-test percona/pg-db  \
+$ helm install my-test percona/pg-db \
   --set instances[0].name=test \
   --set instances[0].replicas=1 \
+  --set instances[0].dataVolumeClaimSpec.resources.requests.storage=1Gi \
   --set proxy.pgBouncer.replicas=1 \
   --set finalizers={'percona\.com\/delete-pvc,percona\.com\/delete-ssl'}
-  --set instances[0].dataVolumeClaimSpec.resources.requests.storage=1Gi
 ```
 
 ### Expose pgBouncer with a Load Balancer
