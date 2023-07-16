@@ -158,7 +158,7 @@ Notice that you can use multiple replica sets only with sharding enabled.
 
 ## Examples
 
-### Deploy for tests - single PostgreSQL node, disabled backups and automated PVCs deletion
+### Deploy for tests - single PostgreSQL node and automated PVCs deletion
 
 Such a setup is good for testing, as it does not require a lot of compute power 
 and performs and automated clean up of the Persistent Volume Claims (PVCs).
