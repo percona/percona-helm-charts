@@ -173,9 +173,23 @@ $ helm install my-test percona/pg-db \
 ```
 
 ### Expose pgBouncer with a Load Balancer
+
 Expose the cluster's pgBouncer with a LoadBalancer:
 
 ```bash
 $ helm install my-test percona/pg-db  \
   --set proxy.pgBouncer.expose.type=LoadBalancer 
 ```
+
+### Add a custom user and a database
+
+The following command is going to deploy the cluster with the user `test`
+and give it access to the database `mytest`:
+
+```bash
+$ helm install my-test percona/pg-db  \
+  --set users[0].name=test \
+  --set users[0].databases={mytest}
+```
+
+Read more about custom users in our [documentation](https://docs.percona.com/percona-operator-for-postgresql/2.0/users.html)
