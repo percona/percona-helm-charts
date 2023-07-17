@@ -3,6 +3,31 @@ entries:
   pg-db:
   - apiVersion: v2
     appVersion: 2.2.0
+    created: "2023-07-17T14:49:06.532736109Z"
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    digest: 2902e22700234953715ebb2dac509be38f4fe6c0c29e57aa4f912de1b5014b9f
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    name: pg-db
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-db-2.2.2/pg-db-2.2.2.tgz
+    version: 2.2.2
+  - apiVersion: v2
+    appVersion: 2.2.0
     created: "2023-07-10T08:54:11.819268119Z"
     description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
     digest: ae5ca2b2dd1cabdfc75824d543fe80ea29f4e29c3e59ca23d929649b972928c4
@@ -238,6 +263,31 @@ entries:
   pg-operator:
   - apiVersion: v2
     appVersion: 2.2.0
+    created: "2023-07-17T14:49:06.69270813Z"
+    description: A Helm chart to deploy the Percona Operator for PostgreSQL
+    digest: 4ad4325fe6684cb25143edaf795659d82acf94909bb585fe0ed2265a016586a8
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    name: pg-operator
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-operator-2.2.1/pg-operator-2.2.1.tgz
+    version: 2.2.1
+  - apiVersion: v2
+    appVersion: 2.2.0
     created: "2023-07-01T16:41:58.452265105Z"
     description: A Helm chart to deploy the v2 version of Percona Operator for PostgreSQL.
     digest: 19bf560d5b42c921c7135b836c74e54e928250075b1fe58aa0f8ec114297ed79
@@ -450,6 +500,30 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/pg-operator-0.1.0/pg-operator-0.1.0.tgz
     version: 0.1.0
   pmm:
+  - apiVersion: v2
+    appVersion: 2.38.0
+    created: "2023-07-17T14:49:06.871829284Z"
+    description: A Helm chart for Percona Monitoring and Management (PMM)
+    digest: 4519457077f27a5166cb18c945cc557156b2dd17a7c4ae82bc8bb3688af4c803
+    home: https://github.com/percona/pmm
+    icon: https://www.percona.com/sites/default/files/pmm-logo.png
+    keywords:
+    - PMM
+    - Monitoring
+    maintainers:
+    - email: andrew.minkin@percona.com
+      name: gen1us2k
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: nurlan.moldomurov@percona.com
+      name: bupychuk
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: pmm
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-1.2.4/pmm-1.2.4.tgz
+    version: 1.2.4
   - apiVersion: v2
     appVersion: 2.37.0
     created: "2023-05-15T10:26:56.127147888Z"
@@ -1029,6 +1103,23 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/pmm-0.1.0/pmm-0.1.0.tgz
     version: 0.1.0
   ps-db:
+  - apiVersion: v2
+    appVersion: 0.5.0
+    created: "2023-07-17T14:49:07.035994833Z"
+    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    digest: 113b22b4bad38230a1bf3f6f0700563d8c7e5b993c546a5d70fbdf1f9e74abed
+    home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: ivan.pylypenko@percona.com
+      name: cap1984
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: ps-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/ps-db-0.5.4/ps-db-0.5.4.tgz
+    version: 0.5.4
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-05-15T10:26:56.267943037Z"
