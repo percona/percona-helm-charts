@@ -34,10 +34,8 @@ spec:
     {{- end }}
   {{- end }}
 
-  {{- if .Values.openshift }}
-  openshift: .Values.openshift
-  {{- end }}
-
+  openshift: {{ default false .Values.openshift }}
+  
   {{- if .Values.users }}
   users:
   {{- range $user := .Values.users }}
