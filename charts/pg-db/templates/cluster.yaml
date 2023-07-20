@@ -342,18 +342,7 @@ spec:
           container: {{ $repo.azure.container}}
       {{- end }}
       {{- end }}
-    {{- if .Values.backups.pgbackrest.restore }}
-        restore:
-          enabled: {{ .Values.backups.pgbackrest.restore.enabled }}
-          repoName: {{ .Values.backups.pgbackrest.restore.repoName }}
-          {{- if .Values.backups.pgbackrest.options }}
-          options:
-          {{- range $option := .Values.backups.pgbackrest.options }}
-#           PITR restore in place
-           - $option
-          {{- end }}
-          {{- end }}
-    {{- end }}
+
 
  {{- if .Values.patroni}}
    patroni:
