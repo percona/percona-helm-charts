@@ -181,9 +181,9 @@ spec:
       expose:
         type: {{ .Values.proxy.pgBouncer.expose.type }}
         annotations:
-        {{ .Values.proxy.pgBouncer.expose.annotations | toYaml | indent 6 }}
+        {{ .Values.proxy.pgBouncer.expose.annotations | toYaml | indent 10 }}
         labels:
-        {{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 6 }}
+        {{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 10 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.sidecars }}
       sidecars:
@@ -199,7 +199,7 @@ spec:
       {{- if .Values.proxy.pgBouncer.config }}
       config:
         global:
-        {{ .Values.proxy.pgBouncer.config.global | toYaml | indent 6 }}
+        {{ .Values.proxy.pgBouncer.config.global | toYaml | indent 10 }}
       {{- end }}
 
       {{- if .Values.proxy.pgBouncer.topologySpreadConstraints }}
@@ -213,7 +213,6 @@ spec:
             {{ $constraint.labelSelector.matchLabels | toYaml | indent 6 }}
       {{- end }}
       {{- end }}
-
       {{- if .Values.proxy.pgBouncer.affinity }}
       affinity:
         podAntiAffinity:
@@ -222,7 +221,7 @@ spec:
             podAffinityTerm:
               labelSelector:
                 matchLabels:
-                {{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.labelSelector.matchLabels | toYaml | indent 6 }}
+{{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.labelSelector.matchLabels | toYaml | indent 18 }}
               topologyKey: {{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.topologyKey }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.tolerations }}
@@ -264,7 +263,7 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.global }}
       global:
-      {{ .Values.backups.pgbackrest.global | toYaml | indent 6 }}
+      {{ .Values.backups.pgbackrest.global | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.backups.pgbackrest.repoHost }}
       repoHost:
@@ -288,7 +287,7 @@ spec:
               podAffinityTerm:
                 labelSelector:
                   matchLabels:
-                    {{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.labelSelector.matchLabels | toYaml | indent 6 }}
+{{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.labelSelector.matchLabels | toYaml | indent 18 }}
                 topologyKey: {{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.topologyKey }}
         {{- end }}
       {{- end }}
