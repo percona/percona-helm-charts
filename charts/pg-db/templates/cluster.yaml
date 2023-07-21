@@ -97,15 +97,10 @@ spec:
   expose:
     type: {{ .Values.expose.type }}
     annotations:
-    {{- range $annotation := .Values.expose.annotations}}
-      $annotation
-    {{- end }}
+    {{ .Values.expose.annotations | toYaml | indent 6 }}
     labels:
-    {{- range $label := .Values.expose.labels}}
-      $labels
-    {{- end }}
+    {{ .Values.expose.labels | toYaml | indent 6 }}
   {{- end }}
-
 
   instances:
   {{- range $instance := .Values.instances }}
@@ -126,14 +121,14 @@ spec:
       {{- end }}
       {{- if $instance.topologySpreadConstraints }}
       topologySpreadConstraints:
-      - maxSkew: {{ $instance.topologySpreadConstraints.maxSkew}}
-        topologyKey: {{ $instance.topologySpreadConstraints.topologyKey }}
-        whenUnsatisfiable: {{ $instance.topologySpreadConstraints.whenUnsatisfiable}}
-        labelSelector:
-          matchLabels:
-          {{- range $label := $instance.topologySpreadConstraints.labelSelector.matchLabels}}
-            $label
-          {{- end }}
+      {{- range $constraint :=  $instance.topologySpreadConstraints }}
+        - maxSkew: {{ $constraint.maxSkew }}
+          topologyKey: {{ $constraint.topologyKey }}
+          whenUnsatisfiable: {{ $constraint.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+            {{ $constraint.labelSelector.matchLabels | toYaml | indent 6 }}
+      {{- end }}
       {{- end }}
 
       {{- if $instance.tolerations }}
@@ -186,13 +181,9 @@ spec:
       expose:
         type: {{ .Values.proxy.pgBouncer.expose.type }}
         annotations:
-        {{- range $annotation := .Values.proxy.pgBouncer.expose.annotations}}
-          $annotation
-        {{- end }}
+        {{ .Values.proxy.pgBouncer.expose.annotations | toYaml | indent 6 }}
         labels:
-        {{- range $label := .Values.proxy.pgBouncer.expose.labels}}
-          $labels
-        {{- end }}
+        {{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 6 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.sidecars }}
       sidecars:
@@ -208,35 +199,31 @@ spec:
       {{- if .Values.proxy.pgBouncer.config }}
       config:
         global:
-        {{- range $setting := .Values.proxy.pgBouncer.config.global }}
-          $setting
-        {{- end }}
+        {{ .Values.proxy.pgBouncer.config.global | toYaml | indent 6 }}
       {{- end }}
 
       {{- if .Values.proxy.pgBouncer.topologySpreadConstraints }}
       topologySpreadConstraints:
-      - maxSkew: {{.Values.proxy.pgBouncer.topologySpreadConstraints.maxSkew}}
-        topologyKey: {{ .Values.proxy.pgBouncer.topologySpreadConstraints.topologyKey }}
-        whenUnsatisfiable: {{ .Values.proxy.pgBouncer.topologySpreadConstraints.whenUnsatisfiable}}
-        labelSelector:
-          matchLabels:
-          {{- range $label := .Values.proxy.pgBouncer.topologySpreadConstraints.labelSelector.matchLabels}}
-            $label
-          {{- end }}
+      {{- range $constraint := .Values.proxy.pgBouncer.topologySpreadConstraints }}
+        - maxSkew: {{ $constraint.maxSkew }}
+          topologyKey: {{ $constraint.topologyKey }}
+          whenUnsatisfiable: {{ $constraint.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+            {{ $constraint.labelSelector.matchLabels | toYaml | indent 6 }}
+      {{- end }}
       {{- end }}
 
       {{- if .Values.proxy.pgBouncer.affinity }}
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-           - weight: {{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.weight }}
-           podAffinityTerm:
-             labelSelector:
-             matchLabels:
-             {{- range $label := .Values.proxy.pgBouncer.affinity.podAntiAffinity.podAffinityTerm.labelSelector.matchLabels }}
-               $label
-             {{- end }}
-             topologyKey: {{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.podAffinityTerm.topologyKey }}
+          - weight: {{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.weight }}
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                {{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.labelSelector.matchLabels | toYaml | indent 6 }}
+              topologyKey: {{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.topologyKey }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.tolerations }}
       tolerations:
@@ -277,36 +264,32 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.global }}
       global:
-      {{- range $setting := .Values.backups.pgbackrest.global }}
-        $setting
-      {{- end }}
+      {{ .Values.backups.pgbackrest.global | toYaml | indent 6 }}
       {{- end }}
       {{- if .Values.backups.pgbackrest.repoHost }}
       repoHost:
         priorityClassName: {{ .Values.backups.pgbackrest.repoHost.priorityClassName }}
         {{- if .Values.backups.pgbackrest.repoHost.topologySpreadConstraints }}
         topologySpreadConstraints:
-        - maxSkew: {{.Values.backups.pgbackrest.repoHost.topologySpreadConstraints.maxSkew}}
-          topologyKey: {{ .Values.backups.pgbackrest.repoHost.topologySpreadConstraints.topologyKey }}
-          whenUnsatisfiable: {{ .Values.backups.pgbackrest.repoHost.topologySpreadConstraints.whenUnsatisfiable }}
-          labelSelector:
-            matchLabels:
-            {{- range $label := .Values.backups.pgbackrest.repoHost.topologySpreadConstraints.labelSelector.matchLabels }}
-              $label
-            {{- end }}
+        {{- range $constraint := .Values.backups.pgbackrest.repoHost.topologySpreadConstraints }}
+          - maxSkew: {{ $constraint.maxSkew }}
+            topologyKey: {{ $constraint.topologyKey }}
+            whenUnsatisfiable: {{ $constraint.whenUnsatisfiable }}
+            labelSelector:
+              matchLabels:
+              {{ $constraint.labelSelector.matchLabels | toYaml | indent 6 }}
+        {{- end }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
         affinity:
           podAntiAffinity:
             preferredDuringSchedulingIgnoredDuringExecution:
-             - weight: {{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.weight }}
-             podAffinityTerm:
-               labelSelector:
-               matchLabels:
-               {{- range $label := .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.podAffinityTerm.labelSelector.matchLabels }}
-                 $label
-               {{- end }}
-               topologyKey: {{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.podAffinityTerm.topologyKey }}
+            - weight: {{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.weight }}
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.labelSelector.matchLabels | toYaml | indent 6 }}
+                topologyKey: {{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.topologyKey }}
         {{- end }}
       {{- end }}
       manual:
