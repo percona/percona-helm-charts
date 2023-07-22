@@ -6,7 +6,7 @@ Useful links:
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/index.html)
 
 ## Pre-requisites
-* [Percona Operator for PostgreSQL](https://hub.helm.sh/charts/percona/pg-operator) running in you Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
+* [Percona Operator for PostgreSQL](https://hub.helm.sh/charts/percona/pg-operator) running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
 * Kubernetes 1.22+
 * At least `v3.2.3` version of helm
 
@@ -157,31 +157,39 @@ Specify parameters using `--set key=value[,key=value]` argument to `helm install
 Notice that you can use multiple replica sets only with sharding enabled.
 
 ## Examples
-This is great one for a dev Percona Distribution for PostgreSQL cluster as it doesn't bother with backups.
 
+### Deploy for tests - single PostgreSQL node and automated PVCs deletion
+
+Such a setup is good for testing, as it does not require a lot of compute power 
+and performs and automated clean up of the Persistent Volume Claims (PVCs).
+It also deploys just one pgBouncer node, instead of 3.
 ```bash
-$ helm install dev  --namespace pgdb .
-NAME: dev
-LAST DEPLOYED:
-NAMESPACE: pgdb
-STATUS: deployed
-REVISION: 1
-TEST SUITE: None
-NOTES:
+$ helm install my-test percona/pg-db \
+  --set instances[0].name=test \
+  --set instances[0].replicas=1 \
+  --set instances[0].dataVolumeClaimSpec.resources.requests.storage=1Gi \
+  --set proxy.pgBouncer.replicas=1 \
+  --set finalizers={'percona\.com\/delete-pvc,percona\.com\/delete-ssl'}
 ```
 
-You can start up the cluster with only S3 backup storage like this
+### Expose pgBouncer with a Load Balancer
+
+Expose the cluster's pgBouncer with a LoadBalancer:
 
 ```bash
-$ helm install dev  --namespace pgdb . \
-  --set backup.repos.repo1.s3.bucket=my-s3-bucket \
-  --set backup.repos.repo1.s3.endpoint='s3.amazonaws.com' \
-  --set backup.repos.repo1.s3.region='us-east-1' \
+$ helm install my-test percona/pg-db  \
+  --set proxy.pgBouncer.expose.type=LoadBalancer 
 ```
 
-GCS and local backup storages:
+### Add a custom user and a database
+
+The following command is going to deploy the cluster with the user `test`
+and give it access to the database `mytest`:
 
 ```bash
-$ helm install dev  --namespace pgdb . \
-  --set backup.repos.repo2.gcs.bucket=my-gcs-bucket 
+$ helm install my-test percona/pg-db  \
+  --set users[0].name=test \
+  --set users[0].databases={mytest}
 ```
+
+Read more about custom users in our [documentation](https://docs.percona.com/percona-operator-for-postgresql/2.0/users.html)
