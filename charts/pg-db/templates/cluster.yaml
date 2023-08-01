@@ -12,7 +12,7 @@ metadata:
     pgouser: admin
 {{ include "pg-database.labels" . | indent 4 }}
   finalizers:
-{{ .Values.finalizers | toYaml | indent 4 }}    
+{{ .Values.finalizers | toYaml | indent 4 }}
   name: {{ include "pg-database.fullname" . }}
 spec:
   crVersion: {{ .Values.crVersion}}
@@ -42,7 +42,7 @@ spec:
   users:
   {{- range $user := .Values.users }}
     - name: {{ $user.name }}
-      {{- if $user.databases }} 
+      {{- if $user.databases }}
       databases:
       {{- range $database := $user.databases }}
         - {{ $database }}
@@ -152,6 +152,9 @@ spec:
 
       {{- if $instance.walVolumeClaimSpec }}
       walVolumeClaimSpec:
+        {{- if $instance.walVolumeClaimSpec.storageClassName }}
+        storageClassName: {{ $instance.walVolumeClaimSpec.storageClassName }}
+        {{- end }}
          accessModes:
          - "ReadWriteOnce"
          resources:
@@ -159,8 +162,11 @@ spec:
              storage: {{ $instance.walVolumeClaimSpec.resources.requests.storage }}
       {{- end }}
       dataVolumeClaimSpec:
+        {{- if $instance.dataVolumeClaimSpec.storageClassName }}
+        storageClassName: {{ $instance.dataVolumeClaimSpec.storageClassName }}
+        {{- end }}
         accessModes:
-        - ReadWriteOnce
+        - "ReadWriteOnce"
         resources:
           requests:
             storage: {{ $instance.dataVolumeClaimSpec.resources.requests.storage }}
@@ -323,11 +329,14 @@ spec:
           full: {{ $repo.schedules.full }}
         volume:
           volumeClaimSpec:
+            {{- if $repo.volume.volumeClaimSpec.storageClassName }}
+            storageClassName: {{ $repo.volume.volumeClaimSpec.storageClassName }}
+            {{- end }}
             accessModes:
-            - ReadWriteOnce
+            - "ReadWriteOnce"
             resources:
               requests:
-                storage: {{ $repo.volume.volumeClaimSpec.resources.requests.storage}}
+                storage: {{ $repo.volume.volumeClaimSpec.resources.requests.storage }}
       {{- end }}
       {{- if eq $repo.name "repo2" }}
         s3:
