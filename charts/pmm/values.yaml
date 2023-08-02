@@ -256,3 +256,10 @@ tolerations: []
 ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 ##
 affinity: {}
+
+## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts
+##
+extraVolumeMounts: []
+## @param extraVolumes Optionally specify extra list of additional volumes
+##
+extraVolumes: []
