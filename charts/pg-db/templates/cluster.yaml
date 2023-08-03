@@ -357,13 +357,14 @@ spec:
           {{- end }}
     {{- end }}
 
- {{- if .Values.patroni}}
-   patroni:
-     dynamicConfiguration:
-       postgresql:
-         parameters:
-           max_parallel_workers: {{ .Values.patroni.dynamicConfiguration.postgresql.parameters.max_parallel_workers }}
-           max_worker_processes: {{ .Values.patroni.dynamicConfiguration.postgresql.parameters.max_worker_processes }}
-           shared_buffers: {{ .Values.patroni.dynamicConfiguration.postgresql.parameters.shared_buffers }}
-           work_mem: {{ .Values.patroni.dynamicConfiguration.postgresql.parameters.work_mem }}
- {{- end }}
+{{- if .Values.patroni}}
+  patroni:
+    dynamicConfiguration:
+      postgresql:
+        parameters:
+        {{- .Values.patroni.dynamicConfiguration.postgresql.parameters | toYaml | nindent 10 }}
+        pg_hba:
+        {{- range $pg_hba_entry := .Values.patroni.dynamicConfiguration.postgresql.pg_hba }}
+        - {{ $pg_hba_entry }} 
+        {{- end }}
+{{- end }}
