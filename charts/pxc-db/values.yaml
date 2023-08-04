@@ -16,7 +16,7 @@ fullnameOverride: ""
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.12.0
+crVersion: 1.13.0
 ignoreAnnotations: []
   # - iam.amazonaws.com/role
 ignoreLabels: []
@@ -44,7 +44,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.29-21.1
+    tag: 8.0.32-24.2
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
@@ -472,7 +472,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.32.0
+    tag: 2.38.0
   # imagePullPolicy: Always
   imagePullSecrets: []
   serverHost: monitoring-service
@@ -485,7 +485,10 @@ pmm:
 
 backup:
   enabled: true
-  image: ""
+  # allowParallel: true
+  image:
+    repository: percona/percona-xtradb-cluster-operator
+    tag: 1.13.0-pxc8.0-backup-pxb8.0.32
   # backoffLimit: 6
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
@@ -498,16 +501,16 @@ backup:
     resources:
       requests: {}
       limits: {}
-  storages:
-    fs-pvc:
-      type: filesystem
-      volume:
-        persistentVolumeClaim:
-        #  storageClassName: standard
-          accessModes: ["ReadWriteOnce"]
-          resources:
-            requests:
-              storage: 6Gi
+  storages: {}
+    # fs-pvc:
+    #   type: filesystem
+    #   volume:
+    #     persistentVolumeClaim:
+    #       storageClassName: standard
+    #       accessModes: ["ReadWriteOnce"]
+    #       resources:
+    #         requests:
+    #           storage: 6Gi
     # s3-us-west:
     #   type: s3
     #   verifyTLS: true
@@ -566,11 +569,11 @@ backup:
     #     endpointUrl: https://accountName.blob.core.windows.net
     #     storageClass: Hot
 
-  schedule:
-    - name: "daily-backup"
-      schedule: "0 0 * * *"
-      keep: 5
-      storageName: fs-pvc
+  schedule: []
+    # - name: "daily-backup"
+    #   schedule: "0 0 * * *"
+    #   keep: 5
+    #   storageName: fs-pvc
     # - name: "sat-night-backup"
     #   schedule: "0 0 * * 6"
     #   keep: 3

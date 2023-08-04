@@ -343,7 +343,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.37.0
+    tag: 2.38.0
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin

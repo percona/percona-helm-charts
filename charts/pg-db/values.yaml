@@ -244,21 +244,12 @@ backups:
 #      azure:
 #        container: "<YOUR_AZURE_CONTAINER>"
 #
-#  restore:
-#    enabled: true
-#    repoName: repo1
-#    options:
-#     PITR restore in place
-#     - --type=time
-#     - --target="2021-06-09 14:15:11-04"
-#     restore individual databases
-#     - --db-include=hippo
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.37.0
+    tag: 2.38.0
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
