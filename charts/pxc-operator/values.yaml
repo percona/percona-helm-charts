@@ -45,6 +45,8 @@ resources:
     cpu: 100m
     memory: 20Mi
 
+containerSecurityContext: {}
+
 nodeSelector: {}
 
 tolerations: []
