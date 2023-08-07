@@ -326,7 +326,7 @@ spec:
       {{- end }}
 
 
-{{- if .Values.patroni}}
+{{- if .Values.patroni }}
   patroni:
     dynamicConfiguration:
       postgresql:
