@@ -266,6 +266,8 @@ pmm:
 #         max_worker_processes: 2
 #         shared_buffers: 1GB
 #         work_mem: 2MB
+#       pg_hba:
+#       - host    all mytest 123.123.123.123/32 reject
 
 secrets:
   name:
