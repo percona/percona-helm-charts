@@ -27,7 +27,7 @@ Join Percona Squad! Get early access to new product features, invite-only ”ask
     kubectl -n {{ .Release.Namespace }} exec -ti \
       {{ include "pxc-database.fullname" . }}-pxc-0 -c pxc -- mysql -uroot -p"$ROOT_PASSWORD"
   {{- else }}
-    ROOT_PASSWORD=`kubectl -n {{ .Release.Namespace }} get secrets {{ include "pxc-database.fullname" . }}-secret -o jsonpath="{.data.root}" | base64 --decode`
+    ROOT_PASSWORD=`kubectl -n {{ .Release.Namespace }} get secrets {{ include "pxc-database.fullname" . }}-secrets -o jsonpath="{.data.root}" | base64 --decode`
     kubectl -n {{ .Release.Namespace }} exec -ti \
       {{ include "pxc-database.fullname" . }}-pxc-0 -c pxc -- mysql -uroot -p"$ROOT_PASSWORD"
   {{- end }}
@@ -38,7 +38,7 @@ Join Percona Squad! Get early access to new product features, invite-only ”ask
   {{- if hasKey .Values.pxc "clusterSecretName" }}
     ROOT_PASSWORD=`kubectl -n {{ .Release.Namespace }} get secrets {{ include "pxc.clusterSecretName" . }} -o jsonpath="{.data.root}" | base64 --decode`
   {{- else }}
-    ROOT_PASSWORD=`kubectl -n {{ .Release.Namespace }} get secrets {{ include "pxc-database.fullname" . }}-secret -o jsonpath="{.data.root}" | base64 --decode`
+    ROOT_PASSWORD=`kubectl -n {{ .Release.Namespace }} get secrets {{ include "pxc-database.fullname" . }}-secrets -o jsonpath="{.data.root}" | base64 --decode`
   {{- end }}
 
 
