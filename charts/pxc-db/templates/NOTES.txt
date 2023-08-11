@@ -20,8 +20,6 @@ Join Percona Squad! Get early access to new product features, invite-only ”ask
 
 >>> https://percona.com/k8s <<<
 
-*** Note: if you set customSecretName, replace {{ include "pxc-database.fullname" . }}-secret with the secret name you supplied. ***
-
 1. To get a MySQL prompt inside your new cluster you can run:
 
   {{- if hasKey .Values.pxc "clusterSecretName" }}
