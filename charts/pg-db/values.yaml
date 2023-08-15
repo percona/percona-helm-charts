@@ -244,15 +244,6 @@ backups:
 #      azure:
 #        container: "<YOUR_AZURE_CONTAINER>"
 #
-#  restore:
-#    enabled: true
-#    repoName: repo1
-#    options:
-#     PITR restore in place
-#     - --type=time
-#     - --target="2021-06-09 14:15:11-04"
-#     restore individual databases
-#     - --db-include=hippo
 
 pmm:
   enabled: false
