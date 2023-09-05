@@ -1228,6 +1228,21 @@ entries:
     version: 0.1.0
   ps-db:
   - apiVersion: v2
+    appVersion: 0.6.0
+    created: "2023-09-05T15:45:41.156082592Z"
+    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    digest: 1f69cdd37523135ebb19d46f79048664972949d0f097d492c1a452e1d452bf70
+    home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: ps-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/ps-db-0.6.0/ps-db-0.6.0.tgz
+    version: 0.6.0
+  - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-08-15T12:37:09.821710013Z"
     description: A Helm chart for installing Percona Server Databases using the PS Operator.
@@ -1398,6 +1413,23 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/ps-db-0.2.0/ps-db-0.2.0.tgz
     version: 0.2.0
   ps-operator:
+  - apiVersion: v2
+    appVersion: 0.6.0
+    created: "2023-09-05T15:45:41.331653235Z"
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
+    digest: 7ba3736c22bb647e2e49d7920210486197c9a209a4763b4d88531dc7495b71dd
+    home: https://docs.percona.com/percona-operator-for-mysql/ps/
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: ps-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/ps-operator-0.6.0/ps-operator-0.6.0.tgz
+    version: 0.6.0
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-03-31T12:49:14.735477033Z"
