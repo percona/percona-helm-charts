@@ -40,7 +40,7 @@ spec:
             protocol: TCP
           command:
           - percona-xtradb-cluster-operator
-          {{- with .Values.containerSecurityContext.readOnlyRootFileSystem }}
+          {{- if .Values.containerSecurityContext.readOnlyRootFilesystem }}
           volumeMounts:
             - name: tmpdir
               mountPath: /tmp
