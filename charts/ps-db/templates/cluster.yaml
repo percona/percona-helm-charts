@@ -19,6 +19,9 @@ spec:
   {{- if .Values.initImage }}
   initImage: {{ .Values.initImage }}
   {{- end }}
+  {{- if .Values.updateStrategy }}
+  updateStrategy: {{ .Values.updateStrategy }}
+  {{- end }}
   {{- if hasKey .Values.upgradeOptions "versionServiceEndpoint" }}
   upgradeOptions:
     versionServiceEndpoint: {{ .Values.upgradeOptions.versionServiceEndpoint }}
@@ -64,6 +67,9 @@ spec:
     {{- if $mysql.clusterType }}
     clusterType: {{ $mysql.clusterType }}
     {{- end }}
+    {{- if $mysql.autoRecovery }}
+    autoRecovery: {{ $mysql.autoRecovery }}
+    {{- end }}
     {{- if $mysql.image }}
     image: "{{ $mysql.image.repository }}:{{ $mysql.image.tag }}"
     {{- end }}
@@ -80,9 +86,6 @@ spec:
     {{- if $mysql.size }}
     size: {{ $mysql.size }}
     {{- end }}
-    {{- if $mysql.sizeSemiSync }}
-    sizeSemiSync: {{ $mysql.sizeSemiSync }}
-    {{- end }}
     affinity:
 {{ $mysql.affinity | toYaml | indent 6 }}
     {{- if $mysql.priorityClassName }}
@@ -97,6 +100,14 @@ spec:
 {{ tpl ($mysql.resources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($mysql.resources.limits | toYaml) $ | indent 8 }}
+    {{- if $mysql.livenessProbe }}
+    livenessProbe:
+{{ $mysql.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.readinessProbe }}
+    readinessProbe:
+{{ $mysql.readinessProbe | toYaml | indent 6 }}
+    {{- end }}
     tolerations:
 {{ $mysql.tolerations | toYaml | indent 6 }}
     nodeSelector:
@@ -157,7 +168,7 @@ spec:
   proxy:
     {{- $haproxy := .Values.proxy.haproxy }}
     haproxy:
-    {{- if or (not $haproxy.enabled) (ne .Values.mysql.clusterType "async") }}
+    {{- if not $haproxy.enabled }}
       enabled: false
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
     {{- else }}
@@ -194,6 +205,26 @@ spec:
 {{ tpl ($haproxy.resources.requests | toYaml) $ | indent 10 }}
         limits:
 {{ tpl ($haproxy.resources.limits | toYaml) $ | indent 10 }}
+      {{- if $haproxy.env }}
+      env:
+{{ $haproxy.env | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $haproxy.envFrom }}
+      envFrom:
+{{ $haproxy.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $haproxy.livenessProbe }}
+      livenessProbe:
+{{ $haproxy.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $haproxy.readinessProbe }}
+      readinessProbe:
+{{ $haproxy.readinessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $haproxy.configuration }}
+      configuration: |
+{{- tpl $haproxy.configuration $ | nindent 8 }}
+      {{- end }}
       {{- if $haproxy.volumeSpec }}
       volumeSpec:
         {{- if $haproxy.volumeSpec.hostPath }}
@@ -231,8 +262,12 @@ spec:
     {{- end }}
 
     {{- $router := .Values.proxy.router }}
-    {{ if .Values.proxy.router }}
     router:
+    {{- if or (not $router.enabled) (ne .Values.mysql.clusterType "group-replication") }}
+      enabled: false
+      image: {{ $router.image.repository }}:{{ $router.image.tag }}
+    {{- else }}
+      enabled: true
       image: {{ $router.image.repository }}:{{ $router.image.tag }}
       {{- if $router.imagePullPolicy }}
       imagePullPolicy: {{ $router.imagePullPolicy }}
@@ -295,8 +330,6 @@ spec:
       {{- end }}
       {{- if $router.serviceAccountName }}
       serviceAccountName: {{ $router.serviceAccountName }}
-      {{- else }}
-      serviceAccountName: {{ include "ps-database.fullname" . }}-orchestrator
       {{- end }}
       {{- if $router.runtimeClassName }}
       runtimeClassName: {{ $router.runtimeClassName }}
@@ -309,10 +342,10 @@ spec:
 
   orchestrator:
   {{- $orc := .Values.orchestrator }}
-    {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
+  {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
     enabled: false
     image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
-    {{- else }}
+  {{- else }}
     enabled: true
     image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
     {{- if $orc.imagePullPolicy }}
@@ -324,6 +357,8 @@ spec:
     {{- end }}
     {{- if $orc.serviceAccountName }}
     serviceAccountName: {{ $orc.serviceAccountName }}
+    {{- else }}
+    serviceAccountName: {{ include "ps-database.fullname" . }}-orchestrator
     {{- end }}
     {{- if $orc.initImage }}
     initImage: "{{ $orc.initImage }}"

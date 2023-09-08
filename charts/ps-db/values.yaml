@@ -9,11 +9,12 @@ finalizers:
   - delete-mysql-pods-in-order
   # - delete-ssl
 
-crVersion: 0.5.0
+crVersion: 0.6.0
 pause: false
 allowUnsafeConfigurations: false
-# initImage: percona/percona-server-mysql-operator:0.5.0
+# initImage: percona/percona-server-mysql-operator:0.6.0
 
+updateStrategy: SmartUpdate
 upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
   apply: disabled
@@ -38,16 +39,16 @@ upgradeOptions:
 
 mysql:
   clusterType: group-replication
+  autoRecovery: true
   image:
     repository: percona/percona-server
-    tag: 8.0.32-24
+    tag: 8.0.33-25
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
-  # initImage: percona/percona-server-mysql-operator:0.5.0
+  # initImage: percona/percona-server-mysql-operator:0.6.0
 
   size: 3
-  sizeSemiSync: 0
 
   # configuration: |
   #   max_connections=250
@@ -57,6 +58,20 @@ mysql:
       memory: 512M
     limits:
       memory: 1G
+
+  # readinessProbe:
+  #   initialDelaySeconds: 30
+  #   timeoutSeconds: 10
+  #   periodSeconds: 10
+  #   failureThreshold: 3
+  #   successThreshold: 1
+
+  # livenessProbe:
+  #   initialDelaySeconds: 15
+  #   timeoutSeconds: 10
+  #   periodSeconds: 10
+  #   failureThreshold: 3
+  #   successThreshold: 1
 
   affinity:
     antiAffinityTopologyKey: "kubernetes.io/hostname"
@@ -75,7 +90,7 @@ mysql:
     enabled: false
     type: ClusterIP
     # annotations:
-    #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     # externalTrafficPolicy: Cluster
     # internalTrafficPolicy: Cluster
     # labels:
@@ -142,13 +157,13 @@ mysql:
 
 proxy:
   haproxy:
-    enabled: false
+    enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.5.12
+      tag: 2.8.1
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.5.0
+    # initImage: percona/percona-server-mysql-operator:0.6.0
 
     size: 3
 
@@ -157,6 +172,63 @@ proxy:
         memory: 1G
         cpu: 600m
       limits: {}
+
+    # env:
+    # - name: HA_CONNECTION_TIMEOUT
+    #   value: "1000"
+
+    # envFrom:
+    # - secretRef:
+    #     name: haproxy-env-secret
+
+    # readinessProbe:
+    #   timeoutSeconds: 3
+    #   periodSeconds: 5
+    #   failureThreshold: 3
+    #   successThreshold: 1
+
+    # livenessProbe:
+    #   timeoutSeconds: 3
+    #   periodSeconds: 5
+    #   failureThreshold: 3
+    #   successThreshold: 1
+
+    # configuration: |
+    #
+    # the actual default configuration file can be found here https://github.com/percona/percona-server-mysql-operator/blob/main/build/haproxy-global.cfg
+    #
+    #   global
+    #     maxconn 2048
+    #     external-check
+    #     insecure-fork-wanted
+    #     stats socket /etc/haproxy/mysql/haproxy.sock mode 600 expose-fd listeners level admin
+    #
+    #   defaults
+    #     default-server init-addr last,libc,none
+    #     log global
+    #     mode tcp
+    #     retries 10
+    #     timeout client 28800s
+    #     timeout connect 100500
+    #     timeout server 28800s
+    #
+    #   frontend mysql-primary-in
+    #     bind *:3309 accept-proxy
+    #     bind *:3306
+    #     mode tcp
+    #     option clitcpka
+    #     default_backend mysql-primary
+    #
+    #   frontend mysql-replicas-in
+    #     bind *:3307
+    #     mode tcp
+    #     option clitcpka
+    #     default_backend mysql-replicas
+    #
+    #   frontend stats
+    #     bind *:8404
+    #     mode http
+    #     http-request use-service prometheus-exporter if { path /metrics }
 
     affinity:
       antiAffinityTopologyKey: "kubernetes.io/hostname"
@@ -197,7 +269,7 @@ proxy:
     # expose:
       # type: ClusterIP
       # annotations:
-      #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+      #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
       # externalTrafficPolicy: Cluster
       # internalTrafficPolicy: Cluster
       # labels:
@@ -207,12 +279,13 @@ proxy:
       #   - 10.0.0.0/8
 
   router:
+    enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.0.32
+      tag: 8.0.33
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.5.0
+    # initImage: percona/percona-server-mysql-operator:0.6.0
 
     size: 3
 
@@ -267,7 +340,7 @@ proxy:
     # expose:
       # type: ClusterIP
       # annotations:
-      #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+      #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
       # externalTrafficPolicy: Cluster
       # internalTrafficPolicy: Cluster
       # labels:
@@ -280,12 +353,12 @@ orchestrator:
   enabled: false
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-8
+    tag: 3.2.6-9
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.5.0
+  # initImage: percona/percona-server-mysql-operator:0.6.0
 
   size: 3
 
@@ -330,7 +403,7 @@ orchestrator:
   # expose:
     # type: ClusterIP
     # annotations:
-    #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     # externalTrafficPolicy: Cluster
     # internalTrafficPolicy: Cluster
     # labels:
@@ -343,7 +416,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.36.0
+    tag: 2.39.0
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
@@ -357,7 +430,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.0.32-25
+    tag: 8.0.33-27
   imagePullPolicy: Always
   imagePullSecrets: []
   resources:
@@ -411,7 +484,7 @@ backup:
 toolkit:
   image:
     repository: percona/percona-server-mysql-operator
-    tag: 0.5.0-toolkit
+    tag: 0.6.0-toolkit
   imagePullPolicy: Always
   resources:
     requests: {}
