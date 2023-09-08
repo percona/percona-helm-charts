@@ -53,26 +53,6 @@ app.kubernetes.io/name: {{ include "postgres-operator.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/*
-Create the name of the service account to use
-*/}}
-{{- define "postgres-operator.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default "pgo-deployer-sa" .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
-
-{{/*
-Create the template for image pull secrets
-*/}}
-{{- define "postgres-operator.imagePullSecret" -}}
-{{- if ne .Values.pgo_image_pull_secret "" }}
-imagePullSecrets:
-- name: "{{ .Values.pgo_image_pull_secret }}"
-{{ end }}
-{{ end }}
 
 {{/*
 Create the template for clusterroleName based on values.yaml parameters
@@ -86,25 +66,12 @@ cluster-admin
 {{- end }}
 
 {{/*
-Generate Configmap based on Values defined in values.yaml
+Functions returns image URI according to parameters set
 */}}
-{{- define "postgres-operator.values" -}}
-{{- $namespace := .Release.Namespace -}}
-{{- $namespace_fields := list "namespace" "pgo_operator_namespace" }}
-{{- $ignore_fields := list "fullnameOverride" "rbac" "serviceAccount" "disableFSGroup" }}
-values.yaml: |
-  ---
-{{- range $index, $value := .Values }}
-{{- if not (has $index $ignore_fields) }}
-{{- if has $index $namespace_fields }}
-{{ $index | indent 2 }}: {{ $namespace | quote }}
-{{- else if eq $index "pgo_image_tag" }}
-{{ $index | indent 2 }}: {{ $value | default $.Chart.AppVersion | quote }}
-{{- else if eq $index "ccp_image_tag" }}
-{{ $index | indent 2 }}: "{{ $value | default $.Chart.AppVersion }}-postgres-ha"
+{{- define "postgres-operator.image" -}}
+{{- if .Values.image }}
+{{- .Values.image }}
 {{- else }}
-{{ $index | indent 2 }}: {{ $value | quote }}
+{{- printf "%s:%s" .Values.operatorImageRepository .Chart.AppVersion }}
 {{- end }}
-{{- end }}
-{{- end }}
-{{- end }}
+{{- end -}}
