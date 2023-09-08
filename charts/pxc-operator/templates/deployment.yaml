@@ -40,6 +40,11 @@ spec:
             protocol: TCP
           command:
           - percona-xtradb-cluster-operator
+          {{- if .Values.containerSecurityContext.readOnlyRootFilesystem }}
+          volumeMounts:
+            - name: tmpdir
+              mountPath: /tmp
+          {{- end }}
           env:
             - name: WATCH_NAMESPACE
               {{- if .Values.watchAllNamespaces }}
@@ -82,6 +87,11 @@ spec:
     {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- if .Values.containerSecurityContext.readOnlyRootFilesystem }}
+      volumes:
+        - name: tmpdir
+          emptyDir: {}
     {{- end }}
 {{- if .Values.watchAllNamespaces }}
 ---
