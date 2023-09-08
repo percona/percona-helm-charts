@@ -2,6 +2,7 @@ apiVersion: pxc.percona.com/v1
 kind: PerconaXtraDBCluster
 metadata:
   name: {{ include "pxc-database.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "pxc-database.labels" . | indent 4 }}
   finalizers:
