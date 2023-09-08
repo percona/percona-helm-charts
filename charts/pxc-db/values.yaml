@@ -582,16 +582,16 @@ backup:
 secrets:
   ## You should be overriding these with your own or specify name for clusterSecretName.
   # passwords:
-  #  root: insecure-root-password
-  #  xtrabackup: insecure-xtrabackup-password
-  #  monitor: insecure-monitor-password
-  #  clustercheck: insecure-clustercheck-password
-  #  proxyadmin: insecure-proxyadmin-password
-  #  pmmserver: insecure-pmmserver-password
-  #  # If pmmserverkey is set in that case pmmserver pass will not be included
-  #  # pmmserverkey: set-pmmserver-api-key
-  #  operator: insecure-operator-password
-  #  replication: insecure-replication-password
+  #   root: insecure-root-password
+  #   xtrabackup: insecure-xtrabackup-password
+  #   monitor: insecure-monitor-password
+  #   clustercheck: insecure-clustercheck-password
+  #   proxyadmin: insecure-proxyadmin-password
+  #   pmmserver: insecure-pmmserver-password
+  #   # If pmmserverkey is set in that case pmmserver pass will not be included
+  #   # pmmserverkey: set-pmmserver-api-key
+  #   operator: insecure-operator-password
+  #   replication: insecure-replication-password
   ## If you are using `cert-manager` you can skip this next section.
   tls: {}
     # This should be the name of a secret that contains certificates.
