@@ -77,6 +77,9 @@ spec:
 
   {{- $pxc := .Values.pxc }}
   pxc:
+    {{- if $pxc.hookScript }}
+    hookScript: {{ $pxc.hookScript }}
+    {{- end }}
     size: {{ $pxc.size }}
     image: {{ $pxc.image.repository }}:{{ $pxc.image.tag }}
     autoRecovery: {{ $pxc.autoRecovery }}
