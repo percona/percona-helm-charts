@@ -78,6 +78,7 @@ replsets:
     #     mode: slowOp
     #   systemLog:
     #     verbosity: 1
+    # serviceAccountName: percona-server-mongodb-operator
     # topologySpreadConstraints:
     #   - labelSelector:
     #       matchLabels:
@@ -299,6 +300,7 @@ sharding:
     #     mode: slowOp
     #   systemLog:
     #     verbosity: 1
+    # serviceAccountName: percona-server-mongodb-operator
     # topologySpreadConstraints:
     #   - labelSelector:
     #       matchLabels:
@@ -381,6 +383,7 @@ sharding:
     # configuration: |
     #   systemLog:
     #     verbosity: 1
+    # serviceAccountName: percona-server-mongodb-operator
     # topologySpreadConstraints:
     #   - labelSelector:
     #       matchLabels:

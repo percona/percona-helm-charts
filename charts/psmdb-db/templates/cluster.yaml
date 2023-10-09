@@ -94,6 +94,9 @@ spec:
     topologySpreadConstraints:
 {{ $replset.topologySpreadConstraints | toYaml | indent 6 }}
     {{- end }}
+    {{- if $replset.serviceAccountName }}
+    serviceAccountName: {{ $replset.serviceAccountName }}
+    {{- end }}
     affinity:
 {{ $replset.affinity | toYaml | indent 6 }}
     {{- if $replset.priorityClass }}
@@ -209,6 +212,9 @@ spec:
       configuration: |
 {{ $replset.nonvoting.configuration | indent 8 }}
       {{- end }}
+      {{- if $replset.nonvoting.serviceAccountName }}
+      serviceAccountName: {{ $replset.nonvoting.serviceAccountName }}
+      {{- end }}
       affinity:
 {{ $replset.nonvoting.affinity | toYaml | indent 8 }}
       {{- if $replset.nonvoting.priorityClass }}
@@ -266,6 +272,9 @@ spec:
     arbiter:
       enabled: {{ $replset.arbiter.enabled }}
       size: {{ $replset.arbiter.size }}
+      {{- if $replset.arbiter.serviceAccountName }}
+      serviceAccountName: {{ $replset.arbiter.serviceAccountName }}
+      {{- end }}
       affinity:
 {{ $replset.arbiter.affinity | toYaml | indent 8 }}
       {{- if $replset.arbiter.priorityClass }}
@@ -311,6 +320,9 @@ spec:
       {{- if .Values.sharding.configrs.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ .Values.sharding.configrs.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.serviceAccountName }}
+      serviceAccountName: {{ .Values.sharding.configrs.serviceAccountName }}
       {{- end }}
       affinity:
 {{ .Values.sharding.configrs.affinity | toYaml | indent 8 }}
@@ -426,6 +438,9 @@ spec:
       {{- if .Values.sharding.mongos.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ .Values.sharding.mongos.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.serviceAccountName }}
+      serviceAccountName: {{ .Values.sharding.mongos.serviceAccountName }}
       {{- end }}
       affinity:
 {{ .Values.sharding.mongos.affinity | toYaml | indent 8 }}
