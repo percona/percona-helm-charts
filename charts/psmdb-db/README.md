@@ -59,7 +59,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `replsets[0].name`                      | ReplicaSet name              | `rs0` |
 | `replsets[0].size`                      | ReplicaSet size (pod quantity)              | `3` |
-| `replsets[0].terminationGracePeriodSeconds`                      | Pass terminationGracePeriodSeconds to containers    | `""` |
+| `replsets[0].terminationGracePeriodSeconds`                      | The amount of seconds Kubernetes will wait for a clean replica set Pods termination    | `""` |
 | `replsets[0].externalNodes`             | ReplicaSet external nodes (cross cluster replication)           | `[]` |
 | `replsets[0].configuration`             | Custom config for mongod in replica set     | `""` |
 | `replsets[0].topologySpreadConstraints` | Control how Pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains   | `{}` |
@@ -139,7 +139,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.enabled`                             | Enable sharding setup   | `true` |
 | `sharding.balancer.enabled`                    | Enable/disable balancer | `true` |
 | `sharding.configrs.size`                       | Config ReplicaSet size (pod quantity) | `3` |
-| `sharding.configrs.terminationGracePeriodSeconds`     | Pass terminationGracePeriodSeconds to containers              | `""` |
+| `sharding.configrs.terminationGracePeriodSeconds`  | The amount of seconds Kubernetes will wait for a clean replica set Pods termination  | `""` |
 | `sharding.configrs.externalNodes`              | Config ReplicaSet external nodes (cross cluster replication)         | `[]` |
 | `sharding.configrs.configuration`              | Custom config for mongod in config replica set | `""` |
 | `sharding.configrs.topologySpreadConstraints`  | Control how Pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains   | `{}` |
@@ -181,7 +181,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.volumeSpec.pvc.resources.requests.storage` | Config ReplicaSet Pods PVC storage size | `3Gi` |
 | `sharding.configrs.hostAliases`                | The IP address for Kubernetes host aliases             | `[]`  |
 | `sharding.mongos.size`                         | Mongos size (pod quantity) | `3` |
-| `sharding.mongos.terminationGracePeriodSeconds`  | Pass terminationGracePeriodSeconds to containers     | `""` |
+| `sharding.mongos.terminationGracePeriodSeconds`  | The amount of seconds Kubernetes will wait for a clean mongos Pods termination  | `""` |
 | `sharding.mongos.configuration`                | Custom config for mongos   | `""` |
 | `sharding.mongos.topologySpreadConstraints`    | Control how Pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains   | `{}` |
 | `sharding.mongos.serviceAccountName`           | Run sharding mongos Containers under specified K8S SA              | `""` |

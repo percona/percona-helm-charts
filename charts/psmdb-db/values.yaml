@@ -219,6 +219,7 @@ replsets:
       #     mode: slowOp
       #   systemLog:
       #     verbosity: 1
+      # serviceAccountName: percona-server-mongodb-operator
       affinity:
         antiAffinityTopologyKey: "kubernetes.io/hostname"
         # advanced:
@@ -262,6 +263,7 @@ replsets:
     arbiter:
       enabled: false
       size: 1
+      # serviceAccountName: percona-server-mongodb-operator
       affinity:
         antiAffinityTopologyKey: "kubernetes.io/hostname"
         # advanced:
