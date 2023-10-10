@@ -8,7 +8,7 @@ Useful links:
 
 ## Pre-requisites
 * Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-* Kubernetes 1.22+
+* Kubernetes 1.24+
 * Helm v3
 
 # Chart Details
@@ -19,14 +19,14 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.14.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.15.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
-| `crVersion`                     | CR Cluster Manifest version                                                   | `1.14.0`                                  |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `1.15.0`                                  |
 | `pause`                         | Stop PSMDB Database safely                                                    | `false`                                   |
 | `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                                   |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PSMDB cluster pods        | `false`                                   |
@@ -44,7 +44,7 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:delete-psmdb-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion | `[]` |
 | `finalizers:delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)     | `[]` |
 | `image.repository`             | PSMDB Container image repository                                               | `percona/percona-server-mongodb`          |
-| `image.tag`                    | PSMDB Container image tag                                                      | `6.0.4-3`                                 |
+| `image.tag`                    | PSMDB Container image tag                                                      | `6.0.9-7`                                 |
 | `imagePullPolicy`              | The policy used to update images                                               | `Always`                                  |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                    | `[]`                                      |
 | `initImage.repository`         | Repository for custom init image                                               | `""`                                      |
@@ -54,13 +54,16 @@ The chart can be customized using the following configurable parameters:
 | `secrets`             | Operator secrets section                                 | `{}`                                      |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false` |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client` |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.35.0`                              |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.39.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service` |
 ||
 | `replsets[0].name`                      | ReplicaSet name              | `rs0` |
 | `replsets[0].size`                      | ReplicaSet size (pod quantity)              | `3` |
+| `replsets[0].terminationGracePeriodSeconds`                      | The amount of seconds Kubernetes will wait for a clean replica set Pods termination    | `""` |
 | `replsets[0].externalNodes`             | ReplicaSet external nodes (cross cluster replication)           | `[]` |
 | `replsets[0].configuration`             | Custom config for mongod in replica set     | `""` |
+| `replsets[0].topologySpreadConstraints` | Control how Pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains   | `{}` |
+| `replsets[0].serviceAccountName`   | Run replicaset Containers under specified K8S SA              | `""` |
 | `replsets[0].affinity.antiAffinityTopologyKey`   | ReplicaSet Pod affinity              | `kubernetes.io/hostname` |
 | `replsets[0].affinity.advanced`          | ReplicaSet Pod advanced affinity     | `{}` |
 | `replsets[0].tolerations`     | ReplicaSet Pod tolerations                    | `[]` |
@@ -77,17 +80,32 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].sidecars`   | ReplicaSet Pod sidecars                          | `{}` |
 | `replsets[0].sidecarVolumes`   | ReplicaSet Pod sidecar volumes             | `[]` |
 | `replsets[0].sidecarPVCs`      | ReplicaSet Pod sidecar PVCs                | `[]` |
-| `replsets[0].podDisruptionBudget.maxUnavailable`   | ReplicaSet failed Pods maximum quantity               | `1` |
+| `replsets[0].podDisruptionBudget.maxUnavailable`   | ReplicaSet failed Pods maximum quantity                | `1` |
+| `replsets[0].splitHorizons`    | External URI for Split-horizon for replica set Pods of the exposed cluster | `{}` |
 | `replsets[0].expose.enabled`   | Allow access to replicaSet from outside of Kubernetes              | `false` |
 | `replsets[0].expose.exposeType`   | Network service access point type              | `ClusterIP` |
 | `replsets[0].expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}` |
 | `replsets[0].expose.serviceAnnotations`  | ReplicaSet service annotations | `{}` |
 | `replsets[0].expose.serviceLabels`    | ReplicaSet service labels | `{}` |
+| `replsets[0].schedulerName`   | ReplicaSet Pod schedulerName              | `""` |
+| `replsets[0].resources`       | ReplicaSet Pods resource requests and limits                          | `{}`                  |
+| `replsets[0].volumeSpec`       | ReplicaSet Pods storage resources                          | `{}`                  |
+| `replsets[0].volumeSpec.emptyDir`       | ReplicaSet Pods emptyDir K8S storage                          | `{}`                  |
+| `replsets[0].volumeSpec.hostPath`       | ReplicaSet Pods hostPath K8S storage                          |                   |
+| `replsets[0].volumeSpec.hostPath.path`       | ReplicaSet Pods hostPath K8S storage path                       | `""`                  |
+| `replsets[0].volumeSpec.pvc`                   | ReplicaSet Pods PVC request parameters                       |                   |
+| `replsets[0].volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}` |
+| `replsets[0].volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}` |
+| `replsets[0].volumeSpec.pvc.storageClassName`  | ReplicaSet Pods PVC target storageClass                      | `""` |
+| `replsets[0].volumeSpec.pvc.accessModes`       | ReplicaSet Pods PVC access policy                      | `[]` |
+| `replsets[0].volumeSpec.pvc.resources.requests.storage`       | ReplicaSet Pods PVC storage size                      | `3Gi` |
+| `replsets[0].hostAliases`              | The IP address for Kubernetes host aliases                     | `[]`                |
 | `replsets[0].nonvoting.enabled`        | Add MongoDB nonvoting Pods                | `false` |
 | `replsets[0].nonvoting.podSecurityContext` | Set the security context for a Pod               | `{}` |
 | `replsets[0].nonvoting.containerSecurityContext` | Set the security context for a Container   | `{}` |
 | `replsets[0].nonvoting.size`           | Number of nonvoting Pods                  | `1` |
 | `replsets[0].nonvoting.configuration`  | Custom config for mongod nonvoting member | `""` |
+| `replsets[0].nonvoting.serviceAccountName`   | Run replicaset nonvoting Container under specified K8S SA              | `""` |
 | `replsets[0].nonvoting.affinity.antiAffinityTopologyKey`   | Nonvoting Pods affinity          | `kubernetes.io/hostname` |
 | `replsets[0].nonvoting.affinity.advanced`          | Nonvoting Pods advanced affinity | `{}` |
 | `replsets[0].nonvoting.tolerations`    | Nonvoting Pod tolerations                 | `[]` |
@@ -109,6 +127,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].nonvoting.volumeSpec.pvc.resources.requests.storage`    | Nonvoting Pods PVC storage size   | `3Gi` |
 | `replsets[0].arbiter.enabled`   | Create MongoDB arbiter service              | `false` |
 | `replsets[0].arbiter.size`   | MongoDB arbiter Pod quantity              | `1` |
+| `replsets[0].arbiter.serviceAccountName`   | Run replicaset arbiter Container under specified K8S SA              | `""` |
 | `replsets[0].arbiter.affinity.antiAffinityTopologyKey`   | MongoDB arbiter Pod affinity              | `kubernetes.io/hostname` |
 | `replsets[0].arbiter.affinity.advanced`          | MongoDB arbiter Pod advanced affinity     | `{}` |
 | `replsets[0].arbiter.tolerations`     | MongoDB arbiter Pod tolerations                | `[]` |
@@ -116,23 +135,15 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].arbiter.annotations`   | MongoDB arbiter Pod annotations              | `{}` |
 | `replsets[0].arbiter.labels`   | MongoDB arbiter Pod labels              | `{}` |
 | `replsets[0].arbiter.nodeSelector`   | MongoDB arbiter Pod nodeSelector labels              | `{}` |
-| `replsets[0].schedulerName`   | ReplicaSet Pod schedulerName              | `""` |
-| `replsets[0].resources`       | ReplicaSet Pods resource requests and limits                          | `{}`                  |
-| `replsets[0].volumeSpec`       | ReplicaSet Pods storage resources                          | `{}`                  |
-| `replsets[0].volumeSpec.emptyDir`       | ReplicaSet Pods emptyDir K8S storage                          | `{}`                  |
-| `replsets[0].volumeSpec.hostPath`       | ReplicaSet Pods hostPath K8S storage                          |                   |
-| `replsets[0].volumeSpec.hostPath.path`       | ReplicaSet Pods hostPath K8S storage path                       | `""`                  |
-| `replsets[0].volumeSpec.pvc`                   | ReplicaSet Pods PVC request parameters                       |                   |
-| `replsets[0].volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}` |
-| `replsets[0].volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}` |
-| `replsets[0].volumeSpec.pvc.storageClassName`  | ReplicaSet Pods PVC target storageClass                      | `""` |
-| `replsets[0].volumeSpec.pvc.accessModes`       | ReplicaSet Pods PVC access policy                      | `[]` |
-| `replsets[0].volumeSpec.pvc.resources.requests.storage`       | ReplicaSet Pods PVC storage size                      | `3Gi` |
 | |
-| `sharding.enabled`                             | Enable sharding setup | `true` |
+| `sharding.enabled`                             | Enable sharding setup   | `true` |
+| `sharding.balancer.enabled`                    | Enable/disable balancer | `true` |
 | `sharding.configrs.size`                       | Config ReplicaSet size (pod quantity) | `3` |
+| `sharding.configrs.terminationGracePeriodSeconds`  | The amount of seconds Kubernetes will wait for a clean replica set Pods termination  | `""` |
 | `sharding.configrs.externalNodes`              | Config ReplicaSet external nodes (cross cluster replication)         | `[]` |
 | `sharding.configrs.configuration`              | Custom config for mongod in config replica set | `""` |
+| `sharding.configrs.topologySpreadConstraints`  | Control how Pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains   | `{}` |
+| `sharding.configrs.serviceAccountName`         | Run sharding configrs Containers under specified K8S SA              | `""` |
 | `sharding.configrs.affinity.antiAffinityTopologyKey`    | Config ReplicaSet Pod affinity | `kubernetes.io/hostname` |
 | `sharding.configrs.affinity.advanced`           | Config ReplicaSet Pod advanced affinity | `{}` |
 | `sharding.configrs.tolerations`                | Config ReplicaSet Pod tolerations       | `[]` |
@@ -154,7 +165,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.expose.exposeType`          | Network service access point type              | `ClusterIP` |
 | `sharding.configrs.expose.loadBalancerSourceRanges`  | Limit client IP's access to Load Balancer | `{}` |
 | `sharding.configrs.expose.serviceAnnotations`  | Config ReplicaSet service annotations | `{}` |
-| `sharding.configrs.expose.serviceLabels`  | Config ReplicaSet service labels | `{}` |
+| `sharding.configrs.expose.serviceLabels`       | Config ReplicaSet service labels | `{}` |
 | `sharding.configrs.resources.limits.cpu`       | Config ReplicaSet resource limits CPU | `300m` |
 | `sharding.configrs.resources.limits.memory`    | Config ReplicaSet resource limits memory | `0.5G` |
 | `sharding.configrs.resources.requests.cpu`     | Config ReplicaSet resource requests CPU | `300m` |
@@ -168,10 +179,14 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.volumeSpec.pvc.storageClassName` | Config ReplicaSet Pods PVC storageClass | `""` |
 | `sharding.configrs.volumeSpec.pvc.accessModes` | Config ReplicaSet Pods PVC access policy | `[]` |
 | `sharding.configrs.volumeSpec.pvc.resources.requests.storage` | Config ReplicaSet Pods PVC storage size | `3Gi` |
+| `sharding.configrs.hostAliases`                | The IP address for Kubernetes host aliases             | `[]`  |
 | `sharding.mongos.size`                         | Mongos size (pod quantity) | `3` |
+| `sharding.mongos.terminationGracePeriodSeconds`  | The amount of seconds Kubernetes will wait for a clean mongos Pods termination  | `""` |
 | `sharding.mongos.configuration`                | Custom config for mongos   | `""` |
+| `sharding.mongos.topologySpreadConstraints`    | Control how Pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains   | `{}` |
+| `sharding.mongos.serviceAccountName`           | Run sharding mongos Containers under specified K8S SA              | `""` |
 | `sharding.mongos.affinity.antiAffinityTopologyKey`      | Mongos Pods affinity | `kubernetes.io/hostname` |
-| `sharding.mongos.affinity.advanced`             | Mongos Pods advanced affinity | `{}` |
+| `sharding.mongos.affinity.advanced`            | Mongos Pods advanced affinity | `{}` |
 | `sharding.mongos.tolerations`                  | Mongos Pods tolerations       | `[]` |
 | `sharding.mongos.priorityClass`                | Mongos Pods priorityClassName | `""` |
 | `sharding.mongos.annotations`                  | Mongos Pods annotations | `{}` |
@@ -194,16 +209,18 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.expose.servicePerPod`         | Create a separate ClusterIP Service for each mongos instance | `false` |
 | `sharding.mongos.expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}` |
 | `sharding.mongos.expose.serviceAnnotations`    | Mongos service annotations | `{}` |
-| `sharding.mongos.expose.serviceLabels`    | Mongos service labels | `{}` |
+| `sharding.mongos.expose.serviceLabels`         | Mongos service labels      | `{}` |
+| `sharding.mongos.hostAliases`                  | The IP address for Kubernetes host aliases     | `[]` |
 | |
 | `backup.enabled`            | Enable backup PBM agent                  | `true` |
 | `backup.annotations`        | Backup job annotations                   | `{}`   |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true` |
 | `backup.image.repository`   | PBM Container image repository           | `percona/percona-backup-mongodb` |
-| `backup.image.tag`          | PBM Container image tag                  | `2.0.4` |
+| `backup.image.tag`          | PBM Container image tag                  | `2.3.0` |
 | `backup.serviceAccountName` | Run PBM Container under specified K8S SA | `percona-server-mongodb-operator` |
 | `backup.storages`           | Local/remote backup storages settings    | `{}` |
 | `backup.pitr.enabled`       | Enable point in time recovery for backup | `false` |
+| `backup.pitr.oplogOnly`     | Start collecting oplogs even if full logical backup doesn't exist | `false` |
 | `backup.pitr.oplogSpanMin`  | Number of minutes between the uploads of oplogs | `10` |
 | `backup.pitr.compressionType`  | The point-in-time-recovery chunks compression format | `""` |
 | `backup.pitr.compressionLevel` | The point-in-time-recovery chunks compression level | `""` |

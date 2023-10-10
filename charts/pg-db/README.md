@@ -143,7 +143,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.pgBouncer.expose.type`                     | K8S service type for the pgbouncer deployment | `ClusterIP`                                                 |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`                                                     |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client`                                        |
-| `pmm.image.tag`             | PMM Container image tag                                          | `2.39.0`                                                    |
+| `pmm.image.tag`             | PMM Container image tag                                          | `2.40.0`                                                     |
 | `pmm.serverHost`           | PMM server related K8S service hostname              | `monitoring-service`                                        |
 | `pmm.resources.requests.memory`                    | Container resource request for RAM              | `200M`                                                      |
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m`                                                      |
