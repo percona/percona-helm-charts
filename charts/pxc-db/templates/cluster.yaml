@@ -204,7 +204,7 @@ spec:
     {{- end }}
     {{- if $haproxy.configuration }}
     configuration: |
-    {{ tpl $haproxy.configuration $ | quote | nindent 6 }}
+    {{ tpl $haproxy.configuration $ | nindent 6 }}
     {{- end }}
     {{- if $haproxy.priorityClassName }}
     priorityClassName: {{ $haproxy.priorityClassName }}
@@ -473,10 +473,10 @@ spec:
     serverHost: {{ $pmm.serverHost }}
     serverUser: {{ $pmm.serverUser }}
     {{- if $pmm.proxysqlParams }}
-    proxysqlParams: {{ $pmm.proxysqlParams | quote }}
+    proxysqlParams: {{ $pmm.proxysqlParams }}
     {{- end }}
     {{- if $pmm.pxcParams }}
-    pxcParams: {{ $pmm.pxcParams | quote }}
+    pxcParams: {{ $pmm.pxcParams }}
     {{- end }}
     resources:
       requests:
