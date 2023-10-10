@@ -18,7 +18,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.14.0
+crVersion: 1.15.0
 pause: false
 unmanaged: false
 allowUnsafeConfigurations: false
@@ -38,7 +38,7 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 6.0.4-3
+  tag: 6.0.9-7
 
 imagePullPolicy: Always
 # imagePullSecrets: []
@@ -59,12 +59,13 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.35.0
+    tag: 2.39.0
   serverHost: monitoring-service
 
 replsets:
   - name: rs0
     size: 3
+    # terminationGracePeriodSeconds: 300
     # externalNodes:
     # - host: 34.124.76.90
     # - host: 34.124.76.91
@@ -77,6 +78,14 @@ replsets:
     #     mode: slowOp
     #   systemLog:
     #     verbosity: 1
+    # serviceAccountName: percona-server-mongodb-operator
+    # topologySpreadConstraints:
+    #   - labelSelector:
+    #       matchLabels:
+    #         app.kubernetes.io/name: percona-server-mongodb
+    #     maxSkew: 1
+    #     topologyKey: kubernetes.io/hostname
+    #     whenUnsatisfiable: DoNotSchedule
     affinity:
       antiAffinityTopologyKey: "kubernetes.io/hostname"
       # advanced:
@@ -154,6 +163,16 @@ replsets:
     #       - ReadWriteOnce
     podDisruptionBudget:
       maxUnavailable: 1
+    # splitHorizons:
+    #   my-cluster-name-rs0-0:
+    #     external: rs0-0.mycluster.xyz
+    #     external-2: rs0-0.mycluster2.xyz
+    #   my-cluster-name-rs0-1:
+    #     external: rs0-1.mycluster.xyz
+    #     external-2: rs0-1.mycluster2.xyz
+    #   my-cluster-name-rs0-2:
+    #     external: rs0-2.mycluster.xyz
+    #     external-2: rs0-2.mycluster2.xyz
     expose:
       enabled: false
       exposeType: ClusterIP
@@ -163,6 +182,33 @@ replsets:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
       # serviceLabels: 
       #   some-label: some-key
+    # schedulerName: ""
+    resources:
+      limits:
+        cpu: "300m"
+        memory: "0.5G"
+      requests:
+        cpu: "300m"
+        memory: "0.5G"
+    volumeSpec:
+      # emptyDir: {}
+      # hostPath:
+      #   path: /data
+      pvc:
+        # annotations:
+        #   volume.beta.kubernetes.io/storage-class: example-hostpath
+        # labels:
+        #   rack: rack-22
+        # storageClassName: standard
+        # accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 3Gi
+    # hostAliases:
+    # - ip: "10.10.0.2"
+    #   hostnames:
+    #   - "host1"
+    #   - "host2"
     nonvoting:
       enabled: false
       # podSecurityContext: {}
@@ -173,6 +219,7 @@ replsets:
       #     mode: slowOp
       #   systemLog:
       #     verbosity: 1
+      # serviceAccountName: percona-server-mongodb-operator
       affinity:
         antiAffinityTopologyKey: "kubernetes.io/hostname"
         # advanced:
@@ -216,6 +263,7 @@ replsets:
     arbiter:
       enabled: false
       size: 1
+      # serviceAccountName: percona-server-mongodb-operator
       affinity:
         antiAffinityTopologyKey: "kubernetes.io/hostname"
         # advanced:
@@ -233,34 +281,15 @@ replsets:
       # annotations: {}
       # labels: {}
       # nodeSelector: {}
-    # schedulerName: ""
-    resources:
-      limits:
-        cpu: "300m"
-        memory: "0.5G"
-      requests:
-        cpu: "300m"
-        memory: "0.5G"
-    volumeSpec:
-      # emptyDir: {}
-      # hostPath:
-      #   path: /data
-      pvc:
-        # annotations:
-        #   volume.beta.kubernetes.io/storage-class: example-hostpath
-        # labels:
-        #   rack: rack-22
-        # storageClassName: standard
-        # accessModes: [ "ReadWriteOnce" ]
-        resources:
-          requests:
-            storage: 3Gi
 
 sharding:
   enabled: true
+  balancer:
+    enabled: true
 
   configrs:
     size: 3
+    # terminationGracePeriodSeconds: 300
     # externalNodes:
     # - host: 34.124.76.90
     # - host: 34.124.76.91
@@ -273,6 +302,14 @@ sharding:
     #     mode: slowOp
     #   systemLog:
     #     verbosity: 1
+    # serviceAccountName: percona-server-mongodb-operator
+    # topologySpreadConstraints:
+    #   - labelSelector:
+    #       matchLabels:
+    #         app.kubernetes.io/name: percona-server-mongodb
+    #     maxSkew: 1
+    #     topologyKey: kubernetes.io/hostname
+    #     whenUnsatisfiable: DoNotSchedule
     affinity:
       antiAffinityTopologyKey: "kubernetes.io/hostname"
       # advanced:
@@ -336,12 +373,26 @@ sharding:
         resources:
           requests:
             storage: 3Gi
+    # hostAliases:
+    # - ip: "10.10.0.2"
+    #   hostnames:
+    #   - "host1"
+    #   - "host2"
 
   mongos:
     size: 2
+    # terminationGracePeriodSeconds: 300
     # configuration: |
     #   systemLog:
     #     verbosity: 1
+    # serviceAccountName: percona-server-mongodb-operator
+    # topologySpreadConstraints:
+    #   - labelSelector:
+    #       matchLabels:
+    #         app.kubernetes.io/name: percona-server-mongodb
+    #     maxSkew: 1
+    #     topologyKey: kubernetes.io/hostname
+    #     whenUnsatisfiable: DoNotSchedule
     affinity:
       antiAffinityTopologyKey: "kubernetes.io/hostname"
       # advanced:
@@ -394,12 +445,17 @@ sharding:
     #   destination: file
     #   format: BSON
     #   filter: '{}'
+    # hostAliases:
+    # - ip: "10.10.0.2"
+    #   hostnames:
+    #   - "host1"
+    #   - "host2"
 
 backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.0.4
+    tag: 2.3.0
   serviceAccountName: percona-server-mongodb-operator
   # annotations:
   #   iam.amazonaws.com/role: role-arn
@@ -416,6 +472,11 @@ backup:
     #   s3:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
     #     credentialsSecret: my-cluster-name-backup-s3
+    #     serverSideEncryption:
+    #       kmsKeyID: 1234abcd-12ab-34cd-56ef-1234567890ab
+    #       sseAlgorithm: aws:kms
+    #       sseCustomerAlgorithm: AES256
+    #       sseCustomerKey: Y3VzdG9tZXIta2V5
     #     region: us-west-2
     #     prefix: ""
     #     uploadPartSize: 10485760
@@ -438,6 +499,7 @@ backup:
     #       credentialsSecret: SECRET-NAME
   pitr:
     enabled: false
+    oplogOnly: false
     # oplogSpanMin: 10
     # compressionType: gzip
     # compressionLevel: 6
