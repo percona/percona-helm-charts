@@ -469,6 +469,12 @@ spec:
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
     serverUser: {{ $pmm.serverUser }}
+    {{- if $pmm.proxysqlParams }}
+    proxysqlParams: {{ $pmm.proxysqlParams }}
+    {{- end }}
+    {{- if $pmm.pxcParams }}
+    pxcParams: {{ $pmm.pxcParams }}
+    {{- end }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
