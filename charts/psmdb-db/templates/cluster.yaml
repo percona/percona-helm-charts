@@ -539,6 +539,14 @@ spec:
     annotations:
 {{ .Values.backup.annotations | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.backup.podSecurityContext }}
+    podSecurityContext:
+{{ .Values.backup.podSecurityContext | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.backup.containerSecurityContext }}
+    containerSecurityContext:
+{{ .Values.backup.containerSecurityContext | toYaml | indent 6 }}
+    {{- end }}
     image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
     serviceAccountName: {{ .Values.backup.serviceAccountName }}
     {{- if .Values.backup.resources }}
