@@ -56,3 +56,11 @@ affinity: {}
 logStructured: false
 logLevel: "INFO"
 disableTelemetry: false
+
+annotations: {}
+
+extraEnvVars: []
+# - name: http_proxy
+#    value: "example-proxy-http"
+# - name: https_proxy
+#   value: "example-proxy-https"
