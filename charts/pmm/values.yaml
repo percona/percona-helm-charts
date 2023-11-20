@@ -77,7 +77,7 @@ secret:
   # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
 
 ## @param certs Optional certificates, if not provided PMM would use generated self-signed certificates,
-##   please provide your own signed ssl certificates like this:
+## please provide your own signed ssl certificates in base64 format in the following section:
 ## certs:
   ## name: pmm-certs
   ## files:
@@ -85,6 +85,7 @@ secret:
   ##  certificate.key:
   ##  ca-certs.pem:
   ##  dhparam.pem:
+  ##  certificate.conf:
 certs: {}
 
 ## @section PMM network configuration
