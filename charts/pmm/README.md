@@ -1,7 +1,5 @@
 # Percona Monitoring and Management (PMM)
 
-**THIS CHART IS A TECHNOLOGICAL PREVIEW**
-
 ## Introduction
 
 PMM is an open source database monitoring, observability and management tool.
