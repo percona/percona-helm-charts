@@ -414,7 +414,7 @@ spec:
         {{- if .Values.sharding.configrs.volumeSpec.hostPath }}
         hostPath:
           path: {{ .Values.sharding.configrs.volumeSpec.hostPath.path }}
-          type: {{ .Values.sharding.configrs.volumeSpec.hostPath.tye }}
+          type: {{ .Values.sharding.configrs.volumeSpec.hostPath.type }}
         {{- else if .Values.sharding.configrs.volumeSpec.pvc }}
         persistentVolumeClaim:
 {{ .Values.sharding.configrs.volumeSpec.pvc | toYaml | indent 10 }}
