@@ -191,8 +191,8 @@ spec:
     volumeSpec:
       {{- if $replset.volumeSpec.hostPath }}
       hostPath:
-        path: {{ $replset.volumeSpec.hostPath }}
-        type: Directory
+        path: {{ $replset.volumeSpec.hostPath.path }}
+        type: {{ $replset.volumeSpec.hostPath.type }}
       {{- else if $replset.volumeSpec.pvc }}
       persistentVolumeClaim:
 {{ $replset.volumeSpec.pvc | toYaml | indent 8 }}
@@ -258,8 +258,8 @@ spec:
       volumeSpec:
         {{- if $replset.nonvoting.volumeSpec.hostPath }}
         hostPath:
-          path: {{ $replset.nonvoting.volumeSpec.hostPath }}
-          type: Directory
+          path: {{ $replset.nonvoting.volumeSpec.hostPath.path }}
+          type: {{ $replset.nonvoting.volumeSpec.hostPath.type }}
         {{- else if $replset.nonvoting.volumeSpec.pvc }}
         persistentVolumeClaim:
 {{ $replset.nonvoting.volumeSpec.pvc | toYaml | indent 10 }}
@@ -413,8 +413,8 @@ spec:
       volumeSpec:
         {{- if .Values.sharding.configrs.volumeSpec.hostPath }}
         hostPath:
-          path: {{ .Values.sharding.configrs.volumeSpec.hostPath }}
-          type: Directory
+          path: {{ .Values.sharding.configrs.volumeSpec.hostPath.path }}
+          type: {{ .Values.sharding.configrs.volumeSpec.hostPath.tye }}
         {{- else if .Values.sharding.configrs.volumeSpec.pvc }}
         persistentVolumeClaim:
 {{ .Values.sharding.configrs.volumeSpec.pvc | toYaml | indent 10 }}
