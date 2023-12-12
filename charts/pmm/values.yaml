@@ -14,7 +14,7 @@ image:
   repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "2.40.1"
+  tag: "2.41.0"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -24,7 +24,6 @@ pmmEnv:
   ## @param pmmEnv.DISABLE_UPDATES Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
   ##
   DISABLE_UPDATES: "1"
-#  ENABLE_DBAAS: "1"
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
 #  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
