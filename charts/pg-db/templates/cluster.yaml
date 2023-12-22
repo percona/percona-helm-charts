@@ -100,12 +100,20 @@ spec:
     {{ .Values.expose.annotations | toYaml | indent 6 }}
     labels:
     {{ .Values.expose.labels | toYaml | indent 6 }}
+    {{- if .Values.expose.loadBalancerSourceRanges }}
+    loadBalancerSourceRanges:
+      {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 6 }}
+    {{- end }}
   {{- end }}
 
   instances:
   {{- range $instance := .Values.instances }}
     - name: {{ $instance.name }}
       replicas: {{ $instance.replicas }}
+      {{- if $instance.affinity }}
+      affinity:
+{{ $instance.affinity | toYaml | indent 8 }}
+      {{- end }}
       {{- if $instance.resources }}
       resources:
         limits:
@@ -184,6 +192,10 @@ spec:
         {{ .Values.proxy.pgBouncer.expose.annotations | toYaml | indent 10 }}
         labels:
         {{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 10 }}
+        {{- if .Values.expose.loadBalancerSourceRanges }}
+        loadBalancerSourceRanges:
+          {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
+        {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.sidecars }}
       sidecars:
@@ -215,14 +227,7 @@ spec:
       {{- end }}
       {{- if .Values.proxy.pgBouncer.affinity }}
       affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: {{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.weight }}
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-{{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.labelSelector.matchLabels | toYaml | indent 18 }}
-              topologyKey: {{ .Values.proxy.pgBouncer.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.topologyKey }}
+{{ .Values.proxy.pgBouncer.affinity | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.tolerations }}
       tolerations:
@@ -281,14 +286,7 @@ spec:
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
         affinity:
-          podAntiAffinity:
-            preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: {{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.weight }}
-              podAffinityTerm:
-                labelSelector:
-                  matchLabels:
-{{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.labelSelector.matchLabels | toYaml | indent 18 }}
-                topologyKey: {{ .Values.backups.pgbackrest.repoHost.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution.podAffinityTerm.topologyKey }}
+{{ .Values.backups.pgbackrest.repoHost.affinity | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
       manual:
@@ -325,7 +323,6 @@ spec:
       {{- end }}
       {{- end }}
 
-
 {{- if .Values.patroni }}
   patroni:
     dynamicConfiguration:
@@ -336,4 +333,38 @@ spec:
         {{- range $pg_hba_entry := .Values.patroni.dynamicConfiguration.postgresql.pg_hba }}
         - {{ $pg_hba_entry }} 
         {{- end }}
+{{- end }}
+
+{{- if .Values.extensions }}
+  extensions:
+    {{- if .Values.extensions.image }}
+    image: {{ .Values.extensions.image }}
+    {{- end }}
+    {{- if .Values.extensions.imagePullPolicy }}
+    imagePullPolicy: {{ .Values.extensions.imagePullPolicy }}
+    {{- end }}
+    {{- if .Values.extensions.storage }}
+    storage:
+      {{- if .Values.extensions.storage.type }}
+      type: {{ .Values.extensions.storage.type }}
+      {{- end }}
+      {{- if .Values.extensions.storage.bucket }}
+      bucket: {{ .Values.extensions.storage.bucket }}
+      {{- end }}
+      {{- if .Values.extensions.storage.region }}
+      region: {{ .Values.extensions.storage.region }}
+      {{- end }}
+      {{- if .Values.extensions.storage.secret.name }}
+      secret:
+        name: {{ .Values.extensions.storage.secret.name }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.extensions.builtin }}
+    builtin:
+      {{ .Values.extensions.builtin | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.custom }}
+    custom:
+      {{ .Values.extensions.custom | toYaml | indent 6 }}
+    {{- end }}
 {{- end }}
