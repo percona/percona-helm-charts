@@ -284,7 +284,7 @@ pmm:
 #         work_mem: 2MB
 #
 # extensions:
-#   image: perconalab/percona-postgresql-operator:main-ext-installer
+#   image: percona/percona-postgresql-operator:2.3.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
