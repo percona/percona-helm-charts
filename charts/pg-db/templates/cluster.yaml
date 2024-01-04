@@ -361,10 +361,10 @@ spec:
     {{- end }}
     {{- if .Values.extensions.builtin }}
     builtin:
-      {{ .Values.extensions.builtin | toYaml | indent 6 }}
+{{ .Values.extensions.builtin | toYaml | indent 6 }}
     {{- end }}
     {{- if .Values.extensions.custom }}
     custom:
-      {{ .Values.extensions.custom | toYaml | indent 6 }}
+{{ .Values.extensions.custom | toYaml | indent 6 }}
     {{- end }}
 {{- end }}
