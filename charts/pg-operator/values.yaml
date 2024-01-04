@@ -43,4 +43,5 @@ affinity: {}
 # default is false which means telemetry will be collected
 disableTelemetry: false
 
-operatorDebug: false
+logStructured: false
+logLevel: "INFO"

@@ -45,16 +45,18 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             {{- if and (not .Values.watchNamespace) (not .Values.watchAllNamespaces) }}
-            - name: PGO_TARGET_NAMESPACE
+            - name: WATCH_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
             {{- else if .Values.watchNamespace }}
-            - name: PGO_TARGET_NAMESPACE
+            - name: WATCH_NAMESPACE
               value: {{ .Values.watchNamespace }}
             {{- end }}
-            - name: CRUNCHY_DEBUG
-              value: "{{ .Values.operatorDebug }}"
+            - name: LOG_STRUCTURED
+              value: "{{ .Values.logStructured }}"
+            - name: LOG_LEVEL
+              value: "{{ .Values.logLevel }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
           livenessProbe:
