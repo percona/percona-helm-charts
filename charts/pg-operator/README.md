@@ -26,7 +26,7 @@ To install the chart with the `pg-operator` release name using a dedicated names
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pg-operator --version 2.3.0 --namespace my-namespace --create-namespace
+helm install my-operator percona/pg-operator --version 2.3.1 --namespace my-namespace --create-namespace
 ```
 
 ## Configuration

@@ -52,6 +52,9 @@ spec:
             {{- else if .Values.watchNamespace }}
             - name: WATCH_NAMESPACE
               value: {{ .Values.watchNamespace }}
+            {{- else if .Values.watchAllNamespaces }}
+            - name: WATCH_NAMESPACE
+              value: ""
             {{- end }}
             - name: LOG_STRUCTURED
               value: "{{ .Values.logStructured }}"
