@@ -4,7 +4,7 @@
 
 replicaCount: 1
 
-operatorImageRepository: percona/percona-postgresql-operator
+operatorImageRepository: registry-1.percona.com/percona/percona-postgresql-operator
 imagePullPolicy: IfNotPresent
 image: ""
 
