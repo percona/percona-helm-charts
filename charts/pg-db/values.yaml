@@ -8,11 +8,11 @@ finalizers:
 # Set this if you want that operator deletes the ssl objects on cluster deletion
 #  - percona.com/delete-ssl
 
-crVersion: 2.2.0
+crVersion: 2.3.0
 repository: percona/percona-postgresql-operator
 image: ""
 imagePullPolicy: Always
-postgresVersion: 15
+postgresVersion: 16
 # port: 5432
 pause: false
 unmanaged: false
@@ -69,10 +69,23 @@ customReplicationTLSSecret:
 #   labels:
 #     my-label: value2
 #   type: LoadBalancer
+#   loadBalancerSourceRanges:
+#     - 10.0.0.0/8
 
 instances:
 - name: instance1
   replicas: 3
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              postgres-operator.crunchydata.com/data: postgres
+          topologyKey: kubernetes.io/hostname
+
 #  resources:
 #    limits:
 #      cpu: 2.0
@@ -130,18 +143,19 @@ proxy:
 #        labels:
 #          my-label: value2
 #        type: LoadBalancer
-#
-#      affinity:
-#        podAntiAffinity:
-#          preferredDuringSchedulingIgnoredDuringExecution:
-#          - weight: 1
-#            podAffinityTerm:
-#              labelSelector:
-#                matchLabels:
-#                  postgres-operator.crunchydata.com/cluster: keycloakdb
-#                  postgres-operator.crunchydata.com/role: pgbouncer
-#              topologyKey: kubernetes.io/hostname
-#
+#        loadBalancerSourceRanges:
+#          - 10.0.0.0/8
+
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                postgres-operator.crunchydata.com/role: pgbouncer
+            topologyKey: kubernetes.io/hostname
+
 #      tolerations:
 #      - effect: NoSchedule
 #        key: role
@@ -196,7 +210,18 @@ backups:
 #      repo2-path: /pgbackrest/postgres-operator/cluster1-multi-repo/repo2
 #      repo3-path: /pgbackrest/postgres-operator/cluster1-multi-repo/repo3
 #      repo4-path: /pgbackrest/postgres-operator/cluster1-multi-repo/repo4
-#    repoHost:
+
+    repoHost:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  postgres-operator.crunchydata.com/data: pgbackrest
+              topologyKey: kubernetes.io/hostname
+
 #      priorityClassName: high-priority
 #
 #      topologySpreadConstraints:
@@ -206,16 +231,7 @@ backups:
 #        labelSelector:
 #          matchLabels:
 #            postgres-operator.crunchydata.com/pgbackrest: ""
-#      affinity:
-#        podAntiAffinity:
-#          preferredDuringSchedulingIgnoredDuringExecution:
-#           - weight: 1
-#           podAffinityTerm:
-#             labelSelector:
-#             matchLabels:
-#               postgres-operator.crunchydata.com/cluster: keycloakdb
-#               postgres-operator.crunchydata.com/role: pgbouncer
-#             topologyKey: kubernetes.io/hostname
+
     manual:
       repoName: repo1
       options:
@@ -249,7 +265,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.40.1
+    tag: 2.41.0
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -266,6 +282,22 @@ pmm:
 #         max_worker_processes: 2
 #         shared_buffers: 1GB
 #         work_mem: 2MB
+#
+# extensions:
+#   image: percona/percona-postgresql-operator:2.3.0
+#   imagePullPolicy: Always
+#   storage:
+#     type: s3
+#     bucket: pg-extensions
+#     region: eu-central-1
+#     secret:
+#       name: cluster1-extensions-secret
+#   builtin:
+#     pg_stat_monitor: true
+#     pg_audit: true
+#   custom:
+#   - name: pg_cron
+#     version: 1.6.1
 
 secrets:
   name:
