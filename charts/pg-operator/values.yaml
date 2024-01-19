@@ -4,7 +4,7 @@
 
 replicaCount: 1
 
-operatorImageRepository: percona/percona-postgresql-operator
+operatorImageRepository: registry-1.percona.com/percona/percona-postgresql-operator
 imagePullPolicy: IfNotPresent
 image: ""
 
@@ -43,4 +43,5 @@ affinity: {}
 # default is false which means telemetry will be collected
 disableTelemetry: false
 
-operatorDebug: false
+logStructured: false
+logLevel: "INFO"
