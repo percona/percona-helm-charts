@@ -172,7 +172,7 @@ Notice that you can use multiple replica sets only with sharding enabled.
 
 ### Deploy for tests - single PostgreSQL node and automated PVCs deletion
 
-Such a setup is good for testing, as it does not require a lot of compute power 
+Such a setup is good for testing, as it does not require a lot of compute power
 and performs and automated clean up of the Persistent Volume Claims (PVCs).
 It also deploys just one pgBouncer node, instead of 3.
 ```bash
@@ -190,7 +190,7 @@ Expose the cluster's pgBouncer with a LoadBalancer:
 
 ```bash
 $ helm install my-test percona/pg-db  \
-  --set proxy.pgBouncer.expose.type=LoadBalancer 
+  --set proxy.pgBouncer.expose.type=LoadBalancer
 ```
 
 ### Add a custom user and a database

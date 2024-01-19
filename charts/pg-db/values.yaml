@@ -114,6 +114,7 @@ instances:
 #  priorityClassName: high-priority
 #
 #  walVolumeClaimSpec:
+#    storageClassName: ""
 #    accessModes:
 #    - "ReadWriteOnce"
 #    resources:
@@ -121,8 +122,9 @@ instances:
 #        storage: 1Gi
 #
   dataVolumeClaimSpec:
+    storageClassName: ""
     accessModes:
-    - ReadWriteOnce
+    - "ReadWriteOnce"
     resources:
       requests:
         storage: 5Gi
@@ -243,8 +245,9 @@ backups:
 #        differential: "0 1 * * 1-6"
       volume:
         volumeClaimSpec:
+          storageClassName: ""
           accessModes:
-          - ReadWriteOnce
+          - "ReadWriteOnce"
           resources:
             requests:
               storage: 1Gi
