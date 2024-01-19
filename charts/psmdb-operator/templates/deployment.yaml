@@ -41,6 +41,10 @@ spec:
           command:
           - percona-server-mongodb-operator
           env:
+            - name: LOG_STRUCTURED
+              value: "{{ .Values.logStructured }}"
+            - name: LOG_LEVEL
+              value: "{{ .Values.logLevel }}"
             - name: WATCH_NAMESPACE
               {{- if .Values.watchAllNamespaces }}
               value: ""
@@ -55,8 +59,6 @@ spec:
               value: {{ default "percona-server-mongodb-operator" .Values.operatorName }}
             - name: RESYNC_PERIOD
               value: "{{ .Values.env.resyncPeriod }}"
-            - name: LOG_VERBOSE
-              value: "{{ .Values.env.logVerbose }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
           # livenessProbe:

@@ -27,19 +27,19 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                 |
 | ------------------------------- | ------------------------------------------------------------------------------|-----------------------------------------|
 | `crVersion`                     | CR Cluster Manifest version                                                   | `0.6.0`                                 |
-| `finalizers:delete-mysql-pods-in-order`  | Set this if you want to delete MySQL pods in order on cluster deletion  | `[]`                                 |
-| `finalizers:delete-ssl`         | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion  | `[]`                    |
+| `finalizers:delete-mysql-pods-in-order`  | Set this if you want to delete MySQL pods in order on cluster deletion  | `[]`                                    |
+| `finalizers:delete-ssl`         | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion  | `[]`                                    |
 | `pause`                         | Stop PS Cluster safely                                                        | `false`                                 |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of Orchestrator pods         | `false`                                 |
 | `initImage`                     | An alternative image for the initial Operator installation                    | `""`                                    |
-| `updateStrategy`                | Strategy for updating pods in a cluster (SmartUpdate, OnDelete, RollingUpdate) | `SmartUpdate`                          |
+| `updateStrategy`                | Strategy for updating pods in a cluster (SmartUpdate, OnDelete, RollingUpdate) | `SmartUpdate`                           |
 | `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PS Versions provider                              | `https://check.percona.com`             |
-| `upgradeOptions.apply`          | PS image to apply from version service - `recommended`, `latest`, actual version like `8.0.32-24`  | `disabled`         |
+| `upgradeOptions.apply`          | PS image to apply from version service - `recommended`, `latest`, actual version like `8.0.32-24`  | `disabled`                              |
 | `secretsName`                   | Secret name for user passwords                                                | `<cluster_name>-secrets`                |
 | `sslSecretName`                 | Secret name for ssl certificates                                              | `{}`                                    |
 | `ignoreAnnotations`             | Mark annotations which will be ignored by the operator                        | `[]`                                    |
 | `ignoreLabels`                  | Mark labels which will be ignored by the operator                             | `[]`                                    |
-| `tls.SANs`                      | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]`       |
+| `tls.SANs`                      | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]`                                    |
 | `tls.issuerConf.name`           | A cert-manager issuer name                                                    | `""`                                    |
 | `tls.issuerConf.kind`           | A cert-manager issuer type                                                    | `""`                                    |
 | `tls.issuerConf.group`          | A cert-manager issuer group                                                   | `""`                                    |
@@ -61,7 +61,7 @@ The chart can be customized using the following configurable parameters:
 | `mysql.livenessProbe`           | MySQL Pods livenessProbe structure                                            | `{}`                                    |
 | `mysql.readinessProbe`          | MySQL Pods readinessProbe structure                                           | `{}`                                    |
 | `mysql.nodeSelector`            | MySQL Pods key-value pairs setting for K8S node assignment                    | `{}`                                    |
-| `mysql.affinity.antiAffinityTopologyKey` | MySQL Pods simple scheduling restriction on/off for host, zone, region | `"kubernetes.io/hostname"`            |
+| `mysql.affinity.antiAffinityTopologyKey` | MySQL Pods simple scheduling restriction on/off for host, zone, region | `"kubernetes.io/hostname"`              |
 | `mysql.affinity.advanced`       | MySQL Pods advanced scheduling restriction with match expression engine       | `{}`                                    |
 | `mysql.tolerations`             | List of node taints to tolerate for MySQL Pods                                | `[]`                                    |
 | `mysql.expose.enabled`          | Allow access to MySQL from outside of Kubernetes                              | `false`                                 |
@@ -71,7 +71,7 @@ The chart can be customized using the following configurable parameters:
 | `mysql.expose.internalTrafficPolicy`    | Network service internalTrafficPolicy                                 | ``                                      |
 | `mysql.expose.labels`           | Network service labels                                                        | `{}`                                    |
 | `mysql.expose.loadBalancerIP`   | The static IP-address for the load balancer                                   | `""`                                    |
-| `mysql.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                        |
+| `mysql.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                                    |
 | `mysql.volumeSpec`              | MySQL Pods storage resources                                                  | `{}`                                    |
 | `mysql.volumeSpec.pvc`          | MySQL Pods PVC request parameters                                             |                                         |
 | `mysql.volumeSpec.pvc.storageClassName`  | MySQL Pods PVC target storageClass                                   | `""`                                    |
@@ -81,8 +81,8 @@ The chart can be customized using the following configurable parameters:
 | `mysql.sidecars`                | MySQL Pod sidecars                                                            | `{}`                                    |
 | `mysql.sidecarVolumes`          | MySQL Pod sidecar volumes                                                     | `[]`                                    |
 | `mysql.sidecarPVCs`             | MySQL Pod sidecar PVCs                                                        | `[]`                                    |
-| `mysql.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                     |
-| `mysql.podSecurityContext`      | A custom Kubernetes Security Context for a Pod to be used instead of the default one         | `{}`                     |
+| `mysql.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                                    |
+| `mysql.podSecurityContext`      | A custom Kubernetes Security Context for a Pod to be used instead of the default one         | `{}`                                    |
 | `mysql.serviceAccountName`      | A custom service account to be used instead of the default one                | `""`                                    |
 ||
 | `proxy.haproxy.enabled`                | Enable/Disable HAProxy pods                                            | `true`                                  |
@@ -98,8 +98,8 @@ The chart can be customized using the following configurable parameters:
 | `proxy.haproxy.labels`                 | HAProxy Pods user-defined labels                                       | `{}`                                    |
 | `proxy.haproxy.schedulerName`          | The Kubernetes Scheduler                                               | `""`                                    |
 | `proxy.haproxy.nodeSelector`           | HAProxy Pods key-value pairs setting for K8S node assignment           | `{}`                                    |
-| `proxy.haproxy.affinity.antiAffinityTopologyKey`  | HAProxy Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"` |
-| `proxy.haproxy.affinity.advanced`      | HAProxy Pods advanced scheduling restriction with match expression engine  | `{}`                                |
+| `proxy.haproxy.affinity.antiAffinityTopologyKey`  | HAProxy Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"`              |
+| `proxy.haproxy.affinity.advanced`      | HAProxy Pods advanced scheduling restriction with match expression engine  | `{}`                                    |
 | `proxy.haproxy.tolerations`            | List of node taints to tolerate for HAProxy Pods                       | `[]`                                    |
 | `proxy.haproxy.resources.requests`     | HAProxy Pods resource requests                                         | `memory: 1G cpu: 600m`                  |
 | `proxy.haproxy.resources.limits`       | HAProxy Pods resource limits                                           | `{}`                                    |
@@ -108,8 +108,8 @@ The chart can be customized using the following configurable parameters:
 | `proxy.haproxy.livenessProbe`          | HAProxy Pods livenessProbe structure                                   | `{}`                                    |
 | `proxy.haproxy.readinessProbe`         | HAProxy Pods readinessProbe structure                                  | `{}`                                    |
 | `proxy.haproxy.configuration`          | Custom config for HAProxy                                              | `""`                                    |
-| `proxy.haproxy.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`            |
-| `proxy.haproxy.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one  | `{}`                     |
+| `proxy.haproxy.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                                    |
+| `proxy.haproxy.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one  | `{}`                                    |
 | `proxy.haproxy.serviceAccountName`     | A custom service account to be used instead of the default one         | `""`                                    |
 | `proxy.haproxy.expose.type`            | Network service access point type                                      | `""`                                    |
 | `proxy.haproxy.expose.annotations`     | Network service annotations                                            | `{}`                                    |
@@ -117,7 +117,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.haproxy.expose.internalTrafficPolicy`  | Network service internalTrafficPolicy                           | ``                                      |
 | `proxy.haproxy.expose.labels`          | Network service labels                                                 | `{}`                                    |
 | `proxy.haproxy.expose.loadBalancerIP`  | The static IP-address for the load balancer                            | `""`                                    |
-| `proxy.haproxy.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                |
+| `proxy.haproxy.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                                    |
 ||
 | `proxy.router.enabled`                | Enable/Disable Router pods in group replication                               | `false`                                 |
 | `proxy.router.image.repository`       | Router Container image repository                                             | `percona/percona-mysql-router`          |
@@ -132,14 +132,14 @@ The chart can be customized using the following configurable parameters:
 | `proxy.router.labels`                 | Router Pods user-defined labels                                               | `{}`                                    |
 | `proxy.router.schedulerName`          | The Kubernetes Scheduler                                                      | `""`                                    |
 | `proxy.router.nodeSelector`           | Router Pods key-value pairs setting for K8S node assignment                   | `{}`                                    |
-| `proxy.router.affinity.antiAffinityTopologyKey`  | Router Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"`        |
+| `proxy.router.affinity.antiAffinityTopologyKey`  | Router Pods simple scheduling restriction on/off for host, zone, region  | `"kubernetes.io/hostname"`              |
 | `proxy.router.affinity.advanced`      | Router Pods advanced scheduling restriction with match expression engine      | `{}`                                    |
 | `proxy.router.configuration`          | User defined Router options according to Router configuration file syntax     | ``                                      |
 | `proxy.router.tolerations`            | List of node taints to tolerate for Router Pods                               | `[]`                                    |
 | `proxy.router.resources.requests`     | Router Pods resource requests                                                 | `memory: 256M`                          |
 | `proxy.router.resources.limits`       | Router Pods resource limits                                                   | `memory: 256M`                          |
-| `proxy.router.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                   |
-| `proxy.router.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one  | `{}`                            |
+| `proxy.router.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                                    |
+| `proxy.router.podSecurityContext`     | A custom Kubernetes Security Context for a Pod to be used instead of the default one  | `{}`                                    |
 | `proxy.router.serviceAccountName`     | A custom service account to be used instead of the default one                | `""`                                    |
 | `proxy.router.expose.type`            | Network service access point type                                             | `""`                                    |
 | `proxy.router.expose.annotations`     | Network service annotations                                                   | `{}`                                    |
@@ -147,7 +147,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.router.expose.internalTrafficPolicy`  | Network service internalTrafficPolicy                                  | ``                                      |
 | `proxy.router.expose.labels`          | Network service labels                                                        | `{}`                                    |
 | `proxy.router.expose.loadBalancerIP`  | The static IP-address for the load balancer                                   | `""`                                    |
-| `proxy.router.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                       |
+| `proxy.router.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                                    |
 ||
 | `orchestrator.enabled`          | Enable/Disable orchestrator pods in async replication                         | `false`                                 |
 | `orchestrator.image.repository` | Orchestrator Container image repository                                       | `percona/percona-orchestrator`          |
@@ -163,8 +163,8 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.labels`           | Orchestrator Pods user-defined labels                                         | `{}`                                    |
 | `orchestrator.schedulerName`    | The Kubernetes Scheduler                                                      | `""`                                    |
 | `orchestrator.nodeSelector`     | Orchestrator Pods key-value pairs setting for K8S node assignment             | `{}`                                    |
-| `orchestrator.affinity.antiAffinityTopologyKey` | Orchestrator Pods simple scheduling restriction on/off for host, zone, region | `"kubernetes.io/hostname"` |
-| `orchestrator.affinity.advanced`  | Orchestrator Pods advanced scheduling restriction with match expression engine  | `{}`                                |
+| `orchestrator.affinity.antiAffinityTopologyKey` | Orchestrator Pods simple scheduling restriction on/off for host, zone, region | `"kubernetes.io/hostname"`              |
+| `orchestrator.affinity.advanced`  | Orchestrator Pods advanced scheduling restriction with match expression engine  | `{}`                                    |
 | `orchestrator.tolerations`      | List of node taints to tolerate for Orchestrator Pods                         | `[]`                                    |
 | `orchestrator.resources.requests` | Orchestrator Pods resource requests                                         | `memory: 128M`                          |
 | `orchestrator.resources.limits` | Orchestrator Pods resource limits                                             | `memory: 256M`                          |
@@ -173,18 +173,18 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.volumeSpec.pvc.storageClassName`  | Orchestrator Pods PVC target storageClass                     | `""`                                    |
 | `orchestrator.volumeSpec.pvc.accessModes`       | Orchestrator Pods PVC access policy                           | `[]`                                    |
 | `orchestrator.volumeSpec.pvc.resources.requests.storage`  | Orchestrator Pods PVC storage size                  | `1G`                                    |
-| `orchestrator.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`              |
-| `orchestrator.podSecurityContext` | A custom Kubernetes Security Context for a Pod to be used instead of the default one       | `{}`                     |
+| `orchestrator.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                                    |
+| `orchestrator.podSecurityContext` | A custom Kubernetes Security Context for a Pod to be used instead of the default one       | `{}`                                    |
 | `orchestrator.expose.type`      | Network service access point type                                             | `""`                                    |
 | `orchestrator.expose.annotations` | Network service annotations                                                 | `{}`                                    |
 | `orchestrator.expose.externalTrafficPolicy`  | Network service externalTrafficPolicy                            | ``                                      |
 | `orchestrator.expose.internalTrafficPolicy`  | Network service internalTrafficPolicy                            | ``                                      |
 | `orchestrator.expose.labels`          | Network service labels                                                  | `{}`                                    |
 | `orchestrator.expose.loadBalancerIP`  | The static IP-address for the load balancer                             | `""`                                    |
-| `orchestrator.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                 |
+| `orchestrator.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                                    |
 ||
 | `pmm.image.repository`          | PMM Container image repository                                                | `percona/pmm-client`                    |
-| `pmm.image.tag`                 | PMM Container image tag                                                       | `2.39.0`                                |
+| `pmm.image.tag`                 | PMM Container image tag                                                       | `2.41.0`                                |
 | `pmm.imagePullPolicy`           | The policy used to update images                                              | ``                                      |
 | `pmm.serverHost`                | PMM server related K8S service hostname                                       | `monitoring-service`                    |
 | `pmm.serverUser`                | PMM server user                                                               | `admin`                                 |
@@ -204,7 +204,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.imagePullSecrets`       | Backup Container pull secret                                                  | `[]`                                    |
 | `backup.initImage`              | An alternative image for the backup setup                                     | `""`                                    |
 | `backup.serviceAccountName`     | Run Backup Container under specified K8S SA                                   | `""`                                    |
-| `backup.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                   |
+| `backup.containerSecurityContext`  | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                                    |
 | `backup.resources`              | Backup Pods resource requests and limits                                      | `{}`                                    |
 | `backup.storages`               | Local/remote backup storages settings                                         | `{}`                                    |
 ||

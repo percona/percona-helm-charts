@@ -1,7 +1,5 @@
 # Percona Monitoring and Management (PMM)
 
-**THIS CHART IS A TECHNOLOGICAL PREVIEW**
-
 ## Introduction
 
 PMM is an open source database monitoring, observability and management tool.
@@ -44,10 +42,10 @@ It removes all of the resources associated with the last release of the chart as
 ### Percona Monitoring and Management (PMM) parameters
 
 | Name                                 | Description                                                                                                                                                                                                                                   | Value                |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |----------------------|
 | `image.repository`                   | PMM image repository                                                                                                                                                                                                                          | `percona/pmm-server` |
 | `image.pullPolicy`                   | PMM image pull policy                                                                                                                                                                                                                         | `IfNotPresent`       |
-| `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `2.35.0`             |
+| `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `2.41.0`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.DISABLE_UPDATES`             | Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `1`                  |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
@@ -123,13 +121,12 @@ Specify each parameter using the `--set key=value[,key=value]` or `--set-string 
 
 ```sh
 helm install pmm \
-  --set-string pmmEnv.ENABLE_DBAAS="1" \
   --set service.type="NodePort" \
   --set storage.storageClassName="linode-block-storage-retain" \
     percona/pmm
 ```
 
-The above command installs PMM with the enabled PMM DBaaS feature. Additionally, it sets the Service network type to `NodePort` and storage class to `linode-block-storage-retain` for persistence storage on LKE.
+The above command installs PMM with the Service network type set to `NodePort` and storage class to `linode-block-storage-retain` for persistence storage on LKE.
 
 > NOTE: Once this chart is deployed, it is impossible to change the application's access credentials, such as password, using Helm. To change these application credentials after deployment, delete any persistent volumes (PVs) used by the chart and re-deploy it, or use the application's built-in administrative tools if available.
 
@@ -203,5 +200,5 @@ In case you want to add extra environment variables (useful for advanced operati
 ```yaml
 pmmEnv:
   DISABLE_UPDATES: "1"
-  ENABLE_DBAAS: "1"
+  DATA_RETENTION: "2160h" # 90 days
 ```
