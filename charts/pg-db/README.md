@@ -7,7 +7,7 @@ Useful links:
 
 ## Pre-requisites
 * [Percona Operator for PostgreSQL](https://hub.helm.sh/charts/percona/pg-operator) running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
-* Kubernetes 1.22+
+* Kubernetes 1.24+
 * At least `v3.2.3` version of helm
 
 # Installation
@@ -24,7 +24,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 2.2.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.3.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -32,12 +32,12 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------|-------------------------------------------------------------|
 | `finalizers`                     | Finalizers list                                                 | `{}`                                                        |
-| `crVersion`                     | CR Cluster Manifest version                                                   | `2.2.0`                                                     |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `2.3.0`                                                     |
 | `repository`                     | PostgreSQL container image repository                                               | `percona/percona-postgresql-operator`                       |
-| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.2.0-ppg15-postgres`  |
+| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.3.0-ppg16-postgres`  |
 | `imagePullPolicy`                     | image Pull Policy                                                   | `Always`                                                    |
 | `port`                         | PostgreSQL port                                                    | `5432`                                                      |
-| `postgresVersion`                     | PostgreSQL container version tag                                       | `15`                                                        |
+| `postgresVersion`                     | PostgreSQL container version tag                                       | `16`                                                        |
 | `pause`                         | Stop PostgreSQL Database safely                                               | `false`                                                     |
 | `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                                                     
 | `standby.enabled`                         | Switch/start PostgreSQL Database in standby mode                                                    | `false`                                                     |
@@ -67,8 +67,10 @@ The chart can be customized using the following configurable parameters:
 | `expose.annotations`                         |   The Kubernetes annotations metadata for PostgreSQL                                              | `{}`                                                        |
 | `expose.labels`                         |    Set labels for the PostgreSQL Service                                             | `{}`                                                        |
 | `expose.type`                         |  Specifies the type of Kubernetes Service for PostgreSQL                                               | `LoadBalancer`                                              |
+| `expose.loadBalancerSourceRanges`        | The range of client IP addresses from which the load balancer should be reachable (if not set, there is no limitations) | `[]` |
 | `instances.name`                         | The name of the PostgreSQL instance                                                | `instance1`                                                 |
 | `instances.replicas`                     | The number of Replicas to create for the PostgreSQL instance | `3`                                                         |
+| `instances.affinity.podAntiAffinity`     |  Pod anti-affinity, allows setting the standard Kubernetes affinity constraints of any complexity | `{}`                                                        |
 | `instances.resources.limits.memory`      | Kubernetes memory limits for a PostgreSQL instance                                              | `4Gi`                                                       |
 | `instances.resources.limits.cpu`         | Kubernetes CPU limits for a PostgreSQL instance                                          | `2.0`                                                       |
 | `instances.sidecars.name`                | Name of the custom sidecar container for PostgreSQL Pods                                               | `testcontainer`                                             |
@@ -114,12 +116,14 @@ The chart can be customized using the following configurable parameters:
 | `backups.restore.enabled`                         |  Enables or disables restoring a previously made backup                                               | `false`                                                     |
 | `backups.restore.repoName`                         | Name of the pgBackRest repository that contains the backup to be restored                                                | `repo1`                                                     |
 | `backups.restore.options`                         | The pgBackRest command-line options for the pgBackRest restore command                                                | `--type=time`                                               |
-| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:2.2.0-ppg15-pgbackrest` |
+| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:2.3.0-ppg16-pgbackrest` |
 | `backups.repos.repo2.s3.bucket`                     | Storage bucket | ``                                                          |
 | `backups.repos.repo2.s3.region`                     |  S3-compatible storage name | ``                                                          |
 | `backups.repos.repo2.s3.endpoint`              | S3-compatible storage endpoint | ``                                                          |
 | `proxy.pgBouncer.expose.annotations`          | The Kubernetes annotations metadata for pgBouncer | `pg-cluster-annot: cluster1`                                |
 | `proxy.pgBouncer.expose.labels`               | Set labels for the pgBouncer Service              | `pg-cluster-label: cluster1`                                |
+| `proxy.pgBouncer.expose.type`                 | K8S service type for the pgbouncer deployment     | `ClusterIP`                                                 |
+| `proxy.pgBouncer.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable (if not set, there is no limitations) | `[]` |
 | `proxy.pgBouncer.sidecars.image`              | Image for the custom sidecar container for pgBouncer Pods | `mycontainer1:latest`                                       |
 | `proxy.pgBouncer.sidecars.name`               |  Name of the custom sidecar container for pgBouncer Pods  | `testcontainer`                                             |
 | `proxy.pgBouncer.exposeSuperusers`            |  Allow superusers connect via pgbouncer                   | `false`                                                     |
@@ -140,18 +144,26 @@ The chart can be customized using the following configurable parameters:
 | `proxy.pgBouncer.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                                                     |
 | `proxy.pgBouncer.resources.limits.cpu`                     | Container resource limits for CPU                                        | `2`                                                         |
 | `proxy.pgBouncer.resources.limits.memory`                     | Container resource limits for RAM                                        | `512Mi`                                                     |
-| `proxy.pgBouncer.expose.type`                     | K8S service type for the pgbouncer deployment | `ClusterIP`                                                 |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`                                                     |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client`                                        |
-| `pmm.image.tag`             | PMM Container image tag                                          | `2.40.0`                                                     |
+| `pmm.image.tag`             | PMM Container image tag                                          | `2.41.0`                                                    |
 | `pmm.serverHost`           | PMM server related K8S service hostname              | `monitoring-service`                                        |
 | `pmm.resources.requests.memory`                    | Container resource request for RAM              | `200M`                                                      |
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m`                                                      |
+| `patroni.dynamicConfiguration`   | Add custom configuration for patroni                                          | `{}` |
+| `extensions.image`               | Image for the custom PostgreSQL extension loader sidecar container            | `""` |
+| `extensions.imagePullPolicy`     | Policy for the custom extension sidecar container                             | `Always` |
+| `extensions.storage.type`        | The cloud storage type used for backups. Only s3 type is currently supported. | `""` |
+| `extensions.storage.bucket`      | The Amazon S3 bucket name for prepackaged PostgreSQL custom extensions        | `""` |
+| `extensions.storage.region`      | The AWS region to use                                                         | `""` |
+| `extensions.storage.secret.name` | The Kubernetes secret for the custom extensions storage. It should contain AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY keys | `""` |
+| `extensions.builtin`             | The key-value pairs which enable or disable Percona Distribution for PostgreSQL builtin extensions | `{}` |
+| `extensions.custom`              | Array of name and versions for each PostgreSQL custom extension              | `[]` |
 | `secrets.name`            | Database secrets object name. Object will be autogenerated if the name is not explicitly specified       | `<cluster_name>-users`                                      |
-| `secrets.primaryuser`     | primary user password (in use for replication only)                           | `autogrenerated by operator`                                |
-| `secrets.postgres`        | postges user password (superuser, not accessible via pgbouncer)               | `autogrenerated by operator`                                |
-| `secrets.pgbouncer`       | pgbouncer user password                                                       | `autogrenerated by operator`                                |
-| `secrets.<default_user>`  | Default user password                                                         | `autogrenerated by operator`                                |
+| `secrets.primaryuser`     | primary user password (in use for replication only)                           | `autogenerated by operator`                                |
+| `secrets.postgres`        | postges user password (superuser, not accessible via pgbouncer)               | `autogenerated by operator`                                |
+| `secrets.pgbouncer`       | pgbouncer user password                                                       | `autogenerated by operator`                                |
+| `secrets.<default_user>`  | Default user password                                                         | `autogenerated by operator`                                |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.

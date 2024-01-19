@@ -86,7 +86,6 @@ rules:
   - batch
   resources:
   - cronjobs
-  - jobs
   verbs:
   - create
   - delete
@@ -95,21 +94,40 @@ rules:
   - patch
   - watch
 - apiGroups:
-  - pgv2.percona.com
+  - batch
   resources:
-  - perconapgbackups
-  - perconapgrestores
+  - jobs
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - pgv2.percona.com
   resources:
-  - perconapgbackups/status
-  - perconapgclusters/status
-  - perconapgrestores/status
+  - perconapgbackups
   verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - pgv2.percona.com
+  resources:
+  - perconapgbackups/finalizers
+  - perconapgclusters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - pgv2.percona.com
+  resources:
+  - perconapgbackups/status
+  verbs:
+  - create
   - patch
   - update
 - apiGroups:
@@ -126,9 +144,19 @@ rules:
 - apiGroups:
   - pgv2.percona.com
   resources:
-  - perconapgclusters/finalizers
+  - perconapgclusters/status
+  - perconapgrestores/status
   verbs:
+  - patch
   - update
+- apiGroups:
+  - pgv2.percona.com
+  resources:
+  - perconapgrestores
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - policy
   resources:
