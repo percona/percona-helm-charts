@@ -4,7 +4,9 @@ metadata:
   name: {{ include "psmdb-operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-{{ include "psmdb-operator.labels" . | indent 4 }}
+    {{- include "psmdb-operator.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.annotations | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -20,6 +22,8 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "psmdb-operator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
     spec:
       serviceAccountName: {{ include "psmdb-operator.fullname" . }}
       securityContext:

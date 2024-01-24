@@ -32,6 +32,9 @@ The chart can be customized using the following configurable parameters:
 | `image.pullSecrets`             | PSMDB Operator Pod pull secret                                                | `[]`                                      |
 | `replicaCount`                  | PSMDB Operator Pod quantity                                                   | `1`                                       |
 | `tolerations`                   | List of node taints to tolerate                                               | `[]`                                      |
+| `annotations`                   | PSMDB Operator Deployment annotations                                         | `{}`                                      |
+| `podAnnotations`                | PSMDB Operator pod annotations                                                | `{}`                                      |
+| `serviceAccount.annotations`    | PSMDB Operator ServiceAccount annotations                                     | `{}`                                      |
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
 | `podAnnotations`                | Annotations for pod                                                           | `{}`                                      |
