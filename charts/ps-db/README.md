@@ -184,7 +184,7 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.expose.loadBalancerSourceRanges` | The range of client IP addresses from which the load balancer should be reachable | `[]`                                    |
 ||
 | `pmm.image.repository`          | PMM Container image repository                                                | `percona/pmm-client`                    |
-| `pmm.image.tag`                 | PMM Container image tag                                                       | `2.40.1`                                |
+| `pmm.image.tag`                 | PMM Container image tag                                                       | `2.41.0`                                |
 | `pmm.imagePullPolicy`           | The policy used to update images                                              | ``                                      |
 | `pmm.serverHost`                | PMM server related K8S service hostname                                       | `monitoring-service`                    |
 | `pmm.serverUser`                | PMM server user                                                               | `admin`                                 |
