@@ -1,15 +1,17 @@
-apiVersion: psmdb.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}
+apiVersion: psmdb.percona.com/v1
 kind: PerconaServerMongoDB
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"psmdb.percona.com/v{{ .Chart.AppVersion | replace "." "-" }}","kind":"PerconaServerMongoDB"}
+      {"apiVersion":"psmdb.percona.com/v1","kind":"PerconaServerMongoDB"}
   name: {{ include "psmdb-database.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
   finalizers:
 {{ .Values.finalizers | toYaml | indent 4 }}
 spec:
+  crVersion: {{ .Values.crVersion }}
   pause: {{ .Values.pause }}
   unmanaged: {{ .Values.unmanaged }}
   {{- if .Values.platform }}
@@ -26,6 +28,14 @@ spec:
   {{- if .Values.allowUnsafeConfigurations }}
   allowUnsafeConfigurations: true
   {{- end }}
+  {{- if .Values.ignoreAnnotations }}
+  ignoreAnnotations:
+{{ .Values.ignoreAnnotations | toYaml | indent 4 }}
+  {{- end }}
+  {{- if .Values.ignoreLabels }}
+  ignoreLabels:
+{{ .Values.ignoreLabels | toYaml | indent 4 }}
+  {{- end }}
   multiCluster:
     enabled: {{ .Values.multiCluster.enabled }}
     {{- if .Values.multiCluster.DNSSuffix }}
@@ -34,6 +44,13 @@ spec:
   {{- if .Values.imagePullSecrets }}
   imagePullSecrets:
 {{ .Values.imagePullSecrets | toYaml | indent 4 }}
+  {{- end }}
+  {{- if .Values.initImage }}
+  initImage: "{{ .Values.initImage.repository }}:{{ .Values.initImage.tag }}"
+  {{- end }}
+  {{- if .Values.initContainerSecurityContext }}
+  initContainerSecurityContext:
+{{ .Values.initContainerSecurityContext | toYaml | indent 4 }}
   {{- end }}
   {{- if .Values.tls }}
   tls:
@@ -45,7 +62,6 @@ spec:
   {{- else }}
   secrets:
     users: {{ include "psmdb-database.fullname" . }}-secrets
-    encryptionKey: {{ include "psmdb-database.fullname" . }}-mongodb-encryption-key
   {{- end }}
   {{- if .Values.updateStrategy }}
   updateStrategy: {{ .Values.updateStrategy }}
@@ -63,6 +79,9 @@ spec:
   {{- range $replset := .Values.replsets }}
   - name: {{ $replset.name }}
     size: {{ $replset.size }}
+    {{- if $replset.terminationGracePeriodSeconds }}
+    terminationGracePeriodSeconds: {{ $replset.terminationGracePeriodSeconds }}
+    {{- end }}
     {{- if $replset.externalNodes }}
     externalNodes:
 {{ $replset.externalNodes | toYaml | indent 6 }}
@@ -71,8 +90,15 @@ spec:
     configuration: |
 {{ $replset.configuration | indent 6 }}
     {{- end }}
+    {{- if $replset.topologySpreadConstraints }}
+    topologySpreadConstraints:
+{{ $replset.topologySpreadConstraints | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $replset.serviceAccountName }}
+    serviceAccountName: {{ $replset.serviceAccountName }}
+    {{- end }}
     affinity:
-      antiAffinityTopologyKey: {{ $replset.antiAffinityTopologyKey }}
+{{ $replset.affinity | toYaml | indent 6 }}
     {{- if $replset.priorityClass }}
     priorityClassName: {{ $replset.priorityClass }}
     {{- end }}
@@ -135,6 +161,10 @@ spec:
       minAvailable: {{ $replset.podDisruptionBudget.minAvailable }}
       {{- end }}
     {{- end }}
+    {{- if $replset.splitHorizons }}
+    splitHorizons:
+{{ $replset.splitHorizons | toYaml | indent 6 }}
+    {{- end }}
     {{- if $replset.expose }}
     expose:
       enabled: {{ $replset.expose.enabled }}
@@ -147,6 +177,32 @@ spec:
       serviceAnnotations:
 {{ $replset.expose.serviceAnnotations | toYaml | indent 8 }}
       {{- end }}
+      {{- if $replset.expose.serviceLabels }}
+      serviceLabels:
+{{ $replset.expose.serviceLabels | toYaml | indent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- if $replset.schedulerName }}
+    schedulerName: {{ $replset.schedulerName }}
+    {{- end }}
+    resources:
+{{ $replset.resources | toYaml | indent 6 }}
+    {{- if $replset.volumeSpec }}
+    volumeSpec:
+      {{- if $replset.volumeSpec.hostPath }}
+      hostPath:
+        path: {{ $replset.volumeSpec.hostPath }}
+        type: Directory
+      {{- else if $replset.volumeSpec.pvc }}
+      persistentVolumeClaim:
+{{ $replset.volumeSpec.pvc | toYaml | indent 8 }}
+      {{- else }}
+      emptyDir: {}
+      {{- end }}
+    {{- end }}
+    {{- if $replset.hostAliases }}
+    hostAliases:
+{{ $replset.hostAliases | toYaml | indent 6 }}
     {{- end }}
     {{- if $replset.nonvoting }}
     nonvoting:
@@ -156,8 +212,11 @@ spec:
       configuration: |
 {{ $replset.nonvoting.configuration | indent 8 }}
       {{- end }}
+      {{- if $replset.nonvoting.serviceAccountName }}
+      serviceAccountName: {{ $replset.nonvoting.serviceAccountName }}
+      {{- end }}
       affinity:
-        antiAffinityTopologyKey: {{ $replset.nonvoting.antiAffinityTopologyKey }}
+{{ $replset.nonvoting.affinity | toYaml | indent 8 }}
       {{- if $replset.nonvoting.priorityClass }}
       priorityClassName: {{ $replset.nonvoting.priorityClass }}
       {{- end }}
@@ -213,8 +272,11 @@ spec:
     arbiter:
       enabled: {{ $replset.arbiter.enabled }}
       size: {{ $replset.arbiter.size }}
+      {{- if $replset.arbiter.serviceAccountName }}
+      serviceAccountName: {{ $replset.arbiter.serviceAccountName }}
+      {{- end }}
       affinity:
-        antiAffinityTopologyKey: {{ $replset.arbiter.antiAffinityTopologyKey }}
+{{ $replset.arbiter.affinity | toYaml | indent 8 }}
       {{- if $replset.arbiter.priorityClass }}
       priorityClassName: {{ $replset.arbiter.priorityClass }}
       {{- end }}
@@ -235,31 +297,18 @@ spec:
 {{ $replset.arbiter.tolerations | toYaml | indent 8 }}
       {{- end }}
     {{- end }}
-    {{- if $replset.schedulerName }}
-    schedulerName: {{ $replset.schedulerName }}
-    {{- end }}
-    resources:
-{{ $replset.resources | toYaml | indent 6 }}
-    {{- if $replset.volumeSpec }}
-    volumeSpec:
-      {{- if $replset.volumeSpec.hostPath }}
-      hostPath:
-        path: {{ $replset.volumeSpec.hostPath }}
-        type: Directory
-      {{- else if $replset.volumeSpec.pvc }}
-      persistentVolumeClaim:
-{{ $replset.volumeSpec.pvc | toYaml | indent 8 }}
-      {{- else }}
-      emptyDir: {}
-      {{- end }}
-    {{- end }}
   {{- end }}
 
   sharding:
     enabled: {{ .Values.sharding.enabled }}
+    balancer:
+      enabled: {{ .Values.sharding.balancer.enabled }}
 
     configsvrReplSet:
       size: {{ .Values.sharding.configrs.size }}
+      {{- if .Values.sharding.configrs.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.sharding.configrs.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- if .Values.sharding.configrs.externalNodes }}
       externalNodes:
 {{ .Values.sharding.configrs.externalNodes | toYaml | indent 8 }}
@@ -268,8 +317,15 @@ spec:
       configuration: |
 {{ .Values.sharding.configrs.configuration | indent 8 }}
       {{- end }}
+      {{- if .Values.sharding.configrs.topologySpreadConstraints }}
+      topologySpreadConstraints:
+{{ .Values.sharding.configrs.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.serviceAccountName }}
+      serviceAccountName: {{ .Values.sharding.configrs.serviceAccountName }}
+      {{- end }}
       affinity:
-        antiAffinityTopologyKey: {{ .Values.sharding.configrs.antiAffinityTopologyKey }}
+{{ .Values.sharding.configrs.affinity | toYaml | indent 8 }}
       {{- if .Values.sharding.configrs.priorityClass }}
       priorityClassName: {{ .Values.sharding.configrs.priorityClass }}
       {{- end }}
@@ -342,6 +398,10 @@ spec:
         serviceAnnotations:
 {{ .Values.sharding.configrs.expose.serviceAnnotations | toYaml | indent 10 }}
         {{- end }}
+        {{- if .Values.sharding.configrs.expose.serviceLabels }}
+        serviceLabels:
+{{ .Values.sharding.configrs.expose.serviceLabels | toYaml | indent 10 }}
+        {{- end }}
       {{- end }}
       resources:
         limits:
@@ -361,15 +421,29 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      {{- if .Values.sharding.configrs.hostAliases }}
+      hostAliases:
+{{ .Values.sharding.configrs.hostAliases | toYaml | indent 8 }}
+      {{- end }}
 
     mongos:
       size: {{ .Values.sharding.mongos.size }}
+      {{- if .Values.sharding.mongos.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.sharding.mongos.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- if .Values.sharding.mongos.configuration }}
       configuration: |
 {{ .Values.sharding.mongos.configuration | indent 8 }}
       {{- end }}
+      {{- if .Values.sharding.mongos.topologySpreadConstraints }}
+      topologySpreadConstraints:
+{{ .Values.sharding.mongos.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.serviceAccountName }}
+      serviceAccountName: {{ .Values.sharding.mongos.serviceAccountName }}
+      {{- end }}
       affinity:
-        antiAffinityTopologyKey: {{ .Values.sharding.mongos.antiAffinityTopologyKey }}
+{{ .Values.sharding.mongos.affinity | toYaml | indent 8 }}
       {{- if .Values.sharding.mongos.priorityClass }}
       priorityClassName: {{ .Values.sharding.mongos.priorityClass }}
       {{- end }}
@@ -446,9 +520,17 @@ spec:
         serviceAnnotations:
 {{ .Values.sharding.mongos.expose.serviceAnnotations | toYaml | indent 10 }}
         {{- end }}
+        {{- if .Values.sharding.mongos.expose.serviceLabels }}
+        serviceLabels:
+{{ .Values.sharding.mongos.expose.serviceLabels | toYaml | indent 10 }}
+        {{- end }}
       {{- if .Values.sharding.mongos.auditLog }}
       auditLog:
 {{ .Values.sharding.mongos.auditLog | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.hostAliases }}
+      hostAliases:
+{{ .Values.sharding.mongos.hostAliases | toYaml | indent 8 }}
       {{- end }}
 
   backup:
@@ -468,6 +550,9 @@ spec:
     pitr:
     {{- if and .Values.backup.enabled .Values.backup.pitr.enabled }}
       enabled: true
+      {{- if .Values.backup.pitr.oplogOnly }}
+      oplogOnly: {{ .Values.backup.pitr.oplogOnly }}
+      {{- end }}
       {{- if .Values.backup.pitr.oplogSpanMin }}
       oplogSpanMin: {{ .Values.backup.pitr.oplogSpanMin }}
       {{- end }}

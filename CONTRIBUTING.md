@@ -18,8 +18,11 @@ Please make sure to read and observe the [Contribution Policy](code-of-conduct.m
 
 Improvement and bugfix tasks for Percona's projects are tracked in Jira:
 
-* [Percona XtraDB Cluster and Percona XtraDB Cluster Operator](https://jira.percona.com/projects/K8SPXC/)
-* [Percona Server for MongoDB and Percona Server for MongoDB Operator](https://jira.percona.com/projects/K8SPSMDB)
+* [Percona Operator for MySQL (based on Percona XtraDB Cluster)](https://jira.percona.com/projects/K8SPXC)
+* [Percona Operator for MySQL (based on Percona Server for MySQL)](https://jira.percona.com/projects/K8SPS)
+* [Percona Operator for MongoDB](https://jira.percona.com/projects/K8SPSMDB)
+* [Percona Operator for PostgreSQL](https://jira.percona.com/projects/K8SPG)
+* [Percona Monitoring and Management](https://jira.percona.com/projects/PMM)
 
 Although not mandatory, it is a good practice to examine already open Jira issues first. For bigger contributions, we suggest creating a Jira issue and discussing it with the engineering team and community before proposing any code changes.
 
@@ -45,6 +48,21 @@ Contributions to the source tree should follow the workflow described below:
    git commit -m "K8SPXC-622 fixed by ......"
    git push -u origin K8SPXC-622-fix-feature X
    ```
+
+   For each change in a helm chart, please do not forget to bump the version of the chart. For example, in pxc-db chart you will need to change Chart.yaml as follows:
+
+   ```
+   apiVersion: v2
+   appVersion: 1.11.0
+   description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+   name: pxc-db
+   home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+   - version: 1.11.6
+   + version: 1.11.7 <<< --- this is the change
+   ```
+   
+   Bump patch version only, minor and major versions are changed only when the new version of the operator is released.
+
 
 3. Create a pull request to the main repository on GitHub.
 4. When the reviewer makes some comments, address any feedback that comes and update the pull request.

@@ -1,14 +1,20 @@
+{{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ include "ps-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
 ---
+{{- end }}
+{{- if .Values.rbac.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: service-account-{{ include "ps-operator.fullname" . }}-leaderelection
+  name: {{ include "ps-operator.fullname" . }}-leaderelection
   {{- if .Values.watchNamespace }}
   namespace: {{ .Values.watchNamespace }}
+  {{- else }}
+  namespace: {{ .Release.Namespace }}
   {{- end }}
   labels:
 {{ include "ps-operator.labels" . | indent 4 }}
@@ -27,9 +33,11 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: service-account-{{ include "ps-operator.fullname" . }}
+  name: {{ include "ps-operator.fullname" . }}
   {{- if .Values.watchNamespace }}
   namespace: {{ .Values.watchNamespace }}
+  {{- else }}
+  namespace: {{ .Release.Namespace }}
   {{- end }}
   labels:
 {{ include "ps-operator.labels" . | indent 4 }}
@@ -44,3 +52,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "ps-operator.fullname" . }}
+{{- end }}

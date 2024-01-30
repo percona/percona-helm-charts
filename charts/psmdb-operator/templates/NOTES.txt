@@ -1,5 +1,15 @@
-1. psmdb-operator deployed.
-  If you would like to deploy an psmdb-cluster set cluster.enabled to true in values.yaml
-  Check the psmdb-operator logs
+1. Percona Operator for MongoDB is deployed.
+  See if the operator Pod is running:
+
+    kubectl get pods -l app.kubernetes.io/name=psmdb-operator --namespace {{ .Release.Namespace }}
+
+  Check the operator logs if the Pod is not starting:
+
     export POD=$(kubectl get pods -l app.kubernetes.io/name=psmdb-operator --namespace {{ .Release.Namespace }} --output name)
     kubectl logs $POD --namespace={{ .Release.Namespace }}
+
+2. Deploy the database cluster from psmdb-db chart:
+
+    helm install my-db percona/psmdb-db --namespace={{ .Release.Namespace }}
+
+Read more in our documentation: https://docs.percona.com/percona-operator-for-mongodb/

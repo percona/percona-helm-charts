@@ -1,4 +1,5 @@
-{{- if .Values.watchNamespace }}
+{{- if .Values.rbac.create }}
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
 kind: ClusterRole
 {{- else }}
 kind: Role
@@ -6,6 +7,7 @@ kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "psmdb-operator.labels" . | indent 4 }}
 rules:
@@ -14,10 +16,13 @@ rules:
     resources:
     - perconaservermongodbs
     - perconaservermongodbs/status
+    - perconaservermongodbs/finalizers
     - perconaservermongodbbackups
     - perconaservermongodbbackups/status
+    - perconaservermongodbbackups/finalizers
     - perconaservermongodbrestores
     - perconaservermongodbrestores/status
+    - perconaservermongodbrestores/finalizers
     verbs:
     - get
     - list
@@ -26,6 +31,20 @@ rules:
     - update
     - patch
     - delete
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
+  - apiGroups:
+    - admissionregistration.k8s.io
+    resources:
+    - validatingwebhookconfigurations
+    verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - patch
+    - delete
+{{- end }}
   - apiGroups:
     - ""
     resources:
@@ -130,3 +149,4 @@ rules:
     - patch
     - delete
     - deletecollection
+{{- end }}

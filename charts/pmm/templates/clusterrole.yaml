@@ -6,6 +6,7 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 rules:
+# standard RBAC
 - apiGroups: [""] # "" indicates the core API group
   resources:
   - namespaces
@@ -13,12 +14,15 @@ rules:
   - services
   - nodes
   - pods
+  - secrets
+  - serviceaccounts
   verbs:
   - get
   - watch
   - list
 - nonResourceURLs:
   - /metrics
+  - /metrics/resources
   verbs:
   - get
 {{- end }}

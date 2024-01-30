@@ -6,7 +6,7 @@ Useful links:
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-mysql/ps/index.html)
 
 ## Pre-requisites
-* Kubernetes 1.20+
+* Kubernetes 1.22+
 * Helm v3
 
 # Installation
@@ -19,7 +19,7 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/ps-operator --version 0.2.0 --namespace my-namespace
+helm install my-operator percona/ps-operator --version 0.6.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -27,14 +27,19 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
 | `image.repository`              | PS Operator Container image name                                              | `percona/percona-server-mysql-operator`   |
-| `image.tag`                     | PS Operator Container image tag                                               | `0.2.0`                                   |
+| `image.tag`                     | PS Operator Container image tag                                               | `0.6.0`                                   |
 | `image.pullPolicy`              | PS Operator Container pull policy                                             | `Always`                                  |
 | `image.pullSecrets`             | PS Operator Pod pull secret                                                   | `[]`                                      |
 | `replicaCount`                  | PS Operator Pod quantity                                                      | `1`                                       |
 | `tolerations`                   | List of node taints to tolerate                                               | `[]`                                      |
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
-| `watchNamespace`                | Set when a different from default namespace is needed to watch                | `""`                                      |
+| `rbac.create`                   | If false RBAC will not be created. RBAC resources will need to be created manually  | `true`                              |
+| `serviceAccount.create`         | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually  | `true`                  |
+| `env.logStructured`             | Enable JSON format for logs                                                   | `false`                                   |
+| `env.logLevel`                  | Set appropriate log level (INFO, DEBUG, ERROR)                                | `INFO`                                    |
+| `disableTelemetry`              | Disable sending PS Operator telemetry data to Percona                         | `false`                                   |
+
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 
