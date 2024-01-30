@@ -3370,6 +3370,24 @@ entries:
   pxc-operator:
   - apiVersion: v2
     appVersion: 1.13.0
+    created: "2024-01-30T16:26:56.003810882Z"
+    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    digest: 705dbe98ceceb5001342f23fbaff94d0fa8fd92b426e6b8b0d7b3a34cb60cfc2
+    home: https://docs.percona.com/percona-operator-for-mysql/pxc/
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: pxc-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-operator-1.13.4/pxc-operator-1.13.4.tgz
+    version: 1.13.4
+  - apiVersion: v2
+    appVersion: 1.13.0
     created: "2023-09-08T11:45:17.474603704Z"
     description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
     digest: bd19ca1202f4b929c6c1646ffde6143811952774dfb69431469c5f3e687b55f1
