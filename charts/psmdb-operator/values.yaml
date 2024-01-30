@@ -31,7 +31,13 @@ rbac:
 serviceAccount:
   # serviceAccount.create: Whether to create the Service Accounts or not
   create: true
+  # annotations to add to the service account
+  annotations: {}
 
+# annotations to add to the operator deployment
+annotations: {}
+
+# annotations to add to the operator pod
 podAnnotations: {}
   # prometheus.io/scrape: "true"
   # prometheus.io/port: "8080"
@@ -61,16 +67,6 @@ fullnameOverride: ""
 
 env:
   resyncPeriod: 5s
-
-# annotations to add to the deployment
-annotations: {}
-
-# annotations to add to the pod
-podAnnotations: {}
-
-serviceAccount:
-  # annotations to add to the service account
-  annotations: {}
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious

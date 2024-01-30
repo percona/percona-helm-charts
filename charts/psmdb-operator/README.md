@@ -33,8 +33,7 @@ The chart can be customized using the following configurable parameters:
 | `replicaCount`                  | PSMDB Operator Pod quantity                                                   | `1`                                       |
 | `tolerations`                   | List of node taints to tolerate                                               | `[]`                                      |
 | `annotations`                   | PSMDB Operator Deployment annotations                                         | `{}`                                      |
-| `podAnnotations`                | PSMDB Operator pod annotations                                                | `{}`                                      |
-| `serviceAccount.annotations`    | PSMDB Operator ServiceAccount annotations                                     | `{}`                                      |
+| `podAnnotations`                | PSMDB Operator Pod annotations                                                | `{}`                                      |
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
 | `podAnnotations`                | Annotations for pod                                                           | `{}`                                      |
@@ -43,6 +42,7 @@ The chart can be customized using the following configurable parameters:
 | `rbac.create`                   | If false RBAC will not be created. RBAC resources will need to be created manually  | `true`                              |
 | `securityContext`               | Container Security Context                                                    | `{}`                                      |
 | `serviceAccount.create`         | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually  | `true`                  |
+| `serviceAccount.annotations`    | PSMDB Operator ServiceAccount annotations                                     | `{}`                                      |
 | `logStructured`                 | Force PSMDB operator to print JSON-wrapped log messages                       | `false`                                   |
 | `logLevel`                      | PSMDB Operator logging level                                                  | `INFO`                                    |
 | `disableTelemetry`              | Disable sending PSMDB Operator telemetry data to Percona                      | `false`                                   |
