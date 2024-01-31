@@ -39,9 +39,12 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-          - containerPort: 60000
+          - containerPort: 8080
             protocol: TCP
             name: metrics
+          - containerPort: 8081
+            protocol: TCP
+            name: health
           command:
           - percona-server-mongodb-operator
           env:
@@ -65,14 +68,14 @@ spec:
               value: "{{ .Values.env.resyncPeriod }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
-          # livenessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: metrics
-          # readinessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: metrics
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: health
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

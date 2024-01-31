@@ -150,7 +150,8 @@ The chart can be customized using the following configurable parameters:
 | `pmm.serverHost`           | PMM server related K8S service hostname              | `monitoring-service`                                        |
 | `pmm.resources.requests.memory`                    | Container resource request for RAM              | `200M`                                                      |
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m`                                                      |
-| `patroni.dynamicConfiguration`   | Add custom configuration for patroni                                          | `{}` |
+| `patroni.dynamicConfiguration.postgresql.parameters`                    | Custom PostgreSQL configuration options              | `{}` |
+| `patroni.dynamicConfiguration.postgresql.pg_hba`                    | PostgreSQL Host-Based Authentication section              | `{}` |
 | `extensions.image`               | Image for the custom PostgreSQL extension loader sidecar container            | `""` |
 | `extensions.imagePullPolicy`     | Policy for the custom extension sidecar container                             | `Always` |
 | `extensions.storage.type`        | The cloud storage type used for backups. Only s3 type is currently supported. | `""` |
