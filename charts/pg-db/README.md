@@ -24,7 +24,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 2.3.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.3.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -32,9 +32,9 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------|-------------------------------------------------------------|
 | `finalizers`                     | Finalizers list                                                 | `{}`                                                        |
-| `crVersion`                     | CR Cluster Manifest version                                                   | `2.3.0`                                                     |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `2.3.1`                                                     |
 | `repository`                     | PostgreSQL container image repository                                               | `percona/percona-postgresql-operator`                       |
-| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.3.0-ppg16-postgres`  |
+| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.3.1-ppg16-postgres`  |
 | `imagePullPolicy`                     | image Pull Policy                                                   | `Always`                                                    |
 | `port`                         | PostgreSQL port                                                    | `5432`                                                      |
 | `postgresVersion`                     | PostgreSQL container version tag                                       | `16`                                                        |
@@ -116,7 +116,7 @@ The chart can be customized using the following configurable parameters:
 | `backups.restore.enabled`                         |  Enables or disables restoring a previously made backup                                               | `false`                                                     |
 | `backups.restore.repoName`                         | Name of the pgBackRest repository that contains the backup to be restored                                                | `repo1`                                                     |
 | `backups.restore.options`                         | The pgBackRest command-line options for the pgBackRest restore command                                                | `--type=time`                                               |
-| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:2.3.0-ppg16-pgbackrest` |
+| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:2.3.1-ppg16-pgbackrest` |
 | `backups.repos.repo2.s3.bucket`                     | Storage bucket | ``                                                          |
 | `backups.repos.repo2.s3.region`                     |  S3-compatible storage name | ``                                                          |
 | `backups.repos.repo2.s3.endpoint`              | S3-compatible storage endpoint | ``                                                          |
@@ -150,7 +150,8 @@ The chart can be customized using the following configurable parameters:
 | `pmm.serverHost`           | PMM server related K8S service hostname              | `monitoring-service`                                        |
 | `pmm.resources.requests.memory`                    | Container resource request for RAM              | `200M`                                                      |
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m`                                                      |
-| `patroni.dynamicConfiguration`   | Add custom configuration for patroni                                          | `{}` |
+| `patroni.dynamicConfiguration.postgresql.parameters`                    | Custom PostgreSQL configuration options              | `{}` |
+| `patroni.dynamicConfiguration.postgresql.pg_hba`                    | PostgreSQL Host-Based Authentication section              | `{}` |
 | `extensions.image`               | Image for the custom PostgreSQL extension loader sidecar container            | `""` |
 | `extensions.imagePullPolicy`     | Policy for the custom extension sidecar container                             | `Always` |
 | `extensions.storage.type`        | The cloud storage type used for backups. Only s3 type is currently supported. | `""` |

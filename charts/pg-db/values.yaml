@@ -8,7 +8,7 @@ finalizers:
 # Set this if you want that operator deletes the ssl objects on cluster deletion
 #  - percona.com/delete-ssl
 
-crVersion: 2.3.0
+crVersion: 2.3.1
 repository: registry-1.percona.com/percona/percona-postgresql-operator
 image: ""
 imagePullPolicy: Always
@@ -282,9 +282,11 @@ pmm:
 #         max_worker_processes: 2
 #         shared_buffers: 1GB
 #         work_mem: 2MB
-#
+#       pg_hba:
+#       - host    all mytest 123.123.123.123/32 reject
+
 # extensions:
-#   image: percona/percona-postgresql-operator:2.3.0
+#   image: percona/percona-postgresql-operator:2.3.1
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
