@@ -31,7 +31,13 @@ rbac:
 serviceAccount:
   # serviceAccount.create: Whether to create the Service Accounts or not
   create: true
+  # annotations to add to the service account
+  annotations: {}
 
+# annotations to add to the operator deployment
+annotations: {}
+
+# annotations to add to the operator pod
 podAnnotations: {}
   # prometheus.io/scrape: "true"
   # prometheus.io/port: "8080"
