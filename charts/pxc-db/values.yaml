@@ -477,6 +477,8 @@ pmm:
   imagePullSecrets: []
   serverHost: monitoring-service
   serverUser: admin
+  # pxcParams: "--disable-tablestats-limit=2000"
+  # proxysqlParams: "--custom-labels=CUSTOM-LABELS"
   resources:
     requests:
       memory: 150M
