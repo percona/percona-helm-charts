@@ -2,6 +2,7 @@ apiVersion: pxc.percona.com/v1
 kind: PerconaXtraDBCluster
 metadata:
   name: {{ include "pxc-database.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "pxc-database.labels" . | indent 4 }}
   finalizers:
@@ -461,6 +462,10 @@ spec:
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
     {{- if $pmm.imagePullPolicy }}
     imagePullPolicy: {{ $pmm.imagePullPolicy }}
+    {{- end }}
+    {{- if $pmm.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($pmm.containerSecurityContext | toYaml) $ | indent 6 }}
     {{- end }}
     {{- if $pmm.imagePullSecrets }}
     imagePullSecrets:

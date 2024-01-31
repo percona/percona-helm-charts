@@ -53,6 +53,8 @@ tolerations: []
 
 affinity: {}
 
+podAnnotations: {}
+
 logStructured: false
 logLevel: "INFO"
 disableTelemetry: false

@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.14.0
+  tag: 1.15.0
   pullPolicy: IfNotPresent
 
 # disableTelemetry: according to
@@ -31,7 +31,13 @@ rbac:
 serviceAccount:
   # serviceAccount.create: Whether to create the Service Accounts or not
   create: true
+  # annotations to add to the service account
+  annotations: {}
 
+# annotations to add to the operator deployment
+annotations: {}
+
+# annotations to add to the operator pod
 podAnnotations: {}
   # prometheus.io/scrape: "true"
   # prometheus.io/port: "8080"
@@ -61,7 +67,6 @@ fullnameOverride: ""
 
 env:
   resyncPeriod: 5s
-  logVerbose: false
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -80,3 +85,6 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+logStructured: false
+logLevel: "INFO"

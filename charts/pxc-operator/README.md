@@ -32,6 +32,7 @@ The chart can be customized using the following configurable parameters:
 | `imagePullSecrets`              | PXC Operator Pod pull secret                                                                   | `[]`                                             |
 | `replicaCount`                  | PXC Operator Pod quantity                                                                      | `1`                                              |
 | `tolerations`                   | List of node taints to tolerate                                                                | `[]`                                             |
+| `podAnnotations`                | Operator Pod user-defined annotations                                                          | `{}`                                             |
 | `resources`                     | Resource requests and limits                                                                   | `{}`                                             |
 | `nodeSelector`                  | Labels for Pod assignment                                                                      | `{}`                                             |
 | `logStructured`                 | Force PXC operator to print JSON-wrapped log messages                                          | `false`                                          |
