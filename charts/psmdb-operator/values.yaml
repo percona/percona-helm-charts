@@ -6,8 +6,14 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.13.0
+  tag: 1.15.0
   pullPolicy: IfNotPresent
+
+# disableTelemetry: according to
+# https://docs.percona.com/percona-operator-for-mongodb/telemetry.html
+# this is how you can disable telemetry collection
+# default is false which means telemetry will be collected
+disableTelemetry: false
 
 # set if you want to specify a namespace to watch
 # defaults to `.Release.namespace` if left blank
@@ -15,6 +21,41 @@ image:
 
 # set if operator should be deployed in cluster wide mode. defaults to false
 watchAllNamespaces: false
+
+# rbac: settings for deployer RBAC creation
+rbac:
+  # rbac.create: if false RBAC resources should be in place
+  create: true
+
+# serviceAccount: settings for Service Accounts used by the deployer
+serviceAccount:
+  # serviceAccount.create: Whether to create the Service Accounts or not
+  create: true
+  # annotations to add to the service account
+  annotations: {}
+
+# annotations to add to the operator deployment
+annotations: {}
+
+# annotations to add to the operator pod
+podAnnotations: {}
+  # prometheus.io/scrape: "true"
+  # prometheus.io/port: "8080"
+
+podSecurityContext: {}
+  # runAsNonRoot: true
+  # runAsUser: 2
+  # runAsGroup: 2
+  # fsGroup: 2
+  # fsGroupChangePolicy: "OnRootMismatch"
+
+securityContext: {}
+  # allowPrivilegeEscalation: false
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # seccompProfile:
+  #   type: RuntimeDefault
 
 # set if you want to use a different operator name
 # defaults to `percona-server-mongodb-operator`
@@ -26,7 +67,6 @@ fullnameOverride: ""
 
 env:
   resyncPeriod: 5s
-  logVerbose: false
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -45,3 +85,6 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+logStructured: false
+logLevel: "INFO"

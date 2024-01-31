@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "ps-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
 {{ include "ps-operator.labels" . | indent 4 }}
 spec:
@@ -22,11 +23,17 @@ spec:
         command:
         - /usr/local/bin/percona-server-mysql-operator
         env:
+        - name: LOG_STRUCTURED
+          value: "{{ .Values.env.logStructured }}"
+        - name: LOG_LEVEL
+          value: "{{ .Values.env.logLevel }}"
         - name: WATCH_NAMESPACE
           valueFrom:
             fieldRef:
               apiVersion: v1
               fieldPath: metadata.namespace
+        - name: DISABLE_TELEMETRY
+          value: "{{ .Values.disableTelemetry }}"
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         imagePullPolicy: Always
         livenessProbe:

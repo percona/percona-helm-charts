@@ -2,8 +2,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
-{{ include "psmdb-operator.labels" . | indent 4 }}
+    {{- include "psmdb-operator.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -12,17 +17,25 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         app.kubernetes.io/name: {{ include "psmdb-operator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ include "psmdb-operator.fullname" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
     {{- end }}
       containers:
         - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -35,6 +48,10 @@ spec:
           command:
           - percona-server-mongodb-operator
           env:
+            - name: LOG_STRUCTURED
+              value: "{{ .Values.logStructured }}"
+            - name: LOG_LEVEL
+              value: "{{ .Values.logLevel }}"
             - name: WATCH_NAMESPACE
               {{- if .Values.watchAllNamespaces }}
               value: ""
@@ -49,8 +66,8 @@ spec:
               value: {{ default "percona-server-mongodb-operator" .Values.operatorName }}
             - name: RESYNC_PERIOD
               value: "{{ .Values.env.resyncPeriod }}"
-            - name: LOG_VERBOSE
-              value: "{{ .Values.env.logVerbose }}"
+            - name: DISABLE_TELEMETRY
+              value: "{{ .Values.disableTelemetry }}"
           livenessProbe:
             httpGet:
               path: /healthz

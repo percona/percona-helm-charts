@@ -6,16 +6,26 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mysql-operator
-  tag: 0.2.0
+  tag: 0.6.0
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# rbac: settings for deployer RBAC creation
+rbac:
+  # rbac.create: if false RBAC resources should be in place
+  create: true
+
+# serviceAccount: settings for Service Accounts used by the deployer
+serviceAccount:
+  # serviceAccount.create: Whether to create the Service Accounts or not
+  create: true
+
 env:
-  resyncPeriod: 5s
-  logVerbose: false
+  logStructured: false
+  logLevel: "INFO"
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -34,3 +44,5 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+disableTelemetry: false
