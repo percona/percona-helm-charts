@@ -59,7 +59,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.39.0
+    tag: 2.41.0
   serverHost: monitoring-service
 
 replsets:
