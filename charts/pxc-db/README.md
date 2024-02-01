@@ -215,6 +215,8 @@ The chart can be customized using the following configurable parameters:
 | `pmm.serverUser`                    | Username for accessing PXC database internals                            | `admin`                                                                  |
 | `pmm.resources.requests`            | PMM Container resource requests                                          | `{"memory": "150M", "cpu": "300m"}`                                      |
 | `pmm.resources.limits`              | PMM Container resource limits                                            | `{}`                                                                     |
+| `pmm.pxcParams`                     | Additional parameters which will be passed to the [pmm-admin add mysql](https://docs.percona.com/percona-monitoring-and-management/setting-up/client/mysql.html#add-service) command for `pxc` Pods  | `""`                                                                     |
+| `pmm.proxysqlParams`                | Additional parameters which will be passed to the [pmm-admin add proxysql](https://docs.percona.com/percona-monitoring-and-management/setting-up/client/proxysql.html) command for `proxysql` Pods  | `""`                                                                     |
 | |
 | `backup.enabled`                    | Enables backups for PXC cluster                                          | `true`                                                                   |
 | `backup.allowParallel`              | Allow taking multiple backups in parallel                                | `true`                                                                   |
