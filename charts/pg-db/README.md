@@ -24,7 +24,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 2.3.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.3.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -32,14 +32,14 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------|-------------------------------------------------------------|
 | `finalizers`                     | Finalizers list                                                 | `{}`                                                        |
-| `crVersion`                     | CR Cluster Manifest version                                                   | `2.3.0`                                                     |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `2.3.1`                                                     |
 | `repository`                     | PostgreSQL container image repository                                               | `percona/percona-postgresql-operator`                       |
-| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.3.0-ppg16-postgres`  |
+| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.3.1-ppg16-postgres`  |
 | `imagePullPolicy`                     | image Pull Policy                                                   | `Always`                                                    |
 | `port`                         | PostgreSQL port                                                    | `5432`                                                      |
 | `postgresVersion`                     | PostgreSQL container version tag                                       | `16`                                                        |
 | `pause`                         | Stop PostgreSQL Database safely                                               | `false`                                                     |
-| `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                                                     
+| `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`
 | `standby.enabled`                         | Switch/start PostgreSQL Database in standby mode                                                    | `false`                                                     |
 | `standby.host`                         | Host address of the primary cluster this standby cluster connects to                                                 | ``                                                          |
 | `standby.port`                         | Port number used by a standby copy to connect to the primary cluster                                                | ``                                                          |
@@ -85,9 +85,9 @@ The chart can be customized using the following configurable parameters:
 | `instances.tolerations.value`                       |  The Kubernetes Pod tolerations value for the PostgreSQL instance                                        | `connection-poolers`                                        |
 | `instances.priorityClassName`                         |  The Kuberentes Pod priority class for PostgreSQL instance Pods                                               | `high-priority`                                             |
 | `instances.walVolumeClaimSpec.accessModes`            |  The Kubernetes PersistentVolumeClaim access modes for the PostgreSQL Write-ahead Log storage                                               | `ReadWriteOnce`                                             |
-| `instances.walVolumeClaimSpec.resources.requests.storage` | The Kubernetes storage requests for the storage the PostgreSQL instance will use                                                | `1Gi`                                                       |
-| `instances.dataVolumeClaimSpec.accessModes`                         |  The Kubernetes PersistentVolumeClaim access modes for the PostgreSQL Write-ahead Log storage                                               | `ReadWriteOnce`                                             |
-| `instances.walVolumeClaimSpec.resources.requests.storage`           |  The Kubernetes storage requests for the storage the PostgreSQL instance will use                                               | `1Gi`                                                       |
+| `instances.walVolumeClaimSpec.resources.requests.storage` | The Kubernetes storage requests for the PostgreSQL Write-ahead Log use                                                   | `1Gi`                                                       |
+| `instances.dataVolumeClaimSpec.accessModes`                          |  The Kubernetes PersistentVolumeClaim access modes for the PostgreSQL data storage                                               | `ReadWriteOnce`                                             |
+| `instances.dataVolumeClaimSpec.resources.requests.storage`           |  The Kubernetes storage requests for the storage the PostgreSQL instance will use                                                   | `1Gi`                                                       |
 | `backups.pgbackrest.metadata.labels` |  Set labels for  pgbackrest  | `test-label:test`                                           |
 | `backups.pgbackrest.configuration.secret.name`                      |  Name of the Kubernetes Secret object with custom pgBackRest configuration, which will be added to the pgBackRest configuration generated by the Operator                 | `cluster1-pgbackrest-secrets`                               |
 | `backups.pgbackrest.jobs.priorityClassName`                         |  The Kuberentes Pod priority class for pgBackRest jobs   | `high-priority`                                             |
@@ -116,7 +116,7 @@ The chart can be customized using the following configurable parameters:
 | `backups.restore.enabled`                         |  Enables or disables restoring a previously made backup                                               | `false`                                                     |
 | `backups.restore.repoName`                         | Name of the pgBackRest repository that contains the backup to be restored                                                | `repo1`                                                     |
 | `backups.restore.options`                         | The pgBackRest command-line options for the pgBackRest restore command                                                | `--type=time`                                               |
-| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:2.3.0-ppg16-pgbackrest` |
+| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:2.3.1-ppg16-pgbackrest` |
 | `backups.repos.repo2.s3.bucket`                     | Storage bucket | ``                                                          |
 | `backups.repos.repo2.s3.region`                     |  S3-compatible storage name | ``                                                          |
 | `backups.repos.repo2.s3.endpoint`              | S3-compatible storage endpoint | ``                                                          |
@@ -135,7 +135,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.pgBouncer.tolerations.effect`                         | The Kubernetes Pod tolerations effect for the PostgreSQL instance                                       | `NoSchedule`                                                |
 | `proxy.pgBouncer.tolerations.key`                         | The Kubernetes Pod tolerations key for the PostgreSQL instance                                            | `role`                                                      |
 | `proxy.pgBouncer.tolerations.operator`                    | The Kubernetes Pod tolerations operator for the PostgreSQL instance                                      | `Equal`                                                     |
-| `proxy.pgBouncer.tolerations.value`                       |  The Kubernetes Pod tolerations value for the PostgreSQL instance   
+| `proxy.pgBouncer.tolerations.value`                       |  The Kubernetes Pod tolerations value for the PostgreSQL instance
 | `proxy.pgBouncer.customTLSSecret.name`                         | Custom external TLS secret name                                                | `keycloakdb-pgbouncer.tls`                                  |
 | `proxy.pgBouncer.affinity.podAntiAffinity` |  Pod anti-affinity, allows setting the standard Kubernetes affinity constraints of any complexity                    | `{}`                                                        |
 | `proxy.pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postresql-operator:1.4.0-ppg14-pgbouncer`  |
@@ -150,7 +150,8 @@ The chart can be customized using the following configurable parameters:
 | `pmm.serverHost`           | PMM server related K8S service hostname              | `monitoring-service`                                        |
 | `pmm.resources.requests.memory`                    | Container resource request for RAM              | `200M`                                                      |
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m`                                                      |
-| `patroni.dynamicConfiguration`   | Add custom configuration for patroni                                          | `{}` |
+| `patroni.dynamicConfiguration.postgresql.parameters`                    | Custom PostgreSQL configuration options              | `{}` |
+| `patroni.dynamicConfiguration.postgresql.pg_hba`                    | PostgreSQL Host-Based Authentication section              | `{}` |
 | `extensions.image`               | Image for the custom PostgreSQL extension loader sidecar container            | `""` |
 | `extensions.imagePullPolicy`     | Policy for the custom extension sidecar container                             | `Always` |
 | `extensions.storage.type`        | The cloud storage type used for backups. Only s3 type is currently supported. | `""` |
@@ -172,7 +173,7 @@ Notice that you can use multiple replica sets only with sharding enabled.
 
 ### Deploy for tests - single PostgreSQL node and automated PVCs deletion
 
-Such a setup is good for testing, as it does not require a lot of compute power 
+Such a setup is good for testing, as it does not require a lot of compute power
 and performs and automated clean up of the Persistent Volume Claims (PVCs).
 It also deploys just one pgBouncer node, instead of 3.
 ```bash
@@ -190,7 +191,7 @@ Expose the cluster's pgBouncer with a LoadBalancer:
 
 ```bash
 $ helm install my-test percona/pg-db  \
-  --set proxy.pgBouncer.expose.type=LoadBalancer 
+  --set proxy.pgBouncer.expose.type=LoadBalancer
 ```
 
 ### Add a custom user and a database

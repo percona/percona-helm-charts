@@ -35,7 +35,7 @@ Chart.
 
 | Parameter                       | Description                                                             | Default                                          |
 | ------------------------------- | ------------------------------------------------------------------------| -------------------------------------------------|
-| `image` | PG Operator Container image full path | `percona/percona-postgresql-operator:2.3.0` |
+| `image` | PG Operator Container image full path | `percona/percona-postgresql-operator:2.3.1` |
 | `imagePullPolicy` | PG Operator Container pull policy | `Always`|
 | `resources` | Resource requests and limits | `{}` |
 | `nodeSelector` | Labels for Pod assignment | `{}` |
@@ -49,7 +49,7 @@ Chart.
 To deploy Percona Operator for PostgreSQL cluster with disabled telemetry run the following command:
 
 ```sh
-helm install my-db percona/pg-db --version 2.3.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.3.1 --namespace my-namespace
 ```
 
 See more about Percona Operator for PostgreSQL deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
