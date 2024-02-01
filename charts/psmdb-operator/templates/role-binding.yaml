@@ -4,6 +4,10 @@ kind: ServiceAccount
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 ---
 {{- end }}
 {{- if .Values.rbac.create }}

@@ -214,6 +214,8 @@ The chart can be customized using the following configurable parameters:
 | |
 | `backup.enabled`            | Enable backup PBM agent                  | `true`                                |
 | `backup.annotations`        | Backup job annotations                   | `{}`                                  |
+| `backup.podSecurityContext` | Set the security context for a Pod       | `{}`                                  |
+| `backup.containerSecurityContext` | Set the security context for a Container | `{}`                                  |
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true`                                |
 | `backup.image.repository`   | PBM Container image repository           | `percona/percona-backup-mongodb`      |
 | `backup.image.tag`          | PBM Container image tag                  | `2.3.0`                               |
