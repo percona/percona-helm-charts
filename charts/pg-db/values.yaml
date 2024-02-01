@@ -1,121 +1,305 @@
-# Default values for psmdb-cluster.
+# Default values for pg-cluster.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+finalizers:
+# Set this if you want that operator deletes the PVCs on cluster deletion
+#  - percona.com/delete-pvc
+# Set this if you want that operator deletes the ssl objects on cluster deletion
+#  - percona.com/delete-ssl
+
+crVersion: 2.3.1
+repository: registry-1.percona.com/percona/percona-postgresql-operator
+image: ""
+imagePullPolicy: Always
+postgresVersion: 16
+# port: 5432
 pause: false
-standby: false
-disableAutofail: false
-keepData: true
-keepBackups: true
-restoreFrom: false
-restoreOpts: false
-defaultUser: pguser
-defaultDatabase: pgdb
-targetPort: "5432"
+unmanaged: false
+standby:
+  enabled: false
+  # host: "<primary-ip>"
+  # port: "<primary-port>"
+  # repoName: repo1
 
-image:
-  repo: percona/percona-postgresql-operator
-  pgver: ppg14
+customTLSSecret:
+  name: ""
+customReplicationTLSSecret:
+  name: ""
 
-sslCA: ""
-sslSecretName: ""
-sslReplicationSecretName: ""
-tlsOnly: false
+# openshift: true
 
-bucket:
-  key:
-  secret:
-  json:
-# Replace default AWS S3 CA with a custom one here
-  s3ca:
+# users:
+#   - name: rhino
+#     databases:
+#       - zoo
+#     options: "SUPERUSER"
+#     password:
+#       type: ASCII
+#     secretName: "rhino-credentials"
 
-pgPrimary:
-  image: ""
-  resources:
-    requests:
-      memory: "128Mi"
-  tolerations: []
-  volumeSpec:
-    size: 1G
-    accessmode: ReadWriteOnce
-    storagetype: dynamic
-    storageclass: "standard"
-  expose:
-    serviceType: ClusterIP
-    loadBalancerSourceRanges: []
-    loadBalancerIP:
+# databaseInitSQL:
+#   key: init.sql
+#   name: cluster1-init-sql
+
+# dataSource:
+#   postgresCluster:
+#     clusterName: cluster1
+#     repoName: repo1
+#     options:
+#     - --type=time
+#     - --target="2021-06-09 14:15:11-04"
+#   pgbackrest:
+#     stanza: db
+#     configuration:
+#     - secret:
+#         name: pgo-s3-creds
+#     global:
+#       repo1-path: /pgbackrest/postgres-operator/hippo/repo1
+#     repo:
+#       name: repo1
+#       s3:
+#         bucket: "my-bucket"
+#         endpoint: "s3.ca-central-1.amazonaws.com"
+#         region: "ca-central-1"
+
+# expose:
+#   annotations:
+#     my-annotation: value1
+#   labels:
+#     my-label: value2
+#   type: LoadBalancer
+#   loadBalancerSourceRanges:
+#     - 10.0.0.0/8
+
+instances:
+- name: instance1
+  replicas: 3
+
   affinity:
-    antiAffinityType: preferred
-    nodeAffinityType:
-    nodeLabel:
-    advanced:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              postgres-operator.crunchydata.com/data: postgres
+          topologyKey: kubernetes.io/hostname
+
+#  resources:
+#    limits:
+#      cpu: 2.0
+#      memory: 4Gi
+#
+#  sidecars:
+#  - name: testcontainer
+#    image: mycontainer1:latest
+#  - name: testcontainer2
+#    image: mycontainer1:latest
+#
+#  topologySpreadConstraints:
+#    - maxSkew: 1
+#      topologyKey: my-node-label
+#      whenUnsatisfiable: DoNotSchedule
+#      labelSelector:
+#        matchLabels:
+#          postgres-operator.crunchydata.com/instance-set: instance1
+#
+#  tolerations:
+#  - effect: NoSchedule
+#    key: role
+#    operator: Equal
+#    value: connection-poolers
+#
+#  priorityClassName: high-priority
+#
+#  walVolumeClaimSpec:
+#    accessModes:
+#    - "ReadWriteOnce"
+#    resources:
+#      requests:
+#        storage: 1Gi
+#
+  dataVolumeClaimSpec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
+
+proxy:
+  pgBouncer:
+    replicas: 3
+    image: ""
+#    exposeSuperusers: true
+#    resources:
+#      limits:
+#        cpu: 200m
+#        memory: 128Mi
+#
+#      expose:
+#        annotations:
+#          my-annotation: value1
+#        labels:
+#          my-label: value2
+#        type: LoadBalancer
+#        loadBalancerSourceRanges:
+#          - 10.0.0.0/8
+
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                postgres-operator.crunchydata.com/role: pgbouncer
+            topologyKey: kubernetes.io/hostname
+
+#      tolerations:
+#      - effect: NoSchedule
+#        key: role
+#        operator: Equal
+#        value: connection-poolers
+#
+#      topologySpreadConstraints:
+#        - maxSkew: 1
+#          topologyKey: my-node-label
+#          whenUnsatisfiable: ScheduleAnyway
+#          labelSelector:
+#            matchLabels:
+#              postgres-operator.crunchydata.com/role: pgbouncer
+#
+#      sidecars:
+#      - name: bouncertestcontainer1
+#        image: mycontainer1:latest
+#
+#      customTLSSecret:
+#        name: keycloakdb-pgbouncer.tls
+#
+#      config:
+#        global:
+#          pool_mode: transaction
+
+backups:
+  pgbackrest:
+#    metadata:
+#    labels:
+    image: ""
+#    configuration:
+#      - secret:
+#          name: cluster1-pgbackrest-secrets
+#    jobs:
+#      priorityClassName: high-priority
+#      resources:
+#        limits:
+#          cpu: 200m
+#          memory: 128Mi
+#      tolerations:
+#      - effect: NoSchedule
+#        key: role
+#        operator: Equal
+#        value: connection-poolers
+#
+#    global:
+#      repo1-retention-full: "14"
+#      repo1-retention-full-type: time
+#      repo1-path: /pgbackrest/postgres-operator/cluster1/repo1
+#      repo1-cipher-type: aes-256-cbc
+#      repo1-s3-uri-style: path
+#      repo2-path: /pgbackrest/postgres-operator/cluster1-multi-repo/repo2
+#      repo3-path: /pgbackrest/postgres-operator/cluster1-multi-repo/repo3
+#      repo4-path: /pgbackrest/postgres-operator/cluster1-multi-repo/repo4
+
+    repoHost:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  postgres-operator.crunchydata.com/data: pgbackrest
+              topologyKey: kubernetes.io/hostname
+
+#      priorityClassName: high-priority
+#
+#      topologySpreadConstraints:
+#      - maxSkew: 1
+#        topologyKey: my-node-label
+#        whenUnsatisfiable: ScheduleAnyway
+#        labelSelector:
+#          matchLabels:
+#            postgres-operator.crunchydata.com/pgbackrest: ""
+
+    manual:
+      repoName: repo1
+      options:
+      - --type=full
+    repos:
+    - name: repo1
+      schedules:
+        full: "0 0 * * 6"
+#        differential: "0 1 * * 1-6"
+      volume:
+        volumeClaimSpec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+#    - name: repo2
+#      s3:
+#        bucket: "<YOUR_AWS_S3_BUCKET_NAME>"
+#        endpoint: "<YOUR_AWS_S3_ENDPOINT>"
+#        region: "<YOUR_AWS_S3_REGION>"
+#    - name: repo3
+#      gcs:
+#        bucket: "<YOUR_GCS_BUCKET_NAME>"
+#    - name: repo4
+#      azure:
+#        container: "<YOUR_AZURE_CONTAINER>"
+#
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.36.0
+    tag: 2.41.0
+#  imagePullPolicy: IfNotPresent
+  secret: cluster1-pmm-secret
   serverHost: monitoring-service
-  resources:
-    requests:
-      memory: 200M
-      cpu: 500m
+#  resources:
+#    requests:
+#      memory: 200M
+#      cpu: 500m
 
-backup:
-  image: ""
-  backrestRepoImage: ""
-  resources:
-    requests:
-      memory: "48Mi"
-  volumeSpec:
-    size: 1G
-    accessmode: ReadWriteOnce
-    storagetype: dynamic
-    storageclass: "standard"
-  schedule:
-  antiAffinityType:
-  affinity:
-    antiAffinityType: preferred
+# patroni:
+#   dynamicConfiguration:
+#     postgresql:
+#       parameters:
+#         max_parallel_workers: 2
+#         max_worker_processes: 2
+#         shared_buffers: 1GB
+#         work_mem: 2MB
+#       pg_hba:
+#       - host    all mytest 123.123.123.123/32 reject
 
-pgBouncer:
-  image: ""
-  size: 3
-  resources:
-    requests:
-      cpu: "1"
-      memory: "128Mi"
-    limits:
-      cpu: "2"
-      memory: "512Mi"
-  expose:
-    serviceType: ClusterIP
-    loadBalancerSourceRanges: []
-    loadBalancerIP:
-  exposePostgresUser: false
-  antiAffinityType: preferred
-
-replicas:
-  size: 2
-  resources:
-    requests:
-      cpu: "1"
-      memory: "128Mi"
-    limits:
-      cpu: "1"
-      memory: "128Mi"
-  volumeSpec:
-    accessmode: ReadWriteOnce
-    size: 1G
-    storagetype: dynamic
-    storageclass: "standard"
-  enableSyncStandby: false
-  expose:
-    serviceType: ClusterIP
-
-pgBadger:
-  enabled: false
-  image: ""
-  port: 10000
+# extensions:
+#   image: percona/percona-postgresql-operator:2.3.1
+#   imagePullPolicy: Always
+#   storage:
+#     type: s3
+#     bucket: pg-extensions
+#     region: eu-central-1
+#     secret:
+#       name: cluster1-extensions-secret
+#   builtin:
+#     pg_stat_monitor: true
+#     pg_audit: true
+#   custom:
+#   - name: pg_cron
+#     version: 1.6.1
 
 secrets:
   name:
@@ -127,8 +311,3 @@ secrets:
   pgbouncer:
   # pguser user password
   pguser:
-
-versionService:
-  url: "https://check.percona.com"
-  apply: "disabled"
-  schedule: "0 4 * * *"

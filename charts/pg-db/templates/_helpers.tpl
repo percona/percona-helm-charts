@@ -44,76 +44,46 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
-{{- define "pg-database.primary-image" -}}
-{{- if .Values.pgPrimary.image }}
-{{- .Values.pgPrimary.image }}
+{{- define "pg-database.postgres-image" -}}
+{{- if .Values.image }}
+{{- .Values.image }}
 {{- else }}
-{{- printf "%s:%s-%s-postgres-ha" .Values.image.repo .Chart.AppVersion .Values.image.pgver }}
+{{- printf "%s:%s-ppg%d-postgres" .Values.repository .Chart.AppVersion (.Values.postgresVersion | int ) }}
 {{- end }}
 {{- end -}}
 
 {{- define "pg-database.backup-image" -}}
-{{- if .Values.backup.image }}
-{{- .Values.backup.image }}
+{{- if .Values.backups.pgbackrest.image }}
+{{- .Values.backups.pgbackrest.image }}
 {{- else }}
-{{- printf "%s:%s-%s-pgbackrest" .Values.image.repo .Chart.AppVersion .Values.image.pgver }}
-{{- end }}
-{{- end -}}
-
-{{- define "pg-database.backup-repo-image" -}}
-{{- if .Values.backup.backrestRepoImage }}
-{{- .Values.backup.backrestRepoImage }}
-{{- else }}
-{{- printf "%s:%s-%s-pgbackrest-repo" .Values.image.repo .Chart.AppVersion .Values.image.pgver }}
+{{- printf "%s:%s-ppg%d-pgbackrest" .Values.repository .Chart.AppVersion (.Values.postgresVersion | int ) }}
 {{- end }}
 {{- end -}}
 
 {{- define "pg-database.pgbouncer-image" -}}
-{{- if .Values.pgBouncer.image }}
-{{- .Values.pgBouncer.image }}
+{{- if .Values.proxy.pgBouncer.image }}
+{{- .Values.proxy.pgBouncer.image }}
 {{- else }}
-{{- printf "%s:%s-%s-pgbouncer" .Values.image.repo .Chart.AppVersion .Values.image.pgver }}
+{{- printf "%s:%s-ppg%d-pgbouncer" .Values.repository .Chart.AppVersion (.Values.postgresVersion | int )}}
 {{- end }}
 {{- end -}}
 
-{{- define "pg-database.pgbadger-image" -}}
-{{- if .Values.pgBouncer.image }}
-{{- .Values.pgBouncer.image }}
-{{- else }}
-{{- printf "%s:%s-%s-pgbadger" .Values.image.repo .Chart.AppVersion .Values.image.pgver }}
+{{- define "pg-database.backup-repos" -}}
+{{- if .Values.backups.pgbackrest.repos }}
+repos:
+{{- range $repo := .Values.backups.pgbackrest.repos }}
+{{- if or ($repo.s3) ($repo.gcs) }}
+  {{- if $repo.endpoint }}
+    endpoint: {{ $repo.endpoint }}
+  {{- end }}
+  {{- if $repo.region }}
+    region: {{ $repo.region }}
+  {{- end }}
+    bucket: {{ $repo.bucket }}
 {{- end }}
-{{- end -}}
-
-{{- define "pg-database.backup-storages" -}}
-{{- if .Values.backup.storages }}
-storages:
-{{- range $storage := .Values.backup.storages }}
-{{- if or (eq $storage.type "s3") (eq $storage.type "gcs") }}
-  {{ $storage.name }}:
-  {{- if $storage.type }}
-    type: {{ $storage.type }}
-  {{- end }}
-  {{- if $storage.endpointUrl }}
-    endpointUrl: {{ $storage.endpointUrl }}
-  {{- end }}
-  {{- if $storage.region }}
-    region: {{ $storage.region }}
-  {{- end }}
-  {{- if $storage.uriStyle }}
-    uriStyle: {{ $storage.uriStyle }}
-  {{- end }}
-  {{- if $storage.verifyTLS }}
-    verifyTLS: {{ $storage.verifyTLS }}
-  {{- end }}
-    bucket: {{ $storage.bucket }}
+{{- if $repo.azure }}
+    container: {{ $repo.container}}
 {{- end }}
 {{- end }}
-storageTypes:
-{{- range $storage := .Values.backup.storages }}
-- {{ $storage.type }}
 {{- end }}
-{{- else }}
-storageTypes:
-- local
 {{- end }}
-{{- end -}}

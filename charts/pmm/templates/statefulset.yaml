@@ -106,6 +106,9 @@ spec:
               mountPath: /srv/nginx
               readOnly: true
             {{- end }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
       volumes:
         - name: annotations
           projected:
@@ -120,6 +123,9 @@ spec:
           secret:
             secretName: {{ .Values.certs.name }}
             optional: false
+      {{- end }}
+      {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
       {{- end }}
   volumeClaimTemplates:
     - metadata:

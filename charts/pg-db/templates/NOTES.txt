@@ -21,10 +21,15 @@ Join Percona Squad! Get early access to new product features, invite-only ”ask
 >>> https://percona.com/k8s <<<
 
 To get a PostgreSQL prompt inside your new cluster you can run:
+{{ $clusterName := include "pg-database.fullname" . }} 
+{{- if .Values.users }}
+  {{ $users := .Values.users }} {{ $firstUser := first $users }} {{ $userName := $firstUser.name }}
+  PGBOUNCER_URI=$(kubectl -n {{ .Release.Namespace }} get secrets {{ $clusterName }}-pguser-{{ $userName }} -o jsonpath="{.data.pgbouncer-uri}" | base64 --decode)
+{{- else }}
+  PGBOUNCER_URI=$(kubectl -n {{ .Release.Namespace }} get secrets {{ $clusterName }}-pguser-{{ $clusterName }} -o jsonpath="{.data.pgbouncer-uri}" | base64 --decode)
+{{- end }}
 
-  POSTGRES_USER=$(kubectl -n {{ .Release.Namespace }} get secrets {{ include "pg-database.fullname" . }}-{{ .Values.defaultUser }}-secret -o jsonpath="{.data.username}" | base64 --decode)
-  POSTGRES_PASSWORD=$(kubectl -n {{ .Release.Namespace }} get secrets {{ include "pg-database.fullname" . }}-{{ .Values.defaultUser }}-secret -o jsonpath="{.data.password}" | base64 --decode)
+And then connect to a cluster with a temporary Pod:
 
-And then
-  $ kubectl run -i --rm --tty percona-client --image=perconalab/percona-distribution-postgresql:13.2 --restart=Never \
-  -- psql "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@{{ include "pg-database.fullname" . }}-pgbouncer.{{ .Release.Namespace }}.svc.cluster.local/{{ .Values.defaultDatabase }}"
+  $ kubectl run -i --rm --tty percona-client --image=perconalab/percona-distribution-postgresql:16 --restart=Never \
+  -- psql $PGBOUNCER_URI

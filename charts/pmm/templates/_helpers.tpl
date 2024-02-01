@@ -72,6 +72,7 @@ Pod annotation
 {{- define "pmm.podAnnotations" -}}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ include "pmm.chart" . }}
+checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
 {{- if .Values.podAnnotations }}
 {{ toYaml .Values.podAnnotations }}
 {{- end }}

@@ -1,5 +1,4 @@
 # Percona Operator for PostgreSQL
-
 This helm chart deploys the Kubernetes Operator to manage Percona Distribution for PostgreSQL.
 
 Useful links:
@@ -10,42 +9,47 @@ A job will be created based on `helm` `install`, `upgrade`, or `uninstall`. Afte
 job has completed the RBAC will be cleaned up.
 
 ## Pre-requisites
-* Kubernetes 1.22+
+* Kubernetes 1.23+
 * At least `v3.2.3` version of helm
 
 # Installation
-
 This chart will deploy the Operator Pod for the further PostgreSQL creation in Kubernetes.
+NOTE:
+```
+The PG Operator v2 is not directly compatible with old v1 so it is advised to always specify `--version`
+when installing pg-operator or pg-db charts to not accidentally cause upgrade to v2 if you were using v1
+previously.
+```
 
 ## Installing the chart
 To install the chart with the `pg-operator` release name using a dedicated namespace (recommended):
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pg-operator --version 1.4.0 --namespace my-namespace --create-namespace
+helm install my-operator percona/pg-operator --version 2.3.1 --namespace my-namespace --create-namespace
 ```
 
 ## Configuration
-
 The following shows the configurable parameters that are relevant to the Helm
 Chart.
 
-| Name | Default | Description |
-| ---- | ------- | ----------- |
-| fullnameOverride | "" |  |
-| rbac.create | true | If false RBAC will not be created. RBAC resources will need to be created manually and bound to `serviceAccount.name` |
-| rbac.useClusterAdmin | false | If enabled the ServiceAccount will be given cluster-admin privileges. |
-| serviceAccount.create | true | If false a ServiceAccount will not be created. A ServiceAccount must be created manually. |
-| serviceAccount.name | "" | Use to override the default ServiceAccount name. If serviceAccount.create is false this ServiceAccount will be used. |
-| disable_telemetry | false | Check actual images version at https://check.percona.com. Set `true` for disabling the feature |
-
+| Parameter                       | Description                                                             | Default                                          |
+| ------------------------------- | ------------------------------------------------------------------------| -------------------------------------------------|
+| `image` | PG Operator Container image full path | `percona/percona-postgresql-operator:2.3.1` |
+| `imagePullPolicy` | PG Operator Container pull policy | `Always`|
+| `resources` | Resource requests and limits | `{}` |
+| `nodeSelector` | Labels for Pod assignment | `{}` |
+| `logStructured` | Force PXC operator to print JSON-wrapped log messages | `false` |
+| `logLevel` | PXC Operator logging level | `INFO` |
+| `disableTelemetry` | Disable sending PXC Operator telemetry data to Percona | `false`|
+| `watchNamespace` | Set this variable if the target cluster namespace differs from operators namespace | `` |
+| `watchAllNamespaces` | K8S Cluster-wide operation | `false` |
 
 ## Deploy the database
-
 To deploy Percona Operator for PostgreSQL cluster with disabled telemetry run the following command:
 
 ```sh
-helm install my-db percona/pg-db --version 1.4.0 --namespace my-namespace --set disable_telemetry="true"
+helm install my-db percona/pg-db --version 2.3.1 --namespace my-namespace
 ```
 
 See more about Percona Operator for PostgreSQL deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
