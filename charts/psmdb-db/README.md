@@ -93,6 +93,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].volumeSpec.emptyDir`       | ReplicaSet Pods emptyDir K8S storage                          | `{}`                                  |
 | `replsets[0].volumeSpec.hostPath`       | ReplicaSet Pods hostPath K8S storage                          |                                       |
 | `replsets[0].volumeSpec.hostPath.path`       | ReplicaSet Pods hostPath K8S storage path                       | `""`                                  |
+| `replsets[0].volumeSpec.hostPath.type`       | Type for hostPath volume                       | `Directory`                                  |
 | `replsets[0].volumeSpec.pvc`                   | ReplicaSet Pods PVC request parameters                       |                                       |
 | `replsets[0].volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}`                                  |
 | `replsets[0].volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}`                                  |
@@ -119,6 +120,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets[0].nonvoting.volumeSpec.emptyDir`       | Nonvoting Pods emptyDir K8S storage                  | `{}`                                  |
 | `replsets[0].nonvoting.volumeSpec.hostPath`       | Nonvoting Pods hostPath K8S storage                  |                                       |
 | `replsets[0].nonvoting.volumeSpec.hostPath.path`  | Nonvoting Pods hostPath K8S storage path             | `""`                                  |
+| `replsets[0].nonvoting.volumeSpec.hostPath.type`  | Type for hostPath volume                             | `Directory`                           |
 | `replsets[0].nonvoting.volumeSpec.pvc`            | Nonvoting Pods PVC request parameters                |                                       |
 | `replsets[0].nonvoting.volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}`                                  |
 | `replsets[0].nonvoting.volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}`                                  |
@@ -172,6 +174,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.resources.requests.memory`  | Config ReplicaSet resource requests memory | `0.5G`                                |
 | `sharding.configrs.volumeSpec.hostPath`        | Config ReplicaSet hostPath K8S storage |                                       |
 | `sharding.configrs.volumeSpec.hostPath.path`   | Config ReplicaSet hostPath K8S storage path | `""`                                  |
+| `sharding.configrs.volumeSpec.hostPath.type`   | Type for hostPath volum                     | `Directory`                           |
 | `sharding.configrs.volumeSpec.emptyDir`        | Config ReplicaSet Pods emptyDir K8S storage |                                       |
 | `sharding.configrs.volumeSpec.pvc`             | Config ReplicaSet Pods PVC request parameters |                                       |
 | `sharding.configrs.volumeSpec.pvc.annotations` | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}`                                  |
