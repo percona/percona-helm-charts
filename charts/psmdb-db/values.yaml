@@ -102,6 +102,8 @@ replsets:
     # priorityClass: ""
     # annotations: {}
     # labels: {}
+    # podSecurityContext: {}
+    # containerSecurityContext: {}
     # nodeSelector: {}
     # livenessProbe:
     #   failureThreshold: 4
@@ -180,7 +182,7 @@ replsets:
       #   - 10.0.0.0/8
       # serviceAnnotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels: 
+      # serviceLabels:
       #   some-label: some-key
     # schedulerName: ""
     resources:
@@ -326,6 +328,8 @@ sharding:
     # priorityClass: ""
     # annotations: {}
     # labels: {}
+    # podSecurityContext: {}
+    # containerSecurityContext: {}
     # nodeSelector: {}
     # livenessProbe: {}
     # readinessProbe: {}
@@ -349,7 +353,7 @@ sharding:
       #   - 10.0.0.0/8
       # serviceAnnotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels: 
+      # serviceLabels:
       #   some-label: some-key
     resources:
       limits:
@@ -409,6 +413,8 @@ sharding:
     # priorityClass: ""
     # annotations: {}
     # labels: {}
+    # podSecurityContext: {}
+    # containerSecurityContext: {}
     # nodeSelector: {}
     # livenessProbe: {}
     # readinessProbe: {}
@@ -439,7 +445,7 @@ sharding:
       #   - 10.0.0.0/8
       # serviceAnnotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels: 
+      # serviceLabels:
       #   some-label: some-key
     # auditLog:
     #   destination: file
@@ -459,6 +465,8 @@ backup:
   serviceAccountName: percona-server-mongodb-operator
   # annotations:
   #   iam.amazonaws.com/role: role-arn
+  # podSecurityContext: {}
+  # containerSecurityContext: {}
   # resources:
   #   limits:
   #     cpu: "300m"
