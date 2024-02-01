@@ -196,6 +196,7 @@ replsets:
       # emptyDir: {}
       # hostPath:
       #   path: /data
+      #   type: Directory
       pvc:
         # annotations:
         #   volume.beta.kubernetes.io/storage-class: example-hostpath
@@ -252,6 +253,7 @@ replsets:
         # emptyDir: {}
         # hostPath:
         #   path: /data
+        #   type: Directory
         pvc:
           # annotations:
           #   volume.beta.kubernetes.io/storage-class: example-hostpath
