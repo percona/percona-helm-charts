@@ -58,3 +58,9 @@ podAnnotations: {}
 logStructured: false
 logLevel: "INFO"
 disableTelemetry: false
+
+extraEnvVars: []
+# - name: http_proxy
+#   value: "example-proxy-http"
+# - name: https_proxy
+#   value: "example-proxy-https"
