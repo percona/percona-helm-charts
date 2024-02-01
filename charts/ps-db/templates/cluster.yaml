@@ -454,12 +454,12 @@ spec:
   {{- end }}
 
   backup:
-  {{- if not .Values.backup.enabled }}
+  {{- $backup := .Values.backup }}
+    image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
+  {{- if not $backup.enabled }}
     enabled: false
   {{- else }}
-    {{- $backup := .Values.backup }}
     enabled: true
-    image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
     {{- if $backup.imagePullPolicy }}
     imagePullPolicy: {{ $backup.imagePullPolicy }}
     {{- end }}
