@@ -40,6 +40,7 @@ The chart can be customized using the following configurable parameters:
 | `disableTelemetry`              | Disable sending PXC Operator telemetry data to Percona                                         | `false`                                          |
 | `rbac.create`                   | If false RBAC will not be created. RBAC resources will need to be created manually             | `true`                                           |
 | `serviceAccount.create`         | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually | `true`                                           |
+| `extraEnvVars`                  | Custom pod environment variables                                                               | `[]`                                             |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 
