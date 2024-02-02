@@ -40,7 +40,7 @@ Follow this doc: [https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_Mo
 
 ## 3. Install Helm chart
 
-- Update the role in the file [values.yaml](./values.yaml) at the line `66` and `93`.
+- Update the role in the file [values.yaml](./values.yaml) at the line `58` and `85`.
 
 ```yaml
 ...
