@@ -14,6 +14,9 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
+# PerconaXtraDBCluster annotations
+annotations: {}
+
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
 crVersion: 1.13.0
