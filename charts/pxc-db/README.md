@@ -42,6 +42,7 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:delete-proxysql-pvc`  | Set this if you want to delete proxysql persistent volumes on cluster deletion | []                                                                       |
 | `finalizers:delete-pxc-pvc`       | Set this if you want to delete database persistent volumes on cluster deletion | []                                                                       |
 | `finalizers:delete-ssl`           | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion | []                                                                       |
+| `annotations`                     | PerconaXtraDBCluster custom resource annotations                               | {}                                                                       |
 | `tls.SANs`                        | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]`                                                                     |
 | `tls.issuerConf.name`             | A cert-manager issuer name  | `""`                                                                     |
 | `tls.issuerConf.kind`             | A cert-manager issuer type  | `""`                                                                     |
