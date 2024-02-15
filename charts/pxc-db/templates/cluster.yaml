@@ -9,7 +9,7 @@ metadata:
 {{ .Values.finalizers | toYaml | indent 4 }}
   {{- with .Values.annotations }}
   annotations:
-    {{ .  | toYaml | nindent 4 }}
+    {{- .  | toYaml | nindent 4 }}
   {{- end }}
 spec:
   crVersion: {{ .Chart.AppVersion }}
