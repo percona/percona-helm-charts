@@ -48,10 +48,24 @@ spec:
   {{- else }}
   logCollectorSecretName: {{ include "pxc-database.fullname" . }}-log-collector
   {{- end }}
-  {{- if .Values.initImage }}
-  initImage: {{ .Values.initImage }}
-  {{- else }}
-  initImage: {{ include "pxc-db.operator-image" . }}
+  {{- if .Values.initContainer }}
+  initContainer:
+    {{- if hasKey .Values.initContainer "image" }}
+    image: {{ .Values.initContainer.image }}
+    {{- else }}
+    image: {{ include "pxc-db.operator-image" . }}
+    {{- end }}
+    {{- if .Values.initContainer.resources }}
+    resources:
+      {{- if hasKey .Values.initContainer.resources "requests" }}
+      requests:
+{{ tpl (.Values.initContainer.resources.requests | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if hasKey .Values.initContainer.resources "limits" }}
+      limits:
+{{ tpl (.Values.initContainer.resources.limits | toYaml) $ | indent 8 }}
+      {{- end }}
+    {{- end }}
   {{- end }}
   {{- if or .Values.allowUnsafeConfigurations .Values.pxc.disableTLS }}
   allowUnsafeConfigurations: true
@@ -139,6 +153,10 @@ spec:
 {{ tpl ($pxc.sidecarResources.limits | toYaml) $ | indent 8 }}
     nodeSelector:
 {{ $pxc.nodeSelector | toYaml | indent 6 }}
+    {{- if $pxc.topologySpreadConstraints }}
+    topologySpreadConstraints:
+{{ $pxc.topologySpreadConstraints | toYaml | indent 6 }}
+    {{- end }}
     affinity:
 {{ $pxc.affinity | toYaml | indent 6 }}
     tolerations:
@@ -169,6 +187,17 @@ spec:
     {{- end }}
     {{- end }}
     gracePeriod: {{ $pxc.gracePeriod }}
+    {{- if hasKey $pxc "lifecycle" }}
+    lifecycle:
+      {{- if hasKey $pxc.lifecycle "preStop" }}
+      preStop:
+        {{- $pxc.lifecycle.preStop | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if hasKey $pxc.lifecycle "postStart" }}
+      postStart:
+        {{- $pxc.lifecycle.postStart | toYaml | nindent 8 }}
+      {{- end }}
+    {{- end }}
     readinessProbes:
 {{ tpl ($pxc.readinessProbes | toYaml) $ | indent 6 }}
     livenessProbes:
@@ -210,52 +239,13 @@ spec:
     {{- if $haproxy.priorityClassName }}
     priorityClassName: {{ $haproxy.priorityClassName }}
     {{- end }}
-    {{- if $haproxy.externalTrafficPolicy }}
-    externalTrafficPolicy: {{ $haproxy.externalTrafficPolicy }}
+    {{- if $haproxy.exposePrimary }}
+    exposePrimary:
+{{ tpl ($haproxy.exposePrimary | toYaml) $ | indent 6 }}
     {{- end }}
-    {{- if $haproxy.loadBalancerSourceRanges }}
-    loadBalancerSourceRanges:
-{{ $haproxy.loadBalancerSourceRanges | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $haproxy.loadBalancerIP }}
-    loadBalancerIP: {{ $haproxy.loadBalancerIP }}
-    {{- end }}
-    {{- if $haproxy.serviceType }}
-    serviceType: {{ $haproxy.serviceType }}
-    {{- end }}
-    replicasServiceEnabled: {{ $haproxy.replicasServiceEnabled }}
-    {{- if $haproxy.replicasLoadBalancerSourceRanges }}
-    replicasLoadBalancerSourceRanges:
-{{ $haproxy.replicasLoadBalancerSourceRanges | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $haproxy.replicasLoadBalancerIP }}
-    replicasLoadBalancerIP: {{ $haproxy.replicasLoadBalancerIP }}
-    {{- end }}
-    {{- if $haproxy.replicasServiceType }}
-    replicasServiceType: {{ $haproxy.replicasServiceType }}
-    {{- end }}
-    {{- if $haproxy.replicasExternalTrafficPolicy }}
-    replicasExternalTrafficPolicy: {{ $haproxy.replicasExternalTrafficPolicy }}
-    {{- end }}
-    {{- if $haproxy.replicasServiceAnnotations }}
-    replicasServiceAnnotations:
-{{ $haproxy.replicasServiceAnnotations | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $haproxy.replicasServiceLabels }}
-    replicasServiceLabels:
-{{ $haproxy.replicasServiceLabels | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $haproxy.serviceLabels }}
-    serviceLabels:
-{{ $haproxy.serviceLabels | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $haproxy.serviceAnnotations }}
-    serviceAnnotations:
-{{ $haproxy.serviceAnnotations | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $haproxy.serviceLabels }}
-    serviceLabels:
-{{ $haproxy.serviceLabels | toYaml | indent 6 }}
+    {{- if $haproxy.exposeReplicas }}
+    exposeReplicas:
+{{ tpl ($haproxy.exposeReplicas | toYaml) $ | indent 6 }}
     {{- end }}
     annotations:
 {{ $haproxy.annotations | toYaml | indent 6 }}
@@ -288,6 +278,10 @@ spec:
     {{- end }}
     nodeSelector:
 {{ $haproxy.nodeSelector | toYaml | indent 6 }}
+    {{- if $haproxy.topologySpreadConstraints }}
+    topologySpreadConstraints:
+{{ $haproxy.topologySpreadConstraints | toYaml | indent 6 }}
+    {{- end }}
     affinity:
 {{ $haproxy.affinity | toYaml | indent 6 }}
     tolerations:
@@ -297,6 +291,17 @@ spec:
     volumeSpec:
       emptyDir: {}
     gracePeriod: {{ $haproxy.gracePeriod }}
+    {{- if hasKey $haproxy "lifecycle" }}
+    lifecycle:
+      {{- if hasKey $haproxy.lifecycle "preStop" }}
+      preStop:
+        {{- $haproxy.lifecycle.preStop | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if hasKey $haproxy.lifecycle "postStart" }}
+      postStart:
+        {{- $haproxy.lifecycle.postStart | toYaml | nindent 8 }}
+      {{- end }}
+    {{- end }}
     {{- if $haproxy.readinessDelaySec }}
     readinessDelaySec: {{ $haproxy.readinessDelaySec }}
     {{- end }}
@@ -342,26 +347,9 @@ spec:
     {{- if $proxysql.priorityClassName }}
     priorityClassName: {{ $proxysql.priorityClassName }}
     {{- end }}
-    {{- if $proxysql.externalTrafficPolicy }}
-    externalTrafficPolicy: {{ $proxysql.externalTrafficPolicy }}
-    {{- end }}
-    {{- if $proxysql.loadBalancerSourceRanges }}
-    loadBalancerSourceRanges:
-{{ $proxysql.loadBalancerSourceRanges | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $proxysql.loadBalancerIP }}
-    loadBalancerIP: {{ $proxysql.loadBalancerIP }}
-    {{- end }}
-    {{- if $proxysql.serviceType }}
-    serviceType: {{ $proxysql.serviceType }}
-    {{- end }}
-    {{- if $proxysql.serviceAnnotations }}
-    serviceAnnotations:
-{{ $proxysql.serviceAnnotations | toYaml | indent 6 }}
-    {{- end }}
-    {{- if $proxysql.serviceLabels }}
-    serviceLabels:
-{{ $proxysql.serviceLabels | toYaml | indent 6 }}
+    {{- if $proxysql.expose }}
+    expose:
+{{ tpl ($proxysql.expose | toYaml) $ | indent 6 }}
     {{- end }}
     annotations:
 {{ $proxysql.annotations | toYaml | indent 6 }}
@@ -394,6 +382,10 @@ spec:
     {{- end }}
     nodeSelector:
 {{ $proxysql.nodeSelector | toYaml | indent 6 }}
+    {{- if $proxysql.topologySpreadConstraints }}
+    topologySpreadConstraints:
+{{ $proxysql.topologySpreadConstraints | toYaml | indent 6 }}
+    {{- end }}
     affinity:
 {{ $proxysql.affinity | toYaml | indent 6 }}
     tolerations:
@@ -424,6 +416,17 @@ spec:
     {{- end }}
     {{- end }}
     gracePeriod: {{ $proxysql.gracePeriod }}
+    {{- if hasKey $proxysql "lifecycle" }}
+    lifecycle:
+      {{- if hasKey $proxysql.lifecycle "preStop" }}
+      preStop:
+        {{- $proxysql.lifecycle.preStop | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if hasKey $proxysql.lifecycle "postStart" }}
+      postStart:
+        {{- $proxysql.lifecycle.postStart | toYaml | nindent 8 }}
+      {{- end }}
+    {{- end }}
     {{- if $proxysql.containerSecurityContext }}
     containerSecurityContext:
 {{ tpl ($proxysql.containerSecurityContext | toYaml) $ | indent 6 }}
@@ -516,6 +519,7 @@ spec:
       enabled: true
       storageName: {{ $backup.pitr.storageName }}
       timeBetweenUploads: {{ $backup.pitr.timeBetweenUploads }}
+      timeoutSeconds: {{ $backup.pitr.timeoutSeconds }}
       resources:
         requests:
 {{ tpl ($backup.pitr.resources.requests | toYaml) $ | indent 10 }}
