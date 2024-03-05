@@ -19,11 +19,9 @@ kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: service-account-{{ include "psmdb-operator.fullname" . }}
-  {{- if .Values.watchNamespace }}
-  namespace: {{ .Values.watchNamespace }}
-  {{- else if not .Values.watchAllNamespaces }}
+{{- if not (or .Values.watchNamespace .Values.watchAllNamespaces) }}
   namespace: {{ .Release.Namespace }}
-  {{- end }}
+{{- end }}
   labels:
 {{ include "psmdb-operator.labels" . | indent 4 }}
 subjects:

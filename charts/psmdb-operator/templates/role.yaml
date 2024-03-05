@@ -7,7 +7,9 @@ kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
+{{- if not (or .Values.watchNamespace .Values.watchAllNamespaces) }}
   namespace: {{ .Release.Namespace }}
+{{- end }}
   labels:
 {{ include "psmdb-operator.labels" . | indent 4 }}
 rules:
