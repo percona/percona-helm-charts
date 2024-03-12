@@ -35,7 +35,7 @@ The chart can be customized using the following configurable parameters:
 | `annotations`                   | PSMDB Operator Deployment annotations                                         | `{}`                                      |
 | `podAnnotations`                | PSMDB Operator Pod annotations                                                | `{}`                                      |
 | `labels`                        | PSMDB Operator Deployment labels                                              | `{}`                                      |
-| `podlabels`                     | PSMDB Operator Pod labels                                                     | `{}`                                      |
+| `podLabels`                     | PSMDB Operator Pod labels                                                     | `{}`                                      |
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
 | `podAnnotations`                | Annotations for pod                                                           | `{}`                                      |
