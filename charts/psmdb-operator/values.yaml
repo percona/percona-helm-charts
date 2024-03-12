@@ -48,7 +48,7 @@ podAnnotations: {}
   # prometheus.io/scrape: "true"
   # prometheus.io/port: "8080"
 
-#labels to the operator pod
+# labels to the operator pod
 podLabels: {}
   
 podSecurityContext: {}
