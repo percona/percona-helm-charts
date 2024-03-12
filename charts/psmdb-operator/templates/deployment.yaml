@@ -3,8 +3,11 @@ kind: Deployment
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.labels }}
   labels:
     {{- include "psmdb-operator.labels" . | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
+  {{- end -}}}}
   {{- with .Values.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -21,9 +24,12 @@ spec:
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.podLabels }}
       labels:
         app.kubernetes.io/name: {{ include "psmdb-operator.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- toYaml . | nindent 4 }}
+      {{- end -}}}}
     spec:
       serviceAccountName: {{ include "psmdb-operator.fullname" . }}
       securityContext:
