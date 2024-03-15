@@ -268,7 +268,7 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.global }}
       global:
-      {{ .Values.backups.pgbackrest.global | toYaml | indent 8 }}
+{{ .Values.backups.pgbackrest.global | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.backups.pgbackrest.repoHost }}
       repoHost:
