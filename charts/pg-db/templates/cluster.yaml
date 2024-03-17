@@ -117,8 +117,8 @@ spec:
       {{- if $instance.resources }}
       resources:
         limits:
-          cpu: $instance.resources.limits.cpu
-          memory: $instance.resources.limits.memory
+          cpu: {{ $instance.resources.limits.cpu }}
+          memory: {{ $instance.resources.limits.memory }}
       {{- end }}
       {{- if $instance.sidecars }}
       sidecars:
