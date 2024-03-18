@@ -34,11 +34,14 @@ The chart can be customized using the following configurable parameters:
 | `tolerations`                   | List of node taints to tolerate                                               | `[]`                                      |
 | `annotations`                   | PSMDB Operator Deployment annotations                                         | `{}`                                      |
 | `podAnnotations`                | PSMDB Operator Pod annotations                                                | `{}`                                      |
+| `labels`                        | PSMDB Operator Deployment labels                                              | `{}`                                      |
+| `podLabels`                     | PSMDB Operator Pod labels                                                     | `{}`                                      |
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
 | `podAnnotations`                | Annotations for pod                                                           | `{}`                                      |
 | `podSecurityContext`            | Pod Security Context                                                          | `{}`                                      |
-| `watchNamespace`                | Set when a different from default namespace is needed to watch                | `""`                                      |
+| `watchNamespace`                | Set when a different from default namespace is needed to watch (comma separated if multiple needed)  | `""`               |
+| `createNamespace`               | Set if you want to create watched namespaces with helm                        | `false`                                   |
 | `rbac.create`                   | If false RBAC will not be created. RBAC resources will need to be created manually  | `true`                              |
 | `securityContext`               | Container Security Context                                                    | `{}`                                      |
 | `serviceAccount.create`         | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually  | `true`                  |
