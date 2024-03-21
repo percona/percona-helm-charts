@@ -15,11 +15,11 @@ metadata:
 {{ .Values.finalizers | toYaml | indent 4 }}    
   name: {{ include "pg-database.fullname" . }}
 spec:
-  crVersion: {{ .Values.crVersion}}
-  image: {{ include "pg-database.postgres-image" .}}
+  crVersion: {{ .Values.crVersion }}
+  image: {{ include "pg-database.postgres-image" . }}
   imagePullPolicy: Always
   port: {{ default 5432 .Values.port }}
-  postgresVersion: {{ .Values.postgresVersion}}
+  postgresVersion: {{ .Values.postgresVersion }}
   standby:
     enabled: {{ .Values.standby.enabled }}
   {{- if or (.Values.customTLSSecret.name) (.Values.customReplicationTLSSecret.name) }}
@@ -30,7 +30,7 @@ spec:
     {{- end }}
     {{- if .Values.customReplicationTLSSecret.name }}
     customReplicationTLSSecret:
-      name: .Values.customReplicationTLSSecret.name
+      name: {{ .Values.customReplicationTLSSecret.name }}
     {{- end }}
   {{- end }}
 
@@ -61,12 +61,12 @@ spec:
 
   {{- if .Values.databaseInitSQL }}
   databaseInitSQL:
-    key: .Values.databaseInitSQL.key
-    name: .Values.databaseInitSQL.name
+    key: {{ .Values.databaseInitSQL.key }}
+    name: {{ .Values.databaseInitSQL.name }}
   {{- end }}
 
   pause: {{ default false .Values.pause }}
-  unmanaged: {{ default false .Values.unmanaged}}
+  unmanaged: {{ default false .Values.unmanaged }}
   {{- if .Values.dataSource }}
   dataSource:
     postgresCluster:
@@ -83,7 +83,7 @@ spec:
           name: {{ .Values.dataSource.pgbackrest.configuration.secret.name }}
       global:
         {{- range $setting := .Values.dataSource.global }}
-        $setting
+        {{ $setting }}
         {{- end }}
       repo:
         name: {{ .Values.dataSource.repo.name }}
@@ -117,14 +117,14 @@ spec:
       {{- if $instance.resources }}
       resources:
         limits:
-          cpu: $instance.resources.limits.cpu
-          memory: $instance.resources.limits.memory
+          cpu: {{ $instance.resources.limits.cpu }}
+          memory: {{ $instance.resources.limits.memory }}
       {{- end }}
       {{- if $instance.sidecars }}
       sidecars:
       {{- range $sidecar := $instance.sidecars }}
-      - name: $sidecar.name
-        image: $sidecar.image
+      - name: {{ $sidecar.name }}
+        image: {{ $sidecar.image }}
       {{- end }}
       {{- end }}
       {{- if $instance.topologySpreadConstraints }}
@@ -200,8 +200,8 @@ spec:
       {{- if .Values.proxy.pgBouncer.sidecars }}
       sidecars:
       {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
-      - name: $sidecar.name
-        image: $sidecar.image
+      - name: {{ $sidecar.name }}
+        image: {{ $sidecar.image }}
       {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.customTLSSecret }}
@@ -253,11 +253,11 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.jobs }}
       jobs:
-        priorityClassName: {{ .Values.backups.pgbackrest.jobs.priorityClassName}}
+        priorityClassName: {{ .Values.backups.pgbackrest.jobs.priorityClassName }}
         resources:
           limits:
-            cpu: {{ .Values.backups.pgbackrest.jobs.resources.limits.cpu}}
-            memory: {{ .Values.backups.pgbackrest.jobs.resources.limits.memory}}
+            cpu: {{ .Values.backups.pgbackrest.jobs.resources.limits.cpu }}
+            memory: {{ .Values.backups.pgbackrest.jobs.resources.limits.memory }}
         {{- if .Values.backups.pgbackrest.jobs.tolerations }}
         tolerations:
         - effect: {{ .Values.backups.pgbackrest.jobs.tolerations.effect }}
@@ -305,21 +305,21 @@ spec:
             - ReadWriteOnce
             resources:
               requests:
-                storage: {{ $repo.volume.volumeClaimSpec.resources.requests.storage}}
+                storage: {{ $repo.volume.volumeClaimSpec.resources.requests.storage }}
       {{- end }}
       {{- if eq $repo.name "repo2" }}
         s3:
-          bucket: {{ $repo.s3.bucket}}
+          bucket: {{ $repo.s3.bucket }}
           endpoint: {{ $repo.s3.endpoint }}
-          region: {{ $repo.s3.region}}
+          region: {{ $repo.s3.region }}
       {{- end }}
       {{- if eq $repo.name "repo3" }}
         gcs:
-          bucket: {{ $repo.gcs.bucket}}
+          bucket: {{ $repo.gcs.bucket }}
       {{- end }}
       {{- if eq $repo.name "repo4" }}
         azure:
-          container: {{ $repo.azure.container}}
+          container: {{ $repo.azure.container }}
       {{- end }}
       {{- end }}
 
