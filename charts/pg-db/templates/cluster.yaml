@@ -116,9 +116,16 @@ spec:
       {{- end }}
       {{- if $instance.resources }}
       resources:
+        {{- if $instance.resources.requests }}
+        requests:
+          cpu: {{ $instance.resources.requests.cpu }}
+          memory: {{ $instance.resources.requests.memory }}
+        {{- end }}
+        {{- if $instance.resources.limits }}
         limits:
-          cpu: $instance.resources.limits.cpu
-          memory: $instance.resources.limits.memory
+          cpu: {{ $instance.resources.limits.cpu }}
+          memory: {{ $instance.resources.limits.memory }}
+        {{- end }}
       {{- end }}
       {{- if $instance.sidecars }}
       sidecars:
