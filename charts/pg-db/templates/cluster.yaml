@@ -305,7 +305,7 @@ spec:
       - name: {{ $repo.name }}
       {{- if eq $repo.name "repo1" }}
         schedules:
-          full: {{ $repo.schedules.full }}
+          full: {{ $repo.schedules.full | quote }}
         volume:
           volumeClaimSpec:
             accessModes:
