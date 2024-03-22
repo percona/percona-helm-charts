@@ -55,7 +55,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.32-24.2
+    tag: 8.0.35-27.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
