@@ -71,8 +71,10 @@ The chart can be customized using the following configurable parameters:
 | `instances.name`                         | The name of the PostgreSQL instance                                                | `instance1`                                                 |
 | `instances.replicas`                     | The number of Replicas to create for the PostgreSQL instance | `3`                                                         |
 | `instances.affinity.podAntiAffinity`     |  Pod anti-affinity, allows setting the standard Kubernetes affinity constraints of any complexity | `{}`                                                        |
-| `instances.resources.limits.memory`      | Kubernetes memory limits for a PostgreSQL instance                                              | `4Gi`                                                       |
-| `instances.resources.limits.cpu`         | Kubernetes CPU limits for a PostgreSQL instance                                          | `2.0`                                                       |
+| `instances.resources.requests.memory`    | Kubernetes memory requests for a PostgreSQL instance                                              | `""`                                                       |
+| `instances.resources.requests.cpu`       | Kubernetes CPU requests for a PostgreSQL instance                                                 | `""`                                                       |
+| `instances.resources.limits.memory`      | Kubernetes memory limits for a PostgreSQL instance                                                | `""`                                                       |
+| `instances.resources.limits.cpu`         | Kubernetes CPU limits for a PostgreSQL instance                                                   | `""`                                                       |
 | `instances.sidecars.name`                | Name of the custom sidecar container for PostgreSQL Pods                                               | `testcontainer`                                             |
 | `instances.sidecars.image`               | Image for the custom sidecar container for PostgreSQL Pods                                               | `mycontainer1:latest`                                       |
 | `instances.topologySpreadConstraints.maxSkew` | The degree to which Pods may be unevenly distributed under the Kubernetes Pod Topology Spread Constraints                                                | `1`                                                         |
