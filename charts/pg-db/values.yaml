@@ -190,8 +190,8 @@ backups:
 #    labels:
     image: ""
 #    configuration:
-#      - secret:
-#          name: cluster1-pgbackrest-secrets
+#      secret:
+#        name: cluster1-pgbackrest-secrets
 #    jobs:
 #      priorityClassName: high-priority
 #      resources:
