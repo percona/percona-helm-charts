@@ -74,23 +74,20 @@ spec:
       repoName: {{ .Values.dataSource.postgresCluster.repoName }}
       options:
       {{- range $option := .Values.dataSource.postgresCluster.options }}
-      - $option
+      - {{ $option }}
       {{- end }}
     pgbackrest:
       stanza: {{ .Values.dataSource.pgbackrest.stanza }}
       configuration:
-      - secret:
-          name: {{ .Values.dataSource.pgbackrest.configuration.secret.name }}
+{{ .Values.dataSource.pgbackrest.configuration | toYaml | indent 6 }}
       global:
-        {{- range $setting := .Values.dataSource.global }}
-        {{ $setting }}
-        {{- end }}
+{{ .Values.dataSource.pgbackrest.global | toYaml | indent 8 }}
       repo:
-        name: {{ .Values.dataSource.repo.name }}
+        name: {{ .Values.dataSource.pgbackrest.repo.name }}
         s3:
-          bucket: {{ .Values.dataSource.repo.s3.bucket }}
-          endpoint: {{ .Values.dataSource.repo.s3.endpoint }}
-          region: {{ .Values.dataSource.repo.s3.region }}
+          bucket: {{ .Values.dataSource.pgbackrest.repo.s3.bucket }}
+          endpoint: {{ .Values.dataSource.pgbackrest.repo.s3.endpoint }}
+          region: {{ .Values.dataSource.pgbackrest.repo.s3.region }}
   {{- end }}
 
   {{- if .Values.expose }}
