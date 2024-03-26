@@ -91,6 +91,10 @@ spec:
     {{- if $mysql.priorityClassName }}
     priorityClassName: {{ $mysql.priorityClassName }}
     {{- end }}
+    {{- if $mysql.topologySpreadConstraints }}
+    topologySpreadConstraints:
+{{ $mysql.topologySpreadConstraints | toYaml | indent 6 }}
+    {{- end }}
     annotations:
 {{ $mysql.annotations | toYaml | indent 6 }}
     labels:
@@ -189,6 +193,10 @@ spec:
       {{- end }}
       affinity:
 {{ $haproxy.affinity | toYaml | indent 8 }}
+      {{- if $haproxy.topologySpreadConstraints }}
+      topologySpreadConstraints:
+{{ $haproxy.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
       {{- if $haproxy.priorityClassName }}
       priorityClassName: {{ $haproxy.priorityClassName }}
       {{- end }}
@@ -284,6 +292,10 @@ spec:
       {{- end }}
       affinity:
 {{ $router.affinity | toYaml | indent 8 }}
+      {{- if $router.topologySpreadConstraints }}
+      topologySpreadConstraints:
+{{ $router.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
       {{- if $router.configuration }}
       configuration: |
 {{- tpl $router.configuration $ | nindent 8 }}
@@ -368,6 +380,10 @@ spec:
     {{- end }}
     affinity:
 {{ $orc.affinity | toYaml | indent 6 }}
+    {{- if $orc.topologySpreadConstraints }}
+    topologySpreadConstraints:
+{{ $orc.topologySpreadConstraints | toYaml | indent 6 }}
+    {{- end }}
     {{- if $orc.priorityClassName }}
     priorityClassName: {{ $orc.priorityClassName }}
     {{- end }}
@@ -469,6 +485,9 @@ spec:
     {{- end }}
     {{- if $backup.initImage }}
     initImage: "{{ $backup.initImage }}"
+    {{- end }}
+    {{- if $backup.backoffLimit }}
+    backoffLimit: {{ $backup.backoffLimit }}
     {{- end }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
