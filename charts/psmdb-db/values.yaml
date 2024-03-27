@@ -63,8 +63,11 @@ pmm:
   serverHost: monitoring-service
 
 replsets:
-  - name: rs0
-    size: 3
+  rs0:
+    # Defaults for replica sets are set in the template so they are applied to
+    # each replica specified by user
+    # name: rs0
+    # size: 3
     # terminationGracePeriodSeconds: 300
     # externalNodes:
     # - host: 34.124.76.90
@@ -86,8 +89,8 @@ replsets:
     #     maxSkew: 1
     #     topologyKey: kubernetes.io/hostname
     #     whenUnsatisfiable: DoNotSchedule
-    affinity:
-      antiAffinityTopologyKey: "kubernetes.io/hostname"
+    affinity: {}
+      # antiAffinityTopologyKey: "kubernetes.io/hostname"
       # advanced:
       #   podAffinity:
       #     requiredDuringSchedulingIgnoredDuringExecution:
@@ -163,8 +166,8 @@ replsets:
     #     volumeMode: Filesystem
     #     accessModes:
     #       - ReadWriteOnce
-    podDisruptionBudget:
-      maxUnavailable: 1
+    podDisruptionBudget: {}
+    #  maxUnavailable: 1
     # splitHorizons:
     #   my-cluster-name-rs0-0:
     #     external: rs0-0.mycluster.xyz
@@ -175,9 +178,9 @@ replsets:
     #   my-cluster-name-rs0-2:
     #     external: rs0-2.mycluster.xyz
     #     external-2: rs0-2.mycluster2.xyz
-    expose:
-      enabled: false
-      exposeType: ClusterIP
+    expose: {}
+      # enabled: false
+      # exposeType: ClusterIP
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
       # serviceAnnotations:
@@ -185,46 +188,46 @@ replsets:
       # serviceLabels:
       #   some-label: some-key
     # schedulerName: ""
-    resources:
-      limits:
-        cpu: "300m"
-        memory: "0.5G"
-      requests:
-        cpu: "300m"
-        memory: "0.5G"
-    volumeSpec:
+    resources: {}
+      # limits:
+        # cpu: "300m"
+        # memory: "0.5G"
+      # requests:
+        # cpu: "300m"
+        # memory: "0.5G"
+    volumeSpec: {}
       # emptyDir: {}
       # hostPath:
       #   path: /data
       #   type: Directory
-      pvc:
+      # pvc:
         # annotations:
         #   volume.beta.kubernetes.io/storage-class: example-hostpath
         # labels:
         #   rack: rack-22
         # storageClassName: standard
         # accessModes: [ "ReadWriteOnce" ]
-        resources:
-          requests:
-            storage: 3Gi
+        # resources:
+          # requests:
+            # storage: 3Gi
     # hostAliases:
     # - ip: "10.10.0.2"
     #   hostnames:
     #   - "host1"
     #   - "host2"
-    nonvoting:
-      enabled: false
+    nonvoting: {}
+      # enabled: false
       # podSecurityContext: {}
       # containerSecurityContext: {}
-      size: 3
+      # size: 3
       # configuration: |
       #   operationProfiling:
       #     mode: slowOp
       #   systemLog:
       #     verbosity: 1
       # serviceAccountName: percona-server-mongodb-operator
-      affinity:
-        antiAffinityTopologyKey: "kubernetes.io/hostname"
+      # affinity:
+        # antiAffinityTopologyKey: "kubernetes.io/hostname"
         # advanced:
         #   podAffinity:
         #     requiredDuringSchedulingIgnoredDuringExecution:
@@ -240,36 +243,36 @@ replsets:
       # annotations: {}
       # labels: {}
       # nodeSelector: {}
-      podDisruptionBudget:
-        maxUnavailable: 1
-      resources:
-        limits:
-          cpu: "300m"
-          memory: "0.5G"
-        requests:
-          cpu: "300m"
-          memory: "0.5G"
-      volumeSpec:
+      # podDisruptionBudget:
+        # maxUnavailable: 1
+      # resources:
+        # limits:
+          # cpu: "300m"
+          # memory: "0.5G"
+        # requests:
+          # cpu: "300m"
+          # memory: "0.5G"
+      # volumeSpec:
         # emptyDir: {}
         # hostPath:
         #   path: /data
         #   type: Directory
-        pvc:
+        # pvc:
           # annotations:
           #   volume.beta.kubernetes.io/storage-class: example-hostpath
           # labels:
           #   rack: rack-22
           # storageClassName: standard
           # accessModes: [ "ReadWriteOnce" ]
-          resources:
-            requests:
-              storage: 3Gi
-    arbiter:
-      enabled: false
-      size: 1
+          # resources:
+            # requests:
+              # storage: 3Gi
+    arbiter: {}
+      # enabled: false
+      # size: 1
       # serviceAccountName: percona-server-mongodb-operator
-      affinity:
-        antiAffinityTopologyKey: "kubernetes.io/hostname"
+      # affinity:
+        # antiAffinityTopologyKey: "kubernetes.io/hostname"
         # advanced:
         #   podAffinity:
         #     requiredDuringSchedulingIgnoredDuringExecution:

@@ -57,86 +57,86 @@ The chart can be customized using the following configurable parameters:
 | `pmm.image.tag`                     | PMM Container image tag                                       | `2.41.0`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service`                  |
 ||
-| `replsets[0].name`                      | ReplicaSet name              | `rs0`                                 |
-| `replsets[0].size`                      | ReplicaSet size (pod quantity)              | `3`                                   |
-| `replsets[0].terminationGracePeriodSeconds`                      | The amount of seconds Kubernetes will wait for a clean replica set Pods termination    | `""`                                  |
-| `replsets[0].externalNodes`             | ReplicaSet external nodes (cross cluster replication)           | `[]`                                  |
-| `replsets[0].configuration`             | Custom config for mongod in replica set     | `""`                                  |
-| `replsets[0].topologySpreadConstraints` | Control how Pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains   | `{}`                                  |
-| `replsets[0].serviceAccountName`   | Run replicaset Containers under specified K8S SA              | `""`                                  |
-| `replsets[0].affinity.antiAffinityTopologyKey`   | ReplicaSet Pod affinity              | `kubernetes.io/hostname`              |
-| `replsets[0].affinity.advanced`          | ReplicaSet Pod advanced affinity     | `{}`                                  |
-| `replsets[0].tolerations`     | ReplicaSet Pod tolerations                    | `[]`                                  |
-| `replsets[0].priorityClass`   | ReplicaSet Pod priorityClassName              | `""`                                  |
-| `replsets[0].annotations`   | ReplicaSet Pod annotations              | `{}`                                  |
-| `replsets[0].labels`   | ReplicaSet Pod labels              | `{}`                                  |
-| `replsets[0].nodeSelector`   | ReplicaSet Pod nodeSelector labels              | `{}`                                  |
-| `replsets[0].livenessProbe`   | ReplicaSet Pod livenessProbe structure              | `{}`                                  |
-| `replsets[0].readinessProbe`  | ReplicaSet Pod readinessProbe structure             | `{}`                                  |
-| `replsets[0].storage`         | Set cacheSizeRatio or other custom MongoDB storage options | `{}`                                  |
-| `replsets[0].podSecurityContext` | Set the security context for a Pod               | `{}`                                  |
-| `replsets[0].containerSecurityContext` | Set the security context for a Container   | `{}`                                  |
-| `replsets[0].runtimeClass`   | ReplicaSet Pod runtimeClassName              | `""`                                  |
-| `replsets[0].sidecars`   | ReplicaSet Pod sidecars                          | `{}`                                  |
-| `replsets[0].sidecarVolumes`   | ReplicaSet Pod sidecar volumes             | `[]`                                  |
-| `replsets[0].sidecarPVCs`      | ReplicaSet Pod sidecar PVCs                | `[]`                                  |
-| `replsets[0].podDisruptionBudget.maxUnavailable`   | ReplicaSet failed Pods maximum quantity                | `1`                                   |
-| `replsets[0].splitHorizons`    | External URI for Split-horizon for replica set Pods of the exposed cluster | `{}`                                  |
-| `replsets[0].expose.enabled`   | Allow access to replicaSet from outside of Kubernetes              | `false`                               |
-| `replsets[0].expose.exposeType`   | Network service access point type              | `ClusterIP`                           |
-| `replsets[0].expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}`                                  |
-| `replsets[0].expose.serviceAnnotations`  | ReplicaSet service annotations | `{}`                                  |
-| `replsets[0].expose.serviceLabels`    | ReplicaSet service labels | `{}`                                  |
-| `replsets[0].schedulerName`   | ReplicaSet Pod schedulerName              | `""`                                  |
-| `replsets[0].resources`       | ReplicaSet Pods resource requests and limits                          | `{}`                                  |
-| `replsets[0].volumeSpec`       | ReplicaSet Pods storage resources                          | `{}`                                  |
-| `replsets[0].volumeSpec.emptyDir`       | ReplicaSet Pods emptyDir K8S storage                          | `{}`                                  |
-| `replsets[0].volumeSpec.hostPath`       | ReplicaSet Pods hostPath K8S storage                          |                                       |
-| `replsets[0].volumeSpec.hostPath.path`       | ReplicaSet Pods hostPath K8S storage path                       | `""`                                  |
-| `replsets[0].volumeSpec.hostPath.type`       | Type for hostPath volume                       | `Directory`                                  |
-| `replsets[0].volumeSpec.pvc`                   | ReplicaSet Pods PVC request parameters                       |                                       |
-| `replsets[0].volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}`                                  |
-| `replsets[0].volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}`                                  |
-| `replsets[0].volumeSpec.pvc.storageClassName`  | ReplicaSet Pods PVC target storageClass                      | `""`                                  |
-| `replsets[0].volumeSpec.pvc.accessModes`       | ReplicaSet Pods PVC access policy                      | `[]`                                  |
-| `replsets[0].volumeSpec.pvc.resources.requests.storage`       | ReplicaSet Pods PVC storage size                      | `3Gi`                                 |
-| `replsets[0].hostAliases`              | The IP address for Kubernetes host aliases                     | `[]`                                  |
-| `replsets[0].nonvoting.enabled`        | Add MongoDB nonvoting Pods                | `false`                               |
-| `replsets[0].nonvoting.podSecurityContext` | Set the security context for a Pod               | `{}`                                  |
-| `replsets[0].nonvoting.containerSecurityContext` | Set the security context for a Container   | `{}`                                  |
-| `replsets[0].nonvoting.size`           | Number of nonvoting Pods                  | `1`                                   |
-| `replsets[0].nonvoting.configuration`  | Custom config for mongod nonvoting member | `""`                                  |
-| `replsets[0].nonvoting.serviceAccountName`   | Run replicaset nonvoting Container under specified K8S SA              | `""`                                  |
-| `replsets[0].nonvoting.affinity.antiAffinityTopologyKey`   | Nonvoting Pods affinity          | `kubernetes.io/hostname`              |
-| `replsets[0].nonvoting.affinity.advanced`          | Nonvoting Pods advanced affinity | `{}`                                  |
-| `replsets[0].nonvoting.tolerations`    | Nonvoting Pod tolerations                 | `[]`                                  |
-| `replsets[0].nonvoting.priorityClass`  | Nonvoting Pod priorityClassName           | `""`                                  |
-| `replsets[0].nonvoting.annotations`    | Nonvoting Pod annotations                 | `{}`                                  |
-| `replsets[0].nonvoting.labels`         | Nonvoting Pod labels                      | `{}`                                  |
-| `replsets[0].nonvoting.nodeSelector`   | Nonvoting Pod nodeSelector labels         | `{}`                                  |
-| `replsets[0].nonvoting.podDisruptionBudget.maxUnavailable`   | Nonvoting failed Pods maximum quantity    | `1`                                   |
-| `replsets[0].nonvoting.resources`      | Nonvoting Pods resource requests and limits                     | `{}`                                  |
-| `replsets[0].nonvoting.volumeSpec`     | Nonvoting Pods storage resources                                | `{}`                                  |
-| `replsets[0].nonvoting.volumeSpec.emptyDir`       | Nonvoting Pods emptyDir K8S storage                  | `{}`                                  |
-| `replsets[0].nonvoting.volumeSpec.hostPath`       | Nonvoting Pods hostPath K8S storage                  |                                       |
-| `replsets[0].nonvoting.volumeSpec.hostPath.path`  | Nonvoting Pods hostPath K8S storage path             | `""`                                  |
-| `replsets[0].nonvoting.volumeSpec.hostPath.type`  | Type for hostPath volume                             | `Directory`                           |
-| `replsets[0].nonvoting.volumeSpec.pvc`            | Nonvoting Pods PVC request parameters                |                                       |
-| `replsets[0].nonvoting.volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}`                                  |
-| `replsets[0].nonvoting.volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}`                                  |
-| `replsets[0].nonvoting.volumeSpec.pvc.storageClassName`  | Nonvoting Pods PVC target storageClass        | `""`                                  |
-| `replsets[0].nonvoting.volumeSpec.pvc.accessModes`       | Nonvoting Pods PVC access policy              | `[]`                                  |
-| `replsets[0].nonvoting.volumeSpec.pvc.resources.requests.storage`    | Nonvoting Pods PVC storage size   | `3Gi`                                 |
-| `replsets[0].arbiter.enabled`   | Create MongoDB arbiter service              | `false`                               |
-| `replsets[0].arbiter.size`   | MongoDB arbiter Pod quantity              | `1`                                   |
-| `replsets[0].arbiter.serviceAccountName`   | Run replicaset arbiter Container under specified K8S SA              | `""`                                  |
-| `replsets[0].arbiter.affinity.antiAffinityTopologyKey`   | MongoDB arbiter Pod affinity              | `kubernetes.io/hostname`              |
-| `replsets[0].arbiter.affinity.advanced`          | MongoDB arbiter Pod advanced affinity     | `{}`                                  |
-| `replsets[0].arbiter.tolerations`     | MongoDB arbiter Pod tolerations                | `[]`                                  |
-| `replsets[0].arbiter.priorityClass`   | MongoDB arbiter priorityClassName              | `""`                                  |
-| `replsets[0].arbiter.annotations`   | MongoDB arbiter Pod annotations              | `{}`                                  |
-| `replsets[0].arbiter.labels`   | MongoDB arbiter Pod labels              | `{}`                                  |
-| `replsets[0].arbiter.nodeSelector`   | MongoDB arbiter Pod nodeSelector labels              | `{}`                                  |
+| `replsets.rs0.name`                      | ReplicaSet name              | `rs0`                                 |
+| `replsets.rs0.size`                      | ReplicaSet size (pod quantity)              | `3`                                   |
+| `replsets.rs0.terminationGracePeriodSeconds`                      | The amount of seconds Kubernetes will wait for a clean replica set Pods termination    | `""`                                  |
+| `replsets.rs0.externalNodes`             | ReplicaSet external nodes (cross cluster replication)           | `[]`                                  |
+| `replsets.rs0.configuration`             | Custom config for mongod in replica set     | `""`                                  |
+| `replsets.rs0.topologySpreadConstraints` | Control how Pods are spread across your cluster among failure-domains such as regions, zones, nodes, and other user-defined topology domains   | `{}`                                  |
+| `replsets.rs0.serviceAccountName`   | Run replicaset Containers under specified K8S SA              | `""`                                  |
+| `replsets.rs0.affinity.antiAffinityTopologyKey`   | ReplicaSet Pod affinity              | `kubernetes.io/hostname`              |
+| `replsets.rs0.affinity.advanced`          | ReplicaSet Pod advanced affinity     | `{}`                                  |
+| `replsets.rs0.tolerations`     | ReplicaSet Pod tolerations                    | `[]`                                  |
+| `replsets.rs0.priorityClass`   | ReplicaSet Pod priorityClassName              | `""`                                  |
+| `replsets.rs0.annotations`   | ReplicaSet Pod annotations              | `{}`                                  |
+| `replsets.rs0.labels`   | ReplicaSet Pod labels              | `{}`                                  |
+| `replsets.rs0.nodeSelector`   | ReplicaSet Pod nodeSelector labels              | `{}`                                  |
+| `replsets.rs0.livenessProbe`   | ReplicaSet Pod livenessProbe structure              | `{}`                                  |
+| `replsets.rs0.readinessProbe`  | ReplicaSet Pod readinessProbe structure             | `{}`                                  |
+| `replsets.rs0.storage`         | Set cacheSizeRatio or other custom MongoDB storage options | `{}`                                  |
+| `replsets.rs0.podSecurityContext` | Set the security context for a Pod               | `{}`                                  |
+| `replsets.rs0.containerSecurityContext` | Set the security context for a Container   | `{}`                                  |
+| `replsets.rs0.runtimeClass`   | ReplicaSet Pod runtimeClassName              | `""`                                  |
+| `replsets.rs0.sidecars`   | ReplicaSet Pod sidecars                          | `{}`                                  |
+| `replsets.rs0.sidecarVolumes`   | ReplicaSet Pod sidecar volumes             | `[]`                                  |
+| `replsets.rs0.sidecarPVCs`      | ReplicaSet Pod sidecar PVCs                | `[]`                                  |
+| `replsets.rs0.podDisruptionBudget.maxUnavailable`   | ReplicaSet failed Pods maximum quantity                | `1`                                   |
+| `replsets.rs0.splitHorizons`    | External URI for Split-horizon for replica set Pods of the exposed cluster | `{}`                                  |
+| `replsets.rs0.expose.enabled`   | Allow access to replicaSet from outside of Kubernetes              | `false`                               |
+| `replsets.rs0.expose.exposeType`   | Network service access point type              | `ClusterIP`                           |
+| `replsets.rs0.expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}`                                  |
+| `replsets.rs0.expose.serviceAnnotations`  | ReplicaSet service annotations | `{}`                                  |
+| `replsets.rs0.expose.serviceLabels`    | ReplicaSet service labels | `{}`                                  |
+| `replsets.rs0.schedulerName`   | ReplicaSet Pod schedulerName              | `""`                                  |
+| `replsets.rs0.resources`       | ReplicaSet Pods resource requests and limits                          | `{}`                                  |
+| `replsets.rs0.volumeSpec`       | ReplicaSet Pods storage resources                          | `{}`                                  |
+| `replsets.rs0.volumeSpec.emptyDir`       | ReplicaSet Pods emptyDir K8S storage                          | `{}`                                  |
+| `replsets.rs0.volumeSpec.hostPath`       | ReplicaSet Pods hostPath K8S storage                          |                                       |
+| `replsets.rs0.volumeSpec.hostPath.path`       | ReplicaSet Pods hostPath K8S storage path                       | `""`                                  |
+| `replsets.rs0.volumeSpec.hostPath.type`       | Type for hostPath volume                       | `Directory`                                  |
+| `replsets.rs0.volumeSpec.pvc`                   | ReplicaSet Pods PVC request parameters                       |                                       |
+| `replsets.rs0.volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}`                                  |
+| `replsets.rs0.volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}`                                  |
+| `replsets.rs0.volumeSpec.pvc.storageClassName`  | ReplicaSet Pods PVC target storageClass                      | `""`                                  |
+| `replsets.rs0.volumeSpec.pvc.accessModes`       | ReplicaSet Pods PVC access policy                      | `[]`                                  |
+| `replsets.rs0.volumeSpec.pvc.resources.requests.storage`       | ReplicaSet Pods PVC storage size                      | `3Gi`                                 |
+| `replsets.rs0.hostAliases`              | The IP address for Kubernetes host aliases                     | `[]`                                  |
+| `replsets.rs0.nonvoting.enabled`        | Add MongoDB nonvoting Pods                | `false`                               |
+| `replsets.rs0.nonvoting.podSecurityContext` | Set the security context for a Pod               | `{}`                                  |
+| `replsets.rs0.nonvoting.containerSecurityContext` | Set the security context for a Container   | `{}`                                  |
+| `replsets.rs0.nonvoting.size`           | Number of nonvoting Pods                  | `1`                                   |
+| `replsets.rs0.nonvoting.configuration`  | Custom config for mongod nonvoting member | `""`                                  |
+| `replsets.rs0.nonvoting.serviceAccountName`   | Run replicaset nonvoting Container under specified K8S SA              | `""`                                  |
+| `replsets.rs0.nonvoting.affinity.antiAffinityTopologyKey`   | Nonvoting Pods affinity          | `kubernetes.io/hostname`              |
+| `replsets.rs0.nonvoting.affinity.advanced`          | Nonvoting Pods advanced affinity | `{}`                                  |
+| `replsets.rs0.nonvoting.tolerations`    | Nonvoting Pod tolerations                 | `[]`                                  |
+| `replsets.rs0.nonvoting.priorityClass`  | Nonvoting Pod priorityClassName           | `""`                                  |
+| `replsets.rs0.nonvoting.annotations`    | Nonvoting Pod annotations                 | `{}`                                  |
+| `replsets.rs0.nonvoting.labels`         | Nonvoting Pod labels                      | `{}`                                  |
+| `replsets.rs0.nonvoting.nodeSelector`   | Nonvoting Pod nodeSelector labels         | `{}`                                  |
+| `replsets.rs0.nonvoting.podDisruptionBudget.maxUnavailable`   | Nonvoting failed Pods maximum quantity    | `1`                                   |
+| `replsets.rs0.nonvoting.resources`      | Nonvoting Pods resource requests and limits                     | `{}`                                  |
+| `replsets.rs0.nonvoting.volumeSpec`     | Nonvoting Pods storage resources                                | `{}`                                  |
+| `replsets.rs0.nonvoting.volumeSpec.emptyDir`       | Nonvoting Pods emptyDir K8S storage                  | `{}`                                  |
+| `replsets.rs0.nonvoting.volumeSpec.hostPath`       | Nonvoting Pods hostPath K8S storage                  |                                       |
+| `replsets.rs0.nonvoting.volumeSpec.hostPath.path`  | Nonvoting Pods hostPath K8S storage path             | `""`                                  |
+| `replsets.rs0.nonvoting.volumeSpec.hostPath.type`  | Type for hostPath volume                             | `Directory`                           |
+| `replsets.rs0.nonvoting.volumeSpec.pvc`            | Nonvoting Pods PVC request parameters                |                                       |
+| `replsets.rs0.nonvoting.volumeSpec.pvc.annotations`       | The Kubernetes annotations metadata for Persistent Volume Claim  | `{}`                                  |
+| `replsets.rs0.nonvoting.volumeSpec.pvc.labels`            | The Kubernetes labels metadata for Persistent Volume Claim       | `{}`                                  |
+| `replsets.rs0.nonvoting.volumeSpec.pvc.storageClassName`  | Nonvoting Pods PVC target storageClass        | `""`                                  |
+| `replsets.rs0.nonvoting.volumeSpec.pvc.accessModes`       | Nonvoting Pods PVC access policy              | `[]`                                  |
+| `replsets.rs0.nonvoting.volumeSpec.pvc.resources.requests.storage`    | Nonvoting Pods PVC storage size   | `3Gi`                                 |
+| `replsets.rs0.arbiter.enabled`   | Create MongoDB arbiter service              | `false`                               |
+| `replsets.rs0.arbiter.size`   | MongoDB arbiter Pod quantity              | `1`                                   |
+| `replsets.rs0.arbiter.serviceAccountName`   | Run replicaset arbiter Container under specified K8S SA              | `""`                                  |
+| `replsets.rs0.arbiter.affinity.antiAffinityTopologyKey`   | MongoDB arbiter Pod affinity              | `kubernetes.io/hostname`              |
+| `replsets.rs0.arbiter.affinity.advanced`          | MongoDB arbiter Pod advanced affinity     | `{}`                                  |
+| `replsets.rs0.arbiter.tolerations`     | MongoDB arbiter Pod tolerations                | `[]`                                  |
+| `replsets.rs0.arbiter.priorityClass`   | MongoDB arbiter priorityClassName              | `""`                                  |
+| `replsets.rs0.arbiter.annotations`   | MongoDB arbiter Pod annotations              | `{}`                                  |
+| `replsets.rs0.arbiter.labels`   | MongoDB arbiter Pod labels              | `{}`                                  |
+| `replsets.rs0.arbiter.nodeSelector`   | MongoDB arbiter Pod nodeSelector labels              | `{}`                                  |
 | |
 | `sharding.enabled`                             | Enable sharding setup   | `true`                                |
 | `sharding.balancer.enabled`                    | Enable/disable balancer | `true`                                |
@@ -244,6 +244,6 @@ This is great for a dev PSMDB/MongoDB cluster as it doesn't bother with backups 
 
 ```bash
 $ helm install dev  --namespace psmdb . \
-    --set runUid=1001 --set "replsets[0].volumeSpec.pvc.resources.requests.storage=20Gi" \
+    --set runUid=1001 --set "replsets.rs0.volumeSpec.pvc.resources.requests.storage=20Gi" \
     --set backup.enabled=false --set sharding.enabled=false
 ```

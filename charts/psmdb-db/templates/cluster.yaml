@@ -76,9 +76,13 @@ spec:
     image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
     serverHost: {{ .Values.pmm.serverHost }}
   replsets:
-  {{- range $replset := .Values.replsets }}
+  {{- range $k,$replset := .Values.replsets }}
+  {{- if $replset.name }}
   - name: {{ $replset.name }}
-    size: {{ $replset.size }}
+  {{- else }}
+  - name: {{ $k }}
+  {{- end }}
+    size: {{ $replset.size | default "3" }}
     {{- if $replset.terminationGracePeriodSeconds }}
     terminationGracePeriodSeconds: {{ $replset.terminationGracePeriodSeconds }}
     {{- end }}
@@ -98,7 +102,11 @@ spec:
     serviceAccountName: {{ $replset.serviceAccountName }}
     {{- end }}
     affinity:
+    {{- if $replset.affinity }}
 {{ $replset.affinity | toYaml | indent 6 }}
+    {{- else }}
+      antiAffinityTopologyKey: "kubernetes.io/hostname"
+    {{- end }}
     {{- if $replset.priorityClass }}
     priorityClassName: {{ $replset.priorityClass }}
     {{- end }}
@@ -153,13 +161,15 @@ spec:
     sidecarPVCs:
 {{ $replset.sidecarPVCs | toYaml | indent 6 }}
     {{- end }}
-    {{- if $replset.podDisruptionBudget }}
     podDisruptionBudget:
+    {{- if $replset.podDisruptionBudget }}
       {{- if $replset.podDisruptionBudget.maxUnavailable }}
       maxUnavailable: {{ $replset.podDisruptionBudget.maxUnavailable }}
       {{- else }}
       minAvailable: {{ $replset.podDisruptionBudget.minAvailable }}
       {{- end }}
+    {{- else }}
+      maxUnavailable: 1
     {{- end }}
     {{- if $replset.splitHorizons }}
     splitHorizons:
@@ -181,14 +191,26 @@ spec:
       serviceLabels:
 {{ $replset.expose.serviceLabels | toYaml | indent 8 }}
       {{- end }}
+    {{- else }}
+      enabled: false
+      exposeType: ClusterIP
     {{- end }}
     {{- if $replset.schedulerName }}
     schedulerName: {{ $replset.schedulerName }}
     {{- end }}
     resources:
+    {{- if $replset.resources }}
 {{ $replset.resources | toYaml | indent 6 }}
-    {{- if $replset.volumeSpec }}
+    {{- else }}
+      limits:
+        cpu: "300m"
+        memory: "0.5G"
+      requests:
+        cpu: "300m"
+        memory: "0.5G"
+    {{- end }}
     volumeSpec:
+    {{- if $replset.volumeSpec }}
       {{- if $replset.volumeSpec.hostPath }}
       hostPath:
         path: {{ $replset.volumeSpec.hostPath.path }}
@@ -203,15 +225,20 @@ spec:
       {{- else }}
       emptyDir: {}
       {{- end }}
+    {{- else }}
+      persistentVolumeClaim:
+        resources:
+          requests:
+            storage: 3Gi
     {{- end }}
     {{- if $replset.hostAliases }}
     hostAliases:
 {{ $replset.hostAliases | toYaml | indent 6 }}
     {{- end }}
-    {{- if $replset.nonvoting }}
     nonvoting:
+    {{- if $replset.nonvoting.enabled }}
       enabled: {{ $replset.nonvoting.enabled }}
-      size: {{ $replset.nonvoting.size }}
+      size: {{ $replset.nonvoting.size | default "3" }}
       {{- if $replset.nonvoting.configuration }}
       configuration: |
 {{ $replset.nonvoting.configuration | indent 8 }}
@@ -220,7 +247,11 @@ spec:
       serviceAccountName: {{ $replset.nonvoting.serviceAccountName }}
       {{- end }}
       affinity:
+      {{- if $replset.nonvoting.affinity }}
 {{ $replset.nonvoting.affinity | toYaml | indent 8 }}
+      {{- else }}
+        antiAffinityTopologyKey: "kubernetes.io/hostname"
+      {{- end }}
       {{- if $replset.nonvoting.priorityClass }}
       priorityClassName: {{ $replset.nonvoting.priorityClass }}
       {{- end }}
@@ -256,10 +287,29 @@ spec:
         minAvailable: {{ $replset.nonvoting.podDisruptionBudget.minAvailable }}
         {{- end }}
       {{- end }}
+      podDisruptionBudget:
+      {{- if $replset.nonvoting.podDisruptionBudget }}
+        {{- if $replset.nonvoting.podDisruptionBudget.maxUnavailable }}
+        maxUnavailable: {{ $replset.nonvoting.podDisruptionBudget.maxUnavailable }}
+        {{- else }}
+        minAvailable: {{ $replset.nonvoting.podDisruptionBudget.minAvailable }}
+        {{- end }}
+      {{- else }}
+        maxUnavailable: 1
+      {{- end }}
       resources:
+      {{- if $replset.nonvoting.resources }}
 {{ $replset.nonvoting.resources | toYaml | indent 8 }}
-      {{- if $replset.nonvoting.volumeSpec }}
+      {{- else }}
+        limits:
+          cpu: "300m"
+          memory: "0.5G"
+        requests:
+          cpu: "300m"
+          memory: "0.5G"
+      {{- end }}
       volumeSpec:
+      {{- if $replset.nonvoting.volumeSpec }}
         {{- if $replset.nonvoting.volumeSpec.hostPath }}
         hostPath:
           path: {{ $replset.nonvoting.volumeSpec.hostPath.path }}
@@ -274,17 +324,29 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      {{- else }}
+        persistentVolumeClaim:
+          resources:
+            requests:
+              storage: 3Gi
       {{- end }}
+    {{- else }}
+      enabled: false
+      size: 3
     {{- end }}
-    {{- if $replset.arbiter }}
     arbiter:
+    {{- if $replset.arbiter.enabled }}
       enabled: {{ $replset.arbiter.enabled }}
-      size: {{ $replset.arbiter.size }}
+      size: {{ $replset.arbiter.size | default "1" }}
       {{- if $replset.arbiter.serviceAccountName }}
       serviceAccountName: {{ $replset.arbiter.serviceAccountName }}
       {{- end }}
       affinity:
+      {{- if $replset.affinity }}
 {{ $replset.arbiter.affinity | toYaml | indent 8 }}
+      {{- else }}
+        antiAffinityTopologyKey: "kubernetes.io/hostname"
+      {{- end }}
       {{- if $replset.arbiter.priorityClass }}
       priorityClassName: {{ $replset.arbiter.priorityClass }}
       {{- end }}
@@ -304,6 +366,9 @@ spec:
       tolerations:
 {{ $replset.arbiter.tolerations | toYaml | indent 8 }}
       {{- end }}
+    {{- else }}
+      enabled: false
+      size: 1
     {{- end }}
   {{- end }}
 
