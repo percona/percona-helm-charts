@@ -101,14 +101,15 @@ spec:
         - name: tmpdir
           emptyDir: {}
     {{- end }}
-{{- if .Values.watchAllNamespaces }}
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "pxc-operator.name" . }}
+  name: percona-xtradb-cluster-operator
+  namespace: {{ .Release.Namespace }}
   labels:
-    name: {{ include "pxc-operator.name" . }}
+    name: percona-xtradb-cluster-operator
 spec:
   ports:
     - port: 443

@@ -38,6 +38,8 @@ The chart can be customized using the following configurable parameters:
 | `logStructured`                 | Force PXC operator to print JSON-wrapped log messages                                          | `false`                                          |
 | `logLevel`                      | PXC Operator logging level                                                                     | `INFO`                                           |
 | `disableTelemetry`              | Disable sending PXC Operator telemetry data to Percona                                         | `false`                                          |
+| `watchNamespace`                | Set when a different from default namespace is needed to watch (comma separated if multiple needed)  | `""`               |
+| `createNamespace`               | Set if you want to create watched namespaces with helm                                         | `false`                                   |
 | `rbac.create`                   | If false RBAC will not be created. RBAC resources will need to be created manually             | `true`                                           |
 | `serviceAccount.create`         | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually | `true`                                           |
 | `extraEnvVars`                  | Custom pod environment variables                                                               | `[]`                                             |
