@@ -459,6 +459,10 @@ spec:
 {{ tpl ($logcollector.resources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($logcollector.resources.limits | toYaml) $ | indent 8 }}
+    {{- if $logcollector.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($logcollector.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
   {{- end }}
   pmm:
   {{- if not .Values.pmm.enabled }}

@@ -535,6 +535,9 @@ logcollector:
       memory: 100M
       cpu: 200m
     limits: {}
+  # A custom Kubernetes Security Context for a Container to be used instead of the default one
+  # containerSecurityContext:
+  #   privileged: false
 
 pmm:
   enabled: false

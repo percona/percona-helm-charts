@@ -226,6 +226,7 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.configuration`      | User defined configuration for logcollector                              | ``                                                                       |
 | `logcollector.resources.requests` | Log collector resource requests                                          | `{"memory": "100M", "cpu": "200m"}`                                      |
 | `logcollector.resources.limits`   | Log collector resource limits                                            | `{}`                                                                     |
+| `logcollector.containerSecurityContext`      | A custom Kubernetes Security Context for a Container to be used instead of the default one                               | `{}`                                                                     |
 | |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false`                                                                  |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client`                                                     |
