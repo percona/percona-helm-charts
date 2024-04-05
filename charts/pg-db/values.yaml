@@ -87,6 +87,9 @@ instances:
           topologyKey: kubernetes.io/hostname
 
 #  resources:
+#    requests:
+#      cpu: 2.0
+#      memory: 4Gi
 #    limits:
 #      cpu: 2.0
 #      memory: 4Gi

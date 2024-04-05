@@ -11,6 +11,10 @@ spec:
     matchLabels:
       app.kubernetes.io/name: {{ include "ps-operator.name" . }}
       app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
   template:
     metadata:
       labels:

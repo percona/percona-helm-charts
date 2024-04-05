@@ -9,10 +9,10 @@ finalizers:
   - delete-mysql-pods-in-order
   # - delete-ssl
 
-crVersion: 0.6.0
+crVersion: 0.7.0
 pause: false
 allowUnsafeConfigurations: false
-# initImage: percona/percona-server-mysql-operator:0.6.0
+# initImage: percona/percona-server-mysql-operator:0.7.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -42,11 +42,11 @@ mysql:
   autoRecovery: true
   image:
     repository: percona/percona-server
-    tag: 8.0.33-25
+    tag: 8.0.36-28
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
-  # initImage: percona/percona-server-mysql-operator:0.6.0
+  # initImage: percona/percona-server-mysql-operator:0.7.0
 
   size: 3
 
@@ -85,6 +85,14 @@ mysql:
     #           values:
     #           - e2e-az1
     #           - e2e-az2
+
+  # topologySpreadConstraints:
+  # - labelSelector:
+  #     matchLabels:
+  #       app.kubernetes.io/name: percona-server
+  #   maxSkew: 1
+  #   topologyKey: kubernetes.io/hostname
+  #   whenUnsatisfiable: DoNotSchedule
 
   expose:
     enabled: false
@@ -160,10 +168,10 @@ proxy:
     enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.8.1
+      tag: 2.8.5
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.6.0
+    # initImage: percona/percona-server-mysql-operator:0.7.0
 
     size: 3
 
@@ -243,6 +251,14 @@ proxy:
       #           - e2e-az1
       #           - e2e-az2
 
+    # topologySpreadConstraints:
+    # - labelSelector:
+    #     matchLabels:
+    #       app.kubernetes.io/name: percona-server
+    #   maxSkew: 1
+    #   topologyKey: kubernetes.io/hostname
+    #   whenUnsatisfiable: DoNotSchedule
+
     # runtimeClassName: image-rc
     # priorityClassName: high-priority
     # schedulerName: mycustom-scheduler
@@ -282,10 +298,10 @@ proxy:
     enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.0.33
+      tag: 8.0.36
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.6.0
+    # initImage: percona/percona-server-mysql-operator:0.7.0
 
     size: 3
 
@@ -307,6 +323,14 @@ proxy:
       #           values:
       #           - e2e-az1
       #           - e2e-az2
+
+    # topologySpreadConstraints:
+    # - labelSelector:
+    #     matchLabels:
+    #       app.kubernetes.io/name: percona-server
+    #   maxSkew: 1
+    #   topologyKey: kubernetes.io/hostname
+    #   whenUnsatisfiable: DoNotSchedule
 
     # configuration: |
     #   [default]
@@ -353,12 +377,12 @@ orchestrator:
   enabled: false
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-9
+    tag: 3.2.6-12
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.6.0
+  # initImage: percona/percona-server-mysql-operator:0.7.0
 
   size: 3
 
@@ -370,6 +394,14 @@ orchestrator:
 
   affinity:
     antiAffinityTopologyKey: "kubernetes.io/hostname"
+
+  # topologySpreadConstraints:
+  # - labelSelector:
+  #     matchLabels:
+  #       app.kubernetes.io/name: percona-server
+  #   maxSkew: 1
+  #   topologyKey: kubernetes.io/hostname
+  #   whenUnsatisfiable: DoNotSchedule
 
   volumeSpec:
     pvc:
@@ -416,7 +448,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.41.0
+    tag: 2.41.1
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
@@ -430,7 +462,8 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.0.33-27
+    tag: 8.0.35-30
+  # backoffLimit: 6
   imagePullPolicy: Always
   imagePullSecrets: []
   resources:
@@ -459,6 +492,13 @@ backup:
     #             operator: In
     #             values:
     #             - 'True'
+    #   topologySpreadConstraints:
+    #   - labelSelector:
+    #       matchLabels:
+    #         app.kubernetes.io/name: percona-server
+    #     maxSkew: 1
+    #     topologyKey: kubernetes.io/hostname
+    #     whenUnsatisfiable: DoNotSchedule
     #   tolerations:
     #     - key: "backupWorker"
     #       operator: "Equal"
@@ -483,8 +523,8 @@ backup:
 
 toolkit:
   image:
-    repository: percona/percona-server-mysql-operator
-    tag: 0.6.0-toolkit
+    repository: percona/percona-toolkit
+    tag: 3.5.7
   imagePullPolicy: Always
   resources:
     requests: {}
