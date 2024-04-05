@@ -299,31 +299,38 @@ spec:
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
       - name: {{ $repo.name }}
-      {{- if eq $repo.name "repo1" }}
+        {{- if $schedules := $repo.schedules }}
         schedules:
-          full: {{ $repo.schedules.full | quote }}
+          {{- if $schedules.full }}
+          full: {{ $schedules.full | quote }}
+          {{- end }}
+          {{- if $schedules.differential }}
+          differential: {{ $schedules.differential | quote }}
+          {{- end }}
+        {{- end }}
+        {{- if $volume := $repo.volume }}
         volume:
           volumeClaimSpec:
             accessModes:
             - ReadWriteOnce
             resources:
               requests:
-                storage: {{ $repo.volume.volumeClaimSpec.resources.requests.storage }}
-      {{- end }}
-      {{- if eq $repo.name "repo2" }}
+                storage: {{ $volume.volumeClaimSpec.resources.requests.storage }}
+        {{- end }}
+        {{- if $s3 := $repo.s3 }}
         s3:
-          bucket: {{ $repo.s3.bucket }}
-          endpoint: {{ $repo.s3.endpoint }}
-          region: {{ $repo.s3.region }}
-      {{- end }}
-      {{- if eq $repo.name "repo3" }}
+          bucket: {{ $s3.bucket }}
+          endpoint: {{ $s3.endpoint }}
+          region: {{ $s3.region }}
+        {{- end }}
+        {{- if $gcs := $repo.gcs }}
         gcs:
-          bucket: {{ $repo.gcs.bucket }}
-      {{- end }}
-      {{- if eq $repo.name "repo4" }}
+          bucket: {{ $gcs.bucket }}
+        {{- end }}
+        {{- if $azure := $repo.azure }}
         azure:
-          container: {{ $repo.azure.container }}
-      {{- end }}
+          container: {{ $azure.container }}
+        {{- end }}
       {{- end }}
 
 {{- if .Values.patroni }}
