@@ -3244,6 +3244,24 @@ entries:
   pxc-db:
   - apiVersion: v2
     appVersion: 1.14.0
+    created: "2024-04-05T09:45:19.552576893Z"
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    digest: e0a0b5160a9bed11926f9e2c043039460d162d1531a1caacaaf62c42c04d660e
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: pxc-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-db-1.14.2/pxc-db-1.14.2.tgz
+    version: 1.14.2
+  - apiVersion: v2
+    appVersion: 1.14.0
     created: "2024-03-18T12:38:45.22517658Z"
     description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
     digest: c87d6c8a192c35ea61d44b389db18af0251e7b6959269b0f15ac4518cde663cc
