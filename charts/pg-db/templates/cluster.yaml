@@ -12,7 +12,7 @@ metadata:
     pgouser: admin
 {{ include "pg-database.labels" . | indent 4 }}
   finalizers:
-{{ .Values.finalizers | toYaml | indent 4 }}    
+{{ .Values.finalizers | toYaml | indent 4 }}
   name: {{ include "pg-database.fullname" . }}
 spec:
   crVersion: {{ .Values.crVersion }}
@@ -252,8 +252,7 @@ spec:
       image: {{ include "pg-database.backup-image" . }}
       {{- if .Values.backups.pgbackrest.configuration }}
       configuration:
-        - secret:
-            name: {{ .Values.backups.pgbackrest.configuration.secret.name }}
+{{ .Values.backups.pgbackrest.configuration | toYaml | indent 6 }}
       {{- end }}
       {{- if .Values.backups.pgbackrest.jobs }}
       jobs:
