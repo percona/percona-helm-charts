@@ -67,27 +67,45 @@ spec:
 
   pause: {{ default false .Values.pause }}
   unmanaged: {{ default false .Values.unmanaged }}
-  {{- if .Values.dataSource }}
+  {{- if $dataSource := .Values.dataSource }}
   dataSource:
+    {{- if $postgresCluster := $dataSource.postgresCluster }}
     postgresCluster:
-      clusterName: {{ .Values.dataSource.postgresCluster.clusterName }}
-      repoName: {{ .Values.dataSource.postgresCluster.repoName }}
+      clusterName: {{ $postgresCluster.clusterName }}
+      repoName: {{ $postgresCluster.repoName }}
       options:
-      {{- range $option := .Values.dataSource.postgresCluster.options }}
+      {{- range $option := $postgresCluster.options }}
       - {{ $option }}
       {{- end }}
+    {{- end }}
+    {{- if $pgbackrest := $dataSource.pgbackrest }}
     pgbackrest:
-      stanza: {{ .Values.dataSource.pgbackrest.stanza }}
+      stanza: {{ $pgbackrest.stanza }}
       configuration:
-{{ .Values.dataSource.pgbackrest.configuration | toYaml | indent 6 }}
+{{ $pgbackrest.configuration | toYaml | indent 6 }}
       global:
-{{ .Values.dataSource.pgbackrest.global | toYaml | indent 8 }}
+{{ $pgbackrest.global | toYaml | indent 8 }}
+      options:
+      {{- range $option := $pgbackrest.options }}
+      - {{ $option }}
+      {{- end }}
       repo:
-        name: {{ .Values.dataSource.pgbackrest.repo.name }}
+        name: {{ $pgbackrest.repo.name }}
+        {{- if $s3 := $pgbackrest.repo.s3 }}
         s3:
-          bucket: {{ .Values.dataSource.pgbackrest.repo.s3.bucket }}
-          endpoint: {{ .Values.dataSource.pgbackrest.repo.s3.endpoint }}
-          region: {{ .Values.dataSource.pgbackrest.repo.s3.region }}
+          bucket: {{ $s3.bucket }}
+          endpoint: {{ $s3.endpoint }}
+          region: {{ $s3.region }}
+        {{- end }}
+        {{- if $gcs := $pgbackrest.repo.gcs }}
+        gcs:
+          bucket: {{ $gcs.bucket }}
+        {{- end }}
+        {{- if $azure := $pgbackrest.repo.azure }}
+        azure:
+          container: {{ $azure.container }}
+        {{- end }}
+    {{- end }}
   {{- end }}
 
   {{- if .Values.expose }}

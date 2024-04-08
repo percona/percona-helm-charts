@@ -56,12 +56,19 @@ customReplicationTLSSecret:
 #         name: pgo-s3-creds
 #     global:
 #       repo1-path: /pgbackrest/postgres-operator/hippo/repo1
+#     options:
+#     - --type=time
+#     - --target="2021-06-09 14:15:11-04"
 #     repo:
 #       name: repo1
 #       s3:
 #         bucket: "my-bucket"
 #         endpoint: "s3.ca-central-1.amazonaws.com"
 #         region: "ca-central-1"
+#       gcs:
+#         bucket: "my-bucket"
+#       azure:
+#         container: "my-container"
 
 # expose:
 #   annotations:
