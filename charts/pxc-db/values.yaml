@@ -55,7 +55,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.35-27.1
+    tag: 8.0.36-28.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
@@ -367,7 +367,7 @@ haproxy:
 proxysql:
   enabled: false
   size: 3
-  image: ""
+  image: "percona/percona-xtradb-cluster-operator:1.14.0-proxysql2.5.5-1.2"
   # imagePullPolicy: Always
   imagePullSecrets: []
 #  configuration: |
@@ -543,7 +543,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.41.0
+    tag: 2.41.2
   # imagePullPolicy: Always
   imagePullSecrets: []
   serverHost: monitoring-service

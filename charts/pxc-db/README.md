@@ -52,7 +52,7 @@ The chart can be customized using the following configurable parameters:
 | `pxc.size`                                  | PXC Cluster target member (pod) quantity. Can't even if `allowUnsafeConfigurations` is `true`                            | `3`                                                                      |
 | `pxc.clusterSecretName`        | Specify if you want to use custom or Operator generated users secret (if the one specified doesn't exist)                             | ``                                                                       |
 | `pxc.image.repository`                      | PXC Container image repository                                                                                           | `percona/percona-xtradb-cluster`                                         |
-| `pxc.image.tag`                             | PXC Container image tag                                                                                                  | `8.0.35-27.1`                                                            |
+| `pxc.image.tag`                             | PXC Container image tag                                                                                                  | `8.0.36-28.1`                                                            |
 | `pxc.imagePullPolicy`                       | The policy used to update images                                                                                         | ``                                                                       |
 | `pxc.autoRecovery`                          | Enable full cluster crash auto recovery                                                                                  | `true`                                                                   |
 | `pxc.expose.enabled`                        | Enable or disable exposing `Percona XtraDB Cluster` nodes with dedicated IP addresses                                    | `true`                                                                   |
@@ -175,7 +175,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `proxysql.enabled` | Use ProxySQL as TCP proxy for PXC cluster | `false`                                                                  |
 | `proxysql.size`                      | ProxySQL target pod quantity. Can't even if `allowUnsafeConfigurations` is `true` | `3`                                                                      |
-| `proxysql.image`              | ProxySQL Container image                                           | `percona/percona-xtradb-cluster-operator:1.14.0-proxysql`                |
+| `proxysql.image`              | ProxySQL Container image                                           | `percona/percona-xtradb-cluster-operator:1.14.0-proxysql2.5.5-1.2`                |
 | `proxysql.imagePullPolicy`              | The policy used to update images                                              | ``                                                                       |
 | `proxysql.imagePullSecrets`             | ProxySQL Container pull secret                                                | `[]`                                                                     |
 | `proxysql.configuration`             | User defined ProxySQL options according to ProxySQL configuration file syntax       | ``                                                                       |
@@ -230,7 +230,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html) | `false`                                                                  |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client`                                                     |
-| `pmm.image.tag`                     | PMM Container image tag                                                  | `2.41.1`                                                                 |
+| `pmm.image.tag`                     | PMM Container image tag                                                  | `2.41.2`                                                                 |
 | `pmm.imagePullSecrets`              | PMM Container pull secret                                                | `[]`                                                                     |
 | `pmm.imagePullPolicy`               | The policy used to update images                                         | ``                                                                       |
 | `pmm.serverHost`                    | PMM server related K8S service hostname                                  | `monitoring-service`                                                     |
