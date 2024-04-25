@@ -214,9 +214,9 @@ spec:
         {{ .Values.proxy.pgBouncer.expose.annotations | toYaml | indent 10 }}
         labels:
         {{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 10 }}
-        {{- if .Values.expose.loadBalancerSourceRanges }}
+        {{- if .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges }}
         loadBalancerSourceRanges:
-          {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
+{{ .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.sidecars }}
