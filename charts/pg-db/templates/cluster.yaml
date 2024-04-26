@@ -325,6 +325,9 @@ spec:
           {{- if $schedules.differential }}
           differential: {{ $schedules.differential | quote }}
           {{- end }}
+          {{- if $schedules.incremental }}
+          incremental: {{ $schedules.incremental | quote }}
+          {{- end }}
         {{- end }}
         {{- if $volume := $repo.volume }}
         volume:
