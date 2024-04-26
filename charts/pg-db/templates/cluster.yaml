@@ -157,7 +157,7 @@ spec:
           whenUnsatisfiable: {{ $constraint.whenUnsatisfiable }}
           labelSelector:
             matchLabels:
-            {{ $constraint.labelSelector.matchLabels | toYaml | indent 6 }}
+{{ $constraint.labelSelector.matchLabels | toYaml | indent 14 }}
       {{- end }}
       {{- end }}
 
@@ -244,7 +244,7 @@ spec:
           whenUnsatisfiable: {{ $constraint.whenUnsatisfiable }}
           labelSelector:
             matchLabels:
-            {{ $constraint.labelSelector.matchLabels | toYaml | indent 6 }}
+{{ $constraint.labelSelector.matchLabels | toYaml | indent 14 }}
       {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.affinity }}
@@ -302,7 +302,7 @@ spec:
             whenUnsatisfiable: {{ $constraint.whenUnsatisfiable }}
             labelSelector:
               matchLabels:
-              {{ $constraint.labelSelector.matchLabels | toYaml | indent 6 }}
+{{ $constraint.labelSelector.matchLabels | toYaml | indent 16 }}
         {{- end }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
