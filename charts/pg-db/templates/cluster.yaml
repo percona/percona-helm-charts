@@ -111,13 +111,17 @@ spec:
   {{- if .Values.expose }}
   expose:
     type: {{ .Values.expose.type }}
+    {{- if .Values.expose.annotations }}
     annotations:
-    {{ .Values.expose.annotations | toYaml | indent 6 }}
+{{ .Values.expose.annotations | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.expose.labels }}
     labels:
-    {{ .Values.expose.labels | toYaml | indent 6 }}
+{{ .Values.expose.labels | toYaml | indent 6 }}
+    {{- end }}
     {{- if .Values.expose.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
-      {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 6 }}
+{{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 6 }}
     {{- end }}
   {{- end }}
 
@@ -210,13 +214,17 @@ spec:
       {{- if .Values.proxy.pgBouncer.expose }}
       expose:
         type: {{ .Values.proxy.pgBouncer.expose.type }}
+        {{- if .Values.proxy.pgBouncer.expose.annotations }}
         annotations:
-        {{ .Values.proxy.pgBouncer.expose.annotations | toYaml | indent 10 }}
+{{ .Values.proxy.pgBouncer.expose.annotations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.proxy.pgBouncer.expose.labels }}
         labels:
-        {{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 10 }}
-        {{- if .Values.expose.loadBalancerSourceRanges }}
+{{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges }}
         loadBalancerSourceRanges:
-          {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
+{{ .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.sidecars }}
