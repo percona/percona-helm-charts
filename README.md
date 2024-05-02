@@ -1,81 +1,57 @@
 # Percona Helm Charts
 
-This repository contains Percona supported Helm charts to deploy MySQL, PostgreSQL and MongoDB clusters on Kubernetes.
-To deploy and manage the databases you must deploy the corresponding Operator first.
+[Percona](https://www.percona.com/) is committed to simplify the deployment and management of databases on Kubernetes. [Helm](https://helm.sh/) enables users to package, run, share and manage even complex applications.
+This repository contains Helm charts for the following Percona products.
 
-Helm charts in this repository:
+* [Percona Operator for MySQL](charts/pxc-operator/)
+* [Percona XtraDB Cluster](charts/pxc-db/)
+* [Percona Operator for MongoDB](charts/psmdb-operator/)
+* [Percona Server for MongoDB](charts/psmdb-db/)
+* [Percona Operator for PostgreSQL](charts/pg-operator/)
+* [Percona Distribution for PostgreSQL](charts/pg-db/)
+* [Percona Monitoring and Management (PMM)](charts/pmm/)
 
-* [Percona Distribution for MySQL Operator](https://github.com/percona/percona-helm-charts/blob/main/charts/pxc-operator)
-* [Percona XtraDB Cluster](https://github.com/percona/percona-helm-charts/blob/main/charts/pxc-db)
-* [Percona Distribution for MongoDB Operator](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator)
-* [Percona Server for MongoDB](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-db)
-* [Percona Distribution for PostgreSQL Operator](https://github.com/percona/percona-helm-charts/blob/main/charts/pg-operator)
-* [Percona Distribution for PostgreSQL](https://github.com/percona/percona-helm-charts/blob/main/charts/pg-db)
+Useful links:
+* [About Percona Kubernetes Operators](https://www.percona.com/software/percona-kubernetes-operators)
+* [About Percona Monitoring and Management](https://www.percona.com/software/database-tools/percona-monitoring-and-management)
 
-# Quick start installation
+## Installing Charts from this Repository
 
-You will need Helm v3 for the installation.
+You will need [Helm v3](https://github.com/helm/helm) for the installation. See detailed installation instructions in the README file of each chart.
 
-Add the Repository to Helm:
+# Contributing
 
-```bash
-helm repo add percona https://percona.github.io/percona-helm-charts/
-helm repo update
+Percona welcomes and encourages community contributions to help improve Percona Kubernetes Operators as well as other Percona's projects.
+
+See the [Contribution Guide](CONTRIBUTING.md) for more information.
+
+# Join Percona Kubernetes Squad!                                                                              
+```                                                                                     
+                    %                        _____                
+                   %%%                      |  __ \                                          
+                 ###%%%%%%%%%%%%*           | |__) |__ _ __ ___ ___  _ __   __ _             
+                ###  ##%%      %%%%         |  ___/ _ \ '__/ __/ _ \| '_ \ / _` |            
+              ####     ##%       %%%%       | |  |  __/ | | (_| (_) | | | | (_| |            
+             ###        ####      %%%       |_|   \___|_|  \___\___/|_| |_|\__,_|           
+           ,((###         ###     %%%        _      _          _____                       _
+          (((( (###        ####  %%%%       | |   / _ \       / ____|                     | | 
+         (((     ((#         ######         | | _| (_) |___  | (___   __ _ _   _  __ _  __| | 
+       ((((       (((#        ####          | |/ /> _ </ __|  \___ \ / _` | | | |/ _` |/ _` |
+      /((          ,(((        *###         |   <| (_) \__ \  ____) | (_| | |_| | (_| | (_| |
+    ////             (((         ####       |_|\_\\___/|___/ |_____/ \__, |\__,_|\__,_|\__,_|
+   ///                ((((        ####                                  | |                  
+ /////////////(((((((((((((((((########                                 |_|   Join @ percona.com/k8s   
 ```
 
-## Percona Distribution for MySQL Operator
+You can get early access to new product features, invite-only ”ask me anything” sessions with Percona Kubernetes experts, and monthly swag raffles. Interested? Fill in the form at [percona.com/k8s](https://www.percona.com/k8s).
 
-Install the Operator:
+# Submitting Bug Reports
 
-```bash
-helm install my-op percona/pxc-operator
-```
+If you find a bug related to one of these Helm charts, please submit a report to the appropriate project's Jira issue tracker:
 
-Install Percona XtraDB Cluster:
+* [Percona Operator for MySQL](https://jira.percona.com/projects/K8SPXC)
+* [Percona Operator for MongoDB](https://jira.percona.com/projects/K8SPSMDB)
+* [Percona Operator for PostgreSQL](https://jira.percona.com/projects/K8SPG)
+* [Percona Monitoring and Management](https://jira.percona.com/projects/PMM)
 
-```bash
-helm install my-db percona/pxc-db
-```
-
-See more details in:
-- [Helm installation documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html)
-- [Operator chart parameter reference](https://github.com/percona/percona-helm-charts/tree/main/charts/pxc-operator)
-- [Percona XtraDB Cluster parameters reference](https://github.com/percona/percona-helm-charts/tree/main/charts/pxc-db)
-
-## Percona Distribution for MongoDB Operator
-
-Install the Operator:
-
-```bash
-helm install my-op percona/psmdb-operator
-```
-
-Install Percona Server for MongoDB:
-
-```bash
-helm install my-db percona/psmdb-db
-```
-
-See more details in:
-- [Helm installation documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html)
-- [Operator chart parameter reference](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator)
-- [Percona Server for MongoDB parameters reference](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-db)
-
-## Percona Distribution for PostgreSQL Operator
-
-Install the Operator:
-
-```bash
-helm install my-operator percona/pg-operator
-```
-
-Install Percona Distribution for PostgreSQL:
-
-```bash
-helm install my-db percona/pg-db 
-```
-
-See more details in:
-- [Helm installation documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html)
-- [Operator chart parameter reference](https://github.com/percona/percona-helm-charts/blob/main/charts/pg-operator)
-- [Percona Distribution for PostgreSQL parameters reference](https://github.com/percona/percona-helm-charts/blob/main/charts/pg-db)
+Learn more about submitting bugs, new feature ideas, and improvements in the [Contribution Guide](CONTRIBUTING.md).
