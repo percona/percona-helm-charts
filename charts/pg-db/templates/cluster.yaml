@@ -179,13 +179,19 @@ spec:
 
       {{- if $instance.walVolumeClaimSpec }}
       walVolumeClaimSpec:
-         accessModes:
-         - "ReadWriteOnce"
-         resources:
-           requests:
-             storage: {{ $instance.walVolumeClaimSpec.resources.requests.storage }}
+        {{- if $instance.walVolumeClaimSpec.storageClassName }}
+        storageClassName: {{ $instance.walVolumeClaimSpec.storageClassName }}
+        {{- end }}
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ $instance.walVolumeClaimSpec.resources.requests.storage }}
       {{- end }}
       dataVolumeClaimSpec:
+        {{- if $instance.dataVolumeClaimSpec.storageClassName }}
+        storageClassName: {{ $instance.dataVolumeClaimSpec.storageClassName }}
+        {{- end }}
         accessModes:
         - ReadWriteOnce
         resources:
@@ -340,6 +346,9 @@ spec:
         {{- if $volume := $repo.volume }}
         volume:
           volumeClaimSpec:
+            {{- if $repo.volume.volumeClaimSpec.storageClassName }}
+            storageClassName: {{ $volume.volumeClaimSpec.storageClassName }}
+            {{- end }}
             accessModes:
             - ReadWriteOnce
             resources:
