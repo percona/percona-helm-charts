@@ -132,7 +132,7 @@ instances:
 #        storage: 1Gi
 #
   dataVolumeClaimSpec:
-    storageClassName: ""
+#    storageClassName: ""
     accessModes:
     - ReadWriteOnce
     resources:
@@ -256,7 +256,7 @@ backups:
 #        incremental: "0 1 * * 1-6"
       volume:
         volumeClaimSpec:
-          storageClassName: ""
+#          storageClassName: ""
           accessModes:
           - ReadWriteOnce
           resources:
