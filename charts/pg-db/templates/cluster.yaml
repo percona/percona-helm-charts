@@ -182,11 +182,11 @@ spec:
         {{- if $instance.walVolumeClaimSpec.storageClassName }}
         storageClassName: {{ $instance.walVolumeClaimSpec.storageClassName }}
         {{- end }}
-         accessModes:
-         - "ReadWriteOnce"
-         resources:
-           requests:
-             storage: {{ $instance.walVolumeClaimSpec.resources.requests.storage }}
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ $instance.walVolumeClaimSpec.resources.requests.storage }}
       {{- end }}
       dataVolumeClaimSpec:
         {{- if $instance.dataVolumeClaimSpec.storageClassName }}

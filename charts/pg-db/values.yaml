@@ -126,7 +126,7 @@ instances:
 #  walVolumeClaimSpec:
 #    storageClassName: ""
 #    accessModes:
-#    - "ReadWriteOnce"
+#    - ReadWriteOnce
 #    resources:
 #      requests:
 #        storage: 1Gi
