@@ -8,7 +8,7 @@ Useful links:
 
 ## Pre-requisites
 * Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-* Kubernetes 1.24+
+* Kubernetes 1.25+
 * Helm v3
 
 # Chart Details
@@ -19,17 +19,21 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.15.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.16.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                               |
 | ------------------------------- | ------------------------------------------------------------------------------|---------------------------------------|
-| `crVersion`                     | CR Cluster Manifest version                                                   | `1.15.0`                              |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `1.16.0`                              |
 | `pause`                         | Stop PSMDB Database safely                                                    | `false`                               |
 | `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                               |
-| `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PSMDB cluster pods        | `false`                               |
+| `unsafeFlags.tls`               | Allows users from configuring a cluster without TLS/SSL certificates          | `false`                               |
+| `unsafeFlags.replsetSize`       | Allows users from configuring a cluster with unsafe parameters: starting it with less than 3 replica set instances or with an even number of replica set instances without additional arbiter                                                        | `false`                               |
+| `unsafeFlags.mongosSize`        | Allows users from configuring a sharded cluster with less than 3 config server Pods or less than 2 mongos Pods      | `false`                               |
+| `unsafeFlags.terminationGracePeriod` | Allows users from configuring a sharded cluster without termination grace period for replica set  | `false`                               |
+| `unsafeFlags.backupIfUnhealthy` | Allows running backup on a cluster with failed health checks                  | `false`                               |
 | `clusterServiceDNSSuffix`       | The (non-standard) cluster domain to be used as a suffix of the Service name  | `""`                                  |
 | `clusterServiceDNSMode`         | Mode for the cluster service dns (Internal/ServiceMesh)                       | `""`                                  |
 | `ignoreAnnotations`             | The list of annotations to be ignored by the Operator                         | `[]`                                  |
@@ -50,11 +54,22 @@ The chart can be customized using the following configurable parameters:
 | `initImage.repository`         | Repository for custom init image                                               | `""`                                  |
 | `initImage.tag`                | Tag for custom init image                                                      | `""`                                  |
 | `initContainerSecurityContext` | A custom Kubernetes Security Context for a Container for the initImage         | `{}`                                  |
+| `tls.mode`                     | Control usage of TLS (allowTLS, preferTLS, requireTLS, disabled)               | `preferTLS`                           |
 | `tls.certValidityDuration`     | The validity duration of the external certificate for cert manager             | `""`                                  |
-| `secrets`             | Operator secrets section                                 | `{}`                                  |
+| `tls.allowInvalidCertificates` | If enabled the mongo shell will not attempt to validate the server certificates  | `true`                              |
+| `tls.issuerConf.name`          | A cert-manager issuer name                                                     | `""`                                  |
+| `tls.issuerConf.kind`          | A cert-manager issuer kind                                                     | `""`                                  |
+| `tls.issuerConf.group`         | A cert-manager issuer group                                                    | `""`                                  |
+| `secrets.users`                | The name of the Secrets object for the MongoDB users required to run the operator  | `""`                              |
+| `secrets.encryptionKey`        | Set secret for data at rest encryption key                                     | `""`                                  |
+| `secrets.vault`                | Specifies a secret object to provide integration with HashiCorp Vault          | `""`                                  |
+| `secrets.ldapSecret`           | Specifies a secret object for LDAP over TLS connection between MongoDB and OpenLDAP server                                                                                                            | `""`                                  |
+| `secrets.sse`                  | The name of the Secrets object for server side encryption credentials          | `""`                                  |
+| `secrets.ssl`                  | A secret with TLS certificate generated for external communications            | `""`                                  |
+| `secrets.sslInternal`          | A secret with TLS certificate generated for internal communications            | `""`                                  |
 | `pmm.enabled` | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`                               |
 | `pmm.image.repository`              | PMM Container image repository                                           | `percona/pmm-client`                  |
-| `pmm.image.tag`                     | PMM Container image tag                                       | `2.41.0`                              |
+| `pmm.image.tag`                     | PMM Container image tag                                       | `2.41.2`                              |
 | `pmm.serverHost`                    | PMM server related K8S service hostname              | `monitoring-service`                  |
 ||
 | `replsets.rs0.name`                      | ReplicaSet name              | `rs0`                                 |
@@ -213,6 +228,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.expose.loadBalancerSourceRanges`   | Limit client IP's access to Load Balancer | `{}`                                  |
 | `sharding.mongos.expose.serviceAnnotations`    | Mongos service annotations | `{}`                                  |
 | `sharding.mongos.expose.serviceLabels`         | Mongos service labels      | `{}`                                  |
+| `sharding.mongos.expose.nodePort`              | Custom port if exposing mongos via NodePort                        | `""`                                  |
 | `sharding.mongos.hostAliases`                  | The IP address for Kubernetes host aliases     | `[]`                                  |
 | |
 | `backup.enabled`            | Enable backup PBM agent                  | `true`                                |
@@ -222,13 +238,14 @@ The chart can be customized using the following configurable parameters:
 | `backup.restartOnFailure`   | Backup Pods restart policy               | `true`                                |
 | `backup.image.repository`   | PBM Container image repository           | `percona/percona-backup-mongodb`      |
 | `backup.image.tag`          | PBM Container image tag                  | `2.3.0`                               |
-| `backup.serviceAccountName` | Run PBM Container under specified K8S SA | `percona-server-mongodb-operator`     |
 | `backup.storages`           | Local/remote backup storages settings    | `{}`                                  |
 | `backup.pitr.enabled`       | Enable point in time recovery for backup | `false`                               |
 | `backup.pitr.oplogOnly`     | Start collecting oplogs even if full logical backup doesn't exist | `false`                               |
 | `backup.pitr.oplogSpanMin`  | Number of minutes between the uploads of oplogs | `10`                                  |
 | `backup.pitr.compressionType`  | The point-in-time-recovery chunks compression format | `""`                                  |
 | `backup.pitr.compressionLevel` | The point-in-time-recovery chunks compression level | `""`                                  |
+| `backup.configuration.backupOptions`  | Custom configuration settings for backup  | `{}`                                  |
+| `backup.configuration.restoreOptions` | Custom configuration settings for restore | `{}`                                  |
 | `backup.tasks`              | Backup working schedule                  | `{}`                                  |
 | `users`                     | PSMDB essential users                    | `{}`                                  |
 
