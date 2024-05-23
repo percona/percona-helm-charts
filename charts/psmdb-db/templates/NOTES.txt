@@ -34,7 +34,7 @@ Connect to the cluster:
 {{- else }}
 
   kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:5.0 --restart=Never \
-  -- mongo "mongodb+srv://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-{{ (index .Values.replsets 0).name }}.{{ .Release.Namespace }}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
+  -- mongo "mongodb+srv://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-{{ .Values.replsets.rs0.name }}.{{ .Release.Namespace }}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
 
 {{- end }}
   
