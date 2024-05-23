@@ -216,7 +216,7 @@ spec:
     hostAliases:
 {{ $replset.hostAliases | toYaml | indent 6 }}
     {{- end }}
-    {{- if $replset.nonvoting.enabled }}
+    {{- if $replset.nonvoting }}
     nonvoting:
       enabled: {{ $replset.nonvoting.enabled }}
       size: {{ $replset.nonvoting.size }}
@@ -296,7 +296,7 @@ spec:
         {{- end }}
       {{- end }}
     {{- end }}
-    {{- if $replset.arbiter.enabled }}
+    {{- if $replset.arbiter }}
     arbiter:
       enabled: {{ $replset.arbiter.enabled }}
       size: {{ $replset.arbiter.size }}
