@@ -28,13 +28,13 @@ Percona Server for MongoDB cluster is deployed now. Get the username and passwor
 Connect to the cluster:
 {{- if .Values.sharding.enabled }}
 
-  kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:5.0 --restart=Never \
-  -- mongo "mongodb://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-mongos.{{ .Release.Namespace }}.svc.cluster.local/admin?ssl=false"
+  kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:7.0 --restart=Never \
+  -- mongosh "mongodb://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-mongos.{{ .Release.Namespace }}.svc.cluster.local/admin?ssl=false"
 
 {{- else }}
 
-  kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:5.0 --restart=Never \
-  -- mongo "mongodb+srv://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-{{ (index .Values.replsets 0).name }}.{{ .Release.Namespace }}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
+  kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:7.0 --restart=Never \
+  -- mongosh "mongodb+srv://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-{{ .Values.replsets.rs0.name }}.{{ .Release.Namespace }}.svc.cluster.local/admin?replicaSet=rs0&ssl=false"
 
 {{- end }}
   
