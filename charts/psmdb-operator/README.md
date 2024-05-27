@@ -6,7 +6,7 @@ Useful links:
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html)
 
 ## Pre-requisites
-* Kubernetes 1.24+
+* Kubernetes 1.25+
 * Helm v3
 
 # Installation
@@ -19,7 +19,7 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/psmdb-operator --version 1.15.0 --namespace my-namespace
+helm install my-operator percona/psmdb-operator --version 1.16.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -27,18 +27,21 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                   |
 | ------------------------------- | ------------------------------------------------------------------------------| ------------------------------------------|
 | `image.repository`              | PSMDB Operator Container image name                                           | `percona/percona-server-mongodb-operator` |
-| `image.tag`                     | PSMDB Operator Container image tag                                            | `1.15.0`                                  |
+| `image.tag`                     | PSMDB Operator Container image tag                                            | `1.16.0`                                  |
 | `image.pullPolicy`              | PSMDB Operator Container pull policy                                          | `Always`                                  |
 | `image.pullSecrets`             | PSMDB Operator Pod pull secret                                                | `[]`                                      |
 | `replicaCount`                  | PSMDB Operator Pod quantity                                                   | `1`                                       |
 | `tolerations`                   | List of node taints to tolerate                                               | `[]`                                      |
 | `annotations`                   | PSMDB Operator Deployment annotations                                         | `{}`                                      |
 | `podAnnotations`                | PSMDB Operator Pod annotations                                                | `{}`                                      |
+| `labels`                        | PSMDB Operator Deployment labels                                              | `{}`                                      |
+| `podLabels`                     | PSMDB Operator Pod labels                                                     | `{}`                                      |
 | `resources`                     | Resource requests and limits                                                  | `{}`                                      |
 | `nodeSelector`                  | Labels for Pod assignment                                                     | `{}`                                      |
 | `podAnnotations`                | Annotations for pod                                                           | `{}`                                      |
 | `podSecurityContext`            | Pod Security Context                                                          | `{}`                                      |
-| `watchNamespace`                | Set when a different from default namespace is needed to watch                | `""`                                      |
+| `watchNamespace`                | Set when a different from default namespace is needed to watch (comma separated if multiple needed)  | `""`               |
+| `createNamespace`               | Set if you want to create watched namespaces with helm                        | `false`                                   |
 | `rbac.create`                   | If false RBAC will not be created. RBAC resources will need to be created manually  | `true`                              |
 | `securityContext`               | Container Security Context                                                    | `{}`                                      |
 | `serviceAccount.create`         | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually  | `true`                  |

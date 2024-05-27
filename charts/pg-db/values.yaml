@@ -56,12 +56,19 @@ customReplicationTLSSecret:
 #         name: pgo-s3-creds
 #     global:
 #       repo1-path: /pgbackrest/postgres-operator/hippo/repo1
+#     options:
+#     - --type=time
+#     - --target="2021-06-09 14:15:11-04"
 #     repo:
 #       name: repo1
 #       s3:
 #         bucket: "my-bucket"
 #         endpoint: "s3.ca-central-1.amazonaws.com"
 #         region: "ca-central-1"
+#       gcs:
+#         bucket: "my-bucket"
+#       azure:
+#         container: "my-container"
 
 # expose:
 #   annotations:
@@ -87,6 +94,9 @@ instances:
           topologyKey: kubernetes.io/hostname
 
 #  resources:
+#    requests:
+#      cpu: 2.0
+#      memory: 4Gi
 #    limits:
 #      cpu: 2.0
 #      memory: 4Gi
@@ -114,13 +124,15 @@ instances:
 #  priorityClassName: high-priority
 #
 #  walVolumeClaimSpec:
+#    storageClassName: ""
 #    accessModes:
-#    - "ReadWriteOnce"
+#    - ReadWriteOnce
 #    resources:
 #      requests:
 #        storage: 1Gi
 #
   dataVolumeClaimSpec:
+#    storageClassName: ""
     accessModes:
     - ReadWriteOnce
     resources:
@@ -241,8 +253,10 @@ backups:
       schedules:
         full: "0 0 * * 6"
 #        differential: "0 1 * * 1-6"
+#        incremental: "0 1 * * 1-6"
       volume:
         volumeClaimSpec:
+#          storageClassName: ""
           accessModes:
           - ReadWriteOnce
           resources:
