@@ -46,6 +46,14 @@ rules:
     - update
     - patch
     - delete
+  - apiGroups:
+    - ""
+    resources:
+    - nodes
+    verbs:
+    - get
+    - list
+    - watch
 {{- end }}
   - apiGroups:
     - ""
