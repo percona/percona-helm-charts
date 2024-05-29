@@ -14,6 +14,7 @@ metadata:
   finalizers:
 {{ .Values.finalizers | toYaml | indent 4 }}
   name: {{ include "pg-database.fullname" . }}
+  namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
   image: {{ include "pg-database.postgres-image" . }}
