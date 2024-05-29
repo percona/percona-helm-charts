@@ -6,6 +6,9 @@ kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {{ include "postgres-operator.fullname" . }}
+{{- if not (or .Values.watchNamespace .Values.watchAllNamespaces) }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
   labels:
 {{ include "postgres-operator.labels" . | indent 4 }}
 rules:
