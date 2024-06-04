@@ -36,6 +36,7 @@ The chart can be customized using the following configurable parameters:
 | `unsafeFlags.backupIfUnhealthy` | Allows running backup on a cluster with failed health checks                  | `false`                               |
 | `clusterServiceDNSSuffix`       | The (non-standard) cluster domain to be used as a suffix of the Service name  | `""`                                  |
 | `clusterServiceDNSMode`         | Mode for the cluster service dns (Internal/ServiceMesh)                       | `""`                                  |
+| `annotations`                   | PSMDB custom resource annotations                                             | `{}`                                  |
 | `ignoreAnnotations`             | The list of annotations to be ignored by the Operator                         | `[]`                                  |
 | `ignoreLabels`                  | The list of labels to be ignored by the Operator                              | `[]`                                  |
 | `multiCluster.enabled`          | Enable Multi Cluster Services (MCS) cluster mode                              | `false`                               |
