@@ -28,6 +28,8 @@ unsafeFlags:
   terminationGracePeriod: false
   backupIfUnhealthy: false
 
+annotations: {}
+
 # ignoreAnnotations:
 #   - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
 # ignoreLabels:
