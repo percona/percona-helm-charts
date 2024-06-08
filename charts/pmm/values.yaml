@@ -265,7 +265,30 @@ extraVolumeMounts: []
 ## @param extraVolumes Optionally specify extra list of additional volumes
 ##
 extraVolumes: []
-## @param extraObjects Optionally specify extra list of additional objects to create
-##
-extraObjects: []
 
+## @param extraObjects Optional set of manifests to deploy
+## Can be defined as either a list of dictionary
+## List objects can template keys, but doesn't support merging from multiple values files.
+## Dictionaries can't template keys, but can merge values files which makes it better suited for use with encrypted and unencrypted values files.
+extraObjects: []
+# meaningless_key:
+#   apiVersion: v1
+#   kind: Secret
+#   type: Opaque
+#   metadata:
+#     name: configmap
+#   data:
+#     token: |
+#       {{ print "public configmap" | b64enc }}
+# - |
+#   {{- range (list "1" "2" "3") }}
+#   ---
+#   apiVersion: v1
+#   kind: Secret
+#   type: Opaque
+#   metadata:
+#     name: google-serviceaccount
+#   data:
+#     {{ printf "secret-%s" . }}: |
+#       {{ print "super secret password" | b64enc }}
+#   {{- end }}
