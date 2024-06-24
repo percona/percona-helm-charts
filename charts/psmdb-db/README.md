@@ -8,7 +8,7 @@ Useful links:
 
 ## Pre-requisites
 * Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-* Kubernetes 1.25+
+* Kubernetes 1.26+
 * Helm v3
 
 # Chart Details
@@ -19,14 +19,14 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.16.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.16.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                               |
 | ------------------------------- | ------------------------------------------------------------------------------|---------------------------------------|
-| `crVersion`                     | CR Cluster Manifest version                                                   | `1.16.0`                              |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `1.16.1`                              |
 | `pause`                         | Stop PSMDB Database safely                                                    | `false`                               |
 | `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                               |
 | `unsafeFlags.tls`               | Allows users from configuring a cluster without TLS/SSL certificates          | `false`                               |
