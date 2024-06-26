@@ -888,6 +888,31 @@ entries:
   pg-operator:
   - apiVersion: v2
     appVersion: 2.3.1
+    created: "2024-06-26T15:47:19.265357652Z"
+    description: A Helm chart to deploy the Percona Operator for PostgreSQL
+    digest: 782d08ac401d39ea21fa660dea307431a8c45eb483acb5f44afddfa8a02366a2
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    name: pg-operator
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-operator-2.3.6/pg-operator-2.3.6.tgz
+    version: 2.3.6
+  - apiVersion: v2
+    appVersion: 2.3.1
     created: "2024-05-29T13:37:15.852569241Z"
     description: A Helm chart to deploy the Percona Operator for PostgreSQL
     digest: ce0102e18cf9371a745181093d6b07ee97d6695ffc3f61ece2f95b644b347bae
