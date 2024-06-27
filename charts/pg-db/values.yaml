@@ -279,7 +279,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.41.0
+    tag: 2.42.0
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -300,7 +300,7 @@ pmm:
 #       - host    all mytest 123.123.123.123/32 reject
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.3.1
+#   image: percona/percona-postgresql-operator:2.4.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
