@@ -68,6 +68,10 @@ The chart can be customized using the following configurable parameters:
 | `expose.labels`                         |    Set labels for the PostgreSQL Service                                             | `{}`                                                        |
 | `expose.type`                         |  Specifies the type of Kubernetes Service for PostgreSQL                                               | `LoadBalancer`                                              |
 | `expose.loadBalancerSourceRanges`        | The range of client IP addresses from which the load balancer should be reachable (if not set, there is no limitations) | `[]` |
+| `exposeReplicas.annotations`                         |   The Kubernetes annotations metadata for PostgreSQL replicas                                             | `{}`                                                        |
+| `exposeReplicas.labels`                         |    Set labels for the PostgreSQL Service replicas                                            | `{}`                                                        |
+| `exposeReplicas.type`                         |  Specifies the type of Kubernetes Service for PostgreSQL replicas                                              | `LoadBalancer`                                              |
+| `exposeReplicas.loadBalancerSourceRanges`        | The range of client IP addresses from which the load balancer should be reachable (if not set, there is no limitations) for PostgreSQL replicas | `[]` |
 | `instances.name`                         | The name of the PostgreSQL instance                                                | `instance1`                                                 |
 | `instances.replicas`                     | The number of Replicas to create for the PostgreSQL instance | `3`                                                         |
 | `instances.affinity.podAntiAffinity`     |  Pod anti-affinity, allows setting the standard Kubernetes affinity constraints of any complexity | `{}`                                                        |

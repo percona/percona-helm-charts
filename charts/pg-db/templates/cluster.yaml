@@ -125,6 +125,22 @@ spec:
 {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 6 }}
     {{- end }}
   {{- end }}
+  {{- if .Values.exposeReplicas }}
+  exposeReplicas:
+    type: {{ .Values.exposeReplicas.type }}
+    {{- if .Values.exposeReplicas.annotations }}
+    annotations:
+{{ .Values.exposeReplicas.annotations | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.exposeReplicas.labels }}
+    labels:
+{{ .Values.exposeReplicas.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.exposeReplicas.loadBalancerSourceRanges }}
+    loadBalancerSourceRanges:
+{{ .Values.exposeReplicas.loadBalancerSourceRanges | toYaml | indent 6 }}
+    {{- end }}
+  {{- end }}
 
   instances:
   {{- range $instance := .Values.instances }}
