@@ -39,9 +39,9 @@ Chart.
 | `imagePullPolicy` | PG Operator Container pull policy | `Always`|
 | `resources` | Resource requests and limits | `{}` |
 | `nodeSelector` | Labels for Pod assignment | `{}` |
-| `logStructured` | Force PXC operator to print JSON-wrapped log messages | `false` |
-| `logLevel` | PXC Operator logging level | `INFO` |
-| `disableTelemetry` | Disable sending PXC Operator telemetry data to Percona | `false`|
+| `logStructured` | Force PG operator to print JSON-wrapped log messages | `false` |
+| `logLevel` | PG Operator logging level | `INFO` |
+| `disableTelemetry` | Disable sending PG Operator telemetry data to Percona | `false`|
 | `watchNamespace` | Set this variable if the target cluster namespace differs from operators namespace | `` |
 | `watchAllNamespaces` | K8S Cluster-wide operation | `false` |
 
