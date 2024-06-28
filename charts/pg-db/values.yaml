@@ -123,6 +123,24 @@ instances:
 #
 #  priorityClassName: high-priority
 #
+#  securityContext:
+#    fsGroup: 1001
+#    runAsUser: 1001
+#    runAsNonRoot: true
+#    fsGroupChangePolicy: "OnRootMismatch"
+#    runAsGroup: 1001
+#    seLinuxOptions:
+#      type: spc_t
+#      level: s0:c123,c456
+#    seccompProfile:
+#      type: Localhost
+#      localhostProfile: localhost/profile.json
+#    supplementalGroups:
+#    - 1001
+#    sysctls:
+#    - net.ipv4.tcp_keepalive_time=600
+#    - net.ipv4.tcp_keepalive_intvl=60
+#
 #  walVolumeClaimSpec:
 #    storageClassName: ""
 #    accessModes:
@@ -174,6 +192,24 @@ proxy:
 #        operator: Equal
 #        value: connection-poolers
 #
+#     securityContext:
+#       fsGroup: 1001
+#       runAsUser: 1001
+#       runAsNonRoot: true
+#       fsGroupChangePolicy: "OnRootMismatch"
+#       runAsGroup: 1001
+#       seLinuxOptions:
+#         type: spc_t
+#         level: s0:c123,c456
+#       seccompProfile:
+#         type: Localhost
+#         localhostProfile: localhost/profile.json
+#       supplementalGroups:
+#       - 1001
+#       sysctls:
+#       - net.ipv4.tcp_keepalive_time=600
+#       - net.ipv4.tcp_keepalive_intvl=60
+# 
 #      topologySpreadConstraints:
 #        - maxSkew: 1
 #          topologyKey: my-node-label
@@ -213,6 +249,24 @@ backups:
 #        operator: Equal
 #        value: connection-poolers
 #
+#      securityContext:
+#        fsGroup: 1001
+#        runAsUser: 1001
+#        runAsNonRoot: true
+#        fsGroupChangePolicy: "OnRootMismatch"
+#        runAsGroup: 1001
+#        seLinuxOptions:
+#          type: spc_t
+#          level: s0:c123,c456
+#        seccompProfile:
+#          type: Localhost
+#          localhostProfile: localhost/profile.json
+#        supplementalGroups:
+#        - 1001
+#        sysctls:
+#        - net.ipv4.tcp_keepalive_time=600
+#        - net.ipv4.tcp_keepalive_intvl=60
+#
 #    global:
 #      repo1-retention-full: "14"
 #      repo1-retention-full-type: time
@@ -243,6 +297,24 @@ backups:
 #        labelSelector:
 #          matchLabels:
 #            postgres-operator.crunchydata.com/pgbackrest: ""
+#
+#      securityContext:
+#        fsGroup: 1001
+#        runAsUser: 1001
+#        runAsNonRoot: true
+#        fsGroupChangePolicy: "OnRootMismatch"
+#        runAsGroup: 1001
+#        seLinuxOptions:
+#          type: spc_t
+#          level: s0:c123,c456
+#        seccompProfile:
+#          type: Localhost
+#          localhostProfile: localhost/profile.json
+#        supplementalGroups:
+#        - 1001
+#        sysctls:
+#        - net.ipv4.tcp_keepalive_time=600
+#        - net.ipv4.tcp_keepalive_intvl=60
 
     manual:
       repoName: repo1

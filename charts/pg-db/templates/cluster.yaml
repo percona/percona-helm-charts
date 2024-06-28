@@ -177,6 +177,10 @@ spec:
       {{- if $instance.priorityClassName }}
       priorityClassName: {{ $instance.priorityClassName }}
       {{- end }}
+      {{- if $instance.securityContext }}
+      securityContext: 
+{{ $instance.securityContext | toYaml | indent 8 }}
+      {{- end }}
 
       {{- if $instance.walVolumeClaimSpec }}
       walVolumeClaimSpec:
@@ -273,6 +277,10 @@ spec:
         operator: {{ .Values.proxy.pgBouncer.tolerations.operator }}
         value: {{ .Values.proxy.pgBouncer.tolerations.value }}
       {{- end }}
+      {{- if .Values.proxy.pgBouncer.securityContext }}
+      securityContext: 
+{{ .Values.proxy.pgBouncer.securityContext | toYaml | indent 8 }}
+      {{- end }}
 
   pmm:
     enabled: {{ .Values.pmm.enabled }}
@@ -301,6 +309,10 @@ spec:
           operator: {{ .Values.backups.pgbackrest.jobs.tolerations.operator }}
           value: {{ .Values.backups.pgbackrest.jobs.tolerations.value }}
         {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.securityContext }}
+        securityContext: 
+{{ .Values.backups.pgbackrest.jobs.securityContext | toYaml | indent 10 }}
+        {{- end }}
       {{- end }}
       {{- if .Values.backups.pgbackrest.global }}
       global:
@@ -323,6 +335,10 @@ spec:
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
         affinity:
 {{ .Values.backups.pgbackrest.repoHost.affinity | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.securityContext }}
+        securityContext: 
+{{ .Values.backups.pgbackrest.repoHost.securityContext | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
       manual:
