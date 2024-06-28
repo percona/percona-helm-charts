@@ -44,30 +44,6 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
-{{- define "pg-database.postgres-image" -}}
-{{- if .Values.image }}
-{{- .Values.image }}
-{{- else }}
-{{- printf "%s:%s-ppg%d-postgres" .Values.repository .Chart.AppVersion (.Values.postgresVersion | int ) }}
-{{- end }}
-{{- end -}}
-
-{{- define "pg-database.backup-image" -}}
-{{- if .Values.backups.pgbackrest.image }}
-{{- .Values.backups.pgbackrest.image }}
-{{- else }}
-{{- printf "%s:%s-ppg%d-pgbackrest" .Values.repository .Chart.AppVersion (.Values.postgresVersion | int ) }}
-{{- end }}
-{{- end -}}
-
-{{- define "pg-database.pgbouncer-image" -}}
-{{- if .Values.proxy.pgBouncer.image }}
-{{- .Values.proxy.pgBouncer.image }}
-{{- else }}
-{{- printf "%s:%s-ppg%d-pgbouncer" .Values.repository .Chart.AppVersion (.Values.postgresVersion | int )}}
-{{- end }}
-{{- end -}}
-
 {{- define "pg-database.backup-repos" -}}
 {{- if .Values.backups.pgbackrest.repos }}
 repos:

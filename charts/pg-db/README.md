@@ -34,7 +34,7 @@ The chart can be customized using the following configurable parameters:
 | `finalizers`                     | Finalizers list                                                 | `{}`                                                        |
 | `crVersion`                     | CR Cluster Manifest version                                                   | `2.4.0`                                                     |
 | `repository`                     | PostgreSQL container image repository                                               | `percona/percona-postgresql-operator`                       |
-| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.4.0-ppg16-postgres`  |
+| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.4.0-ppg16.3-postgres`  |
 | `imagePullPolicy`                     | image Pull Policy                                                   | `Always`                                                    |
 | `port`                         | PostgreSQL port                                                    | `5432`                                                      |
 | `postgresVersion`                     | PostgreSQL container version tag                                       | `16`                                                        |
@@ -129,7 +129,7 @@ The chart can be customized using the following configurable parameters:
 | `backups.restore.enabled`                         |  Enables or disables restoring a previously made backup                                               | `false`                                                     |
 | `backups.restore.repoName`                         | Name of the pgBackRest repository that contains the backup to be restored                                                | `repo1`                                                     |
 | `backups.restore.options`                         | The pgBackRest command-line options for the pgBackRest restore command                                                | `--type=time`                                               |
-| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postresql-operator:2.4.0-ppg16-pgbackrest` |
+| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postgresql-operator:2.4.0-ppg16.3-pgbackrest2.51-1` |
 | `backups.repos.repo2.s3.bucket`                     | Storage bucket | ``                                                          |
 | `backups.repos.repo2.s3.region`                     |  S3-compatible storage name | ``                                                          |
 | `backups.repos.repo2.s3.endpoint`              | S3-compatible storage endpoint | ``                                                          |
@@ -152,7 +152,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.pgBouncer.customTLSSecret.name`                         | Custom external TLS secret name                                                | `keycloakdb-pgbouncer.tls`                                  |
 | `proxy.pgBouncer.securityContext`                           | The Kubernetes Pod security context for the pgBouncer instance | `{}` |
 | `proxy.pgBouncer.affinity.podAntiAffinity` |  Pod anti-affinity, allows setting the standard Kubernetes affinity constraints of any complexity                    | `{}`                                                        |
-| `proxy.pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postresql-operator:1.4.0-ppg14-pgbouncer`  |
+| `proxy.pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postgresql-operator:2.4.0-ppg16.3-pgbouncer1.22.1`  |
 | `proxy.pgBouncer.replicas`                     | The number of pgbouncer instances                                        | `3`                                                         |
 | `proxy.pgBouncer.resources.requests.cpu`                     | Container resource request for CPU                                        | `1`                                                         |
 | `proxy.pgBouncer.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                                                     |

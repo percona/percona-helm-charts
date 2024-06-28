@@ -17,7 +17,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
-  image: {{ include "pg-database.postgres-image" . }}
+  image: {{ .Values.image }}
   imagePullPolicy: Always
   port: {{ default 5432 .Values.port }}
   postgresVersion: {{ .Values.postgresVersion }}
@@ -222,7 +222,7 @@ spec:
 
   proxy:
     pgBouncer:
-      image: {{ include "pg-database.pgbouncer-image" .}}
+      image: {{ .Values.proxy.pgBouncer.image }}
       replicas: {{ .Values.proxy.pgBouncer.replicas}}
       exposeSuperusers: {{ .Values.proxy.pgBouncer.exposeSuperusers | default true }}
       {{- if .Values.proxy.pgBouncer.resources }}
@@ -306,7 +306,7 @@ spec:
 
   backups:
     pgbackrest:
-      image: {{ include "pg-database.backup-image" . }}
+      image: {{ .Values.backups.pgbackrest.image }}
       {{- if .Values.backups.pgbackrest.configuration }}
       configuration:
 {{ .Values.backups.pgbackrest.configuration | toYaml | indent 6 }}
