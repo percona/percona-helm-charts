@@ -406,6 +406,12 @@ spec:
 
 {{- if .Values.patroni }}
   patroni:
+    {{- if .Values.patroni.syncPeriodSeconds }}
+    syncPeriodSeconds: {{ .Values.patroni.syncPeriodSeconds }}
+    {{- end }}
+    {{- if .Values.patroni.leaderLeaseDurationSeconds }}
+    leaderLeaseDurationSeconds: {{ .Values.patroni.leaderLeaseDurationSeconds }}
+    {{- end }}
     dynamicConfiguration:
       postgresql:
         parameters:
