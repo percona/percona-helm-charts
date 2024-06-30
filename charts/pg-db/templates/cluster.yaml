@@ -111,6 +111,21 @@ spec:
           container: {{ $azure.container }}
         {{- end }}
     {{- end }}
+    {{- if $volumes := $dataSource.volumes }}
+    volumes:
+      {{- if $pgDataVolume := $volumes.pgDataVolume }}
+      pgDataVolume:
+{{ $pgDataVolume | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $pgWALVolume := $volumes.pgWALVolume }}
+      pgWALVolume:
+{{ $pgWALVolume | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $pgBackRestVolume := $volumes.pgBackRestVolume }}
+      pgBackRestVolume:
+{{ $pgBackRestVolume | toYaml | indent 8 }}
+      {{- end }}
+    {{- end }}
   {{- end }}
 
   {{- if .Values.expose }}

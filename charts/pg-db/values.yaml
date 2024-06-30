@@ -75,6 +75,44 @@ customReplicationTLSSecret:
 #       azure:
 #         container: "my-container"
 
+#   volumes:
+#     pgDataVolume:
+#       pvcName: cluster1
+#       directory: cluster1
+#       tolerations:
+#       - effect: NoSchedule
+#         key: role
+#         operator: Equal
+#         value: connection-poolers
+#       annotations:
+#         test-annotation: value
+#       labels:
+#         test-label: value
+#     pgWALVolume:
+#       pvcName: cluster1-pvc-name
+#       directory: some-dir
+#       tolerations:
+#       - effect: NoSchedule
+#         key: role
+#         operator: Equal
+#         value: connection-poolers
+#       annotations:
+#         test-annotation: value
+#       labels:
+#         test-label: value
+#     pgBackRestVolume:
+#       pvcName: cluster1-pgbr-repo
+#       directory: cluster1-backrest-shared-repo
+#       tolerations:
+#       - effect: NoSchedule
+#         key: role
+#         operator: Equal
+#         value: connection-poolers
+#       annotations:
+#         test-annotation: value
+#       labels:
+#         test-label: value
+
 # expose:
 #   annotations:
 #     my-annotation: value1
@@ -163,7 +201,7 @@ instances:
 #      value: "60"
 #
 #  walVolumeClaimSpec:
-#    storageClassName: ""
+#    storageClassName: standard
 #    accessModes:
 #    - ReadWriteOnce
 #    resources:
@@ -171,7 +209,7 @@ instances:
 #        storage: 1Gi
 #
   dataVolumeClaimSpec:
-#    storageClassName: ""
+#    storageClassName: standard
     accessModes:
     - ReadWriteOnce
     resources:

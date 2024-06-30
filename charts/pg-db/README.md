@@ -68,6 +68,9 @@ The chart can be customized using the following configurable parameters:
 | `dataSource.pgbackrest.repo.s3.bucket`                         | The Amazon S3 bucket name used for backups	                                                | `""`                                                 |
 | `dataSource.pgbackrest.repo.s3.endpoint`                       |  The endpoint URL of the S3-compatible storage to be used for backups (not needed for the original Amazon S3 cloud)                         | `""`                             |
 | `dataSource.pgbackrest.repo.s3.region`                         |  The AWS region to use for Amazon and all S3-compatible storages                                               | `""`                                            |
+| `dataSource.volumes.pgDataVolume` | Defines the existing pgData volume and directory to use in the current PostgresCluster | `{}` |
+| `dataSource.volumes.pgWALVolume` | Defines the existing pg_wal volume and directory to use in the current PostgresCluster  | `{}` |
+| `dataSource.volumes.pgBackRestVolume` | Defines the existing pgBackRest repo volume and directory to use in the current PostgresCluster | `{}` |
 | `expose.annotations`                         |   The Kubernetes annotations metadata for PostgreSQL                                              | `{}`                                                        |
 | `expose.labels`                         |    Set labels for the PostgreSQL Service                                             | `{}`                                                        |
 | `expose.type`                         |  Specifies the type of Kubernetes Service for PostgreSQL                                               | `LoadBalancer`                                              |
