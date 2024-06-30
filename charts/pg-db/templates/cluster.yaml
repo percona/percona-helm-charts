@@ -167,6 +167,20 @@ spec:
           memory: {{ $instance.resources.limits.memory }}
         {{- end }}
       {{- end }}
+      {{- if $instance.containers }}
+      containers:
+        {{- if $instance.containers.replicaCertCopy }}
+        replicaCertCopy:
+          {{- if $instance.containers.replicaCertCopy.resources }}
+          resources:
+            {{- if $instance.containers.replicaCertCopy.resources.limits }}
+            limits:
+              cpu: {{ $instance.containers.replicaCertCopy.resources.limits.cpu }}
+              memory: {{ $instance.containers.replicaCertCopy.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
       {{- if $instance.sidecars }}
       sidecars:
       {{- range $sidecar := $instance.sidecars }}
@@ -242,6 +256,20 @@ spec:
           memory: {{ .Values.proxy.pgBouncer.resources.limits.memory }}
         {{- end }}
       {{- end }}
+      {{- if .Values.proxy.pgBouncer.containers }}
+      containers:
+        {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig }}
+        pgbouncerConfig:
+          {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources }}
+          resources:
+            {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits }}
+            limits:
+              cpu: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits.cpu }}
+              memory: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
       {{- if .Values.proxy.pgBouncer.expose }}
       expose:
         type: {{ .Values.proxy.pgBouncer.expose.type }}
@@ -314,6 +342,31 @@ spec:
       {{- if .Values.backups.pgbackrest.configuration }}
       configuration:
 {{ .Values.backups.pgbackrest.configuration | toYaml | indent 6 }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.containers }}
+      containers:
+        {{- if .Values.backups.pgbackrest.containers.pgbackrest }}
+        pgbackrest:
+          {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources }}
+          resources:
+            {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources.limits }}
+            limits:
+              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.limits.cpu }}
+              memory: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig }}
+        pgbackrestConfig:
+          {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources }}
+          resources:
+            {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits }}
+            limits:
+              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits.cpu }}
+              memory: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
       {{- end }}
       {{- if .Values.backups.pgbackrest.jobs }}
       jobs:
