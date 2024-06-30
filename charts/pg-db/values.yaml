@@ -49,6 +49,11 @@ customReplicationTLSSecret:
 #     options:
 #     - --type=time
 #     - --target="2021-06-09 14:15:11-04"
+#     tolerations:
+#     - effect: NoSchedule
+#       key: role
+#       operator: Equal
+#       value: connection-poolers
 #   pgbackrest:
 #     stanza: db
 #     configuration:
@@ -296,6 +301,11 @@ backups:
                   postgres-operator.crunchydata.com/data: pgbackrest
               topologyKey: kubernetes.io/hostname
 
+#      tolerations:
+#      - effect: NoSchedule
+#        key: role
+#        operator: Equal
+#        value: connection-poolers
 #      priorityClassName: high-priority
 #
 #      topologySpreadConstraints:
@@ -354,6 +364,13 @@ backups:
 #      azure:
 #        container: "<YOUR_AZURE_CONTAINER>"
 #
+#    restore:
+#      repoName: repo1
+#      tolerations:
+#      - effect: NoSchedule
+#        key: role
+#        operator: Equal
+#        value: connection-poolers
 
 pmm:
   enabled: false

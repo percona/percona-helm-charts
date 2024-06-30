@@ -78,6 +78,10 @@ spec:
       {{- range $option := $postgresCluster.options }}
       - {{ $option }}
       {{- end }}
+      {{- if $postgresCluster.tolerations }}
+      tolerations:
+{{ $postgresCluster.tolerations | toYaml | indent 8 }}
+      {{- end }}
     {{- end }}
     {{- if $pgbackrest := $dataSource.pgbackrest }}
     pgbackrest:
@@ -352,6 +356,10 @@ spec:
         affinity:
 {{ .Values.backups.pgbackrest.repoHost.affinity | toYaml | indent 10 }}
         {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.tolerations }}
+        tolerations:
+{{ .Values.backups.pgbackrest.repoHost.tolerations | toYaml | indent 10 }}
+        {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.securityContext }}
         securityContext: 
 {{ .Values.backups.pgbackrest.repoHost.securityContext | toYaml | indent 10 }}
@@ -401,6 +409,14 @@ spec:
         {{- if $azure := $repo.azure }}
         azure:
           container: {{ $azure.container }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.restore }}
+      restore:
+        repoName: {{ .Values.backups.pgbackrest.restore.repoName }} 
+        {{- if .Values.backups.pgbackrest.restore.tolerations }}
+        tolerations:
+{{ .Values.backups.pgbackrest.restore.tolerations | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
 
