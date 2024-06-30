@@ -193,6 +193,7 @@ The chart can be customized using the following configurable parameters:
 | `extensions.storage.type`        | The cloud storage type used for backups. Only s3 type is currently supported. | `""` |
 | `extensions.storage.bucket`      | The Amazon S3 bucket name for prepackaged PostgreSQL custom extensions        | `""` |
 | `extensions.storage.region`      | The AWS region to use                                                         | `""` |
+| `extensions.storage.endpoint`    | The S3 endpoint to use.                                                       | `""` |
 | `extensions.storage.secret.name` | The Kubernetes secret for the custom extensions storage. It should contain AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY keys | `""` |
 | `extensions.builtin`             | The key-value pairs which enable or disable Percona Distribution for PostgreSQL builtin extensions | `{}` |
 | `extensions.custom`              | Array of name and versions for each PostgreSQL custom extension              | `[]` |

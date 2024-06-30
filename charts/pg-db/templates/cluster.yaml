@@ -510,6 +510,9 @@ spec:
       {{- if .Values.extensions.storage.region }}
       region: {{ .Values.extensions.storage.region }}
       {{- end }}
+      {{- if .Values.extensions.storage.endpoint }}
+      endpoint: {{ .Values.extensions.storage.endpoint }}
+      {{- end }}
       {{- if .Values.extensions.storage.secret.name }}
       secret:
         name: {{ .Values.extensions.storage.secret.name }}
