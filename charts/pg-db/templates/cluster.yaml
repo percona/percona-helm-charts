@@ -94,6 +94,10 @@ spec:
       {{- range $option := $pgbackrest.options }}
       - {{ $option }}
       {{- end }}
+      {{- if $pgbackrest.tolerations }}
+      tolerations:
+{{ $pgbackrest.tolerations | toYaml | indent 8 }}
+      {{- end }}
       repo:
         name: {{ $pgbackrest.repo.name }}
         {{- if $s3 := $pgbackrest.repo.s3 }}

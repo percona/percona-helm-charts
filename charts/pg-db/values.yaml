@@ -64,6 +64,11 @@ customReplicationTLSSecret:
 #     options:
 #     - --type=time
 #     - --target="2021-06-09 14:15:11-04"
+#     tolerations:
+#     - effect: NoSchedule
+#       key: role
+#       operator: Equal
+#       value: connection-poolers
 #     repo:
 #       name: repo1
 #       s3:
