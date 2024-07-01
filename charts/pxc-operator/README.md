@@ -38,6 +38,7 @@ The chart can be customized using the following configurable parameters:
 | `logStructured`                 | Force PXC operator to print JSON-wrapped log messages                                          | `false`                                          |
 | `logLevel`                      | PXC Operator logging level                                                                     | `INFO`                                           |
 | `disableTelemetry`              | Disable sending PXC Operator telemetry data to Percona                                         | `false`                                          |
+| `watchAllNamespaces`            | Watch all namespaces (Install cluster-wide)                                                    | `false`                                          |
 | `watchNamespace`                | Comma separated list of namespace(s) to watch when different from release namespace            | `""`                                             |
 | `createNamespace`               | Create the watched namespace(s)                                                                | `false`                                          |
 | `rbac.create`                   | If false RBAC will not be created. RBAC resources will need to be created manually             | `true`                                           |
