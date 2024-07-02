@@ -17,7 +17,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
-  image: {{ include "pg-database.postgres-image" . }}
+  image: {{ .Values.image }}
   imagePullPolicy: Always
   port: {{ default 5432 .Values.port }}
   postgresVersion: {{ .Values.postgresVersion }}
@@ -78,6 +78,10 @@ spec:
       {{- range $option := $postgresCluster.options }}
       - {{ $option }}
       {{- end }}
+      {{- if $postgresCluster.tolerations }}
+      tolerations:
+{{ $postgresCluster.tolerations | toYaml | indent 8 }}
+      {{- end }}
     {{- end }}
     {{- if $pgbackrest := $dataSource.pgbackrest }}
     pgbackrest:
@@ -89,6 +93,10 @@ spec:
       options:
       {{- range $option := $pgbackrest.options }}
       - {{ $option }}
+      {{- end }}
+      {{- if $pgbackrest.tolerations }}
+      tolerations:
+{{ $pgbackrest.tolerations | toYaml | indent 8 }}
       {{- end }}
       repo:
         name: {{ $pgbackrest.repo.name }}
@@ -107,6 +115,21 @@ spec:
           container: {{ $azure.container }}
         {{- end }}
     {{- end }}
+    {{- if $volumes := $dataSource.volumes }}
+    volumes:
+      {{- if $pgDataVolume := $volumes.pgDataVolume }}
+      pgDataVolume:
+{{ $pgDataVolume | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $pgWALVolume := $volumes.pgWALVolume }}
+      pgWALVolume:
+{{ $pgWALVolume | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $pgBackRestVolume := $volumes.pgBackRestVolume }}
+      pgBackRestVolume:
+{{ $pgBackRestVolume | toYaml | indent 8 }}
+      {{- end }}
+    {{- end }}
   {{- end }}
 
   {{- if .Values.expose }}
@@ -123,6 +146,22 @@ spec:
     {{- if .Values.expose.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 6 }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.exposeReplicas }}
+  exposeReplicas:
+    type: {{ .Values.exposeReplicas.type }}
+    {{- if .Values.exposeReplicas.annotations }}
+    annotations:
+{{ .Values.exposeReplicas.annotations | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.exposeReplicas.labels }}
+    labels:
+{{ .Values.exposeReplicas.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.exposeReplicas.loadBalancerSourceRanges }}
+    loadBalancerSourceRanges:
+{{ .Values.exposeReplicas.loadBalancerSourceRanges | toYaml | indent 6 }}
     {{- end }}
   {{- end }}
 
@@ -145,6 +184,20 @@ spec:
         limits:
           cpu: {{ $instance.resources.limits.cpu }}
           memory: {{ $instance.resources.limits.memory }}
+        {{- end }}
+      {{- end }}
+      {{- if $instance.containers }}
+      containers:
+        {{- if $instance.containers.replicaCertCopy }}
+        replicaCertCopy:
+          {{- if $instance.containers.replicaCertCopy.resources }}
+          resources:
+            {{- if $instance.containers.replicaCertCopy.resources.limits }}
+            limits:
+              cpu: {{ $instance.containers.replicaCertCopy.resources.limits.cpu }}
+              memory: {{ $instance.containers.replicaCertCopy.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
         {{- end }}
       {{- end }}
       {{- if $instance.sidecars }}
@@ -177,6 +230,10 @@ spec:
       {{- if $instance.priorityClassName }}
       priorityClassName: {{ $instance.priorityClassName }}
       {{- end }}
+      {{- if $instance.securityContext }}
+      securityContext: 
+{{ $instance.securityContext | toYaml | indent 8 }}
+      {{- end }}
 
       {{- if $instance.walVolumeClaimSpec }}
       walVolumeClaimSpec:
@@ -202,7 +259,7 @@ spec:
 
   proxy:
     pgBouncer:
-      image: {{ include "pg-database.pgbouncer-image" .}}
+      image: {{ .Values.proxy.pgBouncer.image }}
       replicas: {{ .Values.proxy.pgBouncer.replicas}}
       exposeSuperusers: {{ .Values.proxy.pgBouncer.exposeSuperusers | default true }}
       {{- if .Values.proxy.pgBouncer.resources }}
@@ -216,6 +273,20 @@ spec:
         limits:
           cpu: {{ .Values.proxy.pgBouncer.resources.limits.cpu }}
           memory: {{ .Values.proxy.pgBouncer.resources.limits.memory }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.containers }}
+      containers:
+        {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig }}
+        pgbouncerConfig:
+          {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources }}
+          resources:
+            {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits }}
+            limits:
+              cpu: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits.cpu }}
+              memory: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
         {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.expose }}
@@ -273,6 +344,10 @@ spec:
         operator: {{ .Values.proxy.pgBouncer.tolerations.operator }}
         value: {{ .Values.proxy.pgBouncer.tolerations.value }}
       {{- end }}
+      {{- if .Values.proxy.pgBouncer.securityContext }}
+      securityContext: 
+{{ .Values.proxy.pgBouncer.securityContext | toYaml | indent 8 }}
+      {{- end }}
 
   pmm:
     enabled: {{ .Values.pmm.enabled }}
@@ -282,10 +357,35 @@ spec:
 
   backups:
     pgbackrest:
-      image: {{ include "pg-database.backup-image" . }}
+      image: {{ .Values.backups.pgbackrest.image }}
       {{- if .Values.backups.pgbackrest.configuration }}
       configuration:
 {{ .Values.backups.pgbackrest.configuration | toYaml | indent 6 }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.containers }}
+      containers:
+        {{- if .Values.backups.pgbackrest.containers.pgbackrest }}
+        pgbackrest:
+          {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources }}
+          resources:
+            {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources.limits }}
+            limits:
+              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.limits.cpu }}
+              memory: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig }}
+        pgbackrestConfig:
+          {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources }}
+          resources:
+            {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits }}
+            limits:
+              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits.cpu }}
+              memory: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
       {{- end }}
       {{- if .Values.backups.pgbackrest.jobs }}
       jobs:
@@ -300,6 +400,10 @@ spec:
           key: {{ .Values.backups.pgbackrest.jobs.tolerations.key }}
           operator: {{ .Values.backups.pgbackrest.jobs.tolerations.operator }}
           value: {{ .Values.backups.pgbackrest.jobs.tolerations.value }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.securityContext }}
+        securityContext: 
+{{ .Values.backups.pgbackrest.jobs.securityContext | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
       {{- if .Values.backups.pgbackrest.global }}
@@ -323,6 +427,14 @@ spec:
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
         affinity:
 {{ .Values.backups.pgbackrest.repoHost.affinity | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.tolerations }}
+        tolerations:
+{{ .Values.backups.pgbackrest.repoHost.tolerations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.securityContext }}
+        securityContext: 
+{{ .Values.backups.pgbackrest.repoHost.securityContext | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
       manual:
@@ -371,9 +483,23 @@ spec:
           container: {{ $azure.container }}
         {{- end }}
       {{- end }}
+      {{- if .Values.backups.pgbackrest.restore }}
+      restore:
+        repoName: {{ .Values.backups.pgbackrest.restore.repoName }} 
+        {{- if .Values.backups.pgbackrest.restore.tolerations }}
+        tolerations:
+{{ .Values.backups.pgbackrest.restore.tolerations | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
 
 {{- if .Values.patroni }}
   patroni:
+    {{- if .Values.patroni.syncPeriodSeconds }}
+    syncPeriodSeconds: {{ .Values.patroni.syncPeriodSeconds }}
+    {{- end }}
+    {{- if .Values.patroni.leaderLeaseDurationSeconds }}
+    leaderLeaseDurationSeconds: {{ .Values.patroni.leaderLeaseDurationSeconds }}
+    {{- end }}
     dynamicConfiguration:
       postgresql:
         parameters:
@@ -402,6 +528,9 @@ spec:
       {{- end }}
       {{- if .Values.extensions.storage.region }}
       region: {{ .Values.extensions.storage.region }}
+      {{- end }}
+      {{- if .Values.extensions.storage.endpoint }}
+      endpoint: {{ .Values.extensions.storage.endpoint }}
       {{- end }}
       {{- if .Values.extensions.storage.secret.name }}
       secret:

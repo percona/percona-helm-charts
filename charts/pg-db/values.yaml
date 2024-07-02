@@ -8,9 +8,9 @@ finalizers:
 # Set this if you want that operator deletes the ssl objects on cluster deletion
 #  - percona.com/delete-ssl
 
-crVersion: 2.3.1
+crVersion: 2.4.0
 repository: percona/percona-postgresql-operator
-image: ""
+image: percona/percona-postgresql-operator:2.4.0-ppg16.3-postgres
 imagePullPolicy: Always
 postgresVersion: 16
 # port: 5432
@@ -49,6 +49,11 @@ customReplicationTLSSecret:
 #     options:
 #     - --type=time
 #     - --target="2021-06-09 14:15:11-04"
+#     tolerations:
+#     - effect: NoSchedule
+#       key: role
+#       operator: Equal
+#       value: connection-poolers
 #   pgbackrest:
 #     stanza: db
 #     configuration:
@@ -59,6 +64,11 @@ customReplicationTLSSecret:
 #     options:
 #     - --type=time
 #     - --target="2021-06-09 14:15:11-04"
+#     tolerations:
+#     - effect: NoSchedule
+#       key: role
+#       operator: Equal
+#       value: connection-poolers
 #     repo:
 #       name: repo1
 #       s3:
@@ -70,7 +80,53 @@ customReplicationTLSSecret:
 #       azure:
 #         container: "my-container"
 
+#   volumes:
+#     pgDataVolume:
+#       pvcName: cluster1
+#       directory: cluster1
+#       tolerations:
+#       - effect: NoSchedule
+#         key: role
+#         operator: Equal
+#         value: connection-poolers
+#       annotations:
+#         test-annotation: value
+#       labels:
+#         test-label: value
+#     pgWALVolume:
+#       pvcName: cluster1-pvc-name
+#       directory: some-dir
+#       tolerations:
+#       - effect: NoSchedule
+#         key: role
+#         operator: Equal
+#         value: connection-poolers
+#       annotations:
+#         test-annotation: value
+#       labels:
+#         test-label: value
+#     pgBackRestVolume:
+#       pvcName: cluster1-pgbr-repo
+#       directory: cluster1-backrest-shared-repo
+#       tolerations:
+#       - effect: NoSchedule
+#         key: role
+#         operator: Equal
+#         value: connection-poolers
+#       annotations:
+#         test-annotation: value
+#       labels:
+#         test-label: value
+
 # expose:
+#   annotations:
+#     my-annotation: value1
+#   labels:
+#     my-label: value2
+#   type: LoadBalancer
+#   loadBalancerSourceRanges:
+#     - 10.0.0.0/8
+# exposeReplicas:
 #   annotations:
 #     my-annotation: value1
 #   labels:
@@ -100,6 +156,12 @@ instances:
 #    limits:
 #      cpu: 2.0
 #      memory: 4Gi
+#  containers:
+#    replicaCertCopy:
+#      resources:
+#        limits:
+#         cpu: 200m
+#         memory: 128Mi
 #
 #  sidecars:
 #  - name: testcontainer
@@ -123,8 +185,28 @@ instances:
 #
 #  priorityClassName: high-priority
 #
+#  securityContext:
+#    fsGroup: 1001
+#    runAsUser: 1001
+#    runAsNonRoot: true
+#    fsGroupChangePolicy: "OnRootMismatch"
+#    runAsGroup: 1001
+#    seLinuxOptions:
+#      type: spc_t
+#      level: s0:c123,c456
+#    seccompProfile:
+#      type: Localhost
+#      localhostProfile: localhost/profile.json
+#    supplementalGroups:
+#    - 1001
+#    sysctls:
+#    - name: net.ipv4.tcp_keepalive_time
+#      value: "600"
+#    - name: net.ipv4.tcp_keepalive_intvl
+#      value: "60"
+#
 #  walVolumeClaimSpec:
-#    storageClassName: ""
+#    storageClassName: standard
 #    accessModes:
 #    - ReadWriteOnce
 #    resources:
@@ -132,7 +214,7 @@ instances:
 #        storage: 1Gi
 #
   dataVolumeClaimSpec:
-#    storageClassName: ""
+#    storageClassName: standard
     accessModes:
     - ReadWriteOnce
     resources:
@@ -142,13 +224,19 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: ""
+    image: percona/percona-postgresql-operator:2.4.0-ppg16.3-pgbouncer1.22.1
 #    exposeSuperusers: true
 #    resources:
 #      limits:
 #        cpu: 200m
 #        memory: 128Mi
-#
+#    containers:
+#      pgbouncerConfig:
+#        resources:
+#          limits:
+#           cpu: 200m
+#           memory: 128Mi
+
 #      expose:
 #        annotations:
 #          my-annotation: value1
@@ -174,6 +262,26 @@ proxy:
 #        operator: Equal
 #        value: connection-poolers
 #
+#     securityContext:
+#       fsGroup: 1001
+#       runAsUser: 1001
+#       runAsNonRoot: true
+#       fsGroupChangePolicy: "OnRootMismatch"
+#       runAsGroup: 1001
+#       seLinuxOptions:
+#         type: spc_t
+#         level: s0:c123,c456
+#       seccompProfile:
+#         type: Localhost
+#         localhostProfile: localhost/profile.json
+#       supplementalGroups:
+#       - 1001
+#       sysctls:
+#       - name: net.ipv4.tcp_keepalive_time
+#         value: "600"
+#       - name: net.ipv4.tcp_keepalive_intvl
+#         value: "60"
+# 
 #      topologySpreadConstraints:
 #        - maxSkew: 1
 #          topologyKey: my-node-label
@@ -197,7 +305,19 @@ backups:
   pgbackrest:
 #    metadata:
 #    labels:
-    image: ""
+    image: percona/percona-postgresql-operator:2.4.0-ppg16.3-pgbackrest2.51-1
+#    containers:
+#      pgbackrest:
+#        resources:
+#          limits:
+#           cpu: 200m
+#           memory: 128Mi
+#      pgbackrestConfig:
+#        resources:
+#          limits:
+#           cpu: 200m
+#           memory: 128Mi
+#
 #    configuration:
 #      - secret:
 #          name: cluster1-pgbackrest-secrets
@@ -212,6 +332,26 @@ backups:
 #        key: role
 #        operator: Equal
 #        value: connection-poolers
+#
+#      securityContext:
+#        fsGroup: 1001
+#        runAsUser: 1001
+#        runAsNonRoot: true
+#        fsGroupChangePolicy: "OnRootMismatch"
+#        runAsGroup: 1001
+#        seLinuxOptions:
+#          type: spc_t
+#          level: s0:c123,c456
+#        seccompProfile:
+#          type: Localhost
+#          localhostProfile: localhost/profile.json
+#        supplementalGroups:
+#        - 1001
+#        sysctls:
+#        - name: net.ipv4.tcp_keepalive_time
+#          value: "600"
+#        - name: net.ipv4.tcp_keepalive_intvl
+#          value: "60"
 #
 #    global:
 #      repo1-retention-full: "14"
@@ -234,6 +374,11 @@ backups:
                   postgres-operator.crunchydata.com/data: pgbackrest
               topologyKey: kubernetes.io/hostname
 
+#      tolerations:
+#      - effect: NoSchedule
+#        key: role
+#        operator: Equal
+#        value: connection-poolers
 #      priorityClassName: high-priority
 #
 #      topologySpreadConstraints:
@@ -243,6 +388,26 @@ backups:
 #        labelSelector:
 #          matchLabels:
 #            postgres-operator.crunchydata.com/pgbackrest: ""
+#
+#      securityContext:
+#        fsGroup: 1001
+#        runAsUser: 1001
+#        runAsNonRoot: true
+#        fsGroupChangePolicy: "OnRootMismatch"
+#        runAsGroup: 1001
+#        seLinuxOptions:
+#          type: spc_t
+#          level: s0:c123,c456
+#        seccompProfile:
+#          type: Localhost
+#          localhostProfile: localhost/profile.json
+#        supplementalGroups:
+#        - 1001
+#        sysctls:
+#        - name: net.ipv4.tcp_keepalive_time
+#          value: "600"
+#        - name: net.ipv4.tcp_keepalive_intvl
+#          value: "60"
 
     manual:
       repoName: repo1
@@ -274,12 +439,19 @@ backups:
 #      azure:
 #        container: "<YOUR_AZURE_CONTAINER>"
 #
+#    restore:
+#      repoName: repo1
+#      tolerations:
+#      - effect: NoSchedule
+#        key: role
+#        operator: Equal
+#        value: connection-poolers
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.41.0
+    tag: 2.42.0
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -289,6 +461,12 @@ pmm:
 #      cpu: 500m
 
 # patroni:
+#   # Some values of the Liveness/Readiness probes of the patroni container are calulated using syncPeriodSeconds by the following formulas:
+#   # - timeoutSeconds:   syncPeriodSeconds / 2;
+#   # - periodSeconds:    syncPeriodSeconds;
+#   # - failureThreshold: leaderLeaseDurationSeconds / syncPeriodSeconds.
+#   syncPeriodSeconds: 10
+#   leaderLeaseDurationSeconds: 30
 #   dynamicConfiguration:
 #     postgresql:
 #       parameters:
@@ -300,12 +478,13 @@ pmm:
 #       - host    all mytest 123.123.123.123/32 reject
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.3.1
+#   image: percona/percona-postgresql-operator:2.4.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
 #     bucket: pg-extensions
 #     region: eu-central-1
+#     endpoint: s3.eu-central-1.amazonaws.com
 #     secret:
 #       name: cluster1-extensions-secret
 #   builtin:
