@@ -2,6 +2,31 @@ apiVersion: v1
 entries:
   pg-db:
   - apiVersion: v2
+    appVersion: 2.4.0
+    created: "2024-07-02T12:44:13.106674141Z"
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    digest: 2a7a15922d3fcf6a7848e3e18da5136334cbfe2116e86cbfebfc1465cec75f49
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    name: pg-db
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-db-2.4.0/pg-db-2.4.0.tgz
+    version: 2.4.0
+  - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-05-29T13:37:15.71201018Z"
     description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
@@ -886,6 +911,31 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/pg-db-0.2.0/pg-db-0.2.0.tgz
     version: 0.2.0
   pg-operator:
+  - apiVersion: v2
+    appVersion: 2.4.0
+    created: "2024-07-02T12:44:13.294437989Z"
+    description: A Helm chart to deploy the Percona Operator for PostgreSQL
+    digest: 33304d24a88f9f3fa86991bd099be23bba9b3781142ae186b7dc727ac4adbd9b
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    name: pg-operator
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-operator-2.4.0/pg-operator-2.4.0.tgz
+    version: 2.4.0
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-06-26T15:47:19.265357652Z"
