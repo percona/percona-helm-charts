@@ -465,8 +465,8 @@ pmm:
 #   # - timeoutSeconds:   syncPeriodSeconds / 2;
 #   # - periodSeconds:    syncPeriodSeconds;
 #   # - failureThreshold: leaderLeaseDurationSeconds / syncPeriodSeconds.
-#   syncPeriodSeconds: 10 # default: 10
-#   leaderLeaseDurationSeconds: 30 # default: 30
+#   syncPeriodSeconds: 10
+#   leaderLeaseDurationSeconds: 30
 #   dynamicConfiguration:
 #     postgresql:
 #       parameters:
