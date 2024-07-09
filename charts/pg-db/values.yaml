@@ -476,6 +476,9 @@ pmm:
 #         work_mem: 2MB
 #       pg_hba:
 #       - host    all mytest 123.123.123.123/32 reject
+#   switchover:
+#     enabled: "true"
+#     targetInstance: ""
 
 # extensions:
 #   image: percona/percona-postgresql-operator:2.4.0
