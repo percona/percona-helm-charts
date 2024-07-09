@@ -193,6 +193,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m`                                                      |
 | `patroni.syncPeriodSeconds` | The interval for refreshing the leader lock and applying dynamicConfiguration | `10` |
 | `patroni.leaderLeaseDurationSeconds` | TTL of the cluster leader lock | `30` |
+| `patroni.dynamicConfiguration` | Custom PostgreSQL configuration options. Please note that configuration changes are automatically applied to the running instances without validation, so having an invalid config can make the cluster unavailable | `{}` |
 | `patroni.dynamicConfiguration.postgresql.parameters`                    | Custom PostgreSQL configuration options              | `{}` |
 | `patroni.dynamicConfiguration.postgresql.pg_hba`                    | PostgreSQL Host-Based Authentication section              | `{}` |
 | `extensions.image`               | Image for the custom PostgreSQL extension loader sidecar container            | `""` |
