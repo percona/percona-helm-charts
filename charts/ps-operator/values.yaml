@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mysql-operator
-  tag: 0.7.0
+  tag: 0.8.0
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
