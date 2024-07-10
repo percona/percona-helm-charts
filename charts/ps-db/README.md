@@ -8,7 +8,7 @@ Useful links:
 
 ## Pre-requisites
 * Percona Operator for MySQL running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/ps-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-mysql/helm.html).
-* Kubernetes 1.24+
+* Kubernetes 1.27+
 * Helm v3
 
 # Chart Details
@@ -19,35 +19,35 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 0.7.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 0.8.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
-| Parameter                               | Description                                                                                                | Default                     |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `crVersion`                             | CR Cluster Manifest version                                                                                | `0.8.0`                     |
-| `finalizers:delete-mysql-pods-in-order` | Set this if you want to delete MySQL pods in order on cluster deletion                                     | `[]`                        |
-| `finalizers:delete-ssl`                 | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion               | `[]`                        |
-| `pause`                                 | Stop PS Cluster safely                                                                                     | `false`                     |
-| `allowUnsafeConfigurations`             | Allows forbidden configurations like even number of Orchestrator pods                                      | `false`                     |
-| `initImage`                             | An alternative image for the initial Operator installation                                                 | `""`                        |
-| `updateStrategy`                        | Strategy for updating pods in a cluster (SmartUpdate, OnDelete, RollingUpdate)                             | `SmartUpdate`               |
-| `upgradeOptions.versionServiceEndpoint` | Endpoint for actual PS Versions provider                                                                   | `https://check.percona.com` |
-| `upgradeOptions.apply`                  | PS image to apply from version service - `recommended`, `latest`, actual version like `8.0.35-30`          | `disabled`                  |
-| `secretsName`                           | Secret name for user passwords                                                                             | `<cluster_name>-secrets`    |
-| `sslSecretName`                         | Secret name for ssl certificates                                                                           | `{}`                        |
-| `ignoreAnnotations`                     | Mark annotations which will be ignored by the operator                                                     | `[]`                        |
-| `ignoreLabels`                          | Mark labels which will be ignored by the operator                                                          | `[]`                        |
-| `tls.SANs`                              | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]`                        |
-| `tls.issuerConf.name`                   | A cert-manager issuer name                                                                                 | `""`                        |
-| `tls.issuerConf.kind`                   | A cert-manager issuer type                                                                                 | `""`                        |
-| `tls.issuerConf.group`                  | A cert-manager issuer group                                                                                | `""`                        |
+| Parameter                                           | Description                                                                                                | Default                     |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                | `0.8.0`                     |
+| `finalizers:percona.com/delete-mysql-pods-in-order` | Set this if you want to delete MySQL pods in order on cluster deletion                                     | `[]`                        |
+| `finalizers:percona.com/delete-ssl`                 | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion               | `[]`                        |
+| `pause`                                             | Stop PS Cluster safely                                                                                     | `false`                     |
+| `unsafeFlags`                                       |                                                                                                            | `{}`                        |
+| `initImage`                                         | An alternative image for the initial Operator installation                                                 | `""`                        |
+| `updateStrategy`                                    | Strategy for updating pods in a cluster (SmartUpdate, OnDelete, RollingUpdate)                             | `SmartUpdate`               |
+| `upgradeOptions.versionServiceEndpoint`             | Endpoint for actual PS Versions provider                                                                   | `https://check.percona.com` |
+| `upgradeOptions.apply`                              | PS image to apply from version service - `recommended`, `latest`, actual version like `8.0.35-30`          | `disabled`                  |
+| `secretsName`                                       | Secret name for user passwords                                                                             | `<cluster_name>-secrets`    |
+| `sslSecretName`                                     | Secret name for ssl certificates                                                                           | `{}`                        |
+| `ignoreAnnotations`                                 | Mark annotations which will be ignored by the operator                                                     | `[]`                        |
+| `ignoreLabels`                                      | Mark labels which will be ignored by the operator                                                          | `[]`                        |
+| `tls.SANs`                                          | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]`                        |
+| `tls.issuerConf.name`                               | A cert-manager issuer name                                                                                 | `""`                        |
+| `tls.issuerConf.kind`                               | A cert-manager issuer type                                                                                 | `""`                        |
+| `tls.issuerConf.group`                              | A cert-manager issuer group                                                                                | `""`                        |
 ||
 | `mysql.clusterType`                               | MySQL Cluster type (`async` or `group-replication`)                                                                                                           | `group-replication`        |
 | `mysql.autoRecovery`                              | Enable/Disable auto recovery from full cluster crash                                                                                                          | `true`                     |
 | `mysql.image.repository`                          | MySQL Container image repository                                                                                                                              | `percona/percona-server`   |
-| `mysql.image.tag`                                 | MySQL Container image tag                                                                                                                                     | `8.0.33-25`                |
+| `mysql.image.tag`                                 | MySQL Container image tag                                                                                                                                     | `8.0.36-28`                |
 | `mysql.imagePullPolicy`                           | The policy used to update images                                                                                                                              | `Always`                   |
 | `mysql.imagePullSecrets`                          | MySQL Container pull secret                                                                                                                                   | `[]`                       |
 | `mysql.initImage`                                 | An alternative image for the initial mysql setup                                                                                                              | `""`                       |
@@ -153,7 +153,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.router.expose.loadBalancerIP`            | The static IP-address for the load balancer                                                                                                                   | `""`                           |
 | `proxy.router.expose.loadBalancerSourceRanges`  | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
 ||
-| `orchestrator.enabled`                                   | Enable/Disable orchestrator pods in async replication                                                                                                         | `false`                        |
+| `orchestrator.enabled`                                   | Enable/Disable orchestrator pods in async replication                                                                                                         | `true`                         |
 | `orchestrator.image.repository`                          | Orchestrator Container image repository                                                                                                                       | `percona/percona-orchestrator` |
 | `orchestrator.image.tag`                                 | Orchestrator Container image tag                                                                                                                              | `3.2.6-12`                     |
 | `orchestrator.imagePullPolicy`                           | The policy used to update images                                                                                                                              | `Always`                       |
@@ -189,7 +189,7 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
 ||
 | `pmm.image.repository`   | PMM Container image repository          | `percona/pmm-client`                |
-| `pmm.image.tag`          | PMM Container image tag                 | `2.41.1`                            |
+| `pmm.image.tag`          | PMM Container image tag                 | `2.42.0`                            |
 | `pmm.imagePullPolicy`    | The policy used to update images        | ``                                  |
 | `pmm.serverHost`         | PMM server related K8S service hostname | `monitoring-service`                |
 | `pmm.serverUser`         | PMM server user                         | `admin`                             |
@@ -197,14 +197,14 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.limits`   | PMM Container resource limits           | `{}`                                |
 ||
 | `toolkit.image.repository`   | Percona Toolkit Container image repository | `percona/percona-toolkit` |
-| `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.5.7`                   |
+| `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.6.0`                   |
 | `toolkit.imagePullPolicy`    | The policy used to update images           | ``                        |
 | `toolkit.resources.requests` | Toolkit Container resource requests        | `{}`                      |
 | `toolkit.resources.limits`   | Toolkit Container resource limits          | `{}`                      |
 ||
 | `backup.enabled`                  | Enable backups                                                                              | `true`                       |
 | `backup.image.repository`         | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
-| `backup.image.tag`                | Backup Container image tag                                                                  | `8.0.35-30`                  |
+| `backup.image.tag`                | Backup Container image tag                                                                  | `8.0.35-31`                  |
 | `backup.backoffLimit`             | The number of retries to make a backup                                                      | ``                           |
 | `backup.imagePullPolicy`          | The policy used to update images                                                            | `Always`                     |
 | `backup.imagePullSecrets`         | Backup Container pull secret                                                                | `[]`                         |
