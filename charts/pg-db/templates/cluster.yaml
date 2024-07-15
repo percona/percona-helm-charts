@@ -500,14 +500,17 @@ spec:
     {{- if .Values.patroni.leaderLeaseDurationSeconds }}
     leaderLeaseDurationSeconds: {{ .Values.patroni.leaderLeaseDurationSeconds }}
     {{- end }}
+    {{- if .Values.patroni.dynamicConfiguration }}
     dynamicConfiguration:
-      postgresql:
-        parameters:
-        {{- .Values.patroni.dynamicConfiguration.postgresql.parameters | toYaml | nindent 10 }}
-        pg_hba:
-        {{- range $pg_hba_entry := .Values.patroni.dynamicConfiguration.postgresql.pg_hba }}
-        - {{ $pg_hba_entry }} 
-        {{- end }}
+{{- .Values.patroni.dynamicConfiguration | toYaml | nindent 6 }}
+    {{- end }}
+    {{- if .Values.patroni.switchover }}
+    switchover:
+      enabled: {{ .Values.patroni.switchover.enabled }}
+      {{- if .Values.patroni.switchover.targetInstance }}
+      targetInstance: {{ .Values.patroni.switchover.targetInstance }}
+      {{- end }}
+    {{- end }}
 {{- end }}
 
 {{- if .Values.extensions }}

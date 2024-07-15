@@ -193,8 +193,11 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.requests.cpu`                    | Container resource request for CPU              | `500m`                                                      |
 | `patroni.syncPeriodSeconds` | The interval for refreshing the leader lock and applying dynamicConfiguration | `10` |
 | `patroni.leaderLeaseDurationSeconds` | TTL of the cluster leader lock | `30` |
+| `patroni.dynamicConfiguration` | Custom PostgreSQL configuration options. Please note that configuration changes are automatically applied to the running instances without validation, so having an invalid config can make the cluster unavailable | `{}` |
 | `patroni.dynamicConfiguration.postgresql.parameters`                    | Custom PostgreSQL configuration options              | `{}` |
 | `patroni.dynamicConfiguration.postgresql.pg_hba`                    | PostgreSQL Host-Based Authentication section              | `{}` |
+| `patroni.switchover.enabled` | Enables or disables manual change of the cluster primary instance | `""` |
+| `patroni.switchover.targetInstance` | The name of the Pod that should be set as the new primary. When not specified, the new primary will be selected randomly | `""` |
 | `extensions.image`               | Image for the custom PostgreSQL extension loader sidecar container            | `""` |
 | `extensions.imagePullPolicy`     | Policy for the custom extension sidecar container                             | `Always` |
 | `extensions.storage.type`        | The cloud storage type used for backups. Only s3 type is currently supported. | `""` |
