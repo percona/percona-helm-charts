@@ -13,8 +13,9 @@ metadata:
 
 spec:
   crVersion: {{ .Chart.AppVersion }}
-  {{- if .Values.allowUnsafeConfigurations }}
-  allowUnsafeConfigurations: {{ .Values.allowUnsafeConfigurations }}
+  {{- if .Values.unsafeFlags }}
+  unsafeFlags:
+{{ .Values.unsafeFlags | toYaml | indent 4 }}
   {{- end }}
   {{- if .Values.initImage }}
   initImage: {{ .Values.initImage }}

@@ -1,9 +1,9 @@
 apiVersion: v2
-appVersion: "0.7.0"
+appVersion: "0.8.0"
 description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
 name: ps-operator
 home: https://docs.percona.com/percona-operator-for-mysql/ps/
-version: 0.7.0
+version: 0.8.0
 maintainers:
   - name: tplavcic
     email: tomislav.plavcic@percona.com

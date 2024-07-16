@@ -50,7 +50,6 @@ kind: ClusterRole
 kind: Role
 {{- end }}
 metadata:
-  creationTimestamp: null
   name: {{ include "ps-operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
@@ -90,6 +89,16 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+  - patch
   - watch
 - apiGroups:
   - apps
@@ -172,5 +181,25 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  verbs:
+  - create
+  - get
+  - list
+  - patch
   - watch
 {{- end }}

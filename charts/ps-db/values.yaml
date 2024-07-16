@@ -6,13 +6,18 @@ nameOverride: ""
 fullnameOverride: ""
 
 finalizers:
-  - delete-mysql-pods-in-order
-  # - delete-ssl
+  - percona.com/delete-mysql-pods-in-order
+  # - percona.com/delete-ssl
 
-crVersion: 0.7.0
+#  unsafeFlags:
+#    mysqlSize: false
+#    orchestrator: false
+#    orchestratorSize: false
+#    proxy: false
+#    proxySize: false
+crVersion: 0.8.0
 pause: false
-allowUnsafeConfigurations: false
-# initImage: percona/percona-server-mysql-operator:0.7.0
+# initImage: percona/percona-server-mysql-operator:0.8.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -46,7 +51,7 @@ mysql:
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
-  # initImage: percona/percona-server-mysql-operator:0.7.0
+  # initImage: percona/percona-server-mysql-operator:0.8.0
 
   size: 3
 
@@ -99,6 +104,7 @@ mysql:
     type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
     # externalTrafficPolicy: Cluster
     # internalTrafficPolicy: Cluster
     # labels:
@@ -171,7 +177,7 @@ proxy:
       tag: 2.8.5
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.7.0
+    # initImage: percona/percona-server-mysql-operator:0.8.0
 
     size: 3
 
@@ -286,6 +292,7 @@ proxy:
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+      #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
       # externalTrafficPolicy: Cluster
       # internalTrafficPolicy: Cluster
       # labels:
@@ -301,7 +308,7 @@ proxy:
       tag: 8.0.36
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.7.0
+    # initImage: percona/percona-server-mysql-operator:0.8.0
 
     size: 3
 
@@ -365,6 +372,7 @@ proxy:
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+      #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
       # externalTrafficPolicy: Cluster
       # internalTrafficPolicy: Cluster
       # labels:
@@ -374,7 +382,7 @@ proxy:
       #   - 10.0.0.0/8
 
 orchestrator:
-  enabled: false
+  enabled: true
   image:
     repository: percona/percona-orchestrator
     tag: 3.2.6-12
@@ -382,7 +390,7 @@ orchestrator:
   imagePullSecrets: []
   # - name: private-registry-credentials
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.7.0
+  # initImage: percona/percona-server-mysql-operator:0.8.0
 
   size: 3
 
@@ -436,6 +444,7 @@ orchestrator:
     # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
     # externalTrafficPolicy: Cluster
     # internalTrafficPolicy: Cluster
     # labels:
@@ -448,7 +457,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.41.1
+    tag: 2.42.0
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
@@ -462,7 +471,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.0.35-30
+    tag: 8.0.35-31
   # backoffLimit: 6
   imagePullPolicy: Always
   imagePullSecrets: []
@@ -470,7 +479,7 @@ backup:
     requests: {}
     limits: {}
   # containerSecurityContext:
-  #   privileged: false
+  #   privileged: true
   # serviceAccountName: percona-server-mysql-operator-workload
   storages: {}
     # s3-us-west:
@@ -524,7 +533,7 @@ backup:
 toolkit:
   image:
     repository: percona/percona-toolkit
-    tag: 3.5.7
+    tag: 3.6.0
   imagePullPolicy: Always
   resources:
     requests: {}
