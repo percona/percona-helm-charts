@@ -18,7 +18,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.16.1
+crVersion: 1.16.2
 pause: false
 unmanaged: false
 unsafeFlags:
