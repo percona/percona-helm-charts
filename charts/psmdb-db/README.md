@@ -19,14 +19,14 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.16.1 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.16.2 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                   | Default                               |
 | ------------------------------- | ------------------------------------------------------------------------------|---------------------------------------|
-| `crVersion`                     | CR Cluster Manifest version                                                   | `1.16.1`                              |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `1.16.2`                              |
 | `pause`                         | Stop PSMDB Database safely                                                    | `false`                               |
 | `unmanaged`                     | Start cluster and don't manage it (cross cluster replication)                 | `false`                               |
 | `unsafeFlags.tls`               | Allows users from configuring a cluster without TLS/SSL certificates          | `false`                               |

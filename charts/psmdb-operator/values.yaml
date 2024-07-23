@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.16.1
+  tag: 1.16.2
   pullPolicy: IfNotPresent
 
 # disableTelemetry: according to
