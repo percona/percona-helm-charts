@@ -2829,6 +2829,21 @@ entries:
     version: 0.2.0
   psmdb-db:
   - apiVersion: v2
+    appVersion: 1.16.2
+    created: "2024-07-23T19:06:21.392260273Z"
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    digest: 9a961f37f45327dd68389432719cbd3352662eebca10724d60fe14bb4da4a324
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: psmdb-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-1.16.3/psmdb-db-1.16.3.tgz
+    version: 1.16.3
+  - apiVersion: v2
     appVersion: 1.16.1
     created: "2024-06-24T17:55:30.664953757Z"
     description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
@@ -3299,6 +3314,23 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-0.1.0/psmdb-db-0.1.0.tgz
     version: 0.1.0
   psmdb-operator:
+  - apiVersion: v2
+    appVersion: 1.16.2
+    created: "2024-07-23T19:06:21.490322617Z"
+    description: A Helm chart for deploying the Percona Operator for MongoDB
+    digest: 82179a3a206919ec95d79e4bd60f2c86f1626d50ec20ab6d4db0bc6ed821640f
+    home: https://docs.percona.com/percona-operator-for-mongodb/
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: psmdb-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-1.16.3/psmdb-operator-1.16.3.tgz
+    version: 1.16.3
   - apiVersion: v2
     appVersion: 1.16.1
     created: "2024-06-24T17:55:30.774709492Z"
