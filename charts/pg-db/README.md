@@ -24,7 +24,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 2.4.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.4.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -32,9 +32,9 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                   | Default                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------|-------------------------------------------------------------|
 | `finalizers`                     | Finalizers list                                                 | `{}`                                                        |
-| `crVersion`                     | CR Cluster Manifest version                                                   | `2.4.0`                                                     |
+| `crVersion`                     | CR Cluster Manifest version                                                   | `2.4.1`                                                     |
 | `repository`                     | PostgreSQL container image repository                                               | `percona/percona-postgresql-operator`                       |
-| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.4.0-ppg16.3-postgres`  |
+| `image`                     | Postgres image                                                  | `percona/percona-postgresql-operator:2.4.1-ppg16.3-postgres`  |
 | `imagePullPolicy`                     | image Pull Policy                                                   | `Always`                                                    |
 | `port`                         | PostgreSQL port                                                    | `5432`                                                      |
 | `postgresVersion`                     | PostgreSQL container version tag                                       | `16`                                                        |
@@ -154,7 +154,7 @@ The chart can be customized using the following configurable parameters:
 | `backups.restore.enabled`                         |  Enables or disables restoring a previously made backup                                               | `false`                                                     |
 | `backups.restore.repoName`                         | Name of the pgBackRest repository that contains the backup to be restored                                                | `repo1`                                                     |
 | `backups.restore.options`                         | The pgBackRest command-line options for the pgBackRest restore command                                                | `--type=time`                                               |
-| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postgresql-operator:2.4.0-ppg16.3-pgbackrest2.51-1` |
+| `backups.pgbackrest.image`                     | Set this variable if you need to use a custom pgBackrest image                                        | `percona/percona-postgresql-operator:2.4.1-ppg16.3-pgbackrest2.51-1` |
 | `backups.repos.repo2.s3.bucket`                     | Storage bucket | ``                                                          |
 | `backups.repos.repo2.s3.region`                     |  S3-compatible storage name | ``                                                          |
 | `backups.repos.repo2.s3.endpoint`              | S3-compatible storage endpoint | ``                                                          |
@@ -177,7 +177,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.pgBouncer.customTLSSecret.name`                         | Custom external TLS secret name                                                | `keycloakdb-pgbouncer.tls`                                  |
 | `proxy.pgBouncer.securityContext`                           | The Kubernetes Pod security context for the pgBouncer instance | `{}` |
 | `proxy.pgBouncer.affinity.podAntiAffinity` |  Pod anti-affinity, allows setting the standard Kubernetes affinity constraints of any complexity                    | `{}`                                                        |
-| `proxy.pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postgresql-operator:2.4.0-ppg16.3-pgbouncer1.22.1`  |
+| `proxy.pgBouncer.image`                     | Set this variable if you need to use a custom pgbouncer image                                        | `percona/percona-postgresql-operator:2.4.1-ppg16.3-pgbouncer1.22.1`  |
 | `proxy.pgBouncer.replicas`                     | The number of pgbouncer instances                                        | `3`                                                         |
 | `proxy.pgBouncer.resources.requests.cpu`                     | Container resource request for CPU                                        | `1`                                                         |
 | `proxy.pgBouncer.resources.requests.memory`                     | Container resource request for RAM                                        | `128Mi`                                                     |

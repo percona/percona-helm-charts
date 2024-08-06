@@ -8,9 +8,9 @@ finalizers:
 # Set this if you want that operator deletes the ssl objects on cluster deletion
 #  - percona.com/delete-ssl
 
-crVersion: 2.4.0
+crVersion: 2.4.1
 repository: percona/percona-postgresql-operator
-image: percona/percona-postgresql-operator:2.4.0-ppg16.3-postgres
+image: percona/percona-postgresql-operator:2.4.1-ppg16.3-postgres
 imagePullPolicy: Always
 postgresVersion: 16
 # port: 5432
@@ -224,7 +224,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: percona/percona-postgresql-operator:2.4.0-ppg16.3-pgbouncer1.22.1
+    image: percona/percona-postgresql-operator:2.4.1-ppg16.3-pgbouncer1.22.1
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -305,7 +305,7 @@ backups:
   pgbackrest:
 #    metadata:
 #    labels:
-    image: percona/percona-postgresql-operator:2.4.0-ppg16.3-pgbackrest2.51-1
+    image: percona/percona-postgresql-operator:2.4.1-ppg16.3-pgbackrest2.51-1
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -481,7 +481,7 @@ pmm:
 #     targetInstance: ""
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.4.0
+#   image: percona/percona-postgresql-operator:2.4.1
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
