@@ -26,30 +26,30 @@ To install the chart with the `pg-operator` release name using a dedicated names
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pg-operator --version 2.4.0 --namespace my-namespace --create-namespace
+helm install my-operator percona/pg-operator --version 2.4.1 --namespace my-namespace --create-namespace
 ```
 
 ## Configuration
 The following shows the configurable parameters that are relevant to the Helm
 Chart.
 
-| Parameter                       | Description                                                             | Default                                          |
-| ------------------------------- | ------------------------------------------------------------------------| -------------------------------------------------|
-| `image` | PG Operator Container image full path | `percona/percona-postgresql-operator:2.4.0` |
-| `imagePullPolicy` | PG Operator Container pull policy | `Always`|
-| `resources` | Resource requests and limits | `{}` |
-| `nodeSelector` | Labels for Pod assignment | `{}` |
-| `logStructured` | Force PG operator to print JSON-wrapped log messages | `false` |
-| `logLevel` | PG Operator logging level | `INFO` |
-| `disableTelemetry` | Disable sending PG Operator telemetry data to Percona | `false`|
-| `watchNamespace` | Set this variable if the target cluster namespace differs from operators namespace | `` |
-| `watchAllNamespaces` | K8S Cluster-wide operation | `false` |
+| Parameter            | Description                                                                        | Default                                     |
+| -------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
+| `image`              | PG Operator Container image full path                                              | `percona/percona-postgresql-operator:2.4.1` |
+| `imagePullPolicy`    | PG Operator Container pull policy                                                  | `Always`                                    |
+| `resources`          | Resource requests and limits                                                       | `{}`                                        |
+| `nodeSelector`       | Labels for Pod assignment                                                          | `{}`                                        |
+| `logStructured`      | Force PG operator to print JSON-wrapped log messages                               | `false`                                     |
+| `logLevel`           | PG Operator logging level                                                          | `INFO`                                      |
+| `disableTelemetry`   | Disable sending PG Operator telemetry data to Percona                              | `false`                                     |
+| `watchNamespace`     | Set this variable if the target cluster namespace differs from operators namespace | ``                                          |
+| `watchAllNamespaces` | K8S Cluster-wide operation                                                         | `false`                                     |
 
 ## Deploy the database
 To deploy Percona Operator for PostgreSQL cluster with disabled telemetry run the following command:
 
 ```sh
-helm install my-db percona/pg-db --version 2.4.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.4.1 --namespace my-namespace
 ```
 
 See more about Percona Operator for PostgreSQL deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
