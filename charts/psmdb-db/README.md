@@ -49,7 +49,7 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:delete-psmdb-pvc`  | Set this if you want to delete database persistent volumes on cluster deletion | `[]`                                  |
 | `finalizers:delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)     | `[]`                                  |
 | `image.repository`             | PSMDB Container image repository                                               | `percona/percona-server-mongodb`      |
-| `image.tag`                    | PSMDB Container image tag                                                      | `6.0.9-7`                             |
+| `image.tag`                    | PSMDB Container image tag                                                      | `7.0.8-5`                             |
 | `imagePullPolicy`              | The policy used to update images                                               | `Always`                              |
 | `imagePullSecrets`             | PSMDB Container pull secret                                                    | `[]`                                  |
 | `initImage.repository`         | Repository for custom init image                                               | `""`                                  |
