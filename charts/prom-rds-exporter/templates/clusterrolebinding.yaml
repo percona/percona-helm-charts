@@ -1,0 +1,19 @@
+{{ if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "prom-rds-exporter.fullname" . }}
+  labels:
+    app: {{ template "prom-rds-exporter.name" . }}
+    chart: {{ template "prom-rds-exporter.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "prom-rds-exporter.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ template "prom-rds-exporter.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{ end }}
