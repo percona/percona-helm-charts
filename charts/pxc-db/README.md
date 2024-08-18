@@ -243,7 +243,8 @@ The chart can be customized using the following configurable parameters:
 | |
 | `backup.enabled`                    | Enables backups for PXC cluster                                          | `true`                                                                   |
 | `backup.allowParallel`              | Allow taking multiple backups in parallel                                | `true`                                                                   |
-| `backup.image`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator:1.14.0-pxc8.0-backup-pxb8.0.35` |
+| `backup.image.repository`              | Backup Container image                                           | `percona/percona-xtradb-cluster-operator` |
+| `backup.image.tag`              | Backup Container tag                                           | `1.14.0-pxc8.0-backup-pxb8.0.35` |
 | `backup.backoffLimit` | The number of retries to make a backup  | `10`                                                                     |
 | `backup.imagePullSecrets`             | Backup Container pull secret                                                | `[]`                                                                     |
 | `backup.imagePullPolicy`              | The policy used to update images                                         | ``                                                                       |
