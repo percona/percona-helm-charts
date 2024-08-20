@@ -3,7 +3,7 @@ appVersion: 1.14.0
 description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
 name: pxc-db
 home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
-version: 1.14.3
+version: 1.14.4
 maintainers:
   - name: tplavcic
     email: tomislav.plavcic@percona.com
