@@ -220,6 +220,15 @@ instances:
     resources:
       requests:
         storage: 5Gi
+#
+#  tablespaceVolumes:
+#    - name: user
+#      dataVolumeClaimSpec:
+#        accessModes:
+#          - 'ReadWriteOnce'
+#        resources:
+#          requests:
+#            storage: 1Gi
 
 proxy:
   pgBouncer:
