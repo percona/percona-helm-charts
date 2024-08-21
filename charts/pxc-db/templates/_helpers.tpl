@@ -68,30 +68,6 @@ This filters the backup.storages hash for S3 credentials. If we detect them, the
 {{/*
 Functions returns image URI according to parameters set
 */}}
-{{- define "pxc-db.haproxy-image" -}}
-{{- if .Values.haproxy.image }}
-{{- .Values.haproxy.image }}
-{{- else }}
-{{- printf "%s:%s-haproxy" .Values.operatorImageRepository .Chart.AppVersion }}
-{{- end }}
-{{- end -}}
-
-{{- define "pxc-db.proxysql-image" -}}
-{{- if .Values.proxysql.image }}
-{{- .Values.proxysql.image }}
-{{- else }}
-{{- printf "%s:%s-proxysql" .Values.operatorImageRepository .Chart.AppVersion }}
-{{- end }}
-{{- end -}}
-
-{{- define "pxc-db.logcollector-image" -}}
-{{- if .Values.logcollector.image }}
-{{- .Values.logcollector.image }}
-{{- else }}
-{{- printf "%s:%s-logcollector" .Values.operatorImageRepository .Chart.AppVersion }}
-{{- end }}
-{{- end -}}
-
 {{- define "pxc-db.operator-image" -}}
 {{- if .Values.image }}
 {{- .Values.image }}
