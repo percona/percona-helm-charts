@@ -26,7 +26,7 @@ spec:
   {{- else }}
   secretsName: {{ include "pxc-database.fullname" . }}-secrets
   {{- end }}
-  {{- if not .Values.pxc.disableTLS }}
+  {{- if .Values.tls.enabled }}
   {{- if hasKey .Values.secrets.tls "cluster" }}
   sslSecretName: {{ .Values.secrets.tls.cluster }}
   {{- else }}
@@ -67,11 +67,12 @@ spec:
       {{- end }}
     {{- end }}
   {{- end }}
-  {{- if or .Values.allowUnsafeConfigurations .Values.pxc.disableTLS }}
-  allowUnsafeConfigurations: true
-  {{- end }}
   enableCRValidationWebhook: {{ .Values.enableCRValidationWebhook }}
   pause: {{ .Values.pause }}
+  {{- if .Values.unsafeFlags }}
+  unsafeFlags:
+{{ .Values.unsafeFlags | toYaml | indent 4 }}
+  {{- end }}
   updateStrategy: {{ .Values.updateStrategy }}
   {{- if hasKey .Values.upgradeOptions "versionServiceEndpoint" }}
   upgradeOptions:
@@ -81,6 +82,7 @@ spec:
   {{- end }}
   {{- if .Values.tls }}
   tls:
+    enabled: {{ .Values.tls.enabled }}
   {{- if hasKey .Values.tls "SANs" }}
     SANs:
 {{ .Values.tls.SANs | toYaml | indent 6 }}
@@ -181,6 +183,10 @@ spec:
         {{- end }}
         {{- end }}
         accessModes: [{{ $pxc.persistence.accessMode | quote }}]
+        {{- if $pxc.persistence.dataSource }}
+        dataSource:
+{{ $pxc.persistence.dataSource| toYaml | indent 10 }}
+        {{- end }}
         resources:
           requests:
             storage: {{ $pxc.persistence.size | quote }}
@@ -221,7 +227,7 @@ spec:
   haproxy:
     enabled: true
     size: {{ $haproxy.size }}
-    image: {{ include "pxc-db.haproxy-image" . }}
+    image: {{ .Values.haproxy.image }}
     {{- if $haproxy.imagePullPolicy }}
     imagePullPolicy: {{ $haproxy.imagePullPolicy }}
     {{- end }}
@@ -329,7 +335,7 @@ spec:
   proxysql:
     enabled: true
     size: {{ $proxysql.size }}
-    image: {{ include "pxc-db.proxysql-image" . }}
+    image: {{ .Values.proxysql.image }}
     {{- if $proxysql.imagePullPolicy }}
     imagePullPolicy: {{ $proxysql.imagePullPolicy }}
     {{- end }}
@@ -442,7 +448,7 @@ spec:
   {{- else }}
     {{- $logcollector := .Values.logcollector }}
     enabled: true
-    image: {{ include "pxc-db.logcollector-image" . }}
+    image: {{ .Values.logcollector.image }}
     {{- if $logcollector.imagePullPolicy }}
     imagePullPolicy: {{ $logcollector.imagePullPolicy }}
     {{- end }}

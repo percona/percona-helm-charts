@@ -3,13 +3,13 @@
 # Declare variables to be passed into your templates.
 
 finalizers:
-  - delete-pxc-pods-in-order
+  - percona.com/delete-pxc-pods-in-order
 ## Set this if you want to delete proxysql persistent volumes on cluster deletion
-#  - delete-proxysql-pvc
+#  - percona.com/delete-proxysql-pvc
 ## Set this if you want to delete database persistent volumes on cluster deletion
-#  - delete-pxc-pvc
+#  - percona.com/delete-pxc-pvc
 ## Set this if you want to delete cert manager certificates on cluster deletion
-#  - delete-ssl
+#  - percona.com/delete-ssl
 
 nameOverride: ""
 fullnameOverride: ""
@@ -19,14 +19,14 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.14.0
+crVersion: 1.15.0
 ignoreAnnotations: []
   # - iam.amazonaws.com/role
 ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: ""
+#   image: "percona/percona-xtradb-cluster-operator:1.15.0"
 #   resources:
 #     requests:
 #       memory: 100M
@@ -34,14 +34,19 @@ pause: false
 #     limits:
 #       memory: 200M
 #       cpu: 200m
-allowUnsafeConfigurations: false
+# unsafeFlags:
+#   tls: false
+#   pxcSize: false
+#   proxySize: false
+#   backupIfUnhealthy: false
 updateStrategy: SmartUpdate
 upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
   apply: disabled
   schedule: "0 4 * * *"
 enableCRValidationWebhook: false
-tls: {}
+tls:
+  enabled: true
   # SANs:
   #   - pxc-1.example.com
   #   - pxc-2.example.com
@@ -164,10 +169,11 @@ pxc:
     ##
     # storageClass: "-"
     accessMode: ReadWriteOnce
+    # dataSource:
+    #   name: new-snapshot-test
+    #   kind: VolumeSnapshot
+    #   apiGroup: snapshot.storage.k8s.io
     size: 8Gi
-
-  # If you set this to true the cluster will be created without TLS
-  disableTLS: false
 
   # disable Helm creating TLS certificates if you want to let the operator
   # request certificates from cert-manager
@@ -201,13 +207,13 @@ pxc:
 haproxy:
   enabled: true
   size: 3
-  image: ""
+  image: percona/haproxy:2.8.5
   # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
 #  configuration: |
 #
-#  the actual default configuration file can be found here https://github.com/percona/percona-docker/blob/main/haproxy/dockerdir/etc/haproxy/haproxy-global.cfg
+#    the actual default configuration file can be found here https://raw.githubusercontent.com/percona/percona-xtradb-cluster-operator/main/build/haproxy-global.cfg
 #
 #    global
 #      maxconn 2048
@@ -344,7 +350,8 @@ haproxy:
   #     - 10.0.0.0/8
   #   loadBalancerIP: 127.0.0.1
   # exposeReplicas:
-  #   enabled: false
+  #   enabled: true
+  #   onlyReaders: false
   #   type: ClusterIP
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -367,7 +374,7 @@ haproxy:
 proxysql:
   enabled: false
   size: 3
-  image: "percona/percona-xtradb-cluster-operator:1.14.0-proxysql2.5.5-1.2"
+  image: "percona/proxysql2:2.5.5"
   # imagePullPolicy: Always
   imagePullSecrets: []
 #  configuration: |
@@ -519,7 +526,7 @@ proxysql:
 
 logcollector:
   enabled: true
-  image: ""
+  image: percona/percona-xtradb-cluster-operator:1.15.0-logcollector-fluentbit3.1.4
   # imagePullPolicy: Always
   imagePullSecrets: []
   # configuration: |
@@ -543,7 +550,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.41.2
+    tag: 2.42.0
   # imagePullPolicy: Always
   imagePullSecrets: []
   serverHost: monitoring-service
@@ -563,7 +570,7 @@ backup:
   # allowParallel: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.14.0-pxc8.0-backup-pxb8.0.35
+    tag: 1.15.0-pxc8.0-backup-pxb8.0.35
   # backoffLimit: 6
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
