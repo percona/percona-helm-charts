@@ -3800,6 +3800,24 @@ entries:
     version: 0.1.0
   pxc-db:
   - apiVersion: v2
+    appVersion: 1.15.0
+    created: "2024-08-21T11:44:56.263948163Z"
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    digest: 6c391015108cad759fe405a648ed1df3564ae61d3a7c50cd039042c1c4dcd4d7
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: pxc-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-db-1.15.0/pxc-db-1.15.0.tgz
+    version: 1.15.0
+  - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-08-20T14:40:20.581047425Z"
     description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
@@ -4527,6 +4545,24 @@ entries:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-db-0.1.5/pxc-db-0.1.5.tgz
     version: 0.1.5
   pxc-operator:
+  - apiVersion: v2
+    appVersion: 1.15.0
+    created: "2024-08-21T11:44:56.434571483Z"
+    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    digest: 80f4c5b214794c9339e8ddca6698c5c759988b4317421d42cf4fe385d11b6937
+    home: https://docs.percona.com/percona-operator-for-mysql/pxc/
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: pxc-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-operator-1.15.0/pxc-operator-1.15.0.tgz
+    version: 1.15.0
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-06-28T07:15:09.992666647Z"
