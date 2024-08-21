@@ -255,6 +255,20 @@ spec:
         resources:
           requests:
             storage: {{ $instance.dataVolumeClaimSpec.resources.requests.storage }}
+      {{- if $instance.tablespaceVolumes }}
+      tablespaceVolumes:
+      {{- range $volume := $instance.tablespaceVolumes }}
+        - name: {{ $volume.name }}
+          dataVolumeClaimSpec:
+            accessModes:
+            {{- range $accessMode := $volume.dataVolumeClaimSpec.accessModes }}
+              - {{ $accessMode }}
+            {{- end }}
+            resources:
+              requests:
+                storage: {{ $volume.dataVolumeClaimSpec.resources.requests.storage }}
+      {{- end }}
+      {{- end }}
   {{- end }}
 
   proxy:
