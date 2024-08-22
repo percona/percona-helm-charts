@@ -523,6 +523,8 @@ backup:
     #     credentialsSecret: my-cluster-name-backup-minio
     #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
     #     prefix: ""
+    ##    In case of use Swift storage, this flag must be set to true
+    #     forcePathStyle: true
     #   azure-blob:
     #     type: azure
     #     azure:
