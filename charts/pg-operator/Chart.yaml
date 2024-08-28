@@ -2,7 +2,7 @@ apiVersion: v2
 name: pg-operator
 description: 'A Helm chart to deploy the Percona Operator for PostgreSQL'
 type: application
-version: 2.4.1
+version: 2.4.2
 appVersion: 2.4.1
 home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
 maintainers:

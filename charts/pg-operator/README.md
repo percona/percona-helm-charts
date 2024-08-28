@@ -42,6 +42,7 @@ Chart.
 | `logStructured`      | Force PG operator to print JSON-wrapped log messages                               | `false`                                     |
 | `logLevel`           | PG Operator logging level                                                          | `INFO`                                      |
 | `disableTelemetry`   | Disable sending PG Operator telemetry data to Percona                              | `false`                                     |
+| `podAnnotations`     | Add annotations to the Operator Pod                                                | `{}`                                        |
 | `watchNamespace`     | Set this variable if the target cluster namespace differs from operators namespace | ``                                          |
 | `watchAllNamespaces` | K8S Cluster-wide operation                                                         | `false`                                     |
 

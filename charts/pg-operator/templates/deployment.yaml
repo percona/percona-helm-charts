@@ -25,6 +25,10 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/part-of: {{ include "postgres-operator.name" . }}
         pgv2.percona.com/control-plane: postgres-operator
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "postgres-operator.fullname" . }}
     {{- with .Values.imagePullSecrets }}
