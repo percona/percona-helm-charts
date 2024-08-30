@@ -37,6 +37,8 @@ tolerations: []
 
 affinity: {}
 
+podAnnotations: {}
+
 # disableTelemetry: according to
 # https://docs.percona.com/percona-operator-for-postgresql/2.0/telemetry.html
 # this is how you can disable telemetry collection
