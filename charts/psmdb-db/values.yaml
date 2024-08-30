@@ -18,7 +18,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.16.2
+crVersion: 1.17.0
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -46,13 +46,13 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 7.0.8-5
+  tag: 7.0.12-7
 
 imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.14.0
+#   tag: 1.17.0
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -76,7 +76,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.41.2
+    tag: 2.42.0
   serverHost: monitoring-service
 
 replsets:
@@ -482,7 +482,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.4.1
+    tag: 2.5.0
   # annotations:
   #   iam.amazonaws.com/role: role-arn
   # podSecurityContext: {}
