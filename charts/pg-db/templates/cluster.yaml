@@ -370,6 +370,7 @@ spec:
     secret: {{ include "pg-database.fullname" . }}-pmm-secret
 
   backups:
+    trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
       image: {{ .Values.backups.pgbackrest.image }}
       {{- if .Values.backups.pgbackrest.configuration }}
