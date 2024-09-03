@@ -464,6 +464,7 @@ pmm:
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
+  querySource: pgstatmonitor
 #  resources:
 #    requests:
 #      memory: 200M

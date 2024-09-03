@@ -198,6 +198,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.image.repository`          | PMM Container image repository                                                                                                                                                           | `percona/pmm-client` |
 | `pmm.image.tag`                 | PMM Container image tag                                                                                                                                                                  | `2.42.0`             |
 | `pmm.serverHost`                | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service` |
+| `pmm.querySource`               | PMM querySource, 'pgstatmonitor' or 'pgstatstatemenets'.                                                                                                                                  | `pgstatmonitor`      |
 | `pmm.resources.requests.memory` | Container resource request for RAM                                                                                                                                                       | `200M`               |
 | `pmm.resources.requests.cpu`    | Container resource request for CPU                                                                                                                                                       | `500m`               |
 | |

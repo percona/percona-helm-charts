@@ -368,6 +368,7 @@ spec:
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
     serverHost: {{ .Values.pmm.serverHost }}
     secret: {{ include "pg-database.fullname" . }}-pmm-secret
+    querySource: {{ .Values.pmm.querySource }}
 
   backups:
     pgbackrest:
