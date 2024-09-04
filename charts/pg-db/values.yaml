@@ -311,6 +311,7 @@ proxy:
 #          pool_mode: transaction
 
 backups:
+  trackLatestRestorableTime: true
   pgbackrest:
 #    metadata:
 #    labels:
