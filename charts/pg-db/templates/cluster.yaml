@@ -222,10 +222,10 @@ spec:
       {{- if $instance.tolerations }}
       tolerations:
       {{- range $toleration :=  $instance.tolerations }}
-      - effect: {{ $toleration.effect }}
-        key: {{ $toleration.key }}
-        operator: {{ $toleration.operator }}
-        value: {{ $toleration.value }}
+        - effect: {{ $toleration.effect }}
+          key: {{ $toleration.key }}
+          operator: {{ $toleration.operator }}
+          value: {{ $toleration.value }}
       {{- end }}
       {{- end }}
 
@@ -356,10 +356,10 @@ spec:
       {{- if .Values.proxy.pgBouncer.tolerations }}
       tolerations:
       {{- range $toleration := .Values.proxy.pgBouncer.tolerations }}
-      - effect: {{ $toleration.effect }}
-        key: {{ $toleration.key }}
-        operator: {{ $toleration.operator }}
-        value: {{ $toleration.value }}
+        - effect: {{ $toleration.effect }}
+          key: {{ $toleration.key }}
+          operator: {{ $toleration.operator }}
+          value: {{ $toleration.value }}
       {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.securityContext }}
@@ -414,10 +414,12 @@ spec:
             memory: {{ .Values.backups.pgbackrest.jobs.resources.limits.memory }}
         {{- if .Values.backups.pgbackrest.jobs.tolerations }}
         tolerations:
-        - effect: {{ .Values.backups.pgbackrest.jobs.tolerations.effect }}
-          key: {{ .Values.backups.pgbackrest.jobs.tolerations.key }}
-          operator: {{ .Values.backups.pgbackrest.jobs.tolerations.operator }}
-          value: {{ .Values.backups.pgbackrest.jobs.tolerations.value }}
+        {{- range $toleration := .Values.backups.pgbackrest.jobs.tolerations }}
+          - effect: {{ $toleration.effect }}
+            key: {{ $toleration.key }}
+            operator: {{ $toleration.operator }}
+            value: {{ $toleration.value }}
+        {{- end }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.securityContext }}
         securityContext: 
