@@ -11,9 +11,9 @@
 
 finalizers:
 ## Set this if you want that operator deletes the primary pod last
-  - delete-psmdb-pods-in-order
+  - percona.com/delete-psmdb-pods-in-order
 ## Set this if you want to delete database persistent volumes on cluster deletion
-#  - delete-psmdb-pvc
+#  - percona.com/delete-psmdb-pvc
 
 nameOverride: ""
 fullnameOverride: ""
