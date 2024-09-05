@@ -371,6 +371,7 @@ spec:
     querySource: {{ .Values.pmm.querySource }}
 
   backups:
+    trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
       image: {{ .Values.backups.pgbackrest.image }}
       {{- if .Values.backups.pgbackrest.configuration }}
