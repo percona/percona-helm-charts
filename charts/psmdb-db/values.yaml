@@ -479,17 +479,6 @@ sharding:
     #   - "host1"
     #   - "host2"
 
-users:
-- name: user-one
-  db: admin
-  passwordSecretRef: 
-    name: user-one
-    key: userOnePassKey
-  roles:
-    - name: clusterAdmin
-      db: admin
-    - name: userAdminAnyDatabase
-      db: admin
 # users:
 # - name: my-user
 #   db: admin
