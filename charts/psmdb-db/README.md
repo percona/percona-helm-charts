@@ -236,7 +236,7 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.expose.nodePort`                             | Custom port if exposing mongos via NodePort                                                                                                  | `""`                     |
 | `sharding.mongos.hostAliases`                                 | The IP address for Kubernetes host aliases                                                                                                   | `[]`                     |
 | |
-| `users.name`                   | The username of the MongoDB user                                                                                                                                                                                                                                                                             | `""`                     |
+| `users.name`                   | The username of the MongoDB application user                                                                                                                                                                                                                                                                 | `""`                     |
 | `users.db`                     | Database that the user authenticates against                                                                                                                                                                                                                                                                 | `""`                     |
 | `users.passwordSecretRef.name` | Name of the secret that contains the user's password                                                                                                                                                                                                                                                         | `""`                     |
 | `users.passwordSecretRef.key`  | Key in the secret that corresponds to the value of the user's password                                                                                                                                                                                                                                       | `""`                     |
@@ -259,7 +259,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.configuration.backupOptions`  | Custom configuration settings for backup                          | `{}`                             |
 | `backup.configuration.restoreOptions` | Custom configuration settings for restore                         | `{}`                             |
 | `backup.tasks`                        | Backup working schedule                                           | `{}`                             |
-| `systemUsers`                         | PSMDB essential users                                             | `{}`                             |
+| `systemUsers`                         | PSMDB operator system users                                       | `{}`                             |
 
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
