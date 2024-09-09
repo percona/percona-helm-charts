@@ -71,10 +71,11 @@ The chart can be customized using the following configurable parameters:
 | `secrets.ssl`           | A secret with TLS certificate generated for external communications                        | `""` |
 | `secrets.sslInternal`   | A secret with TLS certificate generated for internal communications                        | `""` |
 | |
-| `pmm.enabled`          | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`              |
-| `pmm.image.repository` | PMM Container image repository                                                                                                                                                           | `percona/pmm-client` |
-| `pmm.image.tag`        | PMM Container image tag                                                                                                                                                                  | `2.42.0`             |
-| `pmm.serverHost`       | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service` |
+| `pmm.enabled`                  | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`              |
+| `pmm.image.repository`         | PMM Container image repository                                                                                                                                                           | `percona/pmm-client` |
+| `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `2.42.0`             |
+| `pmm.serverHost`               | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service` |
+| `pmm.containerSecurityContext` | Set the security context for PMM container                                                                                                                                               | `{}`                 |
 | |
 | `replsets.rs0.name`                                                | ReplicaSet name                                                                                                                              | `rs0`                    |
 | `replsets.rs0.size`                                                | ReplicaSet size (pod quantity)                                                                                                               | `3`                      |
@@ -235,6 +236,13 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.expose.nodePort`                             | Custom port if exposing mongos via NodePort                                                                                                  | `""`                     |
 | `sharding.mongos.hostAliases`                                 | The IP address for Kubernetes host aliases                                                                                                   | `[]`                     |
 | |
+| `users.name`                   | The username of the MongoDB user                                                                                                                                                                                                                                                                             | `""`                     |
+| `users.db`                     | Database that the user authenticates against                                                                                                                                                                                                                                                                 | `""`                     |
+| `users.passwordSecretRef.name` | Name of the secret that contains the user's password                                                                                                                                                                                                                                                         | `""`                     |
+| `users.passwordSecretRef.key`  | Key in the secret that corresponds to the value of the user's password                                                                                                                                                                                                                                       | `""`                     |
+| `users.roles.role.name`        | Name of the MongoDB role assigned to the user. As [built-in roles](https://www.mongodb.com/docs/manual/reference/built-in-roles/#built-in-roles), so [custom roles](https://github.com/mongodb/mongodb-kubernetes-operator/blob/master/docs/deploy-configure.md#define-a-custom-database-role) are supported | `""`                     |
+| `users.roles.role.db`          | Database that the MongoDB role applies to                                                                                                                                                                                                                                                                    | `""`                     |
+| |
 | `backup.enabled`                      | Enable backup PBM agent                                           | `true`                           |
 | `backup.annotations`                  | Backup job annotations                                            | `{}`                             |
 | `backup.podSecurityContext`           | Set the security context for a Pod                                | `{}`                             |
@@ -251,7 +259,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.configuration.backupOptions`  | Custom configuration settings for backup                          | `{}`                             |
 | `backup.configuration.restoreOptions` | Custom configuration settings for restore                         | `{}`                             |
 | `backup.tasks`                        | Backup working schedule                                           | `{}`                             |
-| `users`                               | PSMDB essential users                                             | `{}`                             |
+| `systemUsers`                         | PSMDB essential users                                             | `{}`                             |
 
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`

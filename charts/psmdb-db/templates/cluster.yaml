@@ -77,6 +77,11 @@ spec:
     enabled: {{ .Values.pmm.enabled }}
     image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
     serverHost: {{ .Values.pmm.serverHost }}
+    {{- if .Values.pmm.containerSecurityContext }}
+    containerSecurityContext:
+{{ .Values.pmm.containerSecurityContext | toYaml | indent 6 }}
+    {{- end }}
+
   replsets:
   {{- range $k,$replset := .Values.replsets }}
   {{- if $replset.name }}
@@ -567,6 +572,11 @@ spec:
       hostAliases:
 {{ .Values.sharding.mongos.hostAliases | toYaml | indent 8 }}
       {{- end }}
+
+  {{- if .Values.users }}
+  users:
+{{ .Values.users | toYaml | indent 2 }}
+  {{- end }}
 
   backup:
     enabled: {{ .Values.backup.enabled }}

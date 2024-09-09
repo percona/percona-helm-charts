@@ -78,6 +78,7 @@ pmm:
     repository: percona/pmm-client
     tag: 2.42.0
   serverHost: monitoring-service
+#   containerSecurityContext: {}
 
 replsets:
   rs0:
@@ -478,6 +479,37 @@ sharding:
     #   - "host1"
     #   - "host2"
 
+users:
+- name: user-one
+  db: admin
+  passwordSecretRef: 
+    name: user-one
+    key: userOnePassKey
+  roles:
+    - name: clusterAdmin
+      db: admin
+    - name: userAdminAnyDatabase
+      db: admin
+# users:
+# - name: my-user
+#   db: admin
+#   passwordSecretRef: 
+#     name: my-user-password
+#     key: my-user-password-key
+#   roles:
+#     - name: clusterAdmin
+#       db: admin
+#     - name: userAdminAnyDatabase
+#       db: admin
+# - name: my-usr
+#   db: admin
+#   passwordSecretRef: 
+#     name: my-user-pwd
+#     key: my-user-pwd-key
+#   roles:
+#     - name: dbOwner
+#       db: sometest 
+
 backup:
   enabled: true
   image:
@@ -490,10 +522,10 @@ backup:
   # resources:
   #   limits:
   #     cpu: "300m"
-  #     memory: "0.5G"
+  #     memory: "1.2G"
   #   requests:
   #     cpu: "300m"
-  #     memory: "0.5G"
+  #     memory: "1G"
   storages:
     # s3-us-west:
     #   type: s3
@@ -576,8 +608,8 @@ backup:
   #   compressionType: gzip
   #   compressionLevel: 6
 
-# If you set users here the secret will be constructed by helm with these values
-# users:
+# If you set systemUsers here the secret will be constructed by helm with these values
+# systemUsers:
 #   MONGODB_BACKUP_USER: backup
 #   MONGODB_BACKUP_PASSWORD: backup123456
 #   MONGODB_DATABASE_ADMIN_USER: databaseAdmin
