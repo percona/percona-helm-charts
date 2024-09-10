@@ -11,14 +11,14 @@
 
 finalizers:
 ## Set this if you want that operator deletes the primary pod last
-  - delete-psmdb-pods-in-order
+  - percona.com/delete-psmdb-pods-in-order
 ## Set this if you want to delete database persistent volumes on cluster deletion
-#  - delete-psmdb-pvc
+#  - percona.com/delete-psmdb-pvc
 
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.16.2
+crVersion: 1.17.0
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -46,13 +46,13 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 7.0.8-5
+  tag: 7.0.12-7
 
 imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.14.0
+#   tag: 1.17.0
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -76,8 +76,9 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.41.2
+    tag: 2.42.0
   serverHost: monitoring-service
+#   containerSecurityContext: {}
 
 replsets:
   rs0:
@@ -478,11 +479,31 @@ sharding:
     #   - "host1"
     #   - "host2"
 
+# users:
+# - name: my-user
+#   db: admin
+#   passwordSecretRef: 
+#     name: my-user-password
+#     key: my-user-password-key
+#   roles:
+#     - name: clusterAdmin
+#       db: admin
+#     - name: userAdminAnyDatabase
+#       db: admin
+# - name: my-usr
+#   db: admin
+#   passwordSecretRef: 
+#     name: my-user-pwd
+#     key: my-user-pwd-key
+#   roles:
+#     - name: dbOwner
+#       db: sometest 
+
 backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.4.1
+    tag: 2.5.0
   # annotations:
   #   iam.amazonaws.com/role: role-arn
   # podSecurityContext: {}
@@ -490,10 +511,10 @@ backup:
   # resources:
   #   limits:
   #     cpu: "300m"
-  #     memory: "0.5G"
+  #     memory: "1.2G"
   #   requests:
   #     cpu: "300m"
-  #     memory: "0.5G"
+  #     memory: "1G"
   storages:
     # s3-us-west:
     #   type: s3
@@ -576,8 +597,8 @@ backup:
   #   compressionType: gzip
   #   compressionLevel: 6
 
-# If you set users here the secret will be constructed by helm with these values
-# users:
+# If you set systemUsers here the secret will be constructed by helm with these values
+# systemUsers:
 #   MONGODB_BACKUP_USER: backup
 #   MONGODB_BACKUP_PASSWORD: backup123456
 #   MONGODB_DATABASE_ADMIN_USER: databaseAdmin
