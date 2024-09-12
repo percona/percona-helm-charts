@@ -3,18 +3,22 @@
 This chart deploys Percona Server for MongoDB Cluster on Kubernetes controlled by Percona Operator for MongoDB.
 
 Useful links:
+
 - [Operator Github repository](https://github.com/percona/percona-server-mongodb-operator)
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html)
 
 ## Pre-requisites
-* Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-* Kubernetes 1.27+
-* Helm v3
+
+- Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
+- Kubernetes 1.27+
+- Helm v3
 
 # Chart Details
+
 This chart will deploy Percona Server for MongoDB Cluster in Kubernetes. It will create a Custom Resource, and the Operator will trigger the creation of corresponding Kubernetes primitives: StatefulSets, Pods, Secrets, etc.
 
 ## Installing the Chart
+
 To install the chart with the `psmdb` release name using a dedicated namespace (recommended):
 
 ```sh
@@ -65,6 +69,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `secrets.users`         | The name of the Secrets object for the MongoDB users required to run the operator          | `""` |
 | `secrets.encryptionKey` | Set secret for data at rest encryption key                                                 | `""` |
+| `secrets.keyFile`       | Specifies a secret key file for authenticating MongoDB instances                           | `""` |
 | `secrets.vault`         | Specifies a secret object to provide integration with HashiCorp Vault                      | `""` |
 | `secrets.ldapSecret`    | Specifies a secret object for LDAP over TLS connection between MongoDB and OpenLDAP server | `""` |
 | `secrets.sse`           | The name of the Secrets object for server side encryption credentials                      | `""` |
@@ -260,7 +265,6 @@ The chart can be customized using the following configurable parameters:
 | `backup.configuration.restoreOptions` | Custom configuration settings for restore                         | `{}`                             |
 | `backup.tasks`                        | Backup working schedule                                           | `{}`                             |
 | `systemUsers`                         | PSMDB operator system users                                       | `{}`                             |
-
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.

@@ -68,6 +68,7 @@ secrets: {}
   # If not set the operator generates the default secret with name <cluster_name>-secrets
   # users: my-cluster-name-secrets
   # encryptionKey: my-cluster-name-mongodb-encryption-key
+  # keyFile: my-cluster-name-mongodb-keyfile
   # vault: my-cluster-name-vault
   # ldapSecret: my-ldap-secret
   # sse: my-cluster-name-sse
