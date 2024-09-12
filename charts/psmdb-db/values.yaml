@@ -196,13 +196,16 @@ replsets:
     #     external-2: rs0-2.mycluster2.xyz
     expose:
       enabled: false
-      exposeType: ClusterIP
+      type: ClusterIP
+      # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
-      # serviceAnnotations:
+      # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels:
+      # labels:
       #   some-label: some-key
+      # internalTrafficPolicy: Local
+      # externalTrafficPolicy: Local
     # schedulerName: ""
     resources:
       limits:
@@ -369,13 +372,16 @@ sharding:
       maxUnavailable: 1
     expose:
       enabled: false
-      exposeType: ClusterIP
+      type: ClusterIP
+      # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
-      # serviceAnnotations:
+      # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels:
+      # labels:
       #   some-label: some-key
+      # internalTrafficPolicy: Local
+      # externalTrafficPolicy: Local
     resources:
       limits:
         cpu: "300m"
@@ -460,14 +466,17 @@ sharding:
         cpu: "300m"
         memory: "0.5G"
     expose:
-      exposeType: ClusterIP
-      # servicePerPod: true
+      enabled: false
+      type: ClusterIP
+      # loadBalancerIP: 10.0.0.0/8
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
-      # serviceAnnotations:
+      # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels:
+      # labels:
       #   some-label: some-key
+      # internalTrafficPolicy: Local
+      # externalTrafficPolicy: Local
       # nodePort: 32017
     # auditLog:
     #   destination: file
