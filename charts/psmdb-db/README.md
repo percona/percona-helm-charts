@@ -243,6 +243,16 @@ The chart can be customized using the following configurable parameters:
 | `users.roles.role.name`        | Name of the MongoDB role assigned to the user. As [built-in roles](https://www.mongodb.com/docs/manual/reference/built-in-roles/#built-in-roles), so [custom roles](https://github.com/mongodb/mongodb-kubernetes-operator/blob/master/docs/deploy-configure.md#define-a-custom-database-role) are supported | `""`                     |
 | `users.roles.role.db`          | Database that the MongoDB role applies to                                                                                                                                                                                                                                                                    | `""`                     |
 | |
+| `roles.role`                      | Name of the custom role. | `""`                           |
+| `roles.db`                      | Database in which you want to store the user-defined role. | `"admin"`                           |
+| `roles.authenticationRestrictions.clientSource` | Array of IP addresses or CIDR blocks from which users assigned this role can connect.MongoDB servers reject connection requests from users with this role if the requests come from a client that is not present in this array. | `""`                           |
+| `roles.authenticationRestrictions.serverAddress` | Array of IP addresses or CIDR blocks to which users assigned this role can connect.MongoDB servers reject connection requests from users with this role if the client requests to connect to a server that is not present in this array. | `""`                           |
+| `roles.privileges.actions` |  Name of the role. Valid values are built-in roles. | `[]`                           |
+| `spec.roles.privileges.resource.db` |  Database for which the privilege `spec.security.roles.privileges.actions` apply. An empty string ("") indicates that the privilege actions apply to all databases. | `""`                           |
+| `spec.roles.privileges.resource.collection` |  Collection for which the privilege `spec.security.roles.privileges.actions` apply. An empty string ("") indicates that the privilege actions apply to all of the database's collections. | `""`                           |
+| `spec.roles.privileges.resource.cluster` |  Flag that indicates that the privilege `spec.security.roles.privileges.actions` apply to all databases and collections in the MongoDB deployment. If omitted, defaults to false.If set to true, do not provide values for `spec.security.roles.privileges.resource.database` and `spec.security.roles.privileges.resource.collection`. | `""`                           |
+| `spec.roles.roles.role` |  Name of the role to inherit from. | `""`                           |
+| `spec.roles.roles.db` |  Name of database that contains the role to inherit from. | `""`                           |
 | `backup.enabled`                      | Enable backup PBM agent                                           | `true`                           |
 | `backup.annotations`                  | Backup job annotations                                            | `{}`                             |
 | `backup.podSecurityContext`           | Set the security context for a Pod                                | `{}`                             |

@@ -578,6 +578,11 @@ spec:
 {{ .Values.users | toYaml | indent 2 }}
   {{- end }}
 
+  {{- if .Values.roles }}
+  roles:
+{{ .Values.roles | toYaml | indent 2 }}
+  {{- end }}
+
   backup:
     enabled: {{ .Values.backup.enabled }}
     {{- if .Values.backup.annotations }}
