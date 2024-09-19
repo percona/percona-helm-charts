@@ -28,7 +28,7 @@ unsafeFlags:
   terminationGracePeriod: false
   backupIfUnhealthy: false
 
-expansionEnabled: false
+enableVolumeExpansion: false
 
 annotations: {}
 
