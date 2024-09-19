@@ -28,6 +28,8 @@ unsafeFlags:
   terminationGracePeriod: false
   backupIfUnhealthy: false
 
+expansionEnabled: false
+
 annotations: {}
 
 # ignoreAnnotations:
