@@ -106,10 +106,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: percona-xtradb-cluster-operator
+  name: {{ include "pxc-operator.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    name: percona-xtradb-cluster-operator
+    name: {{ include "pxc-operator.name" . }}
 spec:
   ports:
     - port: 443
