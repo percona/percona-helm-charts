@@ -59,7 +59,7 @@ spec:
                 name: {{ include "pmm.fullname" . }}
                 optional: true
             {{ if not .Values.secret.create }}
-            - secretFef:
+            - secretRef:
                  name: {{ .Values.secret.name }}
             {{ end }}
           # additional secrets that could be used for Grafana iDP
