@@ -3,8 +3,6 @@ telemetry: true
 olm:
   catalogSourceImage: perconalab/everest-catalog
 vmOperator:
-  enabled: true
-  namespace: everest-monitoring
   channel: stable-v0
 everestOperator:
   channel: fast-v0

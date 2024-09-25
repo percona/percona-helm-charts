@@ -41,3 +41,22 @@ kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\
 ```bash
 helm uninstall everest -n everest-system
 ```
+
+# Configuration
+
+The table below lists the configurable parameters of the Everest chart and their default values.
+
+| Parameter                      | Description                                                                   | Default                 |
+|--------------------------------|-------------------------------------------------------------------------------|-------------------------|
+| image                          | Image to use for the Everest API server                                       | percona/everest         |
+| olm.catalogSourceImage         | Name of the CatalogSource image that is used for installing all operators     | percona/everest-catalog |
+| telemetry                      | If set, reports Telemetry information and usage data back to Percona          | true                    |
+| vmOperator.channel             | Name of the OLM bundle channel to use for installing VictoriaMetrics operator | stable-v0               |
+| everestOperator.channel        | Name of the OLM bundle channel to use for installing the Everest Operator     | stable-v0               |
+| namespaces.[*].name            | Namespace where databases and database operators will be installed            |                         |
+| namespaces.[*].mongodb.enabled | If set, PSMDB operator is installed in this namespace                         |                         |
+| namespaces.[*].mongodb.channel | Name of the OLM bundle channel to use for installing PSMDB operator           | stable-v1               |
+| namespaces.[*].pxc.enabled     | If set, PXC operator is installed in this namespace                           |                         |
+| namespaces.[*].pxc.channel     | Name of the OLM bundle channel to use for installing PXC operator             | stable-v1               |
+| namespaces.[*].pg.enabled      | If set, PG operator is installed in this namespace                            |                         |
+| namespaces.[*].pg.channel      | Name of the OLM bundle channel to use for installing PG operator              | stable-v2               |

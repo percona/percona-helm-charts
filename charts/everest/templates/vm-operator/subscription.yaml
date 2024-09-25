@@ -1,4 +1,3 @@
-{{- if .Values.vmOperator.enabled }}
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -9,5 +8,4 @@ spec:
   installPlanApproval: Manual
   name: victoriametrics-operator
   source: everest-catalog
-  sourceNamespace: {{ .Values.olm.namespace }}
-{{- end }}
+  sourceNamespace: everest-olm

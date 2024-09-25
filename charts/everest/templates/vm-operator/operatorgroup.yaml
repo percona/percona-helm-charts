@@ -1,11 +1,9 @@
-{{- if .Values.vmOperator.enabled }}
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
   name: everest-monitoring
-  namespace: {{ .Values.vmOperator.namespace }}
+  namespace: everest-monitoring
 spec:
   targetNamespaces:
-  - {{ .Values.vmOperator.namespace }}
+  - everest-monitoring
   upgradeStrategy: Default
-{{- end }}
