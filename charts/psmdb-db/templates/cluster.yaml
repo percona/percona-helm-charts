@@ -18,6 +18,7 @@ spec:
   {{- if .Values.platform }}
   platform: {{ .Values.platform }}
   {{- end }}
+  enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- if .Values.clusterServiceDNSSuffix }}
   clusterServiceDNSSuffix: {{ .Values.clusterServiceDNSSuffix }}
   {{- end }}
