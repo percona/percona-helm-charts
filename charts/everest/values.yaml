@@ -1,0 +1,21 @@
+image: perconalab/everest
+telemetry: true
+olm:
+  catalogSourceImage: perconalab/everest-catalog
+vmOperator:
+  enabled: true
+  namespace: everest-monitoring
+  channel: stable-v0
+everestOperator:
+  channel: fast-v0
+namespaces:
+  - name: everest
+    mongodb:
+      enabled: true
+      channel: stable-v1
+    pxc:
+      enabled: true
+      channel: stable-v1
+    pg:
+      enabled: true
+      channel: stable-v2
