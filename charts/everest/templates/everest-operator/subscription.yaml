@@ -8,7 +8,7 @@ spec:
   installPlanApproval: Manual
   name: everest-operator
   source: everest-catalog
-  sourceNamespace: {{ .Values.olm.namespace }}
+  sourceNamespace: everest-olm
   {{- if ne .Values.everestOperator.version "" }}
   startingCSV: everest-operator.v{{ .Chart.Version }}
   {{- end }}
@@ -21,7 +21,7 @@ spec:
       value: "false"
       {{- end }}
     - name: MONITORING_NAMESPACE
-      value: {{ .Values.vmOperator.namespace }}
+      value: everest-monitoring
     - name: DB_NAMESPACES
       value: {{ range $i, $ns := .Values.namespaces }}{{ if ne $i 0 }},{{ end }}{{ $ns.name }}{{ end }}
 

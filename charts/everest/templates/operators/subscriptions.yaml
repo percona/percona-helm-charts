@@ -10,7 +10,7 @@ spec:
   installPlanApproval: Manual
   name: percona-server-mongodb-operator
   source: everest-catalog
-  sourceNamespace: {{ $.Values.olm.namespace }}
+  sourceNamespace: everest-olm
   config:
     env:
     - name: DISABLE_TELEMETRY
@@ -32,7 +32,7 @@ spec:
   installPlanApproval: Manual
   name: percona-xtradb-cluster-operator
   source: everest-catalog
-  sourceNamespace: {{ $.Values.olm.namespace }}
+  sourceNamespace: everest-olm
   config:
     env:
     - name: DISABLE_TELEMETRY
@@ -54,7 +54,7 @@ spec:
   installPlanApproval: Manual
   name: percona-postgresql-operator
   source: everest-catalog
-  sourceNamespace: {{ $.Values.olm.namespace }}
+  sourceNamespace: everest-olm
   config:
     env:
     - name: DISABLE_TELEMETRY

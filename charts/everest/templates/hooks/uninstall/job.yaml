@@ -9,24 +9,9 @@ spec:
   template:
     spec:
       containers:
-        - image: bitnami/kubectl:latest
+        - image: {{ .Values.image }}
           command:
-            - /bin/bash
-            - -c
-            - |
-              # For each DB namespace
-              for ns in $(echo $NAMESPACES | sed "s/,/ /g")
-              do
-                # List DBs in this namespace
-                dbs=$(kubectl get db -n ${ns} -o=jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}')
-                for db in $dbs; do
-                  kubectl delete db $db -n $ns --wait
-                done
-                kubectl delete -n ${ns} csv --all --wait 
-              done
-              echo "Deleted databases"
-              
-              kubectl delete csv packageserver -n {{ .Values.olm.namespace }} --wait 
+          - ./helm-tools/uninstall
           imagePullPolicy: Always
           name: uninstaller
           env:

@@ -2,23 +2,37 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: everest-installer
+  name: everest-installplan-approver-hook
   namespace: {{ .Release.Namespace }}
 rules:
   - apiGroups:
       - operators.coreos.com
     resources:
       - installplans
-      - subscriptions
     verbs:
       - get
       - list
-      - patch
+      - update
+  - apiGroups:
+      - operators.coreos.com
+    resources:
+      - subscriptions
+      - clusterserviceversions
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: everest-installer
+  name: everest-installplan-approver-hook
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
