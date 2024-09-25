@@ -13,6 +13,7 @@ metadata:
   {{- end }}
 spec:
   crVersion: {{ .Chart.AppVersion }}
+  enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
 {{ .Values.ignoreAnnotations | toYaml | indent 4 }}
