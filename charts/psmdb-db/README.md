@@ -3,18 +3,22 @@
 This chart deploys Percona Server for MongoDB Cluster on Kubernetes controlled by Percona Operator for MongoDB.
 
 Useful links:
+
 - [Operator Github repository](https://github.com/percona/percona-server-mongodb-operator)
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html)
 
 ## Pre-requisites
-* Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-* Kubernetes 1.27+
-* Helm v3
+
+- Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
+- Kubernetes 1.27+
+- Helm v3
 
 # Chart Details
+
 This chart will deploy Percona Server for MongoDB Cluster in Kubernetes. It will create a Custom Resource, and the Operator will trigger the creation of corresponding Kubernetes primitives: StatefulSets, Pods, Secrets, etc.
 
 ## Installing the Chart
+
 To install the chart with the `psmdb` release name using a dedicated namespace (recommended):
 
 ```sh
@@ -29,6 +33,7 @@ The chart can be customized using the following configurable parameters:
 | `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.18.0`                              |
 | `pause`                                             | Stop PSMDB Database safely                                                                                                                                                                    | `false`                               |
 | `unmanaged`                                         | Start cluster and don't manage it (cross cluster replication)                                                                                                                                 | `false`                               |
+| `enableVolumeExpansion`                             | Allows to resize `PersistentVolumeClaim`s by changing `.volumeSpec.persistentVolumeClaim.resources` field                                                                                     | `false`                               |
 | `unsafeFlags.tls`                                   | Allows users from configuring a cluster without TLS/SSL certificates                                                                                                                          | `false`                               |
 | `unsafeFlags.replsetSize`                           | Allows users from configuring a cluster with unsafe parameters: starting it with less than 3 replica set instances or with an even number of replica set instances without additional arbiter | `false`                               |
 | `unsafeFlags.mongosSize`                            | Allows users from configuring a sharded cluster with less than 3 config server Pods or less than 2 mongos Pods                                                                                | `false`                               |
@@ -260,7 +265,6 @@ The chart can be customized using the following configurable parameters:
 | `backup.configuration.restoreOptions` | Custom configuration settings for restore                         | `{}`                             |
 | `backup.tasks`                        | Backup working schedule                                           | `{}`                             |
 | `systemUsers`                         | PSMDB operator system users                                       | `{}`                             |
-
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
