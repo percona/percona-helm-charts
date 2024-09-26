@@ -2,42 +2,40 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: everest-installplan-approver-hook
-  namespace: {{ .Release.Namespace }}
+  name: everest-helm-pre-delete-hook
 rules:
-  - apiGroups:
-      - operators.coreos.com
-    resources:
-      - installplans
-    verbs:
-      - get
-      - list
-      - update
-  - apiGroups:
-      - operators.coreos.com
-    resources:
-      - subscriptions
-      - clusterserviceversions
-    verbs:
-      - get
-      - list
   - apiGroups:
       - ""
     resources:
       - namespaces
     verbs:
+      - list
+      - get
+  - apiGroups:
+      - operators.coreos.com
+    resources:
+      - clusterserviceversions
+    verbs:
+      - delete
+      - list
+  - apiGroups:
+      - everest.percona.com
+    resources:
+      - databaseclusters
+    verbs:
       - get
       - list
+      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: everest-installplan-approver-hook
+  name: everest-helm-pre-delete-hook
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: everest-installer
+  name: everest-helm-pre-delete-hook
 subjects:
   - kind: ServiceAccount
-    name: everest-installer
+    name: everest-helm-pre-delete-hook
     namespace: {{ .Release.Namespace }}

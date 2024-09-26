@@ -15,11 +15,13 @@ Useful links:
 
 ## Installation
 
-Install Percona Everest to the `everest-system` namespace:
+Install Percona Everest in the `everest-system` namespace:
 ```bash
 helm repo add percona https://percona.github.io/percona-helm-charts/
 helm install everest percona/everest --version 1.1.1 --namespace everest-system --create-namespace
 ```
+
+> NOTE: Installing in any namespace other than `everest-system` can cause the installation to fail.
 
 This command may take a couple of minutes to complete. Upon completion, you should see the following output:
 ```bash
