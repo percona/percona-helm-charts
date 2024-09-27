@@ -1,5 +1,6 @@
 {{- range $i, $ns := .Values.namespaces }}
-{{- if $ns.mongodb.enabled }}
+{{- if (and $ns.mongodb $ns.mongodb.enabled) }}
+---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -20,8 +21,8 @@ spec:
       value: "false"
       {{- end }}
 {{- end }}
+{{- if (and $ns.pxc $ns.pxc.enabled) }}
 ---
-{{- if $ns.pxc.enabled }}
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -42,8 +43,8 @@ spec:
       value: "false"
       {{- end }}
 {{- end }}
+{{- if (and $ns.pg $ns.pg.enabled) }}
 ---
-{{- if $ns.pg.enabled }}
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -64,5 +65,4 @@ spec:
       value: "false"
       {{- end }}
 {{- end }}
----
 {{- end }}

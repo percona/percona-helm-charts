@@ -9,7 +9,7 @@ spec:
   template:
     spec:
       containers:
-        - image: docker.io/mayankshah1607/everest-helm-tools:test-4
+        - image: docker.io/mayankshah1607/everest-helm-tools:test-7
           command: ["/everest-helm-tools"]
           args: ["run-hook", "pre-delete"]
           imagePullPolicy: Always
@@ -19,3 +19,4 @@ spec:
       serviceAccount: everest-helm-pre-delete-hook
       serviceAccountName: everest-helm-pre-delete-hook
       terminationGracePeriodSeconds: 30
+      ttlSecondsAfterFinished: 60

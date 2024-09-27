@@ -22,6 +22,8 @@ rules:
       - everest.percona.com
     resources:
       - databaseclusters
+      - backupstorages
+      - monitoringinstances
     verbs:
       - get
       - list

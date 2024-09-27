@@ -9,9 +9,12 @@ spec:
   template:
     spec:
       containers:
-        - image: docker.io/mayankshah1607/everest-helm-tools:test-4
+        - image: docker.io/mayankshah1607/everest-helm-tools:test-7
           command: ["/everest-helm-tools"]
-          args: ["run-hook", "post-install"]
+          args: 
+          - run-hook
+          - post-install
+          - --version={{ .Chart.AppVersion }}
           imagePullPolicy: Always
           name: hook-runner
       dnsPolicy: ClusterFirst
@@ -19,3 +22,4 @@ spec:
       serviceAccount: everest-helm-post-install-hook
       serviceAccountName: everest-helm-post-install-hook
       terminationGracePeriodSeconds: 30
+      ttlSecondsAfterFinished: 60
