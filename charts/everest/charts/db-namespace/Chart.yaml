@@ -1,0 +1,6 @@
+apiVersion: v2
+name: db-namespace
+description: This subchart is used for deploying the Percona Operators for Everest.
+type: application
+version: 0.0.1
+appVersion: 0.0.1

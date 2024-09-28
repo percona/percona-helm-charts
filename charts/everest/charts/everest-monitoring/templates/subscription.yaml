@@ -4,7 +4,7 @@ metadata:
   name: victoriametrics-operator
   namespace: everest-monitoring
 spec:
-  channel: {{ .Values.vmOperator.channel }}
+  channel: {{ .Values.channel }}
   installPlanApproval: Manual
   name: victoriametrics-operator
   source: everest-catalog

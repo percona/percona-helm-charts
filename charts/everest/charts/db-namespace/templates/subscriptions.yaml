@@ -1,13 +1,12 @@
-{{- range $i, $ns := .Values.namespaces }}
-{{- if (and $ns.mongodb $ns.mongodb.enabled) }}
+{{- if .Values.mongodb.enabled }}
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: percona-server-mongodb-operator
-  namespace: {{ $ns.name }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  channel: {{ $ns.mongodb.channel }}
+  channel: stable-v1
   installPlanApproval: Manual
   name: percona-server-mongodb-operator
   source: everest-catalog
@@ -21,15 +20,15 @@ spec:
       value: "false"
       {{- end }}
 {{- end }}
-{{- if (and $ns.pxc $ns.pxc.enabled) }}
+{{- if .Values.pxc.enabled }}
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: percona-xtradb-cluster-operator
-  namespace: {{ $ns.name }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  channel: {{ $ns.pxc.channel }}
+  channel: stable-v1
   installPlanApproval: Manual
   name: percona-xtradb-cluster-operator
   source: everest-catalog
@@ -43,15 +42,15 @@ spec:
       value: "false"
       {{- end }}
 {{- end }}
-{{- if (and $ns.pg $ns.pg.enabled) }}
+{{- if .Values.pg.enabled }}
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: percona-postgresql-operator
-  namespace: {{ $ns.name }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  channel: {{ $ns.pg.channel }}
+  channel: stable-v2
   installPlanApproval: Manual
   name: percona-postgresql-operator
   source: everest-catalog
@@ -64,5 +63,4 @@ spec:
       {{- else }}
       value: "false"
       {{- end }}
-{{- end }}
 {{- end }}

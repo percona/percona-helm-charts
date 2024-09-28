@@ -2,12 +2,12 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
   name: everest-catalog
-  namespace: everest-olm
+  namespace: {{ .Values.namespace }}
 spec:
   displayName: Everest Catalog
   grpcPodConfig:
     securityContextConfig: restricted
-  image: {{ .Values.olm.catalogSourceImage }}:{{ .Chart.Version }}
+  image: {{ .Values.everest.catalogSourceImage }}:{{ .Values.everest.version }}
   publisher: Percona
   sourceType: grpc
   updateStrategy:

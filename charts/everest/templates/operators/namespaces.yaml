@@ -1,9 +1,0 @@
-{{- range $i, $ns := .Values.namespaces }}
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {{ $ns.name }}
-  labels:
-    everest.percona.com/db-namespace: ""
-{{- end }}

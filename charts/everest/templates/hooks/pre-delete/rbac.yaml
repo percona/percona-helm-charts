@@ -17,13 +17,14 @@ rules:
       - clusterserviceversions
     verbs:
       - delete
+      - get
       - list
   - apiGroups:
       - everest.percona.com
     resources:
       - databaseclusters
       - backupstorages
-      - monitoringinstances
+      - monitoringconfigs
     verbs:
       - get
       - list

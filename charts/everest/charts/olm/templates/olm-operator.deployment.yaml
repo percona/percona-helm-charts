@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: catalog-operator
-  namespace: everest-olm
+  name: olm-operator
+  namespace: {{ .Values.namespace }}
   labels:
-    app: catalog-operator
+    app: olm-operator
 spec:
   strategy:
     type: RollingUpdate
   replicas: 1
   selector:
     matchLabels:
-      app: catalog-operator
+      app: olm-operator
   template:
     metadata:
       labels:
-        app: catalog-operator
+        app: olm-operator
     spec:
       securityContext:
         runAsNonRoot: true
@@ -23,21 +23,19 @@ spec:
           type: RuntimeDefault
       serviceAccountName: olm-operator-serviceaccount
       containers:
-        - name: catalog-operator
+        - name: olm-operator
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ "ALL" ]
           command:
-          - /bin/catalog
+          - /bin/olm
           args:
-          - '--namespace'
-          - everest-olm
-          - --configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
-          - --util-image
-          -  quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6
-          - --set-workload-user-id=true
-          image: quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6
+          - --namespace
+          - $(OPERATOR_NAMESPACE)
+          - --writeStatusName
+          - ""
+          image: {{ .Values.image }}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -53,9 +51,16 @@ spec:
               port: 8080
               scheme: HTTP
           terminationMessagePolicy: FallbackToLogsOnError
+          env:
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: OPERATOR_NAME
+            value: olm-operator
           resources:
             requests:
               cpu: 10m
-              memory: 80Mi
+              memory: 160Mi
       nodeSelector:
         kubernetes.io/os: linux

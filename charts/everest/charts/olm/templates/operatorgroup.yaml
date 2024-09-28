@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
   name: olm-operators
-  namespace: everest-olm
+  namespace: {{ .Values.namespace }}
 spec:
   targetNamespaces:
     - everest-olm

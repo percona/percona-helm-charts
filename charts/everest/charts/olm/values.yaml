@@ -1,0 +1,6 @@
+image: quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6
+namespace: everest-olm
+everest:
+  catalogSourceImage: perconalab/everest-catalog
+  version: 0.0.0
+

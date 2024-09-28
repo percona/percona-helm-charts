@@ -6,3 +6,20 @@ version: 0.0.0
 appVersion: 0.0.0
 type: application
 kubeVersion: ">=1.27.0-0"
+
+dependencies:
+  # While this isn't really a dependency for the chart, we still specify it
+  # here so that we're able to conditionally disable rendering the DB namespace manifests.
+  - name: db-namespace
+    version: "0.0.1"
+    repository: "file://charts/"
+    condition: db-namespace.enabled
+  - name: olm
+    version: "0.0.1"
+    repository: "file://charts/"
+    condition: olm.enabled
+  - name: everest-monitoring
+    version: "0.0.1"
+    repository: "file://charts/"
+    condition: monitoring.enabled
+
