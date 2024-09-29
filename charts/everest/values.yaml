@@ -8,6 +8,7 @@ everestOperator:
 db-namespace:
   # Do not set this to true when deploying the chart,
   # unless you want everest-system to be a DB namespace.
+  # DB namespaces are provisioned as a separate (sub) chart.
   enabled: false
 olm:
   enabled: true
@@ -15,4 +16,9 @@ olm:
     catalogSourceImage: perconalab/everest-catalog
 monitoring:
   enabled: true
+
+preDeleteHook:
+  namespace: '{{ .Release.Namespace }}'
+postInstallHook:
+  namespace: '{{ .Release.Namespace }}'
 

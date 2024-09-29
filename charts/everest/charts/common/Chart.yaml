@@ -1,0 +1,6 @@
+apiVersion: v2
+name: common
+description: A library chart for common resources in the Everest Helm chart
+type: library
+version: 0.0.1
+appVersion: "0.0.1"

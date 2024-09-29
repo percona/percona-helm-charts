@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
   name: everest-monitoring
-  namespace: everest-monitoring
+  namespace: {{ .Values.namespace }}
 spec:
   targetNamespaces:
   - everest-monitoring

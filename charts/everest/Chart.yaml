@@ -14,12 +14,15 @@ dependencies:
     version: "0.0.1"
     repository: "file://charts/"
     condition: db-namespace.enabled
-  - name: olm
-    version: "0.0.1"
-    repository: "file://charts/"
-    condition: olm.enabled
   - name: everest-monitoring
     version: "0.0.1"
     repository: "file://charts/"
     condition: monitoring.enabled
+  - name: olm
+    version: "0.0.1"
+    repository: "file://charts/"
+    condition: olm.enabled
+  - name: common
+    version: "0.0.1"
+    repository: "file://charts/"
 

@@ -1,0 +1,62 @@
+{{- define "common.preDeleteHook" }}
+{{- $ns := (tpl .Values.preDeleteHook.namespace . ) }}
+{{- $hookName := printf "everest-helm-pre-delete-hook" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $hookName }}
+  namespace: {{ $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $hookName }}
+  namespace: {{ $ns }}
+rules:
+  - apiGroups:
+      - operators.coreos.com
+    resources:
+      - clusterserviceversions
+    verbs:
+      - delete
+      - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $hookName }}
+  namespace: {{ $ns }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $hookName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $hookName }}
+    namespace: {{ $ns }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $hookName }}-{{ randNumeric 6 }}
+  namespace: {{ $ns }}
+  annotations:
+    "helm.sh/hook": pre-delete
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      containers:
+        - image: bitnami/kubectl:latest
+          name: {{ $hookName }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              kubectl delete csv -n {{ $ns }} --all --wait
+      dnsPolicy: ClusterFirst
+      restartPolicy: OnFailure
+      serviceAccount: {{ $hookName }}
+      serviceAccountName: {{ $hookName }}
+      terminationGracePeriodSeconds: 30
+{{- end }}

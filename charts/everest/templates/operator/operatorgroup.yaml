@@ -2,11 +2,8 @@ apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
   name: {{ .Release.Namespace }}
-  namespace: {{ .Release.Namespace }}
+  namespace: everest-system
 spec:
   targetNamespaces:
-  - {{ .Release.Namespace }}
-  {{- range $i, $ns := .Values.namespaces }}
-  - {{ $ns.name }}
-  {{- end }}
+  - everest-system
   upgradeStrategy: Default

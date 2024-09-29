@@ -1,0 +1,88 @@
+{{- define "common.postInstallHook" }}
+{{- $ns := (tpl .Values.postInstallHook.namespace .) }}
+{{- $hookName := "everest-helm-post-install-hook" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $hookName }}
+  namespace: {{ $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $hookName }}
+  namespace: {{ $ns }}
+rules:
+  - apiGroups:
+      - operators.coreos.com
+    resources:
+      - installplans
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - operators.coreos.com
+    resources:
+      - subscriptions
+      - clusterserviceversions
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $hookName }}
+  namespace: {{ $ns }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $hookName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $hookName }}
+    namespace: {{ $ns }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $hookName }}-{{ randNumeric 6 }}
+  namespace: {{ $ns }}
+  annotations:
+    "helm.sh/hook": post-install
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      containers:
+        - image: bitnami/kubectl:latest
+          name: {{ $hookName }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              subs=$(kubectl -n {{ $ns }} get subscription -o jsonpath='{.items[*].metadata.name}')
+              # Get the subscriptions in this namespace
+              for sub in $subs
+              do
+                # Wait for installPlan to be created
+                kubectl wait --for=jsonpath='.status.installplan.name' sub/$sub -n {{ $ns }} --timeout=600s
+                # Approve the installPlan
+                ip=$(kubectl -n {{ $ns }} get sub $sub -o jsonpath='{.status.installplan.name}')
+                kubectl -n {{ $ns }} patch installplan $ip --type='json' -p='[{"op": "replace", "path": "/spec/approved", "value": true}]'
+                # Wait for InstallPlan to be complete
+                kubectl wait --for=jsonpath='.status.phase'=Complete installplan/$ip -n {{ $ns }} --timeout=600s
+                # Wait for CSV to succeed
+                csv=$(kubectl get sub $sub -n {{ $ns }} -o jsonpath='{.status.installedCSV}')
+                kubectl wait --for=jsonpath='.status.phase'=Succeeded csv/$csv -n {{ $ns }} --timeout=600s
+              done
+      dnsPolicy: ClusterFirst
+      restartPolicy: OnFailure
+      serviceAccount: {{ $hookName }}
+      serviceAccountName: {{ $hookName }}
+      terminationGracePeriodSeconds: 30
+{{- end }}

@@ -4,3 +4,5 @@ pxc:
   enabled: true
 pg:
   enabled: true
+postInstallHook:
+  namespace: '{{ .Release.Namespace }}'

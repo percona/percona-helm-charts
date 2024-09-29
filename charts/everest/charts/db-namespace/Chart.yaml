@@ -4,3 +4,7 @@ description: This subchart is used for deploying the Percona Operators for Evere
 type: application
 version: 0.0.1
 appVersion: 0.0.1
+dependencies:
+  - name: common
+    version: "0.0.1"
+    repository: "file://../common"
