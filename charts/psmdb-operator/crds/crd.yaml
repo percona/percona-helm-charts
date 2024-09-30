@@ -327,6 +327,15 @@ spec:
                 type: object
               replset:
                 type: string
+              selective:
+                properties:
+                  namespaces:
+                    items:
+                      type: string
+                    type: array
+                  withUsersAndRoles:
+                    type: boolean
+                type: object
               storageName:
                 type: string
             type: object
@@ -1067,6 +1076,8 @@ spec:
                 type: string
               crVersion:
                 type: string
+              enableVolumeExpansion:
+                type: boolean
               ignoreAnnotations:
                 items:
                   type: string
@@ -6895,6 +6906,10 @@ spec:
                               type: string
                           type: object
                       type: object
+                    primaryPreferTagSelector:
+                      additionalProperties:
+                        type: string
+                      type: object
                     priorityClassName:
                       type: string
                     readinessProbe:
@@ -8868,6 +8883,64 @@ spec:
                       type: object
                   required:
                   - size
+                  type: object
+                type: array
+              roles:
+                items:
+                  properties:
+                    authenticationRestrictions:
+                      items:
+                        properties:
+                          clientSource:
+                            items:
+                              type: string
+                            type: array
+                          serverAddress:
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                      type: array
+                    db:
+                      type: string
+                    privileges:
+                      items:
+                        properties:
+                          actions:
+                            items:
+                              type: string
+                            type: array
+                          resource:
+                            properties:
+                              cluster:
+                                type: boolean
+                              collection:
+                                type: string
+                              db:
+                                type: string
+                            type: object
+                        required:
+                        - actions
+                        type: object
+                      type: array
+                    role:
+                      type: string
+                    roles:
+                      items:
+                        properties:
+                          db:
+                            type: string
+                          role:
+                            type: string
+                        required:
+                        - db
+                        - role
+                        type: object
+                      type: array
+                  required:
+                  - db
+                  - privileges
+                  - role
                   type: object
                 type: array
               schedulerName:
@@ -14497,6 +14570,10 @@ spec:
                                 type: string
                             type: object
                         type: object
+                      primaryPreferTagSelector:
+                        additionalProperties:
+                          type: string
+                        type: object
                       priorityClassName:
                         type: string
                       readinessProbe:
@@ -19102,14 +19179,10 @@ spec:
                         key:
                           type: string
                         name:
-                          default: ""
                           type: string
-                        optional:
-                          type: boolean
                       required:
-                      - key
+                      - name
                       type: object
-                      x-kubernetes-map-type: atomic
                     roles:
                       items:
                         properties:
@@ -19123,7 +19196,6 @@ spec:
                         type: object
                       type: array
                   required:
-                  - db
                   - name
                   - passwordSecretRef
                   - roles
