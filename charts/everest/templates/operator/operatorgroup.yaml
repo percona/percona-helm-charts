@@ -2,8 +2,11 @@ apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
   name: {{ .Release.Namespace }}
-  namespace: everest-system
+  namespace: {{ .Release.Namespace }}
 spec:
+  selector:
+    matchLabels:
+      everest.percona.com/db-namespace: ""
   targetNamespaces:
-  - everest-system
+  - {{ .Release.Namespace }}
   upgradeStrategy: Default
