@@ -70,6 +70,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `secrets.users`         | The name of the Secrets object for the MongoDB users required to run the operator          | `""` |
 | `secrets.encryptionKey` | Set secret for data at rest encryption key                                                 | `""` |
+| `secrets.keyFile`       | Specifies a secret key file for authenticating MongoDB instances                           | `""` |
 | `secrets.vault`         | Specifies a secret object to provide integration with HashiCorp Vault                      | `""` |
 | `secrets.ldapSecret`    | Specifies a secret object for LDAP over TLS connection between MongoDB and OpenLDAP server | `""` |
 | `secrets.sse`           | The name of the Secrets object for server side encryption credentials                      | `""` |
