@@ -5,5 +5,5 @@ metadata:
 spec:
   selector:
     matchLabels:
-      everest.percona.com/namespace: ""
+      everest.percona.com/managed-namespace: "true"
   upgradeStrategy: Default

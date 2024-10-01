@@ -1,5 +1,5 @@
 {{- define "common.dbNamespaceLabelHook" }}
-{{- $ns := (tpl {{ .Release.Namespace }} .) }}
+{{- $ns := (tpl "{{ .Release.Namespace }}" .) }}
 {{- $hookName := "everest-db-namespace-label-hook" }}
 apiVersion: v1
 kind: ServiceAccount
@@ -20,11 +20,11 @@ rules:
   - apiGroups:
       - ""
     resources:
-      - namespace
+      - namespaces
     verbs:
       - get
       - list
-      - update
+      - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -50,6 +50,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-install
     "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-weight": "-1"
 spec:
   ttlSecondsAfterFinished: 60
   template:
@@ -61,7 +62,7 @@ spec:
             - /bin/sh
             - -c
             - |
-              kubectl label namespace {{ $ns }} app.kubernetes.io/managed-by=everest
+              kubectl label namespace {{ $ns }} everest.percona.com/managed-namespace=true --overwrite
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure
       serviceAccount: {{ $hookName }}
