@@ -15,10 +15,25 @@ Useful links:
 
 ## Installation
 
-Install Percona Everest in the `everest-system` namespace:
+Insall Percona Everest in the `everest-system` namespace:
+
+1. Create the `everest-system` namespace:
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: everest-system
+    labels:
+        everest.percona.com/namespace: ""
+EOF
+```
+> NOTE: We recommend creating the `everest-system` namespace as a separate step. This is because specifying the `--create-namespace` flag with `helm install` does not support setting labels on the namespace.
+
+2. Install the Helm chart:
 ```bash
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install everest percona/everest --version 1.1.1 --namespace everest-system --create-namespace
+helm install everest percona/everest --version 1.1.1 --namespace everest-system
 ```
 
 > NOTE: Installing in any namespace other than `everest-system` can cause the installation to fail.

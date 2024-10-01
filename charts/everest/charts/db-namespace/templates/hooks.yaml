@@ -1,1 +1,3 @@
 {{- include "common.postInstallHook" . }}
+---
+{{- include "common.dbNamespaceLabelHook" . }}

@@ -1,6 +1,6 @@
-{{- define "common.preDeleteHook" }}
-{{- $ns := (tpl .Values.preDeleteHook.namespace . ) }}
-{{- $hookName := printf "everest-helm-pre-delete-hook" }}
+{{- define "common.dbNamespaceLabelHook" }}
+{{- $ns := (tpl {{ .Release.Namespace }} .) }}
+{{- $hookName := "everest-db-namespace-label-hook" }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -18,12 +18,13 @@ metadata:
     "helm.sh/hook-delete-policy": hook-succeeded
 rules:
   - apiGroups:
-      - operators.coreos.com
+      - ""
     resources:
-      - clusterserviceversions
+      - namespace
     verbs:
-      - delete
+      - get
       - list
+      - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -47,7 +48,7 @@ metadata:
   name: {{ $hookName }}-{{ randNumeric 6 }}
   namespace: {{ $ns }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": post-install
     "helm.sh/hook-delete-policy": hook-succeeded
 spec:
   ttlSecondsAfterFinished: 60
@@ -60,7 +61,7 @@ spec:
             - /bin/sh
             - -c
             - |
-              kubectl delete csv -n {{ $ns }} --all --wait
+              kubectl label namespace {{ $ns }} app.kubernetes.io/managed-by=everest
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure
       serviceAccount: {{ $hookName }}
