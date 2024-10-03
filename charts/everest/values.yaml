@@ -22,8 +22,9 @@ monitoring:
   enabled: true
 
 # DB Namespaces to be installed.
+# Cannot be nil or empty.
 dbNamespaces:
-  # - name: everest
-  #   psmdb: true
-  #   pxc: true
-  #   pg: true
+  - name: everest
+    psmdb: true
+    pxc: true
+    pg: true
