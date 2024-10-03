@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  generation: 2
+  name: packageserver
+  namespace: {{ .Values.olm.namespace }}
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: packageserver
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: packageserver
+    spec:
+      containers:
+      - command:
+        - /bin/package-server
+        - -v=4
+        - --secure-port
+        - "5443"
+        - --global-namespace
+        - {{ .Values.olm.namespace }}
+        env:
+        - name: OPERATOR_CONDITION_NAME
+          value: packageserver
+        image: {{ .Values.olm.image }}
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 5443
+            scheme: HTTPS
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: packageserver
+        ports:
+        - containerPort: 5443
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 5443
+            scheme: HTTPS
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          requests:
+            cpu: 10m
+            memory: 50Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmpfs
+        - mountPath: /apiserver.local.config/certificates
+          name: apiservice-cert
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: webhook-cert
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        kubernetes.io/os: linux
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccount: olm-operator-serviceaccount
+      serviceAccountName: olm-operator-serviceaccount
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: tmpfs
+      - name: apiservice-cert
+        secret:
+          defaultMode: 420
+          items:
+          - key: tls.crt
+            path: apiserver.crt
+          - key: tls.key
+            path: apiserver.key
+          secretName: packageserver-service-cert
+      - name: webhook-cert
+        secret:
+          defaultMode: 420
+          items:
+          - key: tls.crt
+            path: tls.crt
+          - key: tls.key
+            path: tls.key
+          secretName: packageserver-service-cert

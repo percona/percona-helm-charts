@@ -1,0 +1,39 @@
+{{- $psSvcName := printf "packageserver-service" }}
+{{- $psSvcNameWithNS := ( printf "%s.%s" $psSvcName "everest-olm" ) }}
+{{- $psFullName := ( printf "%s.svc" $psSvcNameWithNS ) }}
+{{- $psAltNames := list $psSvcName $psSvcNameWithNS $psFullName }}
+{{- $psCA := genCA $psSvcName 3650 }}
+{{- $psCert := genSignedCert $psFullName nil $psAltNames 3650 $psCA }}
+---
+{{- if not (lookup "apiregistration.k8s.io/v1" "APIService" "" "v1.packages.operators.coreos.com" )}}
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1.packages.operators.coreos.com
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  caBundle: {{ b64enc $psCA.Cert }}
+  group: packages.operators.coreos.com
+  groupPriorityMinimum: 2000
+  version: v1
+  versionPriority: 800
+  service:
+    name: packageserver-service
+    namespace: {{ .Values.olm.namespace }}
+    port: 5443
+{{- end }}
+---
+{{- if not (lookup "v1" "Secret" .Values.olm.namespace $psSvcName )}}
+apiVersion: v1
+data:
+  tls.crt: {{ b64enc $psCert.Cert }}
+  tls.key: {{ b64enc $psCert.Key }}
+kind: Secret
+metadata:
+  name: packageserver-service-cert
+  namespace: {{ .Values.olm.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+type: kubernetes.io/tls
+{{- end }}

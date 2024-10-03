@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-operator
+  namespace: {{ .Values.olm.namespace }}
+  labels:
+    app: catalog-operator
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalog-operator
+  template:
+    metadata:
+      labels:
+        app: catalog-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: olm-operator-serviceaccount
+      containers:
+        - name: catalog-operator
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+          command:
+          - /bin/catalog
+          args:
+          - '--namespace'
+          - everest-olm
+          - --configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
+          - --util-image
+          - {{ .Values.olm.image }}
+          - --set-workload-user-id=true
+          image: {{ .Values.olm.image }} 
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: metrics
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+          terminationMessagePolicy: FallbackToLogsOnError
+          resources:
+            requests:
+              cpu: 10m
+              memory: 80Mi
+      nodeSelector:
+        kubernetes.io/os: linux

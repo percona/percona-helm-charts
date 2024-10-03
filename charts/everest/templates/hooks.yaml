@@ -1,5 +1,0 @@
-{{- include "common.preDeleteHook" . }}
----
-{{- include "common.postInstallHook" . }}
----
-{{- include "common.dbNamespaceLabelHook" . }}

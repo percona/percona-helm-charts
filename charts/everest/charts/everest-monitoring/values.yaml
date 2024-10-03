@@ -1,6 +1,0 @@
-namespace: everest-monitoring # Do not change
-channel: stable-v0
-preDeleteHook:
-  namespace: '{{ .Values.namespace }}'
-postInstallHook:
-  namespace: '{{ .Values.namespace }}'

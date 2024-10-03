@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: everest-operator-metrics-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: https
+  selector:
+    app: everest-operator
+  sessionAffinity: None
+  type: ClusterIP

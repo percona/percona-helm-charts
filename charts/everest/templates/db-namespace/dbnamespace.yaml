@@ -1,0 +1,99 @@
+{{- range $i, $ns := .Values.dbNamespaces }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns.name }}
+  labels:
+    app.kubernetes.io/managed-by: everest
+---
+{{- if $ns.psmdb }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: percona-server-mongodb-operator
+  namespace: {{ $ns.name }}
+spec:
+  channel: stable-v1
+  installPlanApproval: Manual
+  name: percona-server-mongodb-operator
+  source: everest-catalog
+  sourceNamespace: {{ $.Values.olm.namespace }}
+  config:
+    env:
+    - name: DISABLE_TELEMETRY
+      {{- if $.Values.telemetry }}
+      value: "true"
+      {{- else }}
+      value: "false"
+      {{- end }}
+---
+{{- end }}
+{{- if $ns.pxc }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: percona-xtradb-cluster-operator
+  namespace: {{ $ns.name }}
+spec:
+  channel: stable-v1
+  installPlanApproval: Manual
+  name: percona-xtradb-cluster-operator
+  source: everest-catalog
+  sourceNamespace: {{ $.Values.olm.namespace }}
+  config:
+    env:
+    - name: DISABLE_TELEMETRY
+      {{- if $.Values.telemetry }}
+      value: "true"
+      {{- else }}
+      value: "false"
+      {{- end }}
+---
+{{- end }}
+{{- if $ns.pg }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: percona-postgresql-operator
+  namespace: {{ $ns.name }}
+spec:
+  channel: stable-v2
+  installPlanApproval: Manual
+  name: percona-postgresql-operator
+  source: everest-catalog
+  sourceNamespace: {{ $.Values.olm.namespace }}
+  config:
+    env:
+    - name: DISABLE_TELEMETRY
+      {{- if $.Values.telemetry }}
+      value: "true"
+      {{- else }}
+      value: "false"
+      {{- end }}
+---
+{{- end }}
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: database-operators
+  namespace: {{ $ns.name }}
+spec:
+  targetNamespaces:
+  - {{ $ns.name }}
+  upgradeStrategy: Default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: everest-operator
+  namespace: {{ $ns.name }}
+subjects:
+- kind: ServiceAccount
+  name: everest-operator
+  namespace: {{ $.Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: everest-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}

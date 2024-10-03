@@ -1,24 +1,29 @@
-image: perconalab/everest
+# Set to false to disable telemetry.
 telemetry: true
-vmOperator:
-  channel: stable-v0
-everestOperator:
-  channel: fast-v0
 
-db-namespace:
-  # Do not set this to true when deploying the chart,
-  # unless you want everest-system to be a DB namespace.
-  # DB namespaces are provisioned as a separate (sub) chart.
-  enabled: false
+# Config for Everest API server.
+server:
+  image: perconalab/everest
+
+# Config for Everest Operator
+operator:
+  image: perconalab/everest-operator
+
+# Config for OLM
 olm:
+  namespace: everest-olm
   enabled: true
-  everest:
-    catalogSourceImage: perconalab/everest-catalog
+  catalogSourceImage: perconalab/everest-catalog
+  image: quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6 
+
+# Config for Everest Monitoring
 monitoring:
+  namespace: everest-monitoring
   enabled: true
 
-preDeleteHook:
-  namespace: '{{ .Release.Namespace }}'
-postInstallHook:
-  namespace: '{{ .Release.Namespace }}'
-
+# DB Namespaces to be installed.
+dbNamespaces:
+  # - name: everest
+  #   psmdb: true
+  #   pxc: true
+  #   pg: true

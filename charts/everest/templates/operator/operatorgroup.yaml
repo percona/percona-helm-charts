@@ -1,9 +1,0 @@
-apiVersion: operators.coreos.com/v1
-kind: OperatorGroup
-metadata:
-  name: {{ .Release.Namespace }}
-spec:
-  selector:
-    matchLabels:
-      everest.percona.com/managed-namespace: "true"
-  upgradeStrategy: Default
