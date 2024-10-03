@@ -1,0 +1,2 @@
+{{- include "everest.operatorRoleBinding" (dict "root" . "namespace" .Values.monitoring.namespace) }}
+

@@ -1,13 +1,15 @@
+{{- include "everest.operatorRoleBinding" (dict "root" . "namespace" .Release.Namespace) }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: everest-operator
+  name: everest-operator-local
   namespace: {{ .Release.Namespace }}
 subjects:
 - kind: ServiceAccount
   name: everest-operator
   namespace: {{ .Release.Namespace }}
 roleRef:
-  kind: ClusterRole
+  kind: Role
   name: everest-operator
   apiGroup: rbac.authorization.k8s.io
