@@ -1,0 +1,10 @@
+apiVersion: v2
+name: db-namespace
+description: A sub-chart for provisioning Everest DB namespaces.
+type: application
+version: 0.0.1
+appVersion: "0.0.1"
+dependencies:
+- name: common
+  version: 0.0.1
+  repository: "file://../common"

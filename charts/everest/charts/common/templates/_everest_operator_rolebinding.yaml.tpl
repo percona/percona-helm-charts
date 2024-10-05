@@ -1,6 +1,5 @@
 #
 # @paramts  .root               Root object
-# @param    .namespace          Namespace where this RoleBinding is created
 #
 {{- define "everest.operatorRoleBinding" }}
 apiVersion: rbac.authorization.k8s.io/v1
@@ -11,7 +10,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: everest-operator
-  namespace: {{ .root.Release.Namespace }}
+  namespace: everest-system
 roleRef:
   kind: ClusterRole
   name: everest-operator

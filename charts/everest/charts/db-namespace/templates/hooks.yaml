@@ -1,0 +1,3 @@
+{{- include "everest.csvCleanup" (dict "namespace" .Release.Namespace) }}
+---
+{{- include "everest.installplanApprover" (dict "namespace" .Release.Namespace) }}

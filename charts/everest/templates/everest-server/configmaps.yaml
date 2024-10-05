@@ -1,9 +1,7 @@
-{{- if not (lookup "v1" "ConfigMap" .Release.Namespace "everest-rbac" ) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: everest-rbac
 data:
   policy.csv: |
-    g, admin, role:admin
-{{- end }}
+    {{- .Values.rbac | nindent 4 }}

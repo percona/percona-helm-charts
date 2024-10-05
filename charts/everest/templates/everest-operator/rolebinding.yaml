@@ -1,4 +1,4 @@
-{{- include "everest.operatorRoleBinding" (dict "root" . "namespace" .Release.Namespace) }}
+{{- include "everest.operatorRoleBinding" (dict "namespace" .Release.Namespace) }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

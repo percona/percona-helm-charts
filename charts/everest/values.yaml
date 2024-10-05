@@ -9,6 +9,12 @@ server:
 operator:
   image: perconalab/everest-operator
 
+rbac: |
+  g, admin role:admin
+
+dbNamespace:
+  enabled: false
+
 # Config for OLM
 olm:
   namespace: everest-olm
@@ -20,11 +26,3 @@ olm:
 monitoring:
   namespace: everest-monitoring
   enabled: true
-
-# DB Namespaces to be installed.
-# Cannot be nil or empty.
-dbNamespaces:
-  - name: everest
-    psmdb: true
-    pxc: true
-    pg: true

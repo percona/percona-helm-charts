@@ -1,5 +1,0 @@
-{{- range $i, $ns := .Values.dbNamespaces }}
-{{- include "everest.csvCleanup" (dict "namespace" $ns.name) }}
----
-{{- include "everest.installplanApprover" (dict "namespace" $ns.name) }}
-{{- end }}

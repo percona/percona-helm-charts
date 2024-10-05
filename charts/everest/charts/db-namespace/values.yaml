@@ -1,0 +1,6 @@
+psmdb: true
+pxc: true
+pg: true
+telemetry: true
+olm:
+  namespace: everest-olm

@@ -6,3 +6,11 @@ version: 0.0.0
 appVersion: 0.0.0
 type: application
 kubeVersion: ">=1.27.0-0"
+dependencies:
+- name: common
+  version: 0.0.1
+  repository: "file://charts/"
+- name: db-namespace
+  version: 0.0.1
+  repository: "file://charts/"
+  condition: dbNamespace.enabled

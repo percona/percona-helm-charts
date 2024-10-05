@@ -1,12 +1,3 @@
-{{- $namespaceList := "" -}}
-{{- range $index, $ns := .Values.dbNamespaces -}}
-  {{- if $index -}}
-    {{- $namespaceList = printf "%s,%s" $namespaceList $ns.name -}}
-  {{- else -}}
-    {{- $namespaceList = $ns.name -}}
-  {{- end -}}
-{{- end -}}
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -90,7 +81,7 @@ spec:
         - name: MONITORING_NAMESPACE
           value: {{ .Values.monitoring.namespace }}
         - name: DB_NAMESPACES
-          value: {{ $namespaceList }}
+          value: everest #TODO
         image: {{ .Values.operator.image }}:{{ .Chart.Version }}
         imagePullPolicy: IfNotPresent
         livenessProbe:

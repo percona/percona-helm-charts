@@ -1,0 +1,1 @@
+{{- include "everest.operatorRoleBinding" (dict "namespace" .Release.Namespace) }}
