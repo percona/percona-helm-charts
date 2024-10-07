@@ -1,3 +1,6 @@
+# Override the install namespace.
+# Defaults to .Release.Namespace
+namespaceOverride: ""
 psmdb: true
 pxc: true
 pg: true

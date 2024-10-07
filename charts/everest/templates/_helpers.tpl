@@ -8,7 +8,7 @@ Expand the name of the chart.
 {{/*
 Allows overriding the install namespace in combined charts.
 */}}
-{{- define "everest.namepace" -}}
+{{- define "everest.namespace" -}}
 {{- default .Release.Namespace .Values.namespaceOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 

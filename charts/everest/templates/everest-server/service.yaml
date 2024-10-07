@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: everest
+  namespace: {{ include  "everest.namespace" . }}
   labels:
     app.kubernetes.io/name: everest
     app.kubernetes.io/component: everest

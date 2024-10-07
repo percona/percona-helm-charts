@@ -1,10 +1,11 @@
-{{- if (ne .Release.Namespace "everest-system") }}
+{{- if (ne (include "everest.namespace" .) "everest-system") }}
 {{ fail "Namespace cannot be set to anything other than everest-system" }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: percona-everest
+  namespace: {{ include  "everest.namespace" . }}
 spec:
   replicas: 1
   strategy:
