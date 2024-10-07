@@ -4,4 +4,4 @@ metadata:
   name: everest-rbac
 data:
   policy.csv: |
-    {{- .Values.rbac | nindent 4 }}
+    {{- .Values.server.rbac | nindent 4 }}

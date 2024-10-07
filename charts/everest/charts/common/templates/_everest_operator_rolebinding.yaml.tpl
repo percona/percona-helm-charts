@@ -1,5 +1,5 @@
 #
-# @paramts  .root               Root object
+# @params  .namespace       Namespace where this RoleBinding should be created
 #
 {{- define "everest.operatorRoleBinding" }}
 apiVersion: rbac.authorization.k8s.io/v1

@@ -1,19 +1,19 @@
+# Override the install namespace.
+# Defaults to .Release.Namespace
+namespaceOverride: ""
+
 # Set to false to disable telemetry.
 telemetry: true
 
 # Config for Everest API server.
 server:
   image: perconalab/everest
+  rbac: |
+    g, admin, role:admin
 
 # Config for Everest Operator
 operator:
   image: perconalab/everest-operator
-
-rbac: |
-  g, admin role:admin
-
-dbNamespace:
-  enabled: false
 
 # Config for OLM
 olm:

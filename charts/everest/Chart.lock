@@ -1,0 +1,9 @@
+dependencies:
+- name: common
+  repository: file://common
+  version: 0.0.1
+- name: everest-db-namespace
+  repository: file://everest-db-namespace
+  version: 0.0.1
+digest: sha256:19b92c0f49ea7126347ab71d3f42a82587f01c8c2b3109d932c423f02b446436
+generated: "2024-10-07T10:40:42.36764+05:30"
