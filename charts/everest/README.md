@@ -1,79 +1,35 @@
 # Percona Everest
-This helm chart deploys the components needed for Percona Everest.
+
+This helm chart deploys Percona Everest.
 
 Useful links:
-- [Everest Github repository](https://github.com/percona/everest)
-- [Everest Documentation](https://docs.percona.com/everest/index.html)
+- [Percona Everest Documentation](https://docs.percona.com/everest/index.html)
+- [Percona Everest GitHub](https://github.com/percona/everest)
 
-> NOTE: This Helm chart is currently in technical preview.
+## Usage
 
-## Pre-requisites
-* Kubernetes 1.27+
-* At least `v3.2.3` version of helm
+> WIP
 
-# Usage
+## Configuration
 
-## Installation
+The following table shows the configurable parameters of the Percona Everest chart and their default values.
 
-Insall Percona Everest in the `everest-system` namespace:
-
-1. Create the `everest-system` namespace:
-```bash
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Namespace
-metadata:
-    name: everest-system
-    labels:
-        everest.percona.com/namespace: ""
-EOF
-```
-> NOTE: We recommend creating the `everest-system` namespace as a separate step. This is because specifying the `--create-namespace` flag with `helm install` does not support setting labels on the namespace.
-
-2. Install the Helm chart:
-```bash
-helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install everest percona/everest --version 1.1.1 --namespace everest-system
-```
-
-> NOTE: Installing in any namespace other than `everest-system` can cause the installation to fail.
-
-This command may take a couple of minutes to complete. Upon completion, you should see the following output:
-```bash
-NAME: everest
-LAST DEPLOYED: Wed Sep 11 13:54:08 2024
-NAMESPACE: everest-system
-STATUS: deployed
-REVISION: 1
-TEST SUITE: None
-```
-
-## Retrieving admin credentials
-Upon installation, an `admin` user is created for you. To retrieve the password for the `admin` user, run the following command:
-```bash
-kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\.yaml}' | base64 --decode  | yq '.admin.passwordHash'
-```
-
-## Uninstallation
-```bash
-helm uninstall everest -n everest-system
-```
-
-# Configuration
-
-The table below lists the configurable parameters of the Everest chart and their default values.
-
-| Parameter                      | Description                                                                   | Default                 |
-|--------------------------------|-------------------------------------------------------------------------------|-------------------------|
-| image                          | Image to use for the Everest API server                                       | percona/everest         |
-| olm.catalogSourceImage         | Name of the CatalogSource image that is used for installing all operators     | percona/everest-catalog |
-| telemetry                      | If set, reports Telemetry information and usage data back to Percona          | true                    |
-| vmOperator.channel             | Name of the OLM bundle channel to use for installing VictoriaMetrics operator | stable-v0               |
-| everestOperator.channel        | Name of the OLM bundle channel to use for installing the Everest Operator     | stable-v0               |
-| namespaces.[*].name            | Namespace where databases and database operators will be installed            |                         |
-| namespaces.[*].mongodb.enabled | If set, PSMDB operator is installed in this namespace                         |                         |
-| namespaces.[*].mongodb.channel | Name of the OLM bundle channel to use for installing PSMDB operator           | stable-v1               |
-| namespaces.[*].pxc.enabled     | If set, PXC operator is installed in this namespace                           |                         |
-| namespaces.[*].pxc.channel     | Name of the OLM bundle channel to use for installing PXC operator             | stable-v1               |
-| namespaces.[*].pg.enabled      | If set, PG operator is installed in this namespace                            |                         |
-| namespaces.[*].pg.channel      | Name of the OLM bundle channel to use for installing PG operator              | stable-v2               |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| everest-db-namespace.enabled | bool | `false` |  |
+| monitoring.enabled | bool | `true` | Enable monitoring for Everest. |
+| monitoring.namespace | string | `"everest-monitoring"` | Namespace where monitoring is installed. Do no change unless you know what you are doing. |
+| namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
+| olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
+| olm.enabled | bool | `true` | Enable OLM for Everest. |
+| olm.image | string | `"quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6"` | Image to use for the OLM components. |
+| olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
+| operator.enableLeaderElection | bool | `true` | Enable leader election for the operator. |
+| operator.healthProbeAddr | string | `":8081"` | Health probe address for the operator. |
+| operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
+| operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
+| operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
+| server.image | string | `"perconalab/everest"` | Image to use for the server container. |
+| server.rbac | string | `"g, admin, role:admin\n"` | RBAC policy for Everest. |
+| server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
+| telemetry | bool | `true` | If set, enabled sending telemetry information. |

@@ -1,28 +1,57 @@
-# Override the install namespace.
-# Defaults to .Release.Namespace
+# -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
 
-# Set to false to disable telemetry.
+# -- If set, enabled sending telemetry information.
 telemetry: true
 
-# Config for Everest API server.
 server:
+  # -- Image to use for the server container.
   image: perconalab/everest
+  # -- Resources to allocate for the server container.
+  resources:
+    limits:
+      cpu: 200m
+      memory: 500Mi
+    requests:
+      cpu: 100m
+      memory: 20Mi
+  # -- RBAC policy for Everest.
   rbac: |
     g, admin, role:admin
 
-# Config for Everest Operator
 operator:
+  # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator
+  # -- Health probe address for the operator.
+  healthProbeAddr: ":8081"
+  # -- Metrics address for the operator.
+  metricsAddr: "127.0.0.1:8080"
+  # -- Enable leader election for the operator.
+  enableLeaderElection: true
+  # -- Resources to allocate for the operator container.
+  resources:
+    limits:
+      cpu: 500m
+      memory: 128Mi
+    requests:
+      cpu: 5m
+      memory: 64Mi
 
-# Config for OLM
 olm:
+  # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
   namespace: everest-olm
+  # -- Enable OLM for Everest.
   enabled: true
+  # -- Image to use for Everest CatalogSource.
   catalogSourceImage: perconalab/everest-catalog
+  # -- Image to use for the OLM components.
   image: quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6 
 
-# Config for Everest Monitoring
 monitoring:
+  # -- Namespace where monitoring is installed. Do no change unless you know what you are doing.
   namespace: everest-monitoring
+  # -- Enable monitoring for Everest.
   enabled: true
+
+everest-db-namespace:
+  enabled: false

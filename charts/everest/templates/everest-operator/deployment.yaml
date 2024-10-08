@@ -63,9 +63,11 @@ spec:
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
       - args:
-        - --health-probe-bind-address=:8081
-        - --metrics-bind-address=127.0.0.1:8080
+        - --health-probe-bind-address={{ .Values.operator.healthProbeAddr }}
+        - --metrics-bind-address={{ .Values.operator.metricsAddr }}
+        {{- if .Values.operator.enableLeaderElection }}
         - --leader-elect
+        {{- end }}
         command:
         - /manager
         env:
@@ -105,13 +107,7 @@ spec:
           periodSeconds: 10
           successThreshold: 1
           timeoutSeconds: 1
-        resources:
-          limits:
-            cpu: 500m
-            memory: 128Mi
-          requests:
-            cpu: 10m
-            memory: 64Mi
+        resources: {{ toYaml .Values.operator.resources | nindent 10 }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

@@ -43,13 +43,7 @@ spec:
               port: 8080
             initialDelaySeconds: 300
             periodSeconds: 15
-          resources:
-            limits:
-              cpu: 200m
-              memory: 500Mi
-            requests:
-              cpu: 100m
-              memory: 20Mi
+          resources: {{ toYaml .Values.server.resources | nindent 12 }}
           volumeMounts:
           - name: jwt-secret
             mountPath: /etc/jwt
