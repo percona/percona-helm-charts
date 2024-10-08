@@ -25,6 +25,12 @@ spec:
     enabled: {{ .Values.standby.enabled }}
   {{- if or (.Values.customTLSSecret.name) (.Values.customReplicationTLSSecret.name) }}
   secrets:
+    {{- if .Values.customRootCATLSSecret.name }}
+    customRootCATLSSecret:
+      name: {{ .Values.customRootCATLSSecret.name }}
+      items:
+{{- toYaml .Values.customRootCATLSSecret.items | nindent 8 }}
+    {{- end }}
     {{- if .Values.customTLSSecret.name }}
     customTLSSecret:
       name: {{ .Values.customTLSSecret.name }}

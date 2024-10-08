@@ -9,7 +9,7 @@ A job will be created based on `helm` `install`, `upgrade`, or `uninstall`. Afte
 job has completed the RBAC will be cleaned up.
 
 ## Pre-requisites
-* Kubernetes 1.27+
+* Kubernetes 1.28+
 * At least `v3.2.3` version of helm
 
 # Installation
@@ -35,7 +35,7 @@ Chart.
 
 | Parameter            | Description                                                                        | Default                                     |
 | -------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
-| `image`              | PG Operator Container image full path                                              | `percona/percona-postgresql-operator:2.4.1` |
+| `image`              | PG Operator Container image full path                                              | `percona/percona-postgresql-operator:2.5.0` |
 | `imagePullPolicy`    | PG Operator Container pull policy                                                  | `Always`                                    |
 | `resources`          | Resource requests and limits                                                       | `{}`                                        |
 | `nodeSelector`       | Labels for Pod assignment                                                          | `{}`                                        |
