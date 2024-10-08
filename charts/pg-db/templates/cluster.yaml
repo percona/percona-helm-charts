@@ -25,6 +25,12 @@ spec:
     enabled: {{ .Values.standby.enabled }}
   {{- if or (.Values.customTLSSecret.name) (.Values.customReplicationTLSSecret.name) }}
   secrets:
+    {{- if .Values.customRootCATLSSecret.name }}
+    customRootCATLSSecret:
+      name: {{ .Values.customRootCATLSSecret.name }}
+      items:
+{{- toYaml .Values.customRootCATLSSecret.items | nindent 8 }}
+    {{- end }}
     {{- if .Values.customTLSSecret.name }}
     customTLSSecret:
       name: {{ .Values.customTLSSecret.name }}
@@ -221,10 +227,12 @@ spec:
 
       {{- if $instance.tolerations }}
       tolerations:
-      - effect: {{ $instance.tolerations.effect }}
-        key: {{ $instance.tolerations.key }}
-        operator: {{ $instance.tolerations.operator }}
-        value: {{ $instance.tolerations.value }}
+      {{- range $toleration :=  $instance.tolerations }}
+        - effect: {{ $toleration.effect }}
+          key: {{ $toleration.key }}
+          operator: {{ $toleration.operator }}
+          value: {{ $toleration.value }}
+      {{- end }}
       {{- end }}
 
       {{- if $instance.priorityClassName }}
@@ -353,10 +361,12 @@ spec:
       {{- end }}
       {{- if .Values.proxy.pgBouncer.tolerations }}
       tolerations:
-      - effect: {{ .Values.proxy.pgBouncer.tolerations.effect }}
-        key: {{ .Values.proxy.pgBouncer.tolerations.key }}
-        operator: {{ .Values.proxy.pgBouncer.tolerations.operator }}
-        value: {{ .Values.proxy.pgBouncer.tolerations.value }}
+      {{- range $toleration := .Values.proxy.pgBouncer.tolerations }}
+        - effect: {{ $toleration.effect }}
+          key: {{ $toleration.key }}
+          operator: {{ $toleration.operator }}
+          value: {{ $toleration.value }}
+      {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.securityContext }}
       securityContext: 
@@ -368,8 +378,10 @@ spec:
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
     serverHost: {{ .Values.pmm.serverHost }}
     secret: {{ include "pg-database.fullname" . }}-pmm-secret
+    querySource: {{ .Values.pmm.querySource }}
 
   backups:
+    trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
       image: {{ .Values.backups.pgbackrest.image }}
       {{- if .Values.backups.pgbackrest.configuration }}
@@ -410,10 +422,12 @@ spec:
             memory: {{ .Values.backups.pgbackrest.jobs.resources.limits.memory }}
         {{- if .Values.backups.pgbackrest.jobs.tolerations }}
         tolerations:
-        - effect: {{ .Values.backups.pgbackrest.jobs.tolerations.effect }}
-          key: {{ .Values.backups.pgbackrest.jobs.tolerations.key }}
-          operator: {{ .Values.backups.pgbackrest.jobs.tolerations.operator }}
-          value: {{ .Values.backups.pgbackrest.jobs.tolerations.value }}
+        {{- range $toleration := .Values.backups.pgbackrest.jobs.tolerations }}
+          - effect: {{ $toleration.effect }}
+            key: {{ $toleration.key }}
+            operator: {{ $toleration.operator }}
+            value: {{ $toleration.value }}
+        {{- end }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.securityContext }}
         securityContext: 
