@@ -1,9 +1,16 @@
-# Override the install namespace.
-# Defaults to .Release.Namespace
+# -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
-psmdb: true
-pxc: true
-pg: true
+# -- If set, enabled sending telemetry information.
 telemetry: true
+# -- If set, installs the Percona Server MongoDB operator.
+psmdb: true
+# -- If set, installs the Percona XtraDB Cluster operator.
+pxc: true
+# -- If set, installs the Percona Postgresql Server operator.
+pg: true
+
 olm:
+  # -- Namespace where OLM is installed in the cluster.
   namespace: everest-olm
+# -- If set, cleans up the DB resources on uninstall.
+cleanupOnUninstall: true

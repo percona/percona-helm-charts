@@ -68,22 +68,10 @@ spec:
         {{- if .Values.operator.enableLeaderElection }}
         - --leader-elect
         {{- end }}
+        - --monitoring-namespace={{ .Values.monitoring.namespace }}
+        - --system-namespace={{ include  "everest.namespace" . }}
         command:
         - /manager
-        env:
-        - name: SYSTEM_NAMESPACE
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.namespace
-        - name: DISABLE_TELEMETRY
-          {{- if .Values.telemetry }}
-          value: "true"
-          {{- end }}
-        - name: MONITORING_NAMESPACE
-          value: {{ .Values.monitoring.namespace }}
-        - name: DB_NAMESPACES
-          value: everest #TODO
         image: {{ .Values.operator.image }}:{{ .Chart.Version }}
         imagePullPolicy: IfNotPresent
         livenessProbe:
@@ -120,6 +108,6 @@ spec:
       schedulerName: default-scheduler
       securityContext:
         runAsNonRoot: true
-      serviceAccount: everest-operator
-      serviceAccountName: everest-operator
+      serviceAccount: everest-operator-controller-manager
+      serviceAccountName: everest-operator-controller-manager
       terminationGracePeriodSeconds: 10

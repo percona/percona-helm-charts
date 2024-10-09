@@ -1,2 +1,0 @@
-{{- include "everest.operatorRoleBinding" (dict "namespace" .Values.monitoring.namespace) }}
-

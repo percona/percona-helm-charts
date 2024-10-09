@@ -16,7 +16,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| everest-db-namespace.enabled | bool | `false` |  |
+| everest-db-namespace.enabled | bool | `false` | Do not enable. |
 | monitoring.enabled | bool | `true` | Enable monitoring for Everest. |
 | monitoring.namespace | string | `"everest-monitoring"` | Namespace where monitoring is installed. Do no change unless you know what you are doing. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
@@ -24,6 +24,10 @@ The following table shows the configurable parameters of the Percona Everest cha
 | olm.enabled | bool | `true` | Enable OLM for Everest. |
 | olm.image | string | `"quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6"` | Image to use for the OLM components. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
+| olm.packageserver.tls.caCert | string | `""` | CA certificate for the PackageServer APIService. Overrides the tls.type setting. |
+| olm.packageserver.tls.tlsCert | string | `""` | Client certificate for the PackageServer APIService. Overrides the tls.type setting. |
+| olm.packageserver.tls.tlsKey | string | `""` | Client key for the PackageServer APIService. Overrides the tls.type setting. |
+| olm.packageserver.tls.type | string | `"cert-manager"` | Type of TLS certificates. Supported values are "helm" and "cert-manager". For production setup, it is recommended to use "cert-manager". |
 | operator.enableLeaderElection | bool | `true` | Enable leader election for the operator. |
 | operator.healthProbeAddr | string | `":8081"` | Health probe address for the operator. |
 | operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
