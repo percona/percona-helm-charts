@@ -96,6 +96,11 @@ spec:
           successThreshold: 1
           timeoutSeconds: 1
         resources: {{ toYaml .Values.operator.resources | nindent 10 }}
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

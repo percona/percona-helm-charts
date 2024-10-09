@@ -30,6 +30,12 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - pods
+  verbs:
+  - delete
+- apiGroups:
+  - ""
+  resources:
   - secrets
   verbs:
   - create
