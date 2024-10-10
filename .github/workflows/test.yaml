@@ -49,7 +49,7 @@ jobs:
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm install --namespace default $operator charts/$operator/.; done
           fi
-          ct install --config .github/ct.yaml --excludes-charts=everest
+          ct install --config .github/ct.yaml --excluded-charts=everest
           ct install --config .github/ct.yaml --namespace=everest-system charts=everest # We cannot install Everest chart in any namespace other that everest-system
           ct install --config .github/ct.yaml
           if [ -n "$OPERATOR_INSTALL" ]; then
