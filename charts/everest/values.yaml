@@ -24,6 +24,11 @@ server:
   # -- If disabled, the JWT key secret will not be produced by the chart,
   # and needs to be created manually. Useful when integrating with GitOps tools.
   createJWTSecret: true
+  # -- OIDC configuration for Everest.
+  oidc: {}
+    # issuerUrl: ""
+    # clientId: ""
+
 
 operator:
   # -- Image to use for the Everest operator container.
