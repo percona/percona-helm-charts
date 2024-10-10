@@ -5,6 +5,9 @@ version: 0.0.0
 appVersion: 0.0.0
 type: application
 kubeVersion: ">=1.27.0-0"
+maintainers:
+- name: mayankshah1607
+  email: mayank.shah@percona.com
 dependencies:
 - name: common
   version: 0.0.1
