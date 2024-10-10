@@ -46,8 +46,6 @@ operator:
 olm:
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
   namespace: everest-olm
-  # -- Enable OLM for Everest.
-  enabled: true
   # -- Image to use for Everest CatalogSource.
   catalogSourceImage: perconalab/everest-catalog
   # -- Image to use for the OLM components.
@@ -68,8 +66,6 @@ olm:
 monitoring:
   # -- Namespace where monitoring is installed. Do no change unless you know what you are doing.
   namespace: everest-monitoring
-  # -- Enable monitoring for Everest.
-  enabled: true
 
 everest-db-namespace:
   # -- Do not enable.
