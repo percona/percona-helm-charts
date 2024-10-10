@@ -6,6 +6,10 @@ Useful links:
 - [Percona Everest Documentation](https://docs.percona.com/everest/index.html)
 - [Percona Everest GitHub](https://github.com/percona/everest)
 
+> :warning: Note: This chart is currently in technical preview.
+Future releases could potentially introduce breaking changes, and we cannot promise a migration path. If you plan on using it in production,
+please do so at your own risk.
+
 ## Usage
 
 ### Deploy Percona Everest
@@ -62,6 +66,8 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
+| server.createAccountsSecret | bool | `true` | If disabled, the accounts secret will not be created by the chart, and needs to be created manually. Useful when integrating with GitOps tools. |
+| server.createJWTSecret | bool | `true` | If disabled, the JWT key secret will not be produced by the chart, and needs to be created manually. Useful when integrating with GitOps tools. |
 | server.image | string | `"perconalab/everest"` | Image to use for the server container. |
 | server.rbac | string | `"g, admin, role:admin\n"` | RBAC policy for Everest. |
 | server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
