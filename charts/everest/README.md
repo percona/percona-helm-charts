@@ -43,6 +43,20 @@ EOF
 helm install everest percona/everest-db-namespace --namespace everest
 ```
 
+### Uninstalling
+
+As a first step, you must always clean up your database namespace(s) first, otherwise the deletion could get stuck.
+```sh
+helm uninstall everest -n everest
+kubectl delete ns everest
+```
+
+Then you can uninstall Everest itself:
+```sh
+helm uninstall everest-core -n everest-system
+kubectl delete ns everest-system
+```
+
 ## Configuration
 
 The following table shows the configurable parameters of the Percona Everest chart and their default values.
