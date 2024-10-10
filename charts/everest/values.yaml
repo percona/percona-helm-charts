@@ -68,4 +68,3 @@ monitoring:
 everest-db-namespace:
   # -- Do not enable.
   enabled: false
-
