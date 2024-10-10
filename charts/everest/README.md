@@ -28,11 +28,11 @@ kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\
 Once Everest is running, we need to create a namespace for your databases and provision the necessary operators.
 
 ```sh
-cat <<EOF | kubectl create -f -                                                                                                                                                                                                                                                                                  ─╯
+cat <<EOF | kubectl create -f -
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: pmm-secret
+  name: everest
   labels:
     app.kubernetes.io/managed-by: everest
 EOF
