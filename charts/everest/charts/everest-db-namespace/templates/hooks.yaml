@@ -4,4 +4,4 @@
 ---
 {{ if .Values.cleanupOnUninstall }}
 {{- include "everest.dbResourcesCleanup" (dict "namespace" (include "db.namespace" .)) }}
-{{- end
+{{- end }}
