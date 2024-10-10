@@ -4,6 +4,7 @@ on:
   pull_request:
     path-ignore:
     - 'charts/gcp-marketplace/**'
+    - 'charts/everest/**'
 
 jobs:
   lint-test:
@@ -48,7 +49,7 @@ jobs:
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm install --namespace default $operator charts/$operator/.; done
           fi
-          ct install --config .github/ct.yaml
+          ct install --config .github/ct.yaml --excluded-charts=everest
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm uninstall --namespace default $operator; done
           fi

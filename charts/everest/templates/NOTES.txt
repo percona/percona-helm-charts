@@ -1,0 +1,16 @@
+{{ if .Release.IsInstall }}
+Thank you for installing Everest!
+
+To get started, simply port-forward to the Everest API server:
+
+kubectl port-forward svc/everest 8080:8080 -n everest-system
+
+Then, open your browser to http://localhost:8080 to access the Everest dashboard.
+
+To retrieve the initial admin password, run the following command:
+
+kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\.yaml}' | base64 --decode  | yq '.admin.passwordHash'
+{{ end }}
+{{ if .Release.IsUpgrade }}
+Everest has been successfully upgraded to version {{ .Chart.AppVersion }}!
+{{ end }}
