@@ -1,3 +1,7 @@
 {{- include "everest.csvCleanup" (dict "namespace" (include "db.namespace" .)) }}
 ---
 {{- include "everest.installplanApprover" (dict "namespace" (include "db.namespace" .)) }}
+---
+{{ if .Values.cleanupOnUninstall }}
+{{- include "everest.dbResourcesCleanup" (dict "namespace" (include "db.namespace" .)) }}
+{{- end
