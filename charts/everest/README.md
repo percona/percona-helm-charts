@@ -78,8 +78,6 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
-| server.createAccountsSecret | bool | `true` | If disabled, the accounts secret will not be created by the chart, and needs to be created manually. Useful when integrating with GitOps tools. |
-| server.createJWTSecret | bool | `true` | If disabled, the JWT key secret will not be produced by the chart, and needs to be created manually. Useful when integrating with GitOps tools. |
 | server.image | string | `"perconalab/everest"` | Image to use for the server container. |
 | server.oidc | object | `{}` | OIDC configuration for Everest. |
 | server.rbac | string | `"g, admin, role:admin\n"` | RBAC policy for Everest. |

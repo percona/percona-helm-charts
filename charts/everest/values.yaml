@@ -18,12 +18,6 @@ server:
   # -- RBAC policy for Everest.
   rbac: |
     g, admin, role:admin
-  # -- If disabled, the accounts secret will not be created by the chart,
-  # and needs to be created manually. Useful when integrating with GitOps tools.
-  createAccountsSecret: true
-  # -- If disabled, the JWT key secret will not be produced by the chart,
-  # and needs to be created manually. Useful when integrating with GitOps tools.
-  createJWTSecret: true
   # -- OIDC configuration for Everest.
   oidc: {}
     # issuerUrl: ""
