@@ -19,7 +19,10 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.15.0
+crVersion: 1.15.1
+
+enableVolumeExpansion: false
+
 ignoreAnnotations: []
   # - iam.amazonaws.com/role
 ignoreLabels: []
