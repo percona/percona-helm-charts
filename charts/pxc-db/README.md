@@ -20,7 +20,7 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.14.0 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.14.4 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -31,6 +31,7 @@ The chart can be customized using the following configurable parameters:
 | `ignoreAnnotations`             | Operator will not remove following annotations                                | `[]`                                                                     |
 | `ignoreLabels`                  | Operator will not remove following labels                                     | `[]`                                                                     |
 | `pause`                         | Stop PXC Database safely                                                      | `false`                                                                  |
+| `enableVolumeExpansion`         | Enable volume resizing                                                        | `false`                                                                  |
 | `allowUnsafeConfigurations`     | Allows forbidden configurations like even number of PXC cluster pods          | `false`                                                                  |
 | `enableCRValidationWebhook`     | Enables or disables schema validation before applying custom resource         | `false`                                                                  |
 | `initContainer.image`           | An alternative image for the initial Operator installation                    | `""`                                                                     |
