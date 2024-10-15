@@ -8,9 +8,9 @@ finalizers:
 # Set this if you want that operator deletes the ssl objects on cluster deletion
 #  - percona.com/delete-ssl
 
-crVersion: 2.4.1
+crVersion: 2.5.0
 repository: percona/percona-postgresql-operator
-image: percona/percona-postgresql-operator:2.4.1-ppg16.3-postgres
+image: percona/percona-postgresql-operator:2.5.0-ppg16.4-postgres
 imagePullPolicy: Always
 postgresVersion: 16
 # port: 5432
@@ -22,6 +22,13 @@ standby:
   # port: "<primary-port>"
   # repoName: repo1
 
+# customRootCATLSSecret:
+#   name: cluster1-ca-cert
+#   items:
+#     - key: "tls.crt"
+#       path: "root.crt"
+#     - key: "tls.key"
+#       path: "root.key"
 customTLSSecret:
   name: ""
 customReplicationTLSSecret:
@@ -233,7 +240,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: percona/percona-postgresql-operator:2.4.1-ppg16.3-pgbouncer1.22.1
+    image: percona/percona-postgresql-operator:2.5.0-ppg16.4-pgbouncer1.23.1
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -311,10 +318,11 @@ proxy:
 #          pool_mode: transaction
 
 backups:
+  trackLatestRestorableTime: true
   pgbackrest:
 #    metadata:
 #    labels:
-    image: percona/percona-postgresql-operator:2.4.1-ppg16.3-pgbackrest2.51-1
+    image: percona/percona-postgresql-operator:2.5.0-ppg16.4-pgbackrest2.53-1
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -460,10 +468,11 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.42.0
+    tag: 2.43.1
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
+  querySource: pgstatmonitor
 #  resources:
 #    requests:
 #      memory: 200M
@@ -490,7 +499,7 @@ pmm:
 #     targetInstance: ""
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.4.1
+#   image: percona/percona-postgresql-operator:2.5.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
