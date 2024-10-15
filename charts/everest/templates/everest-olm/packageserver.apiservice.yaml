@@ -1,0 +1,35 @@
+{{- $tls := fromYaml (include "olm.certs" .) }}
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1.packages.operators.coreos.com
+  annotations:
+    {{- if eq .Values.olm.packageserver.tls.type "cert-manager" }}
+    cert-manager.io/inject-ca-from: {{ .Values.olm.namespace }}/olm-packageserver-tls
+    {{- end }}
+spec:
+  {{- if ne .Values.olm.packageserver.tls.type "cert-manager" }}
+  caBundle: {{ $tls.caCert }}
+  {{- end }}
+  group: packages.operators.coreos.com
+  groupPriorityMinimum: 2000
+  version: v1
+  versionPriority: 800
+  service:
+    name: packageserver-service
+    namespace: {{ .Values.olm.namespace }}
+    port: 5443
+---
+{{- if ne .Values.olm.packageserver.tls.type "cert-manager" }}
+apiVersion: v1
+data:
+  tls.crt: {{ $tls.tlsCert }}
+  tls.key: {{ $tls.tlsKey }}
+kind: Secret
+metadata:
+  name: packageserver-service-cert
+  namespace: {{ .Values.olm.namespace }}
+type: kubernetes.io/tls
+{{- end }}
+---

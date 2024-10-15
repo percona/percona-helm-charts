@@ -1,0 +1,50 @@
+{{- if eq .Values.olm.packageserver.tls.type "cert-manager"}}
+{{- $tls := fromYaml (include "olm.certs" .) }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: olm-ca-issuer
+  namespace: {{ .Values.olm.namespace }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: olm-ca-cert
+  namespace: {{ .Values.olm.namespace }}
+spec:
+  secretName: olm-ca-cert
+  duration: 87600h # 10 year
+  renewBefore: 720h # 30 days
+  isCA: true
+  commonName: olm-ca
+  issuerRef:
+    name: olm-ca-issuer
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: olm-cert-issuer
+  namespace: {{ .Values.olm.namespace }}
+spec:
+  ca:
+    secretName: olm-ca-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: olm-packageserver-tls
+  namespace: {{ .Values.olm.namespace }}
+spec:
+  secretName: packageserver-service-cert
+  commonName: {{ $tls.commonName }}
+  dnsNames: {{ toYaml $tls.altNames | nindent 4 }}
+  duration: 8760h # 1 year
+  issuerRef:
+    name: olm-cert-issuer
+    kind: Issuer
+---
+{{- end }}

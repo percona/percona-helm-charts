@@ -1,0 +1,366 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: everest-operator-manager-role
+rules:
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - backupstorages
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - backupstorages/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - backupstorages/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusterbackups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusterbackups/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusterbackups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusterrestores
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusterrestores/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusterrestores/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseengines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseengines/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseengines/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - monitoringconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - monitoringconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - monitoringconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - operator.victoriametrics.com
+  resources:
+  - vmagents
+  verbs:
+  - create
+  - delete
+  - get
+  - update
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - clusterserviceversions
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - installplans
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - subscriptions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - pgv2.percona.com
+  resources:
+  - perconapgbackups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pgv2.percona.com
+  resources:
+  - perconapgclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pgv2.percona.com
+  resources:
+  - perconapgrestores
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - psmdb.percona.com
+  resources:
+  - perconaservermongodbbackups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - psmdb.percona.com
+  resources:
+  - perconaservermongodbrestores
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - psmdb.percona.com
+  resources:
+  - perconaservermongodbs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pxc.percona.com
+  resources:
+  - perconaxtradbclusterbackups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pxc.percona.com
+  resources:
+  - perconaxtradbclusterrestores
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pxc.percona.com
+  resources:
+  - perconaxtradbclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
