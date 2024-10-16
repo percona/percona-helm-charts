@@ -19,14 +19,14 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pxc-operator --version 1.14.0 --namespace my-namespace
+helm install my-operator percona/pxc-operator --version 1.14.3 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                                    | Default                                          |
 | ------------------------------- | -----------------------------------------------------------------------------------------------| -------------------------------------------------|
-| `image`                         | PXC Operator Container image full path                                                         | `percona/percona-xtradb-cluster-operator:1.14.0` |
+| `image`                         | PXC Operator Container image full path                                                         | `percona/percona-xtradb-cluster-operator:1.14.1` |
 | `imagePullPolicy`               | PXC Operator Container pull policy                                                             | `Always`                                         |
 | `containerSecurityContext`      | PXC Operator Container securityContext                                                         | `{}`                                             |
 | `imagePullSecrets`              | PXC Operator Pod pull secret                                                                   | `[]`                                             |
