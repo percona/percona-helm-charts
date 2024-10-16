@@ -5,7 +5,7 @@ on:
     path-ignore:
       - 'charts/gcp-marketplace/**'
     branches:
-      - main
+      - release-1.14.1-merged
 
 jobs:
   release:
