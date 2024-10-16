@@ -19,7 +19,7 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.14.0
+crVersion: 1.14.1
 
 enableVolumeExpansion: false
 
@@ -370,7 +370,7 @@ haproxy:
 proxysql:
   enabled: false
   size: 3
-  image: "percona/percona-xtradb-cluster-operator:1.14.0-proxysql2.5.5-1.2"
+  image: "percona/percona-xtradb-cluster-operator:1.14.1-proxysql2.5.5-1.2"
   # imagePullPolicy: Always
   imagePullSecrets: []
 #  configuration: |
@@ -566,7 +566,7 @@ backup:
   # allowParallel: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.14.0-pxc8.0-backup-pxb8.0.35
+    tag: 1.14.1-pxc8.0-backup-pxb8.0.35
   # backoffLimit: 6
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
