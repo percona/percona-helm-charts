@@ -15,6 +15,7 @@ A sub-chart for provisioning Everest DB namespaces.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | cleanupOnUninstall | bool | `true` | If set, cleans up the DB resources on uninstall. |
+| global.compatibility.openshift | bool | `false` | Enable Openshift compatibility. Currently in technical preview. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed in the cluster. |
 | pg | bool | `true` | If set, installs the Percona Postgresql Server operator. |
