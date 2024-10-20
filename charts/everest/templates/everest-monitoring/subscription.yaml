@@ -9,4 +9,4 @@ spec:
   installPlanApproval: Manual
   name: victoriametrics-operator
   source: everest-catalog
-  sourceNamespace: everest-olm
+  sourceNamespace: {{ include "everest.olmNamespace" . }}

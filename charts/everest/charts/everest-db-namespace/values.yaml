@@ -1,3 +1,8 @@
+global:
+  compatibility:
+    # -- Enable Openshift compatibility. Currently in technical preview.
+    openshift: false
+
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
 # -- If set, enabled sending telemetry information.

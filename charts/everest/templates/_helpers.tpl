@@ -13,6 +13,17 @@ Allows overriding the install namespace in combined charts.
 {{- end }}
 
 {{/*
+Allow overriding OLM namespacse
+*/}}
+{{- define "everest.olmNamespace"}}
+{{- if .Values.global.compatibility.openshift }}
+{{- "openshift-marketplace" }}
+{{- else }}
+{{- .Values.olm.namespace }}
+{{- end }}
+{{- end }}
+
+{{/*
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.

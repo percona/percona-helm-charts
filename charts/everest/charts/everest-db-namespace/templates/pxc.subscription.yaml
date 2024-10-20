@@ -3,13 +3,13 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: percona-xtradb-cluster-operator
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "db.namespace" . }}
 spec:
   channel: stable-v1
   installPlanApproval: Manual
   name: percona-xtradb-cluster-operator
   source: everest-catalog
-  sourceNamespace: {{ $.Values.olm.namespace }}
+  sourceNamespace: {{ include "db.olmNamespace" . }}
   config:
     env:
     - name: DISABLE_TELEMETRY

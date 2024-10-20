@@ -1,3 +1,4 @@
+{{- if not .Values.global.compatibility.openshift }}
 {{- if eq .Values.olm.packageserver.tls.type "cert-manager"}}
 {{- $tls := fromYaml (include "olm.certs" .) }}
 ---
@@ -5,7 +6,7 @@ apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: olm-ca-issuer
-  namespace: {{ .Values.olm.namespace }}
+  namespace: {{ include "everest.olmNamespace" . }}
 spec:
   selfSigned: {}
 ---
@@ -13,7 +14,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: olm-ca-cert
-  namespace: {{ .Values.olm.namespace }}
+  namespace: {{ include "everest.olmNamespace" . }}
 spec:
   secretName: olm-ca-cert
   duration: 87600h # 10 year
@@ -28,7 +29,7 @@ apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: olm-cert-issuer
-  namespace: {{ .Values.olm.namespace }}
+  namespace: {{ include "everest.olmNamespace" . }}
 spec:
   ca:
     secretName: olm-ca-cert
@@ -37,7 +38,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: olm-packageserver-tls
-  namespace: {{ .Values.olm.namespace }}
+  namespace: {{ include "everest.olmNamespace" . }}
 spec:
   secretName: packageserver-service-cert
   commonName: {{ $tls.commonName }}
@@ -47,4 +48,5 @@ spec:
     name: olm-cert-issuer
     kind: Issuer
 ---
+{{- end }}
 {{- end }}

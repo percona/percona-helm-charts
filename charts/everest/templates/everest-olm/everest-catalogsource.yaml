@@ -2,7 +2,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
   name: everest-catalog
-  namespace: {{ .Values.olm.namespace }}
+  namespace: {{ include  "everest.olmNamespace" . }}
 spec:
   displayName: Everest Catalog
   grpcPodConfig:

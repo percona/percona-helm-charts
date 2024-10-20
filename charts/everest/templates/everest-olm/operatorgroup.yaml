@@ -1,8 +1,10 @@
+{{- if not .Values.global.compatibility.openshift }}
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
   name: olm-operators
-  namespace: {{ .Values.olm.namespace }}
+  namespace: {{ include "everest.olmNamespace" . }}
 spec:
   targetNamespaces:
-    - everest-olm
+    - {{ include "everest.olmNamespace" . }}
+{{- end }}
