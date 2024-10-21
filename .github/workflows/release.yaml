@@ -4,6 +4,7 @@ on:
   push:
     path-ignore:
       - 'charts/gcp-marketplace/**'
+      - 'charts/everest/**'
     branches:
       - main
 
