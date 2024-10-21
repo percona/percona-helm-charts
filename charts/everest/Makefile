@@ -4,17 +4,16 @@ prepare-chart:
 		yq eval -i '.version = "${VERSION}"' $$chart; \
 		yq eval -i '.appVersion = "${VERSION}"' $$chart; \
 	done
+	yq eval -i '.server.image = "$(IMAGE_PREFIX)/everest"' values.yaml
+	yq eval -i '.olm.catalogSourceImage = "$(IMAGE_PREFIX)/everest-catalog"' values.yaml
+	yq eval -i '.operator.image = "$(IMAGE_PREFIX)/everest-operator"' values.yaml
+	yq eval -i '.dependencies[] | select(.name == "everest-db-namespace") .version = "${VERSION}"' Chart.yaml
 
-
+release: IMAGE_PREFIX=percona
 release: prepare-chart
-	yq eval -i '.server.image = "percona/everest"' values.yaml
-	yq eval -i '.olm.catalogSourceImage = "percona/everest-catalog"' values.yaml
-	yq eval -i '.operator.image = "percona/everest-operator"' values.yaml
 
+release-dev: IMAGE_PREFIX=perconalab
 release-dev: prepare-chart
-	yq eval -i '.server.image = "perconalab/everest"' values.yaml
-	yq eval -i '.olm.catalogSourceImage = "perconalab/everest-catalog"' values.yaml
-	yq eval -i '.operator.image = "perconalab/everest-operator"' values.yaml
 
 docs-gen:
 	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.9.1
