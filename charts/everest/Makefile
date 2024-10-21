@@ -1,9 +1,10 @@
 prepare-chart:
-	CHART_FILES="Chart.yaml charts/everest-db-namespace/Chart.yaml"
-	for chart in $${CHART_FILES}; do \
-		yq eval -i '.version = "${VERSION}"' $${chart}; \
-		yq eval -i '.appVersion = "${VERSION}"' $${chart}; \
+	CHART_FILES="Chart.yaml ./charts/everest-db-namespace/Chart.yaml"; \
+	for chart in $$CHART_FILES; do \
+		yq eval -i '.version = "${VERSION}"' $$chart; \
+		yq eval -i '.appVersion = "${VERSION}"' $$chart; \
 	done
+
 
 release: prepare-chart
 	yq eval -i '.server.image = "percona/everest"' values.yaml
