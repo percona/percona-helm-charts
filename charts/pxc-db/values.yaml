@@ -19,14 +19,17 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.15.0
+crVersion: 1.15.1
+
+enableVolumeExpansion: false
+
 ignoreAnnotations: []
   # - iam.amazonaws.com/role
 ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.15.0"
+#   image: "percona/percona-xtradb-cluster-operator:1.15.1"
 #   resources:
 #     requests:
 #       memory: 100M
@@ -526,7 +529,7 @@ proxysql:
 
 logcollector:
   enabled: true
-  image: percona/percona-xtradb-cluster-operator:1.15.0-logcollector-fluentbit3.1.4
+  image: percona/percona-xtradb-cluster-operator:1.15.1-logcollector-fluentbit3.1.4
   # imagePullPolicy: Always
   imagePullSecrets: []
   # configuration: |
@@ -570,7 +573,7 @@ backup:
   # allowParallel: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.15.0-pxc8.0-backup-pxb8.0.35
+    tag: 1.15.1-pxc8.0-backup-pxb8.0.35
   # backoffLimit: 6
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
