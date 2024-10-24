@@ -14,11 +14,13 @@ finalizers:
   - percona.com/delete-psmdb-pods-in-order
 ## Set this if you want to delete database persistent volumes on cluster deletion
 #  - percona.com/delete-psmdb-pvc
+## Set this if you want to delete all pitr chunks on cluster deletion
+#  - percona.com/delete-pitr-chunks
 
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.17.0
+crVersion: 1.18.0
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -27,6 +29,8 @@ unsafeFlags:
   mongosSize: false
   terminationGracePeriod: false
   backupIfUnhealthy: false
+
+enableVolumeExpansion: false
 
 annotations: {}
 
@@ -52,7 +56,7 @@ imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.17.0
+#   tag: 1.18.0
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -68,6 +72,7 @@ secrets: {}
   # If not set the operator generates the default secret with name <cluster_name>-secrets
   # users: my-cluster-name-secrets
   # encryptionKey: my-cluster-name-mongodb-encryption-key
+  # keyFile: my-cluster-name-mongodb-keyfile
   # vault: my-cluster-name-vault
   # ldapSecret: my-ldap-secret
   # sse: my-cluster-name-sse
@@ -196,13 +201,16 @@ replsets:
     #     external-2: rs0-2.mycluster2.xyz
     expose:
       enabled: false
-      exposeType: ClusterIP
+      type: ClusterIP
+      # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
-      # serviceAnnotations:
+      # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels:
+      # labels:
       #   some-label: some-key
+      # internalTrafficPolicy: Local
+      # externalTrafficPolicy: Local
     # schedulerName: ""
     resources:
       limits:
@@ -369,13 +377,16 @@ sharding:
       maxUnavailable: 1
     expose:
       enabled: false
-      exposeType: ClusterIP
+      type: ClusterIP
+      # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
-      # serviceAnnotations:
+      # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels:
+      # labels:
       #   some-label: some-key
+      # internalTrafficPolicy: Local
+      # externalTrafficPolicy: Local
     resources:
       limits:
         cpu: "300m"
@@ -460,14 +471,17 @@ sharding:
         cpu: "300m"
         memory: "0.5G"
     expose:
-      exposeType: ClusterIP
-      # servicePerPod: true
+      enabled: false
+      type: ClusterIP
+      # loadBalancerIP: 10.0.0.0/8
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
-      # serviceAnnotations:
+      # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels:
+      # labels:
       #   some-label: some-key
+      # internalTrafficPolicy: Local
+      # externalTrafficPolicy: Local
       # nodePort: 32017
     # auditLog:
     #   destination: file
@@ -498,6 +512,40 @@ sharding:
 #   roles:
 #     - name: dbOwner
 #       db: sometest 
+
+#  roles:
+#    - role: myClusterwideAdmin
+#      db: admin
+#      privileges:
+#        - resource:
+#            cluster: true
+#          actions:
+#            - addShard
+#        - resource:
+#            db: config
+#            collection: ''
+#          actions:
+#            - find
+#            - update
+#            - insert
+#            - remove
+#      roles:
+#        - role: read
+#          db: admin
+#    - role: my-role
+#      db: myDb
+#      privileges:
+#        - resource:
+#            db: ''
+#            collection: ''
+#          actions:
+#            - find
+#      authenticationRestrictions:
+#        - clientSource:
+#            - 127.0.0.1
+#          serverAddress:
+#            - 127.0.0.1
+
 
 backup:
   enabled: true

@@ -3,32 +3,37 @@
 This chart deploys Percona Server for MongoDB Cluster on Kubernetes controlled by Percona Operator for MongoDB.
 
 Useful links:
+
 - [Operator Github repository](https://github.com/percona/percona-server-mongodb-operator)
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html)
 
 ## Pre-requisites
-* Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-* Kubernetes 1.27+
-* Helm v3
+
+- Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
+- Kubernetes 1.27+
+- Helm v3
 
 # Chart Details
+
 This chart will deploy Percona Server for MongoDB Cluster in Kubernetes. It will create a Custom Resource, and the Operator will trigger the creation of corresponding Kubernetes primitives: StatefulSets, Pods, Secrets, etc.
 
 ## Installing the Chart
+
 To install the chart with the `psmdb` release name using a dedicated namespace (recommended):
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.17.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.18.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                                                   | Default                               |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.17.0`                              |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.18.0`                              |
 | `pause`                                             | Stop PSMDB Database safely                                                                                                                                                                    | `false`                               |
 | `unmanaged`                                         | Start cluster and don't manage it (cross cluster replication)                                                                                                                                 | `false`                               |
+| `enableVolumeExpansion`                             | Allows to resize `PersistentVolumeClaim`s by changing `.volumeSpec.persistentVolumeClaim.resources` field                                                                                     | `false`                               |
 | `unsafeFlags.tls`                                   | Allows users from configuring a cluster without TLS/SSL certificates                                                                                                                          | `false`                               |
 | `unsafeFlags.replsetSize`                           | Allows users from configuring a cluster with unsafe parameters: starting it with less than 3 replica set instances or with an even number of replica set instances without additional arbiter | `false`                               |
 | `unsafeFlags.mongosSize`                            | Allows users from configuring a sharded cluster with less than 3 config server Pods or less than 2 mongos Pods                                                                                | `false`                               |
@@ -48,6 +53,7 @@ The chart can be customized using the following configurable parameters:
 | `upgradeOptions.setFCV`                             | Set feature compatibility version on major upgrade                                                                                                                                            | `false`                               |
 | `finalizers:percona.com/delete-psmdb-pvc`           | Set this if you want to delete database persistent volumes on cluster deletion                                                                                                                | `[]`                                  |
 | `finalizers:percona.com/delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)                                                                                                                             | `[]`                                  |
+| `finalizers:percona.com/delete-pitr-chunks`         | Set this if you want to delete all pitr chunks on cluster deletion                                                                                                                            | `[]`                                  |
 | `image.repository`                                  | PSMDB Container image repository                                                                                                                                                              | `percona/percona-server-mongodb`      |
 | `image.tag`                                         | PSMDB Container image tag                                                                                                                                                                     | `7.0.12-7`                            |
 | `imagePullPolicy`                                   | The policy used to update images                                                                                                                                                              | `Always`                              |
@@ -65,6 +71,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `secrets.users`         | The name of the Secrets object for the MongoDB users required to run the operator          | `""` |
 | `secrets.encryptionKey` | Set secret for data at rest encryption key                                                 | `""` |
+| `secrets.keyFile`       | Specifies a secret key file for authenticating MongoDB instances                           | `""` |
 | `secrets.vault`         | Specifies a secret object to provide integration with HashiCorp Vault                      | `""` |
 | `secrets.ldapSecret`    | Specifies a secret object for LDAP over TLS connection between MongoDB and OpenLDAP server | `""` |
 | `secrets.sse`           | The name of the Secrets object for server side encryption credentials                      | `""` |
@@ -103,10 +110,13 @@ The chart can be customized using the following configurable parameters:
 | `replsets.rs0.podDisruptionBudget.maxUnavailable`                  | ReplicaSet failed Pods maximum quantity                                                                                                      | `1`                      |
 | `replsets.rs0.splitHorizons`                                       | External URI for Split-horizon for replica set Pods of the exposed cluster                                                                   | `{}`                     |
 | `replsets.rs0.expose.enabled`                                      | Allow access to replicaSet from outside of Kubernetes                                                                                        | `false`                  |
-| `replsets.rs0.expose.exposeType`                                   | Network service access point type                                                                                                            | `ClusterIP`              |
+| `replsets.rs0.expose.type`                                         | Network service access point type                                                                                                            | `ClusterIP`              |
+| `replsets.rs0.expose.loadBalancerIP`                               | Set client IP to Load Balancer                                                                                                               | `""`                     |
 | `replsets.rs0.expose.loadBalancerSourceRanges`                     | Limit client IP's access to Load Balancer                                                                                                    | `{}`                     |
-| `replsets.rs0.expose.serviceAnnotations`                           | ReplicaSet service annotations                                                                                                               | `{}`                     |
-| `replsets.rs0.expose.serviceLabels`                                | ReplicaSet service labels                                                                                                                    | `{}`                     |
+| `replsets.rs0.expose.annotations`                                  | ReplicaSet service annotations                                                                                                               | `{}`                     |
+| `replsets.rs0.expose.labels`                                       | ReplicaSet service labels                                                                                                                    | `{}`                     |
+| `replsets.rs0.expose.internalTrafficPolicy`                        | ReplicaSet service internal traffic policy                                                                                                   | `Local`                  |
+| `replsets.rs0.expose.externalTrafficPolicy`                        | ReplicaSet service external traffic policy                                                                                                   | `Local`                  |
 | `replsets.rs0.schedulerName`                                       | ReplicaSet Pod schedulerName                                                                                                                 | `""`                     |
 | `replsets.rs0.resources`                                           | ReplicaSet Pods resource requests and limits                                                                                                 | `{}`                     |
 | `replsets.rs0.volumeSpec`                                          | ReplicaSet Pods storage resources                                                                                                            | `{}`                     |
@@ -184,10 +194,13 @@ The chart can be customized using the following configurable parameters:
 | `sharding.configrs.sidecarPVCs`                               | Config ReplicaSet Pod sidecar PVCs                                                                                                           | `[]`                     |
 | `sharding.configrs.podDisruptionBudget.maxUnavailable`        | Config ReplicaSet failed Pods maximum quantity                                                                                               | `1`                      |
 | `sharding.configrs.expose.enabled`                            | Allow access to cfg replica from outside of Kubernetes                                                                                       | `false`                  |
-| `sharding.configrs.expose.exposeType`                         | Network service access point type                                                                                                            | `ClusterIP`              |
+| `sharding.configrs.expose.type`                               | Network service access point type                                                                                                            | `ClusterIP`              |
+| `sharding.configrs.expose.loadBalancerIP`                     | Set client IP to Load Balancer                                                                                                               | `""`                     |
 | `sharding.configrs.expose.loadBalancerSourceRanges`           | Limit client IP's access to Load Balancer                                                                                                    | `{}`                     |
-| `sharding.configrs.expose.serviceAnnotations`                 | Config ReplicaSet service annotations                                                                                                        | `{}`                     |
-| `sharding.configrs.expose.serviceLabels`                      | Config ReplicaSet service labels                                                                                                             | `{}`                     |
+| `sharding.configrs.expose.annotations`                        | Config ReplicaSet service annotations                                                                                                        | `{}`                     |
+| `sharding.configrs.expose.labels`                             | Config ReplicaSet service labels                                                                                                             | `{}`                     |
+| `sharding.configrs.expose.internalTrafficPolicy`              | Config ReplicaSet service internal traffic policy                                                                                            | `Local`                  |
+| `sharding.configrs.expose.externalTrafficPolicy`              | Config ReplicaSet service external traffic policy                                                                                            | `Local`                  |
 | `sharding.configrs.resources.limits.cpu`                      | Config ReplicaSet resource limits CPU                                                                                                        | `300m`                   |
 | `sharding.configrs.resources.limits.memory`                   | Config ReplicaSet resource limits memory                                                                                                     | `0.5G`                   |
 | `sharding.configrs.resources.requests.cpu`                    | Config ReplicaSet resource requests CPU                                                                                                      | `300m`                   |
@@ -228,11 +241,14 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.resources.limits.memory`                     | Mongos Pods resource limits memory                                                                                                           | `0.5G`                   |
 | `sharding.mongos.resources.requests.cpu`                      | Mongos Pods resource requests CPU                                                                                                            | `300m`                   |
 | `sharding.mongos.resources.requests.memory`                   | Mongos Pods resource requests memory                                                                                                         | `0.5G`                   |
-| `sharding.mongos.expose.exposeType`                           | Mongos service exposeType                                                                                                                    | `ClusterIP`              |
+| `sharding.mongos.expose.type`                                 | Mongos service type                                                                                                                          | `ClusterIP`              |
+| `sharding.mongos.expose.loadBalancerIP`                       | Set client IP to Load Balancer                                                                                                               | `""`                     |
 | `sharding.mongos.expose.servicePerPod`                        | Create a separate ClusterIP Service for each mongos instance                                                                                 | `false`                  |
 | `sharding.mongos.expose.loadBalancerSourceRanges`             | Limit client IP's access to Load Balancer                                                                                                    | `{}`                     |
-| `sharding.mongos.expose.serviceAnnotations`                   | Mongos service annotations                                                                                                                   | `{}`                     |
-| `sharding.mongos.expose.serviceLabels`                        | Mongos service labels                                                                                                                        | `{}`                     |
+| `sharding.mongos.expose.annotations`                          | Mongos service annotations                                                                                                                   | `{}`                     |
+| `sharding.mongos.expose.labels`                               | Mongos service labels                                                                                                                        | `{}`                     |
+| `sharding.mongos.expose.internalTrafficPolicy`                | Mongos service internal traffic policy                                                                                                       | `Local`                  |
+| `sharding.mongos.expose.externalTrafficPolicy`                | Mongos service external traffic policy                                                                                                       | `Local`                  |
 | `sharding.mongos.expose.nodePort`                             | Custom port if exposing mongos via NodePort                                                                                                  | `""`                     |
 | `sharding.mongos.hostAliases`                                 | The IP address for Kubernetes host aliases                                                                                                   | `[]`                     |
 | |
@@ -243,6 +259,16 @@ The chart can be customized using the following configurable parameters:
 | `users.roles.role.name`        | Name of the MongoDB role assigned to the user. As [built-in roles](https://www.mongodb.com/docs/manual/reference/built-in-roles/#built-in-roles), so [custom roles](https://github.com/mongodb/mongodb-kubernetes-operator/blob/master/docs/deploy-configure.md#define-a-custom-database-role) are supported | `""`                     |
 | `users.roles.role.db`          | Database that the MongoDB role applies to                                                                                                                                                                                                                                                                    | `""`                     |
 | |
+| `roles.role`                      | Name of the custom role. | `""`                           |
+| `roles.db`                      | Database in which you want to store the user-defined role. | `"admin"`                           |
+| `roles.authenticationRestrictions.clientSource` | Array of IP addresses or CIDR blocks from which users assigned this role can connect.MongoDB servers reject connection requests from users with this role if the requests come from a client that is not present in this array. | `""`                           |
+| `roles.authenticationRestrictions.serverAddress` | Array of IP addresses or CIDR blocks to which users assigned this role can connect.MongoDB servers reject connection requests from users with this role if the client requests to connect to a server that is not present in this array. | `""`                           |
+| `roles.privileges.actions` |  Name of the role. Valid values are built-in roles. | `[]`                           |
+| `roles.privileges.resource.db` |  Database for which the privilege `security.roles.privileges.actions` apply. An empty string ("") indicates that the privilege actions apply to all databases. | `""`                           |
+| `roles.privileges.resource.collection` |  Collection for which the privilege `security.roles.privileges.actions` apply. An empty string ("") indicates that the privilege actions apply to all of the database's collections. | `""`                           |
+| `roles.privileges.resource.cluster` |  Flag that indicates that the privilege `security.roles.privileges.actions` apply to all databases and collections in the MongoDB deployment. If omitted, defaults to false.If set to true, do not provide values for `security.roles.privileges.resource.database` and `security.roles.privileges.resource.collection`. | `""`                           |
+| `roles.roles.role` |  Name of the role to inherit from. | `""`                           |
+| `roles.roles.db` |  Name of database that contains the role to inherit from. | `""`                           |
 | `backup.enabled`                      | Enable backup PBM agent                                           | `true`                           |
 | `backup.annotations`                  | Backup job annotations                                            | `{}`                             |
 | `backup.podSecurityContext`           | Set the security context for a Pod                                | `{}`                             |
@@ -260,7 +286,6 @@ The chart can be customized using the following configurable parameters:
 | `backup.configuration.restoreOptions` | Custom configuration settings for restore                         | `{}`                             |
 | `backup.tasks`                        | Backup working schedule                                           | `{}`                             |
 | `systemUsers`                         | PSMDB operator system users                                       | `{}`                             |
-
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
