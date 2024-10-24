@@ -14,6 +14,8 @@ finalizers:
   - percona.com/delete-psmdb-pods-in-order
 ## Set this if you want to delete database persistent volumes on cluster deletion
 #  - percona.com/delete-psmdb-pvc
+## Set this if you want to delete all pitr chunks on cluster deletion
+#  - percona.com/delete-pitr-chunks
 
 nameOverride: ""
 fullnameOverride: ""
