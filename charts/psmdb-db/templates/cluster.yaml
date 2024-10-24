@@ -81,6 +81,10 @@ spec:
     containerSecurityContext:
 {{ .Values.pmm.containerSecurityContext | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.pmm.resources }}
+    resources:
+{{ .Values.pmm.resources | toYaml | indent 6 }}
+    {{- end }}
 
   replsets:
   {{- range $k,$replset := .Values.replsets }}
