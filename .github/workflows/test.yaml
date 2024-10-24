@@ -4,7 +4,6 @@ on:
   pull_request:
     path-ignore:
     - 'charts/gcp-marketplace/**'
-    - 'charts/everest/**'
 
 jobs:
   lint-test:
