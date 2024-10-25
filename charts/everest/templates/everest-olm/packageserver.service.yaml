@@ -1,4 +1,3 @@
-{{- if not .Values.global.compatibility.openshift }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -14,4 +13,3 @@ spec:
   selector:
     app: packageserver
   type: ClusterIP
-{{- end }}

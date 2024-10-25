@@ -9,9 +9,5 @@ Allows overriding the install namespace in combined charts.
 Allow overriding OLM namespacse
 */}}
 {{- define "db.olmNamespace"}}
-{{- if .Values.global.compatibility.openshift }}
-{{- "openshift-marketplace" }}
-{{- else }}
 {{- .Values.olm.namespace }}
-{{- end }}
 {{- end }}

@@ -1,4 +1,3 @@
-{{- if not .Values.global.compatibility.openshift }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,4 +64,3 @@ spec:
               memory: 160Mi
       nodeSelector:
         kubernetes.io/os: linux
-{{- end }}

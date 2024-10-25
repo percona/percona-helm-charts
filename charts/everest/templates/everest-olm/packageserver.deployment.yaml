@@ -1,4 +1,3 @@
-{{- if not .Values.global.compatibility.openshift }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -108,4 +107,3 @@ spec:
           - key: tls.key
             path: tls.key
           secretName: packageserver-service-cert
-{{- end }}

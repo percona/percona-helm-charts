@@ -1,6 +1,4 @@
-{{- if not .Values.global.compatibility.openshift }}
 apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ include "everest.olmNamespace" . }}
-{{- end }}

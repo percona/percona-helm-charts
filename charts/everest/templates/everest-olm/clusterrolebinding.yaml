@@ -1,4 +1,3 @@
-{{- if not .Values.global.compatibility.openshift }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -11,4 +10,3 @@ subjects:
 - kind: ServiceAccount
   namespace: {{ include "everest.olmNamespace" . }}
   name: olm-operator-serviceaccount
-{{- end }}

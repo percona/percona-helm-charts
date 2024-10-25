@@ -64,7 +64,6 @@ The following table shows the configurable parameters of the Percona Everest cha
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | everest-db-namespace.enabled | bool | `false` | Do not enable. |
-| global.compatibility.openshift | bool | `false` | Enable Openshift compatibility. Currently in technical preview. |
 | monitoring.namespace | string | `"everest-monitoring"` | Namespace where monitoring is installed. Do no change unless you know what you are doing. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |

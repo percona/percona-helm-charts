@@ -1,4 +1,3 @@
-{{- if not .Values.global.compatibility.openshift }}
 {{- if eq .Values.olm.packageserver.tls.type "cert-manager"}}
 {{- $tls := fromYaml (include "olm.certs" .) }}
 ---
@@ -48,5 +47,4 @@ spec:
     name: olm-cert-issuer
     kind: Issuer
 ---
-{{- end }}
 {{- end }}
