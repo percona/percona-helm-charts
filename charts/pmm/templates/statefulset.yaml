@@ -62,9 +62,13 @@ spec:
             - secretRef:
                  name: {{ .Values.secret.name }}
             {{ end }}
-          # additional secrets that could be used for Grafana iDP
-          {{ if .Values.secret.create }}
           env:
+            - name: PMM_INSTALL_METHOD
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
+            {{ if .Values.secret.create }}
+            # additional secrets that could be used for Grafana iDP
             - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -83,11 +87,7 @@ spec:
                   name: {{ .Values.secret.name }}
                   key: PMM_ADMIN_PASSWORD
                   optional: true
-          {{ end }}
-            - name: PMM_INSTALL_METHOD
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
+            {{ end }}
           ports:
             - name: http
               containerPort: 80
