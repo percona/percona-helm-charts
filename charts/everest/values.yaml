@@ -1,3 +1,6 @@
+compatibility:
+  # -- If set, enable OpenShift compatibility.
+  openshift: false
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
 # -- If set, enabled sending telemetry information.
@@ -44,6 +47,8 @@ upgrade:
   # It is strongly recommended to enable this setting.
   preflightChecks: true
 olm:
+  # -- If set, installs OLM in the provided namespace.
+  enabled: false
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
   namespace: everest-olm
   # -- Image to use for Everest CatalogSource.
