@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: everest-rbac
+  namespace: {{ include  "everest.namespace" . }}
+data:
+  policy.csv: |
+    {{- .Values.server.rbac | nindent 4 }}

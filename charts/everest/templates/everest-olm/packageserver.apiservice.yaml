@@ -1,0 +1,46 @@
+{{- $tls := fromYaml (include "olm.certs" .) }}
+{{- $apiService := (lookup "apiregistration.k8s.io/v1" "APIService" "" "v1.packages.operators.coreos.com") -}}
+{{- $secret := (lookup "v1" "Secret" (include "everest.olmNamespace" .) "packageserver-service-cert") -}}
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1.packages.operators.coreos.com
+  annotations:
+    {{- if eq .Values.olm.packageserver.tls.type "cert-manager" }}
+    cert-manager.io/inject-ca-from: {{ (include "everest.olmNamespace" .) }}/olm-packageserver-tls
+    {{- end }}
+spec:
+  {{- if ne .Values.olm.packageserver.tls.type "cert-manager" }}
+  {{- if $apiService }}
+  caBundle: {{ $apiService.spec.caBundle }}
+  {{- else }}
+  caBundle: {{ $tls.caCert }}
+  {{- end }}
+  {{- end }}
+  group: packages.operators.coreos.com
+  groupPriorityMinimum: 2000
+  version: v1
+  versionPriority: 800
+  service:
+    name: packageserver-service
+    namespace: {{ include "everest.olmNamespace" . }}
+    port: 5443
+---
+{{- if ne .Values.olm.packageserver.tls.type "cert-manager" }}
+apiVersion: v1
+data:
+  {{- if $secret }}
+  {{- range $key, $value := $secret.data }}
+  {{ $key }}: {{ $value }}
+  {{- end }}
+  {{- else }}
+  tls.crt: {{ $tls.tlsCert }}
+  tls.key: {{ $tls.tlsKey }}
+  {{- end }}
+kind: Secret
+metadata:
+  name: packageserver-service-cert
+  namespace: {{ include "everest.olmNamespace" . }}
+type: kubernetes.io/tls
+{{- end }}
