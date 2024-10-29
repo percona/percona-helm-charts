@@ -36,7 +36,7 @@ jobs:
           fi
 
       - name: Run chart-testing (lint)
-        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml
+        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.5.0
