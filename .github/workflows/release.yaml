@@ -17,6 +17,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Remove skipped charts
+        run: |
+          rm -rf charts/everest
+
       - name: Configure Git
         run: |
           git config user.name "$GITHUB_ACTOR"
