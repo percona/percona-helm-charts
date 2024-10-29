@@ -1,10 +1,40 @@
 apiVersion: v1
 entries:
+  everest:
+  - apiVersion: v2
+    appVersion: 1.3.0-rc2
+    created: "2024-10-29T11:37:57.878266874Z"
+    dependencies:
+    - name: common
+      repository: file://charts/common
+      version: 0.0.1
+    - condition: everest-db-namespace.enabled
+      name: everest-db-namespace
+      repository: file://charts/everest-db-namespace
+      version: 1.3.0-rc2
+    description: A cloud-native database platform
+    digest: e51290ae09b8d93ae98cbd68936ceea20f187fe52dac807098e197b68f18d8a1
+    kubeVersion: '>= 1.27.0'
+    maintainers:
+    - email: mayank.shah@percona.com
+      name: mayankshah1607
+    - email: oksana.grishchenko@percona.com
+      name: oksana-grishchenko
+    - email: diogo.recharte@percona.com
+      name: recharte
+    - email: michal.kralik@percona.com
+      name: michal-kralik
+    name: everest
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/everest-1.3.0-rc2/everest-1.3.0-rc2.tgz
+    version: 1.3.0-rc2
   pg-db:
   - apiVersion: v2
     appVersion: 2.5.0
     created: "2024-10-08T18:49:06.05652356Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 5fbb34f42ff45a2c4e82d2cc58bbf40c111a908cb4682ebde057fbbbf1c94796
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -29,7 +59,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.4.1
     created: "2024-08-21T14:20:35.735006106Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: a21c05eead2fbbac2ee659179f0ecb9c7d3fc8752edbc3bd8c67b5a41b71eadb
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -54,7 +85,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.4.1
     created: "2024-08-06T16:41:28.527097013Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 799bef81c32f7d315813fedcb7701f18d68efdd6a7806b34a1fda0b6c833f663
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -79,7 +111,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.4.0
     created: "2024-07-10T11:09:35.685720039Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 721dc0aca68c1868ee590f1b19f264a304c367c26d52474d3621c47e126cd257
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -104,7 +137,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.4.0
     created: "2024-07-02T12:44:13.106674141Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 2a7a15922d3fcf6a7848e3e18da5136334cbfe2116e86cbfebfc1465cec75f49
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -129,7 +163,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-05-29T13:37:15.71201018Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: e2dfdc1020f7cd145b3bf899585fb30c47da3538d289761c6b9c33e936a4ac48
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -154,7 +189,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-05-07T14:14:49.0969036Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 7705c6cbb62579012f31facf100693c6adb08aef10946dc4d385b9ec319817d0
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -179,7 +215,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-05-03T09:20:03.671263084Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 74e5c4fe38b9234907ba848fb7cd8ae5cf1f68a2efd3a5a23355357a5bf2eba1
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -204,7 +241,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-04-26T10:32:44.919472047Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 48538d5d108f68772eeacc8853f36d515d9ae7a4aca79e53033b29131dee91c8
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -229,7 +267,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-04-26T08:54:12.752371984Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: bd7e5ee1047fbbd8c013abf4401228634d963ac7be6b2e4e3fc0154db06db5cf
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -254,7 +293,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-04-26T08:16:54.422988131Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 4f0f045b5e5e4de8f6f8d52af197dfb135788ad0a08df435f757988bec1f966e
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -279,7 +319,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-04-12T11:51:13.382531145Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 0fd2fc4eacb4196cf4d24fa0f52315c425fbce0cb6b0f3e83a30045f5edcc3c9
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -304,7 +345,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-04-05T10:14:38.912983965Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 75bf6c0b77a00b4df1411ee072febb21eafa01566edbfd7362a400d34da1f5c5
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -329,7 +371,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-04-05T09:25:33.506594179Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 684fcb508a4aca837ae1e40fa15f28dc1c7a4b530d371a84afe57560f311df77
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -354,7 +397,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-03-26T16:08:23.113615761Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 8f9dd412538f9b6c443ce3bf6726019d3a16584b42e4ccb3787ec774987e6817
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -379,7 +423,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-03-22T10:40:09.672338069Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 35bdbafdfa3dbfd641777eb2f94402682e8a4cde4f6c421be7feb3e27057189e
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -404,7 +449,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-03-22T09:53:40.194215167Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: fda62d2e274a8cca00656148a35759995f21415d507758639470c14fafa60ecc
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -429,7 +475,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-03-15T14:04:47.244229641Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: a02d63be3aafbbe63758e68ab240b3505959cb8fe7e4b06e2203d8b82102b6d9
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -454,7 +501,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-02-21T11:18:38.854836895Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 5fc21bbe9e627792acc304060580e8763df0d02f8193a0bf44d010b03f21767d
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -479,7 +527,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-02-01T08:07:33.395811595Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: b888e8269bd51c6e886c31c83321541add813625a71ac54533fdd0c5bedecd05
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -504,7 +553,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-01-31T14:13:49.938212065Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: f8b0ea43d74f1df708689674d08f2429f7e2346ae0add9c39e398efbad26791b
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -529,7 +579,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.1
     created: "2024-01-23T14:57:51.185048752Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: cffddc347da885353467a69fdcebd1233c89700b4ee2ade65ccdf0859f60bb1b
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -554,7 +605,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.0
     created: "2024-01-18T08:34:49.771473512Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: b3ed5dd61f3c1651d6c84987b052d602179a79b1504c848e8b993770b5d064fc
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -579,7 +631,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.3.0
     created: "2024-01-04T14:25:24.551536299Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 0784678c786026efd0fd6cf88c12b3bf334290fb4694fa463914a15e66d73d14
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -604,7 +657,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.2.0
     created: "2023-12-12T10:40:05.826385531Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 5a50b5ca4755b08f03c5301f850a84b1938ce9b95eee0bf928ea9ea98a8fd913
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -629,7 +683,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.2.0
     created: "2023-11-20T15:23:03.280589212Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: d6cfb653f0b52d45f22fa2b5500cf024ee537ea300c0402b35e9bf44fe605c2f
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -654,7 +709,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.2.0
     created: "2023-10-10T07:57:13.938723203Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: cf9d924c0417cd48598217315c9cf147432256f11efeffaf765e3359b9ddfe0b
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -679,7 +735,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.2.0
     created: "2023-08-15T12:37:09.45441602Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 9294a1fc8b95238998d901807a9505c96825a0a7f6716e232dfad97640e0e6e2
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -704,7 +761,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.2.0
     created: "2023-08-08T07:23:25.158242403Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: cc435eeb411cfb9948be3bf1679286836cd4f9440455256458fc6c0d0768d31d
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -729,7 +787,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.2.0
     created: "2023-08-03T16:34:48.957799589Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 8f6bbc6c2bcbd809adecefcf6fc3138e0e07bc6a1e26c47a871a0842cc9ff1d5
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -754,7 +813,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.2.0
     created: "2023-07-17T14:49:06.532736109Z"
-    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator for PostgreSQL
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
     digest: 2902e22700234953715ebb2dac509be38f4fe6c0c29e57aa4f912de1b5014b9f
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -779,7 +839,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.2.0
     created: "2023-07-10T08:54:11.819268119Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: ae5ca2b2dd1cabdfc75824d543fe80ea29f4e29c3e59ca23d929649b972928c4
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -804,7 +865,8 @@ entries:
   - apiVersion: v2
     appVersion: 2.2.0
     created: "2023-07-01T16:41:58.241504189Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: 28dfa68f14a4ff76c92fa8347bf6fcc13d8f4de05dfbc2b92817a40f3754ec11
     home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
     keywords:
@@ -829,7 +891,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.4.0
     created: "2023-05-15T10:26:55.985445287Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: 28bbb51568b67e2686169593217f296c6d0bb9760c16f97bd560292be155a72a
     home: https://github.com/percona/percona-postgresql-operator
     keywords:
@@ -852,7 +915,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.4.0
     created: "2023-05-04T18:12:43.765633333Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: 4551cb6b119ae301d40f70280a2508d046f7bbd27755d3b22b586128c52398f2
     home: https://github.com/percona/percona-postgresql-operator
     keywords:
@@ -875,7 +939,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.3.0
     created: "2022-09-06T16:23:27.106829105Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: 19b2e87ae6b1f6f6b8a127d5ef83944c6b4bc164be002dfc9a5311cdb5254c4a
     home: https://github.com/percona/percona-postgresql-operator
     keywords:
@@ -898,7 +963,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.3.0
     created: "2022-08-04T09:09:07.172274065Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: fd61bf8309a0d07d33e0081282eb9b24e36b921f5631009a679f5af0871cd01c
     home: https://github.com/percona/percona-postgresql-operator
     keywords:
@@ -921,7 +987,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.2.0
     created: "2022-04-06T15:50:33.706160261Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: fb49a9bb8321642afd3eb792edb3f498595a2a49c778bc539eeb10acf53a28b3
     home: https://github.com/percona/percona-postgresql-operator
     keywords:
@@ -944,7 +1011,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.1.0
     created: "2021-12-07T14:09:27.449713804Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: f5f98fdb5150bf3c9ab53ff1066df02e9c81b05fcf22377f4e0a5ce1482a30ae
     home: https://github.com/percona/percona-postgresql-operator
     keywords:
@@ -967,7 +1035,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.0.0
     created: "2021-10-01T18:58:56.715778517Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: eecda2bd0d61edb787b384df9dd0546a81109dac0a517a3813f17516573634cf
     home: https://github.com/percona/percona-postgresql-operator
     keywords:
@@ -990,7 +1059,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.2.0
     created: "2021-08-12T14:04:45.222868865Z"
-    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona Distribution for PostgreSQL Operator
+    description: A Helm chart for Deploying the Percona PostgreSQL database by Percona
+      Distribution for PostgreSQL Operator
     digest: 83585162f21606502a99b80019fb14d66f771a4b5f89b983ed491b2446315dae
     home: https://github.com/percona/percona-postgresql-operator
     keywords:
@@ -1529,7 +1599,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.1.0
     created: "2021-06-24T11:54:30.842976032Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona PostgreSQL
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      PostgreSQL
     digest: 40eac7cc83bf12342fe23f97ca95e4a5052aa55f0c5731da9b90fb7dfc044f6c
     home: https://github.com/percona/percona-postgresql-operator
     keywords:
@@ -2618,7 +2689,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.8.0
     created: "2024-07-16T14:09:41.148701822Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 7cf7d594d981f65903d53b29690eeb7c99ae61e47baa3712c52071cfbadddc05
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2633,7 +2705,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.7.0
     created: "2024-03-26T09:58:59.314610974Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 27ca025ba17f920b845998a7e99f54c3eea0ef08b8d73a5a6351b5447b306b69
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2648,7 +2721,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.6.0
     created: "2024-02-01T10:43:02.41886397Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: de40200c058f39b3883687e4fdd5b0d9f0fb918db698d4b3e903d3bc528517e1
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2663,7 +2737,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.6.0
     created: "2023-12-12T10:40:06.128762184Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 13eb0d9b7b3b0c7ef5e68386d95d71a461373752d6185e3ad2e26d6929b2f129
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2678,7 +2753,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.6.0
     created: "2023-11-20T15:23:03.618379406Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: c07e9d6bee1cf21bbc0cf64b575ee9dbf8736e0b82c80ad4f39bfa95f2f9a28f
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2693,7 +2769,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.6.0
     created: "2023-10-10T07:57:14.247962354Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: a2ca366496102f7f216d24ba99db76f58f1804182e4ce4dadc96bf15fc390be9
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2708,7 +2785,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.6.0
     created: "2023-09-08T09:36:39.144854197Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 683ed4c016edbe23e70a96de44a6127dc656cd57521f840533a5ee7f5f07de1d
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2723,7 +2801,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.6.0
     created: "2023-09-05T15:45:41.156082592Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 1f69cdd37523135ebb19d46f79048664972949d0f097d492c1a452e1d452bf70
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2738,7 +2817,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-08-15T12:37:09.821710013Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 335ab1648f42c9046c7ca8880c5639456ebd466473b609cb1bfd9d88ea0e99d7
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2755,7 +2835,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-07-17T14:49:07.035994833Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 113b22b4bad38230a1bf3f6f0700563d8c7e5b993c546a5d70fbdf1f9e74abed
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2772,7 +2853,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-05-15T10:26:56.267943037Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: c414937035fc43cf3d3f00c30cc8a2b94d3024f2dba7f67732b4b45f4c57ad7d
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2789,7 +2871,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-05-04T18:12:43.978511524Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: f97a1a3c65e6beccc35c8a7307ede50ee7c5cefb3226c3e4579e314d3f2b1921
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2806,7 +2889,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-05-04T16:31:55.161765353Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 6b0b2ac5f05a04f9e1c66fec257e10277603c7275be3fa6af53b4ad3aea8f1d8
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2823,7 +2907,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-03-31T12:49:14.551448062Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 8f59cf86618060cafe60e91242bc00a6b0114f0cc6b2945b744495e0eec6913b
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2840,7 +2925,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.4.0
     created: "2023-01-30T14:51:04.666160137Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: f01da72ff3e000b9cfd1435496d09cb3b7887a6716ace355cb4237a813d285f5
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2857,7 +2943,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.3.0
     created: "2022-11-11T14:11:34.335994285Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: fc53c2de56d626213c5ee2ace5eed9e851ab079b75012c41d85c803939ae08ed
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2874,7 +2961,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.3.0
     created: "2022-10-06T13:01:36.790299413Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: d7dce680918ad7d2285160d0306d762ec1ef2225e83ea07d2f3822da15eb77ac
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2891,7 +2979,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.2.0
     created: "2022-07-05T08:37:20.138756755Z"
-    description: A Helm chart for installing Percona Server Databases using the PS Operator.
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
     digest: 107b041864071affb5ed9644ee3adb8b2b1904755b3ec060493c4f2e29d3d394
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -2909,7 +2998,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.8.0
     created: "2024-07-16T14:09:41.281305533Z"
-    description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
     digest: 7a8dc943e23c93d0894397594d9a248969688f5cec23059bad516124e8d48876
     home: https://docs.percona.com/percona-operator-for-mysql/ps/
     maintainers:
@@ -2926,7 +3016,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.7.0
     created: "2024-03-26T09:58:59.420959025Z"
-    description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
     digest: b7e653dd97fe9336d65fe34d6cd6310db14e6de2ab13f4b12069097671106794
     home: https://docs.percona.com/percona-operator-for-mysql/ps/
     maintainers:
@@ -2943,7 +3034,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.6.0
     created: "2023-09-08T09:36:39.339281797Z"
-    description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
     digest: 381ad594503149563fd42c5092001c01f79b7de54a816ef7af7a69f5f53a7e68
     home: https://docs.percona.com/percona-operator-for-mysql/ps/
     maintainers:
@@ -2960,7 +3052,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.6.0
     created: "2023-09-05T15:45:41.331653235Z"
-    description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
     digest: 7ba3736c22bb647e2e49d7920210486197c9a209a4763b4d88531dc7495b71dd
     home: https://docs.percona.com/percona-operator-for-mysql/ps/
     maintainers:
@@ -2977,7 +3070,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2023-03-31T12:49:14.735477033Z"
-    description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
     digest: 55b4b4311652b1ff5f4e1ac93379c3af42f1bd95a4063cbf4db81244f94a56ab
     home: https://docs.percona.com/percona-operator-for-mysql/ps/
     maintainers:
@@ -2996,7 +3090,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.4.0
     created: "2023-01-30T14:51:04.840995393Z"
-    description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
     digest: c8f56224f94d656cb33aee4f056ac9c051069e117e618e591f0bb01ed5017419
     home: https://docs.percona.com/percona-operator-for-mysql/ps/
     maintainers:
@@ -3015,7 +3110,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.3.0
     created: "2022-11-11T14:11:34.48562027Z"
-    description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
     digest: dbbff6dbbfc2e6857581c1d16a8d80f1c9517018f0e094059038abc45344b941
     home: https://docs.percona.com/percona-operator-for-mysql/ps/
     maintainers:
@@ -3034,7 +3130,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.3.0
     created: "2022-10-06T13:01:36.980127536Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server
     digest: 755e13d1f1ea8d49db179525e20474319fce48a89083bcd7b968429cb8a4d6b2
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -3051,7 +3148,8 @@ entries:
   - apiVersion: v2
     appVersion: 0.2.0
     created: "2022-07-05T08:37:20.302505261Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server
     digest: a8f7d61fefde1e0aa4ed8ba5b43774ef439d77566facb5a376c10ec3a4f6ee1a
     home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
     maintainers:
@@ -3069,7 +3167,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.17.0
     created: "2024-09-10T11:24:17.490953025Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 2a81674e1c4acc32013b6b41e9a7585e1a68d7a26e7d8657c333f8ed307e4af1
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3084,7 +3183,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.16.2
     created: "2024-08-30T12:16:01.435739174Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 3eaaaed83899450e6d7bbeaed36fc3c245a064b62b3761ff07c4d0a6ff9e19b7
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3099,7 +3199,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.16.2
     created: "2024-07-23T19:06:21.392260273Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 9a961f37f45327dd68389432719cbd3352662eebca10724d60fe14bb4da4a324
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3114,7 +3215,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.16.1
     created: "2024-06-24T17:55:30.664953757Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 8faab81fdbe440e519bc9a4f1a8acb4e2905235b1ebf53795b7c77dd3f7927a3
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3129,7 +3231,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-06-06T14:17:13.361066981Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 967aa6bb4a0d2b9f59b337000c01f65ec1f87d19dd6540356613fad331a40852
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3144,7 +3247,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-05-24T18:25:25.972297464Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: e75ec2f2d1e2c6c05901bad7f85a1f5f5cb8e868f2ab441d8332e333cc9f9edf
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3159,7 +3263,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.15.0
     created: "2024-02-01T09:53:56.699524466Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 07fff318602884419cd7c772bac28f3dadea6e718bd7fd6ff51d8ffc08ac7b05
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3174,7 +3279,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.15.0
     created: "2024-01-31T16:14:35.935638525Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 07d03b3c07d640a46979ff45c02c244643c30c6e19ee45eba7e91f561d9217be
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3189,7 +3295,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.15.0
     created: "2023-12-12T10:40:06.331344138Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 8aec41a63b73ee4cfd982e03bf7bb4fc16528a7f5ab3fc45698f6e47c206a5de
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3204,7 +3311,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.15.0
     created: "2023-10-10T09:35:35.757077615Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: ad5e83540633b4a7fb2ca54afa3a3ea1b960f203ddf6a30214eaac96c26c3f7c
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3219,7 +3327,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2023-09-08T12:36:44.480610252Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 9f1fdf15190de782e7cb71aea207a7de5a3048c49bcd561468e091f69bc37df5
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3234,7 +3343,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2023-05-04T18:12:44.232638819Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: a2fc08d2cf35c258f6eacd5a81dc6cfea93364f2aa13d48cc84fdab1905f2137
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3249,7 +3359,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2023-05-04T16:30:09.992740136Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 4e8e30b214e365f657c62fc2b62f18178588000b9f7c89ffbf4cce3346836906
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3264,7 +3375,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2023-04-25T06:21:55.7042215Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 6e2128616a2be783c60caafe3e836abf2bd2b3302958d7ab0dd987d59a1c0f25
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3279,7 +3391,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2023-03-13T14:27:55.480104326Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 8d65f7ca4c238bd18dd9d9b39c5efc2c930778170cb1df8efaf56aead369e3c0
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3294,7 +3407,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2023-03-03T13:24:57.985982731Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 52ca7a23141f27f6f2ab8e680fa8b97b9c7a9abc01d19840dcd1c2cb73047aeb
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3309,7 +3423,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2022-09-23T13:29:10.170100795Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 741ef0c5fc11a233c096ae0945453db1ce51ac85ae546ac5a06a7f35cd82e3b6
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3324,7 +3439,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-09-22T12:43:58.490280582Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 07feb9a7fe0f88238813a4af57ddb0f694b92a69f69c288a08f1f7f40b0982ee
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3339,7 +3455,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-09-02T10:22:26.154004387Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 9942d191b36c3a49bb2f7816c822481a8d82f336c039e6c6c9e429e7912f50b3
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3354,7 +3471,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-07-05T13:23:13.689688628Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 7f6e6094069f7b29e1eec7199dfa10ad3f63cf3c22ae85bbdfb2c76f49f97cef
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3369,7 +3487,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-06-13T08:17:55.146182352Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 3dd36c798d2fbf134db2e476dd11cbcb46c49849e6590381442995e7807224c8
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3384,7 +3503,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-06-10T09:36:32.292106577Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 514a76ab944ba9ddd7b0e49aa02f6b92a54c11786f088924bbe71b6b4ecf074b
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3399,7 +3519,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-05-12T08:06:34.086959116Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 45a65f928624ea201cde97c0fc2af3db1c287427741c3f13865c669c3ad202d6
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3414,7 +3535,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2021-12-28T14:06:34.086959116Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: a0a5ce5c1d3ae566b09409173fd55fb0efdf0237e9711956ad89d00fb9161afd
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3431,7 +3553,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.10.0
     created: "2021-11-29T16:55:54.177568681Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: a6c1e9a065614f1ef685cbfa652d7658f596cc1f8b4245fe1a8aed710da31d47
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3448,7 +3571,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.10.0
     created: "2021-09-30T14:28:00.777589289Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 7eeffe7ef1655c9d39299d684119e3e13c97cba07d8a699db49d7fc5a2fc4397
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3465,7 +3589,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.9.0
     created: "2021-08-30T11:06:41.599070456Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 0c329d697a742525ee1e2cd5b63e09b4fa414465baee6a4f73ca2e6123f86cb4
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3482,7 +3607,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.9.0
     created: "2021-07-01T08:16:38.332361037Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 95450fd11a0f57d0b49db903cd866f88dca06aeb50349ec4811aed575570cebc
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3499,7 +3625,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.8.0
     created: "2021-05-19T06:36:39.338028034Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 6dfff560e0c11fb82a50c9635cbe1d92d60387c39f7aabb4c85b64800e6018c6
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3516,7 +3643,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.7.0
     created: "2021-03-15T12:29:53.444968584Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 3940447ba53d9adc1df8cd42a65693ca2c883e9a9bd7114142bca1cea18198b2
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3533,7 +3661,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.6.0
     created: "2021-02-05T08:22:45.452372753Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 411bd9608b7354de7e109f2a1c877f2998f6766196baa1fa22809449db027523
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3550,7 +3679,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.6.0
     created: "2021-01-04T09:08:42.654352285Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 167ea2b5bb978ae3a0ee378c976aa541db2aea131d4630b30c957675d5a51c76
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3567,7 +3697,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.5.0
     created: "2020-09-07T15:26:00.903082743Z"
-    description: A Helm chart for installing Percona Server MongoDB Cluster Databases using the PSMDB Operator.
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
     digest: 158f98e5c5790fef4d0fde3a50cb7f0a982ab628991b93090fbeecae030ca8a1
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
     maintainers:
@@ -3874,7 +4005,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2022-09-29T09:10:45.328955399Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: 4cc7e3a7c9d5335151736abc7cb244b06b19c6dd387184e12f1e3ed7c1e796ef
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -3889,7 +4021,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2022-09-23T13:27:48.021190797Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: ba2c9bd3cf2e129bf50dd8cf5c1215d93e4646108411f51a8925338b7ac93c20
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -3904,7 +4037,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-06-10T09:36:32.558806184Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: 31d9cecc9295b3b7733cdf9fec7e3117586b58dbe1202d4f5a0babd6f687dc90
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -3919,7 +4053,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-05-12T08:06:34.248747737Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: 2161ae2cd571c85c224d9cf2c8444d2a16c22a4c7c2baf892fe870455671dbc0
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -3934,7 +4069,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2021-12-28T14:06:34.248747737Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: 6ce5521b7e7a60e562c37afada5b645aff31dd0183d1bed73acfd9a2ef7c017d
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -3951,7 +4087,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.10.0
     created: "2021-09-30T14:28:00.978371863Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: 73456293afa81b69c4e4285dedcbc8d392054935048e282557f72eeaa3067e63
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -3968,7 +4105,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.9.0
     created: "2021-07-01T08:16:38.485354913Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: 9b7844dc69066fe0f2968cdda480ded4b31581b03dcf6692cbbbaa5cd42bbf5e
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -3985,7 +4123,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.8.0
     created: "2021-05-19T06:36:39.487273448Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: ce1d458c5d71eff4631b404fe587e7c89a6cba6fe5476954b1497da07d5957f0
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -4002,7 +4141,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.7.0
     created: "2021-03-15T12:29:53.56449207Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: 4ea33ef5aa78f291b0b31405ec611956a8ec7b6cc1da5d0b4a02a5847ce7bf67
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -4019,7 +4159,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.6.0
     created: "2021-01-04T09:08:42.831919905Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: 688851840ee9dadfdcce835500b59b645885d02696fbf9195a512916693c40ed
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -4036,7 +4177,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.5.0
     created: "2020-09-07T15:26:01.044788779Z"
-    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona Server for MongoDB
+    description: A Helm chart for Deploying the Percona Kubernetes Operator for Percona
+      Server for MongoDB
     digest: 298ed0826dff961e8cf8112a54d2bd404759dd551d8f525cdabe96694be81777
     home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/kubernetes.html
     maintainers:
@@ -4054,7 +4196,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.15.1
     created: "2024-10-24T15:01:56.896085243Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 116aacc84be6815a6e17fbaf6d4e2762a07823780c94be10c108b41025bc72ff
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4072,7 +4215,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.15.0
     created: "2024-08-21T11:44:56.263948163Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 6c391015108cad759fe405a648ed1df3564ae61d3a7c50cd039042c1c4dcd4d7
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4090,7 +4234,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.1
     created: "2024-10-16T19:36:18.912294384Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 0078ea892233b3353a570f922456c84530f3afb08193cec8c91f2cc6b6439cf0
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4108,7 +4253,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-08-20T14:40:20.581047425Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 70a0ca30d15b7679943b0da2253ed4ba5d3170204cdda9783173ff9a63ef2e7a
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4126,7 +4272,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-04-17T17:25:04.944692965Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 22734f30e06a910eec4b164d53573a78ec255b2b42e29f55b73d25df83ed561b
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4144,7 +4291,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-04-05T09:45:19.552576893Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: e0a0b5160a9bed11926f9e2c043039460d162d1531a1caacaaf62c42c04d660e
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4162,7 +4310,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-03-18T12:38:45.22517658Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: c87d6c8a192c35ea61d44b389db18af0251e7b6959269b0f15ac4518cde663cc
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4180,7 +4329,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-03-04T15:19:34.993869981Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 35a48d8e5e738de8c52bbf62de1157840e07dfba52618e01d474c1b0d1db0955
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4198,7 +4348,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2024-02-15T09:35:17.068455934Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: ace35ea47117ab43ef5a6c1677ee57fdda7d9e3930bd59841696f49de62e59f1
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4216,7 +4367,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2024-01-31T15:54:37.395266212Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 9709db01e269a941fe95d978bfb115dcca858808e05d90c37414f0f69641c3f9
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4234,7 +4386,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2024-01-31T15:05:54.851749937Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: b125174b8e231ca35935928df482e3504b089f9f3fdbd1bb7b6c39c805dcec58
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4252,7 +4405,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2024-01-10T06:33:39.166224089Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 75c60dc5c2d0b471c125d5dbe8d4c1a91313a642b5f62721e140d1240b5093e0
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4270,7 +4424,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2023-12-12T10:40:06.49795233Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 0bd16f513e5a1e1f1a0888a0b01c3c7b095b47929dde24a62a5db4c6970bae25
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4288,7 +4443,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2023-09-08T11:45:17.300587382Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 63c6207f065b0e9e155ce36dfc2911ce74970ae571868890d58992ed4f8382d8
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4306,7 +4462,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2023-08-17T07:29:10.566735776Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: e1ef09a5f7eaf2667217106abc9ebdaf55f965fd6094e80e8da60151cbb4655e
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4324,7 +4481,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2023-07-11T16:13:43.281120617Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 866aec1b636ebc1ed75e4da1069eaeeb0991023d2db263a222e13ee7b0a06abb
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4342,7 +4500,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2023-06-14T06:31:10.57457644Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 42589a72942a63c83a6254e2cc70b7469530807cd4928e338da80fcd2bd4f57b
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4360,7 +4519,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2023-05-04T18:12:44.440332344Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: b6412f761fa60e70e241d25893b70fb164748f2745af7cd6a67e8036e124c714
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4380,7 +4540,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2023-05-03T09:19:58.825516818Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 9274bbc1b52bd5677d3d5ac38e8eb550ad460e651244da991f0c2807dd457d8e
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4400,7 +4561,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-12-07T18:36:12.573921681Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: d769d9e9cf412d33b828540d9b18a7694420ae68b69bcbbcdf5e4ba76130b58d
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4420,7 +4582,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2022-07-08T09:27:42.680562152Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: d353509612eccd4c57a4d13935c21ff0f3222a3f72a24000a382e323093edad8
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4440,7 +4603,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2022-07-08T07:31:38.591950599Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: f5bd4cf0db2c46fd6f22a2916cf64107b7d582dcd4b5bddf0f31e82ffc6111db
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4460,7 +4624,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2022-07-04T13:47:03.01301616Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: ab446ea499ecbaa4739891b305718b8776a7276308d8cfa0ef2d98923c7d0d3a
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4480,7 +4645,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2022-07-01T07:31:54.029726666Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: edcafc38ea4c742f891526eb40ede21721c3ccf57cc0a26aed272d88d3970137
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4500,7 +4666,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2022-06-10T13:11:44.765164059Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 65a73a7c29af1b9dbd06e91ca7306710fe51f23e1e818cbb5abec494d71790ea
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4520,7 +4687,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2022-06-10T09:36:32.830905137Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 77ad69755ae5f7cd53fbec39a0e04525381b02ee9bbce993e52d4ca67b406cf5
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4540,7 +4708,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.10.0
     created: "2022-05-16T10:50:35.304727162Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: fb0459be99152bdd32b718538724e102c0d4e9ca217bd023f4f3043810c3d8fa
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4558,7 +4727,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.10.0
     created: "2022-04-26T17:54:23.21420676Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 63d292fc4728ff57a48f037203665d72025073192dc353f190c85539d40b9d20
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4576,7 +4746,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.10.0
     created: "2021-12-01T12:00:35.057370391Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 085265e0583d07148b973cf480fe8c3730a54e4d52fe671c19f50e3ee0c55085
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4594,7 +4765,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.9.0
     created: "2021-08-30T11:11:39.461576404Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 7603c4ee3ca0f4e765333fac88f175b07913eeebd9134ae828cbe3d297b86e09
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4612,7 +4784,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.9.0
     created: "2021-08-24T10:20:29.29582059Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 424caa07cf71638773383fb1f685b7f6394f7fa2159543f0a393741c949a2af7
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4630,7 +4803,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.8.0
     created: "2021-07-15T11:43:11.264574807Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 85a0636d2d1cfa845d64b641d272db3b47920bf5b440b84cec7ce3b2fb490408
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4646,7 +4820,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.8.0
     created: "2021-04-28T11:15:06.661747486Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 24b0a1ccdeb5f575036f70c8f1421f1aa281a39bfe7dacd0f29582a54a7f6bd8
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4662,7 +4837,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.7.0
     created: "2021-03-02T15:46:14.693773736Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: c777b066100ffc3810c092b9f8f4a6552aa137f605e42430099540ed9ce4dffd
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4678,7 +4854,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.7.0
     created: "2021-02-05T08:22:45.678563248Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: acac47a1752699df946b058f2d4a5a91f2d0fa6c718cf5979293f2e60c1055b7
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4694,7 +4871,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.6.0
     created: "2021-01-04T12:06:36.438950561Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 4f0401be129f19f5dd2dbc0c8d14b58ff1d21d2497d37b97e9dff36bae9c8a2a
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4710,7 +4888,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.6.0
     created: "2020-10-20T10:19:46.848622637Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 9b3ccbf50a1407d29b82d58f7f0510c757c26e2309b34a6cc2dade67d45c27d4
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4726,7 +4905,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.6.0
     created: "2020-10-19T13:15:09.301247907Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: af96c4216bc48b7161110eca057d1e5294532fe8d77f7b4ea257362751a0e367
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4742,7 +4922,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.6.0
     created: "2020-10-12T10:46:00.085695694Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: d555cd1ca15d10115983055d8feb00d53f9c3288205bbe1ff1fc1a2b9d824015
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     maintainers:
@@ -4757,7 +4938,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.5.0
     created: "2020-08-10T12:23:09.645058336Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 161bf549b0c3e5e5d73299ee4a05e8b77dba6204cd45345b224c46de617981d5
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     maintainers:
@@ -4770,7 +4952,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.4.0
     created: "2020-06-25T06:48:12.393091653Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 5d573ff10d562de72b1a509cca57fc90f99111cefcc83193648dc6b6831a7c92
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     maintainers:
@@ -4783,7 +4966,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.4.0
     created: "2020-05-12T09:45:27.079443864Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: d221822046ad6a017d16b446182fa83fe03190c2d044afdada007a76f575794d
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     maintainers:
@@ -4796,7 +4980,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.3.0
     created: "2020-01-28T11:11:07.156877788Z"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 0fc6468ed1269b3bbbff6068aae5ccbbb46913d3d87533bdf0ed219516d9bde2
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     maintainers:
@@ -4809,7 +4994,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.3.0
     created: "2020-01-23T11:33:14.665924+03:00"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: 23dd06b3c000ab2a02e4cac430cc2a906d2c9976ec3c9256fa15fd792559eabf
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     maintainers:
@@ -4822,7 +5008,8 @@ entries:
   - apiVersion: v1
     appVersion: 1.1.0
     created: "2019-07-25T11:33:14.665924+03:00"
-    description: A Helm chart for installing Percona XtraDB Cluster Databases using the PXC Operator.
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
     digest: e0e767d5727aeb145912bced9a981fa670b7cb2e6ea69f67faad214b78ad2070
     home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
     maintainers:
@@ -4836,7 +5023,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.15.1
     created: "2024-10-24T15:01:57.009967985Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 855f1b3e6aa61f985ba68c38a3fff342992bef2b5183cf30491a7539a484ed95
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4854,7 +5042,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.15.0
     created: "2024-08-21T11:44:56.434571483Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 80f4c5b214794c9339e8ddca6698c5c759988b4317421d42cf4fe385d11b6937
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4872,7 +5061,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.1
     created: "2024-10-16T19:36:19.021482962Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 87e783a69f19dde3d20087db5d66f85cceee4d4fed6b8e71c0f1d1283a425a23
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4890,7 +5080,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-06-28T07:15:09.992666647Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 290d86e7f317f77a990de4e290d90d578bb430fe2eb345eb2af0f9804af7cd6b
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4908,7 +5099,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-04-05T10:44:16.986148488Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 57f0f2bf6ab576f389b41916e3dea5edd33cdf091ffd0ddd3058c207a82c6256
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4926,7 +5118,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.14.0
     created: "2024-03-04T15:19:35.10273612Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 4549b3d2a28075da37e33eb1075c00c8c89e383cd34524292d37256160de51bf
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4944,7 +5137,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2024-02-01T08:38:21.402267382Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: c2aff37290a9027e9164436d986b3657011a3bcc8763222ee58f94880f26e119
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4962,7 +5156,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2024-01-30T16:26:56.003810882Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 705dbe98ceceb5001342f23fbaff94d0fa8fd92b426e6b8b0d7b3a34cb60cfc2
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4980,7 +5175,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2023-09-08T11:45:17.474603704Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: bd19ca1202f4b929c6c1646ffde6143811952774dfb69431469c5f3e687b55f1
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -4998,7 +5194,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2023-09-08T08:11:38.754499107Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 7884bc20f7e83caab86452b85830ded1d8eff6b259f8d1bbb1bd37db807d1f4b
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -5016,7 +5213,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2023-08-04T12:11:44.921005955Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: e4438cb2e2d53bdab5ee77bd129716bc04207b23852a20c029b378a39d8c10a4
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -5034,7 +5232,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.13.0
     created: "2023-07-11T16:13:43.422118813Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 768d2e959c90afa6bcbf3dc85cec4b09db8a0a55e9d1925c9fe94518289ca223
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -5052,7 +5251,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2023-06-14T06:31:10.722592652Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 054b6c7e924ee3b591b61cc81129f5956519292957c15e972df35759341ef1cc
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -5070,7 +5270,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2023-01-20T13:54:12.772941558Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: 2e4327a5e644e5526c20791ed74444cf671af63db7d3653743f2a7e46fc5a665
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -5090,7 +5291,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.12.0
     created: "2022-12-07T18:36:12.714980437Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: eaae164682ef14ae3495a24fdd73ef3fa4dfeefde468d35719ec02bd759c1448
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -5110,7 +5312,8 @@ entries:
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2022-11-11T14:11:34.796699513Z"
-    description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
     digest: bda4d52d8bb8bbe87282db7b495658c5f5064eddc50fac1be5b056309ae38ef6
     home: https://docs.percona.com/percona-operator-for-mysql/pxc/
     icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
@@ -5339,4 +5542,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2022-04-06T15:24:56.630913982Z"
+generated: "2024-10-29T11:37:57.87862939Z"
