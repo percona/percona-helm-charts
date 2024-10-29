@@ -29,6 +29,21 @@ entries:
     urls:
     - https://github.com/percona/percona-helm-charts/releases/download/everest-1.3.0-rc2/everest-1.3.0-rc2.tgz
     version: 1.3.0-rc2
+  everest-db-namespace:
+  - apiVersion: v2
+    appVersion: 1.3.0-rc2
+    created: "2024-10-29T11:38:00.407944454Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.0.1
+    description: A sub-chart for provisioning Everest DB namespaces.
+    digest: 84c5a6b2609dba0682ba908d2b622cc45c58ac6b405b4bbf32dbd36348ba3d45
+    name: everest-db-namespace
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/everest-db-namespace-1.3.0-rc2/everest-db-namespace-1.3.0-rc2.tgz
+    version: 1.3.0-rc2
   pg-db:
   - apiVersion: v2
     appVersion: 2.5.0
@@ -5542,4 +5557,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2024-10-29T11:37:57.87862939Z"
+generated: "2024-10-29T11:38:00.408465106Z"
