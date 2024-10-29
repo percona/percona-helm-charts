@@ -1,0 +1,53 @@
+name: Everest Chart Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Everest version"
+        required: true
+jobs:
+  release:
+    env:
+      VERSION: ${{ github.event.inputs.version }}
+      # Is set if the VERSION corresponds to an RC.
+      IS_RC: 0
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set environment variables
+        run: |
+          if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "IS_RC=1" >> $GITHUB_ENV
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            charts/everest
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Prepare RC
+        if: ${{ env.IS_RC == '1' }}
+        run: |
+          cd charts/everest
+          make release-dev
+
+      - name: Prepare release
+        if: ${{ env.IS_RC == '0' }}
+        run: |
+          cd charts/everest
+          make release
+
+      - name: Install Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: v3.4.0
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.1.0
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
