@@ -47,7 +47,15 @@ jobs:
         with:
           version: v3.4.0
 
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.1.0
+      - name: Release chart
+        uses: helm/chart-releaser-action@v1.6.0
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Release sub-chart
+        uses: helm/chart-releaser-action@v1.6.0
+        with:
+          charts_dir: charts/everest/charts
+          skip_existing: true
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
