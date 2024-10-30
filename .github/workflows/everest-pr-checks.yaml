@@ -1,4 +1,4 @@
-name: Everest Lint & Test
+name: Everest PR checks
 on: 
   pull_request:
     paths:
@@ -33,16 +33,37 @@ jobs:
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
-        
-        # TODO: Add more tests
+
+      - name: Ensure version increment for common chart
+        run: |
+          if git diff --quiet origin/main -- charts/everest/charts/common/; then
+            ct lint --chart-dirs=charts/everest/charts --charts=common
+          else
+          fi
+
+      - name: Ensure updated Chart.lock
+        run: |
+          helm dependency update charts/everest
+          helm dependency update charts/everest/charts/everest-db-namespace
+          if ! git diff --quiet; then
+            echo "Chart.lock is out-of-date"
+            exit 1
+          else
+            echo "Chart.lock is up-to-date"
+          fi
+
+
       - name: Run chart-testing (lint)
-        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --charts=everest --check-version-increment=false
+        run: |
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --charts=everest --check-version-increment=false
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --check-version-increment=false
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
         # Only build a kind cluster if there are chart changes to test.
         if: steps.list-changed.outputs.changed == 'true'
 
+        # TODO: Add more tests
       - name: Run chart-testing (install)
         run: |
           ct install --config .github/ct.yaml --charts=everest --namespace=everest-system
