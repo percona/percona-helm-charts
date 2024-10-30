@@ -52,7 +52,6 @@ jobs:
             echo "Chart.lock is up-to-date"
           fi
 
-
       - name: Run chart-testing (lint)
         run: |
           ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --charts=everest --check-version-increment=false
