@@ -1,0 +1,49 @@
+{{- if (ne (include "everest.namespace" .) "everest-system") }}
+{{ fail "Namespace cannot be set to anything other than everest-system" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: percona-everest
+  namespace: {{ include  "everest.namespace" . }}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: everest
+      app.kubernetes.io/component: everest
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: everest
+        app.kubernetes.io/component: everest
+    spec:
+      serviceAccountName: everest-admin
+      automountServiceAccountToken: true
+      volumes:
+      - name: jwt-secret
+        secret:
+          secretName: everest-jwt
+      containers:
+        - name: everest
+          image: {{ .Values.server.image }}:{{ .Chart.Version }}
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 300
+            periodSeconds: 15
+          resources: {{ toYaml .Values.server.resources | nindent 12 }}
+          volumeMounts:
+          - name: jwt-secret
+            mountPath: /etc/jwt

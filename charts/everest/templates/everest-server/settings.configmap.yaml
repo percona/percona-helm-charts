@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: everest-settings
+  namespace: {{ include  "everest.namespace" . }}
+data:
+  {{- if .Values.server.oidc }}
+  oidc.config: |
+    {{- toYaml .Values.server.oidc | nindent 4 }}
+  {{- end }}
+

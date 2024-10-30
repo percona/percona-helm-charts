@@ -1,0 +1,4 @@
+{{- include "everest.csvCleanup" (dict "namespace" .Values.monitoring.namespace) }}
+---
+{{- include "everest.installplanApprover" (dict "namespace" .Values.monitoring.namespace) }}
+
