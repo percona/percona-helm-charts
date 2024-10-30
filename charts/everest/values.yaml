@@ -37,6 +37,12 @@ operator:
     requests:
       cpu: 5m
       memory: 64Mi
+# -- URL of the Version Metadata Service.
+versionMetadataServiceURL: "https://check.percona.com"
+upgrade:
+  # -- If set, run preliminary checks before upgrading.
+  # It is strongly recommended to enable this setting.
+  preflightChecks: true
 olm:
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
   namespace: everest-olm

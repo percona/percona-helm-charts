@@ -1,0 +1,3 @@
+{{- if .Values.upgrade.preflightChecks }}
+{{- include "everest.preUpgradeChecks" (dict "namespace" (include "everest.namespace" .) "versionMetadataURL" .Values.versionMetadataServiceURL) }}
+{{- end }}

@@ -1,8 +1,9 @@
 #
-# @param .namespace     The namespace where the operator is installed
+# @param .namespace             The namespace where the operator is installed
+# @param .versionMetadataURL    The URL of the version metadata service
 #
-{{- define "everest.csvCleanup" }}
-{{- $hookName := printf "everest-helm-pre-delete-hook" }}
+{{- define "everest.preUpgradeChecks" }}
+{{- $hookName := printf "everest-helm-pre-upgrade-hook" }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -20,14 +21,7 @@ metadata:
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-rules:
-  - apiGroups:
-      - operators.coreos.com
-    resources:
-      - clusterserviceversions
-    verbs:
-      - delete
-      - list
+rules: []
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -58,13 +52,20 @@ spec:
   template:
     spec:
       containers:
-        - image: bitnami/kubectl:latest
+        - image: alpine:3.20
           name: {{ $hookName }}
           command:
             - /bin/sh
             - -c
             - |
-              kubectl delete csv -n {{ .namespace }} --all --wait
+              OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+              ARCH=$(uname -m)
+              VERSION='1.2.0'
+              apk add --no-cache --quiet curl
+              curl -sSL -o everestctl https://github.com/percona/everest/releases/download/v${VERSION}/everestctl-${OS}-${ARCH}
+              chmod -R 777 ./everestctl
+
+              ./everestctl upgrade --dry-run --version-metadata-url={{ .versionMetadataURL }}
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure
       serviceAccount: {{ $hookName }}
