@@ -11,7 +11,7 @@ metadata:
   name: {{ $hookName }}-{{ randNumeric 6 }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": pre-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
