@@ -1,5 +1,6 @@
 #
 # @param .namespace             The namespace where the operator is installed
+# @param .version               Version to upgrade to
 # @param .versionMetadataURL    The URL of the version metadata service
 #
 {{- define "everest.preUpgradeChecks" }}
@@ -24,11 +25,12 @@ spec:
             - |
               OS=$(uname -s | tr '[:upper:]' '[:lower:]')
               ARCH=$(uname -m)
-              VERSION='1.2.0'
+              VERSION={{ .version }}
               apk add --no-cache --quiet curl
               curl -sSL -o everestctl https://github.com/percona/everest/releases/download/v${VERSION}/everestctl-${OS}-${ARCH}
               chmod -R 777 ./everestctl
-                
+              
+              echo "Checking requirements for upgrade to version ${VERSION}"
               ./everestctl upgrade --dry-run --version-metadata-url={{ .versionMetadataURL }}
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure
