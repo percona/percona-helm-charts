@@ -38,7 +38,7 @@ operator:
       cpu: 5m
       memory: 64Mi
 # -- URL of the Version Metadata Service.
-versionMetadataServiceURL: "https://check.percona.com"
+versionMetadataURL: "https://check.percona.com"
 upgrade:
   # -- If set, run preliminary checks before upgrading.
   # It is strongly recommended to enable this setting.
