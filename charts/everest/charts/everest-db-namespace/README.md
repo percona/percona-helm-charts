@@ -26,6 +26,7 @@ Kubernetes: `>= 1.27.0`
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | cleanupOnUninstall | bool | `true` | If set, cleans up the DB resources on uninstall. |
+| compatibility.openshift | bool | `false` | If set, enable OpenShift compatibility. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed in the cluster. |
 | pg | bool | `true` | If set, installs the Percona Postgresql Server operator. |
