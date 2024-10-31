@@ -78,6 +78,8 @@ pmm:
     repository: percona/pmm-client
     tag: 2.42.0
   serverHost: monitoring-service
+#   mongodParams: ""
+#   mongosParams: ""
 #   containerSecurityContext: {}
 
 replsets:

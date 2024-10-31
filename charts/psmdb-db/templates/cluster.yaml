@@ -77,6 +77,12 @@ spec:
     enabled: {{ .Values.pmm.enabled }}
     image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
     serverHost: {{ .Values.pmm.serverHost }}
+    {{- if .Values.pmm.mongodParams }}
+    mongodParams: {{ .Values.pmm.mongodParams }}
+    {{- end }}
+    {{- if .Values.pmm.mongosParams }}
+    mongosParams: {{ .Values.pmm.mongosParams }}
+    {{- end }}
     {{- if .Values.pmm.containerSecurityContext }}
     containerSecurityContext:
 {{ .Values.pmm.containerSecurityContext | toYaml | indent 6 }}
