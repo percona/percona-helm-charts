@@ -46,15 +46,45 @@ jobs:
         # Only build a kind cluster if there are chart changes to test.
         if: steps.list-changed.outputs.changed == 'true'
 
-        # TODO: Add more tests
-      - name: Run chart-testing (install)
+      - name: Basic tests
         run: |
-          kubectl create namespace everest-system
-          ct install --config .github/ct.yaml --charts=./charts/everest --namespace=everest-system
+          # Install the chart
+          helm install everest-core ./charts/everest --create-namespace --namespace everest-system
 
-          kubectl create namespace everest
-          kubectl label namespace everest app.kubernetes.io/managed-by=everest
-          ct install --config .github/ct.yaml --charts=./charts/everest/charts/everest-db-namespace --namespace=everest
+          # Wait for system components
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-everest -n everest-system
+          kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
+
+          # Provision DB namespace
+          kubectl create ns everest
+          kubectl label ns everest app.kubernetes.io/managed-by=everest
+          helm install everest ./charts/everest/charts/everest-db-namespace --namespace everest
+
+          # Ensure operators are installed
+          subs=$(kubectl -n everest get subscription -o jsonpath='{.items[*].metadata.name}')
+          for sub in $subs
+          do
+            echo "Waiting for InstallPlan to be created for Subscription $sub"
+            kubectl wait --for=jsonpath='.status.installplan.name' sub/$sub -n everest --timeout=600s
+            
+            ip=$(kubectl -n everest get sub $sub -o jsonpath='{.status.installplan.name}')
+            echo "InstallPlan $ip created for Subscription $sub"
+
+            echo "Waiting for InstallPlan to be complete $ip"
+            kubectl wait --for=jsonpath='.status.phase'=Complete installplan/$ip -n everest --timeout=600s
+
+            csv=$(kubectl get sub $sub -n everest -o jsonpath='{.status.installedCSV}')
+            echo "Waiting for CSV $csv to succeed"
+            kubectl wait --for=jsonpath='.status.phase'=Succeeded csv/$csv -n everest --timeout=600s
+          done
+
+          # Uninstall
+          helm uninstall everest -n everest
+          kubectl delete ns everest
+          kubectl wait --for=delete namespace/everest --timeout=120s
+          helm uninstall everest-core -n everest-system
+          kubectl delete ns everest-system
+          kubectl wait --for=delete namespace/everest-system --timeout=120s
 
       - name: Build chart package
         run: |
