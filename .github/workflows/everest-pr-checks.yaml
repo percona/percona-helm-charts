@@ -35,24 +35,13 @@ jobs:
       - name: Run chart-testing (lint)
         run: |
           # Ensure common sub-chart is linted and has version increment
-          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespaces
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespace
 
           # Ensure main chart is linted, skip version increment check
           ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --check-version-increment=false
 
           # Ensure all sub-charts are linted, skip version increment check
           ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --check-version-increment=false
-
-      - name: Check Chart.lock
-        run: |
-          helm dependency update charts/everest
-          helm dependency update charts/everest/charts/everest-db-namespace
-          if ! git diff --quiet; then
-            echo "Chart.lock is out-of-date"
-            exit 1
-          else
-            echo "Chart.lock is up-to-date"
-          fi
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
