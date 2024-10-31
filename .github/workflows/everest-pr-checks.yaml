@@ -37,7 +37,7 @@ jobs:
 
       - name: Ensure version increment for common chart
         run: |
-          if git diff --quiet origin/main -- charts/everest/charts/common/; then
+          if ! git diff --quiet origin/main -- charts/everest/charts/common/; then
             ct lint --chart-dirs=charts/everest/charts --charts=common
           fi
 
