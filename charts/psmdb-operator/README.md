@@ -19,7 +19,7 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/psmdb-operator --version 1.17.0 --namespace my-namespace
+helm install my-operator percona/psmdb-operator --version 1.17.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:

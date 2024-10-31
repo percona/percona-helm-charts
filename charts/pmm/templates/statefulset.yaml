@@ -42,7 +42,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          
+
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
 
@@ -58,9 +58,17 @@ spec:
             - configMapRef:
                 name: {{ include "pmm.fullname" . }}
                 optional: true
-
-          # additional secrets that could be used for Grafana iDP 
+            {{ if not .Values.secret.create }}
+            - secretRef:
+                 name: {{ .Values.secret.name }}
+            {{ end }}
           env:
+            - name: PMM_INSTALL_METHOD
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
+            {{ if .Values.secret.create }}
+            # additional secrets that could be used for Grafana iDP
             - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -79,10 +87,7 @@ spec:
                   name: {{ .Values.secret.name }}
                   key: PMM_ADMIN_PASSWORD
                   optional: true
-            - name: PMM_INSTALL_METHOD
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
+            {{ end }}
           ports:
             - name: http
               containerPort: 80
@@ -92,7 +97,7 @@ spec:
             httpGet:
               path: /v1/readyz
               port: http
-          {{- if .Values.readyProbeConf }} 
+          {{- if .Values.readyProbeConf }}
             {{- toYaml .Values.readyProbeConf | nindent 12 }}
           {{- end }}
           volumeMounts:

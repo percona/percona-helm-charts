@@ -1,0 +1,1184 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  creationTimestamp: null
+  name: backupstorages.everest.percona.com
+spec:
+  group: everest.percona.com
+  names:
+    kind: BackupStorage
+    listKind: BackupStorageList
+    plural: backupstorages
+    singular: backupstorage
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: BackupStorage is the Schema for the backupstorages API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: BackupStorageSpec defines the desired state of BackupStorage.
+            properties:
+              allowedNamespaces:
+                description: |-
+                  AllowedNamespaces is the list of namespaces where the operator will copy secrets provided in the CredentialsSecretsName.
+
+
+                  Deprecated: BackupStorages are now used only in the namespaces where they are created.
+                items:
+                  type: string
+                type: array
+              bucket:
+                description: Bucket is a name of bucket.
+                type: string
+              credentialsSecretName:
+                description: CredentialsSecretName is the name of the secret with
+                  credentials.
+                type: string
+              description:
+                description: Description stores description of a backup storage.
+                type: string
+              endpointURL:
+                description: EndpointURL is an endpoint URL of backup storage.
+                type: string
+              forcePathStyle:
+                default: false
+                description: |-
+                  ForcePathStyle is set to use path-style URLs.
+                  If unspecified, the default value is false.
+                type: boolean
+              region:
+                description: Region is a region where the bucket is located.
+                type: string
+              type:
+                description: Type is a type of backup storage.
+                enum:
+                - s3
+                - azure
+                type: string
+              verifyTLS:
+                default: true
+                description: |-
+                  VerifyTLS is set to ensure TLS/SSL verification.
+                  If unspecified, the default value is true.
+                type: boolean
+            required:
+            - bucket
+            - credentialsSecretName
+            - type
+            type: object
+          status:
+            description: BackupStorageStatus defines the observed state of BackupStorage.
+            properties:
+              usedNamespaces:
+                additionalProperties:
+                  type: boolean
+                description: 'Deprecated: BackupStorages are now used only in the
+                  namespaces where they are created.'
+                type: object
+            required:
+            - usedNamespaces
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  creationTimestamp: null
+  name: databaseclusterbackups.everest.percona.com
+spec:
+  group: everest.percona.com
+  names:
+    kind: DatabaseClusterBackup
+    listKind: DatabaseClusterBackupList
+    plural: databaseclusterbackups
+    shortNames:
+    - dbbackup
+    - dbb
+    singular: databaseclusterbackup
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: The original database cluster name
+      jsonPath: .spec.dbClusterName
+      name: Cluster
+      type: string
+    - description: Backup destination
+      jsonPath: .status.destination
+      name: Destination
+      type: string
+    - description: Job status
+      jsonPath: .status.state
+      name: Status
+      type: string
+    - description: Time the job was completed
+      jsonPath: .status.completed
+      name: Completed
+      type: date
+    - description: Age of the resource
+      jsonPath: .status.created
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DatabaseClusterBackup is the Schema for the databaseclusterbackups
+          API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DatabaseClusterBackupSpec defines the desired state of DatabaseClusterBackup.
+            properties:
+              backupStorageName:
+                description: |-
+                  BackupStorageName is the name of the BackupStorage used for backups.
+                  The BackupStorage must be created in the same namespace as the DatabaseCluster.
+                type: string
+              dbClusterName:
+                description: DBClusterName is the original database cluster name.
+                type: string
+            required:
+            - backupStorageName
+            - dbClusterName
+            type: object
+          status:
+            description: DatabaseClusterBackupStatus defines the observed state of
+              DatabaseClusterBackup.
+            properties:
+              completed:
+                description: Completed is the time when the job was completed.
+                format: date-time
+                type: string
+              created:
+                description: Created is the timestamp of the upstream backup's creation.
+                format: date-time
+                type: string
+              destination:
+                description: Destination is the full path to the backup.
+                type: string
+              gaps:
+                description: Gaps identifies if there are gaps detected in the PITR
+                  logs
+                type: boolean
+              latestRestorableTime:
+                description: LatestRestorableTime is the latest time that can be used
+                  for PITR restore
+                format: date-time
+                type: string
+              state:
+                description: State is the DatabaseBackup state.
+                type: string
+            required:
+            - gaps
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  creationTimestamp: null
+  name: databaseclusterrestores.everest.percona.com
+spec:
+  group: everest.percona.com
+  names:
+    kind: DatabaseClusterRestore
+    listKind: DatabaseClusterRestoreList
+    plural: databaseclusterrestores
+    shortNames:
+    - dbrestore
+    - dbr
+    singular: databaseclusterrestore
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Cluster name
+      jsonPath: .spec.dbClusterName
+      name: Cluster
+      type: string
+    - description: DBClusterBackup name
+      jsonPath: .spec.dataSource.dbClusterBackupName
+      name: Backup
+      type: string
+    - description: Backup path
+      jsonPath: .spec.dataSource.backupSource.path
+      name: Path
+      type: string
+    - description: Storage name
+      jsonPath: .spec.dataSource.backupSource.backupStorageName
+      name: Storage
+      type: string
+    - description: Job status
+      jsonPath: .status.state
+      name: Status
+      type: string
+    - description: Completed time
+      jsonPath: .status.completed
+      name: Completed
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DatabaseClusterRestore is the Schema for the databaseclusterrestores
+          API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DatabaseClusterRestoreSpec defines the desired state of DatabaseClusterRestore.
+            properties:
+              dataSource:
+                description: DataSource defines a data source for restoration.
+                properties:
+                  backupSource:
+                    description: BackupSource is the backup source to restore from
+                    properties:
+                      backupStorageName:
+                        description: |-
+                          BackupStorageName is the name of the BackupStorage used for backups.
+                          The BackupStorage must be created in the same namespace as the DatabaseCluster.
+                        type: string
+                      path:
+                        description: Path is the path to the backup file/directory.
+                        type: string
+                    required:
+                    - backupStorageName
+                    - path
+                    type: object
+                  dbClusterBackupName:
+                    description: DBClusterBackupName is the name of the DB cluster
+                      backup to restore from
+                    type: string
+                  pitr:
+                    description: PITR is the point-in-time recovery configuration
+                    properties:
+                      date:
+                        description: 'Date is the UTC date to recover to. The accepted
+                          format: "2006-01-02T15:04:05Z".'
+                        type: string
+                      type:
+                        default: date
+                        description: Type is the type of recovery.
+                        enum:
+                        - date
+                        - latest
+                        type: string
+                    type: object
+                type: object
+              dbClusterName:
+                description: DBClusterName defines the cluster name to restore.
+                type: string
+            required:
+            - dataSource
+            - dbClusterName
+            type: object
+          status:
+            description: DatabaseClusterRestoreStatus defines the observed state of
+              DatabaseClusterRestore.
+            properties:
+              completed:
+                format: date-time
+                type: string
+              message:
+                type: string
+              state:
+                description: RestoreState represents state of restoration.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  creationTimestamp: null
+  name: databaseclusters.everest.percona.com
+spec:
+  group: everest.percona.com
+  names:
+    kind: DatabaseCluster
+    listKind: DatabaseClusterList
+    plural: databaseclusters
+    shortNames:
+    - db
+    - dbc
+    - dbcluster
+    singular: databasecluster
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.size
+      name: Size
+      type: string
+    - jsonPath: .status.ready
+      name: Ready
+      type: string
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    - jsonPath: .status.hostname
+      name: Hostname
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DatabaseCluster is the Schema for the databaseclusters API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DatabaseClusterSpec defines the desired state of DatabaseCluster.
+            properties:
+              allowUnsafeConfiguration:
+                description: AllowUnsafeConfiguration field used to ensure that the
+                  user can create configurations unfit for production use.
+                type: boolean
+              backup:
+                description: Backup is the backup specification
+                properties:
+                  enabled:
+                    description: Enabled is a flag to enable backups
+                    type: boolean
+                  pitr:
+                    description: PITR is the configuration of the point in time recovery
+                    properties:
+                      backupStorageName:
+                        description: |-
+                          BackupStorageName is the name of the BackupStorage where the PITR is enabled
+                          The BackupStorage must be created in the same namespace as the DatabaseCluster.
+                        type: string
+                      enabled:
+                        description: Enabled is a flag to enable PITR
+                        type: boolean
+                      uploadIntervalSec:
+                        description: UploadIntervalSec number of seconds between the
+                          binlogs uploads
+                        type: integer
+                    required:
+                    - enabled
+                    type: object
+                  schedules:
+                    description: Schedules is a list of backup schedules
+                    items:
+                      description: BackupSchedule is the backup schedule configuration.
+                      properties:
+                        backupStorageName:
+                          description: |-
+                            BackupStorageName is the name of the BackupStorage CR that defines the
+                            storage location.
+                            The BackupStorage must be created in the same namespace as the DatabaseCluster.
+                          type: string
+                        enabled:
+                          description: Enabled is a flag to enable the schedule
+                          type: boolean
+                        name:
+                          description: Name is the name of the schedule
+                          type: string
+                        retentionCopies:
+                          description: RetentionCopies is the number of backup copies
+                            to retain
+                          format: int32
+                          type: integer
+                        schedule:
+                          description: Schedule is the cron schedule
+                          type: string
+                      required:
+                      - backupStorageName
+                      - enabled
+                      - name
+                      - schedule
+                      type: object
+                    type: array
+                required:
+                - enabled
+                type: object
+              dataSource:
+                description: DataSource defines a data source for bootstraping a new
+                  cluster
+                properties:
+                  backupSource:
+                    description: BackupSource is the backup source to restore from
+                    properties:
+                      backupStorageName:
+                        description: |-
+                          BackupStorageName is the name of the BackupStorage used for backups.
+                          The BackupStorage must be created in the same namespace as the DatabaseCluster.
+                        type: string
+                      path:
+                        description: Path is the path to the backup file/directory.
+                        type: string
+                    required:
+                    - backupStorageName
+                    - path
+                    type: object
+                  dbClusterBackupName:
+                    description: DBClusterBackupName is the name of the DB cluster
+                      backup to restore from
+                    type: string
+                  pitr:
+                    description: PITR is the point-in-time recovery configuration
+                    properties:
+                      date:
+                        description: 'Date is the UTC date to recover to. The accepted
+                          format: "2006-01-02T15:04:05Z".'
+                        type: string
+                      type:
+                        default: date
+                        description: Type is the type of recovery.
+                        enum:
+                        - date
+                        - latest
+                        type: string
+                    type: object
+                type: object
+              engine:
+                description: Engine is the database engine specification
+                properties:
+                  config:
+                    description: Config is the engine configuration
+                    type: string
+                  crVersion:
+                    description: |-
+                      CRVersion is the desired version of the CR to use with the
+                      underlying operator.
+                      If unspecified, everest-operator will use the same version as the operator.
+
+
+                      NOTE: Updating this property post installation may lead to a restart of the cluster.
+                    type: string
+                  replicas:
+                    description: Replicas is the number of engine replicas
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  resources:
+                    description: |-
+                      Resources are the resource limits for each engine replica.
+                      If not set, resource limits are not imposed
+                    properties:
+                      cpu:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: CPU is the CPU resource requirements
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      memory:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: Memory is the memory resource requirements
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    type: object
+                  storage:
+                    description: Storage is the engine storage configuration
+                    properties:
+                      class:
+                        description: Class is the storage class to use for the persistent
+                          volume claim
+                        type: string
+                      size:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: Size is the size of the persistent volume claim
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    required:
+                    - size
+                    type: object
+                  type:
+                    description: Type is the engine type
+                    enum:
+                    - pxc
+                    - postgresql
+                    - psmdb
+                    type: string
+                  userSecretsName:
+                    description: UserSecretsName is the name of the secret containing
+                      the user secrets
+                    type: string
+                  version:
+                    description: Version is the engine version
+                    type: string
+                required:
+                - storage
+                - type
+                type: object
+              monitoring:
+                description: Monitoring is the monitoring configuration
+                properties:
+                  monitoringConfigName:
+                    description: |-
+                      MonitoringConfigName is the name of a monitoringConfig CR.
+                      The MonitoringConfig must be created in the same namespace as the DatabaseCluster.
+                    type: string
+                  resources:
+                    description: Resources defines resource limitations for the monitoring.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+
+                          This is an alpha field and requires enabling the
+                          DynamicResourceAllocation feature gate.
+
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                type: object
+              paused:
+                description: Paused is a flag to stop the cluster
+                type: boolean
+              proxy:
+                description: |-
+                  Proxy is the proxy specification. If not set, an appropriate
+                  proxy specification will be applied for the given engine. A
+                  common use case for setting this field is to control the
+                  external access to the database cluster.
+                properties:
+                  config:
+                    description: Config is the proxy configuration
+                    type: string
+                  expose:
+                    description: Expose is the proxy expose configuration
+                    properties:
+                      ipSourceRanges:
+                        description: |-
+                          IPSourceRanges is the list of IP source ranges (CIDR notation)
+                          to allow access from. If not set, there is no limitations
+                        items:
+                          description: IPSourceRange represents IP addresses in CIDR
+                            notation or without a netmask.
+                          type: string
+                        type: array
+                      type:
+                        default: internal
+                        description: Type is the expose type, can be internal or external
+                        enum:
+                        - internal
+                        - external
+                        type: string
+                    type: object
+                  replicas:
+                    description: Replicas is the number of proxy replicas
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  resources:
+                    description: |-
+                      Resources are the resource limits for each proxy replica.
+                      If not set, resource limits are not imposed
+                    properties:
+                      cpu:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: CPU is the CPU resource requirements
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      memory:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: Memory is the memory resource requirements
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    type: object
+                  type:
+                    description: Type is the proxy type
+                    enum:
+                    - mongos
+                    - haproxy
+                    - proxysql
+                    - pgbouncer
+                    type: string
+                type: object
+              sharding:
+                description: Sharding is the sharding configuration. PSMDB-only
+                properties:
+                  configServer:
+                    description: ConfigServer represents the sharding configuration
+                      server settings
+                    properties:
+                      replicas:
+                        description: Replicas is the amount of configServers
+                        format: int32
+                        minimum: 1
+                        type: integer
+                    required:
+                    - replicas
+                    type: object
+                  enabled:
+                    description: Enabled defines if the sharding is enabled
+                    type: boolean
+                  shards:
+                    description: Shards defines the number of shards
+                    format: int32
+                    minimum: 1
+                    type: integer
+                required:
+                - configServer
+                - enabled
+                - shards
+                type: object
+            required:
+            - engine
+            type: object
+          status:
+            description: DatabaseClusterStatus defines the observed state of DatabaseCluster.
+            properties:
+              activeStorage:
+                description: ActiveStorage is the storage used in cluster (psmdb only)
+                type: string
+              crVersion:
+                description: CRVersion is the observed version of the CR used with
+                  the underlying operator.
+                type: string
+              details:
+                description: Details provides full status of the upstream cluster
+                  as a plain text.
+                type: string
+              hostname:
+                description: Hostname is the hostname where the cluster can be reached
+                type: string
+              message:
+                description: Message is extra information about the cluster
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the most recent generation observed
+                  for this DatabaseCluster.
+                format: int64
+                type: integer
+              port:
+                description: Port is the port where the cluster can be reached
+                format: int32
+                type: integer
+              ready:
+                description: Ready is the number of ready pods
+                format: int32
+                type: integer
+              recommendedCRVersion:
+                description: |-
+                  RecommendedCRVersion is the recommended version of the CR to use.
+                  If set, the CR needs to be updated to this version before upgrading the operator.
+                  If unset, the CR is already at the recommended version.
+                type: string
+              size:
+                description: Size is the total number of pods
+                format: int32
+                type: integer
+              status:
+                description: Status is the status of the cluster
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  creationTimestamp: null
+  name: databaseengines.everest.percona.com
+spec:
+  group: everest.percona.com
+  names:
+    kind: DatabaseEngine
+    listKind: DatabaseEngineList
+    plural: databaseengines
+    shortNames:
+    - dbengine
+    singular: databaseengine
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.type
+      name: Type
+      type: string
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    - jsonPath: .status.operatorVersion
+      name: Operator Version
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DatabaseEngine is the Schema for the databaseengines API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DatabaseEngineSpec is a spec for a database engine.
+            properties:
+              allowedVersions:
+                items:
+                  type: string
+                type: array
+              type:
+                description: |-
+                  EngineType stands for the supported database engines. Right now it's only pxc
+                  and psmdb. However, it can be ps, pg and any other source.
+                type: string
+            required:
+            - type
+            type: object
+          status:
+            description: DatabaseEngineStatus defines the observed state of DatabaseEngine.
+            properties:
+              availableVersions:
+                description: Versions struct represents available versions of database
+                  engine components.
+                properties:
+                  backup:
+                    additionalProperties:
+                      description: |-
+                        Component contains information of the database engine component.
+                        Database Engine component can be database engine, database proxy or tools image path.
+                      properties:
+                        critical:
+                          type: boolean
+                        imageHash:
+                          type: string
+                        imagePath:
+                          type: string
+                        status:
+                          description: ComponentStatus represents status of the database
+                            engine component.
+                          type: string
+                      type: object
+                    description: ComponentsMap is a map of database engine components.
+                    type: object
+                  engine:
+                    additionalProperties:
+                      description: |-
+                        Component contains information of the database engine component.
+                        Database Engine component can be database engine, database proxy or tools image path.
+                      properties:
+                        critical:
+                          type: boolean
+                        imageHash:
+                          type: string
+                        imagePath:
+                          type: string
+                        status:
+                          description: ComponentStatus represents status of the database
+                            engine component.
+                          type: string
+                      type: object
+                    description: ComponentsMap is a map of database engine components.
+                    type: object
+                  proxy:
+                    additionalProperties:
+                      additionalProperties:
+                        description: |-
+                          Component contains information of the database engine component.
+                          Database Engine component can be database engine, database proxy or tools image path.
+                        properties:
+                          critical:
+                            type: boolean
+                          imageHash:
+                            type: string
+                          imagePath:
+                            type: string
+                          status:
+                            description: ComponentStatus represents status of the
+                              database engine component.
+                            type: string
+                        type: object
+                      description: ComponentsMap is a map of database engine components.
+                      type: object
+                    type: object
+                  tools:
+                    additionalProperties:
+                      additionalProperties:
+                        description: |-
+                          Component contains information of the database engine component.
+                          Database Engine component can be database engine, database proxy or tools image path.
+                        properties:
+                          critical:
+                            type: boolean
+                          imageHash:
+                            type: string
+                          imagePath:
+                            type: string
+                          status:
+                            description: ComponentStatus represents status of the
+                              database engine component.
+                            type: string
+                        type: object
+                      description: ComponentsMap is a map of database engine components.
+                      type: object
+                    type: object
+                type: object
+              operatorUpgrade:
+                description: OperatorUpgrade contains the status of the operator upgrade.
+                properties:
+                  installPlanRef:
+                    description: |-
+                      InstallPlanRef is a reference to the InstallPlan object created for the operator upgrade.
+
+
+                      We do not recommended approving this InstallPlan directly from the Kubernetes API.
+                      This is because this InstallPlan may also upgrade other operators in the namespace and that
+                      can have unintended consequences.
+                      This behaviour is not a bug from Everest, but an unfortunate limitation of OLM.
+                      We suggest using the Everest API/UI to handle operator upgrades, which will perform a series
+                      of checks and safely upgrade all operators in the namespace.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          TODO: Add other useful fields. apiVersion, kind, uid?
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  message:
+                    type: string
+                  phase:
+                    description: UpgradePhase represents the phase of the operator
+                      upgrade.
+                    type: string
+                  startedAt:
+                    format: date-time
+                    type: string
+                  targetVersion:
+                    description: TargetVersion is the version to which the operator
+                      should be upgraded.
+                    type: string
+                type: object
+              operatorVersion:
+                type: string
+              pendingOperatorUpgrades:
+                items:
+                  description: OperatorUpgrade contains the information about the
+                    operator upgrade.
+                  properties:
+                    installPlanRef:
+                      description: |-
+                        InstallPlanRef is a reference to the InstallPlan object created for the operator upgrade.
+
+
+                        We do not recommended approving this InstallPlan directly from the Kubernetes API.
+                        This is because this InstallPlan may also upgrade other operators in the namespace and that
+                        can have unintended consequences.
+                        This behaviour is not a bug from Everest, but an unfortunate limitation of OLM.
+                        We suggest using the Everest API/UI to handle operator upgrades, which will perform a series
+                        of checks and safely upgrade all operators in the namespace.
+                      properties:
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            TODO: Add other useful fields. apiVersion, kind, uid?
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Drop `kubebuilder:default` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    targetVersion:
+                      description: TargetVersion is the version to which the operator
+                        should be upgraded.
+                      type: string
+                  type: object
+                type: array
+              status:
+                description: EngineState represents state of engine in a k8s cluster.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  creationTimestamp: null
+  name: monitoringconfigs.everest.percona.com
+spec:
+  group: everest.percona.com
+  names:
+    kind: MonitoringConfig
+    listKind: MonitoringConfigList
+    plural: monitoringconfigs
+    singular: monitoringconfig
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Monitoring instance type
+      jsonPath: .spec.type
+      name: Type
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: MonitoringConfig is the Schema for the monitoringconfigs API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: MonitoringConfigSpec defines the desired state of MonitoringConfig.
+            properties:
+              allowedNamespaces:
+                description: AllowedNamespaces is the list of namespaces where the
+                  operator will copy secrets provided in the CredentialsSecretsName.
+                items:
+                  type: string
+                type: array
+              credentialsSecretName:
+                description: CredentialsSecretName is the name of the secret with
+                  credentials.
+                type: string
+              pmm:
+                description: PMM is configuration for the PMM monitoring type.
+                properties:
+                  image:
+                    description: Image is a Docker image name to use for deploying
+                      PMM client. Defaults to using the latest version.
+                    type: string
+                  url:
+                    description: URL is url to the monitoring instance.
+                    type: string
+                required:
+                - image
+                - url
+                type: object
+              type:
+                description: Type is type of monitoring.
+                enum:
+                - pmm
+                type: string
+              verifyTLS:
+                default: true
+                description: |-
+                  VerifyTLS is set to ensure TLS/SSL verification.
+                  If unspecified, the default value is true.
+                type: boolean
+            required:
+            - credentialsSecretName
+            - type
+            type: object
+          status:
+            description: MonitoringConfigStatus defines the observed state of MonitoringConfig.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
+---
