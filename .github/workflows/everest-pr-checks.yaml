@@ -39,7 +39,6 @@ jobs:
         run: |
           if git diff --quiet origin/main -- charts/everest/charts/common/; then
             ct lint --chart-dirs=charts/everest/charts --charts=common
-          else
           fi
 
       - name: Ensure updated Chart.lock
