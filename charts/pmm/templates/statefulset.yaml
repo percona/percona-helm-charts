@@ -58,7 +58,7 @@ spec:
             - configMapRef:
                 name: {{ include "pmm.fullname" . }}
                 optional: true
-            {{ if not .Values.secret.create and .Values.secret.name }}
+            {{ if and (not .Values.secret.create) .Values.secret.name }}
             - secretRef:
                  name: {{ .Values.secret.name }}
             {{ end }}
