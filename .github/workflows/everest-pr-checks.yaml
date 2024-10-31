@@ -17,9 +17,7 @@ jobs:
         with:
           version: v3.15.4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - uses: actions/setup-kubectl@v4
 
       - name: Set up chart-testing
         uses: helm/chart-testing-action@v2.6.1
