@@ -8,12 +8,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          sparse-checkout: |
-            .github/
-            charts/everest
 
       - name: Set up Helm
         uses: azure/setup-helm@v4.2.0
