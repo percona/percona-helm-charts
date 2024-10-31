@@ -77,9 +77,9 @@ The chart can be customized using the following configurable parameters:
 | `pmm.serverHost`               | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service` |
 | `pmm.containerSecurityContext` | Set the security context for PMM container                                                                                                                                               | `{}`                 |
 | `pmm.mongodParams`             | PMM mongod params | `""`              |
-|
+| |
 | `pmm.mongosParams`             | PMM mongos params | `""`              |
-|
+| |
 | `replsets.rs0.name`                                                | ReplicaSet name                                                                                                                              | `rs0`                    |
 | `replsets.rs0.size`                                                | ReplicaSet size (pod quantity)                                                                                                               | `3`                      |
 | `replsets.rs0.terminationGracePeriodSeconds`                       | The amount of seconds Kubernetes will wait for a clean replica set Pods termination                                                          | `""`                     |
