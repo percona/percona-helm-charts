@@ -1,5 +1,6 @@
 # Percona Everest
 
+######
 This helm chart deploys Percona Everest.
 
 Useful links:
