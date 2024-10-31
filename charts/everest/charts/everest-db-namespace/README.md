@@ -4,11 +4,20 @@
 
 A sub-chart for provisioning Everest DB namespaces.
 
+## Maintainers
+
+| Name | Email | Url |
+| ---- | ------ | --- |
+| mayankshah1607 | <mayank.shah@percona.com> |  |
+| oksana-grishchenko | <oksana.grishchenko@percona.com> |  |
+| recharte | <diogo.recharte@percona.com> |  |
+| michal-kralik | <michal.kralik@percona.com> |  |
+
 ## Requirements
 
 | Repository | Name | Version |
 |------------|------|---------|
-| file://../common | common | 0.0.1 |
+| file://../common | common | 0.0.* |
 
 ## Values
 
