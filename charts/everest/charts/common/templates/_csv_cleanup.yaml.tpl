@@ -1,4 +1,4 @@
-#
+## test comment
 # @param .namespace     The namespace where the operator is installed
 #
 {{- define "everest.csvCleanup" }}
