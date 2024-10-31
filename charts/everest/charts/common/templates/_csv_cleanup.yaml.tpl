@@ -1,4 +1,3 @@
-###
 #
 # @param .namespace     The namespace where the operator is installed
 #
