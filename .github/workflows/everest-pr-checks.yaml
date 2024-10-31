@@ -1,0 +1,100 @@
+name: Everest PR checks
+on: 
+  pull_request:
+    paths:
+      - 'charts/everest/**'
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4.2.0
+        with:
+          version: v3.15.4
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.6.1
+
+      - name: Run chart-testing (list-changed)
+        id: list-changed
+        run: |
+          changed=$(ct list-changed --config .github/ct.yaml)
+          if [[ -n "$changed" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run chart-testing (lint)
+        run: |
+          # Ensure common sub-chart is linted and has version increment
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespace
+
+          # Ensure main chart is linted, skip version increment check
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --check-version-increment=false
+
+          # Ensure all sub-charts are linted, skip version increment check
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --check-version-increment=false
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        # Only build a kind cluster if there are chart changes to test.
+        if: steps.list-changed.outputs.changed == 'true'
+
+      - name: Basic tests
+        run: |
+          # Install the chart
+          helm install everest-core ./charts/everest --create-namespace --namespace everest-system
+
+          # Wait for system components
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-everest -n everest-system
+          kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
+
+          # Provision DB namespace
+          kubectl create ns everest
+          kubectl label ns everest app.kubernetes.io/managed-by=everest
+          helm install everest ./charts/everest/charts/everest-db-namespace --namespace everest
+
+          # Ensure operators are installed
+          subs=$(kubectl -n everest get subscription -o jsonpath='{.items[*].metadata.name}')
+          for sub in $subs
+          do
+            echo "Waiting for InstallPlan to be created for Subscription $sub"
+            kubectl wait --for=jsonpath='.status.installplan.name' sub/$sub -n everest --timeout=600s
+            
+            ip=$(kubectl -n everest get sub $sub -o jsonpath='{.status.installplan.name}')
+            echo "InstallPlan $ip created for Subscription $sub"
+
+            echo "Waiting for InstallPlan to be complete $ip"
+            kubectl wait --for=jsonpath='.status.phase'=Complete installplan/$ip -n everest --timeout=600s
+
+            csv=$(kubectl get sub $sub -n everest -o jsonpath='{.status.installedCSV}')
+            echo "Waiting for CSV $csv to succeed"
+            kubectl wait --for=jsonpath='.status.phase'=Succeeded csv/$csv -n everest --timeout=600s
+          done
+
+          # Uninstall
+          helm uninstall everest -n everest
+          kubectl delete ns everest
+          kubectl wait --for=delete namespace/everest --timeout=120s
+          helm uninstall everest-core -n everest-system
+          kubectl delete ns everest-system
+          kubectl wait --for=delete namespace/everest-system --timeout=120s
+
+      - name: Build chart package
+        run: |
+          changed=$(ct list-changed --config .github/ct.yaml)
+          [ $(echo -n "$changed" | grep -c '^') == 1 ] && helm package $changed || echo "skipping package"
+
+      - name: Upload helm chart
+        uses: actions/upload-artifact@v4
+        with:
+          path: ./*.tgz
+          retention-days: 30
+          if-no-files-found: ignore
+
