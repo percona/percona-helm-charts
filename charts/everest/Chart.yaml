@@ -16,7 +16,7 @@ maintainers:
     email: michal.kralik@percona.com
 dependencies:
   - name: common
-    version: 0.0.1
+    version: 0.0.*
     repository: "file://charts/common"
     # This is not really a dependency, but we define it as one so that we're
     # able to conditionally disable rendering these manifests along with the core chart manifests.
