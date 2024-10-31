@@ -51,7 +51,7 @@ jobs:
         # TODO: Add more tests
       - name: Run chart-testing (install)
         run: |
-          ct install --config .github/ct.yaml --charts=everest --namespace=everest-system
+          ct install --config .github/ct.yaml --charts=./charts/everest --namespace=everest-system
 
       - name: Build chart package
         run: |
