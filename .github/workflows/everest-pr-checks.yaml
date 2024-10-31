@@ -52,6 +52,9 @@ jobs:
           kubectl create namespace everest-system
           ct install --config .github/ct.yaml --charts=./charts/everest --namespace=everest-system
 
+          kubectl create namespace everest
+          ct install --config .github/ct.yaml --charts=./charts/everest/charts/everest-db-namespace --namespace=everest
+
       - name: Build chart package
         run: |
           changed=$(ct list-changed --config .github/ct.yaml)
