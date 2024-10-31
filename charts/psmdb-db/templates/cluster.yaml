@@ -83,6 +83,10 @@ spec:
     {{- if .Values.pmm.mongosParams }}
     mongosParams: {{ .Values.pmm.mongosParams }}
     {{- end }}
+    {{- if .Values.pmm.resources }}
+    resources:
+{{ .Values.pmm.resources | toYaml | indent 6 }}
+    {{- end }}
     {{- if .Values.pmm.containerSecurityContext }}
     containerSecurityContext:
 {{ .Values.pmm.containerSecurityContext | toYaml | indent 6 }}

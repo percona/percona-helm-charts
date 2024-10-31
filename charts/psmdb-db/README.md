@@ -76,6 +76,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `2.42.0`             |
 | `pmm.serverHost`               | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service` |
 | `pmm.containerSecurityContext` | Set the security context for PMM container                                                                                                                                               | `{}`                 |
+| `pmm.resources` | Set resources for PMM container                                                                                                                                               | `{}`                 |
 | `pmm.mongodParams`             | PMM mongod params | `""`              |
 | |
 | `pmm.mongosParams`             | PMM mongos params | `""`              |
