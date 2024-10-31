@@ -35,7 +35,7 @@ jobs:
       - name: Ensure version increment for common chart
         run: |
           if ! git diff --quiet origin/main -- charts/everest/charts/common/; then
-            ct lint --chart-dirs=charts/everest/charts --charts=common
+            ct lint --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespaces
           fi
 
       - name: Ensure updated Chart.lock
@@ -51,7 +51,7 @@ jobs:
 
       - name: Run chart-testing (lint)
         run: |
-          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --charts=everest --check-version-increment=false
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --check-version-increment=false
           ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --check-version-increment=false
 
       - name: Create kind cluster
