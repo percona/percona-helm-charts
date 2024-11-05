@@ -83,3 +83,5 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.rbac | string | `"g, admin, role:admin\n"` | RBAC policy for Everest. |
 | server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
 | telemetry | bool | `true` | If set, enabled sending telemetry information. |
+| upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
+| versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |
