@@ -15,6 +15,8 @@ A sub-chart for provisioning Everest DB namespaces.
 
 ## Requirements
 
+Kubernetes: `>= 1.27.0`
+
 | Repository | Name | Version |
 |------------|------|---------|
 | file://../common | common | 0.0.* |
