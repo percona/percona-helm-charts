@@ -1,5 +1,6 @@
 compatibility:
-  # -- If set, enable OpenShift compatibility.
+  # -- Enable OpenShift compatibility.
+  # If set, ignores olm.install and olm.namespace settings.
   openshift: false
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
