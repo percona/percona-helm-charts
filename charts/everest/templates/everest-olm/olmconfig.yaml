@@ -1,4 +1,6 @@
+{{- if (and (not .Values.compatibility.openshift) .Values.olm.install) }}
 apiVersion: operators.coreos.com/v1
 kind: OLMConfig
 metadata:
   name: cluster
+{{- end }}
