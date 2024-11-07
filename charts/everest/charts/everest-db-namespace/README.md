@@ -4,17 +4,29 @@
 
 A sub-chart for provisioning Everest DB namespaces.
 
+## Maintainers
+
+| Name | Email | Url |
+| ---- | ------ | --- |
+| mayankshah1607 | <mayank.shah@percona.com> |  |
+| oksana-grishchenko | <oksana.grishchenko@percona.com> |  |
+| recharte | <diogo.recharte@percona.com> |  |
+| michal-kralik | <michal.kralik@percona.com> |  |
+
 ## Requirements
+
+Kubernetes: `>= 1.27.0`
 
 | Repository | Name | Version |
 |------------|------|---------|
-| file://../common | common | 0.0.1 |
+| file://../common | common | 0.0.* |
 
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | cleanupOnUninstall | bool | `true` | If set, cleans up the DB resources on uninstall. |
+| compatibility.openshift | bool | `false` | If set, enable OpenShift compatibility. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed in the cluster. |
 | pg | bool | `true` | If set, installs the Percona Postgresql Server operator. |

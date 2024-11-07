@@ -63,11 +63,13 @@ The following table shows the configurable parameters of the Percona Everest cha
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| compatibility.openshift | bool | `false` | Enable OpenShift compatibility. If set, ignores olm.install and olm.namespace settings. |
 | everest-db-namespace.enabled | bool | `false` | Do not enable. |
 | monitoring.namespace | string | `"everest-monitoring"` | Namespace where monitoring is installed. Do no change unless you know what you are doing. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
 | olm.image | string | `"quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6"` | Image to use for the OLM components. |
+| olm.install | bool | `true` | If set, installs OLM in the provided namespace. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
 | olm.packageserver.tls.caCert | string | `""` | CA certificate for the PackageServer APIService. Overrides the tls.type setting. |
 | olm.packageserver.tls.tlsCert | string | `""` | Client certificate for the PackageServer APIService. Overrides the tls.type setting. |
@@ -83,3 +85,5 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.rbac | string | `"g, admin, role:admin\n"` | RBAC policy for Everest. |
 | server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
 | telemetry | bool | `true` | If set, enabled sending telemetry information. |
+| upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
+| versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |

@@ -1,5 +1,5 @@
 #
-# @param .namespace     The namespace where the operator is installed
+# @param .namespace     The namespace where the operators are installed
 #
 {{- define "everest.installplanApprover" }}
 {{- $hookName := "everest-helm-post-install-hook" }}
@@ -9,7 +9,8 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -17,7 +18,8 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
   - apiGroups:
       - operators.coreos.com
@@ -45,7 +47,8 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -61,8 +64,8 @@ metadata:
   name: {{ $hookName }}-{{ randNumeric 6 }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": post-install
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
     spec:
