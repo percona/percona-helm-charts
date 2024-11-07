@@ -3277,6 +3277,22 @@ entries:
   psmdb-db:
   - apiVersion: v2
     appVersion: 1.17.0
+    created: "2024-11-07T13:48:30.8237302Z"
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
+    digest: 11393501b8b9d1a953834d75de3db285efe4b58077c8177639255e5ce5cee095
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: psmdb-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-1.17.1/psmdb-db-1.17.1.tgz
+    version: 1.17.1
+  - apiVersion: v2
+    appVersion: 1.17.0
     created: "2024-09-10T11:24:17.490953025Z"
     description: A Helm chart for installing Percona Server MongoDB Cluster Databases
       using the PSMDB Operator.
@@ -5653,4 +5669,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2024-11-07T05:23:01.74479942Z"
+generated: "2024-11-07T13:48:30.824946683Z"
