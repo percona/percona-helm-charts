@@ -62,6 +62,7 @@ jobs:
 
       - name: Basic tests
         run: |
+          helm depencency update
           # Install the chart
           helm install everest-core ./charts/everest --create-namespace --namespace everest-system
 
