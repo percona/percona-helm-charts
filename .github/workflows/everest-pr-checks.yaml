@@ -60,6 +60,11 @@ jobs:
         # Only build a kind cluster if there are chart changes to test.
         if: steps.list-changed.outputs.changed == 'true'
 
+      - name: Build dependencies
+        run: |
+          cd charts/everest
+          make deps
+
       - name: Basic tests
         run: |
           # Install the chart
