@@ -1,2 +1,4 @@
 .deploy/
 .idea/
+*.tgz
+!everest/charts/everest-db-namespace/charts/*.tgz
