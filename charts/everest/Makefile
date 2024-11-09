@@ -1,4 +1,3 @@
-# test
 prepare-chart:
 	CHART_FILES="Chart.yaml ./charts/everest-db-namespace/Chart.yaml"; \
 	for chart in $$CHART_FILES; do \
