@@ -55,11 +55,6 @@ jobs:
           # Ensure all sub-charts are linted, skip version increment check
           ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --check-version-increment=false
 
-      - name: Create kind cluster
-        uses: helm/kind-action@v1.10.0
-        # Only build a kind cluster if there are chart changes to test.
-        if: steps.list-changed.outputs.changed == 'true'
-
       - name: Build dependencies
         run: |
           cd charts/everest
@@ -70,6 +65,11 @@ jobs:
             echo "Dependencies are out of date. Please run 'make deps' and commit the changes."
             exit 1
           fi
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        # Only build a kind cluster if there are chart changes to test.
+        if: steps.list-changed.outputs.changed == 'true'
 
       - name: Basic tests
         run: |
