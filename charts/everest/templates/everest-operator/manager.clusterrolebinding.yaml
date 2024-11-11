@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: everest-operator-manager-rolebinding
+subjects:
+- kind: ServiceAccount
+  name: everest-operator-controller-manager
+  namespace: {{ include  "everest.namespace" . }}
+roleRef:
+  kind: ClusterRole
+  name: everest-operator-manager-role
+  apiGroup: rbac.authorization.k8s.io
+

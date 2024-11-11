@@ -1,0 +1,68 @@
+# Percona Everest
+
+This helm chart deploys Percona Everest.
+
+Useful links:
+- [Percona Everest Documentation](https://docs.percona.com/everest/index.html)
+- [Percona Everest GitHub](https://github.com/percona/everest)
+
+> :warning: Note: This chart is currently in technical preview.
+Future releases could potentially introduce breaking changes, and we cannot promise a migration path. We do not recommend using this in production environment,
+but if you do so, please be aware of the risks.
+
+## Usage
+
+### Deploy Percona Everest
+
+```sh
+helm repo add percona https://percona.github.io/percona-helm-charts/
+helm install everest-core percona/everest --namespace everest-system --create-namespace
+```
+
+> Note: we currently do not support deploying Everest in a namespace other than `everest-system`.
+
+This command may take a few minutes to complete. Once done, you can retrieve the admin credentials using the following command:
+
+```sh
+kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\.yaml}' | base64 --decode  | yq '.admin.passwordHash'
+```
+
+### Deploy your database namespace components
+
+Once Everest is running, we need to create a namespace for your databases and provision the necessary operators.
+
+```sh
+cat <<EOF | kubectl create -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: everest
+  labels:
+    app.kubernetes.io/managed-by: everest
+EOF
+helm install everest percona/everest-db-namespace --namespace everest
+```
+
+### Uninstalling
+
+As a first step, you must always clean up your database namespace(s) first, otherwise the deletion could get stuck.
+```sh
+helm uninstall everest -n everest
+kubectl delete ns everest
+```
+
+Then you can uninstall Everest itself:
+```sh
+helm uninstall everest-core -n everest-system
+kubectl delete ns everest-system
+```
+
+## Configuration
+
+The following table shows the configurable parameters of the Percona Everest chart and their default values.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+{{- range .Values }}
+| {{ .Key }} | {{ .Type }} | {{ .Default }} | {{ .AutoDescription }} |
+{{- end }}

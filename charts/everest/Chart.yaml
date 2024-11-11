@@ -1,0 +1,27 @@
+apiVersion: v2
+name: everest
+description: A cloud-native database platform
+version: 0.0.0
+appVersion: 0.0.0
+type: application
+kubeVersion: '>= 1.27.0'
+maintainers:
+  - name: mayankshah1607
+    email: mayank.shah@percona.com
+  - name: oksana-grishchenko
+    email: oksana.grishchenko@percona.com
+  - name: recharte
+    email: diogo.recharte@percona.com
+  - name: michal-kralik
+    email: michal.kralik@percona.com
+dependencies:
+  - name: common
+    version: 0.0.*
+    repository: "file://charts/common"
+    # This is not really a dependency, but we define it as one so that we're
+    # able to conditionally disable rendering these manifests along with the core chart manifests.
+    # The default behaviour of Helm is to always include the sub-chart manfiests unless explicitly disabled.
+  - name: everest-db-namespace
+    version: 0.0.0
+    repository: "file://charts/everest-db-namespace"
+    condition: "everest-db-namespace.enabled"
