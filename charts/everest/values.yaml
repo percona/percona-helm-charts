@@ -24,6 +24,8 @@ server:
   oidc: {}
   # issuerUrl: ""
   # clientId: ""
+  # -- Set the allowed number of requests per minute.
+  apiRequestsRateLimit: 100
 operator:
   # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator

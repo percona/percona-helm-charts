@@ -47,3 +47,8 @@ spec:
           volumeMounts:
           - name: jwt-secret
             mountPath: /etc/jwt
+          env:
+          {{- if hasKey .Values.server "apiRequestsRateLimit" }}
+          - name: API_REQUESTS_RATE_LIMIT
+            value: "{{ .Values.server.apiRequestsRateLimit }}"
+          {{- end }}
