@@ -24,7 +24,7 @@ server:
   oidc: {}
   # issuerUrl: ""
   # clientId: ""
-  # -- Set the allowed number of requests per minute.
+  # -- Set the allowed number of requests per second.
   apiRequestsRateLimit: 100
 operator:
   # -- Image to use for the Everest operator container.
