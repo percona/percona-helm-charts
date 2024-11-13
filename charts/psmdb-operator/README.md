@@ -6,7 +6,7 @@ Useful links:
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html)
 
 ## Pre-requisites
-* Kubernetes 1.27+
+* Kubernetes 1.28+
 * Helm v3
 
 # Installation
