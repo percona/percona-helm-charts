@@ -111,3 +111,7 @@ altNames:
 {{- end }}
 - localhost
 {{- end }}
+
+{{- define "everest.versionMetadataURL" -}}
+{{- trimSuffix "/" (default "https://check.percona.com" .Values.versionMetadataURL) -}}
+{{- end }}
