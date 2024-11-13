@@ -101,6 +101,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        - name: PERCONA_VERSION_SERVICE_URL
+          value: {{ printf "%s/%s" (include "everest.versionMetadataURL" .) "versions/v1" }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
