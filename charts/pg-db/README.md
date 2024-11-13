@@ -24,7 +24,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 2.5.0 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.6.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -32,7 +32,7 @@ The chart can be customized using the following configurable parameters:
 | Parameter                         | Description                                                                                                                                                                                             | Default                                                      |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `finalizers`                      | Finalizers list                                                                                                                                                                                         | `{}`                                                         |
-| `crVersion`                       | CR Cluster Manifest version                                                                                                                                                                             | `2.5.0`                                                      |
+| `crVersion`                       | CR Cluster Manifest version                                                                                                                                                                             | `2.6.0`                                                      |
 | `repository`                      | PostgreSQL container image repository                                                                                                                                                                   | `percona/percona-postgresql-operator`                        |
 | `image`                           | Postgres image                                                                                                                                                                                          | `percona/percona-postgresql-operator:2.5.0-ppg16.4-postgres` |
 | `imagePullPolicy`                 | image Pull Policy                                                                                                                                                                                       | `Always`                                                     |
