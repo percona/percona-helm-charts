@@ -435,7 +435,7 @@ sharding:
     #   - "host2"
 
   mongos:
-    size: 2
+    size: 3
     # terminationGracePeriodSeconds: 300
     # configuration: |
     #   systemLog:
