@@ -3328,6 +3328,22 @@ entries:
     version: 0.2.0
   psmdb-db:
   - apiVersion: v2
+    appVersion: 1.18.0
+    created: "2024-11-14T17:48:31.57901066Z"
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
+    digest: 38abd99ad37468213850f619ddd6892773212aa45008931b7d7abaeefb416d81
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    name: psmdb-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-1.18.0/psmdb-db-1.18.0.tgz
+    version: 1.18.0
+  - apiVersion: v2
     appVersion: 1.17.0
     created: "2024-11-07T13:48:30.8237302Z"
     description: A Helm chart for installing Percona Server MongoDB Cluster Databases
@@ -3892,6 +3908,23 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-0.1.0/psmdb-db-0.1.0.tgz
     version: 0.1.0
   psmdb-operator:
+  - apiVersion: v2
+    appVersion: 1.18.0
+    created: "2024-11-14T17:48:31.692192841Z"
+    description: A Helm chart for deploying the Percona Operator for MongoDB
+    digest: f00aec0ed78ad73f2b64e4d26c7c155ebea3c644e1582abf47de84085525e4c6
+    home: https://docs.percona.com/percona-operator-for-mongodb/
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: psmdb-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-1.18.0/psmdb-operator-1.18.0.tgz
+    version: 1.18.0
   - apiVersion: v2
     appVersion: 1.17.0
     created: "2024-10-25T11:15:01.737175298Z"
@@ -5721,4 +5754,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2024-11-13T04:26:06.230564667Z"
+generated: "2024-11-14T17:48:31.692880502Z"
