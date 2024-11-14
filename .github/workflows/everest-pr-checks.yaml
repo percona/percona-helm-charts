@@ -97,6 +97,11 @@ jobs:
             kubectl wait --for=jsonpath='.status.phase'=Succeeded csv/$csv -n everest --timeout=600s
           done
 
+          # Check DB engines
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-server-mongodb-operator --timeout=600s -n everest
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-xtradb-cluster-operator --timeout=600s -n everest
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-postgresql-operator --timeout=600s -n everest
+
           # Uninstall
           helm uninstall everest -n everest
           kubectl delete ns everest

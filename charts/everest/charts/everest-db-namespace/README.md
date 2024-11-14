@@ -15,7 +15,7 @@ A sub-chart for provisioning Everest DB namespaces.
 
 ## Requirements
 
-Kubernetes: `>= 1.27.0`
+Kubernetes: `>= 1.27.0-0`
 
 | Repository | Name | Version |
 |------------|------|---------|
@@ -29,7 +29,7 @@ Kubernetes: `>= 1.27.0`
 | compatibility.openshift | bool | `false` | If set, enable OpenShift compatibility. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed in the cluster. |
-| pg | bool | `true` | If set, installs the Percona Postgresql Server operator. |
+| postgresql | bool | `true` | If set, installs the Percona Postgresql Server operator. |
 | psmdb | bool | `true` | If set, installs the Percona Server MongoDB operator. |
 | pxc | bool | `true` | If set, installs the Percona XtraDB Cluster operator. |
 | telemetry | bool | `true` | If set, enabled sending telemetry information. |
