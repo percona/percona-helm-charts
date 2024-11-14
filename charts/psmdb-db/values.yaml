@@ -229,7 +229,6 @@ replsets:
       # labels:
       #   some-label: some-key
       # internalTrafficPolicy: Local
-      # externalTrafficPolicy: Local
     # schedulerName: ""
     resources:
       limits:
@@ -405,7 +404,6 @@ sharding:
       # labels:
       #   some-label: some-key
       # internalTrafficPolicy: Local
-      # externalTrafficPolicy: Local
     resources:
       limits:
         cpu: "300m"
@@ -500,7 +498,6 @@ sharding:
       # labels:
       #   some-label: some-key
       # internalTrafficPolicy: Local
-      # externalTrafficPolicy: Local
       # nodePort: 32017
     # auditLog:
     #   destination: file
