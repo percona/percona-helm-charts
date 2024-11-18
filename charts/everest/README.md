@@ -65,6 +65,19 @@ The following table shows the configurable parameters of the Percona Everest cha
 |-----|------|---------|-------------|
 | compatibility.openshift | bool | `false` | Enable OpenShift compatibility. If set, ignores olm.install and olm.namespace settings. |
 | everest-db-namespace.enabled | bool | `false` | Do not enable. |
+| kube-state-metrics.customLabels."everest.percona.com/type" | string | `"monitoring"` |  |
+| kube-state-metrics.enabled | bool | `true` | If set, installs kube-state-metrics. |
+| kube-state-metrics.extraArgs[0] | string | `"--custom-resource-state-config-file=/etc/customresourcestate/config"` |  |
+| kube-state-metrics.fullnameOverride | string | `"kube-state-metrics"` |  |
+| kube-state-metrics.metricLabelsAllowlist[0] | string | `"pods=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"` |  |
+| kube-state-metrics.metricLabelsAllowlist[1] | string | `"persistentvolumeclaims=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"` |  |
+| kube-state-metrics.metricLabelsAllowlist[2] | string | `"jobs=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"` |  |
+| kube-state-metrics.namespaceOverride | string | `"everest-monitoring"` | Namespace where kube-state-metrics is installed. |
+| kube-state-metrics.volumeMounts[0].mountPath | string | `"/etc/customresourcestate"` |  |
+| kube-state-metrics.volumeMounts[0].name | string | `"customresourcestate-config"` |  |
+| kube-state-metrics.volumeMounts[0].readOnly | bool | `true` |  |
+| kube-state-metrics.volumes[0].configMap.name | string | `"customresource-config-ksm"` |  |
+| kube-state-metrics.volumes[0].name | string | `"customresourcestate-config"` |  |
 | monitoring.namespace | string | `"everest-monitoring"` | Namespace where monitoring is installed. Do no change unless you know what you are doing. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
