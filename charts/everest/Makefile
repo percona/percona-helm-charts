@@ -17,8 +17,10 @@ release: prepare-chart
 release-dev: IMAGE_PREFIX=perconalab
 release-dev: prepare-chart
 
-deps:
+add-repos:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+
+deps: add-repos
 	helm dependency update .
 	helm dependency update ./charts/everest-db-namespace
 

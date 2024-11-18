@@ -43,6 +43,10 @@ jobs:
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
+      
+      - name: Add dependent repos
+        run: |
+          make -C charts/everest add-repos
 
       - name: Run chart-testing (lint)
         run: |
