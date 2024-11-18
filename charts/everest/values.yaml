@@ -75,3 +75,26 @@ monitoring:
 everest-db-namespace:
   # -- Do not enable.
   enabled: false
+
+kube-state-metrics:
+  # -- If set, installs kube-state-metrics.
+  enabled: true
+  # -- Namespace where kube-state-metrics is installed.
+  namespaceOverride: "everest-monitoring"
+  customLabels:
+    everest.percona.com/type: monitoring
+  fullnameOverride: kube-state-metrics
+  volumes:
+  - name: customresourcestate-config
+    configMap:
+      name: customresource-config-ksm
+  volumeMounts:
+  - name: customresourcestate-config
+    mountPath: /etc/customresourcestate
+    readOnly: true
+  extraArgs:
+  - --custom-resource-state-config-file=/etc/customresourcestate/config
+  metricLabelsAllowlist:
+  - "pods=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+  - "persistentvolumeclaims=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+  - "jobs=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"

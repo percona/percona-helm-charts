@@ -5,5 +5,8 @@ dependencies:
 - name: everest-db-namespace
   repository: file://charts/everest-db-namespace
   version: 0.0.0
-digest: sha256:de45f56b3032db8bc6e21fc0858bc56d1b8701e7c1edfcc18c61285945235826
-generated: "2024-11-05T15:38:39.638426+05:30"
+- name: kube-state-metrics
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 5.27.0
+digest: sha256:54c0fe212929b37fbb4ff5f9bb6e29b1b21c71eb3009e3ec3eecd127a6097e07
+generated: "2024-11-18T15:02:24.071155+05:30"
