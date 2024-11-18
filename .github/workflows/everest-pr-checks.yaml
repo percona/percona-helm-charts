@@ -73,6 +73,7 @@ jobs:
           # Wait for system components
           kubectl wait --for=condition=available --timeout=60s deployment/percona-everest -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
+          kubectl wait --for=condition=available --timeout=60s deployment/kube-state-metrics -n everest-monitoring
 
           # Provision DB namespace
           kubectl create ns everest
