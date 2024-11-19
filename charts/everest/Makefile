@@ -1,4 +1,4 @@
-prepare-chart:
+prepare-chart: deps
 	CHART_FILES="Chart.yaml ./charts/everest-db-namespace/Chart.yaml"; \
 	for chart in $$CHART_FILES; do \
 		yq eval -i '.version = "${VERSION}"' $$chart; \
@@ -16,12 +16,15 @@ release: prepare-chart
 release-dev: IMAGE_PREFIX=perconalab
 release-dev: prepare-chart
 
-deps:
+add-repos:
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+
+deps: add-repos
 	helm dependency update .
 	helm dependency update ./charts/everest-db-namespace
 
 docs-gen:
-	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.9.1
+	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.14.2
 
 
 EVEREST_REPO_URL ?= https://github.com/percona/everest-operator

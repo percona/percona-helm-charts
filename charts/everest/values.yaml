@@ -69,9 +69,35 @@ olm:
       tlsCert: ""
       # -- Client key for the PackageServer APIService. Overrides the tls.type setting.
       tlsKey: ""
+
+# @ignore
 monitoring:
   # -- Namespace where monitoring is installed. Do no change unless you know what you are doing.
   namespace: everest-monitoring
+
+# @ignore
 everest-db-namespace:
-  # -- Do not enable.
   enabled: false
+
+# Do not change the following values unless you know what you are doing.
+# @ignore
+kube-state-metrics:
+  enabled: true
+  namespaceOverride: "everest-monitoring"
+  customLabels:
+    everest.percona.com/type: monitoring
+  fullnameOverride: kube-state-metrics
+  volumes:
+  - name: customresourcestate-config
+    configMap:
+      name: customresource-config-ksm
+  volumeMounts:
+  - name: customresourcestate-config
+    mountPath: /etc/customresourcestate
+    readOnly: true
+  extraArgs:
+  - --custom-resource-state-config-file=/etc/customresourcestate/config
+  metricLabelsAllowlist:
+  - "pods=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+  - "persistentvolumeclaims=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+  - "jobs=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"

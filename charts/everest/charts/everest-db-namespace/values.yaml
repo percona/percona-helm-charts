@@ -12,6 +12,7 @@ pxc: true
 # -- If set, installs the Percona Postgresql Server operator.
 postgresql: true
 
+# @ignore
 olm:
   # -- Namespace where OLM is installed in the cluster.
   namespace: everest-olm
