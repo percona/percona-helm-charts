@@ -1,15 +1,31 @@
 {{ if .Release.IsInstall }}
 Thank you for installing Everest!
 
-To get started, simply port-forward to the Everest API server:
+Get started by following the below steps:
+
+1. Access the Everest UI:
+
+Setup a port-forward to the Everest service:
 
 kubectl port-forward svc/everest 8080:8080 -n everest-system
 
-Then, open your browser to http://localhost:8080 to access the Everest dashboard.
+Next, open your browser at http://localhost:8080.
 
-To retrieve the initial admin password, run the following command:
+2. Retrieve the initial admin password:
 
 kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\.yaml}' | base64 --decode  | yq '.admin.passwordHash'
+
+3. Provision a namespace for your databases:
+
+cat <<EOF | kubectl create -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: everest
+  labels:
+    app.kubernetes.io/managed-by: everest
+EOF
+helm install everest percona/everest-db-namespace --namespace everest
 {{ end }}
 {{ if .Release.IsUpgrade }}
 Everest has been successfully upgraded to version {{ .Chart.AppVersion }}!
