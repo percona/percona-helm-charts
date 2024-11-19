@@ -43,6 +43,10 @@ jobs:
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
+      
+      - name: Add dependent repos
+        run: |
+          make -C charts/everest add-repos
 
       - name: Run chart-testing (lint)
         run: |
@@ -73,6 +77,7 @@ jobs:
           # Wait for system components
           kubectl wait --for=condition=available --timeout=60s deployment/percona-everest -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
+          kubectl wait --for=condition=available --timeout=60s deployment/kube-state-metrics -n everest-monitoring
 
           # Provision DB namespace
           kubectl create ns everest

@@ -25,3 +25,7 @@ dependencies:
     version: 0.0.0
     repository: "file://charts/everest-db-namespace"
     condition: "everest-db-namespace.enabled"
+  - name: kube-state-metrics
+    repository: https://prometheus-community.github.io/helm-charts
+    version: 5.27.0
+    condition: "kube-state-metrics.enabled"
