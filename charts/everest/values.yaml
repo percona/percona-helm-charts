@@ -98,6 +98,10 @@ kube-state-metrics:
   - "jobs=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
 
 
+
+# -- If set, creates resources for Kubernetes monitoring.
+createMonitoringResources: true
+
 # Do not change the following values unless you know what you are doing.
 # @ignore
 monitoring:
