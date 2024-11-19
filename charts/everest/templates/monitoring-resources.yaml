@@ -12,7 +12,7 @@ spec:
   namespaceSelector: {}
   endpoints:
     - scheme: http
-      port: http-metrics
+      port: http
       honorLabels: true
   selector:
     matchLabels:
