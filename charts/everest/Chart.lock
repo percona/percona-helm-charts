@@ -1,12 +1,12 @@
 dependencies:
 - name: common
   repository: file://charts/common
-  version: 0.0.5
+  version: 0.0.6
 - name: everest-db-namespace
   repository: file://charts/everest-db-namespace
   version: 0.0.0
 - name: kube-state-metrics
   repository: https://prometheus-community.github.io/helm-charts
   version: 5.27.0
-digest: sha256:e6611f4f36672189244832a42eb219488d960c3832058b3ff0bb2b54c93269cc
-generated: "2024-11-18T15:56:23.284877+05:30"
+digest: sha256:8afcd05de132c7196dfcb1f31d3a3cc39ed579945fbe6b690720a3b2f5a21c8c
+generated: "2024-11-19T13:43:17.935785+05:30"
