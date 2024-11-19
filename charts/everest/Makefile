@@ -10,7 +10,6 @@ prepare-chart:
 	yq eval -i '(.dependencies[] | select(.name == "everest-db-namespace")).version = "${VERSION}"' Chart.yaml
 	helm dependency update .
 
-
 release: IMAGE_PREFIX=percona
 release: prepare-chart
 
@@ -24,3 +23,9 @@ deps:
 docs-gen:
 	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.9.1
 
+
+EVEREST_REPO_URL ?= https://github.com/percona/everest-operator
+CRD_DIR ?= config/crd
+CRD_VERSION ?= main
+crds-gen:
+	docker run --rm registry.k8s.io/kustomize/kustomize:v5.0.0 build $(EVEREST_REPO_URL)/$(CRD_DIR)?ref=$(CRD_VERSION) > crds/everest.yaml
