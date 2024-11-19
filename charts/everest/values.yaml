@@ -101,7 +101,6 @@ kube-state-metrics:
 # Do not change the following values unless you know what you are doing.
 # @ignore
 monitoring:
-  # -- If set, installs VictoriaMetrics operator.
   enabled: true
   namespaceOverride: everest-monitoring
   nameOverride: vm-operator
