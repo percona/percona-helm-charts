@@ -103,7 +103,7 @@ kube-state-metrics:
 monitoring:
   enabled: true
   namespaceOverride: everest-monitoring
-  nameOverride: vm-operator
+  fullnameOverride: vm-operator
   crds:
     enabled: false
     plain: true
