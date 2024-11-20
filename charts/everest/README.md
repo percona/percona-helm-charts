@@ -81,6 +81,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
 | server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |
 | server.image | string | `"perconalab/everest"` | Image to use for the server container. |
+| server.initialAdminPassword | string | `""` | The initial password configured for the admin user. If unset, a random password is generated. It is strongly recommended to reset the admin password after installation. |
 | server.oidc | object | `{}` | OIDC configuration for Everest. |
 | server.rbac | string | `"g, admin, role:admin\n"` | RBAC policy for Everest. |
 | server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
