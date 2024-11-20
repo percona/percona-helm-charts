@@ -26,6 +26,10 @@ server:
   # clientId: ""
   # -- Set the allowed number of requests per second.
   apiRequestsRateLimit: 100
+  # -- The initial password configured for the admin user.
+  # If unset, a random password is generated.
+  # It is strongly recommended to reset the admin password after installation.
+  initialAdminPassword: ""
 operator:
   # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator
