@@ -75,11 +75,6 @@ olm:
       tlsKey: ""
 
 # @ignore
-monitoring:
-  # -- Namespace where monitoring is installed. Do no change unless you know what you are doing.
-  namespace: everest-monitoring
-
-# @ignore
 everest-db-namespace:
   enabled: false
 
@@ -105,3 +100,20 @@ kube-state-metrics:
   - "pods=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
   - "persistentvolumeclaims=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
   - "jobs=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+
+# -- If set, creates resources for Kubernetes monitoring.
+createMonitoringResources: true
+
+# Do not change the following values unless you know what you are doing.
+# @ignore
+monitoring:
+  enabled: true
+  namespaceOverride: everest-monitoring
+  fullnameOverride: vm-operator
+  crds:
+    enabled: false
+    plain: true
+  admissionWebhooks:
+    enabled: false
+  certManager:
+    enabled: false

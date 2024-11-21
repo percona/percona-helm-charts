@@ -68,7 +68,7 @@ spec:
         {{- if .Values.operator.enableLeaderElection }}
         - --leader-elect
         {{- end }}
-        - --monitoring-namespace={{ .Values.monitoring.namespace }}
+        - --monitoring-namespace={{ .Values.monitoring.namespaceOverride }}
         - --system-namespace={{ include  "everest.namespace" . }}
         command:
         - /manager

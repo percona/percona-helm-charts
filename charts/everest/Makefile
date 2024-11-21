@@ -8,7 +8,6 @@ prepare-chart: deps
 	yq eval -i '.olm.catalogSourceImage = "$(IMAGE_PREFIX)/everest-catalog"' values.yaml
 	yq eval -i '.operator.image = "$(IMAGE_PREFIX)/everest-operator"' values.yaml
 	yq eval -i '(.dependencies[] | select(.name == "everest-db-namespace")).version = "${VERSION}"' Chart.yaml
-	helm dependency update .
 
 release: IMAGE_PREFIX=percona
 release: prepare-chart
@@ -18,6 +17,7 @@ release-dev: prepare-chart
 
 add-repos:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	helm repo add vm https://victoriametrics.github.io/helm-charts
 
 deps: add-repos
 	helm dependency update .

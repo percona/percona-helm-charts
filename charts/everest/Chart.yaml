@@ -29,3 +29,8 @@ dependencies:
     repository: https://prometheus-community.github.io/helm-charts
     version: 5.27.0
     condition: "kube-state-metrics.enabled"
+  - name: victoria-metrics-operator
+    alias: monitoring
+    version: 0.37.0
+    repository: "https://victoriametrics.github.io/helm-charts"
+    condition: "monitoring.enabled"
