@@ -1,3 +1,5 @@
+HELM ?= helm
+
 prepare-chart: deps
 	CHART_FILES="Chart.yaml ./charts/everest-db-namespace/Chart.yaml"; \
 	for chart in $$CHART_FILES; do \
@@ -16,12 +18,13 @@ release-dev: IMAGE_PREFIX=perconalab
 release-dev: prepare-chart
 
 add-repos:
-	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-	helm repo add vm https://victoriametrics.github.io/helm-charts
+	$(HELM) version
+	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	$(HELM) repo add vm https://victoriametrics.github.io/helm-charts
 
 deps: add-repos
-	helm dependency update .
-	helm dependency update ./charts/everest-db-namespace
+	$(HELM) dependency update .
+	$(HELM) dependency update ./charts/everest-db-namespace
 
 docs-gen:
 	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.14.2
