@@ -115,10 +115,6 @@ jobs:
           kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-server-mongodb-operator --timeout=600s -n everest-db
           kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-postgresql-operator --timeout=600s -n everest-db
 
-          # Uninstall everest namespace
-          helm uninstall everest -n everest
-          kubectl delete ns everest
-          kubectl wait --for=delete namespace/everest --timeout=120s
           # Uninstall everest-db namespace
           helm uninstall everest -n everest-db
           kubectl delete ns everest-db
