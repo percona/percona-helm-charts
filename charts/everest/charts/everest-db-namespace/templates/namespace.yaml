@@ -1,0 +1,8 @@
+{{- if .Values.namespaceOverride }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespaceOverride }}
+  labels:
+    app.kubernetes.io/managed-by: everest
+{{- end }}

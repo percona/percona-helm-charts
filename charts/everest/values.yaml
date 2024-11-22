@@ -74,9 +74,12 @@ olm:
       # -- Client key for the PackageServer APIService. Overrides the tls.type setting.
       tlsKey: ""
 
-# @ignore
-everest-db-namespace:
+dbNamespace:
+  # -- If set, deploy the database operators in `everest` namespace.
+  # The namespace may be overridden by setting `dbNamespace.namespaceOverride`.
   enabled: false
+  # -- If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace.
+  namespaceOverride: everest
 
 # Do not change the following values unless you know what you are doing.
 # @ignore

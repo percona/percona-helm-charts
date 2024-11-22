@@ -12,48 +12,69 @@ but if you do so, please be aware of the risks.
 
 ## Usage
 
-### Deploy Percona Everest
+### 1. Add the Percona Helm repository
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install everest-core percona/everest --namespace everest-system --create-namespace
+helm repo update
 ```
+
+### 2. Install Everest
+```sh
+helm repo add percona https://percona.github.io/percona-helm-charts/
+helm install everest percona/everest \
+    --namespace everest-system 
+    --create-namespace \
+    --set dbNamespace.enabled=true
+```
+This command installs the Everest components. Additionally, it also deploys the database operators in the `everest` namespace.
+If you want to manage your database namespace separately, you can set `dbNamespace.enabled=false` instead.
 
 > Note: we currently do not support deploying Everest in a namespace other than `everest-system`.
 
-This command may take a few minutes to complete. Once done, you can retrieve the admin credentials using the following command:
+### 3. Retrieve the admin password
 
+Once the installation is complete, you can retrieve the admin credentials using the following command:
 ```sh
 kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\.yaml}' | base64 --decode  | yq '.admin.passwordHash'
 ```
 
-### Deploy your database namespace components
+### 4. Deploy additional database namespaces
 
-Once Everest is running, we need to create a namespace for your databases and provision the necessary operators.
+After Everest is successfully running, you can create additional database namespaces using the `everest-db-namespace` Helm chart.
 
 ```sh
-cat <<EOF | kubectl create -f -
+cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: everest
+  name: everest-db
   labels:
     app.kubernetes.io/managed-by: everest
 EOF
-helm install everest percona/everest-db-namespace --namespace everest
+
+helm install everest \
+    percona/everest-db-namespace \
+    --namespace everest \
+    --set pxc=true \
+    --set pg=true \
+    --set psmdb=true
 ```
 
-### Uninstalling
+> Note: The `app.kubernetes.io/managed-by: everest` label is required by Everest to identify database namespaces.
 
-As a first step, you must always clean up your database namespace(s) first, otherwise the deletion could get stuck.
+### 5. Uninstalling
+
+If you created any additional database namespaces, you must delete them first before uninstalling Everest.
+
 ```sh
-helm uninstall everest -n everest
-kubectl delete ns everest
+helm uninstall everest -n <your_db_namespace>
+kubectl delete ns <your_db_namespace>
 ```
 
-Then you can uninstall Everest itself:
+Then you can uninstall Everest:
 ```sh
-helm uninstall everest-core -n everest-system
+helm uninstall everest -n everest-system
 kubectl delete ns everest-system
 ```
 
@@ -65,6 +86,8 @@ The following table shows the configurable parameters of the Percona Everest cha
 |-----|------|---------|-------------|
 | compatibility.openshift | bool | `false` | Enable OpenShift compatibility. If set, ignores olm.install and olm.namespace settings. |
 | createMonitoringResources | bool | `true` | If set, creates resources for Kubernetes monitoring. |
+| dbNamespace.enabled | bool | `false` | If set, deploy the database operators in `everest` namespace. The namespace may be overridden by setting `dbNamespace.namespaceOverride`. |
+| dbNamespace.namespaceOverride | string | `"everest"` | If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
 | olm.image | string | `"quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6"` | Image to use for the OLM components. |
