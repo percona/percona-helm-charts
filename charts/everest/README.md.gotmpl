@@ -42,17 +42,9 @@ kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\
 ### 4. Deploy additional database namespaces
 
 After Everest is successfully running, you can create additional database namespaces using the `everest-db-namespace` Helm chart.
+If you set `dbNamespaces.enabled=false` in the previous step, you may deploy a database namespaces using the following command:
 
 ```sh
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: everest-db
-  labels:
-    app.kubernetes.io/managed-by: everest
-EOF
-
 helm install everest \
     percona/everest-db-namespace \
     --namespace everest \
@@ -60,8 +52,6 @@ helm install everest \
     --set pg=true \
     --set psmdb=true
 ```
-
-> Note: The `app.kubernetes.io/managed-by: everest` label is required by Everest to identify database namespaces.
 
 ### 5. Uninstalling
 
