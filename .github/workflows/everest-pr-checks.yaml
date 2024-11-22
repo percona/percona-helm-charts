@@ -124,7 +124,7 @@ jobs:
           kubectl delete ns everest-db
           kubectl wait --for=delete namespace/everest-db --timeout=120s
           # Uninstall everest-system namespace
-          helm uninstall everest-core -n everest-system
+          helm uninstall everest -n everest-system
           kubectl delete ns everest-system
           kubectl wait --for=delete namespace/everest-system --timeout=120s
 
