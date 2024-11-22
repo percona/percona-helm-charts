@@ -1,7 +1,7 @@
 #
 # @param .namespace     The namespace where the operators are installed
 #
-{{- define "everest.installplanApprover" }}
+{{- define "everest.installOperators" }}
 {{- $hookName := "everest-helm-post-install-hook" }}
 apiVersion: v1
 kind: ServiceAccount
@@ -21,6 +21,15 @@ metadata:
     "helm.sh/hook": post-install
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - patch
+      - update
   - apiGroups:
       - operators.coreos.com
     resources:
@@ -76,6 +85,7 @@ spec:
             - /bin/sh
             - -c
             - |
+              kubectl label namespace {{ .namespace }} app.kubernetes.io/managed-by=everest --overwrite
               subs=$(kubectl -n {{ .namespace }} get subscription -o jsonpath='{.items[*].metadata.name}')
               for sub in $subs
               do
@@ -101,5 +111,4 @@ spec:
       serviceAccount: {{ $hookName }}
       serviceAccountName: {{ $hookName }}
       terminationGracePeriodSeconds: 30
----
 {{- end }}
