@@ -8,8 +8,8 @@ metadata:
     app.kubernetes.io/component: everest
 spec:
   selector:
-    app.kubernetes.io/component: everest
-    app.kubernetes.io/name: everest
+    app.kubernetes.io/name: everest-server
+    app.kubernetes.io/component: everest-server
   type: ClusterIP
   ports:
     - protocol: TCP
