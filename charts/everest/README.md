@@ -23,7 +23,7 @@ helm repo update
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
 helm install everest percona/everest \
-    --namespace everest-system 
+    --namespace everest-system
     --create-namespace \
     --set dbNamespace.enabled=true
 ```
