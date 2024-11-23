@@ -2,7 +2,7 @@ apiVersion: v2
 name: common
 description: A library chart for Everest containing common resources.
 type: library
-version: 0.0.6
+version: 0.0.7
 appVersion: "0.0.3"
 maintainers:
   - name: mayankshah1607
