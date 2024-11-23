@@ -77,7 +77,7 @@ olm:
 dbNamespace:
   # -- If set, deploy the database operators in `everest` namespace.
   # The namespace may be overridden by setting `dbNamespace.namespaceOverride`.
-  enabled: false
+  enabled: true
   # -- If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace.
   namespaceOverride: everest
 

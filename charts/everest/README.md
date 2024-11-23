@@ -22,36 +22,51 @@ helm repo update
 ### 2. Install Everest
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install everest percona/everest \
+helm install everest-core percona/everest \
     --namespace everest-system
-    --create-namespace \
-    --set dbNamespace.enabled=true
+    --create-namespace
 ```
-This command installs the Everest components. Additionally, it also deploys the database operators in the `everest` namespace.
-If you want to manage your database namespace separately, you can set `dbNamespace.enabled=false` instead.
 
-> Note: we currently do not support deploying Everest in a namespace other than `everest-system`.
+Notes:
+* This command deploys the Everest components in the `everest-system` namespace. Currently, we do not support specifying a different namespace for Everest.
+* Additionally, it also deploys a new namespace called `everest` for your databases and the database operators.
+* If you prefer to manage your database namespace separately, you may set `dbNamespace.enabled=false`.
+* You may override the name of the database namespace using the `dbNamespace.namespaceOverride` parameter.
+* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
+* We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
 ### 3. Retrieve the admin password
 
-Once the installation is complete, you can retrieve the admin credentials using the following command:
+Once the installation is complete, you may retrieve the admin credentials using the following command:
 ```sh
 kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\.yaml}' | base64 --decode  | yq '.admin.passwordHash'
 ```
 
+You may open the Everest UI by port-forwarding the service to your local machine:
+
+```sh
+kubectl port-forward svc/everest -n everest-system 8080:8080
+```
+
+Notes:
+* The default username to login to the Everest UI is `admin`.
+* You may specify a different default admin password using `server.initialAdminPassword` parameter during installation.
+* The default admin password is stored in plain text. It is highly recommended to update the password using `everestctl` to ensure that the passwords are hashed.
+
 ### 4. Deploy additional database namespaces
 
-After Everest is successfully running, you can create additional database namespaces using the `everest-db-namespace` Helm chart.
-If you set `dbNamespaces.enabled=false` in the previous step, you may deploy a database namespaces using the following command:
+After Everest is successfully running, you may create additional database namespaces using the `everest-db-namespace` Helm chart.
+If you had set `dbNamespaces.enabled=false` in the previous step, you may deploy a database namespaces using the following command:
 
 ```sh
 helm install everest \
     percona/everest-db-namespace \
-    --namespace everest \
-    --set pxc=true \
-    --set pg=true \
-    --set psmdb=true
+    --namespace everest
 ```
+
+Notes:
+* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
+* We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
 ### 5. Uninstalling
 
@@ -62,11 +77,16 @@ helm uninstall everest -n <your_db_namespace>
 kubectl delete ns <your_db_namespace>
 ```
 
-Then you can uninstall Everest:
+Then run the below command to uninstall Everest from your cluster.
 ```sh
-helm uninstall everest -n everest-system
+helm uninstall everest-core -n everest-system
 kubectl delete ns everest-system
 ```
+
+Notes:
+* Upon uninstallation, we run a chart hook that cleans up your database resources first. While it is not recommended, you may skip this step by specifying `cleanupOnUninstall=false`.
+* The database namespace created as a part of the `everest-core` release will be deleted automatically upon uninstalling `everest-core`.
+* All other database namespaces created with the `everest-db-namespace` chart need to be deleted manually before removing the `everest-core` release.
 
 ## Configuration
 
@@ -76,7 +96,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 |-----|------|---------|-------------|
 | compatibility.openshift | bool | `false` | Enable OpenShift compatibility. If set, ignores olm.install and olm.namespace settings. |
 | createMonitoringResources | bool | `true` | If set, creates resources for Kubernetes monitoring. |
-| dbNamespace.enabled | bool | `false` | If set, deploy the database operators in `everest` namespace. The namespace may be overridden by setting `dbNamespace.namespaceOverride`. |
+| dbNamespace.enabled | bool | `true` | If set, deploy the database operators in `everest` namespace. The namespace may be overridden by setting `dbNamespace.namespaceOverride`. |
 | dbNamespace.namespaceOverride | string | `"everest"` | If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
