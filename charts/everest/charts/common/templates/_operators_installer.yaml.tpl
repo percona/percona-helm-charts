@@ -79,9 +79,10 @@ spec:
               subs=$(kubectl -n {{ .namespace }} get subscription -o jsonpath='{.items[*].metadata.name}')
               for sub in $subs
               do
-                subSts=$(kubectl -n {{ .namespace }} get sub $sub -o jsonpath='{.status.state}')
-                if [ "$subSts" = "AtLatestKnown" ]; then
-                  echo "Subscription $sub is at latest known, skip.."
+                # We do not want to touch already installed operators, otherwise bad things can happen.
+                installedCSV=$(kubectl -n {{ .namespace }} get sub $sub -o jsonpath='{.status.installedCSV}')
+                if [ "$installedCSV" != "" ]; then
+                  echo "Operator $sub already installed. Skip..."
                   continue
                 fi
 
