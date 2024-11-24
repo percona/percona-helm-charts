@@ -83,6 +83,8 @@ everest-db-namespace:
 kube-state-metrics:
   enabled: true
   namespaceOverride: "everest-monitoring"
+  selectorOverride:
+    app.kubernetes.io/name: kube-state-metrics
   customLabels:
     everest.percona.com/type: monitoring
   fullnameOverride: kube-state-metrics
