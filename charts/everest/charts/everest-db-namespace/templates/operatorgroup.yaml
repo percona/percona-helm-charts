@@ -1,7 +1,7 @@
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
-  name: database-operators
+  name: everest-databases
   namespace: {{ include "db.namespace" . }}
 spec:
   targetNamespaces:
