@@ -83,7 +83,8 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.image | string | `"perconalab/everest"` | Image to use for the server container. |
 | server.initialAdminPassword | string | `""` | The initial password configured for the admin user. If unset, a random password is generated. It is strongly recommended to reset the admin password after installation. |
 | server.oidc | object | `{}` | OIDC configuration for Everest. |
-| server.rbac | string | `"g, admin, role:admin\n"` | RBAC policy for Everest. |
+| server.rbac.enabled | bool | `false` | If set, enables RBAC for Everest. |
+| server.rbac.policy | string | `"g, admin, role:admin\n"` | RBAC policy configuration. Ignored if `rbac.enabled` is false. |
 | server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
 | telemetry | bool | `true` | If set, enabled sending telemetry information. |
 | upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |

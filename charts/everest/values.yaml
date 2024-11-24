@@ -17,9 +17,12 @@ server:
     requests:
       cpu: 100m
       memory: 20Mi
-  # -- RBAC policy for Everest.
-  rbac: |
-    g, admin, role:admin
+  rbac:
+    # -- If set, enables RBAC for Everest.
+    enabled: false
+    # -- RBAC policy configuration. Ignored if `rbac.enabled` is false.
+    policy: |
+      g, admin, role:admin
   # -- OIDC configuration for Everest.
   oidc: {}
   # issuerUrl: ""
