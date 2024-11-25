@@ -1,11 +1,19 @@
+{{- $cmName := (printf "everest-settings") -}}
+{{- $cm := (lookup "v1" "ConfigMap" (include "everest.namespace" .) $cmName ) -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: everest-settings
+  name: {{ $cmName }}
   namespace: {{ include  "everest.namespace" . }}
 data:
+  {{- if or (not $cm) .Release.IsInstall }}
   {{- if .Values.server.oidc }}
   oidc.config: |
     {{- toYaml .Values.server.oidc | nindent 4 }}
+  {{- end }}
+  {{- else }}
+  {{- range $key, $value := $cm.data }}
+  {{ $key }}: {{ $value }}
+  {{- end }}
   {{- end }}
 

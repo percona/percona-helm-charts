@@ -17,10 +17,17 @@ server:
     requests:
       cpu: 100m
       memory: 20Mi
-  # -- RBAC policy for Everest.
-  rbac: |
-    g, admin, role:admin
+  rbac:
+    # -- If set, enables RBAC for Everest.
+    enabled: false
+    # -- RBAC policy configuration. Ignored if `rbac.enabled` is false.
+    # The policy specified here is applied during installation only. During upgrades, the existing policy is preserved.
+    # To change the policy after installation, you need to manually manage the `everest-rbac` ConfigMap.
+    policy: |
+      g, admin, role:admin
   # -- OIDC configuration for Everest.
+  # The config specified here is applied during installation only. During upgrades, the existing config is preserved.
+  # To change the config after installation, you need to manually manage the `everest-settigs` ConfigMap.
   oidc: {}
   # issuerUrl: ""
   # clientId: ""
@@ -83,6 +90,8 @@ everest-db-namespace:
 kube-state-metrics:
   enabled: true
   namespaceOverride: "everest-monitoring"
+  selectorOverride:
+    app.kubernetes.io/name: kube-state-metrics
   customLabels:
     everest.percona.com/type: monitoring
   fullnameOverride: kube-state-metrics

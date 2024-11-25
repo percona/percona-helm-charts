@@ -1,4 +1,6 @@
-prepare-chart: deps
+HELM ?= helm
+
+prepare-chart:
 	CHART_FILES="Chart.yaml ./charts/everest-db-namespace/Chart.yaml"; \
 	for chart in $$CHART_FILES; do \
 		yq eval -i '.version = "${VERSION}"' $$chart; \
@@ -8,6 +10,7 @@ prepare-chart: deps
 	yq eval -i '.olm.catalogSourceImage = "$(IMAGE_PREFIX)/everest-catalog"' values.yaml
 	yq eval -i '.operator.image = "$(IMAGE_PREFIX)/everest-operator"' values.yaml
 	yq eval -i '(.dependencies[] | select(.name == "everest-db-namespace")).version = "${VERSION}"' Chart.yaml
+	$(MAKE) deps
 
 release: IMAGE_PREFIX=percona
 release: prepare-chart
@@ -16,12 +19,13 @@ release-dev: IMAGE_PREFIX=perconalab
 release-dev: prepare-chart
 
 add-repos:
-	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-	helm repo add vm https://victoriametrics.github.io/helm-charts
+	$(HELM) version
+	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	$(HELM) repo add vm https://victoriametrics.github.io/helm-charts
 
 deps: add-repos
-	helm dependency update .
-	helm dependency update ./charts/everest-db-namespace
+	$(HELM) dependency update .
+	$(HELM) dependency update ./charts/everest-db-namespace
 
 docs-gen:
 	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.14.2
