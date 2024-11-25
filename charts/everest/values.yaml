@@ -17,6 +17,8 @@ server:
     requests:
       cpu: 100m
       memory: 20Mi
+  # -- RSA private key for JWT signing.
+  jwtKey: ""
   rbac:
     # -- If set, enables RBAC for Everest.
     enabled: false
