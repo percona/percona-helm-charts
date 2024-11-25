@@ -1,17 +1,13 @@
-{{- $cmName := (printf "everest-rbac") -}}
-{{- $cm := (lookup "v1" "ConfigMap" (include "everest.namespace" .) $cmName ) -}}
+{{- if .Release.IsInstall }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ $cmName }}
+  name: "everest-rbac"
   namespace: {{ include  "everest.namespace" . }}
+  annotations:
+    helm.sh/resource-policy: keep
 data:
-  {{- if or (not $cm) .Release.IsInstall }}
   enabled: {{ .Values.server.rbac.enabled | default "false" | quote }}
   policy.csv: |
     {{- .Values.server.rbac.policy | nindent 4 }}
-  {{- else }}
-  enabled: {{ $cm.data.enabled | default "false" | quote }}
-  policy.csv: |
-    {{- index $cm.data "policy.csv" | default "" | nindent 4 }}
-  {{- end }}
+{{- end }}
