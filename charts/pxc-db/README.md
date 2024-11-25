@@ -38,6 +38,7 @@ The chart can be customized using the following configurable parameters:
 | `unsafeFlags.backupIfUnhealthy`                   | Allows running a backup even if the cluster status is not `ready`                                    | `false`                              |
 | `enableCRValidationWebhook`                       | Enables or disables schema validation before applying custom resource                                | `false`                              |
 | `initContainer.image`                             | An alternative image for the initial Operator installation                                           | `""`                                 |
+| `initContainer.containerSecurityContext`          | A custom Kubernetes Security Context for a Container to be used instead of the default               | `{}`                                 |
 | `initContainer.resources.requests`                | Init container resource requests                                                                     | `{}`                                 |
 | `initContainer.resources.limits`                  | Init container resource limits                                                                       | `{}`                                 |
 | `updateStrategy`                                  | Regulates the way how PXC Cluster Pods will be updated after setting a new image                     | `SmartUpdate`                        |

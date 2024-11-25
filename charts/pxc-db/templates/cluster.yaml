@@ -56,6 +56,10 @@ spec:
     {{- else }}
     image: {{ include "pxc-db.operator-image" . }}
     {{- end }}
+    {{- if .Values.initContainer.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl (.Values.initContainer.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
     {{- if .Values.initContainer.resources }}
     resources:
       {{- if hasKey .Values.initContainer.resources "requests" }}
