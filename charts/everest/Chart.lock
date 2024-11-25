@@ -1,7 +1,7 @@
 dependencies:
 - name: common
   repository: file://charts/common
-  version: 0.0.6
+  version: 0.0.7
 - name: everest-db-namespace
   repository: file://charts/everest-db-namespace
   version: 0.0.0
@@ -11,5 +11,5 @@ dependencies:
 - name: victoria-metrics-operator
   repository: https://victoriametrics.github.io/helm-charts
   version: 0.37.0
-digest: sha256:2ee205ab871b735bdb62026599e79de9107c72bc95af1bcc4b0cc7442dc47bd6
-generated: "2024-11-19T15:14:18.225172+05:30"
+digest: sha256:0e24635fc89b24d6b214bd9c2f7a0b9e8b8adeeae1cdaa0b24a7b04e93795ec5
+generated: "2024-11-24T00:03:44.414699+05:30"
