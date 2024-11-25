@@ -11,7 +11,7 @@ data:
   policy.csv: |
     {{- .Values.server.rbac.policy | nindent 4 }}
   {{- else }}
-  {{- range $key, $value := $cm.data }}
-  {{ $key }}: {{ $value }}
-  {{- end }}
+  enabled: {{ $cm.data.enabled | default "false" | quote }}
+  policy.csv: |
+    {{- index $cm.data "policy.csv" | default "" | nindent 4 }}
   {{- end }}
