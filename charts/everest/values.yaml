@@ -17,7 +17,7 @@ server:
     requests:
       cpu: 100m
       memory: 20Mi
-  # -- Key for signing JWT tokents. This needs to be an RSA private key.
+  # -- Key for signing JWT tokens. This needs to be an RSA private key.
   # This is created during installation only.
   # To update the key after installation, you need to manually update the `everest-jwt` Secret or use everestctl.
   jwtKey: ""
