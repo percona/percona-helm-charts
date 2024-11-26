@@ -68,25 +68,26 @@ Notes:
 * By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
 * We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
-### 5. Uninstalling
+### 5. Uninstall
 
-If you created any additional database namespaces, you must delete them first before uninstalling Everest.
+#### 5.1 Uninstalling database namespaces
+
+If you created any database namespaces (apart from the one installed by default), you must delete them first.
 
 ```sh
 helm uninstall everest -n <your_db_namespace>
 kubectl delete ns <your_db_namespace>
 ```
 
-Then run the below command to uninstall Everest from your cluster.
+Notes:
+* This runs a chart hook that cleans up your database resources first. While it is not recommended, you may skip this step by specifying `cleanupOnUninstall=false`.
+
+#### 5.2 Uninstalling Everest
+
 ```sh
 helm uninstall everest-core -n everest-system
 kubectl delete ns everest-system
 ```
-
-Notes:
-* Upon uninstallation, we run a chart hook that cleans up your database resources first. While it is not recommended, you may skip this step by specifying `cleanupOnUninstall=false`.
-* The database namespace created as a part of the `everest-core` release will be deleted automatically upon uninstalling `everest-core`.
-* All other database namespaces created with the `everest-db-namespace` chart need to be deleted manually before removing the `everest-core` release.
 
 ## Configuration
 
