@@ -227,12 +227,7 @@ spec:
 
       {{- if $instance.tolerations }}
       tolerations:
-      {{- range $toleration :=  $instance.tolerations }}
-        - effect: {{ $toleration.effect }}
-          key: {{ $toleration.key }}
-          operator: {{ $toleration.operator }}
-          value: {{ $toleration.value }}
-      {{- end }}
+{{ $instance.tolerations | toYaml | indent 8 }}
       {{- end }}
 
       {{- if $instance.priorityClassName }}
@@ -361,12 +356,7 @@ spec:
       {{- end }}
       {{- if .Values.proxy.pgBouncer.tolerations }}
       tolerations:
-      {{- range $toleration := .Values.proxy.pgBouncer.tolerations }}
-        - effect: {{ $toleration.effect }}
-          key: {{ $toleration.key }}
-          operator: {{ $toleration.operator }}
-          value: {{ $toleration.value }}
-      {{- end }}
+{{ .Values.proxy.pgBouncer.tolerations | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.securityContext }}
       securityContext: 
@@ -422,15 +412,10 @@ spec:
             memory: {{ .Values.backups.pgbackrest.jobs.resources.limits.memory }}
         {{- if .Values.backups.pgbackrest.jobs.tolerations }}
         tolerations:
-        {{- range $toleration := .Values.backups.pgbackrest.jobs.tolerations }}
-          - effect: {{ $toleration.effect }}
-            key: {{ $toleration.key }}
-            operator: {{ $toleration.operator }}
-            value: {{ $toleration.value }}
-        {{- end }}
+{{ .Values.backups.pgbackrest.jobs.tolerations | toYaml | indent 10 }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.securityContext }}
-        securityContext: 
+        securityContext:
 {{ .Values.backups.pgbackrest.jobs.securityContext | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
