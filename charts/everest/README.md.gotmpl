@@ -21,7 +21,6 @@ helm repo update
 
 ### 2. Install Everest
 ```sh
-helm repo add percona https://percona.github.io/percona-helm-charts/
 helm install everest-core percona/everest \
     --namespace everest-system 
     --create-namespace
