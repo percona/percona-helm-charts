@@ -22,9 +22,10 @@ dependencies:
     # able to conditionally disable rendering these manifests along with the core chart manifests.
     # The default behaviour of Helm is to always include the sub-chart manfiests unless explicitly disabled.
   - name: everest-db-namespace
+    alias: dbNamespace
     version: 0.0.0
     repository: "file://charts/everest-db-namespace"
-    condition: "everest-db-namespace.enabled"
+    condition: "dbNamespace.enabled"
   - name: kube-state-metrics
     repository: https://prometheus-community.github.io/helm-charts
     version: 5.27.0
