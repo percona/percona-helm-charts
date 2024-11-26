@@ -103,10 +103,9 @@ jobs:
           kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-postgresql-operator --timeout=600s -n everest
 
           # Provision new DB namespace
-          kubectl create ns everest-db
-          kubectl label ns everest-db app.kubernetes.io/managed-by=everest
           helm install everest ./charts/everest/charts/everest-db-namespace \
             --namespace everest-db \
+            --create-namespace \
             --set pxc=false
 
           # Wait for new DB namespace.
