@@ -510,7 +510,7 @@ spec:
   {{- $backup := .Values.backup }}
   {{- if $backup.enabled }}
   backup:
-    {{- if $backup.allowParallel }}
+    {{- if hasKey $backup "allowParallel" }}
     allowParallel: {{ $backup.allowParallel }}
     {{- end }}
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
