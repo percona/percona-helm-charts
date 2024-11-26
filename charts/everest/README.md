@@ -61,6 +61,7 @@ If you had set `dbNamespaces.enabled=false` in the previous step, you may deploy
 ```sh
 helm install everest \
     percona/everest-db-namespace \
+    --create-namespace \
     --namespace everest
 ```
 
