@@ -471,6 +471,10 @@ spec:
 {{ tpl ($logcollector.containerSecurityContext | toYaml) $ | indent 6 }}
     {{- end }}
   {{- end }}
+{{- if .Values.users }}
+  users:
+{{ .Values.users | toYaml | indent 2 }}
+  {{- end }}
   pmm:
   {{- if not .Values.pmm.enabled }}
     enabled: false
