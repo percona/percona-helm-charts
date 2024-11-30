@@ -42,6 +42,29 @@ server:
   # If unset, a random password is generated.
   # It is strongly recommended to reset the admin password after installation.
   initialAdminPassword: ""
+  # -- Port on which the Everest server listens.
+  port: 8080
+  # -- TLS settings for Everest server.
+  tls:
+    # -- If set, configure TLS for the Everest server.
+    enabled: false
+    # -- Name of the Secret containing the TLS certificates.
+    secretName: everest-server-tls
+
+    secret:
+      # -- If set, creates a new Secret with the provided name.
+      # Otherwise, it is assumed that the Secret either already exists, or is configured by cert-manager.
+      create: true
+      # -- If tls.secret.create=true, the following certificates are set in the Secret.
+      # If unspecified, uses self-signed certificates.
+      certs:
+        tls.key: ""
+        tls.crt: ""
+
+    # -- Configure TLS certificates using cert-manager. Assumes that cert-manager is installed.
+    # The secret specified by tls.secretName will be used to store the certificate.
+    certificate:
+
 operator:
   # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator
