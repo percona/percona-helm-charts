@@ -12,5 +12,12 @@ spec:
     app.kubernetes.io/component: everest-server
   type: ClusterIP
   ports:
-    - protocol: TCP
-      port: 8080
+  - protocol: TCP
+    {{- if .Values.server.tls.enabled }}
+    name: https
+    port: 443
+    {{- else }}
+    port: {{ .Values.server.port }}
+    name: http
+    {{- end }}
+    targetPort: {{ .Values.server.port }}

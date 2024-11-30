@@ -61,10 +61,6 @@ server:
         tls.key: ""
         tls.crt: ""
 
-    # -- Configure TLS certificates using cert-manager. Assumes that cert-manager is installed.
-    # The secret specified by tls.secretName will be used to store the certificate.
-    certificate:
-
 operator:
   # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator
