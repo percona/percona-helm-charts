@@ -2,6 +2,10 @@
 {{ fail "Namespace cannot be set to anything other than everest-system" }}
 {{- end }}
 {{- $tlsCertsPath := "/etc/tls" }}
+{{- $probeScheme := "HTTP" }}
+{{- if .Values.server.tls.enabled }}
+{{- $probeScheme = "HTTPS" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,12 +45,14 @@ spec:
             httpGet:
               path: /healthz
               port: {{ .Values.server.port }}
+              scheme: {{ $probeScheme }}
             initialDelaySeconds: 5
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.server.port }}
+              scheme: {{ $probeScheme }}
             initialDelaySeconds: 300
             periodSeconds: 15
           resources: {{ toYaml .Values.server.resources | nindent 12 }}
