@@ -77,3 +77,31 @@ spec:
         value: "false"
 ...
 ```
+
+See the complete example [here]().
+
+## Managing database namespaces
+
+Once your core Everest application is installed and synced, you can create a new ArgoCD Application for managing your database namespaces.
+
+#### Example:
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: everest-db
+  namespace: argocd
+spec:
+  destination:
+    namespace: everest
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    chart: everest-db-namespace
+    repoURL: https://percona.github.io/percona-helm-charts/
+    targetRevision: 1.3.0
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+```
