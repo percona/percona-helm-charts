@@ -65,7 +65,6 @@ server:
         # -- Create a Certificate resource (requires cert-manager)
       create: false
       # -- Certificate primary domain (commonName)
-      # @default -- `""` (defaults to global.domain)
       domain: ""
       # -- Certificate Subject Alternate Names (SANs)
       additionalHosts: []
