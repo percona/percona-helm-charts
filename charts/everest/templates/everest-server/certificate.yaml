@@ -1,11 +1,8 @@
 {{- if (and .Values.server.tls.enabled .Values.server.tls.certificate.create) }}
-{{- if .Values.server.tls.secret.create }}
-  {{- fail "cannot set both server.tls.secret.create and server.tls.certificate.create" }}
-{{- end }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ .Values.server.tls.secretName }}
+  name: {{ .Values.server.tls.secret.name }}
   namespace: {{ include  "everest.namespace" . }}
 spec:
   {{- with .Values.server.tls.certificate.secretTemplateAnnotations }}
@@ -15,7 +12,7 @@ spec:
       {{ $key }}: {{ $value | quote }}
       {{- end }}
   {{- end }} 
-  secretName: {{ .Values.server.tls.secretName }}
+  secretName: {{ .Values.server.tls.secret.name }}
   commonName: {{ .Values.server.tls.certificate.domain }}
   dnsNames:
     - {{ .Values.server.tls.certificate.domain }}
