@@ -1,6 +1,6 @@
-{{- if (and .Values.server.tls.enabled .Values.server.tls.certificate.create -}}
+{{- if (and .Values.server.tls.enabled .Values.server.tls.certificate.create) }}
 {{- if .Values.server.tls.secret.create }}
-{{ fail "cannot set both server.tls.secret.create and server.tls.certificate.create" }}
+  {{- fail "cannot set both server.tls.secret.create and server.tls.certificate.create" }}
 {{- end }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
