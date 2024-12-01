@@ -8,15 +8,15 @@ This guide outlines these issues and provides recommended configurations.
 
 * The chart contains resources whose values are randomly generated if not explicitly specified. 
 Since ArgoCD rerenders templates on every sync, these values will change, leading to your Application always appearing out of sync.
-To resolve this, you need to include these resources in the `spec.ignoreDifferences` fields.
+To resolve this, you need to include these resources in the `spec.ignoreDifferences` fields (see example below).
 * The `everest-accounts` Secret might be managed externally (e.g., via `everestctl`).
-To prevent sync issues, include this Secret in the `spec.ignoreDifferences` field.
-* During chart upgrades, Everest uses a `pre-upgrade` hook to verify prerequisites.
-ArgoCD treats this as a `PreSync` hook, causing upgrade checks to run unnecessarily even when no upgrades are performed. 
-To avoid this behavior, disable the upgrade checks. 
+To prevent ArgoCD from overwriting changes applied externally, include this Secret in the `spec.ignoreDifferences` field.
+* During chart upgrades, Everest uses a `pre-upgrade` hook to verify some prerequisites.
+ArgoCD treats this as a `PreSync` hook, causing upgrade checks to run on every sync, which will eventually fail.
+To avoid this, disable the upgrade checks by setting `upgrade.preflightChecks=false`.
 Note that disabling these checks means safe upgrades cannot be guaranteed when using ArgoCD.
-* Set `dbNamespaces.enabled=false` in your chart values and deploy database namespaces separately.
-This prevents conflicts with the post-install hook, which ensures the DB operators are installed.
+* It is recommended to deploy the database namespaces separately from the core Everest application.
+To achieve this, set `dbNamespaces.enabled=false` in your chart values and deploy the database namespaces as a separate `Application`.
 
 #### Recommended configuration example:
 
@@ -78,7 +78,7 @@ spec:
 ...
 ```
 
-See the complete example [here]().
+Complete example can be found [here](./application.yaml).
 
 ## Managing database namespaces
 
