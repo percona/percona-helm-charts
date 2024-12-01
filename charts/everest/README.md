@@ -5,6 +5,7 @@ This helm chart deploys Percona Everest.
 Useful links:
 - [Percona Everest Documentation](https://docs.percona.com/everest/index.html)
 - [Percona Everest GitHub](https://github.com/percona/everest)
+- [Deploying with ArgoCD](./docs/argocd.md)
 
 > :warning: Note: This chart is currently in technical preview.
 Future releases could potentially introduce breaking changes, and we cannot promise a migration path. We do not recommend using this in production environment,
