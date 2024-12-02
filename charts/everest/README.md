@@ -123,10 +123,8 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.rbac.enabled | bool | `false` | If set, enables RBAC for Everest. |
 | server.rbac.policy | string | `"g, admin, role:admin\n"` | RBAC policy configuration. Ignored if `rbac.enabled` is false. |
 | server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
-| server.tls | object | `{"certificate":{"additionalHosts":[],"create":false,"domain":"","duration":"","issuer":{"group":"","kind":"","name":""},"privateKey":{"algorithm":"RSA","encoding":"PKCS1","rotationPolicy":"Never","size":2048},"renewBefore":"","secretTemplateAnnotations":{},"usages":[]},"enabled":false,"secret":{"certs":{"tls.crt":"","tls.key":""},"name":"everest-server-tls"}}` | TLS settings for Everest server. |
-| server.tls.certificate | object | `{"additionalHosts":[],"create":false,"domain":"","duration":"","issuer":{"group":"","kind":"","name":""},"privateKey":{"algorithm":"RSA","encoding":"PKCS1","rotationPolicy":"Never","size":2048},"renewBefore":"","secretTemplateAnnotations":{},"usages":[]}` | Settings for creating a Certificate resource. Assumes cert-manager is installed. Everest server pod will come up only after cert-manager has reconciled the Certificate resource. The Certificate uses the Secret name provided by `tls.secret.name` |
 | server.tls.certificate.additionalHosts | list | `[]` | Certificate Subject Alternate Names (SANs) |
-| server.tls.certificate.create | bool | `false` | Create a Certificate resource (requires cert-manager) |
+| server.tls.certificate.create | bool | `false` | Create a Certificate resource (requires cert-manager to be installed) If set, creates a Certificate resource instead of a Secret. The Certificate uses the Secret name provided by `tls.secret.name` The Everest server pod will come up only after cert-manager has reconciled the Certificate resource. |
 | server.tls.certificate.domain | string | `""` | Certificate primary domain (commonName) |
 | server.tls.certificate.duration | string |  | The requested 'duration' (i.e. lifetime) of the certificate. # Ref: https://cert-manager.io/docs/usage/certificate/#renewal |
 | server.tls.certificate.issuer.group | string | `""` | Certificate issuer group. Set if using an external issuer. Eg. `cert-manager.io` |
@@ -139,9 +137,9 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.tls.certificate.renewBefore | string |  | How long before the expiry a certificate should be renewed. # Ref: https://cert-manager.io/docs/usage/certificate/#renewal |
 | server.tls.certificate.secretTemplateAnnotations | object | `{}` | Annotations that allow the certificate to be composed from data residing in existing Kubernetes Resources |
 | server.tls.certificate.usages | list | `[]` | Usages for the certificate ## Ref: https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.KeyUsage |
-| server.tls.enabled | bool | `false` | If set, enables TLS for the Everest server. Setting this creates a Secret containing the TLS certificates. Along with certificate.create, it creates a Certificate resource instead. |
-| server.tls.secret.certs | object | `{"tls.crt":"","tls.key":""}` | Use the specified tls.crt and tls.key in the Secret. If unspecified, the server creates a self-signed certificate. |
-| server.tls.secret.name | string | `"everest-server-tls"` | Name of the Secret containing the TLS certificates. |
+| server.tls.enabled | bool | `false` | If set, enables TLS for the Everest server. Setting tls.enabled=true creates a Secret containing the TLS certificates. Along with certificate.create, it creates a Certificate resource instead. |
+| server.tls.secret.certs | object | `{"tls.crt":"","tls.key":""}` | Use the specified tls.crt and tls.key in the Secret. If unspecified, the server creates a self-signed certificate (not recommended for production). |
+| server.tls.secret.name | string | `"everest-server-tls"` | Name of the Secret containing the TLS certificates. This Secret is created if tls.enabled=true and certificate.create=false. |
 | telemetry | bool | `true` | If set, enabled sending telemetry information. |
 | upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
 | versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |

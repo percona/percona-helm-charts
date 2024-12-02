@@ -44,28 +44,29 @@ server:
   initialAdminPassword: ""
   # -- Port on which the Everest server listens.
   port: 8080
-  # -- TLS settings for Everest server.
+
+  # TLS settings for the Everest server.
   tls:
     # -- If set, enables TLS for the Everest server.
     # Setting tls.enabled=true creates a Secret containing the TLS certificates.
     # Along with certificate.create, it creates a Certificate resource instead.
     enabled: false
 
-    # -- Settings for creating TLS Secret.
     secret:
       # -- Name of the Secret containing the TLS certificates.
+      # This Secret is created if tls.enabled=true and certificate.create=false.
       name: everest-server-tls
       # -- Use the specified tls.crt and tls.key in the Secret.
-      # If unspecified, the server creates a self-signed certificate.
+      # If unspecified, the server creates a self-signed certificate (not recommended for production).
       certs:
         tls.key: ""
         tls.crt: ""
     
-    # -- Settings for creating a Certificate resource. Assumes cert-manager is installed.
-    # Everest server pod will come up only after cert-manager has reconciled the Certificate resource.
-    # The Certificate uses the Secret name provided by `tls.secret.name`
     certificate:
-        # -- Create a Certificate resource (requires cert-manager)
+      # -- Create a Certificate resource (requires cert-manager to be installed)
+      # If set, creates a Certificate resource instead of a Secret.
+      # The Certificate uses the Secret name provided by `tls.secret.name`
+      # The Everest server pod will come up only after cert-manager has reconciled the Certificate resource.
       create: false
       # -- Certificate primary domain (commonName)
       domain: ""
