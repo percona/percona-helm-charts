@@ -47,9 +47,11 @@ server:
   # -- TLS settings for Everest server.
   tls:
     # -- If set, enables TLS for the Everest server.
-    # Setting this creates a Secret containing the TLS certificates.
+    # Setting tls.enabled=true creates a Secret containing the TLS certificates.
     # Along with certificate.create, it creates a Certificate resource instead.
     enabled: false
+
+    # -- Settings for creating TLS Secret.
     secret:
       # -- Name of the Secret containing the TLS certificates.
       name: everest-server-tls

@@ -34,7 +34,7 @@ spec:
       {{- if .Values.server.tls.enabled }}
       - name: tls-certs
         secret:
-          secretName: {{ .Values.server.tls.secretName }}
+          secretName: {{ .Values.server.tls.secret.name }}
       {{- end }}
       containers:
         - name: everest
