@@ -21,10 +21,11 @@ spec:
     spec:
       containers:
       - args:
-        - --metrics-bind-address=:8443
+        {{- if .Values.operator.enableLeaderElection }}
         - --leader-elect
-        - --health-probe-bind-address=:8081
         {{- end }}
+        - --metrics-bind-address=:8443
+        - --health-probe-bind-address=:8081
         - --monitoring-namespace={{ .Values.monitoring.namespaceOverride }}
         - --system-namespace={{ include  "everest.namespace" . }}
         command:
