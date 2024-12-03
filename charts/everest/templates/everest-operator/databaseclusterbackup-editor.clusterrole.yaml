@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: everest-operator-databaseclusterbackup-editor-role
+rules:
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusterbackups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - databaseclusterbackups/status
+  verbs:
+  - get
