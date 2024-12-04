@@ -83,47 +83,43 @@ jobs:
       - name: Basic tests
         run: |
           # Install the chart
-          helm install everest-core ./charts/everest --create-namespace --namespace everest-system
+          helm install everest ./charts/everest \
+            --create-namespace \
+            --namespace everest-system \
+            --set dbNamespace.enabled=true
 
           # Wait for system components
-          kubectl wait --for=condition=available --timeout=60s deployment/percona-everest -n everest-system
+          kubectl wait --for=condition=available --timeout=60s deployment/everest-server -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/kube-state-metrics -n everest-monitoring
           kubectl wait --for=condition=available --timeout=60s deployment/vm-operator -n everest-monitoring
 
-          # Provision DB namespace
-          kubectl create ns everest
-          kubectl label ns everest app.kubernetes.io/managed-by=everest
-          helm install everest ./charts/everest/charts/everest-db-namespace --namespace everest
-
-          # Ensure operators are installed
-          subs=$(kubectl -n everest get subscription -o jsonpath='{.items[*].metadata.name}')
-          for sub in $subs
-          do
-            echo "Waiting for InstallPlan to be created for Subscription $sub"
-            kubectl wait --for=jsonpath='.status.installplan.name' sub/$sub -n everest --timeout=600s
-            
-            ip=$(kubectl -n everest get sub $sub -o jsonpath='{.status.installplan.name}')
-            echo "InstallPlan $ip created for Subscription $sub"
-
-            echo "Waiting for InstallPlan to be complete $ip"
-            kubectl wait --for=jsonpath='.status.phase'=Complete installplan/$ip -n everest --timeout=600s
-
-            csv=$(kubectl get sub $sub -n everest -o jsonpath='{.status.installedCSV}')
-            echo "Waiting for CSV $csv to succeed"
-            kubectl wait --for=jsonpath='.status.phase'=Succeeded csv/$csv -n everest --timeout=600s
-          done
-
-          # Check DB engines
+          # Wait for default DB namespace.
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-postgresql-operator -n everest
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-server-mongodb-operator -n everest
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-xtradb-cluster-operator -n everest
           kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-server-mongodb-operator --timeout=600s -n everest
           kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-xtradb-cluster-operator --timeout=600s -n everest
           kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-postgresql-operator --timeout=600s -n everest
 
-          # Uninstall
-          helm uninstall everest -n everest
-          kubectl delete ns everest
-          kubectl wait --for=delete namespace/everest --timeout=120s
-          helm uninstall everest-core -n everest-system
+          # Provision new DB namespace
+          helm install everest ./charts/everest/charts/everest-db-namespace \
+            --namespace everest-db \
+            --create-namespace \
+            --set pxc=false
+
+          # Wait for new DB namespace.
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-postgresql-operator -n everest-db
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-server-mongodb-operator -n everest-db
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-server-mongodb-operator --timeout=600s -n everest-db
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-postgresql-operator --timeout=600s -n everest-db
+
+          # Uninstall everest-db namespace
+          helm uninstall everest -n everest-db
+          kubectl delete ns everest-db
+          kubectl wait --for=delete namespace/everest-db --timeout=120s
+          # Uninstall everest-system namespace
+          helm uninstall everest -n everest-system
           kubectl delete ns everest-system
           kubectl wait --for=delete namespace/everest-system --timeout=120s
 

@@ -1,8 +1,13 @@
+{{- if .Release.IsInstall }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: everest-rbac
+  name: "everest-rbac"
   namespace: {{ include  "everest.namespace" . }}
+  annotations:
+    helm.sh/resource-policy: keep
 data:
+  enabled: {{ .Values.server.rbac.enabled | default "false" | quote }}
   policy.csv: |
-    {{- .Values.server.rbac | nindent 4 }}
+    {{- .Values.server.rbac.policy | nindent 4 }}
+{{- end }}

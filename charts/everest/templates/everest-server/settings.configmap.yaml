@@ -1,11 +1,15 @@
+{{- if .Release.IsInstall }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: everest-settings
+  name: "everest-settings"
   namespace: {{ include  "everest.namespace" . }}
+  annotations:
+    helm.sh/resource-policy: keep
 data:
   {{- if .Values.server.oidc }}
   oidc.config: |
     {{- toYaml .Values.server.oidc | nindent 4 }}
   {{- end }}
+{{- end }}
 

@@ -15,6 +15,7 @@ Next, open your browser at http://localhost:8080.
 
 kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\.yaml}' | base64 --decode  | yq '.admin.passwordHash'
 
+{{if (not .Values.dbNamespace.enabled) }}
 3. Provision a namespace for your databases:
 
 cat <<EOF | kubectl create -f -
@@ -26,6 +27,7 @@ metadata:
     app.kubernetes.io/managed-by: everest
 EOF
 helm install everest percona/everest-db-namespace --namespace everest
+{{ end }}
 {{ end }}
 {{ if .Release.IsUpgrade }}
 Everest has been successfully upgraded to version {{ .Chart.AppVersion }}!

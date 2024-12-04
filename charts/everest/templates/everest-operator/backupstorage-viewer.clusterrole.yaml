@@ -1,0 +1,19 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: everest-operator-backupstorage-viewer-role
+rules:
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - backupstorages
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - backupstorages/status
+  verbs:
+  - get
