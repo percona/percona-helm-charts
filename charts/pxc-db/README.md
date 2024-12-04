@@ -20,14 +20,14 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.15.1 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.16.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                         | Description                                                                                          | Default                              |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `crVersion`                                       | Version of the Operator the Custom Resource belongs to                                               | `1.15.1`                             |
+| `crVersion`                                       | Version of the Operator the Custom Resource belongs to                                               | `1.16.0`                             |
 | `ignoreAnnotations`                               | Operator will not remove following annotations                                                       | `[]`                                 |
 | `ignoreLabels`                                    | Operator will not remove following labels                                                            | `[]`                                 |
 | `pause`                                           | Stop PXC Database safely                                                                             | `false`                              |
@@ -38,6 +38,7 @@ The chart can be customized using the following configurable parameters:
 | `unsafeFlags.backupIfUnhealthy`                   | Allows running a backup even if the cluster status is not `ready`                                    | `false`                              |
 | `enableCRValidationWebhook`                       | Enables or disables schema validation before applying custom resource                                | `false`                              |
 | `initContainer.image`                             | An alternative image for the initial Operator installation                                           | `""`                                 |
+| `initContainer.containerSecurityContext`          | A custom Kubernetes Security Context for a Container to be used instead of the default               | `{}`                                 |
 | `initContainer.resources.requests`                | Init container resource requests                                                                     | `{}`                                 |
 | `initContainer.resources.limits`                  | Init container resource limits                                                                       | `{}`                                 |
 | `updateStrategy`                                  | Regulates the way how PXC Cluster Pods will be updated after setting a new image                     | `SmartUpdate`                        |
