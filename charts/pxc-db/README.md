@@ -20,14 +20,14 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.15.1 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.16.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                         | Description                                                                                          | Default                              |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `crVersion`                                       | Version of the Operator the Custom Resource belongs to                                               | `1.15.1`                             |
+| `crVersion`                                       | Version of the Operator the Custom Resource belongs to                                               | `1.16.0`                             |
 | `ignoreAnnotations`                               | Operator will not remove following annotations                                                       | `[]`                                 |
 | `ignoreLabels`                                    | Operator will not remove following labels                                                            | `[]`                                 |
 | `pause`                                           | Stop PXC Database safely                                                                             | `false`                              |
@@ -38,6 +38,7 @@ The chart can be customized using the following configurable parameters:
 | `unsafeFlags.backupIfUnhealthy`                   | Allows running a backup even if the cluster status is not `ready`                                    | `false`                              |
 | `enableCRValidationWebhook`                       | Enables or disables schema validation before applying custom resource                                | `false`                              |
 | `initContainer.image`                             | An alternative image for the initial Operator installation                                           | `""`                                 |
+| `initContainer.containerSecurityContext`          | A custom Kubernetes Security Context for a Container to be used instead of the default               | `{}`                                 |
 | `initContainer.resources.requests`                | Init container resource requests                                                                     | `{}`                                 |
 | `initContainer.resources.limits`                  | Init container resource limits                                                                       | `{}`                                 |
 | `updateStrategy`                                  | Regulates the way how PXC Cluster Pods will be updated after setting a new image                     | `SmartUpdate`                        |
@@ -250,6 +251,15 @@ The chart can be customized using the following configurable parameters:
 | `pmm.pxcParams`                | Additional parameters which will be passed to the [pmm-admin add mysql](https://docs.percona.com/percona-monitoring-and-management/setting-up/client/mysql.html#add-service) command for `pxc` Pods | `""`                                |
 | `pmm.proxysqlParams`           | Additional parameters which will be passed to the [pmm-admin add proxysql](https://docs.percona.com/percona-monitoring-and-management/setting-up/client/proxysql.html) command for `proxysql` Pods  | `""`                                |
 | `pmm.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one                                                                                                          | `{}`                                |
+
+| `users.name`                   | The username of the PXC application user                                                                                                                                                                        | `""` |
+| `users.dbs`                    | Database that will be applied to the user                                                                                                                                                                       | `[]` |
+| `users.grants`                 | Grants that will be applied to the user                                                                                                                                                                         | `[]` |
+| `users.withGrantOption`        | Set grant options for the user                                                                                                                                                                                  | `[]` |
+| `users.passwordSecretRef.name` | Name of the secret that contains the user's password                                                                                                                                                            | `""` |
+| `users.passwordSecretRef.key`  | Key in the secret that corresponds to the value of the user's password                                                                                                                                          | `""` |
+
+
 | |
 | `backup.enabled`                                                                 | Enables backups for PXC cluster                                                                                                                               | `true`                                    |
 | `backup.allowParallel`                                                           | Allow taking multiple backups in parallel                                                                                                                     | `true`                                    |

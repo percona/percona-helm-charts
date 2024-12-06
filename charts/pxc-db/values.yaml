@@ -19,7 +19,7 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.15.1
+crVersion: 1.16.0
 
 enableVolumeExpansion: false
 
@@ -29,7 +29,11 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.15.1"
+#   image: "percona/percona-xtradb-cluster-operator:1.16.0"
+#   containerSecurityContext:
+#     privileged: false
+#     runAsUser: 1001
+#     runAsGroup: 1001
 #   resources:
 #     requests:
 #       memory: 100M
@@ -548,6 +552,23 @@ logcollector:
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
+
+# users:
+# - name: my-user
+#   dbs:
+#   - db1
+#   - db2
+#   hosts:
+#   - localhost
+#   grants:
+#   - SELECT
+#   - DELETE
+#   - INSERT
+#   withGrantOption: true
+#   passwordSecretRef:
+#     name: my-user-pwd
+#     key: my-user-pwd-key
+# - name: my-user-two
 
 pmm:
   enabled: false
