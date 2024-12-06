@@ -553,6 +553,23 @@ logcollector:
   # containerSecurityContext:
   #   privileged: false
 
+# users:
+# - name: my-user
+#   dbs:
+#   - db1
+#   - db2
+#   hosts:
+#   - localhost
+#   grants:
+#   - SELECT
+#   - DELETE
+#   - INSERT
+#   withGrantOption: true
+#   passwordSecretRef:
+#     name: my-user-pwd
+#     key: my-user-pwd-key
+# - name: my-user-two
+
 pmm:
   enabled: false
   image:

@@ -251,6 +251,15 @@ The chart can be customized using the following configurable parameters:
 | `pmm.pxcParams`                | Additional parameters which will be passed to the [pmm-admin add mysql](https://docs.percona.com/percona-monitoring-and-management/setting-up/client/mysql.html#add-service) command for `pxc` Pods | `""`                                |
 | `pmm.proxysqlParams`           | Additional parameters which will be passed to the [pmm-admin add proxysql](https://docs.percona.com/percona-monitoring-and-management/setting-up/client/proxysql.html) command for `proxysql` Pods  | `""`                                |
 | `pmm.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one                                                                                                          | `{}`                                |
+
+| `users.name`                   | The username of the PXC application user                                                                                                                                                                        | `""` |
+| `users.dbs`                    | Database that will be applied to the user                                                                                                                                                                       | `[]` |
+| `users.grants`                 | Grants that will be applied to the user                                                                                                                                                                         | `[]` |
+| `users.withGrantOption`        | Set grant options for the user                                                                                                                                                                                  | `[]` |
+| `users.passwordSecretRef.name` | Name of the secret that contains the user's password                                                                                                                                                            | `""` |
+| `users.passwordSecretRef.key`  | Key in the secret that corresponds to the value of the user's password                                                                                                                                          | `""` |
+
+
 | |
 | `backup.enabled`                                                                 | Enables backups for PXC cluster                                                                                                                               | `true`                                    |
 | `backup.allowParallel`                                                           | Allow taking multiple backups in parallel                                                                                                                     | `true`                                    |
