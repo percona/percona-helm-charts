@@ -90,6 +90,33 @@ helm uninstall everest-core -n everest-system
 kubectl delete ns everest-system
 ```
 
+### 6. Upgrade
+
+#### 6.1 Upgrade CRDs
+
+As of Helm v3, CRDs are not automatically updated during a Helm upgrade. You must manually upgrade the CRDs.
+
+```sh
+VERSION=<Next version> # e.g. v1.3.0
+kubectl apply -k https://github.com/percona/everest-operator/config/crd?ref=$(VERSION) --server-side
+```
+
+#### 6.2 Upgrade Helm Releases
+
+```sh
+VERSION=<Next version> # e.g. v1.3.0
+
+# Upgrade DB namespace releases
+helm upgrade everest-core percona/everest --namespace everest-system --version $(VERSION)
+# Upgrade Everest core release
+helm upgrade everest percona/everest-db-namespace --namespace everest --version $(VERSION)
+```
+
+Notes:
+* It is recommended to upgrade 1 minor release at a time, otherwise you may run into unexpected issues.
+* It is recommended to upgrade to the latest patch release first before upgrading to the next minor release.
+* To ensure that the upgrade happens safely, we run a pre-upgrade hook that runs a series of checks.
+
 ## Configuration
 
 The following table shows the configurable parameters of the Percona Everest chart and their default values.
