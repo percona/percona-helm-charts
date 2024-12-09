@@ -63,6 +63,8 @@ helm install my-db percona/pxc-db
 
 See more about Percona XtraDB Cluster in its chart [here](https://github.com/percona/percona-helm-charts/blob/main/charts/pxc-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html).
 
+# Need help?
+
 **Commercial Support**  | **Community Support** |
 :-: | :-: |
 | <br/>Enterprise-grade assistance for your mission-critical database deployments in containers and Kubernetes. Get expert guidance for complex tasks like multi-cloud replication, database migration and building platforms.<br/><br/>  | <br/>Connect with our engineers and fellow users for general questions, troubleshooting, and sharing feedback and ideas.<br/><br/>  | 
