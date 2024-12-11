@@ -103,9 +103,6 @@ kubectl apply -k https://github.com/percona/everest-operator/config/crd?ref=$(VE
 
 #### 6.2 Upgrade Helm Releases
 
-```sh
-VERSION=<Next version> # e.g. v1.3.0
-
 Upgrade the Helm release for Everest (core components):
 ```sh
 helm upgrade everest-core percona/everest --namespace everest-system --version $(VERSION)
@@ -119,7 +116,8 @@ helm upgrade everest percona/everest-db-namespace --namespace [DB NAMESPACE] --v
 Notes:
 * It is recommended to upgrade 1 minor release at a time, otherwise you may run into unexpected issues.
 * It is recommended to upgrade to the latest patch release first before upgrading to the next minor release.
-* To ensure that the upgrade happens safely, we run a pre-upgrade hook that runs a series of checks.
+* To ensure that the upgrade happens safely, we run a pre-upgrade hook that runs a series of checks. This can be disabled by setting `upgrade.preflightChecks=false`.
+Howeever, in doing so, a safe upgrade cannot be guaranteed.
 
 ## Configuration
 
