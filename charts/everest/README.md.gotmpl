@@ -106,10 +106,14 @@ kubectl apply -k https://github.com/percona/everest-operator/config/crd?ref=$(VE
 ```sh
 VERSION=<Next version> # e.g. v1.3.0
 
-# Upgrade DB namespace releases
+Upgrade the Helm release for Everest (core components):
+```sh
 helm upgrade everest-core percona/everest --namespace everest-system --version $(VERSION)
-# Upgrade Everest core release
-helm upgrade everest percona/everest-db-namespace --namespace everest --version $(VERSION)
+```
+
+Upgrade the Helm release for the database namespace (if applicable):
+```sh
+helm upgrade everest percona/everest-db-namespace --namespace [DB NAMESPACE] --version $(VERSION)
 ```
 
 Notes:
