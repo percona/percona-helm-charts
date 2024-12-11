@@ -67,3 +67,10 @@ helm install my-db percona/psmdb-db
 ```
 
 See more about Percona Server for MongoDB deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/psmdb-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
+
+# Need help?
+
+**Commercial Support**  | **Community Support** |
+:-: | :-: |
+| <br/>Enterprise-grade assistance for your mission-critical database deployments in containers and Kubernetes. Get expert guidance for complex tasks like multi-cloud replication, database migration and building platforms.<br/><br/>  | <br/>Connect with our engineers and fellow users for general questions, troubleshooting, and sharing feedback and ideas.<br/><br/>  | 
+| **[Get Percona Support](https://hubs.ly/Q02ZTH8Q0)** | **[Visit our Forum](https://forums.percona.com/)** |

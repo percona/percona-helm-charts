@@ -21,33 +21,20 @@ Useful links:
 
 You will need [Helm v3](https://github.com/helm/helm) for the installation. See detailed installation instructions in the README file of each chart.
 
+# Need help?
+
+**Commercial Support**  | **Community Support** |
+:-: | :-: |
+| <br/>Enterprise-grade assistance for your mission-critical database deployments in containers and Kubernetes. Get expert guidance for complex tasks like multi-cloud replication, database migration and building platforms.<br/><br/>  | <br/>Connect with our engineers and fellow users for general questions, troubleshooting, and sharing feedback and ideas.<br/><br/>  | 
+| **[Get Percona Support](https://hubs.ly/Q02ZTH8Q0)** | **[Visit our Forum](https://forums.percona.com/)** |
+
 # Contributing
 
 Percona welcomes and encourages community contributions to help improve Percona Kubernetes Operators as well as other Percona's projects.
 
 See the [Contribution Guide](CONTRIBUTING.md) for more information.
 
-# Join Percona Kubernetes Squad!                                                                              
-```                                                                                     
-                    %                        _____                
-                   %%%                      |  __ \                                          
-                 ###%%%%%%%%%%%%*           | |__) |__ _ __ ___ ___  _ __   __ _             
-                ###  ##%%      %%%%         |  ___/ _ \ '__/ __/ _ \| '_ \ / _` |            
-              ####     ##%       %%%%       | |  |  __/ | | (_| (_) | | | | (_| |            
-             ###        ####      %%%       |_|   \___|_|  \___\___/|_| |_|\__,_|           
-           ,((###         ###     %%%        _      _          _____                       _
-          (((( (###        ####  %%%%       | |   / _ \       / ____|                     | | 
-         (((     ((#         ######         | | _| (_) |___  | (___   __ _ _   _  __ _  __| | 
-       ((((       (((#        ####          | |/ /> _ </ __|  \___ \ / _` | | | |/ _` |/ _` |
-      /((          ,(((        *###         |   <| (_) \__ \  ____) | (_| | |_| | (_| | (_| |
-    ////             (((         ####       |_|\_\\___/|___/ |_____/ \__, |\__,_|\__,_|\__,_|
-   ///                ((((        ####                                  | |                  
- /////////////(((((((((((((((((########                                 |_|   Join @ percona.com/k8s   
-```
-
-You can get early access to new product features, invite-only ”ask me anything” sessions with Percona Kubernetes experts, and monthly swag raffles. Interested? Fill in the form at [percona.com/k8s](https://www.percona.com/k8s).
-
-# Submitting Bug Reports
+## Submitting Bug Reports
 
 If you find a bug related to one of these Helm charts, please submit a report to the appropriate project's Jira issue tracker:
 
