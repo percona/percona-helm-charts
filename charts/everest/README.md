@@ -117,7 +117,7 @@ Notes:
 * It is recommended to upgrade 1 minor release at a time, otherwise you may run into unexpected issues.
 * It is recommended to upgrade to the latest patch release first before upgrading to the next minor release.
 * To ensure that the upgrade happens safely, we run a pre-upgrade hook that runs a series of checks. This can be disabled by setting `upgrade.preflightChecks=false`.
-Howeever, in doing so, a safe upgrade cannot be guaranteed.
+However, in doing so, a safe upgrade cannot be guaranteed.
 
 ## Configuration
 
