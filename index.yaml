@@ -78,6 +78,44 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/everest-1.4.0-rc1/everest-1.4.0-rc1.tgz
     version: 1.4.0-rc1
   - apiVersion: v2
+    appVersion: 1.4.0-rc1
+    created: "2024-12-12T14:49:57.043607379Z"
+    dependencies:
+    - name: common
+      repository: file://charts/common
+      version: 0.0.*
+    - alias: dbNamespace
+      condition: dbNamespace.enabled
+      name: everest-db-namespace
+      repository: file://charts/everest-db-namespace
+      version: 1.4.0-rc1
+    - condition: kube-state-metrics.enabled
+      name: kube-state-metrics
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 5.27.0
+    - alias: monitoring
+      condition: monitoring.enabled
+      name: victoria-metrics-operator
+      repository: https://victoriametrics.github.io/helm-charts
+      version: 0.37.0
+    description: A cloud-native database platform
+    digest: 5a8bf5554f2a5c70bfaa611079ebf7d3cce15a04b770e605b724a29176d39d70
+    kubeVersion: '>= 1.27.0-0'
+    maintainers:
+    - email: mayank.shah@percona.com
+      name: mayankshah1607
+    - email: oksana.grishchenko@percona.com
+      name: oksana-grishchenko
+    - email: diogo.recharte@percona.com
+      name: recharte
+    - email: michal.kralik@percona.com
+      name: michal-kralik
+    name: everest
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/everest-1.4.0-rc1/everest-1.4.0-rc1.tgz
+    version: 1.4.0-rc1
+  - apiVersion: v2
     appVersion: 1.3.0
     created: "2024-11-19T09:20:11.767422467Z"
     dependencies:
@@ -5814,4 +5852,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2024-12-10T09:11:13.369533958Z"
+generated: "2024-12-12T14:49:57.043968651Z"
