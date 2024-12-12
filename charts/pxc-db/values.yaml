@@ -596,6 +596,7 @@ backup:
     repository: percona/percona-xtradb-cluster-operator
     tag: 1.15.1-pxc8.0-backup-pxb8.0.35
   # backoffLimit: 6
+  # activeDeadlineSeconds: 3600
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []

@@ -521,6 +521,9 @@ spec:
     {{- if $backup.backoffLimit }}
     backoffLimit: {{ $backup.backoffLimit }}
     {{- end }}
+    {{- if $backup.activeDeadlineSeconds }}
+    activeDeadlineSeconds: {{ $backup.activeDeadlineSeconds }}
+    {{- end }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
     {{- end }}
