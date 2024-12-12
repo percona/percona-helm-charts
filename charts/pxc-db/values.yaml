@@ -710,7 +710,6 @@ secrets:
   #   root: insecure-root-password
   #   xtrabackup: insecure-xtrabackup-password
   #   monitor: insecure-monitor-password
-  #   clustercheck: insecure-clustercheck-password
   #   proxyadmin: insecure-proxyadmin-password
   #   pmmserver: insecure-pmmserver-password
   #   # If pmmserverkey is set in that case pmmserver pass will not be included
