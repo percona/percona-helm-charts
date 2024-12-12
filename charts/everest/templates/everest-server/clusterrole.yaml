@@ -21,3 +21,6 @@ rules:
   - apiGroups: ["everest.percona.com"]
     resources: ["*"]
     verbs: ["*"]
+  - apiGroups: ["operators.coreos.com"]
+    resources: ["installplans"]
+    verbs: ["get", "list", "update"]

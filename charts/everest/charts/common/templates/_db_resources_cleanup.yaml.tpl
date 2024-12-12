@@ -11,6 +11,7 @@ metadata:
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -20,6 +21,7 @@ metadata:
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
 rules:
   - apiGroups:
       - everest.percona.com
@@ -28,8 +30,10 @@ rules:
       - backupstorages
       - monitoringconfigs
     verbs:
+      - get
       - delete
       - list
+      - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -39,6 +43,7 @@ metadata:
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -56,6 +61,7 @@ metadata:
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
 spec:
   template:
     spec:
@@ -64,7 +70,8 @@ spec:
           name: {{ $hookName }}
           command:
             - /bin/sh
-            - -c
+            - -ec
+          args:
             - |
               echo "Deleting DatabaseClusters"
               kubectl delete databaseclusters -n {{ .namespace }} --all --wait
