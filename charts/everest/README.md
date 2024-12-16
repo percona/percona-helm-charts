@@ -114,6 +114,9 @@ helm upgrade everest percona/everest-db-namespace --namespace [DB NAMESPACE] --v
 ```
 
 Notes:
+* :warning: When specifying values during an upgrade (i.e, using `--set`, `--set-json`, `--values`, etc.), Helm resets all the other values
+to the defaults built into the chart. To preserve the previously set values, you must use the `--reuse-values` flag.
+Alternatively, provide the full set of values, including any overrides applied during installation.
 * It is recommended to upgrade 1 minor release at a time, otherwise you may run into unexpected issues.
 * It is recommended to upgrade to the latest patch release first before upgrading to the next minor release.
 * To ensure that the upgrade happens safely, we run a pre-upgrade hook that runs a series of checks. This can be disabled by setting `upgrade.preflightChecks=false`.
