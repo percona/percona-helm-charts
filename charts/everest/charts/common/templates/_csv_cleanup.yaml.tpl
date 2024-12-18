@@ -25,6 +25,7 @@ rules:
       - operators.coreos.com
     resources:
       - clusterserviceversions
+      - subscriptions
     verbs:
       - delete
       - list
