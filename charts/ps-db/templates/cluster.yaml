@@ -113,6 +113,10 @@ spec:
     readinessProbe:
 {{ $mysql.readinessProbe | toYaml | indent 6 }}
     {{- end }}
+    {{- if $mysql.startupProbe }}
+    startupProbe:
+{{ $mysql.startupProbe | toYaml | indent 6 }}
+    {{- end }}
     tolerations:
 {{ $mysql.tolerations | toYaml | indent 6 }}
     nodeSelector:
