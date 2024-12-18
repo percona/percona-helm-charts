@@ -69,6 +69,23 @@ Notes:
 * By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
 * We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
+#### 4.1 Deploying additional operatos to an existing database namespace
+
+If you have an existing database namespace and would like to deploy additional operators to it, you may do so using the following command:
+
+```sh
+helm upgrade everest \
+    percona/everest-db-namespace \
+    --namespace [NAMESPACE]
+    --pxc=true \
+    --pg=true
+```
+
+The above example assumes that the MongoDB operator is already installed in the database namespace and you would like to install the Percona XtraDB Cluster and PostgreSQL operators.
+
+Notes:
+* We do not support removing operators from an existing database namespace.
+
 ### 5. Uninstall
 
 #### 5.1 Uninstalling database namespaces
