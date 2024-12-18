@@ -84,7 +84,7 @@ helm upgrade everest \
 The above example assumes that the MongoDB operator is already installed in the database namespace and you would like to install the Percona XtraDB Cluster and PostgreSQL operators.
 
 Notes:
-* We do not support removing operators from an existing database namespace.
+* Removing a database operator from a namespace is not supported. You may only add additional operators.
 
 ### 5. Uninstall
 
