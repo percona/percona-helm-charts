@@ -25,6 +25,7 @@ rules:
       - operators.coreos.com
     resources:
       - clusterserviceversions
+      - subscriptions
     verbs:
       - delete
       - list
@@ -64,6 +65,7 @@ spec:
             - /bin/sh
             - -c
             - |
+              kubectl delete subscription -n {{ .namespace }} --all --wait
               kubectl delete csv -n {{ .namespace }} --all --wait
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure
