@@ -12,8 +12,6 @@ maintainers:
     email: oksana.grishchenko@percona.com
   - name: recharte
     email: diogo.recharte@percona.com
-  - name: michal-kralik
-    email: michal.kralik@percona.com
 dependencies:
   - name: common
     version: 0.0.*
