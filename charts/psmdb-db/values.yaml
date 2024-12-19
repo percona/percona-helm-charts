@@ -20,7 +20,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.18.0
+crVersion: 1.19.0
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -56,7 +56,7 @@ imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.18.0
+#   tag: 1.19.0
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
