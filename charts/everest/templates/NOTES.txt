@@ -1,34 +1,37 @@
-{{ if .Release.IsInstall }}
-Thank you for installing Everest!
+{{- if .Release.IsInstall }}
+Thank you for installing Everest (v{{ .Chart.AppVersion }})!
 
-Get started by following the below steps:
+Follow the steps below to get started:
+{{ if not .Values.dbNamespace.enabled }}
+PROVISION A NAMESPACE FOR YOUR DATABASES
+=========================================
 
-1. Access the Everest UI:
+Install a namespace for your databases using the following command:
 
-Setup a port-forward to the Everest service:
+    helm install everest/everest-db-namespace --namespace everest --create-namespace
 
-kubectl port-forward svc/everest 8080:8080 -n everest-system
+{{- end }}
 
-Next, open your browser at http://localhost:8080.
+RETRIEVE THE INITIAL ADMIN PASSWORD
+====================================
 
-2. Retrieve the initial admin password:
+Run the following command to fetch the initial admin password:
 
-kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\.yaml}' | base64 --decode  | yq '.admin.passwordHash'
+    kubectl get secret everest-accounts -n everest-system -o jsonpath='{.data.users\.yaml}' | base64 --decode | yq '.admin.passwordHash'
 
-{{if (not .Values.dbNamespace.enabled) }}
-3. Provision a namespace for your databases:
+**Note:** The initial password is stored in plain text. For security, change it immediately using the following command:
 
-cat <<EOF | kubectl create -f -
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: everest
-  labels:
-    app.kubernetes.io/managed-by: everest
-EOF
-helm install everest percona/everest-db-namespace --namespace everest
-{{ end }}
-{{ end }}
-{{ if .Release.IsUpgrade }}
+    everestctl accounts set-password -u admin
+
+ACCESS THE EVEREST UI
+======================
+
+To access the web UI, set up port-forwarding and visit http://localhost:8080 in your browser:
+
+    kubectl port-forward svc/everest 8080:8080 -n everest-system
+{{- end }}
+
+{{- if .Release.IsUpgrade }}
 Everest has been successfully upgraded to version {{ .Chart.AppVersion }}!
-{{ end }}
+{{- end }}
+
