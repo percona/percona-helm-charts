@@ -5,7 +5,7 @@ name: psmdb-db
 home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
 version: 1.19.0
 maintainers:
-  - name: tplavcic
-    email: tomislav.plavcic@percona.com
   - name: nmarukovich
     email: natalia.marukovich@percona.com
+  - name: jvpasinatto
+    email: julio.pasinatto@percona.com
