@@ -8,7 +8,7 @@ PROVISION A NAMESPACE FOR YOUR DATABASES
 
 Install a namespace for your databases using the following command:
 
-    helm install everest/everest-db-namespace --namespace everest --create-namespace
+    helm install everest percona/everest-db-namespace --namespace everest --create-namespace
 
 {{- end }}
 
