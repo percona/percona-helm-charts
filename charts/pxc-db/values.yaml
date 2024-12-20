@@ -19,7 +19,7 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.15.1
+crVersion: 1.16.0
 
 enableVolumeExpansion: false
 
@@ -29,7 +29,11 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.15.1"
+#   image: "percona/percona-xtradb-cluster-operator:1.16.0"
+#   containerSecurityContext:
+#     privileged: false
+#     runAsUser: 1001
+#     runAsGroup: 1001
 #   resources:
 #     requests:
 #       memory: 100M
@@ -63,7 +67,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.36-28.1
+    tag: 8.0.39-30.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
@@ -210,7 +214,7 @@ pxc:
 haproxy:
   enabled: true
   size: 3
-  image: percona/haproxy:2.8.5
+  image: percona/haproxy:2.8.11
   # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -377,7 +381,7 @@ haproxy:
 proxysql:
   enabled: false
   size: 3
-  image: "percona/proxysql2:2.5.5"
+  image: "percona/proxysql2:2.7.1"
   # imagePullPolicy: Always
   imagePullSecrets: []
 #  configuration: |
@@ -529,7 +533,7 @@ proxysql:
 
 logcollector:
   enabled: true
-  image: percona/percona-xtradb-cluster-operator:1.15.1-logcollector-fluentbit3.1.4
+  image: percona/percona-xtradb-cluster-operator:1.16.0-logcollector-fluentbit3.2.2
   # imagePullPolicy: Always
   imagePullSecrets: []
   # configuration: |
@@ -549,11 +553,28 @@ logcollector:
   # containerSecurityContext:
   #   privileged: false
 
+# users:
+# - name: my-user
+#   dbs:
+#   - db1
+#   - db2
+#   hosts:
+#   - localhost
+#   grants:
+#   - SELECT
+#   - DELETE
+#   - INSERT
+#   withGrantOption: true
+#   passwordSecretRef:
+#     name: my-user-pwd
+#     key: my-user-pwd-key
+# - name: my-user-two
+
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.42.0
+    tag: 2.44.0
   # imagePullPolicy: Always
   imagePullSecrets: []
   serverHost: monitoring-service
@@ -573,8 +594,9 @@ backup:
   # allowParallel: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.15.1-pxc8.0-backup-pxb8.0.35
+    tag: 1.16.0-pxc8.0-backup-pxb8.0.35
   # backoffLimit: 6
+  # activeDeadlineSeconds: 3600
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
@@ -689,7 +711,6 @@ secrets:
   #   root: insecure-root-password
   #   xtrabackup: insecure-xtrabackup-password
   #   monitor: insecure-monitor-password
-  #   clustercheck: insecure-clustercheck-password
   #   proxyadmin: insecure-proxyadmin-password
   #   pmmserver: insecure-pmmserver-password
   #   # If pmmserverkey is set in that case pmmserver pass will not be included
