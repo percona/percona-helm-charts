@@ -1,5 +1,0 @@
-# TODO: We will remove the below hooks once we use the VictoriaMetrics Helm chart directly as a dependency.
-{{- include "everest.csvCleanup" (dict "namespace" .Values.monitoring.namespace) }}
----
-{{- include "everest.installplanApprover" (dict "namespace" .Values.monitoring.namespace) }}
-

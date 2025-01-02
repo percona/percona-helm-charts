@@ -1,15 +1,15 @@
 #
 # @param .namespace     The namespace where the operators are installed
 #
-{{- define "everest.installplanApprover" }}
-{{- $hookName := "everest-helm-post-install-hook" }}
+{{- define "everest.operatorsInstaller" }}
+{{- $hookName := "everest-operators-installer" }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": post-install
+    "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -18,9 +18,18 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": post-install
+    "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - patch
+      - update
   - apiGroups:
       - operators.coreos.com
     resources:
@@ -47,7 +56,7 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": post-install
+    "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -61,10 +70,10 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ $hookName }}-{{ randNumeric 6 }}
+  name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": post-install
+    "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
@@ -76,9 +85,17 @@ spec:
             - /bin/sh
             - -c
             - |
+              kubectl label namespace {{ .namespace }} app.kubernetes.io/managed-by=everest --overwrite
               subs=$(kubectl -n {{ .namespace }} get subscription -o jsonpath='{.items[*].metadata.name}')
               for sub in $subs
               do
+                # We do not want to touch already installed operators, otherwise bad things can happen.
+                installedCSV=$(kubectl -n {{ .namespace }} get sub $sub -o jsonpath='{.status.installedCSV}')
+                if [ "$installedCSV" != "" ]; then
+                  echo "Operator $sub already installed. Skip..."
+                  continue
+                fi
+
                 echo "Waiting for InstallPlan to be created for Subscription $sub"
                 kubectl wait --for=jsonpath='.status.installplan.name' sub/$sub -n {{ .namespace }} --timeout=600s
                 
@@ -101,5 +118,4 @@ spec:
       serviceAccount: {{ $hookName }}
       serviceAccountName: {{ $hookName }}
       terminationGracePeriodSeconds: 30
----
 {{- end }}

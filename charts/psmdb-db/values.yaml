@@ -14,11 +14,13 @@ finalizers:
   - percona.com/delete-psmdb-pods-in-order
 ## Set this if you want to delete database persistent volumes on cluster deletion
 #  - percona.com/delete-psmdb-pvc
+## Set this if you want to delete all pitr chunks on cluster deletion
+#  - percona.com/delete-pitr-chunks
 
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.17.0
+crVersion: 1.18.0
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -27,6 +29,8 @@ unsafeFlags:
   mongosSize: false
   terminationGracePeriod: false
   backupIfUnhealthy: false
+
+enableVolumeExpansion: false
 
 annotations: {}
 
@@ -46,13 +50,13 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 7.0.12-7
+  tag: 7.0.14-8-multi
 
 imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.17.0
+#   tag: 1.18.0
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -68,6 +72,7 @@ secrets: {}
   # If not set the operator generates the default secret with name <cluster_name>-secrets
   # users: my-cluster-name-secrets
   # encryptionKey: my-cluster-name-mongodb-encryption-key
+  # keyFile: my-cluster-name-mongodb-keyfile
   # vault: my-cluster-name-vault
   # ldapSecret: my-ldap-secret
   # sse: my-cluster-name-sse
@@ -76,7 +81,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.42.0
+    tag: 2.43.2
   serverHost: monitoring-service
 #   mongodParams: ""
 #   mongosParams: ""
@@ -108,6 +113,19 @@ replsets:
     #     maxSkew: 1
     #     topologyKey: kubernetes.io/hostname
     #     whenUnsatisfiable: DoNotSchedule
+    # replsetOverrides:
+    #   my-cluster-name-rs0-0:
+    #     host: my-cluster-name-rs0-0.example.net:27017
+    #     tags:
+    #       key: value-0
+    #   my-cluster-name-rs0-1:
+    #     host: my-cluster-name-rs0-1.example.net:27017
+    #     tags:
+    #       key: value-1
+    #   my-cluster-name-rs0-2:
+    #     host: my-cluster-name-rs0-2.example.net:27017
+    #     tags:
+    #       key: value-2
     affinity:
       antiAffinityTopologyKey: "kubernetes.io/hostname"
       # advanced:
@@ -121,6 +139,9 @@ replsets:
       #           - S1
       #       topologyKey: failure-domain.beta.kubernetes.io/zone
     # tolerations: []
+    # primaryPreferTagSelector:
+    #   region: us-west-2
+    #   zone: us-west-2c
     # priorityClass: ""
     # annotations: {}
     # labels: {}
@@ -199,13 +220,15 @@ replsets:
     #     external-2: rs0-2.mycluster2.xyz
     expose:
       enabled: false
-      exposeType: ClusterIP
+      type: ClusterIP
+      # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
-      # serviceAnnotations:
+      # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels:
+      # labels:
       #   some-label: some-key
+      # internalTrafficPolicy: Local
     # schedulerName: ""
     resources:
       limits:
@@ -372,13 +395,15 @@ sharding:
       maxUnavailable: 1
     expose:
       enabled: false
-      exposeType: ClusterIP
+      type: ClusterIP
+      # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
-      # serviceAnnotations:
+      # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels:
+      # labels:
       #   some-label: some-key
+      # internalTrafficPolicy: Local
     resources:
       limits:
         cpu: "300m"
@@ -408,7 +433,7 @@ sharding:
     #   - "host2"
 
   mongos:
-    size: 2
+    size: 3
     # terminationGracePeriodSeconds: 300
     # configuration: |
     #   systemLog:
@@ -463,14 +488,16 @@ sharding:
         cpu: "300m"
         memory: "0.5G"
     expose:
-      exposeType: ClusterIP
-      # servicePerPod: true
+      enabled: false
+      type: ClusterIP
+      # loadBalancerIP: 10.0.0.0/8
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
-      # serviceAnnotations:
+      # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
-      # serviceLabels:
+      # labels:
       #   some-label: some-key
+      # internalTrafficPolicy: Local
       # nodePort: 32017
     # auditLog:
     #   destination: file
@@ -485,7 +512,7 @@ sharding:
 # users:
 # - name: my-user
 #   db: admin
-#   passwordSecretRef: 
+#   passwordSecretRef:
 #     name: my-user-password
 #     key: my-user-password-key
 #   roles:
@@ -495,18 +522,52 @@ sharding:
 #       db: admin
 # - name: my-usr
 #   db: admin
-#   passwordSecretRef: 
+#   passwordSecretRef:
 #     name: my-user-pwd
 #     key: my-user-pwd-key
 #   roles:
 #     - name: dbOwner
-#       db: sometest 
+#       db: sometest
+
+#  roles:
+#    - role: myClusterwideAdmin
+#      db: admin
+#      privileges:
+#        - resource:
+#            cluster: true
+#          actions:
+#            - addShard
+#        - resource:
+#            db: config
+#            collection: ''
+#          actions:
+#            - find
+#            - update
+#            - insert
+#            - remove
+#      roles:
+#        - role: read
+#          db: admin
+#    - role: my-role
+#      db: myDb
+#      privileges:
+#        - resource:
+#            db: ''
+#            collection: ''
+#          actions:
+#            - find
+#      authenticationRestrictions:
+#        - clientSource:
+#            - 127.0.0.1
+#          serverAddress:
+#            - 127.0.0.1
+
 
 backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.5.0
+    tag: 2.7.0-multi
   # annotations:
   #   iam.amazonaws.com/role: role-arn
   # podSecurityContext: {}

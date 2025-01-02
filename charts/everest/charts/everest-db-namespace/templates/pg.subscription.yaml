@@ -4,6 +4,11 @@ kind: Subscription
 metadata:
   name: percona-postgresql-operator
   namespace: {{ include "db.namespace" . }}
+  annotations:
+    # This annotation ensures that the Subscription is not removed
+    # during upgrade, which could otherwise result in a broken installation.
+    # The uninstallation of operators is handled gracefully in the pre-delete hook.
+    helm.sh/resource-policy: keep
 spec:
   channel: stable-v2
   installPlanApproval: Manual

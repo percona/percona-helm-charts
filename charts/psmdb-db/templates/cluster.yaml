@@ -18,6 +18,7 @@ spec:
   {{- if .Values.platform }}
   platform: {{ .Values.platform }}
   {{- end }}
+  enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- if .Values.clusterServiceDNSSuffix }}
   clusterServiceDNSSuffix: {{ .Values.clusterServiceDNSSuffix }}
   {{- end }}
@@ -115,6 +116,10 @@ spec:
     topologySpreadConstraints:
 {{ $replset.topologySpreadConstraints | toYaml | indent 6 }}
     {{- end }}
+{{- if $replset.replsetOverrides }}
+    replsetOverrides:
+{{ $replset.replsetOverrides | toYaml | indent 6 }}
+    {{- end }}
     {{- if $replset.serviceAccountName }}
     serviceAccountName: {{ $replset.serviceAccountName }}
     {{- end }}
@@ -124,6 +129,10 @@ spec:
     {{- end }}
     {{- if $replset.priorityClass }}
     priorityClassName: {{ $replset.priorityClass }}
+    {{- end }}
+    {{- if $replset.primaryPreferTagSelector }}
+    primaryPreferTagSelector: 
+{{ $replset.primaryPreferTagSelector | toYaml | indent 6 }}
     {{- end }}
     {{- if $replset.annotations }}
     annotations:
@@ -191,18 +200,27 @@ spec:
     {{- if $replset.expose }}
     expose:
       enabled: {{ $replset.expose.enabled }}
-      exposeType: {{ $replset.expose.exposeType }}
+      type: {{ $replset.expose.type }}
+      {{- if $replset.expose.loadBalancerIP }}
+      loadBalancerIP: {{ $replset.expose.loadBalancerIP }}
+      {{- end }}
       {{- if $replset.expose.loadBalancerSourceRanges }}
       loadBalancerSourceRanges:
 {{ $replset.expose.loadBalancerSourceRanges | toYaml | indent 8 }}
       {{- end }}
-      {{- if $replset.expose.serviceAnnotations }}
-      serviceAnnotations:
-{{ $replset.expose.serviceAnnotations | toYaml | indent 8 }}
+      {{- if $replset.expose.annotations }}
+      annotations:
+{{ $replset.expose.annotations | toYaml | indent 8 }}
       {{- end }}
-      {{- if $replset.expose.serviceLabels }}
-      serviceLabels:
-{{ $replset.expose.serviceLabels | toYaml | indent 8 }}
+      {{- if $replset.expose.labels }}
+      labels:
+{{ $replset.expose.labels | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.expose.internalTrafficPolicy }}
+      internalTrafficPolicy: {{ $replset.expose.internalTrafficPolicy }}
+      {{- end }}
+      {{- if $replset.expose.externalTrafficPolicy }}
+      externalTrafficPolicy: {{ $replset.expose.externalTrafficPolicy }}
       {{- end }}
     {{- end }}
     {{- if $replset.schedulerName }}
@@ -430,18 +448,27 @@ spec:
       {{- if .Values.sharding.configrs.expose }}
       expose:
         enabled: {{ .Values.sharding.configrs.expose.enabled }}
-        exposeType: {{ .Values.sharding.configrs.expose.exposeType }}
+        type: {{ .Values.sharding.configrs.expose.type }}
+        {{- if .Values.sharding.configrs.expose.loadBalancerIP }}
+        loadBalancerIP: {{ .Values.sharding.configrs.expose.loadBalancerIP }}
+        {{- end }}
         {{- if .Values.sharding.configrs.expose.loadBalancerSourceRanges }}
         loadBalancerSourceRanges:
 {{ .Values.sharding.configrs.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
         {{- end }}
-        {{- if .Values.sharding.configrs.expose.serviceAnnotations }}
-        serviceAnnotations:
-{{ .Values.sharding.configrs.expose.serviceAnnotations | toYaml | indent 10 }}
+        {{- if .Values.sharding.configrs.expose.annotations }}
+        annotations:
+{{ .Values.sharding.configrs.expose.annotations | toYaml | indent 10 }}
         {{- end }}
-        {{- if .Values.sharding.configrs.expose.serviceLabels }}
-        serviceLabels:
-{{ .Values.sharding.configrs.expose.serviceLabels | toYaml | indent 10 }}
+        {{- if .Values.sharding.configrs.expose.labels }}
+        labels:
+{{ .Values.sharding.configrs.expose.labels | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.sharding.configrs.expose.internalTrafficPolicy }}
+        internalTrafficPolicy: {{ .Values.sharding.configrs.expose.internalTrafficPolicy }}
+        {{- end }}
+        {{- if .Values.sharding.configrs.expose.externalTrafficPolicy }}
+        externalTrafficPolicy: {{ .Values.sharding.configrs.expose.externalTrafficPolicy }}
         {{- end }}
       {{- end }}
       resources:
@@ -555,7 +582,10 @@ spec:
           cpu: {{ .Values.sharding.mongos.resources.requests.cpu }}
           memory: {{ .Values.sharding.mongos.resources.requests.memory }}
       expose:
-        exposeType: {{ .Values.sharding.mongos.expose.exposeType }}
+        type: {{ .Values.sharding.mongos.expose.type }}
+        {{- if .Values.sharding.mongos.expose.loadBalancerIP }}
+        loadBalancerIP: {{ .Values.sharding.mongos.expose.loadBalancerIP }}
+        {{- end }}
         {{- if .Values.sharding.mongos.expose.servicePerPod }}
         servicePerPod: {{ .Values.sharding.mongos.expose.servicePerPod }}
         {{- end }}
@@ -563,13 +593,19 @@ spec:
         loadBalancerSourceRanges:
 {{ .Values.sharding.mongos.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
         {{- end }}
-        {{- if .Values.sharding.mongos.expose.serviceAnnotations }}
-        serviceAnnotations:
-{{ .Values.sharding.mongos.expose.serviceAnnotations | toYaml | indent 10 }}
+        {{- if .Values.sharding.mongos.expose.annotations }}
+        annotations:
+{{ .Values.sharding.mongos.expose.annotations | toYaml | indent 10 }}
         {{- end }}
-        {{- if .Values.sharding.mongos.expose.serviceLabels }}
-        serviceLabels:
-{{ .Values.sharding.mongos.expose.serviceLabels | toYaml | indent 10 }}
+        {{- if .Values.sharding.mongos.expose.labels }}
+        labels:
+{{ .Values.sharding.mongos.expose.labels | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.sharding.mongos.expose.internalTrafficPolicy }}
+        internalTrafficPolicy: {{ .Values.sharding.mongos.expose.internalTrafficPolicy }}
+        {{- end }}
+        {{- if .Values.sharding.mongos.expose.externalTrafficPolicy }}
+        externalTrafficPolicy: {{ .Values.sharding.mongos.expose.externalTrafficPolicy }}
         {{- end }}
         {{- if .Values.sharding.mongos.expose.nodePort }}
         nodePort: {{ .Values.sharding.mongos.expose.nodePort }}
@@ -586,6 +622,11 @@ spec:
   {{- if .Values.users }}
   users:
 {{ .Values.users | toYaml | indent 2 }}
+  {{- end }}
+
+  {{- if .Values.roles }}
+  roles:
+{{ .Values.roles | toYaml | indent 2 }}
   {{- end }}
 
   backup:

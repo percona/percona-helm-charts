@@ -4,7 +4,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: percona-everest
+  name: everest-server
   namespace: {{ include  "everest.namespace" . }}
 spec:
   replicas: 1
@@ -12,13 +12,13 @@ spec:
     type: RollingUpdate
   selector:
     matchLabels:
-      app.kubernetes.io/name: everest
-      app.kubernetes.io/component: everest
+      app.kubernetes.io/name: everest-server
+      app.kubernetes.io/component: everest-server
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: everest
-        app.kubernetes.io/component: everest
+        app.kubernetes.io/name: everest-server
+        app.kubernetes.io/component: everest-server
     spec:
       serviceAccountName: everest-admin
       automountServiceAccountToken: true
@@ -52,3 +52,5 @@ spec:
           - name: API_REQUESTS_RATE_LIMIT
             value: "{{ .Values.server.apiRequestsRateLimit }}"
           {{- end }}
+          - name: VERSION_SERVICE_URL
+            value: {{ (include "everest.versionMetadataURL" .) }}
