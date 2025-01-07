@@ -7,10 +7,6 @@ Useful links:
 - [Percona Everest GitHub](https://github.com/percona/everest)
 - [Deploying with ArgoCD](./docs/argocd.md)
 
-> :warning: Note: This chart is currently in technical preview.
-Future releases could potentially introduce breaking changes, and we cannot promise a migration path. We do not recommend using this in production environment,
-but if you do so, please be aware of the risks.
-
 ## Usage
 
 ### 1. Add the Percona Helm repository
