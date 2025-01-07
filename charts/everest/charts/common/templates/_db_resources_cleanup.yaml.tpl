@@ -74,7 +74,7 @@ spec:
           args:
             - |
               echo "Deleting DatabaseClusters"
-              kubectl delete databaseclusters -n {{ .namespace }} --all --wait
+              kubectl delete databaseclusters -n {{ .namespace }} --all --wait --cascade='foreground'
               
               echo "Deleting BackupStorages"
               kubectl delete backupstorages -n {{ .namespace }} --all --wait
