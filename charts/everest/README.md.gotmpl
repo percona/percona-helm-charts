@@ -7,10 +7,6 @@ Useful links:
 - [Percona Everest GitHub](https://github.com/percona/everest)
 - [Deploying with ArgoCD](./docs/argocd.md)
 
-> :warning: Note: This chart is currently in technical preview.
-Future releases could potentially introduce breaking changes, and we cannot promise a migration path. We do not recommend using this in production environment,
-but if you do so, please be aware of the risks.
-
 ## Usage
 
 ### 1. Add the Percona Helm repository
@@ -69,6 +65,23 @@ Notes:
 * By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
 * We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
+#### 4.1 Deploying additional operators to an existing database namespace
+
+If you have an existing database namespace and would like to deploy additional operators to it, you may do so using the following command:
+
+```sh
+helm upgrade everest \
+    percona/everest-db-namespace \
+    --namespace [NAMESPACE]
+    --pxc=true \
+    --pg=true
+```
+
+The above example assumes that the MongoDB operator is already installed in the database namespace and you would like to install the Percona XtraDB Cluster and PostgreSQL operators.
+
+Notes:
+* Removing a database operator from a namespace is not supported. You may only add additional operators.
+
 ### 5. Uninstall
 
 #### 5.1 Uninstalling database namespaces
@@ -114,6 +127,9 @@ helm upgrade everest percona/everest-db-namespace --namespace [DB NAMESPACE] --v
 ```
 
 Notes:
+* :warning: When specifying values during an upgrade (i.e, using `--set`, `--set-json`, `--values`, etc.), Helm resets all the other values
+to the defaults built into the chart. To preserve the previously set values, you must use the `--reuse-values` flag. 
+Alternatively, provide the full set of values, including any overrides applied during installation.
 * It is recommended to upgrade 1 minor release at a time, otherwise you may run into unexpected issues.
 * It is recommended to upgrade to the latest patch release first before upgrading to the next minor release.
 * To ensure that the upgrade happens safely, we run a pre-upgrade hook that runs a series of checks. This can be disabled by setting `upgrade.preflightChecks=false`.
