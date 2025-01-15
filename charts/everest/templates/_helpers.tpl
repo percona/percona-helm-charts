@@ -112,6 +112,18 @@ altNames:
 - localhost
 {{- end }}
 
-{{- define "everest.versionMetadataURL" -}}
+{{- define "everest.versionMetadataURL" }}
 {{- trimSuffix "/" (default "https://check.percona.com" .Values.versionMetadataURL) -}}
+{{- end }}
+
+{{- define "everest.tlsCerts" -}}
+{{- $svcName := printf "everest" }}
+{{- $svcNameWithNS := ( printf "%s.%s" $svcName (include "everest.namespace" .) ) }}
+{{- $fullName := ( printf "%s.svc" $svcNameWithNS ) }}
+{{- $altNames := list $svcName $svcNameWithNS $fullName }}
+{{- $ca := genCA $svcName 3650 }}
+{{- $cert := genSignedCert $fullName nil $altNames 3650 $ca }}
+{{- $tlsCerts := .Values.server.tls.secret.certs }}
+tls.key: {{ index $tlsCerts "tls.key" | default $cert.Key | b64enc }}
+tls.crt: {{ index $tlsCerts "tls.crt" | default $cert.Cert | b64enc }}
 {{- end }}
