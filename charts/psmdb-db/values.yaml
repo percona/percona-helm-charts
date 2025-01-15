@@ -20,7 +20,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.18.0
+crVersion: 1.19.0
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -56,7 +56,7 @@ imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.18.0
+#   tag: 1.19.0
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -116,6 +116,7 @@ replsets:
     # replsetOverrides:
     #   my-cluster-name-rs0-0:
     #     host: my-cluster-name-rs0-0.example.net:27017
+    #     priority: 3
     #     tags:
     #       key: value-0
     #   my-cluster-name-rs0-1:
