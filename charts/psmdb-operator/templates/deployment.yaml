@@ -32,16 +32,20 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "psmdb-operator.fullname" . }}
+      {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- end }}
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
     {{- end }}
       containers:
         - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -53,10 +57,12 @@ spec:
             name: health
           command:
           - percona-server-mongodb-operator
+          {{- with .Values.securityContext }}
           {{- if .Values.securityContext.readOnlyRootFilesystem }}
           volumeMounts:
             - name: tmpdir
               mountPath: /tmp
+          {{- end }}
           {{- end }}
           env:
             - name: LOG_STRUCTURED
@@ -101,8 +107,10 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+    {{- with .Values.securityContext }}
     {{- if .Values.securityContext.readOnlyRootFilesystem }}
       volumes:
         - name: tmpdir
           emptyDir: {}
+    {{- end }}
     {{- end }}
