@@ -405,6 +405,8 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.jobs }}
       jobs:
+        restartPolicy: {{ .Values.backups.pgbackrest.jobs.restartPolicy }}
+        backoffLimit: {{ .Values.backups.pgbackrest.jobs.backoffLimit }}
         priorityClassName: {{ .Values.backups.pgbackrest.jobs.priorityClassName }}
         resources:
           limits:
