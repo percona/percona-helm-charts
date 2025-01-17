@@ -6,6 +6,7 @@ Useful links:
 - [Percona Everest Documentation](https://docs.percona.com/everest/index.html)
 - [Percona Everest GitHub](https://github.com/percona/everest)
 - [Deploying with ArgoCD](./docs/argocd.md)
+- [Installing on OpenShift](./docs/openshift.md)
 
 ## Usage
 
