@@ -19,6 +19,8 @@ spec:
       labels:
         {{- include "pmm.selectorLabels" . | nindent 8 }}
     spec:
+      securityContext:
+        fsGroup: 1000
       {{- with .Values.image.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

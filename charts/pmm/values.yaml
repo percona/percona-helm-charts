@@ -21,9 +21,9 @@ image:
 ## ref: https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables
 ##
 pmmEnv:
-  ## @param pmmEnv.DISABLE_UPDATES Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
+  ## @param pmmEnv.PMM_ENABLE_UPDATES: false Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
   ##
-  DISABLE_UPDATES: "1"
+  PMM_ENABLE_UPDATES: false
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
 #  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
@@ -234,14 +234,14 @@ podSecurityContext: {}
 ## securityContext.runAsUser Set pmm containers' Security Context runAsUser
 ## securityContext.runAsNonRoot Set pmm container's Security Context runAsNonRoot
 ## E.g.
-## securityContext:
-  ## capabilities:
+securityContext:
+#  capabilities:
   ##   drop:
   ##   - ALL
   ## readOnlyRootFilesystem: true
-  ## runAsNonRoot: true
-  ## runAsUser: 1000
-securityContext: {}
+  runAsNonRoot: true
+  runAsUser: 1000
+#securityContext: {}
 
 
 ## @param nodeSelector Node labels for pod assignment
