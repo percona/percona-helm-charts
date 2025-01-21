@@ -23,7 +23,7 @@ image:
 pmmEnv:
   ## @param pmmEnv.PMM_ENABLE_UPDATES: false Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
   ##
-  PMM_ENABLE_UPDATES: false
+  PMM_ENABLE_UPDATES: 'false'
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
 #  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
@@ -223,10 +223,12 @@ podAnnotations: {}
 ## @param podSecurityContext Configure Pods Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 ## E.g
-## podSecurityContext:
-  ## fsGroup: 2000
-##
-podSecurityContext: {}
+podSecurityContext:
+   runAsUser: 1000
+   runAsGroup: 1000
+   fsGroup: 1000
+
+#podSecurityContext: {}
 
 ## @param securityContext Configure Container Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
@@ -234,13 +236,13 @@ podSecurityContext: {}
 ## securityContext.runAsUser Set pmm containers' Security Context runAsUser
 ## securityContext.runAsNonRoot Set pmm container's Security Context runAsNonRoot
 ## E.g.
-#securityContext:
-#  capabilities:
+## securityContext:
+  ## capabilities:
   ##   drop:
   ##   - ALL
   ## readOnlyRootFilesystem: true
-#  runAsNonRoot: true
-#  runAsUser: 1000
+  ## runAsNonRoot: true
+  ## runAsUser: 1000
 securityContext: {}
 
 
