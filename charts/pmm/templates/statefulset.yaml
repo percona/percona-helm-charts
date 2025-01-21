@@ -19,8 +19,6 @@ spec:
       labels:
         {{- include "pmm.selectorLabels" . | nindent 8 }}
     spec:
-      securityContext:
-        fsGroup: 1000
       {{- with .Values.image.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -29,6 +27,9 @@ spec:
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
       securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

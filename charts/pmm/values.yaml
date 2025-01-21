@@ -234,14 +234,14 @@ podSecurityContext: {}
 ## securityContext.runAsUser Set pmm containers' Security Context runAsUser
 ## securityContext.runAsNonRoot Set pmm container's Security Context runAsNonRoot
 ## E.g.
-securityContext:
+#securityContext:
 #  capabilities:
   ##   drop:
   ##   - ALL
   ## readOnlyRootFilesystem: true
-  runAsNonRoot: true
-  runAsUser: 1000
-#securityContext: {}
+#  runAsNonRoot: true
+#  runAsUser: 1000
+securityContext: {}
 
 
 ## @param nodeSelector Node labels for pod assignment
