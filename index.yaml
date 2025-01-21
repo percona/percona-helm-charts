@@ -3882,6 +3882,22 @@ entries:
     version: 0.2.0
   psmdb-db:
   - apiVersion: v2
+    appVersion: 1.19.0
+    created: "2025-01-21T19:30:51.136996673Z"
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
+    digest: 66e5610e75dc72342981c753d0547a57d16a83b2d1f6d912fd7685ab88b5282b
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
+    maintainers:
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    name: psmdb-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-1.19.0/psmdb-db-1.19.0.tgz
+    version: 1.19.0
+  - apiVersion: v2
     appVersion: 1.18.0
     created: "2024-11-14T17:48:31.57901066Z"
     description: A Helm chart for installing Percona Server MongoDB Cluster Databases
@@ -4462,6 +4478,23 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-0.1.0/psmdb-db-0.1.0.tgz
     version: 0.1.0
   psmdb-operator:
+  - apiVersion: v2
+    appVersion: 1.19.0
+    created: "2025-01-21T19:30:51.26436804Z"
+    description: A Helm chart for deploying the Percona Operator for MongoDB
+    digest: 196d0840caaa130a49d745b1c47a233e3b7115c07bacb6c44f26a5f208914ede
+    home: https://docs.percona.com/percona-operator-for-mongodb/
+    maintainers:
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    name: psmdb-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-1.19.0/psmdb-operator-1.19.0.tgz
+    version: 1.19.0
   - apiVersion: v2
     appVersion: 1.18.0
     created: "2024-11-14T17:48:31.692192841Z"
@@ -6384,4 +6417,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-01-07T13:05:06.115930504Z"
+generated: "2025-01-21T19:30:51.265154451Z"
