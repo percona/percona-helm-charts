@@ -650,6 +650,8 @@ spec:
     {{- end }}
     storages:
 {{ .Values.backup.storages | toYaml | indent 6 }}
+    volumeMounts:
+{{ .Values.backup.volumeMounts | toYaml | indent 6 }}
     pitr:
     {{- if and .Values.backup.enabled .Values.backup.pitr.enabled }}
       enabled: true
