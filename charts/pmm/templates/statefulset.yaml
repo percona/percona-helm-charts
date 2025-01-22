@@ -67,20 +67,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
-            {{ if .Values.secret.create }}
-            # additional secrets that could be used for Grafana iDP
-            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
-                  optional: true
-            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-                  optional: true
+            {{ if .Values.secret.name }}
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
