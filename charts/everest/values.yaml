@@ -43,7 +43,7 @@ server:
   # It is strongly recommended to reset the admin password after installation.
   initialAdminPassword: ""
   # -- Additional environment variables to pass to the server deployment.
-  env: {}
+  env: []
   # - name: key1
   #   value: value1
   # - name: key2
@@ -66,7 +66,7 @@ operator:
       cpu: 5m
       memory: 64Mi
   # -- Additional environment variables to pass to the operator deployment.
-  env: {}
+  env: []
   # - name: key1
   #   value: value1
   # - name: key2
