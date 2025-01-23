@@ -44,8 +44,10 @@ server:
   initialAdminPassword: ""
   # -- Additional environment variables to pass to the server deployment.
   env: {}
-  # - key: key1
+  # - name: key1
   #   value: value1
+  # - name: key2
+  #   value: value2
 operator:
   # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator
@@ -65,8 +67,10 @@ operator:
       memory: 64Mi
   # -- Additional environment variables to pass to the operator deployment.
   env: {}
-  # - key: key1
+  # - name: key1
   #   value: value1
+  # - name: key2
+  #   value: value2
 
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"
