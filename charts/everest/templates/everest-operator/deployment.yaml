@@ -61,6 +61,9 @@ spec:
               fieldPath: metadata.name
         - name: PERCONA_VERSION_SERVICE_URL
           value: {{ printf "%s/%s" (include "everest.versionMetadataURL" .) "versions/v1" }}
+        {{- if .Values.operator.env }}
+        {{- toYaml .Values.operator.env | nindent 8 }}
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
