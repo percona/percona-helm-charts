@@ -36,7 +36,11 @@ server:
   oidc: {}
   # issuerUrl: ""
   # clientId: ""
-  # scope: ""
+  # scopes:
+  # - openid
+  # - profile
+  # - email
+  # - groups
   # -- Set the allowed number of requests per second.
   apiRequestsRateLimit: 100
   # -- The initial password configured for the admin user.
