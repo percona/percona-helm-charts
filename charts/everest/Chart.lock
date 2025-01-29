@@ -11,5 +11,8 @@ dependencies:
 - name: victoria-metrics-operator
   repository: https://victoriametrics.github.io/helm-charts
   version: 0.37.0
-digest: sha256:b219948462cc632aa1b2b1bd80e7831c9cbfd9aa22d38a1eaa6e61c70bfe563c
-generated: "2024-12-18T15:46:21.983602+05:30"
+- name: pmm
+  repository: https://percona.github.io/percona-helm-charts
+  version: 1.3.21
+digest: sha256:885646b6a34c93926c85ed281d348d76809bb3fb0da85414c064244120ba85cb
+generated: "2025-01-29T16:38:08.280493+05:30"

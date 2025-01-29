@@ -147,3 +147,9 @@ monitoring:
     enabled: false
   certManager:
     enabled: false
+
+# -- PMM settings.
+pmm:
+  # -- If set, deploys PMM in the release namespace.
+  enabled: false
+  nameOverride: pmm
