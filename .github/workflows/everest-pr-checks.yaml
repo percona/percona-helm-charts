@@ -86,13 +86,15 @@ jobs:
           helm install everest ./charts/everest \
             --create-namespace \
             --namespace everest-system \
-            --set dbNamespace.enabled=true
+            --set dbNamespace.enabled=true \
+            --set pmm.enabled=true
 
           # Wait for system components
           kubectl wait --for=condition=available --timeout=60s deployment/everest-server -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/kube-state-metrics -n everest-monitoring
           kubectl wait --for=condition=available --timeout=60s deployment/vm-operator -n everest-monitoring
+          kubectl wait --for=condition=available --timeout=60s sts/everest-pmm -n everest-system
 
           # Wait for default DB namespace.
           kubectl wait --for=condition=available --timeout=60s deployment/percona-postgresql-operator -n everest
