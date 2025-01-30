@@ -224,11 +224,9 @@ podAnnotations: {}
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 ## E.g
 podSecurityContext:
-   runAsUser: 1000
-   runAsGroup: 1000
-   fsGroup: 1000
-
-#podSecurityContext: {}
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
 
 ## @param securityContext Configure Container Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
