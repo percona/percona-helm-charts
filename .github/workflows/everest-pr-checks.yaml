@@ -94,7 +94,7 @@ jobs:
           kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/kube-state-metrics -n everest-monitoring
           kubectl wait --for=condition=available --timeout=60s deployment/vm-operator -n everest-monitoring
-          kubectl wait --for=condition=available --timeout=300s sts/everest-pmm -n everest-system
+          kubectl wait --for=condition=ready pods --timeout=120s -n everest-system -l app.kubernetes.io/name=pmm
 
           # Wait for default DB namespace.
           kubectl wait --for=condition=available --timeout=60s deployment/percona-postgresql-operator -n everest
