@@ -21,8 +21,7 @@ spec:
   imagePullPolicy: Always
   port: {{ default 5432 .Values.port }}
   postgresVersion: {{ .Values.postgresVersion }}
-  standby:
-    enabled: {{ .Values.standby.enabled }}
+  standby: {{- .Values.standby | toYaml | nindent 4 }}
   {{- if or (.Values.customTLSSecret.name) (.Values.customReplicationTLSSecret.name) }}
   secrets:
     {{- if .Values.customRootCATLSSecret.name }}
