@@ -171,6 +171,9 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.rbac.enabled | bool | `false` | If set, enables RBAC for Everest. |
 | server.rbac.policy | string | `"g, admin, role:admin\n"` | RBAC policy configuration. Ignored if `rbac.enabled` is false. |
 | server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
+| server.service | object | `{"port":8080,"type":"ClusterIP"}` | Service configuration for the server. |
+| server.service.port | int | `8080` | Port to expose on the service. |
+| server.service.type | string | `"ClusterIP"` | Type of service to create. |
 | telemetry | bool | `true` | If set, enabled sending telemetry information. |
 | upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
 | versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |
