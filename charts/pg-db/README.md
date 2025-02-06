@@ -24,7 +24,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 2.5.1 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.6.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -32,7 +32,7 @@ The chart can be customized using the following configurable parameters:
 | Parameter                         | Description                                                                                                                                                                                             | Default                                                      |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `finalizers`                      | Finalizers list                                                                                                                                                                                         | `{}`                                                         |
-| `crVersion`                       | CR Cluster Manifest version                                                                                                                                                                             | `2.5.0`                                                      |
+| `crVersion`                       | CR Cluster Manifest version                                                                                                                                                                             | `2.6.0`                                                      |
 | `repository`                      | PostgreSQL container image repository                                                                                                                                                                   | `percona/percona-postgresql-operator`                        |
 | `image`                           | Postgres image                                                                                                                                                                                          | `percona/percona-postgresql-operator:2.5.0-ppg16.4-postgres` |
 | `imagePullPolicy`                 | image Pull Policy                                                                                                                                                                                       | `Always`                                                     |
@@ -48,6 +48,7 @@ The chart can be customized using the following configurable parameters:
 | `customRootCATLSSecret.items`     | Key-value pairs of the `key` (a key from the `secrets.customRootCATLSSecret.name` secret) and the `path` (name on the file system) for the custom root certificate and key                              | ``                                                           |
 | `customTLSSecret.name`            | A secret with TLS certificate generated for external communications                                                                                                                                     | `""`                                                         |
 | `customReplicationTLSSecret.name` | A secret with TLS certificate generated for internal communications                                                                                                                                     | `""`                                                         |
+| `tlsOnly`                         | Set to true to force all HBA records to use the `hostssl` record type.                                                                                                                                  | `false`                                                      |
 | `openshift`                       | Set to true if the cluster is being deployed on OpenShift, set to false otherwise, or unset it for autodetection                                                                                        | `false`                                                      |
 | `autoCreateUserSchema`            | Whether or not the cluster has schemas automatically created for the user defined in `spec.users` for all of the databases listed for that user.          | `false`                                                      |
 | `users.name`                      | The name of the PostgreSQL user                                                                                                                                                                         | `""`                                                         |
