@@ -657,6 +657,32 @@ entries:
   pg-db:
   - apiVersion: v2
     appVersion: 2.5.0
+    created: "2025-02-06T20:36:00.106262619Z"
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
+    digest: 046484f3124d2171aa100534cf17e85e6361ad3a317112956d4665d7dfbe9445
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    name: pg-db
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-db-2.5.2/pg-db-2.5.2.tgz
+    version: 2.5.2
+  - apiVersion: v2
+    appVersion: 2.5.0
     created: "2024-11-25T20:46:47.936810811Z"
     description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
       for PostgreSQL
@@ -6439,4 +6465,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-01-30T16:58:10.828264246Z"
+generated: "2025-02-06T20:36:00.106946769Z"
