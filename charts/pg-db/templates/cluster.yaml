@@ -40,6 +40,8 @@ spec:
     {{- end }}
   {{- end }}
 
+  tlsOnly: {{ .Values.tlsOnly }}
+
   openshift: {{ default false .Values.openshift }}
   
   {{- if .Values.users }}

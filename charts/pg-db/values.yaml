@@ -34,6 +34,8 @@ customTLSSecret:
 customReplicationTLSSecret:
   name: ""
 
+# tlsOnly: false
+
 # openshift: true
 
 # users:
