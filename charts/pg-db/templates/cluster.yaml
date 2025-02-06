@@ -43,6 +43,8 @@ spec:
   tlsOnly: {{ .Values.tlsOnly }}
 
   openshift: {{ default false .Values.openshift }}
+
+  autoCreateUserSchema: {{ hasKey .Values "autoCreateUserSchema" | ternary .Values.autoCreateUserSchema true }}
   
   {{- if .Values.users }}
   users:
