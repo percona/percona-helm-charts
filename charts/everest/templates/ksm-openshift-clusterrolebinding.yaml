@@ -1,0 +1,17 @@
+# We need a separate ClusterRoleBinding for OpenShift, as the one that comes pre-installed cannot be bound to the ServiceAccount used
+# for Everest's kube-state-metrics installation.
+{{- $ksm := (index .Values "kube-state-metrics") -}}
+{{- if (and $ksm.enabled .Values.compatibility.openshift )}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ksm-openshift-cluster-role-binding
+roleRef:
+  kind: "ClusterRole"
+  apiGroup: "rbac.authorization.k8s.io"
+  name: kube-state-metrics
+subjects:
+  - kind: "ServiceAccount"
+    name: kube-state-metrics
+    namespace: {{ $ksm.namespaceOverride }}
+{{- end -}}

@@ -56,6 +56,10 @@ spec:
     {{- else }}
     image: {{ include "pxc-db.operator-image" . }}
     {{- end }}
+    {{- if .Values.initContainer.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl (.Values.initContainer.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
     {{- if .Values.initContainer.resources }}
     resources:
       {{- if hasKey .Values.initContainer.resources "requests" }}
@@ -471,6 +475,10 @@ spec:
 {{ tpl ($logcollector.containerSecurityContext | toYaml) $ | indent 6 }}
     {{- end }}
   {{- end }}
+{{- if .Values.users }}
+  users:
+{{ .Values.users | toYaml | indent 2 }}
+  {{- end }}
   pmm:
   {{- if not .Values.pmm.enabled }}
     enabled: false
@@ -506,12 +514,15 @@ spec:
   {{- $backup := .Values.backup }}
   {{- if $backup.enabled }}
   backup:
-    {{- if $backup.allowParallel }}
+    {{- if hasKey $backup "allowParallel" }}
     allowParallel: {{ $backup.allowParallel }}
     {{- end }}
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
     {{- if $backup.backoffLimit }}
     backoffLimit: {{ $backup.backoffLimit }}
+    {{- end }}
+    {{- if $backup.activeDeadlineSeconds }}
+    activeDeadlineSeconds: {{ $backup.activeDeadlineSeconds }}
     {{- end }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
