@@ -413,8 +413,10 @@ spec:
             description: DatabaseClusterSpec defines the desired state of DatabaseCluster.
             properties:
               allowUnsafeConfiguration:
-                description: AllowUnsafeConfiguration field used to ensure that the
-                  user can create configurations unfit for production use.
+                description: |-
+                  AllowUnsafeConfiguration field used to ensure that the user can create configurations unfit for production use.
+
+                  Deprecated: AllowUnsafeConfiguration will not be supported in the future releases.
                 type: boolean
               backup:
                 description: Backup is the backup specification
