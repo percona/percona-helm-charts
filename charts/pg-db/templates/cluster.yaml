@@ -11,14 +11,16 @@ metadata:
     pgo-version: {{ .Chart.AppVersion }}
     pgouser: admin
 {{ include "pg-database.labels" . | indent 4 }}
+  {{- if .Values.finalizers }}
   finalizers:
 {{ .Values.finalizers | toYaml | indent 4 }}
+  {{- end }}
   name: {{ include "pg-database.fullname" . }}
   namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
   image: {{ .Values.image }}
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy | default "Always" }}
   port: {{ default 5432 .Values.port }}
   postgresVersion: {{ .Values.postgresVersion }}
   standby: {{- .Values.standby | toYaml | nindent 4 }}
@@ -39,12 +41,17 @@ spec:
       name: {{ .Values.customReplicationTLSSecret.name }}
     {{- end }}
   {{- end }}
-
+  {{- if hasKey .Values "tlsOnly" }}
   tlsOnly: {{ .Values.tlsOnly }}
+  {{- end -}}
 
-  openshift: {{ default false .Values.openshift }}
+  {{- if hasKey .Values "openshift" }}
+  openshift: {{ .Values.openshift }}
+  {{- end -}}
 
-  autoCreateUserSchema: {{ hasKey .Values "autoCreateUserSchema" | ternary .Values.autoCreateUserSchema true }}
+  {{ if hasKey .Values "autoCreateUserSchema" }}
+  autoCreateUserSchema: {{ .Values.autoCreateUserSchema }}
+  {{- end -}}
   
   {{- if .Values.users }}
   users:
@@ -227,21 +234,35 @@ spec:
         {{- if $instance.walVolumeClaimSpec.storageClassName }}
         storageClassName: {{ $instance.walVolumeClaimSpec.storageClassName }}
         {{- end }}
+        {{- if $instance.walVolumeClaimSpec.accessModes }}
         accessModes:
+        {{- range $accessMode := $instance.walVolumeClaimSpec.accessModes }}
+        - {{ $accessMode }}
+        {{- end }}
+        {{- else }}
         - ReadWriteOnce
+        {{- end }}
         resources:
           requests:
             storage: {{ $instance.walVolumeClaimSpec.resources.requests.storage }}
       {{- end }}
+      {{- if $instance.dataVolumeClaimSpec }}
       dataVolumeClaimSpec:
         {{- if $instance.dataVolumeClaimSpec.storageClassName }}
         storageClassName: {{ $instance.dataVolumeClaimSpec.storageClassName }}
         {{- end }}
+        {{- if $instance.dataVolumeClaimSpec.accessModes }}
         accessModes:
+        {{- range $accessMode := $instance.dataVolumeClaimSpec.accessModes }}
+        - {{ $accessMode }}
+        {{- end }}
+        {{- else }}
         - ReadWriteOnce
+        {{- end }}
         resources:
           requests:
             storage: {{ $instance.dataVolumeClaimSpec.resources.requests.storage }}
+      {{- end }}
       {{- if $instance.tablespaceVolumes }}
       tablespaceVolumes:
       {{- range $volume := $instance.tablespaceVolumes }}
@@ -356,6 +377,7 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.jobs }}
       jobs:
+        {{- if .Values.backups.pgbackrest.jobs.priorityClassName }}
         priorityClassName: {{ .Values.backups.pgbackrest.jobs.priorityClassName }}
         {{- end }}
         {{- include "pg-database.resources" .Values.backups.pgbackrest.jobs | indent 8 }}
@@ -374,7 +396,9 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.repoHost }}
       repoHost:
+        {{- if .Values.backups.pgbackrest.repoHost.priorityClassName }}
         priorityClassName: {{ .Values.backups.pgbackrest.repoHost.priorityClassName }}
+        {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.topologySpreadConstraints }}
         topologySpreadConstraints:
         {{- range $constraint := .Values.backups.pgbackrest.repoHost.topologySpreadConstraints }}
@@ -400,9 +424,11 @@ spec:
         {{- end }}
       {{- end }}
       manual:
-        repoName: repo1
+        repoName: {{ .Values.backups.pgbackrest.manual.repoName }}
         options:
-         - --type=full
+        {{- range .Values.backups.pgbackrest.manual.options }}
+        - {{ . }}
+        {{- end }}
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
       - name: {{ $repo.name }}
@@ -424,8 +450,14 @@ spec:
             {{- if $repo.volume.volumeClaimSpec.storageClassName }}
             storageClassName: {{ $volume.volumeClaimSpec.storageClassName }}
             {{- end }}
+            {{- if $volume.volumeClaimSpec.accessModes }}
             accessModes:
+            {{- range $accessMode := $volume.volumeClaimSpec.accessModes }}
+            - {{ $accessMode }}
+            {{- end }}
+            {{- else }}
             - ReadWriteOnce
+            {{- end }}
             resources:
               requests:
                 storage: {{ $volume.volumeClaimSpec.resources.requests.storage }}
