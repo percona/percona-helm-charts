@@ -201,6 +201,11 @@ spec:
         replicaCertCopy:
           {{- if $instance.containers.replicaCertCopy.resources }}
           resources:
+            {{- if $instance.containers.replicaCertCopy.resources.requests }}
+            requests:
+              cpu: {{ $instance.containers.replicaCertCopy.resources.requests.cpu }}
+              memory: {{ $instance.containers.replicaCertCopy.resources.requests.memory }}
+            {{- end }}
             {{- if $instance.containers.replicaCertCopy.resources.limits }}
             limits:
               cpu: {{ $instance.containers.replicaCertCopy.resources.limits.cpu }}
@@ -301,6 +306,11 @@ spec:
         pgbouncerConfig:
           {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources }}
           resources:
+            {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.requests }}
+            requests:
+              cpu: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.requests.cpu }}
+              memory: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.requests.memory }}
+            {{- end }}
             {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits }}
             limits:
               cpu: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits.cpu }}
@@ -387,6 +397,11 @@ spec:
         pgbackrest:
           {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources }}
           resources:
+            {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources.requests }}
+            requests:
+              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.requests.cpu }}
+              memory: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.requests.memory }}
+            {{- end }}
             {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources.limits }}
             limits:
               cpu: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.limits.cpu }}
@@ -398,6 +413,11 @@ spec:
         pgbackrestConfig:
           {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources }}
           resources:
+            {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.requests }}
+            requests:
+              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.requests.cpu }}
+              memory: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.requests.memory }}
+            {{- end }}
             {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits }}
             limits:
               cpu: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits.cpu }}
@@ -410,9 +430,16 @@ spec:
       jobs:
         priorityClassName: {{ .Values.backups.pgbackrest.jobs.priorityClassName }}
         resources:
+          {{- if .Values.backups.pgbackrest.jobs.resources.requests }}
+          requests:
+            cpu: {{ .Values.backups.pgbackrest.jobs.resources.requests.cpu }}
+            memory: {{ .Values.backups.pgbackrest.jobs.resources.requests.memory }}
+          {{- end }}
+          {{- if .Values.backups.pgbackrest.jobs.resources.limits }}
           limits:
             cpu: {{ .Values.backups.pgbackrest.jobs.resources.limits.cpu }}
             memory: {{ .Values.backups.pgbackrest.jobs.resources.limits.memory }}
+          {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.tolerations }}
         tolerations:
 {{ .Values.backups.pgbackrest.jobs.tolerations | toYaml | indent 10 }}
