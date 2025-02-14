@@ -83,7 +83,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.44.0
+    tag: 3.0.0
   serverHost: monitoring-service
 #   mongodParams: ""
 #   mongosParams: ""
