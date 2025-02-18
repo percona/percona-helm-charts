@@ -50,7 +50,7 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 8.0.4-1-multi
+  tag: 7.0.15-9-multi
 
 imagePullPolicy: Always
 # imagePullSecrets: []
