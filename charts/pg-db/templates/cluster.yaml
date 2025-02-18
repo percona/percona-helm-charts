@@ -41,12 +41,12 @@ spec:
   {{- end }}
 
   openshift: {{ default false .Values.openshift }}
-  
+
   {{- if .Values.users }}
   users:
   {{- range $user := .Values.users }}
     - name: {{ $user.name }}
-      {{- if $user.databases }} 
+      {{- if $user.databases }}
       databases:
       {{- range $database := $user.databases }}
         - {{ $database }}
@@ -174,6 +174,13 @@ spec:
   {{- range $instance := .Values.instances }}
     - name: {{ $instance.name }}
       replicas: {{ $instance.replicas }}
+      {{- if $instance.metadata }}
+      metadata:
+        {{- if $instance.metadata.labels }}
+        labels:
+{{ $instance.metadata.labels | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
       {{- if $instance.affinity }}
       affinity:
 {{ $instance.affinity | toYaml | indent 8 }}
@@ -233,7 +240,7 @@ spec:
       priorityClassName: {{ $instance.priorityClassName }}
       {{- end }}
       {{- if $instance.securityContext }}
-      securityContext: 
+      securityContext:
 {{ $instance.securityContext | toYaml | indent 8 }}
       {{- end }}
 
@@ -358,7 +365,7 @@ spec:
 {{ .Values.proxy.pgBouncer.tolerations | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.securityContext }}
-      securityContext: 
+      securityContext:
 {{ .Values.proxy.pgBouncer.securityContext | toYaml | indent 8 }}
       {{- end }}
 
@@ -445,7 +452,7 @@ spec:
 {{ .Values.backups.pgbackrest.repoHost.tolerations | toYaml | indent 10 }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.securityContext }}
-        securityContext: 
+        securityContext:
 {{ .Values.backups.pgbackrest.repoHost.securityContext | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
@@ -497,7 +504,7 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.restore }}
       restore:
-        repoName: {{ .Values.backups.pgbackrest.restore.repoName }} 
+        repoName: {{ .Values.backups.pgbackrest.restore.repoName }}
         {{- if .Values.backups.pgbackrest.restore.tolerations }}
         tolerations:
 {{ .Values.backups.pgbackrest.restore.tolerations | toYaml | indent 10 }}
