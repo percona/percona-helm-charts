@@ -155,7 +155,9 @@ instances:
             matchLabels:
               postgres-operator.crunchydata.com/data: postgres
           topologyKey: kubernetes.io/hostname
-
+#  metadata:
+#    annotations: {}
+#    labels: {}
 #  resources:
 #    requests:
 #      cpu: 2.0
