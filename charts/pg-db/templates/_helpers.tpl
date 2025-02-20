@@ -63,3 +63,22 @@ repos:
 {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+Common resources template
+*/}}
+{{- define "pg-database.resources" -}}
+{{- if .resources }}
+resources:
+  {{- if .resources.requests }}
+  requests:
+    cpu: {{ .resources.requests.cpu }}
+    memory: {{ .resources.requests.memory }}
+  {{- end }}
+  {{- if .resources.limits }}
+  limits:
+    cpu: {{ .resources.limits.cpu }}
+    memory: {{ .resources.limits.memory }}
+  {{- end }}
+{{- end }}
+{{- end }}
