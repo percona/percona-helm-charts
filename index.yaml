@@ -3966,6 +3966,22 @@ entries:
     version: 0.2.0
   psmdb-db:
   - apiVersion: v2
+    appVersion: 1.19.1
+    created: "2025-02-20T15:10:47.233711536Z"
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
+    digest: 9d95f83bfe037ebac247ef8c93c841f7980e10a3c3c15755a41745d13dc1d17b
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
+    maintainers:
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    name: psmdb-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-1.19.1/psmdb-db-1.19.1.tgz
+    version: 1.19.1
+  - apiVersion: v2
     appVersion: 1.19.0
     created: "2025-01-21T19:30:51.136996673Z"
     description: A Helm chart for installing Percona Server MongoDB Cluster Databases
@@ -4562,6 +4578,23 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-0.1.0/psmdb-db-0.1.0.tgz
     version: 0.1.0
   psmdb-operator:
+  - apiVersion: v2
+    appVersion: 1.19.1
+    created: "2025-02-20T15:10:47.454348851Z"
+    description: A Helm chart for deploying the Percona Operator for MongoDB
+    digest: e181ffb2f409a1a3a10bfd777232fdd9d63f030535f7dd1a512756d255b1f957
+    home: https://docs.percona.com/percona-operator-for-mongodb/
+    maintainers:
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    name: psmdb-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-1.19.1/psmdb-operator-1.19.1.tgz
+    version: 1.19.1
   - apiVersion: v2
     appVersion: 1.19.0
     created: "2025-01-21T19:30:51.26436804Z"
@@ -6501,4 +6534,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-02-11T20:09:48.804535707Z"
+generated: "2025-02-20T15:10:47.455119733Z"
