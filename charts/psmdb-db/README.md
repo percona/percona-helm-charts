@@ -23,14 +23,14 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.19.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.19.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                                                   | Default                               |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.19.0`                              |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.19.1`                              |
 | `pause`                                             | Stop PSMDB Database safely                                                                                                                                                                    | `false`                               |
 | `unmanaged`                                         | Start cluster and don't manage it (cross cluster replication)                                                                                                                                 | `false`                               |
 | `enableVolumeExpansion`                             | Allows to resize `PersistentVolumeClaim`s by changing `.volumeSpec.persistentVolumeClaim.resources` field                                                                                     | `false`                               |
@@ -55,7 +55,7 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:percona.com/delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)                                                                                                                             | `[]`                                  |
 | `finalizers:percona.com/delete-pitr-chunks`         | Set this if you want to delete all pitr chunks on cluster deletion                                                                                                                            | `[]`                                  |
 | `image.repository`                                  | PSMDB Container image repository                                                                                                                                                              | `percona/percona-server-mongodb`      |
-| `image.tag`                                         | PSMDB Container image tag                                                                                                                                                                     | `8.0.4-1-multi`                      |
+| `image.tag`                                         | PSMDB Container image tag                                                                                                                                                                     | `7.0.15-9-multi`                     |
 | `imagePullPolicy`                                   | The policy used to update images                                                                                                                                                              | `Always`                              |
 | `imagePullSecrets`                                  | PSMDB Container pull secret                                                                                                                                                                   | `[]`                                  |
 | `initImage.repository`                              | Repository for custom init image                                                                                                                                                              | `""`                                  |
