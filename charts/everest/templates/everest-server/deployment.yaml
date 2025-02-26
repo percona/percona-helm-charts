@@ -27,30 +27,33 @@ spec:
         secret:
           secretName: everest-jwt
       containers:
-        - name: everest
-          image: {{ .Values.server.image }}:{{ .Chart.Version }}
-          ports:
-            - containerPort: 8080
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8080
-            initialDelaySeconds: 300
-            periodSeconds: 15
-          resources: {{ toYaml .Values.server.resources | nindent 12 }}
-          volumeMounts:
-          - name: jwt-secret
-            mountPath: /etc/jwt
-          env:
-          {{- if hasKey .Values.server "apiRequestsRateLimit" }}
-          - name: API_REQUESTS_RATE_LIMIT
-            value: "{{ .Values.server.apiRequestsRateLimit }}"
-          {{- end }}
-          - name: VERSION_SERVICE_URL
-            value: {{ (include "everest.versionMetadataURL" .) }}
+      - name: everest
+        image: {{ .Values.server.image }}:{{ .Chart.Version }}
+        ports:
+          - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 300
+          periodSeconds: 15
+        resources: {{ toYaml .Values.server.resources | nindent 12 }}
+        volumeMounts:
+        - name: jwt-secret
+          mountPath: /etc/jwt
+        env:
+        {{- if hasKey .Values.server "apiRequestsRateLimit" }}
+        - name: API_REQUESTS_RATE_LIMIT
+          value: "{{ .Values.server.apiRequestsRateLimit }}"
+        {{- end }}
+        - name: VERSION_SERVICE_URL
+          value: {{ (include "everest.versionMetadataURL" .) }}
+        {{- if .Values.server.env }}
+        {{- toYaml .Values.server.env | nindent 8 }}
+        {{- end }}
