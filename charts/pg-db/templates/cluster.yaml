@@ -377,6 +377,12 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.jobs }}
       jobs:
+        {{- if .Values.backups.pgbackrest.jobs.restartPolicy }}
+        restartPolicy: {{ .Values.backups.pgbackrest.jobs.restartPolicy }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.backoffLimit }}
+        backoffLimit: {{ .Values.backups.pgbackrest.jobs.backoffLimit }}
+        {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.priorityClassName }}
         priorityClassName: {{ .Values.backups.pgbackrest.jobs.priorityClassName }}
         {{- end }}
