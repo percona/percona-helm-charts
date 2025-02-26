@@ -439,6 +439,28 @@ entries:
     version: 1.3.0
   everest-db-namespace:
   - apiVersion: v2
+    appVersion: 1.5.0-rc1
+    created: "2025-02-26T05:35:30.244420752Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.0.*
+    description: A sub-chart for provisioning Everest DB namespaces.
+    digest: 63bc0f39276018bc50a794dbb3d210856fb4cfbd72d70309ffd2d075eace286e
+    kubeVersion: '>= 1.27.0-0'
+    maintainers:
+    - email: mayank.shah@percona.com
+      name: mayankshah1607
+    - email: oksana.grishchenko@percona.com
+      name: oksana-grishchenko
+    - email: diogo.recharte@percona.com
+      name: recharte
+    name: everest-db-namespace
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/everest-db-namespace-1.5.0-rc1/everest-db-namespace-1.5.0-rc1.tgz
+    version: 1.5.0-rc1
+  - apiVersion: v2
     appVersion: 1.4.0
     created: "2025-01-07T13:05:06.115337605Z"
     dependencies:
@@ -6570,4 +6592,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-02-26T05:35:25.344497729Z"
+generated: "2025-02-26T05:35:30.245070997Z"
