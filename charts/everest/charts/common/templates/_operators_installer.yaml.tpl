@@ -86,32 +86,32 @@ spec:
             - -c
             - |
               kubectl label namespace {{ .namespace }} app.kubernetes.io/managed-by=everest --overwrite
-              subs=$(kubectl -n {{ .namespace }} get subscription -o jsonpath='{.items[*].metadata.name}')
+              subs=$(kubectl -n {{ .namespace }} get subscriptions.operators.coreos.com -o jsonpath='{.items[*].metadata.name}')
               for sub in $subs
               do
                 # We do not want to touch already installed operators, otherwise bad things can happen.
-                installedCSV=$(kubectl -n {{ .namespace }} get sub $sub -o jsonpath='{.status.installedCSV}')
+                installedCSV=$(kubectl -n {{ .namespace }} get subscriptions.operators.coreos.com $sub -o jsonpath='{.status.installedCSV}')
                 if [ "$installedCSV" != "" ]; then
                   echo "Operator $sub already installed. Skip..."
                   continue
                 fi
 
                 echo "Waiting for InstallPlan to be created for Subscription $sub"
-                kubectl wait --for=jsonpath='.status.installplan.name' sub/$sub -n {{ .namespace }} --timeout=600s
+                kubectl wait --for=jsonpath='.status.installplan.name' subscriptions.operators.coreos.com/$sub -n {{ .namespace }} --timeout=600s
                 
-                ip=$(kubectl -n {{ .namespace }} get sub $sub -o jsonpath='{.status.installplan.name}')
+                ip=$(kubectl -n {{ .namespace }} get subscriptions.operators.coreos.com $sub -o jsonpath='{.status.installplan.name}')
                 echo "InstallPlan $ip created for Subscription $sub"
 
                 echo "Approving InstallPlan $ip"
-                kubectl -n {{ .namespace }} patch installplan $ip --type='json' -p='[{"op": "replace", "path": "/spec/approved", "value": true}]'
+                kubectl -n {{ .namespace }} patch installplans.operators.coreos.com $ip --type='json' -p='[{"op": "replace", "path": "/spec/approved", "value": true}]'
 
                 echo "Waiting for InstallPlan to be complete $ip"
-                kubectl wait --for=jsonpath='.status.phase'=Complete installplan/$ip -n {{ .namespace }} --timeout=600s
+                kubectl wait --for=jsonpath='.status.phase'=Complete installplans.operators.coreos.com/$ip -n {{ .namespace }} --timeout=600s
 
-                csv=$(kubectl get sub $sub -n {{ .namespace }} -o jsonpath='{.status.installedCSV}')
+                csv=$(kubectl get subscriptions.operators.coreos.com $sub -n {{ .namespace }} -o jsonpath='{.status.installedCSV}')
 
                 echo "Waiting for CSV $csv to succeed"
-                kubectl wait --for=jsonpath='.status.phase'=Succeeded csv/$csv -n {{ .namespace }} --timeout=600s
+                kubectl wait --for=jsonpath='.status.phase'=Succeeded clusterserviceversions.operators.coreos.com/$csv -n {{ .namespace }} --timeout=600s
               done
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure
