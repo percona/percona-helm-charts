@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ include "pmm.fullname" . }}
+  namespace: {{ include  "pmm.namespace" . }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 spec:
@@ -16,6 +17,7 @@ spec:
     metadata:
       annotations:
         {{- include "pmm.podAnnotations" . | nindent 8 }}
+      namespace: {{ include  "pmm.namespace" . }}
       labels:
         {{- include "pmm.selectorLabels" . | nindent 8 }}
     spec:
@@ -124,6 +126,7 @@ spec:
       kind: PersistentVolumeClaim
       metadata:
         name: {{ .Values.storage.name }}
+        namespace: {{ include  "pmm.namespace" . }}
       spec:
         {{- if .Values.storage.selector }}
         selector:

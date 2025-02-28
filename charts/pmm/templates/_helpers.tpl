@@ -31,6 +31,13 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
+Allows overriding the install namespace in combined charts.
+*/}}
+{{- define "pmm.namespace" -}}
+{{- default .Release.Namespace .Values.namespaceOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
 Common labels
 */}}
 {{- define "pmm.labels" -}}
