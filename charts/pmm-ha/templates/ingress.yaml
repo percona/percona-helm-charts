@@ -1,0 +1,148 @@
+{{- if .Values.ingress.enabled -}}
+{{- $serviceName := .Values.service.name -}}
+{{- $grpcPort := (index $.Values.service.ports 0).port  -}}
+{{- $servicePort := (index $.Values.service.ports 1).port  -}}
+{{- $ingressPathType := .Values.ingress.pathType -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pmm.fullname" . }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+{{- if or .Values.ingress.annotations .Values.ingress.nginxInc }}
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- if .Values.ingress.nginxInc }}
+    nginx.org/ssl-services: {{ $serviceName }}-grpc
+    nginx.org/grpc-services: {{ $serviceName }}-grpc
+    {{- end }}
+{{- end }}
+spec:
+{{- if .Values.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.ingressClassName | quote }}
+{{- end }}
+{{- if .Values.ingress.tls }}
+  tls:
+  {{- range .Values.ingress.tls }}
+    - hosts:
+      {{- range .hosts }}
+        - {{ . | quote }}
+      {{- end }}
+      secretName: {{ .secretName }}
+  {{- end }}
+{{- end }}
+  rules:
+  {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+        {{- range .paths }}
+          - path: {{ . }}
+            pathType: {{ $ingressPathType }}
+            backend:
+              service:
+                name: {{ $serviceName }}
+                port: 
+                  number: {{ $servicePort }}
+          {{- if $.Values.ingress.nginxInc }}
+          # gRPC paths
+          - path: {{ printf "%s/agent." . | replace "//" "/" }}
+            pathType: {{ $ingressPathType }}
+            backend:
+              service:
+                name: {{ $serviceName }}-grpc
+                port: 
+                  number: {{ $grpcPort }} # MUST proxy to HTTPS
+          - path: {{ printf "%s/inventory." . | replace "//" "/" }}
+            pathType: {{ $ingressPathType }}
+            backend:
+              service:
+                name: {{ $serviceName }}-grpc
+                port: 
+                  number: {{ $grpcPort }} # MUST proxy to HTTPS
+          - path: {{ printf "%s/management." . | replace "//" "/" }}
+            pathType: {{ $ingressPathType }}
+            backend:
+              service:
+                name: {{ $serviceName }}-grpc
+                port: 
+                  number: {{ $grpcPort }} # MUST proxy to HTTPS
+          - path: {{ printf "%s/server." . | replace "//" "/" }}
+            pathType: {{ $ingressPathType }}
+            backend:
+              service:
+                name: {{ $serviceName }}-grpc
+                port: 
+                  number: {{ $grpcPort }} # MUST proxy to HTTPS
+          {{- end }}
+        {{- end }}
+  {{- end }}
+{{- if not .Values.ingress.nginxInc }}
+--- 
+# Community version of ingress-nginx requires second Ingress for gRPC
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pmm.fullname" . }}-grpc
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.community.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPCS"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+{{- if .Values.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.ingressClassName | quote }}
+{{- end }}
+{{- if .Values.ingress.tls }}
+  tls:
+  {{- range .Values.ingress.tls }}
+    - hosts:
+      {{- range .hosts }}
+        - {{ . | quote }}
+      {{- end }}
+      secretName: {{ .secretName }}
+  {{- end }}
+{{- end }}
+  rules:
+  {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+        {{- range .paths }}
+          # gRPC paths
+          - path: {{ printf "%s/agent." . | replace "//" "/" }}
+            pathType: {{ $ingressPathType }}
+            backend:
+              service:
+                name: {{ $serviceName }}-grpc
+                port: 
+                  number: {{ $grpcPort }} # MUST proxy to HTTPS
+          - path: {{ printf "%s/inventory." . | replace "//" "/" }}
+            pathType: {{ $ingressPathType }}
+            backend:
+              service:
+                name: {{ $serviceName }}-grpc
+                port: 
+                  number: {{ $grpcPort }} # MUST proxy to HTTPS
+          - path: {{ printf "%s/management." . | replace "//" "/" }}
+            pathType: {{ $ingressPathType }}
+            backend:
+              service:
+                name: {{ $serviceName }}-grpc
+                port: 
+                  number: {{ $grpcPort }} # MUST proxy to HTTPS
+          - path: {{ printf "%s/server." . | replace "//" "/" }}
+            pathType: {{ $ingressPathType }}
+            backend:
+              service:
+                name: {{ $serviceName }}-grpc
+                port: 
+                  number: {{ $grpcPort }} # MUST proxy to HTTPS
+        {{- end }}
+  {{- end }}
+---
+{{- end }}
+{{- end }}

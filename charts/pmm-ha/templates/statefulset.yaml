@@ -1,0 +1,186 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pmm.fullname" . }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ .Values.service.name }}
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "pmm.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        {{- include "pmm.podAnnotations" . | nindent 8 }}
+      labels:
+        {{- include "pmm.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.pmmResources }}
+          resources:
+            {{- toYaml .Values.pmmResources | nindent 12 }}
+          {{- end }}
+
+          # environment passed to PMM, defined in configMap
+          envFrom:
+            - configMapRef:
+                name: {{ include "pmm.fullname" . }}
+                optional: true
+            {{ if and (not .Values.secret.create) .Values.secret.name }}
+            - secretRef:
+                 name: {{ .Values.secret.name }}
+            {{ end }}
+          env:
+            - name: PMM_INSTALL_METHOD
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
+            - name: PMM_TEST_HA_ADVERTISE_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PMM_TEST_HA_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{ if .Values.secret.create }}
+            # additional secrets that could be used for Grafana iDP
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+                  optional: true
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+                  optional: true
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+                  optional: true
+            {{ end }}
+            - name: GF_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GF_USERNAME
+            - name: GF_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GF_PASSWORD
+            - name: PERCONA_TEST_POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PG_USERNAME
+            - name: PERCONA_TEST_POSTGRES_DBPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PG_PASSWORD
+            - name: GF_DATABASE_URL
+              value: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
+          ports:
+            - name: http
+              containerPort: 80
+            - name: https
+              containerPort: 443
+          readinessProbe:
+            httpGet:
+              path: /v1/readyz
+              port: http
+          {{- if .Values.readyProbeConf }}
+            {{- toYaml .Values.readyProbeConf | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+            - name: annotations
+              mountPath: "/var/run/pmm/annotations"
+              readOnly: true
+            {{- if .Values.certs.name }}
+            - name: {{ .Values.certs.name }}
+              mountPath: /srv/nginx
+              readOnly: true
+            {{- end }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: annotations
+          projected:
+            sources:
+            - downwardAPI:
+                items:
+                  - path: "annotations"
+                    fieldRef:
+                      fieldPath: metadata.annotations
+      {{- if .Values.certs.name }}
+        - name: {{ .Values.certs.name }}
+          secret:
+            secretName: {{ .Values.certs.name }}
+            optional: false
+      {{- end }}
+      {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: {{ .Values.storage.name }}
+      spec:
+        {{- if .Values.storage.selector }}
+        selector:
+          {{- toYaml .Values.storage.selector | nindent 10 }}
+        {{- end }}
+        {{ if .Values.storage.storageClassName }}
+        storageClassName: {{ .Values.storage.storageClassName }}
+        {{ end }}
+        {{- if .Values.storage.dataSource }}
+        dataSource:
+          {{- toYaml .Values.storage.dataSource | nindent 10 }}
+        {{- end }}
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}
