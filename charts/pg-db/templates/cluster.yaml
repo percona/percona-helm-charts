@@ -19,6 +19,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
+  metadata: {{ .Values.metadata | toYaml | nindent 4 }}
   image: {{ .Values.image }}
   imagePullPolicy: {{ .Values.imagePullPolicy | default "Always" }}
   port: {{ default 5432 .Values.port }}

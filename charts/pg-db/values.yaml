@@ -7,8 +7,15 @@ finalizers:
 #  - percona.com/delete-pvc
 # Set this if you want that operator deletes the ssl objects on cluster deletion
 #  - percona.com/delete-ssl
+# Set this if you want that operator deletes the backups on cluster deletion
+#  - percona.com/delete-backups
 
 crVersion: 2.6.0
+# metadata:
+#   annotations:
+#     example-annotation: value
+#   labels:
+#     example-label: value
 repository: percona/percona-postgresql-operator
 image: percona/percona-postgresql-operator:2.6.0-ppg16.8-postgres
 imagePullPolicy: Always
@@ -494,6 +501,7 @@ pmm:
 #   dynamicConfiguration:
 #     postgresql:
 #       parameters:
+#         restore_command: "pgbackrest --stanza=db archive-get %f \"%p\""
 #         max_parallel_workers: 2
 #         max_worker_processes: 2
 #         shared_buffers: 1GB
