@@ -92,6 +92,8 @@ The chart can be customized using the following configurable parameters:
 | |
 | `instances.name`                                                             | The name of the PostgreSQL instance                                                                                    | `instance1`                                                 |
 | `instances.replicas`                                                         | The number of Replicas to create for the PostgreSQL instance                                                           | `3`                                                         |
+| `instances.metadata.labels`                                                  | Labels applied to instance pods | `{}`                                                         |
+| `instances.metadata.annotations`                                             | Annotations applied to instance pods | `{}`                                                         |
 | `instances.affinity.podAntiAffinity`                                         | Pod anti-affinity, allows setting the standard Kubernetes affinity constraints of any complexity                       | `{}`                                                        |
 | `instances.resources.requests.memory`                                        | Kubernetes memory requests for a PostgreSQL instance                                                                   | `""`                                                        |
 | `instances.resources.requests.cpu`                                           | Kubernetes CPU requests for a PostgreSQL instance                                                                      | `""`                                                        |
