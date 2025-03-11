@@ -191,6 +191,9 @@ spec:
           memory: {{ $instance.resources.limits.memory }}
         {{- end }}
       {{- end }}
+      {{- if $instance.metadata }}
+      metadata: {{- $instance.metadata | toYaml | nindent 8 }}
+      {{- end }}
       {{- if $instance.containers }}
       containers:
         {{- if $instance.containers.replicaCertCopy }}

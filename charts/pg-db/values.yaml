@@ -8,9 +8,9 @@ finalizers:
 # Set this if you want that operator deletes the ssl objects on cluster deletion
 #  - percona.com/delete-ssl
 
-crVersion: 2.5.0
+crVersion: 2.5.1
 repository: percona/percona-postgresql-operator
-image: percona/percona-postgresql-operator:2.5.0-ppg16.4-postgres
+image: percona/percona-postgresql-operator:2.5.1-ppg16.8-postgres
 imagePullPolicy: Always
 postgresVersion: 16
 # port: 5432
@@ -155,7 +155,9 @@ instances:
             matchLabels:
               postgres-operator.crunchydata.com/data: postgres
           topologyKey: kubernetes.io/hostname
-
+#  metadata:
+#    annotations: {}
+#    labels: {}
 #  resources:
 #    requests:
 #      cpu: 2.0
@@ -240,7 +242,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: percona/percona-postgresql-operator:2.5.0-ppg16.4-pgbouncer1.23.1
+    image: percona/percona-postgresql-operator:2.5.1-ppg16.8-pgbouncer1.24.0
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -322,7 +324,7 @@ backups:
   pgbackrest:
 #    metadata:
 #    labels:
-    image: percona/percona-postgresql-operator:2.5.0-ppg16.4-pgbackrest2.53-1
+    image: percona/percona-postgresql-operator:2.5.1-ppg16.8-pgbackrest2.54.2
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -468,7 +470,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.43.1
+    tag: 2.44.0
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -499,7 +501,7 @@ pmm:
 #     targetInstance: ""
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.5.0
+#   image: percona/percona-postgresql-operator:2.5.1
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3

@@ -17,6 +17,12 @@ server:
     requests:
       cpu: 100m
       memory: 20Mi
+  # -- Service configuration for the server.
+  service:
+    # -- Type of service to create.
+    type: ClusterIP
+    # -- Port to expose on the service.
+    port: 8080
   # -- Key for signing JWT tokens. This needs to be an RSA private key.
   # This is created during installation only.
   # To update the key after installation, you need to manually update the `everest-jwt` Secret or use everestctl.
