@@ -226,6 +226,7 @@ podAnnotations: {}
 podSecurityContext:
   runAsUser: 1000
   runAsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
   fsGroup: 1000
 
 ## @param securityContext Configure Container Security Context
