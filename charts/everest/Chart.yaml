@@ -33,3 +33,7 @@ dependencies:
     version: 0.37.0
     repository: "https://victoriametrics.github.io/helm-charts"
     condition: "monitoring.enabled"
+  - name: pmm
+    repository: "https://percona.github.io/percona-helm-charts"
+    condition: "pmm.enabled"
+    version: 1.3.*
