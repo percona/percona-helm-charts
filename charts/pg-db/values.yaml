@@ -2,6 +2,8 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# annotations:
+#   pgv2.percona.com/custom-patroni-version: "4"
 finalizers:
 # Set this if you want that operator deletes the PVCs on cluster deletion
 #  - percona.com/delete-pvc

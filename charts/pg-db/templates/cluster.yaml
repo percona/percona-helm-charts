@@ -3,6 +3,9 @@ kind: PerconaPGCluster
 metadata:
   annotations:
     current-primary: {{ include "pg-database.fullname" . }}
+    {{- if .Values.annotations -}}
+    {{ .Values.annotations | toYaml | nindent 4 }}
+    {{- end }}
   labels:
     crunchy-pgha-scope: {{ include "pg-database.fullname" . }}
     deployment-name: {{ include "pg-database.fullname" . }}
@@ -19,7 +22,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
+  {{- if .Values.metadata }}
   metadata: {{ .Values.metadata | toYaml | nindent 4 }}
+  {{- end }}
   image: {{ .Values.image }}
   imagePullPolicy: {{ .Values.imagePullPolicy | default "Always" }}
   port: {{ default 5432 .Values.port }}
@@ -283,7 +288,7 @@ spec:
   proxy:
     pgBouncer:
       image: {{ .Values.proxy.pgBouncer.image }}
-      replicas: {{ .Values.proxy.pgBouncer.replicas}}
+      replicas: {{ .Values.proxy.pgBouncer.replicas }}
       exposeSuperusers: {{ .Values.proxy.pgBouncer.exposeSuperusers | default true }}
       {{- include "pg-database.resources" .Values.proxy.pgBouncer | indent 6 }}
       {{- if .Values.proxy.pgBouncer.containers }}
