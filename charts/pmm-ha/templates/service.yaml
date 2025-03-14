@@ -48,28 +48,3 @@ spec:
   selector:
     {{- include "pmm.selectorLabels" . | nindent 4 }}
 {{- end }}
----
-{{- $haserviceType := .Values.haservice.type -}}
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ .Values.haservice.name }}
-  labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-  {{- with .Values.service.annotations }}
-  annotations:
-    {{- toYaml . | nindent 8 }}
-  {{- end }}
-  {{- with .Values.service.finalizers }}
-  finalizers:
-    {{- toYaml . | nindent 8 }}
-  {{- end }}
-spec:
-  publishNotReadyAddresses: true
-  type: {{ $serviceType | default "ClusterIP" }}
-  {{- with .Values.service.ports }}
-  ports:
-    {{- toYaml . | nindent 8 }}
-  {{- end }}
-  selector:
-    {{- include "pmm.selectorLabels" . | nindent 4 }}

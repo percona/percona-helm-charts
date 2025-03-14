@@ -250,7 +250,11 @@ config: |
     frontend http_front
         bind *:80
         default_backend http_back    
-    
+   
+    frontend https_front
+        bind *:443 ssl crt /etc/haproxy/certs/pmm.pem
+        default_backend https_back
+
     backend http_back
         option httpchk
         http-check send meth POST uri /v1/leaderHealthCheck ver HTTP/1.1 hdr Host www
@@ -258,6 +262,14 @@ config: |
         server pmm-server-active-http pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local:80 check
         server pmm-server-passive-http pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local:80 check backup
         server pmm-server-passive-2-http pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local:80 check backup
+
+    backend https_back
+        option httpchk
+        http-check send meth POST uri /v1/leaderHealthCheck ver HTTP/1.1 hdr Host www
+        http-check expect status 200
+        server pmm-server-active-https pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local:443 check ssl verify none
+        server pmm-server-passive-https pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local:443 check ssl verify none
+        server pmm-server-passive-2-https pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local:443 check ssl verify none
 
 # Mount path and sub path for config file
 configMount:
@@ -286,10 +298,10 @@ includesMountPath: /usr/local/etc/haproxy/includes         # EE images use /etc/
 
 ## Additional secrets to mount as volumes
 ## This is expected to be an array of dictionaries specifying the volume name, secret name and mount path
-mountedSecrets: []
-#  - volumeName: ssl-certificate
-#    secretName: star-example-com
-#    mountPath: /usr/local/etc/ssl
+mountedSecrets:
+  - volumeName: ssl-certificate
+    secretName: haproxy-tls-secret
+    mountPath: /etc/haproxy/certs/pmm.pem
 
 ## Pod Node assignment
 ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/

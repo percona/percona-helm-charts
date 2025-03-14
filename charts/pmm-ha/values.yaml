@@ -139,9 +139,9 @@ service:
       ## @param service.ports[1].name port name
       name: http
 
-haservice:
-  type: "ClusterIP"
-  name: "pmmha"
+#haservice:
+#  type: "ClusterIP"
+#  name: "pmmha"
 
 replicas: 3
 
