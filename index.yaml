@@ -176,6 +176,32 @@ entries:
     version: 1.3.0
   pg-db:
   - apiVersion: v2
+    appVersion: 2.6.0
+    created: "2025-03-17T18:05:53.143072223Z"
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
+    digest: 96fbc9e4480edec6ee5ba49a56b2be6a7669e62ecd9415326af0749f900d820e
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    name: pg-db
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-db-2.6.0/pg-db-2.6.0.tgz
+    version: 2.6.0
+  - apiVersion: v2
     appVersion: 2.5.1
     created: "2025-03-03T20:13:21.047681476Z"
     description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
@@ -1330,6 +1356,31 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/pg-db-0.2.0/pg-db-0.2.0.tgz
     version: 0.2.0
   pg-operator:
+  - apiVersion: v2
+    appVersion: 2.6.0
+    created: "2025-03-17T18:05:53.266036256Z"
+    description: A Helm chart to deploy the Percona Operator for PostgreSQL
+    digest: b65269ef341c5f38e8018d2c32460f79bd5abe0076007699dc6bdde1425b8f17
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    name: pg-operator
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-operator-2.6.0/pg-operator-2.6.0.tgz
+    version: 2.6.0
   - apiVersion: v2
     appVersion: 2.5.1
     created: "2025-03-03T20:13:21.265078703Z"
@@ -6150,4 +6201,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-03-17T16:45:50.354309355Z"
+generated: "2025-03-17T18:05:53.267245788Z"
