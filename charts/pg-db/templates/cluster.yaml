@@ -408,6 +408,7 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.repoHost }}
       repoHost:
+        {{- include "pg-database.resources" .Values.backups.pgbackrest.repoHost | indent 8 }}
         {{- if .Values.backups.pgbackrest.repoHost.priorityClassName }}
         priorityClassName: {{ .Values.backups.pgbackrest.repoHost.priorityClassName }}
         {{- end }}
