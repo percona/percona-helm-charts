@@ -422,7 +422,9 @@ spec:
                 description: Backup is the backup specification
                 properties:
                   enabled:
-                    description: Enabled is a flag to enable backups
+                    description: |-
+                      Enabled is a flag to enable backups
+                      Deprecated. Please use db.spec.backup.schedules[].enabled to control each schedule separately and db.spec.backup.pitr.enabled to control PITR.
                     type: boolean
                   pitr:
                     description: PITR is the configuration of the point in time recovery
