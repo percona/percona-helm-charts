@@ -1,9 +1,9 @@
 apiVersion: v2
-appVersion: 1.16.1
+appVersion: 1.17.0
 description: A Helm chart for deploying the Percona Operator for MySQL (based on Percona XtraDB Cluster)
 name: pxc-operator
 home: https://docs.percona.com/percona-operator-for-mysql/pxc/
-version: 1.16.1
+version: 1.17.0
 maintainers:
   - name: nmarukovich
     email: natalia.marukovich@percona.com
