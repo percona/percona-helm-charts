@@ -2,15 +2,24 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# annotations:
+#   pgv2.percona.com/custom-patroni-version: "4"
 finalizers:
 # Set this if you want that operator deletes the PVCs on cluster deletion
 #  - percona.com/delete-pvc
 # Set this if you want that operator deletes the ssl objects on cluster deletion
 #  - percona.com/delete-ssl
+# Set this if you want that operator deletes the backups on cluster deletion
+#  - percona.com/delete-backups
 
-crVersion: 2.5.0
+crVersion: 2.6.0
+# metadata:
+#   annotations:
+#     example-annotation: value
+#   labels:
+#     example-label: value
 repository: percona/percona-postgresql-operator
-image: percona/percona-postgresql-operator:2.5.0-ppg16.4-postgres
+image: percona/percona-postgresql-operator:2.6.0-ppg16.8-postgres
 imagePullPolicy: Always
 postgresVersion: 16
 # port: 5432
@@ -34,7 +43,11 @@ customTLSSecret:
 customReplicationTLSSecret:
   name: ""
 
+# tlsOnly: false
+
 # openshift: true
+
+# autoCreateUserSchema: true
 
 # users:
 #   - name: rhino
@@ -155,7 +168,9 @@ instances:
             matchLabels:
               postgres-operator.crunchydata.com/data: postgres
           topologyKey: kubernetes.io/hostname
-
+#  metadata:
+#    annotations: {}
+#    labels: {}
 #  resources:
 #    requests:
 #      cpu: 2.0
@@ -240,7 +255,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: percona/percona-postgresql-operator:2.5.0-ppg16.4-pgbouncer1.23.1
+    image: percona/percona-postgresql-operator:2.6.0-ppg16.8-pgbouncer1.24.0
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -322,7 +337,7 @@ backups:
   pgbackrest:
 #    metadata:
 #    labels:
-    image: percona/percona-postgresql-operator:2.5.0-ppg16.4-pgbackrest2.53-1
+    image: percona/percona-postgresql-operator:2.6.0-ppg16.8-pgbackrest2.54.2
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -339,6 +354,8 @@ backups:
 #      - secret:
 #          name: cluster1-pgbackrest-secrets
 #    jobs:
+#      restartPolicy: OnFailure
+#      backoffLimit: 2
 #      priorityClassName: high-priority
 #      resources:
 #        limits:
@@ -468,7 +485,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.43.1
+    tag: 2.44.0
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -488,6 +505,7 @@ pmm:
 #   dynamicConfiguration:
 #     postgresql:
 #       parameters:
+#         restore_command: "pgbackrest --stanza=db archive-get %f \"%p\""
 #         max_parallel_workers: 2
 #         max_worker_processes: 2
 #         shared_buffers: 1GB
@@ -499,7 +517,7 @@ pmm:
 #     targetInstance: ""
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.5.0
+#   image: percona/percona-postgresql-operator:2.6.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
@@ -511,6 +529,7 @@ pmm:
 #   builtin:
 #     pg_stat_monitor: true
 #     pg_audit: true
+#     pgvector: false
 #   custom:
 #   - name: pg_cron
 #     version: 1.6.1

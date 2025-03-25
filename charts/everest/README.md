@@ -156,11 +156,13 @@ The following table shows the configurable parameters of the Percona Everest cha
 | olm.packageserver.tls.tlsKey | string | `""` | Client key for the PackageServer APIService. Overrides the tls.type setting. |
 | olm.packageserver.tls.type | string | `"helm"` | Type of TLS certificates. Supported values are "helm" and "cert-manager". For production setup, it is recommended to use "cert-manager". |
 | operator.enableLeaderElection | bool | `true` | Enable leader election for the operator. |
+| operator.env | list | `[]` | Additional environment variables to pass to the operator deployment. |
 | operator.healthProbeAddr | string | `":8081"` | Health probe address for the operator. |
 | operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
 | server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |
+| server.env | list | `[]` | Additional environment variables to pass to the server deployment. |
 | server.image | string | `"perconalab/everest"` | Image to use for the server container. |
 | server.initialAdminPassword | string | `""` | The initial password configured for the admin user. If unset, a random password is generated. It is strongly recommended to reset the admin password after installation. |
 | server.jwtKey | string | `""` | Key for signing JWT tokens. This needs to be an RSA private key. This is created during installation only. To update the key after installation, you need to manually update the `everest-jwt` Secret or use everestctl. |
@@ -169,6 +171,9 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.rbac.enabled | bool | `false` | If set, enables RBAC for Everest. |
 | server.rbac.policy | string | `"g, admin, role:admin\n"` | RBAC policy configuration. Ignored if `rbac.enabled` is false. |
 | server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
+| server.service | object | `{"port":8080,"type":"ClusterIP"}` | Service configuration for the server. |
+| server.service.port | int | `8080` | Port to expose on the service. |
+| server.service.type | string | `"ClusterIP"` | Type of service to create. |
 | telemetry | bool | `true` | If set, enabled sending telemetry information. |
 | upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
 | versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |

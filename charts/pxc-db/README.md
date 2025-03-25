@@ -8,7 +8,7 @@ Useful links
 
 ## Pre-requisites
 * [Percona Operator for MySQL](https://hub.helm.sh/charts/percona/pxc-operator) running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pxc-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/helm.html).
-* Kubernetes 1.28+
+* Kubernetes 1.29+
 
 * Helm v3
 
@@ -20,14 +20,14 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.16.1 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.17.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                         | Description                                                                                          | Default                              |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `crVersion`                                       | Version of the Operator the Custom Resource belongs to                                               | `1.16.1`                             |
+| `crVersion`                                       | Version of the Operator the Custom Resource belongs to                                               | `1.17.0`                             |
 | `ignoreAnnotations`                               | Operator will not remove following annotations                                                       | `[]`                                 |
 | `ignoreLabels`                                    | Operator will not remove following labels                                                            | `[]`                                 |
 | `pause`                                           | Stop PXC Database safely                                                                             | `false`                              |

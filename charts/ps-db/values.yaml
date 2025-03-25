@@ -8,6 +8,7 @@ fullnameOverride: ""
 finalizers:
   - percona.com/delete-mysql-pods-in-order
   # - percona.com/delete-ssl
+  # - percona.com/delete-mysql-pvc
 
 #  unsafeFlags:
 #    mysqlSize: false
@@ -15,9 +16,9 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 0.8.0
+crVersion: 0.9.0
 pause: false
-# initImage: percona/percona-server-mysql-operator:0.8.0
+# initImage: percona/percona-server-mysql-operator:0.9.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -47,11 +48,11 @@ mysql:
   autoRecovery: true
   image:
     repository: percona/percona-server
-    tag: 8.0.36-28
+    tag: 8.0.40-31
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
-  # initImage: percona/percona-server-mysql-operator:0.8.0
+  # initImage: percona/percona-server-mysql-operator:0.9.0
 
   size: 3
 
@@ -174,10 +175,10 @@ proxy:
     enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.8.5
+      tag: 2.8.11
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.8.0
+    # initImage: percona/percona-server-mysql-operator:0.9.0
 
     size: 3
 
@@ -305,10 +306,10 @@ proxy:
     enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.0.36
+      tag: 8.0.40
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.8.0
+    # initImage: percona/percona-server-mysql-operator:0.9.0
 
     size: 3
 
@@ -385,12 +386,12 @@ orchestrator:
   enabled: true
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-12
+    tag: 3.2.6-15
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.8.0
+  # initImage: percona/percona-server-mysql-operator:0.9.0
 
   size: 3
 
@@ -457,7 +458,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.42.0
+    tag: 2.44.0
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
@@ -472,6 +473,15 @@ backup:
   image:
     repository: percona/percona-xtrabackup
     tag: 8.0.35-31
+#  schedule:
+#    - name: "sat-night-backup"
+#      schedule: "0 0 * * 6"
+#      keep: 3
+#      storageName: s3-us-west
+#    - name: "daily-backup"
+#      schedule: "0 0 * * *"
+#      keep: 5
+#      storageName: s3
   # backoffLimit: 6
   imagePullPolicy: Always
   imagePullSecrets: []
@@ -533,7 +543,7 @@ backup:
 toolkit:
   image:
     repository: percona/percona-toolkit
-    tag: 3.6.0
+    tag: 3.7.0
   imagePullPolicy: Always
   resources:
     requests: {}
