@@ -577,17 +577,17 @@ pmm:
     tag: 2.44.0
   # imagePullPolicy: Always
   imagePullSecrets: []
-  readinessProbes:
-    initialDelaySeconds: 15
-    timeoutSeconds: 15
-    periodSeconds: 30
-    successThreshold: 1
-    failureThreshold: 5
-  livenessProbes:
-    initialDelaySeconds: 300
-    timeoutSeconds: 5
-    periodSeconds: 10
-    successThreshold: 1
+#  readinessProbes:
+#    initialDelaySeconds: 15
+#    timeoutSeconds: 15
+#    periodSeconds: 30
+#    successThreshold: 1
+#    failureThreshold: 5
+#  livenessProbes:
+#    initialDelaySeconds: 300
+#    timeoutSeconds: 5
+#    periodSeconds: 10
+#    successThreshold: 1
   serverHost: monitoring-service
   serverUser: admin
   # pxcParams: "--disable-tablestats-limit=2000"
