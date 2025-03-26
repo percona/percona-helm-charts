@@ -12,7 +12,7 @@ finalizers:
 # Set this if you want that operator deletes the backups on cluster deletion
 #  - percona.com/delete-backups
 
-crVersion: 2.6.0
+crVersion: 2.7.0
 # metadata:
 #   annotations:
 #     example-annotation: value
