@@ -515,6 +515,9 @@ pmm:
 #   switchover:
 #     enabled: "true"
 #     targetInstance: ""
+#   createReplicaMethods:
+#   - pgbackrest
+#   - basebackup
 
 # extensions:
 #   image: percona/percona-postgresql-operator:2.6.0
