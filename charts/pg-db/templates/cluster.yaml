@@ -362,6 +362,7 @@ spec:
     secret: {{ include "pg-database.fullname" . }}-pmm-secret
     querySource: {{ .Values.pmm.querySource }}
     customClusterName: {{ .Values.pmm.customClusterName }}
+    postgresParams: {{ .Values.pmm.postgresParams}}
 
   backups:
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
