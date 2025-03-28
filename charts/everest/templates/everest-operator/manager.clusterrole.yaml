@@ -7,6 +7,7 @@ rules:
   - ""
   resources:
   - namespaces
+  - persistentvolumeclaims
   verbs:
   - get
   - list
@@ -44,6 +45,7 @@ rules:
   - apps
   resources:
   - deployments
+  - statefulsets
   verbs:
   - get
   - list
@@ -131,6 +133,14 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - postgres-operator.crunchydata.com
+  resources:
+  - postgresclusters
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - psmdb.percona.com
