@@ -3,7 +3,7 @@ name: pmm
 description: A Helm chart for Percona Monitoring and Management (PMM)
 type: application
 version: 1.4.2
-appVersion: "3.0.0"
+appVersion: "3.1.0"
 home: https://github.com/percona/pmm
 maintainers:
   - name: tplavcic
