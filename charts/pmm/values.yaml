@@ -217,7 +217,7 @@ extraLabels: {}
 serviceAccount:
   create: false
   annotations: {}
-  name: "pmm-service-account"
+#  name: "pmm-service-account"
 
 ## @param podAnnotations Pod annotations
 ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
