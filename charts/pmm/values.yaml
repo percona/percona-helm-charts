@@ -215,9 +215,9 @@ extraLabels: {}
 ## @param serviceAccount.name Name of the service account to use. If not set and create is true, a name is generated using the fullname template.
 ##
 serviceAccount:
-  create: true
+  create: false
   annotations: {}
-  name: "pmm-service-account"
+#  name: "pmm-service-account"
 
 ## @param podAnnotations Pod annotations
 ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
