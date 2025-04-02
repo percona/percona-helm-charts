@@ -364,6 +364,7 @@ spec:
     customClusterName: {{ .Values.pmm.customClusterName }}
     postgresParams: {{ .Values.pmm.postgresParams}}
 
+{{ if or (not (hasKey .Values.backups "enabled")) (.Values.backups.enabled) }}
   backups:
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
@@ -500,6 +501,7 @@ spec:
 {{ .Values.backups.pgbackrest.restore.tolerations | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
+{{- end }}
 
 {{- if .Values.patroni }}
   patroni:
