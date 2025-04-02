@@ -490,6 +490,8 @@ pmm:
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
   querySource: pgstatmonitor
+#  customClusterName: "<string>"
+#  postgresParams: "<string>"
 #  resources:
 #    requests:
 #      memory: 200M
