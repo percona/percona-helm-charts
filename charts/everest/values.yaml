@@ -152,7 +152,7 @@ ingress:
   # -- Enable ingress for Everest server
   enabled: false
   # -- Ingress class name. This is used to specify which ingress controller should handle this ingress.
-  className: ""
+  ingressClassName: ""
   # -- Additional annotations for the ingress resource.
   annotations: {}
   # -- List of hosts and their paths for the ingress resource.
