@@ -46,7 +46,7 @@ spec:
             backend:
               {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
               service:
-                name: everest
+                name: {{ .Values.server.service.name }}
                 port:
                   number: {{ $.Values.server.service.port }}
               {{- else }}
