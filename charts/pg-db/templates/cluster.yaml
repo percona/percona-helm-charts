@@ -444,6 +444,9 @@ spec:
         {{- range .Values.backups.pgbackrest.manual.options }}
         - {{ . }}
         {{- end }}
+{{ if hasKey .Values.backups.pgbackrest.manual "initialDelaySeconds" }}
+        initialDelaySeconds: {{ .Values.backups.pgbackrest.manual.initialDelaySeconds }}
+{{- end}}
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
       - name: {{ $repo.name }}
