@@ -19,6 +19,8 @@ server:
       memory: 20Mi
   # -- Service configuration for the server.
   service:
+    # -- Name of the service for everest
+    name: everest
     # -- Type of service to create.
     type: ClusterIP
     # -- Port to expose on the service.

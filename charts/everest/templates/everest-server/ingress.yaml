@@ -50,7 +50,7 @@ spec:
                 port:
                   number: {{ $.Values.server.service.port }}
               {{- else }}
-              serviceName: everest
+              serviceName: {{ .Values.server.service.name }}
               servicePort: {{ $.Values.server.service.port }}
               {{- end }}
           {{- end }}
