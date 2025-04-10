@@ -14,7 +14,7 @@ image:
 # watchNamespace:
 
 # set if operator should be deployed in cluster wide mode. defaults to false
-watchAllNamespaces: false
+watchAllNamespaces: true
 
 imagePullSecrets: []
 nameOverride: ""
