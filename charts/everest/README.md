@@ -166,6 +166,8 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
+| pmm | object | `{"enabled":false,"nameOverride":"pmm"}` | PMM settings. |
+| pmm.enabled | bool | `false` | If set, deploys PMM in the release namespace. |
 | server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |
 | server.env | list | `[]` | Additional environment variables to pass to the server deployment. |
 | server.image | string | `"perconalab/everest"` | Image to use for the server container. |
