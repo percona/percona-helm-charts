@@ -39,6 +39,7 @@ The chart can be customized using the following configurable parameters:
 | `env.logStructured`     | Enable JSON format for logs                                                                    | `false`                                 |
 | `env.logLevel`          | Set appropriate log level (INFO, DEBUG, ERROR)                                                 | `INFO`                                  |
 | `disableTelemetry`      | Disable sending PS Operator telemetry data to Percona                                          | `false`                                 |
+| `watchNamespace`     | Set this variable if the target cluster namespace differs from operators namespace | 
 | `watchAllNamespaces` | set if operator should be deployed in cluster wide mode. defaults to false | `false` |  |
 
 
