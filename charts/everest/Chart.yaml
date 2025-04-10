@@ -30,7 +30,7 @@ dependencies:
     condition: "kube-state-metrics.enabled"
   - name: victoria-metrics-operator
     alias: monitoring
-    version: 0.37.0
+    version: 0.43.0
     repository: "https://victoriametrics.github.io/helm-charts"
     condition: "monitoring.enabled"
   - name: pmm

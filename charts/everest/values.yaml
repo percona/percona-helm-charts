@@ -19,6 +19,8 @@ server:
       memory: 20Mi
   # -- Service configuration for the server.
   service:
+    # -- Name of the service for everest
+    name: everest
     # -- Type of service to create.
     type: ClusterIP
     # -- Port to expose on the service.
@@ -145,6 +147,27 @@ kube-state-metrics:
 # -- If set, creates resources for Kubernetes monitoring.
 createMonitoringResources: true
 
+
+ingress:
+  # -- Enable ingress for Everest server
+  enabled: false
+  # -- Ingress class name. This is used to specify which ingress controller should handle this ingress.
+  ingressClassName: ""
+  # -- Additional annotations for the ingress resource.
+  annotations: {}
+  # -- List of hosts and their paths for the ingress resource.
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  # -- TLS configuration for the ingress resource.
+  # -- Each entry in the list specifies a TLS certificate and the hosts it applies to.
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
 # Do not change the following values unless you know what you are doing.
 # @ignore
 monitoring:
@@ -152,7 +175,7 @@ monitoring:
   namespaceOverride: everest-monitoring
   fullnameOverride: vm-operator
   crds:
-    enabled: false
+    enabled: true
     plain: true
   admissionWebhooks:
     enabled: false
