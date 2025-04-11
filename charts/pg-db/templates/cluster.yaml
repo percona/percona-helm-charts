@@ -208,6 +208,10 @@ spec:
       {{- range $sidecar := $instance.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        command: {{ $sidecar.command }}
+        {{- if $sidecar.securityContext }}
+        securityContext: {{ $sidecar.SecurityContext | toYaml | indent 8 }}
+        {{- end}}
       {{- end }}
       {{- end }}
       {{- if $instance.topologySpreadConstraints }}
@@ -319,6 +323,10 @@ spec:
       {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        command: {{ $sidecar.command }}
+        {{- if $sidecar.securityContext }}
+        securityContext: {{ $sidecar.SecurityContext | toYaml | indent 8 }}
+        {{- end}}
       {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.customTLSSecret }}
