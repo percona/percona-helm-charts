@@ -92,6 +92,9 @@ spec:
     containerSecurityContext:
 {{ .Values.pmm.containerSecurityContext | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.pmm.customClusterName }}
+    customClusterName: {{ .Values.pmm.customClusterName }}
+    {{- end }}
 
   replsets:
   {{- range $k,$replset := .Values.replsets }}
