@@ -359,7 +359,7 @@ spec:
     enabled: {{ .Values.pmm.enabled }}
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
     serverHost: {{ .Values.pmm.serverHost }}
-    secret: {{ .Values.pmm.secret }}
+    secret: {{ .Values.pmm.secret | default (printf "%s-pmm-secret" (include "pg-database.fullname" .)) }}
     querySource: {{ .Values.pmm.querySource }}
 
   backups:
