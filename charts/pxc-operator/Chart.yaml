@@ -7,8 +7,8 @@ version: 1.17.0
 maintainers:
   - name: nmarukovich
     email: natalia.marukovich@percona.com
-  - name: spron-in
-    email: sergey.pronin@percona.com
+  - name: eleo007
+    email: eleonora.zinchenko@percona.com
   - name: jvpasinatto
     email: julio.pasinatto@percona.com
 icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
