@@ -5,10 +5,14 @@ metadata:
   name: {{ .Values.server.tls.secret.name }}
   namespace: {{ include  "everest.namespace" . }}
 spec:
-  {{- with .Values.server.tls.certificate.secretTemplateAnnotations }}
+  {{- with .Values.server.tls.certificate.secretTemplate }}
   secretTemplate:
     annotations:
-      {{- range $key, $value := . }}
+      {{- range $key, $value := .annotations }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+    labels:
+      {{- range $key, $value := .labels }}
       {{ $key }}: {{ $value | quote }}
       {{- end }}
   {{- end }} 

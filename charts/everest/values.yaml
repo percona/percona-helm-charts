@@ -113,8 +113,12 @@ server:
       # -- Usages for the certificate
       ### Ref: https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.KeyUsage
       usages: []
-      # -- Annotations that allow the certificate to be composed from data residing in existing Kubernetes Resources
-      secretTemplateAnnotations: {}
+      # -- Template for the Secret created by the Certificate resource.
+      secretTemplate:
+        # -- Annotations to add to the Secret created by the Certificate resource.
+        annotations: {}
+        # -- Labels to add to the Secret created by the Certificate resource.
+        labels: {}
 
   # -- Additional environment variables to pass to the server deployment.
   env: []

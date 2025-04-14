@@ -194,7 +194,9 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.tls.certificate.privateKey.rotationPolicy | string | `"Never"` | Rotation policy of private key when certificate is re-issued. Either: `Never` or `Always` |
 | server.tls.certificate.privateKey.size | int | `2048` | Key bit size of the private key. If algorithm is set to `Ed25519`, size is ignored. |
 | server.tls.certificate.renewBefore | string |  | How long before the expiry a certificate should be renewed. # Ref: https://cert-manager.io/docs/usage/certificate/#renewal |
-| server.tls.certificate.secretTemplateAnnotations | object | `{}` | Annotations that allow the certificate to be composed from data residing in existing Kubernetes Resources |
+| server.tls.certificate.secretTemplate | object | `{"annotations":{},"labels":{}}` | Template for the Secret created by the Certificate resource. |
+| server.tls.certificate.secretTemplate.annotations | object | `{}` | Annotations to add to the Secret created by the Certificate resource. |
+| server.tls.certificate.secretTemplate.labels | object | `{}` | Labels to add to the Secret created by the Certificate resource. |
 | server.tls.certificate.usages | list | `[]` | Usages for the certificate ## Ref: https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.KeyUsage |
 | server.tls.enabled | bool | `false` | If set, enables TLS for the Everest server. Setting tls.enabled=true creates a Secret containing the TLS certificates. Along with certificate.create, it creates a Certificate resource instead. |
 | server.tls.secret.certs | object | `{"tls.crt":"","tls.key":""}` | Use the specified tls.crt and tls.key in the Secret. If unspecified, the server creates a self-signed certificate (not recommended for production). |
