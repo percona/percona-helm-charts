@@ -85,10 +85,11 @@ pmm:
     repository: percona/pmm-client
     tag: 2.44.0
   serverHost: monitoring-service
-#   mongodParams: ""
-#   mongosParams: ""
-#   resources: {}
-#   containerSecurityContext: {}
+#  customClusterName: ""
+#  mongodParams: ""
+#  mongosParams: ""
+#  resources: {}
+#  containerSecurityContext: {}
 
 replsets:
   rs0:
