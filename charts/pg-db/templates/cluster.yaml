@@ -3,6 +3,9 @@ kind: PerconaPGCluster
 metadata:
   annotations:
     current-primary: {{ include "pg-database.fullname" . }}
+    {{- if .Values.annotations -}}
+    {{ .Values.annotations | toYaml | nindent 4 }}
+    {{- end }}
   labels:
     crunchy-pgha-scope: {{ include "pg-database.fullname" . }}
     deployment-name: {{ include "pg-database.fullname" . }}
@@ -11,14 +14,19 @@ metadata:
     pgo-version: {{ .Chart.AppVersion }}
     pgouser: admin
 {{ include "pg-database.labels" . | indent 4 }}
+  {{- if .Values.finalizers }}
   finalizers:
 {{ .Values.finalizers | toYaml | indent 4 }}
+  {{- end }}
   name: {{ include "pg-database.fullname" . }}
   namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
+  {{- if .Values.metadata }}
+  metadata: {{ .Values.metadata | toYaml | nindent 4 }}
+  {{- end }}
   image: {{ .Values.image }}
-  imagePullPolicy: Always
+  imagePullPolicy: {{ .Values.imagePullPolicy | default "Always" }}
   port: {{ default 5432 .Values.port }}
   postgresVersion: {{ .Values.postgresVersion }}
   standby: {{- .Values.standby | toYaml | nindent 4 }}
@@ -39,8 +47,17 @@ spec:
       name: {{ .Values.customReplicationTLSSecret.name }}
     {{- end }}
   {{- end }}
+  {{- if hasKey .Values "tlsOnly" }}
+  tlsOnly: {{ .Values.tlsOnly }}
+  {{- end -}}
 
-  openshift: {{ default false .Values.openshift }}
+  {{- if hasKey .Values "openshift" }}
+  openshift: {{ .Values.openshift }}
+  {{- end -}}
+
+  {{ if hasKey .Values "autoCreateUserSchema" }}
+  autoCreateUserSchema: {{ .Values.autoCreateUserSchema }}
+  {{- end -}}
   
   {{- if .Values.users }}
   users:
@@ -178,34 +195,12 @@ spec:
       affinity:
 {{ $instance.affinity | toYaml | indent 8 }}
       {{- end }}
-      {{- if $instance.resources }}
-      resources:
-        {{- if $instance.resources.requests }}
-        requests:
-          cpu: {{ $instance.resources.requests.cpu }}
-          memory: {{ $instance.resources.requests.memory }}
-        {{- end }}
-        {{- if $instance.resources.limits }}
-        limits:
-          cpu: {{ $instance.resources.limits.cpu }}
-          memory: {{ $instance.resources.limits.memory }}
-        {{- end }}
-      {{- end }}
-      {{- if $instance.metadata }}
-      metadata: {{- $instance.metadata | toYaml | nindent 8 }}
-      {{- end }}
+      {{- include "pg-database.resources" $instance | indent 6 }}
       {{- if $instance.containers }}
       containers:
         {{- if $instance.containers.replicaCertCopy }}
         replicaCertCopy:
-          {{- if $instance.containers.replicaCertCopy.resources }}
-          resources:
-            {{- if $instance.containers.replicaCertCopy.resources.limits }}
-            limits:
-              cpu: {{ $instance.containers.replicaCertCopy.resources.limits.cpu }}
-              memory: {{ $instance.containers.replicaCertCopy.resources.limits.memory }}
-            {{- end }}
-          {{- end }}
+        {{- include "pg-database.resources" $instance.containers.replicaCertCopy | indent 10 }}
         {{- end }}
       {{- end }}
       {{- if $instance.sidecars }}
@@ -245,21 +240,35 @@ spec:
         {{- if $instance.walVolumeClaimSpec.storageClassName }}
         storageClassName: {{ $instance.walVolumeClaimSpec.storageClassName }}
         {{- end }}
+        {{- if $instance.walVolumeClaimSpec.accessModes }}
         accessModes:
+        {{- range $accessMode := $instance.walVolumeClaimSpec.accessModes }}
+        - {{ $accessMode }}
+        {{- end }}
+        {{- else }}
         - ReadWriteOnce
+        {{- end }}
         resources:
           requests:
             storage: {{ $instance.walVolumeClaimSpec.resources.requests.storage }}
       {{- end }}
+      {{- if $instance.dataVolumeClaimSpec }}
       dataVolumeClaimSpec:
         {{- if $instance.dataVolumeClaimSpec.storageClassName }}
         storageClassName: {{ $instance.dataVolumeClaimSpec.storageClassName }}
         {{- end }}
+        {{- if $instance.dataVolumeClaimSpec.accessModes }}
         accessModes:
+        {{- range $accessMode := $instance.dataVolumeClaimSpec.accessModes }}
+        - {{ $accessMode }}
+        {{- end }}
+        {{- else }}
         - ReadWriteOnce
+        {{- end }}
         resources:
           requests:
             storage: {{ $instance.dataVolumeClaimSpec.resources.requests.storage }}
+      {{- end }}
       {{- if $instance.tablespaceVolumes }}
       tablespaceVolumes:
       {{- range $volume := $instance.tablespaceVolumes }}
@@ -279,33 +288,14 @@ spec:
   proxy:
     pgBouncer:
       image: {{ .Values.proxy.pgBouncer.image }}
-      replicas: {{ .Values.proxy.pgBouncer.replicas}}
+      replicas: {{ .Values.proxy.pgBouncer.replicas }}
       exposeSuperusers: {{ .Values.proxy.pgBouncer.exposeSuperusers | default true }}
-      {{- if .Values.proxy.pgBouncer.resources }}
-      resources:
-        {{- if .Values.proxy.pgBouncer.resources.requests }}
-        requests:
-          cpu: {{ .Values.proxy.pgBouncer.resources.requests.cpu }}
-          memory: {{ .Values.proxy.pgBouncer.resources.requests.memory }}
-        {{- end }}
-        {{- if .Values.proxy.pgBouncer.resources.limits }}
-        limits:
-          cpu: {{ .Values.proxy.pgBouncer.resources.limits.cpu }}
-          memory: {{ .Values.proxy.pgBouncer.resources.limits.memory }}
-        {{- end }}
-      {{- end }}
+      {{- include "pg-database.resources" .Values.proxy.pgBouncer | indent 6 }}
       {{- if .Values.proxy.pgBouncer.containers }}
       containers:
         {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig }}
         pgbouncerConfig:
-          {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources }}
-          resources:
-            {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits }}
-            limits:
-              cpu: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits.cpu }}
-              memory: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits.memory }}
-            {{- end }}
-          {{- end }}
+        {{- include "pg-database.resources" .Values.proxy.pgBouncer.containers.pgbouncerConfig | indent 10 }}
         {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.expose }}
@@ -384,34 +374,25 @@ spec:
       containers:
         {{- if .Values.backups.pgbackrest.containers.pgbackrest }}
         pgbackrest:
-          {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources }}
-          resources:
-            {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources.limits }}
-            limits:
-              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.limits.cpu }}
-              memory: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.limits.memory }}
-            {{- end }}
-          {{- end }}
+        {{- include "pg-database.resources" .Values.backups.pgbackrest.containers.pgbackrest | indent 10 }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig }}
         pgbackrestConfig:
-          {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources }}
-          resources:
-            {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits }}
-            limits:
-              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits.cpu }}
-              memory: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits.memory }}
-            {{- end }}
-          {{- end }}
+        {{- include "pg-database.resources" .Values.backups.pgbackrest.containers.pgbackrestConfig | indent 10 }}
         {{- end }}
       {{- end }}
       {{- if .Values.backups.pgbackrest.jobs }}
       jobs:
+        {{- if .Values.backups.pgbackrest.jobs.restartPolicy }}
+        restartPolicy: {{ .Values.backups.pgbackrest.jobs.restartPolicy }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.backoffLimit }}
+        backoffLimit: {{ .Values.backups.pgbackrest.jobs.backoffLimit }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.priorityClassName }}
         priorityClassName: {{ .Values.backups.pgbackrest.jobs.priorityClassName }}
-        resources:
-          limits:
-            cpu: {{ .Values.backups.pgbackrest.jobs.resources.limits.cpu }}
-            memory: {{ .Values.backups.pgbackrest.jobs.resources.limits.memory }}
+        {{- end }}
+        {{- include "pg-database.resources" .Values.backups.pgbackrest.jobs | indent 8 }}
         {{- if .Values.backups.pgbackrest.jobs.tolerations }}
         tolerations:
 {{ .Values.backups.pgbackrest.jobs.tolerations | toYaml | indent 10 }}
@@ -427,7 +408,10 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.repoHost }}
       repoHost:
+        {{- include "pg-database.resources" .Values.backups.pgbackrest.repoHost | indent 8 }}
+        {{- if .Values.backups.pgbackrest.repoHost.priorityClassName }}
         priorityClassName: {{ .Values.backups.pgbackrest.repoHost.priorityClassName }}
+        {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.topologySpreadConstraints }}
         topologySpreadConstraints:
         {{- range $constraint := .Values.backups.pgbackrest.repoHost.topologySpreadConstraints }}
@@ -453,9 +437,11 @@ spec:
         {{- end }}
       {{- end }}
       manual:
-        repoName: repo1
+        repoName: {{ .Values.backups.pgbackrest.manual.repoName }}
         options:
-         - --type=full
+        {{- range .Values.backups.pgbackrest.manual.options }}
+        - {{ . }}
+        {{- end }}
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
       - name: {{ $repo.name }}
@@ -477,8 +463,14 @@ spec:
             {{- if $repo.volume.volumeClaimSpec.storageClassName }}
             storageClassName: {{ $volume.volumeClaimSpec.storageClassName }}
             {{- end }}
+            {{- if $volume.volumeClaimSpec.accessModes }}
             accessModes:
+            {{- range $accessMode := $volume.volumeClaimSpec.accessModes }}
+            - {{ $accessMode }}
+            {{- end }}
+            {{- else }}
             - ReadWriteOnce
+            {{- end }}
             resources:
               requests:
                 storage: {{ $volume.volumeClaimSpec.resources.requests.storage }}
