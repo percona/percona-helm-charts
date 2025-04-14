@@ -229,6 +229,7 @@ replsets:
     expose:
       enabled: false
       type: ClusterIP
+      # loadBalancerClass: ""
       # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
@@ -405,6 +406,7 @@ sharding:
     expose:
       enabled: false
       type: ClusterIP
+      # loadBalancerClass: ""
       # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
@@ -500,6 +502,7 @@ sharding:
     expose:
       enabled: false
       type: ClusterIP
+      # loadBalancerClass: ""
       # loadBalancerIP: 10.0.0.0/8
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
