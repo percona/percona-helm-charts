@@ -24,6 +24,7 @@ server:
     # -- Type of service to create.
     type: ClusterIP
     # -- Port to expose on the service.
+    # If `tls.enabled=true`, then the service is exposed on port 443.
     port: 8080
   # -- Key for signing JWT tokens. This needs to be an RSA private key.
   # This is created during installation only.
