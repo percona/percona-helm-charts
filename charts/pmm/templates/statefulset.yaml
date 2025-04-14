@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ include "pmm.fullname" . }}
+  namespace: {{ include  "pmm.namespace" . }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 spec:
@@ -16,6 +17,7 @@ spec:
     metadata:
       annotations:
         {{- include "pmm.podAnnotations" . | nindent 8 }}
+      namespace: {{ include  "pmm.namespace" . }}
       labels:
         {{- include "pmm.selectorLabels" . | nindent 8 }}
     spec:
@@ -23,7 +25,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
+      {{- if or ( .Values.serviceAccount.create) (include "pmm.serviceAccountName" .) }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
       securityContext:
@@ -67,20 +69,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
-            {{ if .Values.secret.create }}
-            # additional secrets that could be used for Grafana iDP
-            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
-                  optional: true
-            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-                  optional: true
+            {{ if .Values.secret.name }}
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -90,9 +79,9 @@ spec:
             {{ end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
             - name: https
-              containerPort: 443
+              containerPort: 8443
           readinessProbe:
             httpGet:
               path: /v1/readyz
@@ -137,6 +126,7 @@ spec:
       kind: PersistentVolumeClaim
       metadata:
         name: {{ .Values.storage.name }}
+        namespace: {{ include  "pmm.namespace" . }}
       spec:
         {{- if .Values.storage.selector }}
         selector:

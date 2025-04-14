@@ -17,6 +17,14 @@ server:
     requests:
       cpu: 100m
       memory: 20Mi
+  # -- Service configuration for the server.
+  service:
+    # -- Name of the service for everest
+    name: everest
+    # -- Type of service to create.
+    type: ClusterIP
+    # -- Port to expose on the service.
+    port: 8080
   # -- Key for signing JWT tokens. This needs to be an RSA private key.
   # This is created during installation only.
   # To update the key after installation, you need to manually update the `everest-jwt` Secret or use everestctl.
@@ -36,6 +44,11 @@ server:
   oidc: {}
   # issuerUrl: ""
   # clientId: ""
+  # scopes:
+  # - openid
+  # - profile
+  # - email
+  # - groups
   # -- Set the allowed number of requests per second.
   apiRequestsRateLimit: 100
   # -- The initial password configured for the admin user.
@@ -105,6 +118,12 @@ server:
       # -- Annotations that allow the certificate to be composed from data residing in existing Kubernetes Resources
       secretTemplateAnnotations: {}
 
+  # -- Additional environment variables to pass to the server deployment.
+  env: []
+  # - name: key1
+  #   value: value1
+  # - name: key2
+  #   value: value2
 operator:
   # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator
@@ -122,6 +141,13 @@ operator:
     requests:
       cpu: 5m
       memory: 64Mi
+  # -- Additional environment variables to pass to the operator deployment.
+  env: []
+  # - name: key1
+  #   value: value1
+  # - name: key2
+  #   value: value2
+
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"
 upgrade:
@@ -184,6 +210,27 @@ kube-state-metrics:
 # -- If set, creates resources for Kubernetes monitoring.
 createMonitoringResources: true
 
+
+ingress:
+  # -- Enable ingress for Everest server
+  enabled: false
+  # -- Ingress class name. This is used to specify which ingress controller should handle this ingress.
+  ingressClassName: ""
+  # -- Additional annotations for the ingress resource.
+  annotations: {}
+  # -- List of hosts and their paths for the ingress resource.
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  # -- TLS configuration for the ingress resource.
+  # -- Each entry in the list specifies a TLS certificate and the hosts it applies to.
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
 # Do not change the following values unless you know what you are doing.
 # @ignore
 monitoring:
@@ -191,9 +238,15 @@ monitoring:
   namespaceOverride: everest-monitoring
   fullnameOverride: vm-operator
   crds:
-    enabled: false
+    enabled: true
     plain: true
   admissionWebhooks:
     enabled: false
   certManager:
     enabled: false
+
+# -- PMM settings.
+pmm:
+  # -- If set, deploys PMM in the release namespace.
+  enabled: false
+  nameOverride: pmm

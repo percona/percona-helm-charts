@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: everest
+  name: {{ .Values.server.service.name }}
   namespace: {{ include  "everest.namespace" . }}
   labels:
     app.kubernetes.io/name: everest
@@ -10,14 +10,14 @@ spec:
   selector:
     app.kubernetes.io/name: everest-server
     app.kubernetes.io/component: everest-server
-  type: ClusterIP
+  type: {{ .Values.server.service.type }}
   ports:
-  - protocol: TCP
-    {{- if .Values.server.tls.enabled }}
-    name: https
-    port: 443
-    {{- else }}
-    port: {{ .Values.server.port }}
-    name: http
-    {{- end }}
-    targetPort: {{ .Values.server.port }}
+    - protocol: TCP
+      {{- if .Values.server.tls.enabled }}
+      name: https
+      port: 443
+      {{- else }}
+      name: http
+      port: {{ .Values.server.service.port }}
+      {{- end }}
+      targetPort: {{ .Values.server.service.port }}

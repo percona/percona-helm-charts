@@ -20,7 +20,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.18.0
+crVersion: 1.19.1
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -50,13 +50,13 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 7.0.14-8-multi
+  tag: 7.0.15-9-multi
 
 imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.18.0
+#   tag: 1.19.1
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -72,6 +72,8 @@ secrets: {}
   # If not set the operator generates the default secret with name <cluster_name>-secrets
   # users: my-cluster-name-secrets
   # encryptionKey: my-cluster-name-mongodb-encryption-key
+  # ssl: my-cluster-name-ssl
+  # sslInternal: my-cluster-name-ssl-internal
   # keyFile: my-cluster-name-mongodb-keyfile
   # vault: my-cluster-name-vault
   # ldapSecret: my-ldap-secret
@@ -81,7 +83,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.43.2
+    tag: 2.44.0
   serverHost: monitoring-service
 #   mongodParams: ""
 #   mongosParams: ""
@@ -116,6 +118,7 @@ replsets:
     # replsetOverrides:
     #   my-cluster-name-rs0-0:
     #     host: my-cluster-name-rs0-0.example.net:27017
+    #     priority: 3
     #     tags:
     #       key: value-0
     #   my-cluster-name-rs0-1:
@@ -194,6 +197,10 @@ replsets:
     # - name: sidecar-config
     #   configMap:
     #     name: myconfigmap
+    # - name: backup-nfs
+    #   nfs:
+    #     server: "nfs-service.storage.svc.cluster.local"
+    #     path: "/psmdb-some-name-rs0"
     # sidecarPVCs:
     # - apiVersion: v1
     #   kind: PersistentVolumeClaim
@@ -229,6 +236,7 @@ replsets:
       # labels:
       #   some-label: some-key
       # internalTrafficPolicy: Local
+      # externalTrafficPolicy: Local
     # schedulerName: ""
     resources:
       limits:
@@ -404,6 +412,7 @@ sharding:
       # labels:
       #   some-label: some-key
       # internalTrafficPolicy: Local
+      # externalTrafficPolicy: Local
     resources:
       limits:
         cpu: "300m"
@@ -498,6 +507,7 @@ sharding:
       # labels:
       #   some-label: some-key
       # internalTrafficPolicy: Local
+      # externalTrafficPolicy: Local
       # nodePort: 32017
     # auditLog:
     #   destination: file
@@ -567,7 +577,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.7.0-multi
+    tag: 2.8.0-multi
   # annotations:
   #   iam.amazonaws.com/role: role-arn
   # podSecurityContext: {}
@@ -615,6 +625,13 @@ backup:
     #       prefix: PREFIX-NAME
     #       endpointUrl: https://accountName.blob.core.windows.net
     #       credentialsSecret: SECRET-NAME
+    #  backup-nfs:
+    #    type: filesystem
+    #    filesystem:
+    #      path: /mnt/nfs/
+#    volumeMounts:
+#    - mountPath: /mnt/nfs/
+#      name: backup-nfs
   pitr:
     enabled: false
     oplogOnly: false
