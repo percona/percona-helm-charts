@@ -528,6 +528,12 @@ spec:
     {{- if $backup.activeDeadlineSeconds }}
     activeDeadlineSeconds: {{ $backup.activeDeadlineSeconds }}
     {{- end }}
+    {{- if $backup.startingDeadlineSeconds }}
+    startingDeadlineSeconds: {{ $backup.startingDeadlineSeconds }}
+    {{- end }}
+    {{- if $backup.suspendedDeadlineSeconds }}
+    suspendedDeadlineSeconds: {{ $backup.suspendedDeadlineSeconds }}
+    {{- end }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
     {{- end }}

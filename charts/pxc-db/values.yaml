@@ -607,6 +607,8 @@ backup:
     tag: 1.17.0-pxc8.0-backup-pxb8.0.35
   # backoffLimit: 6
   # activeDeadlineSeconds: 3600
+  # startingDeadlineSeconds: 300
+  # suspendedDeadlineSeconds: 1200
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
