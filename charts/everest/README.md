@@ -174,7 +174,6 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.initialAdminPassword | string | `""` | The initial password configured for the admin user. If unset, a random password is generated. It is strongly recommended to reset the admin password after installation. |
 | server.jwtKey | string | `""` | Key for signing JWT tokens. This needs to be an RSA private key. This is created during installation only. To update the key after installation, you need to manually update the `everest-jwt` Secret or use everestctl. |
 | server.oidc | object | `{}` | OIDC configuration for Everest. These settings are applied during installation only. To change the settings after installation, you need to manually update the `everest-settings` ConfigMap. |
-| server.port | int | `8080` | Port on which the Everest server listens. |
 | server.rbac | object | `{"enabled":false,"policy":"g, admin, role:admin\n"}` | Settings for RBAC. These settings are applied during installation only. To change the settings after installation, you need to manually update the `everest-rbac` ConfigMap. |
 | server.rbac.enabled | bool | `false` | If set, enables RBAC for Everest. |
 | server.rbac.policy | string | `"g, admin, role:admin\n"` | RBAC policy configuration. Ignored if `rbac.enabled` is false. |

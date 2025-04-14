@@ -55,8 +55,6 @@ server:
   # If unset, a random password is generated.
   # It is strongly recommended to reset the admin password after installation.
   initialAdminPassword: ""
-  # -- Port on which the Everest server listens.
-  port: 8080
 
   # TLS settings for the Everest server.
   tls:
