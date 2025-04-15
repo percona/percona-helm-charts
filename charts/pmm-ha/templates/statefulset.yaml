@@ -106,12 +106,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_PASSWORD
-            - name: PERCONA_TEST_POSTGRES_USERNAME
+            - name: PMM_POSTGRES_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: PG_USERNAME
-            - name: PERCONA_TEST_POSTGRES_DBPASSWORD
+            - name: PMM_POSTGRES_DBPASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
@@ -120,9 +120,9 @@ spec:
               value: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
             - name: https
-              containerPort: 443
+              containerPort: 8443
           readinessProbe:
             httpGet:
               path: /v1/readyz

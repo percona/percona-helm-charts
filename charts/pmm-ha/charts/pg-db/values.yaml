@@ -497,8 +497,10 @@ patroni:
    dynamicConfiguration:
      postgresql:
        pg_hba:
-         - host all gfuser 10.1.0.0/16 md5
-         - host all pmmuser 10.1.0.0/16 md5
+         - host all gfuser 10.1.0.0/8 md5
+         - host all pmmuser 10.1.0.0/8 md5
+         - host all gfuser 172.17.0.0/8 md5
+         - host all pmmuser 172.17.0.0/8 md5
 
 #   switchover:
 #     enabled: "true"

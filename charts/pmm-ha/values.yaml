@@ -11,10 +11,10 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  repository: percona/pmm-server
+  repository: perconalab/pmm-server-fb
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "2.44.0"
+  tag: "PR-3855-004fa65"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -27,14 +27,15 @@ pmmEnv:
   PMM_DEBUG: "0"
   PMM_ACTIVE_IP: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local"
   PMM_ACTIVE_NODE_ID: "pmm-0"
-  PERCONA_TEST_PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
-  PERCONA_TEST_PMM_DISABLE_BUILTIN_POSTGRES: "1"
-  PERCONA_TEST_PMM_CLICKHOUSE_ADDR: "pmmhak8s-clickhouse.pmmhak8s.svc.cluster.local:9000"
-  PERCONA_TEST_PMM_CLICKHOUSE_DATABASE: "pmm"
-  PERCONA_TEST_PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
-  PERCONA_TEST_PMM_CLICKHOUSE_POOL_SIZE: "2"
-  PERCONA_TEST_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
-  PERCONA_TEST_POSTGRES_SSL_MODE: "require"
+  PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
+  PMM_DISABLE_BUILTIN_POSTGRES: "1"
+  PMM_CLICKHOUSE_ADDR: "pmmhak8s-clickhouse.pmmhak8s.svc.cluster.local:9000"
+  PMM_CLICKHOUSE_DATABASE: "pmm"
+  PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
+  PMM_CLICKHOUSE_POOL_SIZE: "2"
+  PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
+  PMM_POSTGRES_SSL_MODE: "require"
+  GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
   PMM_VM_URL: "http://pmmhak8s-victoria-metrics-cluster-vmauth.pmmhak8s.svc.cluster.local:8427/"
   PMM_TEST_HA_ENABLE: "1"
@@ -123,7 +124,7 @@ service:
   ##
   ports:
     ## @param service.ports[0].port https port number
-    - port: 443
+    - port: 8443
       ## @param service.ports[0].targetPort target port to map for statefulset and ingress
       targetPort: https
       ## @param service.ports[0].protocol protocol for https
@@ -131,7 +132,7 @@ service:
       ## @param service.ports[0].name port name
       name: https
     ## @param service.ports[1].port http port number
-    - port: 80
+    - port: 8080
       ## @param service.ports[1].targetPort target port to map for statefulset and ingress
       targetPort: http
       ## @param service.ports[1].protocol protocol for http
@@ -248,10 +249,10 @@ podAnnotations: {}
 ## @param podSecurityContext Configure Pods Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 ## E.g
-## podSecurityContext:
-  ## fsGroup: 2000
-##
-podSecurityContext: {}
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
 
 ## @param securityContext Configure Container Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
