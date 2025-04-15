@@ -115,6 +115,15 @@ VERSION=<Next version> # e.g. v1.3.0
 kubectl apply -k https://github.com/percona/everest-operator/config/crd?ref=$(VERSION) --server-side
 ```
 
+> **Note:** You may encounter an error due to conflicting field ownership — for example:
+>
+> ```
+> error: Apply failed with 1 conflict: conflict with "helm" using apiextensions.k8s.io/v1: .spec.versions
+> ```
+>
+> In such cases, you can add the `--force-conflicts` flag to override the conflicts.
+> This is generally safe when applying CRDs from a trusted source, as it ensures your CRDs are updated to the correct version, even if Helm manages some of the fields.
+
 #### 6.2 Upgrade Helm Releases
 
 Upgrade the Helm release for Everest (core components):
