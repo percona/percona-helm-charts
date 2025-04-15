@@ -12,7 +12,7 @@ finalizers:
 # Set this if you want that operator deletes the backups on cluster deletion
 #  - percona.com/delete-backups
 
-crVersion: 2.6.0
+crVersion: 2.7.0
 # metadata:
 #   annotations:
 #     example-annotation: value
@@ -447,6 +447,7 @@ backups:
       repoName: repo1
       options:
       - --type=full
+#      initialDelaySeconds: 120
     repos:
     - name: repo1
       schedules:
@@ -490,6 +491,8 @@ pmm:
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
   querySource: pgstatmonitor
+#  customClusterName: "<string>"
+#  postgresParams: "<string>"
 #  resources:
 #    requests:
 #      memory: 200M
@@ -528,6 +531,7 @@ pmm:
 #       name: cluster1-extensions-secret
 #   builtin:
 #     pg_stat_monitor: true
+#     pg_stat_statements: false
 #     pg_audit: true
 #     pgvector: false
 #     pg_repack: false
