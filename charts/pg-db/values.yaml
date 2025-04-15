@@ -534,6 +534,7 @@ pmm:
 #     pg_stat_statements: false
 #     pg_audit: true
 #     pgvector: false
+#     pg_repack: false
 #   custom:
 #   - name: pg_cron
 #     version: 1.6.1
