@@ -487,7 +487,7 @@ pmm:
     repository: percona/pmm-client
     tag: 2.44.0
 #  imagePullPolicy: IfNotPresent
-  secret: cluster1-pmm-secret
+#  secret: cluster1-pmm-secret
   serverHost: monitoring-service
   querySource: pgstatmonitor
 #  resources:
