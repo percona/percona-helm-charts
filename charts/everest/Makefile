@@ -22,6 +22,7 @@ add-repos:
 	$(HELM) version
 	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	$(HELM) repo add vm https://victoriametrics.github.io/helm-charts
+	$(HELM) repo add percona https://percona.github.io/percona-helm-charts/
 
 deps: add-repos
 	$(HELM) dependency update .
