@@ -447,6 +447,7 @@ backups:
       repoName: repo1
       options:
       - --type=full
+#      initialDelaySeconds: 120
     repos:
     - name: repo1
       schedules:
@@ -533,8 +534,10 @@ pmm:
 #       name: cluster1-extensions-secret
 #   builtin:
 #     pg_stat_monitor: true
+#     pg_stat_statements: false
 #     pg_audit: true
 #     pgvector: false
+#     pg_repack: false
 #   custom:
 #   - name: pg_cron
 #     version: 1.6.1
