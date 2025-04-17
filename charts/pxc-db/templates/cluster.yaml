@@ -505,6 +505,10 @@ spec:
     {{- if $pmm.proxysqlParams }}
     proxysqlParams: {{ $pmm.proxysqlParams }}
     {{- end }}
+    readinessProbes:
+{{ tpl ($pmm.readinessProbes | toYaml) $ | indent 6 }}
+    livenessProbes:
+{{ tpl ($pmm.livenessProbes | toYaml) $ | indent 6 }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
@@ -523,6 +527,12 @@ spec:
     {{- end }}
     {{- if $backup.activeDeadlineSeconds }}
     activeDeadlineSeconds: {{ $backup.activeDeadlineSeconds }}
+    {{- end }}
+    {{- if $backup.startingDeadlineSeconds }}
+    startingDeadlineSeconds: {{ $backup.startingDeadlineSeconds }}
+    {{- end }}
+    {{- if $backup.suspendedDeadlineSeconds }}
+    suspendedDeadlineSeconds: {{ $backup.suspendedDeadlineSeconds }}
     {{- end }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
