@@ -13,5 +13,11 @@ spec:
   type: {{ .Values.server.service.type }}
   ports:
     - protocol: TCP
+      {{- if .Values.server.tls.enabled }}
+      name: https
+      port: 443
+      {{- else }}
+      name: http
       port: {{ .Values.server.service.port }}
-      targetPort: 8080
+      {{- end }}
+      targetPort: {{ .Values.server.service.port }}
