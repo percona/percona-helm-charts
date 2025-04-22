@@ -59,6 +59,7 @@ rules:
   - databaseclusters
   - databaseengines
   - monitoringconfigs
+  - podschedulingpolicies
   verbs:
   - create
   - delete
