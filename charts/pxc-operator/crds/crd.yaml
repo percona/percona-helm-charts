@@ -2594,6 +2594,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      loadBalancerClass:
+                        type: string
                       loadBalancerIP:
                         type: string
                       loadBalancerSourceRanges:
@@ -2621,6 +2623,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      loadBalancerClass:
+                        type: string
                       loadBalancerIP:
                         type: string
                       loadBalancerSourceRanges:
@@ -6051,6 +6055,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      loadBalancerClass:
+                        type: string
                       loadBalancerIP:
                         type: string
                       loadBalancerSourceRanges:
@@ -8941,6 +8947,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      loadBalancerClass:
+                        type: string
                       loadBalancerIP:
                         type: string
                       loadBalancerSourceRanges:
