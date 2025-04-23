@@ -22,7 +22,7 @@ spec:
 apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
-  name: everest-default-pg
+  name: everest-default-postgresql
 spec:
   engineType: postgresql
   affinityConfig:
