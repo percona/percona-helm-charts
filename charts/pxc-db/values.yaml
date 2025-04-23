@@ -585,6 +585,7 @@ pmm:
 #    successThreshold: 1
   serverHost: monitoring-service
   serverUser: admin
+  # customClusterName: "<string>"
   # pxcParams: "--disable-tablestats-limit=2000"
   # proxysqlParams: "--custom-labels=CUSTOM-LABELS"
   # containerSecurityContext:
