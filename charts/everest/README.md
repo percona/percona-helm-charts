@@ -191,6 +191,6 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.service.name | string | `"everest"` | Name of the service for everest |
 | server.service.port | int | `8080` | Port to expose on the service. |
 | server.service.type | string | `"ClusterIP"` | Type of service to create. |
-| telemetry | bool | `true` | If set, enabled sending telemetry information. |
+| telemetry | bool | `false` | If set, enabled sending telemetry information. |
 | upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
 | versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |
