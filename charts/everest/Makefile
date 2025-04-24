@@ -13,7 +13,7 @@ prepare-chart:
 	yq eval -i '.server.image = "$(IMAGE_PREFIX)/everest"' values.yaml
 	yq eval -i '.olm.catalogSourceImage = "$(IMAGE_PREFIX)/everest-catalog"' values.yaml
 	yq eval -i '.operator.image = "$(IMAGE_PREFIX)/everest-operator"' values.yaml
-	yq eval -i '.telemetry = "$(TELEMETRY)"' values.yaml
+	yq eval -i '.telemetry = $(TELEMETRY)' values.yaml
 	yq eval -i '(.dependencies[] | select(.name == "everest-db-namespace")).version = "${VERSION}"' Chart.yaml
 	$(MAKE) deps
 
