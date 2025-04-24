@@ -5,7 +5,7 @@ compatibility:
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
 # -- If set, enabled sending telemetry information.
-telemetry: true
+telemetry: false
 server:
   # -- Image to use for the server container.
   image: perconalab/everest
