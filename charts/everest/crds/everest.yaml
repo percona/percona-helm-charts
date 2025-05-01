@@ -7810,7 +7810,11 @@ spec:
             required:
             - engineType
             type: object
+          status:
+            description: PodSchedulingPolicyStatus defines the observed state of PodSchedulingPolicy.
+            type: object
         type: object
     served: true
     storage: true
-    subresources: {}
+    subresources:
+      status: {}
