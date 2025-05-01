@@ -50,7 +50,7 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 7.0.15-9-multi
+  tag: 8.0.8-3
 
 imagePullPolicy: Always
 # imagePullSecrets: []
@@ -83,7 +83,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.44.0
+    tag: 2.44.1
   serverHost: monitoring-service
 #  customClusterName: ""
 #  mongodParams: ""
@@ -581,7 +581,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.8.0-multi
+    tag: 2.9.1
   # annotations:
   #   iam.amazonaws.com/role: role-arn
   # podSecurityContext: {}

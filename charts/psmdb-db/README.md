@@ -10,7 +10,7 @@ Useful links:
 ## Pre-requisites
 
 - Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-- Kubernetes 1.28+
+- Kubernetes 1.30+
 - Helm v3
 
 # Chart Details
@@ -55,7 +55,7 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:percona.com/delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)                                                                                                                             | `[]`                                  |
 | `finalizers:percona.com/delete-pitr-chunks`         | Set this if you want to delete all pitr chunks on cluster deletion                                                                                                                            | `[]`                                  |
 | `image.repository`                                  | PSMDB Container image repository                                                                                                                                                              | `percona/percona-server-mongodb`      |
-| `image.tag`                                         | PSMDB Container image tag                                                                                                                                                                     | `7.0.15-9-multi`                     |
+| `image.tag`                                         | PSMDB Container image tag                                                                                                                                                                     | `8.0.8-3`                             |
 | `imagePullPolicy`                                   | The policy used to update images                                                                                                                                                              | `Always`                              |
 | `imagePullSecrets`                                  | PSMDB Container pull secret                                                                                                                                                                   | `[]`                                  |
 | `initImage.repository`                              | Repository for custom init image                                                                                                                                                              | `""`                                  |
@@ -80,7 +80,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `pmm.enabled`                  | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`              |
 | `pmm.image.repository`         | PMM Container image repository                                                                                                                                                           | `percona/pmm-client` |
-| `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `2.44.0`             |
+| `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `2.44.1`             |
 | `pmm.serverHost`               | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service` |
 | `pmm.containerSecurityContext` | Set the security context for PMM container                                                                                                                                               | `{}`                 |
 | `pmm.resources`                | Set resources for PMM container                                                                                                                                                          | `{}`                 |
@@ -297,7 +297,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.containerSecurityContext`     | Set the security context for a Container                          | `{}`                             |
 | `backup.restartOnFailure`             | Backup Pods restart policy                                        | `true`                           |
 | `backup.image.repository`             | PBM Container image repository                                    | `percona/percona-backup-mongodb` |
-| `backup.image.tag`                    | PBM Container image tag                                           | `2.8.0-multi`                    |
+| `backup.image.tag`                    | PBM Container image tag                                           | `2.9.1`                          |
 | `backup.storages`                     | Local/remote backup storages settings                             | `{}`                             |
 | `backup.volumeMounts`                 | Name of the remote backup storage                                 | `""`                             |
 | `backup.pitr.enabled`                 | Enable point in time recovery for backup                          | `false`                          |
