@@ -19,7 +19,7 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.16.1
+crVersion: 1.17.0
 
 enableVolumeExpansion: false
 
@@ -29,7 +29,7 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.16.1"
+#   image: "percona/percona-xtradb-cluster-operator:1.17.0"
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -67,7 +67,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.39-30.1
+    tag: 8.0.41-32.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
@@ -214,7 +214,7 @@ pxc:
 haproxy:
   enabled: true
   size: 3
-  image: percona/haproxy:2.8.11
+  image: percona/haproxy:2.8.14
   # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -345,7 +345,6 @@ haproxy:
     successThreshold: 1
     failureThreshold: 4
   # exposePrimary:
-  #   enabled: false
   #   type: ClusterIP
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -533,7 +532,7 @@ proxysql:
 
 logcollector:
   enabled: true
-  image: percona/percona-xtradb-cluster-operator:1.16.1-logcollector-fluentbit3.2.2
+  image: percona/percona-xtradb-cluster-operator:1.17.0-logcollector-fluentbit4.0.0
   # imagePullPolicy: Always
   imagePullSecrets: []
   # configuration: |
@@ -577,6 +576,17 @@ pmm:
     tag: 2.44.0
   # imagePullPolicy: Always
   imagePullSecrets: []
+#  readinessProbes:
+#    initialDelaySeconds: 15
+#    timeoutSeconds: 15
+#    periodSeconds: 30
+#    successThreshold: 1
+#    failureThreshold: 5
+#  livenessProbes:
+#    initialDelaySeconds: 300
+#    timeoutSeconds: 5
+#    periodSeconds: 10
+#    successThreshold: 1
   serverHost: monitoring-service
   serverUser: admin
   # pxcParams: "--disable-tablestats-limit=2000"
@@ -594,9 +604,11 @@ backup:
   # allowParallel: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.16.1-pxc8.0-backup-pxb8.0.35
+    tag: 1.17.0-pxc8.0-backup-pxb8.0.35
   # backoffLimit: 6
   # activeDeadlineSeconds: 3600
+  # startingDeadlineSeconds: 300
+  # suspendedDeadlineSeconds: 1200
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
@@ -694,6 +706,8 @@ backup:
     #     container: test
     #     endpointUrl: https://accountName.blob.core.windows.net
     #     storageClass: Hot
+    #     blockSize: 4194304
+    #     concurrency: 4
 
   schedule: []
     # - name: "daily-backup"
