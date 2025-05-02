@@ -1,7 +1,9 @@
+{{- if .Release.IsInstall }}
 apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
   name: everest-default-pxc
+  namespace: {{ include  "everest.namespace" . }}
 spec:
   engineType: pxc
   affinityConfig:
@@ -23,6 +25,7 @@ apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
   name: everest-default-postgresql
+  namespace: {{ include  "everest.namespace" . }}
 spec:
   engineType: postgresql
   affinityConfig:
@@ -44,6 +47,7 @@ apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
   name: everest-default-psmdb
+  namespace: {{ include  "everest.namespace" . }}
 spec:
   engineType: psmdb
   affinityConfig:
@@ -66,3 +70,4 @@ spec:
             - podAffinityTerm:
                 topologyKey: kubernetes.io/hostname
               weight: 1
+{{- end }}
