@@ -51,6 +51,18 @@ rules:
   - list
   - watch
 - apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - everest.percona.com
   resources:
   - backupstorages
@@ -58,6 +70,7 @@ rules:
   - databaseclusterrestores
   - databaseclusters
   - databaseengines
+  - dataimportjobs
   - monitoringconfigs
   verbs:
   - create
@@ -75,6 +88,7 @@ rules:
   - databaseclusterrestores/finalizers
   - databaseclusters/finalizers
   - databaseengines/finalizers
+  - dataimportjobs/finalizers
   - monitoringconfigs/finalizers
   verbs:
   - update
@@ -86,6 +100,7 @@ rules:
   - databaseclusterrestores/status
   - databaseclusters/status
   - databaseengines/status
+  - dataimportjobs/status
   - monitoringconfigs/status
   verbs:
   - get
@@ -178,3 +193,4 @@ rules:
   - get
   - list
   - watch
+
