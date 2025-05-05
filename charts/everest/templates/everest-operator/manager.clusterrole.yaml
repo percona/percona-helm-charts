@@ -107,6 +107,14 @@ rules:
   - patch
   - update
 - apiGroups:
+  - everest.percona.com
+  resources:
+  - dataimporters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - operator.victoriametrics.com
   resources:
   - vmagents
