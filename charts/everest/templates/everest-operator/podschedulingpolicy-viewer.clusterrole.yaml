@@ -11,3 +11,9 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - podschedulingpolicies/status
+  verbs:
+  - get
