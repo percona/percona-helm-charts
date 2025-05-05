@@ -7815,6 +7815,8 @@ spec:
             - engineType
             type: object
           status:
+            default:
+              used: false
             description: PodSchedulingPolicyStatus defines the observed state of PodSchedulingPolicy.
             properties:
               observedGeneration:
