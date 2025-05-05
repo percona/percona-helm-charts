@@ -4,6 +4,8 @@ kind: PodSchedulingPolicy
 metadata:
   name: everest-default-pxc
   namespace: {{ include  "everest.namespace" . }}
+  finalizers:
+    - everest.percona.com/readonly-protection
 spec:
   engineType: pxc
   affinityConfig:
@@ -26,6 +28,8 @@ kind: PodSchedulingPolicy
 metadata:
   name: everest-default-postgresql
   namespace: {{ include  "everest.namespace" . }}
+  finalizers:
+    - everest.percona.com/readonly-protection
 spec:
   engineType: postgresql
   affinityConfig:
@@ -48,6 +52,8 @@ kind: PodSchedulingPolicy
 metadata:
   name: everest-default-psmdb
   namespace: {{ include  "everest.namespace" . }}
+  finalizers:
+    - everest.percona.com/readonly-protection
 spec:
   engineType: psmdb
   affinityConfig:
