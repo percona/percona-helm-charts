@@ -64,9 +64,9 @@ spec:
             - /bin/sh
             - -c
             - |
-              for pspName in everest-default-pxc everest-default-psmdb everest-default-postgresql
+              for pspName in `kubectl get podschedulingpolicy  -n {{ .namespace }} --no-headers -o name`
               do
-                kubectl patch -n {{ .namespace }}  podschedulingpolicy/$pspName -p '{"metadata":{"finalizers":[]}}' --type=merge
+                kubectl patch -n {{ .namespace }}  $pspName -p '{"metadata":{"finalizers":[]}}' --type=merge
               done
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure
