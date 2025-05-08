@@ -3,7 +3,6 @@ apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
   name: everest-default-pxc
-  namespace: {{ include  "everest.namespace" . }}
   finalizers:
     - everest.percona.com/readonly-protection
 spec:
@@ -27,7 +26,6 @@ apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
   name: everest-default-postgresql
-  namespace: {{ include  "everest.namespace" . }}
   finalizers:
     - everest.percona.com/readonly-protection
 spec:
@@ -51,7 +49,6 @@ apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
   name: everest-default-psmdb
-  namespace: {{ include  "everest.namespace" . }}
   finalizers:
     - everest.percona.com/readonly-protection
 spec:

@@ -13,10 +13,9 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: {{ $hookName }}
-  namespace: {{ .namespace }}
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -31,16 +30,15 @@ rules:
       - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: {{ $hookName }}
-  namespace: {{ .namespace }}
   annotations:
     "helm.sh/hook": pre-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
+  kind: ClusterRole
   name: {{ $hookName }}
 subjects:
   - kind: ServiceAccount
@@ -65,9 +63,9 @@ spec:
             - /bin/sh
             - -c
             - |
-              for pspName in `kubectl get podschedulingpolicy  -n {{ .namespace }} --no-headers -o name`
+              for pspName in `kubectl get podschedulingpolicy  --no-headers -o name`
               do
-                kubectl patch -n {{ .namespace }}  $pspName -p '{"metadata":{"finalizers":[]}}' --type=merge
+                kubectl patch  $pspName -p '{"metadata":{"finalizers":[]}}' --type=merge
               done
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure

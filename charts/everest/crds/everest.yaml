@@ -1215,7 +1215,7 @@ spec:
     shortNames:
     - psp
     singular: podschedulingpolicy
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - description: DB engine type the policy can be applied to
