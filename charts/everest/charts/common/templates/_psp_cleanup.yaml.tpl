@@ -27,6 +27,7 @@ rules:
       - podschedulingpolicies
     verbs:
       - get
+      - list
       - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1

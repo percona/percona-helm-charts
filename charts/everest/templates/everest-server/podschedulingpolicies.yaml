@@ -1,4 +1,4 @@
-{{- if .Release.IsInstall }}
+{{- if or (.Release.IsInstall true) (.Release.IsUpgrade true) }}
 apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
