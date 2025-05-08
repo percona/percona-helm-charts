@@ -3,3 +3,6 @@
 {{- end }}
 ---
 {{- include "everest.pspCleanup" (dict "namespace" (include "everest.namespace" .)) }}
+---
+{{- include "everest.assignDefaultPsp" (dict "namespace" (include "everest.namespace" .)) }}
+---
