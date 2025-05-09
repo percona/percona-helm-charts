@@ -1179,11 +1179,18 @@ spec:
                   image:
                     description: Image is the image of the data importer.
                     type: string
+                  serviceAccountName:
+                    description: ServiceAccountName is the name of the service account
+                      to use for the data importer job.
+                    type: string
                 type: object
               supportedEngines:
                 description: SupportedEngines is the list of engines that the data
                   importer supports.
                 items:
+                  description: |-
+                    EngineType stands for the supported database engines. Right now it's only pxc
+                    and psmdb. However, it can be ps, pg and any other source.
                   type: string
                 type: array
             type: object
@@ -1264,6 +1271,11 @@ spec:
                   the schema defined in the DataImporter's .spec.config.openAPIV3Schema.
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
+              serviceAccountName:
+                description: |-
+                  ServiceAccountName is the name of the service account to use for the import job.
+                  This service account must have the necessary permissions to perform the import.
+                type: string
               source:
                 description: Source is the source of the data to import.
                 properties:
