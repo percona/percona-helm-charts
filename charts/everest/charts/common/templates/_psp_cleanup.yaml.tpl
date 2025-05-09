@@ -66,6 +66,7 @@ spec:
               for pspName in `kubectl get podschedulingpolicy  --no-headers -o name`
               do
                 kubectl patch  $pspName -p '{"metadata":{"finalizers":[]}}' --type=merge
+                kubectl delete  $pspName
               done
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure
