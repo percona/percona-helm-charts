@@ -1,10 +1,16 @@
-{{- if or (.Release.IsInstall) (.Release.IsUpgrade) }}
+# Create default pod scheduling policies.
+#
+{{- define "everest.createDefaultPsp" }}
 apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
   name: everest-default-pxc
   finalizers:
     - everest.percona.com/readonly-protection
+  annotations:
+      "helm.sh/hook": post-install,pre-upgrade
+      "helm.sh/resource-policy": keep
+      "helm.sh/hook-weight": "-5"
 spec:
   engineType: pxc
   affinityConfig:
@@ -28,6 +34,10 @@ metadata:
   name: everest-default-postgresql
   finalizers:
     - everest.percona.com/readonly-protection
+  annotations:
+      "helm.sh/hook": post-install,pre-upgrade
+      "helm.sh/resource-policy": keep
+      "helm.sh/hook-weight": "-5"
 spec:
   engineType: postgresql
   affinityConfig:
@@ -51,6 +61,10 @@ metadata:
   name: everest-default-psmdb
   finalizers:
     - everest.percona.com/readonly-protection
+  annotations:
+      "helm.sh/hook": post-install,pre-upgrade
+      "helm.sh/resource-policy": keep
+      "helm.sh/hook-weight": "-5"
 spec:
   engineType: psmdb
   affinityConfig:
@@ -73,4 +87,5 @@ spec:
             - podAffinityTerm:
                 topologyKey: kubernetes.io/hostname
               weight: 1
+---
 {{- end }}

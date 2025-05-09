@@ -21,3 +21,5 @@ rules:
   - podschedulingpolicies/status
   verbs:
   - get
+  - patch
+  - update
