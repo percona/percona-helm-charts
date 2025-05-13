@@ -5,7 +5,8 @@ compatibility:
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
 # -- If set, enabled sending telemetry information.
-telemetry: true
+# In production release, this value is `true` by default.
+telemetry: false
 server:
   # -- Image to use for the server container.
   image: perconalab/everest
@@ -24,6 +25,7 @@ server:
     # -- Type of service to create.
     type: ClusterIP
     # -- Port to expose on the service.
+    # If `tls.enabled=true`, then the service is exposed on port 443.
     port: 8080
   # -- Key for signing JWT tokens. This needs to be an RSA private key.
   # This is created during installation only.
@@ -55,6 +57,71 @@ server:
   # If unset, a random password is generated.
   # It is strongly recommended to reset the admin password after installation.
   initialAdminPassword: ""
+
+  # TLS settings for the Everest server.
+  tls:
+    # -- If set, enables TLS for the Everest server.
+    # Setting tls.enabled=true creates a Secret containing the TLS certificates.
+    # Along with certificate.create, it creates a Certificate resource instead.
+    enabled: false
+
+    secret:
+      # -- Name of the Secret containing the TLS certificates.
+      # This Secret is created if tls.enabled=true and certificate.create=false.
+      name: everest-server-tls
+      # -- Use the specified tls.crt and tls.key in the Secret.
+      # If unspecified, the server creates a self-signed certificate (not recommended for production).
+      certs:
+        tls.key: ""
+        tls.crt: ""
+    
+    certificate:
+      # -- Create a Certificate resource (requires cert-manager to be installed)
+      # If set, creates a Certificate resource instead of a Secret.
+      # The Certificate uses the Secret name provided by `tls.secret.name`
+      # The Everest server pod will come up only after cert-manager has reconciled the Certificate resource.
+      create: false
+      # -- Certificate primary domain (commonName)
+      domain: ""
+      # -- Certificate Subject Alternate Names (SANs)
+      additionalHosts: []
+      # -- The requested 'duration' (i.e. lifetime) of the certificate.
+      # @default -- `""` (defaults to 2160h = 90d if not specified)
+      ## Ref: https://cert-manager.io/docs/usage/certificate/#renewal
+      duration: ""
+      # -- How long before the expiry a certificate should be renewed.
+      # @default -- `""` (defaults to 360h = 15d if not specified)
+      ## Ref: https://cert-manager.io/docs/usage/certificate/#renewal
+      renewBefore: ""
+      # Certificate issuer
+      ## Ref: https://cert-manager.io/docs/concepts/issuer
+      issuer:
+        # -- Certificate issuer group. Set if using an external issuer. Eg. `cert-manager.io`
+        group: ""
+        # -- Certificate issuer kind. Either `Issuer` or `ClusterIssuer`
+        kind: ""
+        # -- Certificate issuer name. Eg. `letsencrypt`
+        name: ""
+      # Private key of the certificate
+      privateKey:
+        # -- Rotation policy of private key when certificate is re-issued. Either: `Never` or `Always`
+        rotationPolicy: Never
+        # -- The private key cryptography standards (PKCS) encoding for private key. Either: `PCKS1` or `PKCS8`
+        encoding: PKCS1
+        # -- Algorithm used to generate certificate private key. One of: `RSA`, `Ed25519` or `ECDSA`
+        algorithm: RSA
+        # -- Key bit size of the private key. If algorithm is set to `Ed25519`, size is ignored.
+        size: 2048
+      # -- Usages for the certificate
+      ### Ref: https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.KeyUsage
+      usages: []
+      # -- Template for the Secret created by the Certificate resource.
+      secretTemplate:
+        # -- Annotations to add to the Secret created by the Certificate resource.
+        annotations: {}
+        # -- Labels to add to the Secret created by the Certificate resource.
+        labels: {}
+
   # -- Additional environment variables to pass to the server deployment.
   env: []
   # - name: key1
