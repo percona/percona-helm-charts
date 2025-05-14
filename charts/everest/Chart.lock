@@ -14,5 +14,11 @@ dependencies:
 - name: pmm
   repository: https://percona.github.io/percona-helm-charts
   version: 1.3.21
-digest: sha256:20f0ec5c5d290dc959ce1d15b88240a02f795ceceb7a3e904d83e4cc34498496
-generated: "2025-04-10T16:12:11.785878+05:30"
+- name: olm
+  repository: file://charts/everest-olm
+  version: 0.0.1
+- name: everest-crds
+  repository: file://charts/everest-crds
+  version: 0.0.0
+digest: sha256:09546d0643a56f18ae865812ebf47c0c485afca22d1206ae14e12c532f5d2e5c
+generated: "2025-05-14T17:36:09.946015+05:30"

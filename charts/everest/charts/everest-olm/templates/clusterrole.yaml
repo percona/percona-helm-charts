@@ -1,4 +1,3 @@
-{{- if (and (not .Values.compatibility.openshift) .Values.olm.install) }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -40,4 +39,3 @@ rules:
 - apiGroups: ["packages.operators.coreos.com"]
   resources: ["packagemanifests", "packagemanifests/icon"]
   verbs: ["get", "list", "watch"]
-{{- end }}

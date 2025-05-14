@@ -1,4 +1,3 @@
-{{- if (and (not .Values.compatibility.openshift) .Values.olm.install) }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -44,5 +43,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: olm-operator-serviceaccount
-  namespace: {{ include "everest.olmNamespace" . }}
-{{- end }}
+  namespace: {{ include "olm.namespace" . }}

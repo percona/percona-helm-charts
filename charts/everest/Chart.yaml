@@ -37,3 +37,11 @@ dependencies:
     repository: "https://percona.github.io/percona-helm-charts"
     condition: "pmm.enabled"
     version: 1.3.*
+  - name: olm
+    repository: "file://charts/everest-olm"
+    condition: "olm.enabled"
+    version: 0.0.*
+  - name: everest-crds
+    repository: "file://charts/everest-crds"
+    condition: "everest-crds.enabled"
+    version: 0.*.*

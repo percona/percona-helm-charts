@@ -1,9 +1,8 @@
-{{- if (and (not .Values.compatibility.openshift) .Values.olm.install) }}
 apiVersion: v1
 kind: Service
 metadata:
   name: packageserver-service
-  namespace: {{ include "everest.olmNamespace" . }}
+  namespace: {{ include "olm.namespace" . }}
 spec:
   internalTrafficPolicy: Cluster
   ports:
@@ -14,4 +13,3 @@ spec:
   selector:
     app: packageserver
   type: ClusterIP
-{{- end }}
