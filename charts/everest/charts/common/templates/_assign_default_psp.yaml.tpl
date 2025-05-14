@@ -83,7 +83,7 @@ spec:
             - /bin/sh
             - -c
             - |
-              kubectl wait --for=create --timeout=10s podschedulingpolicy everest-default-pxc everest-default-postgresql everest-default-psmdb
+              kubectl wait --for=create --timeout=10s podschedulingpolicy everest-default-mysql everest-default-postgresql everest-default-mongodb
 
               for nsName in `kubectl get namespace -lapp.kubernetes.io/managed-by=everest --no-headers -o jsonpath='{.items[*].metadata.name}'`
               do
@@ -94,12 +94,12 @@ spec:
 
                   for dbName in `kubectl get databaseclusters -n $nsName -o jsonpath='{.items[?(@.spec.engine.type=="psmdb")].metadata.name}'`
                   do
-                    kubectl patch -n $nsName databasecluster/$dbName -p '{"spec":{"podSchedulingPolicyName": "everest-default-psmdb"}}' --type=merge
+                    kubectl patch -n $nsName databasecluster/$dbName -p '{"spec":{"podSchedulingPolicyName": "everest-default-mongodb"}}' --type=merge
                   done
 
                   for dbName in `kubectl get databaseclusters -n $nsName -o jsonpath='{.items[?(@.spec.engine.type=="pxc")].metadata.name}'`
                   do
-                    kubectl patch -n $nsName databasecluster/$dbName -p '{"spec":{"podSchedulingPolicyName": "everest-default-pxc"}}' --type=merge
+                    kubectl patch -n $nsName databasecluster/$dbName -p '{"spec":{"podSchedulingPolicyName": "everest-default-mysql"}}' --type=merge
                   done
               done
       dnsPolicy: ClusterFirst

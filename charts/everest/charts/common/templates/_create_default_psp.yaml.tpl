@@ -4,7 +4,7 @@
 apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
-  name: everest-default-pxc
+  name: everest-default-mysql
   finalizers:
     - everest.percona.com/readonly-protection
   annotations:
@@ -58,7 +58,7 @@ spec:
 apiVersion: everest.percona.com/v1alpha1
 kind: PodSchedulingPolicy
 metadata:
-  name: everest-default-psmdb
+  name: everest-default-mongodb
   finalizers:
     - everest.percona.com/readonly-protection
   annotations:
