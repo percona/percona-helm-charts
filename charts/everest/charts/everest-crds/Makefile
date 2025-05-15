@@ -4,7 +4,7 @@ release:
 		exit 1; \
 	fi
 	@for crd in templates/*.yaml; do \
-		yq eval '.metadata.labels["helm.sh/chart-version"] = "$(VERSION)"' $$crd -i; \
+		yq eval '.metadata.labels["everest.percona.com/version"] = "$(VERSION)"' $$crd -i; \
 	done
 
 release-dev:

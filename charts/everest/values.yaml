@@ -158,6 +158,8 @@ upgrade:
   # -- If set, run preliminary checks before upgrading.
   # It is strongly recommended to enable this setting.
   preflightChecks: true
+  # -- If set, ensures that CRDs are upgraded first.
+  crdChecks: true
 olm:
   # -- If set, installs OLM in the provided namespace.
   install: true
