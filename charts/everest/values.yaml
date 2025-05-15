@@ -256,8 +256,9 @@ pmm:
   # -- If set, deploys PMM in the release namespace.
   enabled: false
   nameOverride: pmm
-
-# This should always be set to `false` in the parent chart,
-# otherwise the CRD sub-chart includes the CRDs again as templates.
+# DO NOT CHANGE.
+# We set this to `false` to prevent the CRDs from being rendered as a template.
+# The CRDs are already installed as a part of the crds/ directory via the sub-chart.
+# @ignore
 everest-crds:
   enabled: false
