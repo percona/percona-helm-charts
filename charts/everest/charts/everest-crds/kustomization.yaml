@@ -1,7 +1,0 @@
-resources:
-- templates/databaseclusterbackups.everest.percona.com.yaml
-- templates/databaseclusterrestores.everest.percona.com.yaml
-- templates/databaseclusters.everest.percona.com.yaml
-- templates/databaseengines.everest.percona.com.yaml
-- templates/backupstorages.everest.percona.com.yaml
-- templates/monitoringconfigs.everest.percona.com.yaml
