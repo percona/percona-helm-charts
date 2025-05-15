@@ -16,12 +16,18 @@ prepare-chart:
 	yq eval -i '.telemetry = $(TELEMETRY)' values.yaml
 	yq eval -i '(.dependencies[] | select(.name == "everest-db-namespace")).version = "${VERSION}"' Chart.yaml
 	$(MAKE) deps
+	
 
 release: prepare-chart
+release:
+	$(MAKE) release -C charts/everest-crds
 
+release-dev: VERSION=0.0.0
 release-dev: IMAGE_PREFIX=perconalab
 release-dev: TELEMETRY=false
 release-dev: prepare-chart
+release-dev:
+	$(MAKE) release-dev -C charts/everest-crds
 
 add-repos:
 	$(HELM) version
