@@ -1,8 +1,9 @@
+{{- if (and (not .Values.compatibility.openshift) .Values.olm.install) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: packageserver
-  namespace: {{ include "olm.namespace" . }}
+  namespace: {{ include "everest.olmNamespace" . }}
 spec:
   progressDeadlineSeconds: 600
   replicas: 2
@@ -28,11 +29,11 @@ spec:
         - --secure-port
         - "5443"
         - --global-namespace
-        - {{ .Values.namespace }}
+        - {{ .Values.olm.namespace }}
         env:
         - name: OPERATOR_CONDITION_NAME
           value: packageserver
-        image: {{ .Values.image }}
+        image: {{ .Values.olm.image }}
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3
@@ -107,3 +108,4 @@ spec:
           - key: tls.key
             path: tls.key
           secretName: packageserver-service-cert
+{{- end }}

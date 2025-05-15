@@ -1,21 +1,22 @@
+{{- if (and (not .Values.compatibility.openshift) .Values.olm.install) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: olm-operator
-  namespace: {{ include "olm.namespace" . }}
+  name: catalog-operator
+  namespace: {{ include "everest.olmNamespace" . }}
   labels:
-    app: olm-operator
+    app: catalog-operator
 spec:
   strategy:
     type: RollingUpdate
   replicas: 1
   selector:
     matchLabels:
-      app: olm-operator
+      app: catalog-operator
   template:
     metadata:
       labels:
-        app: olm-operator
+        app: catalog-operator
     spec:
       securityContext:
         runAsNonRoot: true
@@ -23,19 +24,21 @@ spec:
           type: RuntimeDefault
       serviceAccountName: olm-operator-serviceaccount
       containers:
-        - name: olm-operator
+        - name: catalog-operator
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ "ALL" ]
           command:
-          - /bin/olm
+          - /bin/catalog
           args:
-          - --namespace
-          - $(OPERATOR_NAMESPACE)
-          - --writeStatusName
-          - ""
-          image: {{ .Values.image }}
+          - '--namespace'
+          - everest-olm
+          - --configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
+          - --util-image
+          - {{ .Values.olm.image }}
+          - --set-workload-user-id=true
+          image: {{ .Values.olm.image }} 
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -51,16 +54,10 @@ spec:
               port: 8080
               scheme: HTTP
           terminationMessagePolicy: FallbackToLogsOnError
-          env:
-          - name: OPERATOR_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: OPERATOR_NAME
-            value: olm-operator
           resources:
             requests:
               cpu: 10m
-              memory: 160Mi
+              memory: 80Mi
       nodeSelector:
         kubernetes.io/os: linux
+{{- end }}

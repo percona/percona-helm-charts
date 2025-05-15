@@ -41,7 +41,3 @@ dependencies:
     repository: "file://charts/everest-olm"
     condition: "olm.enabled"
     version: 0.0.*
-  - name: everest-crds
-    repository: "file://charts/everest-crds"
-    condition: "everest-crds.enabled"
-    version: ">= 0.0.0"
