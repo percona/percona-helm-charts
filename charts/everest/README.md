@@ -111,7 +111,6 @@ kubectl delete ns everest-system
 As of Helm v3, CRDs are not automatically updated during a Helm upgrade. You must manually upgrade the CRDs.
 
 ```sh
-VERSION=<Next version> # e.g. v1.3.0
 helm repo update
 helm upgrade --install everest-crds \
     percona/everest-crds \
@@ -124,11 +123,11 @@ helm upgrade --install everest-crds \
 >
 > ```sh
 > invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm";
-> annotation validation error: missing key "meta.helm.sh/release-name": must be set to "everest-crds"; 
+> annotation validation error: missing key "meta.helm.sh/release-name": must be set to "everest-crds";
 > annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "everest-system"
 > ```
 >
-> If you must use a Helm version older than `3.17.0`, you can manually simulate the behavior of `--take-ownership` by adding the required label to the Everest CRDs:
+> If you must use a Helm version older than `3.17.0`, you can manually simulate the behavior of `--take-ownership` by adding the required labels and annotations to the Everest CRDs:
 >
 > ```sh
 > CRDS=(databaseclusters.everest.percona.com databaseengines.everest.percona.com databaseclusterbackups.everest.percona.com databaseclusterrestores.everest.percona.com backupstorages.everest.percona.com monitoringconfigs.everest.percona.com)
@@ -176,7 +175,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | ingress.ingressClassName | string | `""` | Ingress class name. This is used to specify which ingress controller should handle this ingress. |
 | ingress.tls | list | `[]` | Each entry in the list specifies a TLS certificate and the hosts it applies to. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
-| olm.catalogSourceImage | string | `"percona/everest-catalog"` | Image to use for Everest CatalogSource. |
+| olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
 | olm.image | string | `"quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6"` | Image to use for the OLM components. |
 | olm.install | bool | `true` | If set, installs OLM in the provided namespace. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
@@ -187,14 +186,14 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.enableLeaderElection | bool | `true` | Enable leader election for the operator. |
 | operator.env | list | `[]` | Additional environment variables to pass to the operator deployment. |
 | operator.healthProbeAddr | string | `":8081"` | Health probe address for the operator. |
-| operator.image | string | `"percona/everest-operator"` | Image to use for the Everest operator container. |
+| operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
 | pmm | object | `{"enabled":false,"nameOverride":"pmm"}` | PMM settings. |
 | pmm.enabled | bool | `false` | If set, deploys PMM in the release namespace. |
 | server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |
 | server.env | list | `[]` | Additional environment variables to pass to the server deployment. |
-| server.image | string | `"percona/everest"` | Image to use for the server container. |
+| server.image | string | `"perconalab/everest"` | Image to use for the server container. |
 | server.initialAdminPassword | string | `""` | The initial password configured for the admin user. If unset, a random password is generated. It is strongly recommended to reset the admin password after installation. |
 | server.jwtKey | string | `""` | Key for signing JWT tokens. This needs to be an RSA private key. This is created during installation only. To update the key after installation, you need to manually update the `everest-jwt` Secret or use everestctl. |
 | server.oidc | object | `{}` | OIDC configuration for Everest. These settings are applied during installation only. To change the settings after installation, you need to manually update the `everest-settings` ConfigMap. |
@@ -225,7 +224,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.tls.enabled | bool | `false` | If set, enables TLS for the Everest server. Setting tls.enabled=true creates a Secret containing the TLS certificates. Along with certificate.create, it creates a Certificate resource instead. |
 | server.tls.secret.certs | object | `{"tls.crt":"","tls.key":""}` | Use the specified tls.crt and tls.key in the Secret. If unspecified, the server creates a self-signed certificate (not recommended for production). |
 | server.tls.secret.name | string | `"everest-server-tls"` | Name of the Secret containing the TLS certificates. This Secret is created if tls.enabled=true and certificate.create=false. |
-| telemetry | bool | `true` | If set, enabled sending telemetry information. In production release, this value is `true` by default. |
+| telemetry | bool | `false` | If set, enabled sending telemetry information. In production release, this value is `true` by default. |
 | upgrade.crdChecks | bool | `true` | If set, ensures that CRDs are upgraded first. |
 | upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
 | versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |

@@ -111,7 +111,6 @@ kubectl delete ns everest-system
 As of Helm v3, CRDs are not automatically updated during a Helm upgrade. You must manually upgrade the CRDs.
 
 ```sh
-VERSION=<Next version> # e.g. v1.3.0
 helm repo update
 helm upgrade --install everest-crds \
     percona/everest-crds \
@@ -128,7 +127,7 @@ helm upgrade --install everest-crds \
 > annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "everest-system"
 > ```
 >
-> If you must use a Helm version older than `3.17.0`, you can manually simulate the behavior of `--take-ownership` by adding the required label to the Everest CRDs:
+> If you must use a Helm version older than `3.17.0`, you can manually simulate the behavior of `--take-ownership` by adding the required labels and annotations to the Everest CRDs:
 >
 > ```sh
 > CRDS=(databaseclusters.everest.percona.com databaseengines.everest.percona.com databaseclusterbackups.everest.percona.com databaseclusterrestores.everest.percona.com backupstorages.everest.percona.com monitoringconfigs.everest.percona.com)
