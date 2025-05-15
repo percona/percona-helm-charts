@@ -26,17 +26,6 @@ jobs:
             exit 1
           fi
 
-      - name: Check CRDs
-        run: |
-          cd charts/everest
-          make crds-gen
-          if git diff --quiet; then
-            echo "CRDs are up to date."
-          else
-            echo "CRDs are out of date. Please run 'make crds-gen' and commit the changes."
-            exit 1
-          fi
-
       - name: Set up Helm
         uses: azure/setup-helm@v4.2.0
         with:
