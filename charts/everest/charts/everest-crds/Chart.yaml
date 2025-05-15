@@ -4,3 +4,12 @@ description: A Helm chart for Everest Custom Resource Definitions (CRDs).
 type: application
 version: "0.0.0"
 appVersion: "0.0.0"
+maintainers:
+  - name: mayankshah1607
+    email: mayank.shah@percona.com
+  - name: oksana-grishchenko
+    email: oksana.grishchenko@percona.com
+  - name: recharte
+    email: diogo.recharte@percona.com
+  - name: maxkondr
+    email: maxim.kondratenko@percona.com
