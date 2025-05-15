@@ -123,19 +123,18 @@ helm upgrade --install everest-crds \
 > This flag is only required when upgrading to Everest `1.8.0`. Without it, you may encounter the following error:
 >
 > ```sh
-> invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm"
+> invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm";
+> annotation validation error: missing key "meta.helm.sh/release-name": must be set to "everest-crds"; 
+> annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "everest-system"
 > ```
 >
 > If you must use a Helm version older than `3.17.0`, you can manually simulate the behavior of `--take-ownership` by adding the required label to the Everest CRDs:
 >
 > ```sh
-> kubectl label databaseclusters.everest.percona.com \
->   databaseengines.everest.percona.com \
->   databaseclusterbackups.everest.percona.com \
->   databaseclusterrestores.everest.percona.com \
->   backupstorages.everest.percona.com \
->   monitoringconfigs.everest.percona.com \
->   app.kubernetes.io/managed-by=Helm --overwrite
+> CRDS=(databaseclusters.everest.percona.com databaseengines.everest.percona.com databaseclusterbackups.everest.percona.com databaseclusterrestores.everest.percona.com backupstorages.everest.percona.com monitoringconfigs.everest.percona.com)
+> kubectl label crds "${CRDS[@]}" app.kubernetes.io/managed-by=Helm --overwrite
+> kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-name=everest-crds
+> kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=everest-system
 > ```
 >
 > This ensures the CRDs are correctly recognized as managed by Helm, avoiding validation issues during the upgrade.
