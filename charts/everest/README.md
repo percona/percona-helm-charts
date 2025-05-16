@@ -165,7 +165,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| compatibility.openshift | bool | `false` | Enable OpenShift compatibility. If set, ignores olm.install and olm.namespace settings. |
+| compatibility.openshift | bool | `false` | Enable OpenShift compatibility. |
 | createMonitoringResources | bool | `true` | If set, creates resources for Kubernetes monitoring. |
 | dbNamespace.enabled | bool | `true` | If set, deploy the database operators in `everest` namespace. The namespace may be overridden by setting `dbNamespace.namespaceOverride`. |
 | dbNamespace.namespaceOverride | string | `"everest"` | If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace. |
@@ -178,7 +178,8 @@ The following table shows the configurable parameters of the Percona Everest cha
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
 | olm.image | string | `"quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6"` | Image to use for the OLM components. |
 | olm.install | bool | `true` | If set, installs OLM in the provided namespace. |
-| olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
+| olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. DEPRECATED: Will be removed in a future release. Use olm.namespaceOverride instead. |
+| olm.namespaceOverride | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
 | olm.packageserver.tls.caCert | string | `""` | CA certificate for the PackageServer APIService. Overrides the tls.type setting. |
 | olm.packageserver.tls.tlsCert | string | `""` | Client certificate for the PackageServer APIService. Overrides the tls.type setting. |
 | olm.packageserver.tls.tlsKey | string | `""` | Client key for the PackageServer APIService. Overrides the tls.type setting. |
