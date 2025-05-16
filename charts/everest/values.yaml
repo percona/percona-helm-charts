@@ -1,6 +1,5 @@
 compatibility:
   # -- Enable OpenShift compatibility.
-  # If set, ignores olm.install and olm.namespace settings.
   openshift: false
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
@@ -164,7 +163,10 @@ olm:
   # -- If set, installs OLM in the provided namespace.
   install: true
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
-  namespace: everest-olm
+  # DEPRECATED: Will be removed in a future release. Use olm.namespaceOverride instead.
+  namespace: "everest-olm"
+  # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
+  namespaceOverride: everest-olm
   # -- Image to use for Everest CatalogSource.
   catalogSourceImage: perconalab/everest-catalog
   # -- Image to use for the OLM components.
