@@ -65,6 +65,10 @@ spec:
           readOnly: true
         {{- end }}
         env:
+        {{- if not .Values.telemetry }}
+        - name: DISABLE_TELEMETRY
+          value: "true"
+        {{- end }}
         {{- if hasKey .Values.server "apiRequestsRateLimit" }}
         - name: API_REQUESTS_RATE_LIMIT
           value: "{{ .Values.server.apiRequestsRateLimit }}"
