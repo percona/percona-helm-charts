@@ -16,8 +16,7 @@
 #  - create default pod scheduling policies.
 #  - assign default pod scheduling policies to all existing DB clusters.
  */}}
-{{- /* if and (.Release.IsUpgrade) (eq .Chart.Version "1.7.0") */}}
-{{- if .Release.IsUpgrade }}
+{{- if and (.Release.IsUpgrade) (eq .Chart.Version "1.7.0") }}
 {{- include "everest.createDefaultPsp" . }}
 {{- include "everest.assignDefaultPsp" (dict "namespace" (include "everest.namespace" .)) }}
 {{- end }}
