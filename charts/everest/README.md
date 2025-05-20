@@ -176,7 +176,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | ingress.tls | list | `[]` | Each entry in the list specifies a TLS certificate and the hosts it applies to. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
-| olm.image | string | `"quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6"` | Image to use for the OLM components. |
+| olm.image | string | `"percona/olm@sha256:13e8f4e919e753faa7da35a9064822381098bcd44acc284877bf0964ceecbfd5"` | Image to use for the OLM components. |
 | olm.install | bool | `true` | If set, installs OLM in the provided namespace. Should be set to `false` if compatibility.openshift=true. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. DEPRECATED: Will be removed in a future release. Use olm.namespaceOverride instead. |
 | olm.namespaceOverride | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
