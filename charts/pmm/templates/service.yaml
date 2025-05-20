@@ -3,7 +3,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Values.service.name }}
+  {{- if .Release.IsInstall }}
   namespace: {{ include  "pmm.namespace" . }}
+  {{- end }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
   {{- with .Values.service.annotations }}
@@ -28,7 +30,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Values.service.name }}-grpc
+  {{- if .Release.IsInstall }}
   namespace: {{ include  "pmm.namespace" . }}
+  {{- end }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
   {{- with .Values.service.annotations }}
