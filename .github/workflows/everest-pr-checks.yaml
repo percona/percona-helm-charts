@@ -26,6 +26,17 @@ jobs:
             exit 1
           fi
 
+      - name: Check CRD symlinks
+        run: |
+          cd charts/everest
+          make link-crds
+          if git diff --quiet; then
+            echo "CRD symlinks are up to date."
+          else
+            echo "CRD symlinks are out of date. Please run 'make link-crds' and commit the changes."
+            exit 1
+          fi
+
       - name: Set up Helm
         uses: azure/setup-helm@v4.2.0
         with:
