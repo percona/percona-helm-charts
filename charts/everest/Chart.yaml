@@ -43,6 +43,6 @@ dependencies:
     version: ">= 0.0.0"
   - name: operator-lifecycle-manager
     alias: olm
-    repository: "https://mayankshah1607.github.io/operator-lifecycle-manager"
+    repository: "https://percona.github.io/operator-lifecycle-manager"
     condition: "olm.install"
     version: "0.1.*"

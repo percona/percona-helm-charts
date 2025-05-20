@@ -161,6 +161,7 @@ upgrade:
   crdChecks: true
 olm:
   # -- If set, installs OLM in the provided namespace.
+  # Should be set to `false` if compatibility.openshift=true.
   install: true
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
   # DEPRECATED: Will be removed in a future release. Use olm.namespaceOverride instead.
