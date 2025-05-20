@@ -19,7 +19,7 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.17.0
+crVersion: 1.18.0
 
 enableVolumeExpansion: false
 
@@ -29,7 +29,7 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.17.0"
+#   image: "percona/percona-xtradb-cluster-operator:1.18.0"
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -532,7 +532,7 @@ proxysql:
 
 logcollector:
   enabled: true
-  image: percona/percona-xtradb-cluster-operator:1.17.0-logcollector-fluentbit4.0.0
+  image: percona/percona-xtradb-cluster-operator:1.18.0-logcollector-fluentbit4.0.0
   # imagePullPolicy: Always
   imagePullSecrets: []
   # configuration: |
@@ -604,7 +604,7 @@ backup:
   # allowParallel: true
   image:
     repository: percona/percona-xtradb-cluster-operator
-    tag: 1.17.0-pxc8.0-backup-pxb8.0.35
+    tag: 1.18.0-pxc8.0-backup-pxb8.0.35
   # backoffLimit: 6
   # activeDeadlineSeconds: 3600
   # startingDeadlineSeconds: 300
