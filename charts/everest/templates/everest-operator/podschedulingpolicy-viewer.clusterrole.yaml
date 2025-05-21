@@ -1,0 +1,19 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: everest-operator-podschedulingpolicy-viewer-role
+rules:
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - podschedulingpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - podschedulingpolicies/status
+  verbs:
+  - get

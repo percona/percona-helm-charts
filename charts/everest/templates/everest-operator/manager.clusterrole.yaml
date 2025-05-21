@@ -72,6 +72,7 @@ rules:
   - databaseengines
   - dataimportjobs
   - monitoringconfigs
+  - podschedulingpolicies
   verbs:
   - create
   - delete
@@ -102,6 +103,7 @@ rules:
   - databaseengines/status
   - dataimportjobs/status
   - monitoringconfigs/status
+  - podschedulingpolicies/status
   verbs:
   - get
   - patch
