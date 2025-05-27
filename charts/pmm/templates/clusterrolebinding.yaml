@@ -11,7 +11,9 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "pmm.serviceAccountName" . }}
+  {{- if .Release.IsInstall }}
   namespace: {{ include  "pmm.namespace" . }}
+  {{- end }}
 {{- else }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -24,6 +26,8 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ include "pmm.serviceAccountName" . }}
+  {{- if .Release.IsInstall }}
   namespace: {{ include  "pmm.namespace" . }}
+  {{- end }}
 {{- end }}
 {{- end }}
