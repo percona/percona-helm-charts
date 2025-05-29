@@ -3662,6 +3662,24 @@ entries:
   ps-operator:
   - apiVersion: v2
     appVersion: 0.9.0
+    created: "2025-05-29T15:51:55.775633173Z"
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
+    digest: b5fdce71350a530acb17f5069d24ae711bd3b807acee725c52fa8e7e20d0d1b4
+    home: https://docs.percona.com/percona-operator-for-mysql/ps/
+    maintainers:
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: pavel.tankov@percona.com
+      name: ptankov
+    name: ps-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/ps-operator-0.9.1/ps-operator-0.9.1.tgz
+    version: 0.9.1
+  - apiVersion: v2
+    appVersion: 0.9.0
     created: "2025-02-11T20:09:48.803810224Z"
     description: A Helm chart for Deploying the Percona Operator for MySQL (based
       on Percona Server for MySQL)
@@ -6527,4 +6545,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-05-29T13:16:04.854342507Z"
+generated: "2025-05-29T15:51:55.776474505Z"
