@@ -1083,6 +1083,22 @@ spec:
                           type: integer
                         name:
                           type: string
+                        retention:
+                          properties:
+                            count:
+                              minimum: 0
+                              type: integer
+                            deleteFromStorage:
+                              default: true
+                              type: boolean
+                            type:
+                              enum:
+                                - count
+                              type: string
+                          required:
+                            - deleteFromStorage
+                            - type
+                          type: object
                         schedule:
                           type: string
                         storageName:
@@ -2594,6 +2610,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      loadBalancerClass:
+                        type: string
                       loadBalancerIP:
                         type: string
                       loadBalancerSourceRanges:
@@ -2621,6 +2639,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      loadBalancerClass:
+                        type: string
                       loadBalancerIP:
                         type: string
                       loadBalancerSourceRanges:
@@ -2867,8 +2887,6 @@ spec:
                         format: int32
                         type: integer
                     type: object
-                  loadBalancerIP:
-                    type: string
                   loadBalancerSourceRanges:
                     items:
                       type: string
@@ -3056,8 +3074,6 @@ spec:
                         type: integer
                     type: object
                   replicasExternalTrafficPolicy:
-                    type: string
-                  replicasLoadBalancerIP:
                     type: string
                   replicasLoadBalancerSourceRanges:
                     items:
@@ -6051,6 +6067,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      loadBalancerClass:
+                        type: string
                       loadBalancerIP:
                         type: string
                       loadBalancerSourceRanges:
@@ -6295,8 +6313,6 @@ spec:
                         format: int32
                         type: integer
                     type: object
-                  loadBalancerIP:
-                    type: string
                   loadBalancerSourceRanges:
                     items:
                       type: string
@@ -8941,6 +8957,8 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
+                      loadBalancerClass:
+                        type: string
                       loadBalancerIP:
                         type: string
                       loadBalancerSourceRanges:
@@ -9185,8 +9203,6 @@ spec:
                         format: int32
                         type: integer
                     type: object
-                  loadBalancerIP:
-                    type: string
                   loadBalancerSourceRanges:
                     items:
                       type: string
