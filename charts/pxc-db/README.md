@@ -257,15 +257,12 @@ The chart can be customized using the following configurable parameters:
 | `pmm.livenessProbes.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                         | `10`                                |
 | `pmm.livenessProbes.successThreshold`    | Minimum consecutive successes for the probe to be considered successful after having failed                                                                                                         | `1`                                 |
 | `pmm.livenessProbes.timeoutSeconds`      | Number of seconds after which the probe times out                                                                                                                                                   | `5`                                 |
-
 | `users.name`                   | The username of the PXC application user                                                                                                                                                                        | `""` |
 | `users.dbs`                    | Database that will be applied to the user                                                                                                                                                                       | `[]` |
 | `users.grants`                 | Grants that will be applied to the user                                                                                                                                                                         | `[]` |
 | `users.withGrantOption`        | Set grant options for the user                                                                                                                                                                                  | `[]` |
 | `users.passwordSecretRef.name` | Name of the secret that contains the user's password                                                                                                                                                            | `""` |
 | `users.passwordSecretRef.key`  | Key in the secret that corresponds to the value of the user's password                                                                                                                                          | `""` |
-
-
 | |
 | `backup.enabled`                                                                 | Enables backups for PXC cluster                                                                                                                               | `true`                                    |
 | `backup.allowParallel`                                                           | Allow taking multiple backups in parallel                                                                                                                     | `true`                                    |

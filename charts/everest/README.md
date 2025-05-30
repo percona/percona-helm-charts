@@ -162,7 +162,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | ingress.tls | list | `[]` | Each entry in the list specifies a TLS certificate and the hosts it applies to. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
-| olm.image | string | `"quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6"` | Image to use for the OLM components. |
+| olm.image | string | `"percona/olm@sha256:13e8f4e919e753faa7da35a9064822381098bcd44acc284877bf0964ceecbfd5"` | Image to use for the OLM components. |
 | olm.install | bool | `true` | If set, installs OLM in the provided namespace. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
 | olm.packageserver.tls.caCert | string | `""` | CA certificate for the PackageServer APIService. Overrides the tls.type setting. |
@@ -189,8 +189,27 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.resources | object | `{"limits":{"cpu":"200m","memory":"500Mi"},"requests":{"cpu":"100m","memory":"20Mi"}}` | Resources to allocate for the server container. |
 | server.service | object | `{"name":"everest","port":8080,"type":"ClusterIP"}` | Service configuration for the server. |
 | server.service.name | string | `"everest"` | Name of the service for everest |
-| server.service.port | int | `8080` | Port to expose on the service. |
+| server.service.port | int | `8080` | Port to expose on the service. If `tls.enabled=true`, then the service is exposed on port 443. |
 | server.service.type | string | `"ClusterIP"` | Type of service to create. |
-| telemetry | bool | `true` | If set, enabled sending telemetry information. |
+| server.tls.certificate.additionalHosts | list | `[]` | Certificate Subject Alternate Names (SANs) |
+| server.tls.certificate.create | bool | `false` | Create a Certificate resource (requires cert-manager to be installed) If set, creates a Certificate resource instead of a Secret. The Certificate uses the Secret name provided by `tls.secret.name` The Everest server pod will come up only after cert-manager has reconciled the Certificate resource. |
+| server.tls.certificate.domain | string | `""` | Certificate primary domain (commonName) |
+| server.tls.certificate.duration | string |  | The requested 'duration' (i.e. lifetime) of the certificate. # Ref: https://cert-manager.io/docs/usage/certificate/#renewal |
+| server.tls.certificate.issuer.group | string | `""` | Certificate issuer group. Set if using an external issuer. Eg. `cert-manager.io` |
+| server.tls.certificate.issuer.kind | string | `""` | Certificate issuer kind. Either `Issuer` or `ClusterIssuer` |
+| server.tls.certificate.issuer.name | string | `""` | Certificate issuer name. Eg. `letsencrypt` |
+| server.tls.certificate.privateKey.algorithm | string | `"RSA"` | Algorithm used to generate certificate private key. One of: `RSA`, `Ed25519` or `ECDSA` |
+| server.tls.certificate.privateKey.encoding | string | `"PKCS1"` | The private key cryptography standards (PKCS) encoding for private key. Either: `PCKS1` or `PKCS8` |
+| server.tls.certificate.privateKey.rotationPolicy | string | `"Never"` | Rotation policy of private key when certificate is re-issued. Either: `Never` or `Always` |
+| server.tls.certificate.privateKey.size | int | `2048` | Key bit size of the private key. If algorithm is set to `Ed25519`, size is ignored. |
+| server.tls.certificate.renewBefore | string |  | How long before the expiry a certificate should be renewed. # Ref: https://cert-manager.io/docs/usage/certificate/#renewal |
+| server.tls.certificate.secretTemplate | object | `{"annotations":{},"labels":{}}` | Template for the Secret created by the Certificate resource. |
+| server.tls.certificate.secretTemplate.annotations | object | `{}` | Annotations to add to the Secret created by the Certificate resource. |
+| server.tls.certificate.secretTemplate.labels | object | `{}` | Labels to add to the Secret created by the Certificate resource. |
+| server.tls.certificate.usages | list | `[]` | Usages for the certificate ## Ref: https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.KeyUsage |
+| server.tls.enabled | bool | `false` | If set, enables TLS for the Everest server. Setting tls.enabled=true creates a Secret containing the TLS certificates. Along with certificate.create, it creates a Certificate resource instead. |
+| server.tls.secret.certs | object | `{"tls.crt":"","tls.key":""}` | Use the specified tls.crt and tls.key in the Secret. If unspecified, the server creates a self-signed certificate (not recommended for production). |
+| server.tls.secret.name | string | `"everest-server-tls"` | Name of the Secret containing the TLS certificates. This Secret is created if tls.enabled=true and certificate.create=false. |
+| telemetry | bool | `false` | If set, enabled sending telemetry information. In production release, this value is `true` by default. |
 | upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
 | versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |
