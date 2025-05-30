@@ -48,7 +48,7 @@ mysql:
   autoRecovery: true
   image:
     repository: percona/percona-server
-    tag: 8.0.40-31
+    tag: 8.0.42-33
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -175,10 +175,10 @@ proxy:
     enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.8.11
+      tag: 2.8.14
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:10.0
+    # initImage: percona/percona-server-mysql-operator:0.10.0
 
     size: 3
 
@@ -306,7 +306,7 @@ proxy:
     enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.0.40
+      tag: 8.0.42
     imagePullPolicy: Always
     imagePullSecrets: []
     # initImage: percona/percona-server-mysql-operator:0.10.0
@@ -386,7 +386,7 @@ orchestrator:
   enabled: true
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-15
+    tag: 3.2.6-17
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -458,7 +458,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.44.0
+    tag: 3.2.0
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
@@ -472,7 +472,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.0.35-31
+    tag: 8.0.35-33
 #  schedule:
 #    - name: "sat-night-backup"
 #      schedule: "0 0 * * 6"
