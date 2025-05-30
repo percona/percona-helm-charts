@@ -73,6 +73,7 @@ pxc:
   # expose:
   #   enabled: true
   #   type: LoadBalancer
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   externalTrafficPolicy: Local
   #   internalTrafficPolicy: Local
   #   loadBalancerSourceRanges:
@@ -346,6 +347,7 @@ haproxy:
     failureThreshold: 4
   # exposePrimary:
   #   type: ClusterIP
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
   #   externalTrafficPolicy: Cluster
@@ -359,6 +361,7 @@ haproxy:
   #   enabled: true
   #   onlyReaders: false
   #   type: ClusterIP
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
   #   externalTrafficPolicy: Cluster
@@ -443,6 +446,7 @@ proxysql:
   # expose:
   #   enabled: false
   #   type: ClusterIP
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
   #   externalTrafficPolicy: Cluster
