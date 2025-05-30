@@ -706,14 +706,20 @@ backup:
     #     concurrency: 4
 
   schedule: []
-    # - name: "daily-backup"
-    #   schedule: "0 0 * * *"
-    #   keep: 5
-    #   storageName: fs-pvc
-    # - name: "sat-night-backup"
-    #   schedule: "0 0 * * 6"
-    #   keep: 3
-    #   storageName: s3-us-west
+#     - name: "daily-backup"
+#       schedule: "0 0 * * *"
+#       retention:
+#         type: "count"
+#         count: 5
+#         deleteFromStorage: true
+#       storageName: fs-pvc
+#     - name: "sat-night-backup"
+#       schedule: "0 0 * * 6"
+#       retention:
+#         type: "count"
+#         count: 3
+#         deleteFromStorage: true
+#       storageName: s3-us-west
 
 secrets:
   ## You should be overriding these with your own or specify name for clusterSecretName.
