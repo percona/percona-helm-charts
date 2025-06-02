@@ -688,13 +688,13 @@ spec:
     {{- end }}
     tasks:
 {{ .Values.backup.tasks | toYaml | indent 6 }}
-  logCollector:
+  logcollector:
     enabled: {{ .Values.logCollector.enabled }}
-    image: "{{ .Values.logCollector.image.repository }}:{{ .Values.logCollector.image.tag }}"
-    {{- if .Values.logCollector.configuration }}
-    configuration: {{ .Values.logCollector.configuration }}
+    image: "{{ .Values.logcollector.image.repository }}:{{ .Values.logcollector.image.tag }}"
+    {{- if .Values.logcollector.configuration }}
+    configuration: {{ .Values.logcollector.configuration }}
     {{- end }}
-    {{- if .Values.logCollector.resources }}
+    {{- if .Values.logcollector.resources }}
     resources:
-{{ .Values.logCollector.resources | toYaml | indent 6 }}
+{{ .Values.logcollector.resources | toYaml | indent 6 }}
     {{- end }}
