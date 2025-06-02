@@ -151,6 +151,14 @@ operator:
   #   value: value1
   # - name: key2
   #   value: value2
+  webhook:
+    # -- Certificates to use for the webhook server.
+    # The values must be base64 encoded.
+    # If unset, uses self-signed certificates.
+    certs:
+      tls.key: ""
+      tls.crt: ""
+      ca.crt: ""
 
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"

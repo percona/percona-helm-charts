@@ -496,6 +496,71 @@ spec:
                     - backupStorageName
                     - path
                     type: object
+                  dataImport:
+                    description: DataImport allows importing data from an external
+                      backup source.
+                    properties:
+                      config:
+                        description: |-
+                          Config defines the configuration for the data import job.
+                          These options are specific to the DataImporter being used and must conform to
+                          the schema defined in the DataImporter's .spec.config.openAPIV3Schema.
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      dataImporterName:
+                        description: DataImporterName is the data importer to use
+                          for the import.
+                        type: string
+                      source:
+                        description: Source is the source of the data to import.
+                        properties:
+                          path:
+                            description: |-
+                              Path is the path to the directory to import the data from.
+                              This may be a path to a file or a directory, depending on the data importer.
+                            type: string
+                          s3:
+                            description: S3 contains the S3 information for the data
+                              import.
+                            properties:
+                              bucket:
+                                description: Bucket is the name of the S3 bucket.
+                                type: string
+                              credentialsSecretName:
+                                description: |-
+                                  CredentialsSecreName is the reference to the secret containing the S3 credentials.
+                                  The Secret must contain the keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+                                type: string
+                              endpointURL:
+                                description: EndpointURL is an endpoint URL of backup
+                                  storage.
+                                type: string
+                              forcePathStyle:
+                                default: false
+                                description: |-
+                                  ForcePathStyle is set to use path-style URLs.
+                                  If unspecified, the default value is false.
+                                type: boolean
+                              region:
+                                description: Region is the region of the S3 bucket.
+                                type: string
+                              verifyTLS:
+                                default: true
+                                description: |-
+                                  VerifyTLS is set to ensure TLS/SSL verification.
+                                  If unspecified, the default value is true.
+                                type: boolean
+                            required:
+                            - credentialsSecretName
+                            type: object
+                        type: object
+                    required:
+                    - dataImporterName
+                    - source
+                    type: object
+                    x-kubernetes-validations:
+                    - message: .spec.dataSource.dataImport is immutable
+                      rule: self == oldSelf
                   dbClusterBackupName:
                     description: DBClusterBackupName is the name of the DB cluster
                       backup to restore from
@@ -827,6 +892,11 @@ spec:
               crVersion:
                 description: CRVersion is the observed version of the CR used with
                   the underlying operator.
+                type: string
+              dataImportJobName:
+                description: |-
+                  DataImportJobName refers to the DataImportJob that is used to import data into the cluster.
+                  This is set only when .spec.dataSource.dataImport is set.
                 type: string
               details:
                 description: Details provides full status of the upstream cluster
@@ -1167,6 +1237,19 @@ spec:
                       importer.
                     x-kubernetes-preserve-unknown-fields: true
                 type: object
+              databaseClusterConstraints:
+                description: DatabaseClusterConstraints contains constraints for the
+                  DatabaseCluster that the data importer can be used with.
+                properties:
+                  requiredFields:
+                    description: |-
+                      RequiredFields contains a list of fields that must be set in the DatabaseCluster spec.
+                      Each key is a JSON path expressions that points to a field in the DatabaseCluster spec.
+                      For example, ".spec.engine.type" or ".spec.dataSource.dataImport.config.someField".
+                    items:
+                      type: string
+                    type: array
+                type: object
               description:
                 description: Description is the description of the data importer.
                 type: string
@@ -1185,8 +1268,9 @@ spec:
                     description: Image is the image of the data importer.
                     type: string
                   serviceAccountName:
-                    description: ServiceAccountName is the name of the service account
-                      to use for the data importer job.
+                    description: |-
+                      ServiceAccountName is the name of the service account to use for the data importer job.
+                      This is useful if your Job needs to access the Kubernetes API or other resources.
                     type: string
                 type: object
               supportedEngines:
@@ -1225,7 +1309,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.targetClusterRef.name
+    - jsonPath: .spec.targetClusterName
       name: TargetCluster
       type: string
     - jsonPath: .status.phase
@@ -1255,76 +1339,36 @@ spec:
             type: object
           spec:
             properties:
-              dataImporterRef:
-                description: DataImporterRef is the reference to the data importer.
-                properties:
-                  name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
-              parameters:
+              config:
                 description: |-
-                  Params defines the configuration parameters for the data import job.
-                  These parameters are specific to the DataImporter being used and must conform to
+                  Config defines the configuration for the data import job.
+                  These options are specific to the DataImporter being used and must conform to
                   the schema defined in the DataImporter's .spec.config.openAPIV3Schema.
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
-              serviceAccountName:
-                description: |-
-                  ServiceAccountName is the name of the service account to use for the import job.
-                  This service account must have the necessary permissions to perform the import.
+              dataImporterName:
+                description: DataImporterName is the data importer to use for the
+                  import.
                 type: string
               source:
                 description: Source is the source of the data to import.
                 properties:
-                  backupStorageRef:
-                    description: BackupStorageRef is the reference to the backup storage.
-                    properties:
-                      name:
-                        default: ""
-                        description: |-
-                          Name of the referent.
-                          This field is effectively required, but due to backwards compatibility is
-                          allowed to be empty. Instances of this type with an empty value here are
-                          almost certainly wrong.
-                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        type: string
-                    type: object
-                    x-kubernetes-map-type: atomic
                   path:
                     description: |-
                       Path is the path to the directory to import the data from.
                       This may be a path to a file or a directory, depending on the data importer.
                     type: string
                   s3:
-                    description: S3Ref is the reference to the S3 source.
+                    description: S3 contains the S3 information for the data import.
                     properties:
                       bucket:
                         description: Bucket is the name of the S3 bucket.
                         type: string
-                      credentialsSecretRef:
+                      credentialsSecretName:
                         description: |-
-                          CredentialsSecretRef is the reference to the secret containing the S3 credentials.
+                          CredentialsSecreName is the reference to the secret containing the S3 credentials.
                           The Secret must contain the keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-                        properties:
-                          name:
-                            default: ""
-                            description: |-
-                              Name of the referent.
-                              This field is effectively required, but due to backwards compatibility is
-                              allowed to be empty. Instances of this type with an empty value here are
-                              almost certainly wrong.
-                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            type: string
-                        type: object
-                        x-kubernetes-map-type: atomic
+                        type: string
                       endpointURL:
                         description: EndpointURL is an endpoint URL of backup storage.
                         type: string
@@ -1343,45 +1387,38 @@ spec:
                           VerifyTLS is set to ensure TLS/SSL verification.
                           If unspecified, the default value is true.
                         type: boolean
+                    required:
+                    - credentialsSecretName
                     type: object
                 type: object
-              targetClusterRef:
-                description: TargetClusterRef is the reference to the target cluster.
-                properties:
-                  name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
+              targetClusterName:
+                description: TargetClusterName is the reference to the target cluster.
+                type: string
+            required:
+            - dataImporterName
+            - source
+            - targetClusterName
             type: object
           status:
             properties:
-              jobRef:
-                description: JobRef is the reference to the job that is running the
+              jobName:
+                description: JobName is the reference to the job that is running the
                   data import.
-                properties:
-                  name:
-                    default: ""
-                    description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
-                type: object
-                x-kubernetes-map-type: atomic
+                type: string
+              lastObservedGeneration:
+                description: LastObservedGeneration is the last observed generation
+                  of the data import job.
+                format: int64
+                type: integer
               message:
                 description: Message is the message of the data import job.
                 type: string
               phase:
                 description: Phase is the current phase of the data import job.
+                type: string
+              startedAt:
+                description: StartedAt is the time when the data import job started.
+                format: date-time
                 type: string
             type: object
         type: object
