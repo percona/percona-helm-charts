@@ -1,7 +1,7 @@
 dependencies:
 - name: common
   repository: file://charts/common
-  version: 0.0.16
+  version: 0.0.17
 - name: everest-db-namespace
   repository: file://charts/everest-db-namespace
   version: 0.0.0
