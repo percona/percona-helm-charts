@@ -1,8 +1,8 @@
 apiVersion: v2
 name: everest
 description: A cloud-native database platform
-version: 0.0.17
-appVersion: 0.0.17
+version: 0.0.0
+appVersion: 0.0.0
 type: application
 kubeVersion: '>= 1.27.0-0'
 maintainers:
@@ -21,7 +21,7 @@ dependencies:
     # The default behaviour of Helm is to always include the sub-chart manfiests unless explicitly disabled.
   - name: everest-db-namespace
     alias: dbNamespace
-    version: "0.0.17"
+    version: 0.0.0
     repository: "file://charts/everest-db-namespace"
     condition: "dbNamespace.enabled"
   - name: kube-state-metrics
