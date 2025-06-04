@@ -1,6 +1,5 @@
 compatibility:
   # -- Enable OpenShift compatibility.
-  # If set, ignores olm.install and olm.namespace settings.
   openshift: false
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
@@ -158,11 +157,17 @@ upgrade:
   # -- If set, run preliminary checks before upgrading.
   # It is strongly recommended to enable this setting.
   preflightChecks: true
+  # -- If set, ensures that CRDs are upgraded first.
+  crdChecks: true
 olm:
   # -- If set, installs OLM in the provided namespace.
+  # Should be set to `false` if compatibility.openshift=true.
   install: true
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
-  namespace: everest-olm
+  # DEPRECATED: Will be removed in a future release. Use olm.namespaceOverride instead.
+  namespace: "everest-olm"
+  # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
+  namespaceOverride: everest-olm
   # -- Image to use for Everest CatalogSource.
   catalogSourceImage: perconalab/everest-catalog
   # -- Image to use for the OLM components.
@@ -254,3 +259,9 @@ pmm:
   # -- If set, deploys PMM in the release namespace.
   enabled: false
   nameOverride: pmm
+# DO NOT CHANGE.
+# We set this to `false` to prevent the CRDs from being rendered as a template.
+# The CRDs are already installed as a part of the crds/ directory via the sub-chart.
+# @ignore
+everest-crds:
+  enabled: false

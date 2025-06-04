@@ -2,8 +2,8 @@ apiVersion: v2
 name: everest-db-namespace
 description: A sub-chart for provisioning Everest DB namespaces.
 type: application
-version: 0.0.0
-appVersion: 0.0.0
+version: "0.0.0"
+appVersion: "0.0.0"
 kubeVersion: '>= 1.27.0-0'
 dependencies:
   - name: common
@@ -16,3 +16,5 @@ maintainers:
     email: oksana.grishchenko@percona.com
   - name: recharte
     email: diogo.recharte@percona.com
+  - name: maxkondr
+    email: maxim.kondratenko@percona.com
