@@ -57,12 +57,14 @@ server:
   # If unset, a random password is generated.
   # It is strongly recommended to reset the admin password after installation.
   initialAdminPassword: ""
+
   # TLS settings for the Everest server.
   tls:
     # -- If set, enables TLS for the Everest server.
     # Setting tls.enabled=true creates a Secret containing the TLS certificates.
     # Along with certificate.create, it creates a Certificate resource instead.
     enabled: false
+
     secret:
       # -- Name of the Secret containing the TLS certificates.
       # This Secret is created if tls.enabled=true and certificate.create=false.
@@ -72,6 +74,7 @@ server:
       certs:
         tls.key: ""
         tls.crt: ""
+    
     certificate:
       # -- Create a Certificate resource (requires cert-manager to be installed)
       # If set, creates a Certificate resource instead of a Secret.
@@ -118,6 +121,7 @@ server:
         annotations: {}
         # -- Labels to add to the Secret created by the Certificate resource.
         labels: {}
+
   # -- Additional environment variables to pass to the server deployment.
   env: []
   # - name: key1
@@ -147,6 +151,7 @@ operator:
   #   value: value1
   # - name: key2
   #   value: value2
+
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"
 upgrade:
@@ -173,12 +178,14 @@ olm:
       tlsCert: ""
       # -- Client key for the PackageServer APIService. Overrides the tls.type setting.
       tlsKey: ""
+
 dbNamespace:
   # -- If set, deploy the database operators in `everest` namespace.
   # The namespace may be overridden by setting `dbNamespace.namespaceOverride`.
   enabled: true
   # -- If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace.
   namespaceOverride: everest
+
 # Do not change the following values unless you know what you are doing.
 # @ignore
 kube-state-metrics:
@@ -190,21 +197,24 @@ kube-state-metrics:
     everest.percona.com/type: monitoring
   fullnameOverride: kube-state-metrics
   volumes:
-    - name: customresourcestate-config
-      configMap:
-        name: customresource-config-ksm
+  - name: customresourcestate-config
+    configMap:
+      name: customresource-config-ksm
   volumeMounts:
-    - name: customresourcestate-config
-      mountPath: /etc/customresourcestate
-      readOnly: true
+  - name: customresourcestate-config
+    mountPath: /etc/customresourcestate
+    readOnly: true
   extraArgs:
-    - --custom-resource-state-config-file=/etc/customresourcestate/config
+  - --custom-resource-state-config-file=/etc/customresourcestate/config
   metricLabelsAllowlist:
-    - "pods=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
-    - "persistentvolumeclaims=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
-    - "jobs=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+  - "pods=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+  - "persistentvolumeclaims=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+  - "jobs=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+
 # -- If set, creates resources for Kubernetes monitoring.
 createMonitoringResources: true
+
+
 ingress:
   # -- Enable ingress for Everest server
   enabled: false
@@ -224,6 +234,7 @@ ingress:
   #  - secretName: chart-example-tls
   #    hosts:
   #      - chart-example.local
+
 # Do not change the following values unless you know what you are doing.
 # @ignore
 monitoring:
@@ -237,6 +248,7 @@ monitoring:
     enabled: false
   certManager:
     enabled: false
+
 # -- PMM settings.
 pmm:
   # -- If set, deploys PMM in the release namespace.
