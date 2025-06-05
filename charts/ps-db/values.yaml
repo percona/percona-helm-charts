@@ -16,9 +16,9 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 0.9.0
+crVersion: 0.11.0
 pause: false
-# initImage: percona/percona-server-mysql-operator:0.9.0
+# initImage: percona/percona-server-mysql-operator:0.11.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -52,7 +52,7 @@ mysql:
   imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
-  # initImage: percona/percona-server-mysql-operator:0.9.0
+  # initImage: percona/percona-server-mysql-operator:0.11.0
 
   size: 3
 
@@ -178,7 +178,7 @@ proxy:
       tag: 2.8.11
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.9.0
+    # initImage: percona/percona-server-mysql-operator:0.11.0
 
     size: 3
 
@@ -309,7 +309,7 @@ proxy:
       tag: 8.0.40
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.9.0
+    # initImage: percona/percona-server-mysql-operator:0.11.0
 
     size: 3
 
@@ -391,7 +391,7 @@ orchestrator:
   imagePullSecrets: []
   # - name: private-registry-credentials
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.9.0
+  # initImage: percona/percona-server-mysql-operator:0.11.0
 
   size: 3
 
