@@ -8,7 +8,7 @@ Useful links:
 
 ## Pre-requisites
 * Percona Operator for MySQL running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/ps-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-mysql/helm.html).
-* Kubernetes 1.29+
+* Kubernetes 1.30+
 * Helm v3
 
 # Chart Details
@@ -19,14 +19,14 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 0.9.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 0.10.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                             | Default                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `0.9.0`                     |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `0.10.0`                    |
 | `finalizers:percona.com/delete-mysql-pods-in-order` | Set this if you want to delete MySQL pods in order on cluster deletion                                                                                                  | `[]`                        |
 | `finalizers:percona.com/delete-ssl`                 | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion                                                                            | `[]`                        |
 | `pause`                                             | Stop PS Cluster safely                                                                                                                                                  | `false`                     |
@@ -51,7 +51,7 @@ The chart can be customized using the following configurable parameters:
 | `mysql.clusterType`                               | MySQL Cluster type (`async` or `group-replication`)                                                                                                           | `group-replication`        |
 | `mysql.autoRecovery`                              | Enable/Disable auto recovery from full cluster crash                                                                                                          | `true`                     |
 | `mysql.image.repository`                          | MySQL Container image repository                                                                                                                              | `percona/percona-server`   |
-| `mysql.image.tag`                                 | MySQL Container image tag                                                                                                                                     | `8.0.40-31`                |
+| `mysql.image.tag`                                 | MySQL Container image tag                                                                                                                                     | `8.0.42-33`                |
 | `mysql.imagePullPolicy`                           | The policy used to update images                                                                                                                              | `Always`                   |
 | `mysql.imagePullSecrets`                          | MySQL Container pull secret                                                                                                                                   | `[]`                       |
 | `mysql.initImage`                                 | An alternative image for the initial mysql setup                                                                                                              | `""`                       |
@@ -92,7 +92,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `proxy.haproxy.enabled`                          | Enable/Disable HAProxy pods                                                                                                                                   | `true`                     |
 | `proxy.haproxy.image.repository`                 | HAProxy Container image repository                                                                                                                            | `percona/haproxy`          |
-| `proxy.haproxy.image.tag`                        | HAProxy Container image tag                                                                                                                                   | `2.8.11`                   |
+| `proxy.haproxy.image.tag`                        | HAProxy Container image tag                                                                                                                                   | `2.8.14`                   |
 | `proxy.haproxy.imagePullPolicy`                  | The policy used to update images                                                                                                                              | `Always`                   |
 | `proxy.haproxy.imagePullSecrets`                 | HAProxy Container pull secret                                                                                                                                 | `[]`                       |
 | `proxy.haproxy.initImage`                        | An alternative image for the initial haproxy setup                                                                                                            | `""`                       |
@@ -126,7 +126,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `proxy.router.enabled`                          | Enable/Disable Router pods in group replication                                                                                                               | `false`                        |
 | `proxy.router.image.repository`                 | Router Container image repository                                                                                                                             | `percona/percona-mysql-router` |
-| `proxy.router.image.tag`                        | Router Container image tag                                                                                                                                    | `8.0.40`                       |
+| `proxy.router.image.tag`                        | Router Container image tag                                                                                                                                    | `8.0.42`                       |
 | `proxy.router.imagePullPolicy`                  | The policy used to update images                                                                                                                              | `Always`                       |
 | `proxy.router.imagePullSecrets`                 | Router Container pull secret                                                                                                                                  | `[]`                           |
 | `proxy.router.initImage`                        | An alternative image for the initial router setup                                                                                                             | `""`                           |
@@ -156,7 +156,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `orchestrator.enabled`                                   | Enable/Disable orchestrator pods in async replication                                                                                                         | `true`                         |
 | `orchestrator.image.repository`                          | Orchestrator Container image repository                                                                                                                       | `percona/percona-orchestrator` |
-| `orchestrator.image.tag`                                 | Orchestrator Container image tag                                                                                                                              | `3.2.6-15`                     |
+| `orchestrator.image.tag`                                 | Orchestrator Container image tag                                                                                                                              | `3.2.6-17`                     |
 | `orchestrator.imagePullPolicy`                           | The policy used to update images                                                                                                                              | `Always`                       |
 | `orchestrator.imagePullSecrets`                          | Orchestrator Container pull secret                                                                                                                            | `[]`                           |
 | `orchestrator.serviceAccountName`                        | A custom service account to be used instead of the default one                                                                                                | `""`                           |
@@ -189,7 +189,7 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
 ||
 | `pmm.image.repository`   | PMM Container image repository          | `percona/pmm-client`                |
-| `pmm.image.tag`          | PMM Container image tag                 | `2.44.0`                            |
+| `pmm.image.tag`          | PMM Container image tag                 | `3.2.0`                             |
 | `pmm.imagePullPolicy`    | The policy used to update images        | ``                                  |
 | `pmm.serverHost`         | PMM server related K8S service hostname | `monitoring-service`                |
 | `pmm.serverUser`         | PMM server user                         | `admin`                             |
@@ -204,7 +204,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `backup.enabled`                  | Enable backups                                                                              | `true`                       |
 | `backup.image.repository`         | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
-| `backup.image.tag`                | Backup Container image tag                                                                  | `8.0.35-31`                  |
+| `backup.image.tag`                | Backup Container image tag                                                                  | `8.0.35-33`                  |
 | `backup.backoffLimit`             | The number of retries to make a backup                                                      | ``                           |
 | `backup.imagePullPolicy`          | The policy used to update images                                                            | `Always`                     |
 | `backup.imagePullSecrets`         | Backup Container pull secret                                                                | `[]`                         |

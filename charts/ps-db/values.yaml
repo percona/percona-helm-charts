@@ -16,14 +16,19 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 0.9.0
+crVersion: 0.10.0
 pause: false
-# initImage: percona/percona-server-mysql-operator:0.9.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
   apply: disabled
+
+# initImage: percona/percona-server-mysql-operator:0.10.0
+# ignoreAnnotations:
+#   - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
+# ignoreLabels:
+#   - rack
 
 # Default secret name will be <cluster_name>-secrets unless different name specified below.
 # secretsName: cluster1-secrets
@@ -38,32 +43,31 @@ upgradeOptions:
 #     kind: ClusterIssuer
 #     group: cert-manager.io
 
-# ignoreAnnotations:
-#   - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
-# ignoreLabels:
-#   - rack
+
 
 mysql:
   clusterType: group-replication
   autoRecovery: true
   image:
     repository: percona/percona-server
-    tag: 8.0.40-31
+    tag: 8.0.42-33
   imagePullPolicy: Always
   imagePullSecrets: []
-  # - name: private-registry-credentials
-  # initImage: percona/percona-server-mysql-operator:0.9.0
+  # initImage: percona/percona-server-mysql-operator:0.10.0
 
   size: 3
 
   # configuration: |
   #   max_connections=250
 
+  #    env:
+  #    - name: BOOTSTRAP_READ_TIMEOUT
+  #      value: "600"
   resources:
     requests:
-      memory: 512M
-    limits:
       memory: 1G
+    limits:
+      memory: 2G
 
   # readinessProbe:
   #   initialDelaySeconds: 30
@@ -174,10 +178,10 @@ proxy:
     enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.8.11
+      tag: 2.8.14
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.9.0
+    # initImage: percona/percona-server-mysql-operator:0.10.0
 
     size: 3
 
@@ -210,13 +214,11 @@ proxy:
     # configuration: |
     #
     # the actual default configuration file can be found here https://github.com/percona/percona-server-mysql-operator/blob/main/build/haproxy-global.cfg
-    #
     #   global
     #     maxconn 2048
     #     external-check
     #     insecure-fork-wanted
     #     stats socket /etc/haproxy/mysql/haproxy.sock mode 600 expose-fd listeners level admin
-    #
     #   defaults
     #     default-server init-addr last,libc,none
     #     log global
@@ -225,20 +227,17 @@ proxy:
     #     timeout client 28800s
     #     timeout connect 100500
     #     timeout server 28800s
-    #
     #   frontend mysql-primary-in
     #     bind *:3309 accept-proxy
     #     bind *:3306
     #     mode tcp
     #     option clitcpka
     #     default_backend mysql-primary
-    #
     #   frontend mysql-replicas-in
     #     bind *:3307
     #     mode tcp
     #     option clitcpka
     #     default_backend mysql-replicas
-    #
     #   frontend stats
     #     bind *:8404
     #     mode http
@@ -256,7 +255,6 @@ proxy:
       #           values:
       #           - e2e-az1
       #           - e2e-az2
-
     # topologySpreadConstraints:
     # - labelSelector:
     #     matchLabels:
@@ -304,10 +302,10 @@ proxy:
     enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.0.40
+      tag: 8.0.42
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.9.0
+    # initImage: percona/percona-server-mysql-operator:0.10.0
 
     size: 3
 
@@ -329,7 +327,6 @@ proxy:
       #           values:
       #           - e2e-az1
       #           - e2e-az2
-
     # topologySpreadConstraints:
     # - labelSelector:
     #     matchLabels:
@@ -380,15 +377,14 @@ proxy:
       #   - 10.0.0.0/8
 
 orchestrator:
-  enabled: true
+  enabled: false
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-15
+    tag: 3.2.6-17
   imagePullPolicy: Always
   imagePullSecrets: []
-  # - name: private-registry-credentials
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.9.0
+  # initImage: percona/percona-server-mysql-operator:0.10.0
 
   size: 3
 
@@ -454,7 +450,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.44.0
+    tag: 3.2.0
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
@@ -468,7 +464,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.0.35-31
+    tag: 8.0.35-33
 #  schedule:
 #    - name: "sat-night-backup"
 #      schedule: "0 0 * * 6"
