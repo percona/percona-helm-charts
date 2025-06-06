@@ -43,8 +43,6 @@ upgradeOptions:
 #     kind: ClusterIssuer
 #     group: cert-manager.io
 
-
-
 mysql:
   clusterType: group-replication
   autoRecovery: true
