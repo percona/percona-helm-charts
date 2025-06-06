@@ -8,7 +8,7 @@ metadata:
   finalizers:
     - everest.percona.com/readonly-protection
   annotations:
-      "helm.sh/hook": post-install,pre-upgrade
+      "helm.sh/hook": post-install
       "helm.sh/resource-policy": keep
       "helm.sh/hook-weight": "-5"
 spec:
@@ -35,7 +35,7 @@ metadata:
   finalizers:
     - everest.percona.com/readonly-protection
   annotations:
-      "helm.sh/hook": post-install,pre-upgrade
+      "helm.sh/hook": post-install
       "helm.sh/resource-policy": keep
       "helm.sh/hook-weight": "-5"
 spec:
@@ -62,7 +62,7 @@ metadata:
   finalizers:
     - everest.percona.com/readonly-protection
   annotations:
-      "helm.sh/hook": post-install,pre-upgrade
+      "helm.sh/hook": post-install
       "helm.sh/resource-policy": keep
       "helm.sh/hook-weight": "-5"
 spec:
