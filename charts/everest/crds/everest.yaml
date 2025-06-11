@@ -523,6 +523,14 @@ spec:
                             description: S3 contains the S3 information for the data
                               import.
                             properties:
+                              accessKeyId:
+                                description: |-
+                                  AccessKeyID allows specifying the S3 access key ID inline.
+                                  It is provided as a write-only input field for convenience.
+                                  When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                                  and empties this field.
+                                  This field is not stored in the API.
+                                type: string
                               bucket:
                                 description: Bucket is the name of the S3 bucket.
                                 type: string
@@ -543,6 +551,14 @@ spec:
                                 type: boolean
                               region:
                                 description: Region is the region of the S3 bucket.
+                                type: string
+                              secretAccessKey:
+                                description: |-
+                                  SecretAccessKey allows specifying the S3 secret access key inline.
+                                  It is provided as a write-only input field for convenience.
+                                  When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                                  and empties this field.
+                                  This field is not stored in the API.
                                 type: string
                               verifyTLS:
                                 default: true
@@ -997,6 +1013,29 @@ spec:
                 items:
                   type: string
                 type: array
+              secretKeys:
+                description: |-
+                  SecretKeys contains the definition of the various Secrets that
+                  the given DBEngine supports.
+                  This information acts like metadata for the Everest UI to guide the users
+                  in filling out the correct Secret keys for their clusters.
+                properties:
+                  user:
+                    description: User secret keys are used to store the details of
+                      the users.
+                    items:
+                      description: SecretKey defines a single Secret key.
+                      properties:
+                        description:
+                          description: Description is a human-readable description
+                            of the Secret key.
+                          type: string
+                        name:
+                          description: Name is the name of the Secret key.
+                          type: string
+                      type: object
+                    type: array
+                type: object
               type:
                 description: |-
                   EngineType stands for the supported database engines. Right now it's only pxc
@@ -1176,6 +1215,7 @@ spec:
     storage: true
     subresources:
       status: {}
+
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -1228,6 +1268,58 @@ spec:
           spec:
             description: DataImporterSpec defines the specification of a DataImporter.
             properties:
+              clusterPermissions:
+                description: |-
+                  ClusterPermissions defines the cluster-wide permissions required by the data importer.
+                  These permissions are used to generate a ClusterRole for the data importer job.
+                items:
+                  description: |-
+                    PolicyRule holds information that describes a policy rule, but does not contain information
+                    about who the rule applies to or which namespace the rule applies to.
+                  properties:
+                    apiGroups:
+                      description: |-
+                        APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                        the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    nonResourceURLs:
+                      description: |-
+                        NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                        Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
+                        Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    resourceNames:
+                      description: ResourceNames is an optional white list of names
+                        that the rule applies to.  An empty set means that everything
+                        is allowed.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    resources:
+                      description: Resources is a list of resources this rule applies
+                        to. '*' represents all resources.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    verbs:
+                      description: Verbs is a list of Verbs that apply to ALL the
+                        ResourceKinds contained in this rule. '*' represents all verbs.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                  required:
+                  - verbs
+                  type: object
+                type: array
               config:
                 description: Config contains additional configuration defined for
                   the data importer.
@@ -1238,8 +1330,13 @@ spec:
                     x-kubernetes-preserve-unknown-fields: true
                 type: object
               databaseClusterConstraints:
-                description: DatabaseClusterConstraints contains constraints for the
-                  DatabaseCluster that the data importer can be used with.
+                description: |-
+                  DatabaseClusterConstraints defines compatibility requirements and prerequisites that must be satisfied
+                  by a DatabaseCluster before this data importer can be used with it. This allows the data importer to
+                  express specific requirements about the database configuration needed for successful import operations,
+                  such as required database fields, specific engine configurations, or other database properties.
+                  When a DatabaseCluster references this data importer, the operator will validate the DatabaseCluster
+                  against these constraints before proceeding with the import operation.
                 properties:
                   requiredFields:
                     description: |-
@@ -1267,12 +1364,59 @@ spec:
                   image:
                     description: Image is the image of the data importer.
                     type: string
-                  serviceAccountName:
-                    description: |-
-                      ServiceAccountName is the name of the service account to use for the data importer job.
-                      This is useful if your Job needs to access the Kubernetes API or other resources.
-                    type: string
                 type: object
+              permissions:
+                description: |-
+                  Permissions defines the permissions required by the data importer.
+                  These permissions are used to generate a Role for the data importer job.
+                items:
+                  description: |-
+                    PolicyRule holds information that describes a policy rule, but does not contain information
+                    about who the rule applies to or which namespace the rule applies to.
+                  properties:
+                    apiGroups:
+                      description: |-
+                        APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                        the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    nonResourceURLs:
+                      description: |-
+                        NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                        Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
+                        Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    resourceNames:
+                      description: ResourceNames is an optional white list of names
+                        that the rule applies to.  An empty set means that everything
+                        is allowed.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    resources:
+                      description: Resources is a list of resources this rule applies
+                        to. '*' represents all resources.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    verbs:
+                      description: Verbs is a list of Verbs that apply to ALL the
+                        ResourceKinds contained in this rule. '*' represents all verbs.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                  required:
+                  - verbs
+                  type: object
+                type: array
               supportedEngines:
                 description: SupportedEngines is the list of engines that the data
                   importer supports.
@@ -1312,8 +1456,8 @@ spec:
     - jsonPath: .spec.targetClusterName
       name: TargetCluster
       type: string
-    - jsonPath: .status.phase
-      name: Phase
+    - jsonPath: .status.state
+      name: State
       type: string
     name: v1alpha1
     schema:
@@ -1361,6 +1505,14 @@ spec:
                   s3:
                     description: S3 contains the S3 information for the data import.
                     properties:
+                      accessKeyId:
+                        description: |-
+                          AccessKeyID allows specifying the S3 access key ID inline.
+                          It is provided as a write-only input field for convenience.
+                          When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                          and empties this field.
+                          This field is not stored in the API.
+                        type: string
                       bucket:
                         description: Bucket is the name of the S3 bucket.
                         type: string
@@ -1380,6 +1532,14 @@ spec:
                         type: boolean
                       region:
                         description: Region is the region of the S3 bucket.
+                        type: string
+                      secretAccessKey:
+                        description: |-
+                          SecretAccessKey allows specifying the S3 secret access key inline.
+                          It is provided as a write-only input field for convenience.
+                          When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                          and empties this field.
+                          This field is not stored in the API.
                         type: string
                       verifyTLS:
                         default: true
@@ -1401,6 +1561,11 @@ spec:
             type: object
           status:
             properties:
+              completedAt:
+                description: CompletedAt is the time when the data import job completed
+                  successfully.
+                format: date-time
+                type: string
               jobName:
                 description: JobName is the reference to the job that is running the
                   data import.
@@ -1413,12 +1578,12 @@ spec:
               message:
                 description: Message is the message of the data import job.
                 type: string
-              phase:
-                description: Phase is the current phase of the data import job.
-                type: string
               startedAt:
                 description: StartedAt is the time when the data import job started.
                 format: date-time
+                type: string
+              state:
+                description: State is the current state of the data import job.
                 type: string
             type: object
         type: object
