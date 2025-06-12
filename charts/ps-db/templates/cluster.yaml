@@ -205,6 +205,10 @@ spec:
     configuration: |
 {{- tpl $mysql.configuration $ | nindent 6 }}
     {{- end }}
+    {{- if $mysql.env }}
+    env:
+{{ $mysql.env | toYaml | indent 6 }}
+    {{- end }}
     {{- if $mysql.sidecars }}
     sidecars:
 {{ $mysql.sidecars | toYaml | indent 6 }}
