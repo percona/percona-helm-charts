@@ -88,17 +88,11 @@ checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sh
 {{/*
 Create password if it does not exist or reuse existing one.
 */}}
-{{- define "gen.password" -}}
+{{- define "pmm.password" -}}
 {{- $secret := lookup "v1" "Secret" .Release.Namespace .Values.secret.name -}}
-{{- if $secret -}}
-{{/*
-   Reusing existing secret data
-*/}}
+{{- if and $secret $secret.data.PMM_ADMIN_PASSWORD -}}
 {{ $secret.data.PMM_ADMIN_PASSWORD }}
 {{- else -}}
-{{/*
-    Generate new password if it does not exist
-*/}}
-{{ .Values.secret.pmm_password | default (randAscii 16) | b64enc | quote }}
+{{ .Values.secret.pmm_password | default (randAscii 16) | b64enc }}
 {{- end -}}
 {{- end -}}
