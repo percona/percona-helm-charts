@@ -461,7 +461,6 @@ pmm:
     tag: 2.44.0
   imagePullPolicy: Always
   serverHost: monitoring-service
-  serverUser: admin
   resources:
     requests:
       memory: 150M
