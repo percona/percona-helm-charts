@@ -213,3 +213,17 @@ The following table shows the configurable parameters of the Percona Everest cha
 | telemetry | bool | `false` | If set, enabled sending telemetry information. In production release, this value is `true` by default. |
 | upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
 | versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |
+
+## Notice for developers
+In case you made any changes in `percona-helm-charts/charts/everest/charts/common` or `percona-helm-charts/charts/everest/charts/everest-db-namespace` directories,
+please make sure you perform the following actions before creating PR:
+- bump chart version in `percona-helm-charts/charts/everest/charts/common/Chart.yaml` or `percona-helm-charts/charts/everest/charts/everest-db-namespace/Chart.yaml` accordingly in `version` parameter.
+- in `percona-helm-charts/charts/everest` directory run:
+    ```bash
+    make prepare-pr
+    ```
+
+In case you need to update the Everest Custom Resource Definitions (CRDs) after the changes in `github.com/percona/everest-operator` repository, please run the following command:
+```bash
+CRD_VERSION=<branch name in percona/everest-operator repo> make prepare-pr
+```

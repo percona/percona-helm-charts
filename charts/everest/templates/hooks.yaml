@@ -11,16 +11,6 @@
 {{- include "everest.createDefaultPsp" . }}
 {{- end }}
 
-{{- /*
-# During the upgrade to Everest v1.7.0 we need to:
-#  - create default pod scheduling policies.
-#  - assign default pod scheduling policies to all existing DB clusters.
- */}}
-{{- if .Release.IsUpgrade }}
-{{- include "everest.createDefaultPsp" . }}
-{{- include "everest.assignDefaultPsp" (dict "namespace" (include "everest.namespace" .)) }}
-{{- end }}
-
 {{- /* #  Cleanup all default pod scheduling policies during uninstall. */}}
 {{- include "everest.pspCleanup" (dict "namespace" (include "everest.namespace" .)) }}
 ---

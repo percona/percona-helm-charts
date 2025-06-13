@@ -42,3 +42,10 @@ CRD_DIR ?= config/crd
 CRD_VERSION ?= main
 crds-gen:
 	docker run --rm registry.k8s.io/kustomize/kustomize:v5.0.0 build $(EVEREST_REPO_URL)/$(CRD_DIR)?ref=$(CRD_VERSION) > crds/everest.yaml
+
+prepare-pr:
+	$(MAKE) deps
+	$(MAKE) docs-gen
+	EVEREST_REPO_URL=$(EVEREST_REPO_URL) \
+	CRD_DIR=$(CRD_DIR) \
+	CRD_VERSION=$(CRD_VERSION) $(MAKE) crds-gen
