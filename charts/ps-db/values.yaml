@@ -462,6 +462,7 @@ pmm:
   imagePullPolicy: Always
   serverHost: monitoring-service
   serverUser: admin
+#  mysqlParams: "--disable-tablestats-limit=2000"
   resources:
     requests:
       memory: 150M
