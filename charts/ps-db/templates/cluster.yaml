@@ -446,7 +446,6 @@ spec:
     imagePullPolicy: {{ $pmm.imagePullPolicy }}
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
-    serverUser: {{ $pmm.serverUser }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
