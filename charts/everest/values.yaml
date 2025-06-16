@@ -160,6 +160,12 @@ operator:
       tls.crt: ""
       ca.crt: ""
 
+dataImporters:
+  # -- Settings for the Percona PostgreSQL Operator data importer.
+  perconaPGOperator:
+    # -- If set, installs the Percona PostgreSQL Operator data importer.
+    enabled: true
+
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"
 upgrade:

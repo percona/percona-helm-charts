@@ -153,6 +153,8 @@ The following table shows the configurable parameters of the Percona Everest cha
 |-----|------|---------|-------------|
 | compatibility.openshift | bool | `false` | Enable OpenShift compatibility. If set, ignores olm.install and olm.namespace settings. |
 | createMonitoringResources | bool | `true` | If set, creates resources for Kubernetes monitoring. |
+| dataImporters.perconaPGOperator | object | `{"enabled":true}` | Settings for the Percona PostgreSQL Operator data importer. |
+| dataImporters.perconaPGOperator.enabled | bool | `true` | If set, installs the Percona PostgreSQL Operator data importer. |
 | dbNamespace.enabled | bool | `true` | If set, deploy the database operators in `everest` namespace. The namespace may be overridden by setting `dbNamespace.namespaceOverride`. |
 | dbNamespace.namespaceOverride | string | `"everest"` | If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace. |
 | ingress.annotations | object | `{}` | Additional annotations for the ingress resource. |
