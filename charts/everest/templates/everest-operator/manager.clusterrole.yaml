@@ -202,7 +202,6 @@ rules:
   - clusterrolebindings
   - rolebindings
   verbs:
-  - bind
   - create
   - delete
   - get
@@ -219,6 +218,7 @@ rules:
   - create
   - delete
   - escalate
+  - bind
   - get
   - list
   - patch
