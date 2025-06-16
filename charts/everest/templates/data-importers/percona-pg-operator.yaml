@@ -1,4 +1,4 @@
-{{- if .Values.dataImporters.perconaPGOperator.enabled }} }}
+{{- if .Values.dataImporters.perconaPGOperator.enabled }}
 apiVersion: everest.percona.com/v1alpha1
 kind: DataImporter
 metadata:
@@ -10,7 +10,7 @@ spec:
   supportedEngines:
   - postgresql
   jobSpec:
-    image: {{ .Values.operator.image }}
+    image: {{ .Values.dataImporters.perconaPGOperator.image | default .Values.operator.image | quote }}
     command: ["/data-importer", "pg"]
   permissions:
   - apiGroups:
