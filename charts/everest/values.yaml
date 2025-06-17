@@ -165,6 +165,9 @@ dataImporters:
   perconaPGOperator:
     # -- If set, installs the Percona PostgreSQL Operator data importer.
     enabled: true
+    # -- Image to use for the Percona PostgreSQL Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
 
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"

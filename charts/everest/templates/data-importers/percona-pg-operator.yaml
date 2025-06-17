@@ -2,7 +2,7 @@
 apiVersion: everest.percona.com/v1alpha1
 kind: DataImporter
 metadata:
-  name: everest-percona-pg-operator-data-importer
+  name: everest-percona-pg-operator
 spec:
   displayName: "Percona PG Operator Data Importer"
   description: |
