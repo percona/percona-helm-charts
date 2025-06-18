@@ -5,7 +5,8 @@ compatibility:
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
 # -- If set, enabled sending telemetry information.
-telemetry: true
+# In production release, this value is `true` by default.
+telemetry: false
 server:
   # -- Image to use for the server container.
   image: perconalab/everest
@@ -19,9 +20,12 @@ server:
       memory: 20Mi
   # -- Service configuration for the server.
   service:
+    # -- Name of the service for everest
+    name: everest
     # -- Type of service to create.
     type: ClusterIP
     # -- Port to expose on the service.
+    # If `tls.enabled=true`, then the service is exposed on port 443.
     port: 8080
   # -- Key for signing JWT tokens. This needs to be an RSA private key.
   # This is created during installation only.
@@ -53,6 +57,71 @@ server:
   # If unset, a random password is generated.
   # It is strongly recommended to reset the admin password after installation.
   initialAdminPassword: ""
+
+  # TLS settings for the Everest server.
+  tls:
+    # -- If set, enables TLS for the Everest server.
+    # Setting tls.enabled=true creates a Secret containing the TLS certificates.
+    # Along with certificate.create, it creates a Certificate resource instead.
+    enabled: false
+
+    secret:
+      # -- Name of the Secret containing the TLS certificates.
+      # This Secret is created if tls.enabled=true and certificate.create=false.
+      name: everest-server-tls
+      # -- Use the specified tls.crt and tls.key in the Secret.
+      # If unspecified, the server creates a self-signed certificate (not recommended for production).
+      certs:
+        tls.key: ""
+        tls.crt: ""
+    
+    certificate:
+      # -- Create a Certificate resource (requires cert-manager to be installed)
+      # If set, creates a Certificate resource instead of a Secret.
+      # The Certificate uses the Secret name provided by `tls.secret.name`
+      # The Everest server pod will come up only after cert-manager has reconciled the Certificate resource.
+      create: false
+      # -- Certificate primary domain (commonName)
+      domain: ""
+      # -- Certificate Subject Alternate Names (SANs)
+      additionalHosts: []
+      # -- The requested 'duration' (i.e. lifetime) of the certificate.
+      # @default -- `""` (defaults to 2160h = 90d if not specified)
+      ## Ref: https://cert-manager.io/docs/usage/certificate/#renewal
+      duration: ""
+      # -- How long before the expiry a certificate should be renewed.
+      # @default -- `""` (defaults to 360h = 15d if not specified)
+      ## Ref: https://cert-manager.io/docs/usage/certificate/#renewal
+      renewBefore: ""
+      # Certificate issuer
+      ## Ref: https://cert-manager.io/docs/concepts/issuer
+      issuer:
+        # -- Certificate issuer group. Set if using an external issuer. Eg. `cert-manager.io`
+        group: ""
+        # -- Certificate issuer kind. Either `Issuer` or `ClusterIssuer`
+        kind: ""
+        # -- Certificate issuer name. Eg. `letsencrypt`
+        name: ""
+      # Private key of the certificate
+      privateKey:
+        # -- Rotation policy of private key when certificate is re-issued. Either: `Never` or `Always`
+        rotationPolicy: Never
+        # -- The private key cryptography standards (PKCS) encoding for private key. Either: `PCKS1` or `PKCS8`
+        encoding: PKCS1
+        # -- Algorithm used to generate certificate private key. One of: `RSA`, `Ed25519` or `ECDSA`
+        algorithm: RSA
+        # -- Key bit size of the private key. If algorithm is set to `Ed25519`, size is ignored.
+        size: 2048
+      # -- Usages for the certificate
+      ### Ref: https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.KeyUsage
+      usages: []
+      # -- Template for the Secret created by the Certificate resource.
+      secretTemplate:
+        # -- Annotations to add to the Secret created by the Certificate resource.
+        annotations: {}
+        # -- Labels to add to the Secret created by the Certificate resource.
+        labels: {}
+
   # -- Additional environment variables to pass to the server deployment.
   env: []
   # - name: key1
@@ -97,7 +166,7 @@ olm:
   # -- Image to use for Everest CatalogSource.
   catalogSourceImage: perconalab/everest-catalog
   # -- Image to use for the OLM components.
-  image: quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6
+  image: percona/olm@sha256:13e8f4e919e753faa7da35a9064822381098bcd44acc284877bf0964ceecbfd5
   packageserver:
     tls:
       # -- Type of TLS certificates. Supported values are "helm" and "cert-manager".
@@ -145,6 +214,27 @@ kube-state-metrics:
 # -- If set, creates resources for Kubernetes monitoring.
 createMonitoringResources: true
 
+
+ingress:
+  # -- Enable ingress for Everest server
+  enabled: false
+  # -- Ingress class name. This is used to specify which ingress controller should handle this ingress.
+  ingressClassName: ""
+  # -- Additional annotations for the ingress resource.
+  annotations: {}
+  # -- List of hosts and their paths for the ingress resource.
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  # -- TLS configuration for the ingress resource.
+  # -- Each entry in the list specifies a TLS certificate and the hosts it applies to.
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
 # Do not change the following values unless you know what you are doing.
 # @ignore
 monitoring:
@@ -158,3 +248,9 @@ monitoring:
     enabled: false
   certManager:
     enabled: false
+
+# -- PMM settings.
+pmm:
+  # -- If set, deploys PMM in the release namespace.
+  enabled: false
+  nameOverride: pmm

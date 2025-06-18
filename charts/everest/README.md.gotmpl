@@ -115,6 +115,15 @@ VERSION=<Next version> # e.g. v1.3.0
 kubectl apply -k https://github.com/percona/everest-operator/config/crd?ref=$(VERSION) --server-side
 ```
 
+> **Note:** You may encounter an error due to conflicting field ownership — for example:
+>
+> ```
+> error: Apply failed with 1 conflict: conflict with "helm" using apiextensions.k8s.io/v1: .spec.versions
+> ```
+>
+> In such cases, you can add the `--force-conflicts` flag to override the conflicts.
+> This is generally safe when applying CRDs from a trusted source, as it ensures your CRDs are updated to the correct version, even if Helm manages some of the fields.
+
 #### 6.2 Upgrade Helm Releases
 
 Upgrade the Helm release for Everest (core components):
@@ -145,3 +154,17 @@ The following table shows the configurable parameters of the Percona Everest cha
 {{- range .Values }}
 | {{ .Key }} | {{ .Type }} | {{ .Default }} | {{ .AutoDescription }} |
 {{- end }}
+
+## Notice for developers
+In case you made any changes in `percona-helm-charts/charts/everest/charts/common` or `percona-helm-charts/charts/everest/charts/everest-db-namespace` directories,
+please make sure you perform the following actions before creating PR:
+- bump chart version in `percona-helm-charts/charts/everest/charts/common/Chart.yaml` or `percona-helm-charts/charts/everest/charts/everest-db-namespace/Chart.yaml` accordingly in `version` parameter.
+- in `percona-helm-charts/charts/everest` directory run:
+    ```bash
+    make prepare-pr
+    ```
+
+In case you need to update the Everest Custom Resource Definitions (CRDs) after the changes in `github.com/percona/everest-operator` repository, please run the following command:
+```bash
+CRD_VERSION=<branch name in percona/everest-operator repo> make prepare-pr
+```

@@ -1,3 +1,16 @@
 {{- if .Values.upgrade.preflightChecks }}
 {{- include "everest.preUpgradeChecks" (dict "namespace" (include "everest.namespace" .) "version" .Chart.Version "versionMetadataURL" (include "everest.versionMetadataURL" .)) }}
 {{- end }}
+---
+{{- /*
+# --- Pod Scheduling Policies
+# During the installation of Everest v1.7.0 we need to create default pod scheduling policies.
+*/}}
+
+{{- if  .Release.IsInstall }}
+{{- include "everest.createDefaultPsp" . }}
+{{- end }}
+
+{{- /* #  Cleanup all default pod scheduling policies during uninstall. */}}
+{{- include "everest.pspCleanup" (dict "namespace" (include "everest.namespace" .)) }}
+---
