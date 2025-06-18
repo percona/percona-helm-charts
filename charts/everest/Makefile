@@ -4,6 +4,7 @@ HELM ?= helm
 IMAGE_PREFIX ?= percona
 TELEMETRY ?= true
 
+.PHONY: prepare-chart
 prepare-chart:
 	CHART_FILES="Chart.yaml ./charts/everest-db-namespace/Chart.yaml ./charts/everest-crds/Chart.yaml"; \
 	for chart in $$CHART_FILES; do \
@@ -18,10 +19,12 @@ prepare-chart:
 	$(MAKE) deps
 	
 
+.PHONY: release
 release: prepare-chart
 release:
 	$(MAKE) release -C charts/everest-crds
 
+.PHONY: release-dev
 release-dev: VERSION=0.0.0
 release-dev: IMAGE_PREFIX=perconalab
 release-dev: TELEMETRY=false
@@ -29,6 +32,7 @@ release-dev: prepare-chart
 release-dev:
 	$(MAKE) release-dev -C charts/everest-crds
 
+.PHONY: add-repos
 add-repos:
 	$(HELM) version
 	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -36,10 +40,12 @@ add-repos:
 	$(HELM) repo add percona https://percona.github.io/percona-helm-charts/
 	$(HELM) repo add percona-olm https://percona.github.io/operator-lifecycle-manager/
 
+.PHONY: deps
 deps: add-repos
 	$(HELM) dependency update .
 	$(HELM) dependency update ./charts/everest-db-namespace
 
+.PHONY: docs-gen
 docs-gen:
 	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.14.2
 
@@ -49,3 +55,18 @@ link-crds:
 		ln -sf "../$${crd}" crds/; \
 		echo "Linked $$crd → crds/"; \
 	done
+
+EVEREST_REPO_URL ?= https://github.com/percona/everest-operator
+CRD_DIR ?= config/crd
+CRD_VERSION ?= main
+.PHONY: crds-gen
+crds-gen:
+	docker run --rm registry.k8s.io/kustomize/kustomize:v5.0.0 build $(EVEREST_REPO_URL)/$(CRD_DIR)?ref=$(CRD_VERSION) > crds/everest.yaml
+
+.PHONY: prepare-pr
+prepare-pr:
+	$(MAKE) deps
+	$(MAKE) docs-gen
+	EVEREST_REPO_URL=$(EVEREST_REPO_URL) \
+	CRD_DIR=$(CRD_DIR) \
+	CRD_VERSION=$(CRD_VERSION) $(MAKE) crds-gen

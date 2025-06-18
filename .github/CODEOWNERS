@@ -1,5 +1,5 @@
-* @hors @tplavcic @nmarukovich @ptankov @jvpasinatto @eleo007
-/charts/pmm/ @percona/pmm-review-be  @spron-in
+* @hors @tplavcic @nmarukovich @jvpasinatto @eleo007 @valmiranogueira
+/charts/pmm/ @percona/pmm-review-be
 /charts/everest/ @percona/everest-backend-devs
 .github/everest-pr-checks.yaml @percona/everest-backend-devs
 .github/everest-release.yaml @percona/everest-backend-devs
