@@ -1,7 +1,7 @@
 dependencies:
 - name: common
   repository: file://charts/common
-  version: 0.0.17
+  version: 0.0.18
 - name: everest-db-namespace
   repository: file://charts/everest-db-namespace
   version: 0.0.0
@@ -20,5 +20,5 @@ dependencies:
 - name: operator-lifecycle-manager
   repository: https://percona.github.io/operator-lifecycle-manager
   version: 0.1.0
-digest: sha256:32816886e7d75c04f85db78a1c9eece54c6fe4a9422a00507a38dfccd5b70d31
-generated: "2025-05-20T19:47:36.950775+05:30"
+digest: sha256:64efa0381389ca98e6da9b5d0695e78fdfbc57a165786b4f89d71777d3a0f2de
+generated: "2025-06-18T21:13:48.980206+05:30"
