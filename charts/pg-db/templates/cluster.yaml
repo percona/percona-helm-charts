@@ -208,7 +208,9 @@ spec:
       {{- range $sidecar := $instance.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
-        command: {{ toJson $sidecar.command }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
         {{- with $sidecar.securityContext }}
         securityContext: 
           {{- toYaml . | nindent 10 }}
@@ -324,7 +326,9 @@ spec:
       {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
-        command: {{ toJson $sidecar.command }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
         {{- with $sidecar.securityContext }}
         securityContext: 
           {{- toYaml . | nindent 10 }}
