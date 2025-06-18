@@ -3,6 +3,7 @@ HELM ?= helm
 # values to override
 IMAGE_PREFIX ?= percona
 TELEMETRY ?= true
+VERSION ?= 0.0.0
 
 .PHONY: prepare-chart
 prepare-chart:
@@ -61,7 +62,12 @@ CRD_DIR ?= config/crd
 CRD_VERSION ?= main
 .PHONY: crds-gen
 crds-gen:
-	docker run --rm registry.k8s.io/kustomize/kustomize:v5.0.0 build $(EVEREST_REPO_URL)/$(CRD_DIR)?ref=$(CRD_VERSION) > crds/everest.yaml
+	EVEREST_REPO_URL=$(EVEREST_REPO_URL) \
+	CRD_DIR=$(CRD_DIR) \
+	CRD_VERSION=$(CRD_VERSION) \
+	VERSION=$(VERSION) \
+	CRD_SUBCHART_DIR=$(PWD)/charts/everest-crds \
+	$(MAKE) -C charts/everest-crds crds-gen
 
 .PHONY: prepare-pr
 prepare-pr:
@@ -69,4 +75,4 @@ prepare-pr:
 	$(MAKE) docs-gen
 	EVEREST_REPO_URL=$(EVEREST_REPO_URL) \
 	CRD_DIR=$(CRD_DIR) \
-	CRD_VERSION=$(CRD_VERSION) $(MAKE) crds-gen
+	CRD_VERSION=$(CRD_VERSION) $(MAKE) crds-gen link-crds
