@@ -327,7 +327,7 @@ spec:
         command: {{ toJson $sidecar.command }}
         {{- with $sidecar.securityContext }}
         securityContext: 
-          {{- toYaml . | nindent 12 }}
+          {{- toYaml . | nindent 10 }}
         {{- end }}
       {{- end }}
       {{- end }}
