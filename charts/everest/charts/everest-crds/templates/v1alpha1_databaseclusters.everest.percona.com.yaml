@@ -1,11 +1,11 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  labels:
-    everest.percona.com/crd: "true"
-    everest.percona.com/version: "0.0.0"
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.3
+  labels:
+    everest.percona.com/crd: 'true'
+    everest.percona.com/version: 0.0.0
   name: databaseclusters.everest.percona.com
 spec:
   group: everest.percona.com
@@ -42,19 +42,28 @@ spec:
         description: DatabaseCluster is the Schema for the databaseclusters API.
         properties:
           apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object.
+
+              Servers should convert recognized schemas to the latest internal value,
+              and
+
               may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
+            description: 'Kind is a string value representing the REST resource this
+              object represents.
+
+              Servers may infer this from the endpoint the client submits requests
+              to.
+
               Cannot be updated.
+
               In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -62,26 +71,32 @@ spec:
             description: DatabaseClusterSpec defines the desired state of DatabaseCluster.
             properties:
               allowUnsafeConfiguration:
-                description: |-
-                  AllowUnsafeConfiguration field used to ensure that the user can create configurations unfit for production use.
+                description: 'AllowUnsafeConfiguration field used to ensure that the
+                  user can create configurations unfit for production use.
 
-                  Deprecated: AllowUnsafeConfiguration will not be supported in the future releases.
+
+                  Deprecated: AllowUnsafeConfiguration will not be supported in the
+                  future releases.'
                 type: boolean
               backup:
                 description: Backup is the backup specification
                 properties:
                   enabled:
-                    description: |-
-                      Enabled is a flag to enable backups
-                      Deprecated. Please use db.spec.backup.schedules[].enabled to control each schedule separately and db.spec.backup.pitr.enabled to control PITR.
+                    description: 'Enabled is a flag to enable backups
+
+                      Deprecated. Please use db.spec.backup.schedules[].enabled to
+                      control each schedule separately and db.spec.backup.pitr.enabled
+                      to control PITR.'
                     type: boolean
                   pitr:
                     description: PITR is the configuration of the point in time recovery
                     properties:
                       backupStorageName:
-                        description: |-
-                          BackupStorageName is the name of the BackupStorage where the PITR is enabled
-                          The BackupStorage must be created in the same namespace as the DatabaseCluster.
+                        description: 'BackupStorageName is the name of the BackupStorage
+                          where the PITR is enabled
+
+                          The BackupStorage must be created in the same namespace
+                          as the DatabaseCluster.'
                         type: string
                       enabled:
                         description: Enabled is a flag to enable PITR
@@ -99,10 +114,13 @@ spec:
                       description: BackupSchedule is the backup schedule configuration.
                       properties:
                         backupStorageName:
-                          description: |-
-                            BackupStorageName is the name of the BackupStorage CR that defines the
+                          description: 'BackupStorageName is the name of the BackupStorage
+                            CR that defines the
+
                             storage location.
-                            The BackupStorage must be created in the same namespace as the DatabaseCluster.
+
+                            The BackupStorage must be created in the same namespace
+                            as the DatabaseCluster.'
                           type: string
                         enabled:
                           description: Enabled is a flag to enable the schedule
@@ -134,9 +152,11 @@ spec:
                     description: BackupSource is the backup source to restore from
                     properties:
                       backupStorageName:
-                        description: |-
-                          BackupStorageName is the name of the BackupStorage used for backups.
-                          The BackupStorage must be created in the same namespace as the DatabaseCluster.
+                        description: 'BackupStorageName is the name of the BackupStorage
+                          used for backups.
+
+                          The BackupStorage must be created in the same namespace
+                          as the DatabaseCluster.'
                         type: string
                       path:
                         description: Path is the path to the backup file/directory.
@@ -172,12 +192,17 @@ spec:
                     description: Config is the engine configuration
                     type: string
                   crVersion:
-                    description: |-
-                      CRVersion is the desired version of the CR to use with the
-                      underlying operator.
-                      If unspecified, everest-operator will use the same version as the operator.
+                    description: 'CRVersion is the desired version of the CR to use
+                      with the
 
-                      NOTE: Updating this property post installation may lead to a restart of the cluster.
+                      underlying operator.
+
+                      If unspecified, everest-operator will use the same version as
+                      the operator.
+
+
+                      NOTE: Updating this property post installation may lead to a
+                      restart of the cluster.'
                     type: string
                   replicas:
                     description: Replicas is the number of engine replicas
@@ -185,9 +210,10 @@ spec:
                     minimum: 1
                     type: integer
                   resources:
-                    description: |-
-                      Resources are the resource limits for each engine replica.
-                      If not set, resource limits are not imposed
+                    description: 'Resources are the resource limits for each engine
+                      replica.
+
+                      If not set, resource limits are not imposed'
                     properties:
                       cpu:
                         anyOf:
@@ -243,36 +269,48 @@ spec:
                 description: Monitoring is the monitoring configuration
                 properties:
                   monitoringConfigName:
-                    description: |-
-                      MonitoringConfigName is the name of a monitoringConfig CR.
-                      The MonitoringConfig must be created in the same namespace as the DatabaseCluster.
+                    description: 'MonitoringConfigName is the name of a monitoringConfig
+                      CR.
+
+                      The MonitoringConfig must be created in the same namespace as
+                      the DatabaseCluster.'
                     type: string
                   resources:
                     description: Resources defines resource limitations for the monitoring.
                     properties:
                       claims:
-                        description: |-
-                          Claims lists the names of resources, defined in spec.resourceClaims,
+                        description: 'Claims lists the names of resources, defined
+                          in spec.resourceClaims,
+
                           that are used by this container.
 
+
                           This is an alpha field and requires enabling the
+
                           DynamicResourceAllocation feature gate.
 
-                          This field is immutable. It can only be set for containers.
+
+                          This field is immutable. It can only be set for containers.'
                         items:
                           description: ResourceClaim references one entry in PodSpec.ResourceClaims.
                           properties:
                             name:
-                              description: |-
-                                Name must match the name of one entry in pod.spec.resourceClaims of
-                                the Pod where this field is used. It makes that resource available
-                                inside a container.
+                              description: 'Name must match the name of one entry
+                                in pod.spec.resourceClaims of
+
+                                the Pod where this field is used. It makes that resource
+                                available
+
+                                inside a container.'
                               type: string
                             request:
-                              description: |-
-                                Request is the name chosen for a request in the referenced claim.
-                                If empty, everything from the claim is made available, otherwise
-                                only the result of this request.
+                              description: 'Request is the name chosen for a request
+                                in the referenced claim.
+
+                                If empty, everything from the claim is made available,
+                                otherwise
+
+                                only the result of this request.'
                               type: string
                           required:
                           - name
@@ -288,9 +326,10 @@ spec:
                           - type: string
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
-                        description: |-
-                          Limits describes the maximum amount of compute resources allowed.
-                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        description: 'Limits describes the maximum amount of compute
+                          resources allowed.
+
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                         type: object
                       requests:
                         additionalProperties:
@@ -299,11 +338,16 @@ spec:
                           - type: string
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
-                        description: |-
-                          Requests describes the minimum amount of compute resources required.
-                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
-                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
-                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        description: 'Requests describes the minimum amount of compute
+                          resources required.
+
+                          If Requests is omitted for a container, it defaults to Limits
+                          if that is explicitly specified,
+
+                          otherwise to an implementation-defined value. Requests cannot
+                          exceed Limits.
+
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
                         type: object
                     type: object
                 type: object
@@ -316,11 +360,13 @@ spec:
                   cluster.
                 type: string
               proxy:
-                description: |-
-                  Proxy is the proxy specification. If not set, an appropriate
+                description: 'Proxy is the proxy specification. If not set, an appropriate
+
                   proxy specification will be applied for the given engine. A
+
                   common use case for setting this field is to control the
-                  external access to the database cluster.
+
+                  external access to the database cluster.'
                 properties:
                   config:
                     description: Config is the proxy configuration
@@ -329,9 +375,10 @@ spec:
                     description: Expose is the proxy expose configuration
                     properties:
                       ipSourceRanges:
-                        description: |-
-                          IPSourceRanges is the list of IP source ranges (CIDR notation)
-                          to allow access from. If not set, there is no limitations
+                        description: 'IPSourceRanges is the list of IP source ranges
+                          (CIDR notation)
+
+                          to allow access from. If not set, there is no limitations'
                         items:
                           description: IPSourceRange represents IP addresses in CIDR
                             notation or without a netmask.
@@ -351,9 +398,10 @@ spec:
                     minimum: 1
                     type: integer
                   resources:
-                    description: |-
-                      Resources are the resource limits for each proxy replica.
-                      If not set, resource limits are not imposed
+                    description: 'Resources are the resource limits for each proxy
+                      replica.
+
+                      If not set, resource limits are not imposed'
                     properties:
                       cpu:
                         anyOf:
@@ -423,32 +471,45 @@ spec:
                     state of this API Resource.
                   properties:
                     lastTransitionTime:
-                      description: |-
-                        lastTransitionTime is the last time the condition transitioned from one status to another.
-                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      description: 'lastTransitionTime is the last time the condition
+                        transitioned from one status to another.
+
+                        This should be when the underlying condition changed.  If
+                        that is not known, then using the time when the API field
+                        changed is acceptable.'
                       format: date-time
                       type: string
                     message:
-                      description: |-
-                        message is a human readable message indicating details about the transition.
-                        This may be an empty string.
+                      description: 'message is a human readable message indicating
+                        details about the transition.
+
+                        This may be an empty string.'
                       maxLength: 32768
                       type: string
                     observedGeneration:
-                      description: |-
-                        observedGeneration represents the .metadata.generation that the condition was set based upon.
-                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
-                        with respect to the current state of the instance.
+                      description: 'observedGeneration represents the .metadata.generation
+                        that the condition was set based upon.
+
+                        For instance, if .metadata.generation is currently 12, but
+                        the .status.conditions[x].observedGeneration is 9, the condition
+                        is out of date
+
+                        with respect to the current state of the instance.'
                       format: int64
                       minimum: 0
                       type: integer
                     reason:
-                      description: |-
-                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
-                        Producers of specific condition types may define expected values and meanings for this field,
+                      description: 'reason contains a programmatic identifier indicating
+                        the reason for the condition''s last transition.
+
+                        Producers of specific condition types may define expected
+                        values and meanings for this field,
+
                         and whether the values are considered a guaranteed API.
+
                         The value should be a CamelCase string.
-                        This field may not be empty.
+
+                        This field may not be empty.'
                       maxLength: 1024
                       minLength: 1
                       pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
@@ -456,8 +517,8 @@ spec:
                     status:
                       description: status of the condition, one of True, False, Unknown.
                       enum:
-                      - "True"
-                      - "False"
+                      - 'True'
+                      - 'False'
                       - Unknown
                       type: string
                     type:
@@ -501,10 +562,13 @@ spec:
                 format: int32
                 type: integer
               recommendedCRVersion:
-                description: |-
-                  RecommendedCRVersion is the recommended version of the CR to use.
-                  If set, the CR needs to be updated to this version before upgrading the operator.
-                  If unset, the CR is already at the recommended version.
+                description: 'RecommendedCRVersion is the recommended version of the
+                  CR to use.
+
+                  If set, the CR needs to be updated to this version before upgrading
+                  the operator.
+
+                  If unset, the CR is already at the recommended version.'
                 type: string
               size:
                 description: Size is the total number of pods

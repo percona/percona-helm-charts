@@ -1,11 +1,11 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  labels:
-    everest.percona.com/crd: "true"
-    everest.percona.com/version: "0.0.0"
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.3
+  labels:
+    everest.percona.com/crd: 'true'
+    everest.percona.com/version: 0.0.0
   name: backupstorages.everest.percona.com
 spec:
   group: everest.percona.com
@@ -22,19 +22,28 @@ spec:
         description: BackupStorage is the Schema for the backupstorages API.
         properties:
           apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object.
+
+              Servers should convert recognized schemas to the latest internal value,
+              and
+
               may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
+            description: 'Kind is a string value representing the REST resource this
+              object represents.
+
+              Servers may infer this from the endpoint the client submits requests
+              to.
+
               Cannot be updated.
+
               In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -42,10 +51,12 @@ spec:
             description: BackupStorageSpec defines the desired state of BackupStorage.
             properties:
               allowedNamespaces:
-                description: |-
-                  AllowedNamespaces is the list of namespaces where the operator will copy secrets provided in the CredentialsSecretsName.
+                description: 'AllowedNamespaces is the list of namespaces where the
+                  operator will copy secrets provided in the CredentialsSecretsName.
 
-                  Deprecated: BackupStorages are now used only in the namespaces where they are created.
+
+                  Deprecated: BackupStorages are now used only in the namespaces where
+                  they are created.'
                 items:
                   type: string
                 type: array
@@ -64,9 +75,9 @@ spec:
                 type: string
               forcePathStyle:
                 default: false
-                description: |-
-                  ForcePathStyle is set to use path-style URLs.
-                  If unspecified, the default value is false.
+                description: 'ForcePathStyle is set to use path-style URLs.
+
+                  If unspecified, the default value is false.'
                 type: boolean
               region:
                 description: Region is a region where the bucket is located.
@@ -79,9 +90,9 @@ spec:
                 type: string
               verifyTLS:
                 default: true
-                description: |-
-                  VerifyTLS is set to ensure TLS/SSL verification.
-                  If unspecified, the default value is true.
+                description: 'VerifyTLS is set to ensure TLS/SSL verification.
+
+                  If unspecified, the default value is true.'
                 type: boolean
             required:
             - bucket
@@ -89,16 +100,26 @@ spec:
             - type
             type: object
           status:
+            default:
+              inUse: false
             description: BackupStorageStatus defines the observed state of BackupStorage.
             properties:
+              inUse:
+                default: false
+                description: InUse is a flag that indicates if any DB cluster uses
+                  the backup storage.
+                type: boolean
+              lastObservedGeneration:
+                description: LastObservedGeneration is the most recent generation
+                  observed for this BackupStorage.
+                format: int64
+                type: integer
               usedNamespaces:
                 additionalProperties:
                   type: boolean
                 description: 'Deprecated: BackupStorages are now used only in the
                   namespaces where they are created.'
                 type: object
-            required:
-            - usedNamespaces
             type: object
         type: object
     served: true
