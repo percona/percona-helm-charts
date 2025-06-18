@@ -196,7 +196,6 @@ The chart can be customized using the following configurable parameters:
 | `pmm.image.tag`          | PMM Container image tag                 | `2.44.0`                            |
 | `pmm.imagePullPolicy`    | The policy used to update images        | ``                                  |
 | `pmm.serverHost`         | PMM server related K8S service hostname | `monitoring-service`                |
-| `pmm.serverUser`         | PMM server user                         | `admin`                             |
 | `pmm.resources.requests` | PMM Container resource requests         | `{"memory": "150M", "cpu": "300m"}` |
 | `pmm.resources.limits`   | PMM Container resource limits           | `{}`                                |
 ||
