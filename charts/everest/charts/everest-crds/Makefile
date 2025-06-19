@@ -1,3 +1,4 @@
+VERSION ?= 0.0.0
 release:
 	@if [ -z "$(VERSION)" ]; then \
 		echo "Error: VERSION is not set."; \
@@ -6,9 +7,6 @@ release:
 	@for crd in templates/*.yaml; do \
 		yq eval '.metadata.labels["everest.percona.com/version"] = "$(VERSION)"' $$crd -i; \
 	done
-
-release-dev:
-	@$(MAKE) release VERSION=0.0.0
 
 EVEREST_REPO_URL ?= https://github.com/percona/everest-operator
 CRD_DIR ?= config/crd
