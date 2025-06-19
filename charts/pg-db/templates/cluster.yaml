@@ -379,6 +379,9 @@ spec:
     postgresParams: {{ .Values.pmm.postgresParams}}
 
   backups:
+{{ if (hasKey .Values.backups "enabled") }}
+    enabled: {{ .Values.backups.enabled }}
+{{- end }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
       image: {{ .Values.backups.pgbackrest.image }}
