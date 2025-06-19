@@ -27,14 +27,14 @@ release-crds:
 
 
 .PHONY: release
-release: prepare-chart
 release: release-crds
+release: prepare-chart
 
 .PHONY: release-dev
 release-dev: IMAGE_PREFIX=perconalab
 release-dev: TELEMETRY=false
-release-dev: prepare-chart
 release-dev: release-crds
+release-dev: prepare-chart
 
 .PHONY: add-repos
 add-repos:
