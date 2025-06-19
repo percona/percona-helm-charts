@@ -40,7 +40,7 @@ dependencies:
   - name: everest-crds
     repository: "file://charts/everest-crds"
     condition: "everest-crds.enabled"
-    version: ">= 0.0.0"
+    version: "0.0.0"
   - name: operator-lifecycle-manager
     alias: olm
     repository: "https://percona.github.io/operator-lifecycle-manager"
