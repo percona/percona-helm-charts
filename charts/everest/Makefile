@@ -54,6 +54,7 @@ deps: add-repos
 docs-gen:
 	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.14.2
 
+.PHONY: link-crds
 link-crds:
 	@mkdir -p crds
 	@for crd in charts/everest-crds/templates/*.yaml; do \

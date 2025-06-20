@@ -1,4 +1,5 @@
 VERSION ?= 0.0.0
+.PHONY: release
 release:
 	@if [ -z "$(VERSION)" ]; then \
 		echo "Error: VERSION is not set."; \
@@ -11,7 +12,6 @@ release:
 EVEREST_REPO_URL ?= https://github.com/percona/everest-operator
 CRD_DIR ?= config/crd
 CRD_VERSION ?= main
-VERSION ?= 0.0.0
 CRD_SUBCHART_DIR ?= $(PWD)
 .PHONY: crds-gen
 crds-gen:
