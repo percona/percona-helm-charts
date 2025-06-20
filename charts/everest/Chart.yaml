@@ -1,8 +1,8 @@
 apiVersion: v2
 name: everest
 description: A cloud-native database platform
-version: 0.0.0
-appVersion: 0.0.0
+version: "0.0.0"
+appVersion: "0.0.0"
 type: application
 kubeVersion: '>= 1.27.0-0'
 maintainers:
@@ -21,7 +21,7 @@ dependencies:
     # The default behaviour of Helm is to always include the sub-chart manfiests unless explicitly disabled.
   - name: everest-db-namespace
     alias: dbNamespace
-    version: 0.0.0
+    version: "0.0.0"
     repository: "file://charts/everest-db-namespace"
     condition: "dbNamespace.enabled"
   - name: kube-state-metrics
@@ -37,3 +37,12 @@ dependencies:
     repository: "https://percona.github.io/percona-helm-charts"
     condition: "pmm.enabled"
     version: 1.3.*
+  - name: everest-crds
+    repository: "file://charts/everest-crds"
+    condition: "everest-crds.enabled"
+    version: "0.0.0"
+  - name: operator-lifecycle-manager
+    alias: olm
+    repository: "https://percona.github.io/operator-lifecycle-manager"
+    condition: "olm.install"
+    version: "0.1.*"

@@ -30,11 +30,6 @@ jobs:
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
-      - name: Update CRDs
-        run: |
-          cd charts/everest
-          CRD_VERSION=v${{ env.VERSION }} make crds-gen
-
       - name: Prepare RC
         if: ${{ env.IS_RC == '1' }}
         run: |
