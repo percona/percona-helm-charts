@@ -37,7 +37,7 @@ spec:
     {{- end }}
       terminationGracePeriodSeconds: 600
       containers:
-        - name: percona-postgresql-operator
+        - name: operator
           image: {{ include "postgres-operator.image" . }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           ports:
