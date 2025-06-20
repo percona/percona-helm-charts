@@ -1,6 +1,6 @@
 # This template checks if all Everest CRDs are up-to-date during a Helm upgrade.
 # - It looks for CRDs with the label "everest.percona.com/crd".
-# - If no such CRDs are found, it fails the upgrade with an error message. Typically this may only ever haappen once, that is, when the chart is upgraded to the
+# - If no such CRDs are found, it fails the upgrade with an error message. Typically this may only ever happen once, that is, when the chart is upgraded to the
 #   first version that includes these new labels on the CRDS.
 # - If the CRDs are found but their version (label "everest.percona.com/version") does not match the current chart version, it also fails the upgrade.
 # This ensures that CRDs are upgraded before the Helm release is upgraded.
