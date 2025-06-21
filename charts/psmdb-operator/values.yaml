@@ -99,8 +99,3 @@ affinity: {}
 
 logStructured: false
 logLevel: "INFO"
-
-serviceAccount:
-  create: false
-  name: ""
-  annotations: {}
