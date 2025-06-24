@@ -154,10 +154,9 @@ operator:
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"
 upgrade:
-  # -- If set, run preliminary checks before upgrading.
-  # It is strongly recommended to enable this setting.
+  # -- Ensures that preflight checks are run before the upgrade (default: true). Set to false to disable.
   preflightChecks: true
-  # -- If set, ensures that CRDs are upgraded first.
+  # -- Ensures that CRDs are upgraded first (default: true). Set to false to disable.
   crdChecks: true
 olm:
   # -- If set, installs OLM in the provided namespace.
