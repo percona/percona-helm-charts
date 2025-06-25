@@ -10,7 +10,7 @@ spec:
   supportedEngines:
   - psmdb
   jobSpec:
-    image: {{ .Values.dataImporters.perconaPSMDBOperator.image | default .Values.operator.image | quote }}
+    image: {{ .Values.dataImporters.perconaPSMDBOperator.image | default (printf "%s:%s" .Values.operator.image .Chart.Version) | quote }}
     command: ["/data-importer", "psmdb"]
   databaseClusterConstraints:
     requiredFields:

@@ -10,7 +10,7 @@ spec:
   supportedEngines:
   - postgresql
   jobSpec:
-    image: {{ .Values.dataImporters.perconaPGOperator.image | default .Values.operator.image | quote }}
+    image: {{ .Values.dataImporters.perconaPGOperator.image | default (printf "%s:%s" .Values.operator.image .Chart.Version) | quote }}
     command: ["/data-importer", "pg"]
   permissions:
   - apiGroups:
