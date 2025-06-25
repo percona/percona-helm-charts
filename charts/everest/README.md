@@ -155,6 +155,10 @@ The following table shows the configurable parameters of the Percona Everest cha
 | createMonitoringResources | bool | `true` | If set, creates resources for Kubernetes monitoring. |
 | dataImporters.perconaPGOperator | object | `{"enabled":true}` | Settings for the Percona PostgreSQL Operator data importer. |
 | dataImporters.perconaPGOperator.enabled | bool | `true` | If set, installs the Percona PostgreSQL Operator data importer. |
+| dataImporters.perconaPSMDBOperator | object | `{"enabled":true}` | Settings for the Percona PSMDB Operator data importer. |
+| dataImporters.perconaPSMDBOperator.enabled | bool | `true` | If set, installs the Percona PSMDB Operator data importer. |
+| dataImporters.perconaPXCOperator | object | `{"enabled":true}` | Settings for the Percona PXC Operator data importer. |
+| dataImporters.perconaPXCOperator.enabled | bool | `true` | If set, installs the Percona PXC Operator data importer. |
 | dbNamespace.enabled | bool | `true` | If set, deploy the database operators in `everest` namespace. The namespace may be overridden by setting `dbNamespace.namespaceOverride`. |
 | dbNamespace.namespaceOverride | string | `"everest"` | If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace. |
 | ingress.annotations | object | `{}` | Additional annotations for the ingress resource. |
