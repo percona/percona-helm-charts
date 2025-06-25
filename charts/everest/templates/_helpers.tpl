@@ -130,7 +130,7 @@ tls.crt: {{ index $tlsCerts "tls.crt" | default $cert.Cert | b64enc }}
 
 {{- define "everestOperator.tlsCerts" -}}
 {{- $tlsCerts := .Values.operator.webhook.certs }}
-{{- if (and (hasKey $tlsCerts "tls.key" ) (hasKey $tlsCerts "tls.crt") (hasKey $tlsCerts "ca.crt") )}}
+{{- if (and (get $tlsCerts "tls.key" ) (get $tlsCerts "tls.crt") (get $tlsCerts "ca.crt") )}}
 tls.key: {{ index $tlsCerts "tls.key" }}
 tls.crt: {{ index $tlsCerts "tls.crt" }}
 ca.crt: {{ index $tlsCerts "ca.crt" }}

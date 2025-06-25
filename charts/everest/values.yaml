@@ -156,9 +156,9 @@ operator:
     # The values must be base64 encoded.
     # If unset, uses self-signed certificates.
     certs:
-      # tls.key: ""
-      # tls.crt: ""
-      # ca.crt: ""
+      tls.key: ""
+      tls.crt: ""
+      ca.crt: ""
 
 dataImporters:
   # -- Settings for the Percona PostgreSQL Operator data importer.
