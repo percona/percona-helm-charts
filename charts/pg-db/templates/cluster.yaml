@@ -402,6 +402,9 @@ spec:
         {{- if .Values.backups.pgbackrest.jobs.restartPolicy }}
         restartPolicy: {{ .Values.backups.pgbackrest.jobs.restartPolicy }}
         {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.ttlSecondsAfterFinished }}
+        ttlSecondsAfterFinished: {{ .Values.backups.pgbackrest.jobs.ttlSecondsAfterFinished }}
+        {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.backoffLimit }}
         backoffLimit: {{ .Values.backups.pgbackrest.jobs.backoffLimit }}
         {{- end }}
