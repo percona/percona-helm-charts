@@ -208,6 +208,13 @@ spec:
       {{- range $sidecar := $instance.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
+        {{- with $sidecar.securityContext }}
+        securityContext: 
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- end }}
       {{- end }}
       {{- if $instance.topologySpreadConstraints }}
@@ -319,6 +326,13 @@ spec:
       {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
+        {{- with $sidecar.securityContext }}
+        securityContext: 
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.customTLSSecret }}
@@ -361,6 +375,8 @@ spec:
     serverHost: {{ .Values.pmm.serverHost }}
     secret: {{ include "pg-database.fullname" . }}-pmm-secret
     querySource: {{ .Values.pmm.querySource }}
+    customClusterName: {{ .Values.pmm.customClusterName }}
+    postgresParams: {{ .Values.pmm.postgresParams}}
 
   backups:
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
@@ -445,6 +461,9 @@ spec:
         {{- range .Values.backups.pgbackrest.manual.options }}
         - {{ . }}
         {{- end }}
+{{ if hasKey .Values.backups.pgbackrest.manual "initialDelaySeconds" }}
+        initialDelaySeconds: {{ .Values.backups.pgbackrest.manual.initialDelaySeconds }}
+{{- end}}
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
       - name: {{ $repo.name }}
