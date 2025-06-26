@@ -1,4 +1,32 @@
 {{ $tls := fromYaml (include "everestOperator.tlsCerts" .) }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: everest-operator-validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    caBundle: {{ index $tls "ca.crt" }}
+    service:
+      name: everest-operator-webhook-service
+      namespace: {{ include "everest.namespace" . }}
+      path: /validate-everest-percona-com-v1alpha1-databasecluster
+  failurePolicy: Fail
+  name: vdatabasecluster-v1alpha1.everest.percona.com
+  rules:
+  - apiGroups:
+    - everest.percona.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - databaseclusters
+  sideEffects: None
+---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -46,3 +74,14 @@ webhooks:
     resources:
     - dataimportjobs
   sideEffects: None
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webhook-server-cert
+  namespace: {{ include  "everest.namespace" . }}
+type: kubernetes.io/tls
+data: 
+  {{- range $key, $value := $tls }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
