@@ -17,6 +17,12 @@ spec:
     - .spec.engine.userSecretsName
   permissions:
   - apiGroups:
+    - everest.percona.com
+    resources:
+    - databaseclusters
+    verbs:
+    - get
+  - apiGroups:
     - ""
     resources:
     - secrets
