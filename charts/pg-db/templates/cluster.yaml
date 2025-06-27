@@ -379,6 +379,9 @@ spec:
     postgresParams: {{ .Values.pmm.postgresParams}}
 
   backups:
+    {{- $isBackupsEnabled := (hasKey .Values.backups "enabled") | ternary .Values.backups.enabled true }}
+    enabled: {{ $isBackupsEnabled }}
+    {{- if $isBackupsEnabled }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
       image: {{ .Values.backups.pgbackrest.image }}
@@ -520,6 +523,7 @@ spec:
 {{ .Values.backups.pgbackrest.restore.tolerations | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
+    {{- end }}
 
 {{- if .Values.patroni }}
   patroni:
