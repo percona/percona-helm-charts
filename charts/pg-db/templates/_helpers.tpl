@@ -82,3 +82,20 @@ resources:
   {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+Common initContainer template
+*/}}
+{{- define "pg-database.initContainer" -}}
+{{- if .initContainer }}
+initContainer:
+  {{- if .initContainer.image }}
+  image: {{ .initContainer.image }}
+  {{- end }}
+  {{- template "pg-database.resources" . }}
+  {{- if .initContainer.containerSecurityContext }}
+  containerSecurityContext: 
+{{ .initContainer.containerSecurityContext | toYaml | indent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

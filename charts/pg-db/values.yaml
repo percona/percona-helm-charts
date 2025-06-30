@@ -13,6 +13,32 @@ finalizers:
 #  - percona.com/delete-backups
 
 crVersion: 2.7.0
+#  initContainer:
+#    image: perconalab/percona-postgresql-operator:main
+#    resources:
+#      limits:
+#        cpu: 2.0
+#        memory: 4Gi
+#    containerSecurityContext:
+#      runAsUser: 1001
+#      runAsGroup: 1001
+#      runAsNonRoot: true
+#      privileged: false
+#      allowPrivilegeEscalation: false
+#      readOnlyRootFilesystem: true
+#      capabilities:
+#        add:
+#          - NET_ADMIN
+#          - SYS_TIME
+#        drop:
+#          - ALL
+#      seccompProfile:
+#        type: Localhost
+#        localhostProfile: localhost/profile.json
+#      procMount: Default
+#      seLinuxOptions:
+#        type: spc_t
+#        level: s0:c123,c456
 # metadata:
 #   annotations:
 #     example-annotation: value
@@ -158,6 +184,32 @@ customReplicationTLSSecret:
 instances:
 - name: instance1
   replicas: 3
+#  initContainer:
+#    image: perconalab/percona-postgresql-operator:main
+#    resources:
+#      limits:
+#        cpu: 2.0
+#        memory: 4Gi
+#    containerSecurityContext:
+#      runAsUser: 1001
+#      runAsGroup: 1001
+#      runAsNonRoot: true
+#      privileged: false
+#      allowPrivilegeEscalation: false
+#      readOnlyRootFilesystem: true
+#      capabilities:
+#        add:
+#          - NET_ADMIN
+#          - SYS_TIME
+#        drop:
+#          - ALL
+#      seccompProfile:
+#        type: Localhost
+#        localhostProfile: localhost/profile.json
+#      procMount: Default
+#      seLinuxOptions:
+#        type: spc_t
+#        level: s0:c123,c456
 
   affinity:
     podAntiAffinity:
@@ -340,6 +392,32 @@ backups:
   enabled: true
   trackLatestRestorableTime: true
   pgbackrest:
+#    initContainer:
+#      image: perconalab/percona-postgresql-operator:main
+#      resources:
+#        limits:
+#          cpu: 2.0
+#          memory: 4Gi
+#      containerSecurityContext:
+#        runAsUser: 1001
+#        runAsGroup: 1001
+#        runAsNonRoot: true
+#        privileged: false
+#        allowPrivilegeEscalation: false
+#        readOnlyRootFilesystem: true
+#        capabilities:
+#          add:
+#            - NET_ADMIN
+#            - SYS_TIME
+#          drop:
+#            - ALL
+#        seccompProfile:
+#          type: Localhost
+#          localhostProfile: localhost/profile.json
+#        procMount: Default
+#        seLinuxOptions:
+#          type: spc_t
+#          level: s0:c123,c456
 #    metadata:
 #    labels:
     image: percona/percona-postgresql-operator:2.6.0-ppg16.8-pgbackrest2.54.2
