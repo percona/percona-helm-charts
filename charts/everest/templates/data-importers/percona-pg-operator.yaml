@@ -28,15 +28,6 @@ spec:
     - get
     - update
   - apiGroups:
-    - pgv2.percona.com
-    resources:
-    - perconapgrestores
-    verbs:
-    - create
-    - update
-    - get
-    - delete
-  - apiGroups:
     - ""
     resources:
     - secrets
