@@ -86,13 +86,16 @@ jobs:
           helm install everest ./charts/everest \
             --create-namespace \
             --namespace everest-system \
-            --set dbNamespace.enabled=true
+            --set dbNamespace.enabled=true \
+            --set pmm.enabled=true \
+            --debug
 
           # Wait for system components
           kubectl wait --for=condition=available --timeout=60s deployment/everest-server -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/kube-state-metrics -n everest-monitoring
           kubectl wait --for=condition=available --timeout=60s deployment/vm-operator -n everest-monitoring
+          kubectl wait --for=condition=ready pods --timeout=120s -n everest-system -l app.kubernetes.io/name=pmm
 
           # Wait for default DB namespace.
           kubectl wait --for=condition=available --timeout=60s deployment/percona-postgresql-operator -n everest
@@ -106,7 +109,8 @@ jobs:
           helm install everest ./charts/everest/charts/everest-db-namespace \
             --namespace everest-db \
             --create-namespace \
-            --set pxc=false
+            --set pxc=false \
+            --debug
 
           # Wait for new DB namespace.
           kubectl wait --for=condition=available --timeout=60s deployment/percona-postgresql-operator -n everest-db
@@ -115,11 +119,11 @@ jobs:
           kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-postgresql-operator --timeout=600s -n everest-db
 
           # Uninstall everest-db namespace
-          helm uninstall everest -n everest-db
+          helm uninstall everest -n everest-db --debug
           kubectl delete ns everest-db
           kubectl wait --for=delete namespace/everest-db --timeout=120s
           # Uninstall everest-system namespace
-          helm uninstall everest -n everest-system
+          helm uninstall everest -n everest-system --debug
           kubectl delete ns everest-system
           kubectl wait --for=delete namespace/everest-system --timeout=120s
 

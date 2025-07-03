@@ -208,6 +208,13 @@ spec:
       {{- range $sidecar := $instance.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
+        {{- with $sidecar.securityContext }}
+        securityContext: 
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- end }}
       {{- end }}
       {{- if $instance.topologySpreadConstraints }}
@@ -319,6 +326,13 @@ spec:
       {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
+        {{- with $sidecar.securityContext }}
+        securityContext: 
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.customTLSSecret }}
@@ -365,6 +379,9 @@ spec:
     postgresParams: {{ .Values.pmm.postgresParams}}
 
   backups:
+    {{- $isBackupsEnabled := (hasKey .Values.backups "enabled") | ternary .Values.backups.enabled true }}
+    enabled: {{ $isBackupsEnabled }}
+    {{- if $isBackupsEnabled }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
       image: {{ .Values.backups.pgbackrest.image }}
@@ -387,6 +404,9 @@ spec:
       jobs:
         {{- if .Values.backups.pgbackrest.jobs.restartPolicy }}
         restartPolicy: {{ .Values.backups.pgbackrest.jobs.restartPolicy }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.ttlSecondsAfterFinished }}
+        ttlSecondsAfterFinished: {{ .Values.backups.pgbackrest.jobs.ttlSecondsAfterFinished }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.backoffLimit }}
         backoffLimit: {{ .Values.backups.pgbackrest.jobs.backoffLimit }}
@@ -503,6 +523,7 @@ spec:
 {{ .Values.backups.pgbackrest.restore.tolerations | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
+    {{- end }}
 
 {{- if .Values.patroni }}
   patroni:

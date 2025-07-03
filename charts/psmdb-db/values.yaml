@@ -20,7 +20,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
-crVersion: 1.19.1
+crVersion: 1.20.1
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -50,13 +50,13 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 7.0.15-9-multi
+  tag: 7.0.18-11
 
 imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.19.1
+#   tag: 1.20.1
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -83,12 +83,13 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.44.0
+    tag: 2.44.1
   serverHost: monitoring-service
-#   mongodParams: ""
-#   mongosParams: ""
-#   resources: {}
-#   containerSecurityContext: {}
+#  customClusterName: ""
+#  mongodParams: ""
+#  mongosParams: ""
+#  resources: {}
+#  containerSecurityContext: {}
 
 replsets:
   rs0:
@@ -228,6 +229,7 @@ replsets:
     expose:
       enabled: false
       type: ClusterIP
+      # loadBalancerClass: ""
       # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
@@ -404,6 +406,7 @@ sharding:
     expose:
       enabled: false
       type: ClusterIP
+      # loadBalancerClass: ""
       # loadBalancerIP: 10.0.0.0
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
@@ -499,6 +502,7 @@ sharding:
     expose:
       enabled: false
       type: ClusterIP
+      # loadBalancerClass: ""
       # loadBalancerIP: 10.0.0.0/8
       # loadBalancerSourceRanges:
       #   - 10.0.0.0/8
@@ -577,7 +581,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.8.0-multi
+    tag: 2.9.1
   # annotations:
   #   iam.amazonaws.com/role: role-arn
   # podSecurityContext: {}
@@ -591,6 +595,7 @@ backup:
   #     memory: "1G"
   storages:
     # s3-us-west:
+    #   main: true
     #   type: s3
     #   s3:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE

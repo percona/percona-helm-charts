@@ -25,7 +25,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
+      {{- if or ( .Values.serviceAccount.create) (include "pmm.serviceAccountName" .) }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
       securityContext:

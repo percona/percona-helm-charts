@@ -188,6 +188,8 @@ instances:
 #  sidecars:
 #  - name: testcontainer
 #    image: mycontainer1:latest
+#    command: ["sleep", "30d"]
+#    securityContext: {}
 #  - name: testcontainer2
 #    image: mycontainer1:latest
 #
@@ -324,6 +326,8 @@ proxy:
 #      sidecars:
 #      - name: bouncertestcontainer1
 #        image: mycontainer1:latest
+#        command: ["sleep", "30d"]
+#        securityContext: {}
 #
 #      customTLSSecret:
 #        name: keycloakdb-pgbouncer.tls
@@ -333,6 +337,7 @@ proxy:
 #          pool_mode: transaction
 
 backups:
+  enabled: true
   trackLatestRestorableTime: true
   pgbackrest:
 #    metadata:
@@ -357,6 +362,7 @@ backups:
 #      restartPolicy: OnFailure
 #      backoffLimit: 2
 #      priorityClassName: high-priority
+#      ttlSecondsAfterFinished: 60
 #      resources:
 #        limits:
 #          cpu: 200m
