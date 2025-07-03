@@ -86,16 +86,26 @@ spec:
             - type
             type: object
           status:
+            default:
+              inUse: false
             description: BackupStorageStatus defines the observed state of BackupStorage.
             properties:
+              inUse:
+                default: false
+                description: InUse is a flag that indicates if any DB cluster uses
+                  the backup storage.
+                type: boolean
+              lastObservedGeneration:
+                description: LastObservedGeneration is the most recent generation
+                  observed for this BackupStorage.
+                format: int64
+                type: integer
               usedNamespaces:
                 additionalProperties:
                   type: boolean
                 description: 'Deprecated: BackupStorages are now used only in the
                   namespaces where they are created.'
                 type: object
-            required:
-            - usedNamespaces
             type: object
         type: object
     served: true
@@ -1127,6 +1137,10 @@ spec:
       jsonPath: .spec.type
       name: Type
       type: string
+    - description: Indicates if any DB cluster uses the monitoring config
+      jsonPath: .status.inUse
+      name: InUse
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -1192,7 +1206,20 @@ spec:
             - type
             type: object
           status:
+            default:
+              inUse: false
             description: MonitoringConfigStatus defines the observed state of MonitoringConfig.
+            properties:
+              inUse:
+                default: false
+                description: InUse is a flag that indicates if any DB cluster uses
+                  the monitoring config.
+                type: boolean
+              lastObservedGeneration:
+                description: LastObservedGeneration is the most recent generation
+                  observed for this MonitoringConfig.
+                format: int64
+                type: integer
             type: object
         type: object
     served: true
