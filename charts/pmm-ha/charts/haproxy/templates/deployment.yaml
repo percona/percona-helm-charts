@@ -1,0 +1,189 @@
+{{/*
+Copyright 2020 HAProxy Technologies LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+
+{{- if eq .Values.kind "Deployment" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "haproxy.fullname" . }}
+  namespace: {{ include "haproxy.namespace" . }}
+  labels:
+    {{- include "haproxy.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.deploymentAnnotations }}
+{{ tpl (toYaml .Values.deploymentAnnotations) . | indent 4 }}
+    {{- end }}
+spec:
+  minReadySeconds: {{ .Values.minReadySeconds }}
+  {{- if and (not .Values.autoscaling.enabled) (not .Values.keda.enabled) }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "haproxy.selectorLabels" . | nindent 6 }}
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "haproxy.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+{{ toYaml .Values.podLabels | indent 8 }}
+        {{- end }}
+      annotations:
+      {{- if .Values.checksumConfigMap.enabled }}
+        checksum/environment: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      {{- end }}
+      {{- if .Values.podAnnotations }}
+{{ tpl (toYaml .Values.podAnnotations) . | indent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.shareProcessNamespace.enabled }}
+      shareProcessNamespace: true
+      {{- end }}
+      serviceAccountName: {{ include "haproxy.serviceAccountName" . }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+{{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- if .Values.dnsConfig }}
+      dnsConfig:
+{{ toYaml .Values.dnsConfig | indent 8 }}
+{{- end }}
+      dnsPolicy: {{ .Values.dnsPolicy }}
+{{- if .Values.imageCredentials.registry }}
+      imagePullSecrets:
+      - name: {{ include "haproxy.fullname" . }}
+{{- else if .Values.existingImagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.existingImagePullSecret }}
+{{- end }}
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
+      volumes:
+        - name: haproxy-config
+          configMap:
+            name: {{ include "haproxy.fullname" . }}
+        {{- if .Values.includes }}
+        - name: includes
+          projected:
+            sources:
+            - configMap:
+                name: {{ include "haproxy.includes" . }}
+        {{- end }}
+        {{- range $mountedSecret := .Values.mountedSecrets }}
+        - name: {{ $mountedSecret.volumeName }}
+          secret:
+            secretName: {{ $mountedSecret.secretName }}
+        {{- end }}
+        {{- with.Values.extraVolumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        {{- with.Values.sidecarContainers }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        - name: {{ .Chart.Name }}
+          {{- if .Values.securityContext.enabled }}
+          securityContext: {{- omit .Values.securityContext "enabled" | toYaml  | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.args.enabled }}
+          args:
+          {{- range .Values.args.defaults }}
+            - {{ . }}
+          {{- end }}
+          {{- range .Values.args.extraArgs }}
+            - {{ . }}
+          {{- end }}
+          {{- end }}
+          ports:
+          {{- range $key, $value := .Values.containerPorts }}
+            - name: {{ $key }}
+              containerPort: {{ $value }}
+              protocol: TCP
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | trim | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | trim | nindent 12 }}
+          {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | trim | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraEnvs }}
+          env:
+            {{- toYaml . | trim | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | trim | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.lifecycle }}
+          lifecycle:
+            {{- if eq "string" (printf "%T" .Values.lifecycle) }}
+{{ tpl .Values.lifecycle . | indent 12 }}
+            {{- else }}
+{{ toYaml .Values.lifecycle | indent 12 }}
+            {{- end }}
+          {{- end }}
+          volumeMounts:
+            - name: haproxy-config
+              mountPath: {{ .Values.configMount.mountPath }}
+              {{- if .Values.configMount.subPath }}
+              subPath: {{ .Values.configMount.subPath }}
+              {{- end }}
+            {{- if .Values.includes }}
+            - name: includes
+              mountPath: {{ .Values.includesMountPath }}
+            {{- end }}
+            {{- with.Values.extraVolumeMounts }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- range $mountedSecret := .Values.mountedSecrets }}
+            - name: {{ $mountedSecret.volumeName }}
+              mountPath: {{ $mountedSecret.mountPath }}
+            {{- end }}
+      {{- with.Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
