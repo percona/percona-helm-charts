@@ -229,8 +229,8 @@ containerSecurityContext:
 ## @param auth.existingSecretKey Name of the key inside the existing secret
 ##
 auth:
-  username: default
-  password: ""
+  username: "chpmm"
+  password: "chpass"
   existingSecret: ""
   existingSecretKey: ""
 
@@ -395,6 +395,7 @@ extraOverrides: ""
 
 ## @param extraOverridesConfigmap The name of an existing ConfigMap with extra configuration for ClickHouse
 ##
+#extraOverridesConfigmap: clickhouse-access-control
 extraOverridesConfigmap: ""
 
 ## @param extraOverridesSecret The name of an existing ConfigMap with your custom configuration for ClickHouse
@@ -403,7 +404,23 @@ extraOverridesSecret: ""
 
 ## @param usersExtraOverrides Users extra configuration overrides (evaluated as a template) apart from the default
 ##
-usersExtraOverrides: ""
+usersExtraOverrides: |
+  <clickhouse>
+      <users>
+          <chuser>
+              <password>chpass</password>
+              <permissions>
+                  <database>pmm</database>
+                  <table>*</table>
+                  <privileges>ALL</privileges>
+              </permissions>
+          </chuser>
+      </users>
+      <profiles>
+          <default>
+          </default>
+      </profiles>
+  </clickhouse>
 
 ## @param usersExtraOverridesConfigmap The name of an existing ConfigMap with users extra configuration for ClickHouse
 ##
@@ -739,7 +756,7 @@ initdbScripts:
     EOF
     )
     
-    sleep 100 && clickhouse-client --query "$SQL_QUERY1" && clickhouse-client --query "$SQL_QUERY2" && clickhouse-client --query "$SQL_QUERY3" && clickhouse-client --query "$SQL_QUERY4" && clickhouse-client --query "$SQL_QUERY5" && clickhouse-client --query "$SQL_QUERY6" && clickhouse-client --query "$SQL_QUERY7" && clickhouse-client --query "$SQL_QUERY8" &
+    sleep 100 && clickhouse-client -uchuser -pchpass --query "$SQL_QUERY1" && clickhouse-client --query "$SQL_QUERY2" && clickhouse-client --query "$SQL_QUERY3" && clickhouse-client --query "$SQL_QUERY4" && clickhouse-client --query "$SQL_QUERY5" && clickhouse-client --query "$SQL_QUERY6" && clickhouse-client --query "$SQL_QUERY7" && clickhouse-client --query "$SQL_QUERY8" &
 
 ## @param initdbScriptsSecret ConfigMap with the initdb scripts (Note: Overrides `initdbScripts`)
 ##
@@ -854,8 +871,8 @@ lifecycleHooks: {}
 ##     value: "bar"
 ##
 extraEnvVars:
-  - name: ALLOW_EMPTY_PASSWORD
-    value: "yes"
+  - name: CLICKHOUSE_ADMIN_PASSWORD
+    value: "chpass"
 ## @param extraEnvVarsCM Name of existing ConfigMap containing extra env vars for ClickHouse nodes
 ##
 extraEnvVarsCM: ""

@@ -77,3 +77,4 @@ checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sh
 {{ toYaml .Values.podAnnotations }}
 {{- end }}
 {{- end }}
+

@@ -259,17 +259,17 @@ config: |
         option httpchk
         http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
         http-check expect status 200
-        server pmm-server-active-http pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local:8080 check
-        server pmm-server-passive-http pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local:8080 check backup
-        server pmm-server-passive-2-http pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local:8080 check backup
+        server pmm-server-active-http  {{ .Values.global.pmm_ha_0 }}:8080 check
+        server pmm-server-passive-http {{ .Values.global.pmm_ha_1 }}:8080 check backup
+        server pmm-server-passive-2-http {{ .Values.global.pmm_ha_2 }}:8080 check backup
 
     backend https_back
         option httpchk
         http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
         http-check expect status 200
-        server pmm-server-active-https pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local:8443 check ssl verify none
-        server pmm-server-passive-https pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local:8443 check ssl verify none
-        server pmm-server-passive-2-https pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local:8443 check ssl verify none
+        server pmm-server-active-https {{ .Values.global.pmm_ha_0 }}:8443 check ssl verify none
+        server pmm-server-passive-https {{ .Values.global.pmm_ha_1 }}:8443 check ssl verify none
+        server pmm-server-passive-2-https {{ .Values.global.pmm_ha_2 }}:8443 check ssl verify none
 
 # Mount path and sub path for config file
 configMount:

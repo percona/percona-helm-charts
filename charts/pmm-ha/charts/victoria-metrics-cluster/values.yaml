@@ -602,18 +602,22 @@ vmauth:
   configSecretName: ""
   # -- VMAuth configuration object
   config:
-    unauthorized_user:
-      url_map:
-      - src_paths:
-        - "/api/v1/write"
-        url_prefix: "http://pmmhak8s-victoria-metrics-cluster-vminsert.pmmhak8s.svc.cluster.local:8480/insert/1/prometheus/"
-      - src_paths:
-        - "/api/v1/query"
-        - "/api/v1/query_range"
-        - "/api/v1/series"
-        - "/api/v1/labels"
-        - "/api/v1/label/.+/values"
-        url_prefix: "http://pmmhak8s-victoria-metrics-cluster-vmselect.pmmhak8s.svc.cluster.local:8481/select/1/prometheus/"
+    unauthorized_user: {}
+    users:
+      - username: "vmuser"
+        password: "vmpass"
+        url_map:
+        - src_paths:
+          - "/api/v1/write"
+          url_prefix: "http://pmm-ha-victoria-metrics-cluster-vminsert.pmmha.svc.cluster.local:8480/insert/1/prometheus/"
+        - src_paths:
+          - "/api/v1/query"
+          - "/api/v1/query_range"
+          - "/api/v1/series"
+          - "/api/v1/labels"
+          - "/api/v1/label/.+/values"
+          url_prefix: "http://pmm-ha-victoria-metrics-cluster-vmselect.pmmha.svc.cluster.local:8481/select/1/prometheus/"
+
 
   strategy: {}
    # rollingUpdate:
@@ -656,8 +660,17 @@ vmauth:
   podLabels: {}
 
   # -- Additional environment variables (ex.: secret tokens, flags). Check [here](https://docs.victoriametrics.com/#environment-variables) for details
-  env: []
-
+  env:
+    - name: VMAGENT_remoteWrite_basicAuth_username
+      valueFrom:
+        secretKeyRef:
+          name: pmm-secret
+          key: VMAGENT_remoteWrite_basicAuth_username
+    - name: VMAGENT_remoteWrite_basicAuth_password
+      valueFrom:
+        secretKeyRef:
+          name: pmm-secret
+          key: VMAGENT_remoteWrite_basicAuth_password
   # -- Specify alternative source for env variables
   envFrom: []
     #- configMapRef:
