@@ -372,11 +372,14 @@ spec:
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
+    {{- if .Values.pmm.imagePullPolicy }}
+    imagePullPolicy: {{ .Values.pmm.imagePullPolicy }}
+    {{- end }}
+    secret: {{ .Values.pmm.secret | default (printf "%s-pmm-secret" (include "pg-database.fullname" .)) }}
     serverHost: {{ .Values.pmm.serverHost }}
-    secret: {{ include "pg-database.fullname" . }}-pmm-secret
     querySource: {{ .Values.pmm.querySource }}
     customClusterName: {{ .Values.pmm.customClusterName }}
-    postgresParams: {{ .Values.pmm.postgresParams}}
+    {{- include "pg-database.resources" .Values.pmm | indent 4 }}
 
   backups:
     {{- $isBackupsEnabled := (hasKey .Values.backups "enabled") | ternary .Values.backups.enabled true }}
