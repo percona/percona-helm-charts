@@ -12,4 +12,13 @@
 
     helm install my-db percona/pg-db --namespace={{ .Release.Namespace }}
 
+{{- if .Release.IsUpgrade }}
+
+** WARNING ** During Helm upgrade CRDs are not automatically upgraded.
+
+Please manually apply any new CRDs:
+
+        kubectl apply -f --server-side crds/
+{{- end }}
+
 Read more in our documentation: https://docs.percona.com/percona-operator-for-postgresql/2.0/
