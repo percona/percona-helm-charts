@@ -547,6 +547,10 @@ spec:
       targetInstance: {{ .Values.patroni.switchover.targetInstance }}
       {{- end }}
     {{- end }}
+    {{- if .Values.patroni.createReplicaMethods }}
+    createReplicaMethods:
+{{ .Values.patroni.createReplicaMethods | toYaml | indent 6 }}
+    {{- end }}
 {{- end }}
 
 {{- if .Values.extensions }}
