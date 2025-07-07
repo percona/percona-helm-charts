@@ -92,7 +92,7 @@ initContainer:
   {{- if .initContainer.image }}
   image: {{ .initContainer.image }}
   {{- end }}
-  {{- template "pg-database.resources" . }}
+  {{- include "pg-database.resources" .initContainer | indent 2 }}
   {{- if .initContainer.containerSecurityContext }}
   containerSecurityContext: 
 {{ .initContainer.containerSecurityContext | toYaml | indent 4 }}
