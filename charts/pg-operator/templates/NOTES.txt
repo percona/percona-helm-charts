@@ -18,7 +18,7 @@
 
 Please manually apply any new CRDs:
 
-        kubectl apply -f --server-side crds/
+  kubectl apply --server-side --force-conflicts -f https://raw.githubusercontent.com/percona/percona-postgresql-operator/v{{ .Chart.AppVersion }}/deploy/crd.yaml
 {{- end }}
 
 Read more in our documentation: https://docs.percona.com/percona-operator-for-postgresql/2.0/
