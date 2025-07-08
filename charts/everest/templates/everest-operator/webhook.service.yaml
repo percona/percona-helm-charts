@@ -3,7 +3,7 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: project
+    app.kubernetes.io/name: everest-operator
   name: everest-operator-webhook-service
   namespace: {{ include "everest.namespace" . }}
 spec:
