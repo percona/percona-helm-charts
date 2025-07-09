@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: databaseclusters.everest.percona.com
   labels:
     everest.percona.com/crd: "true"
@@ -142,6 +142,95 @@ spec:
                         - backupStorageName
                         - path
                       type: object
+                    dataImport:
+                      description: DataImport allows importing data from an external backup source.
+                      properties:
+                        config:
+                          description: |-
+                            Config defines the configuration for the data import job.
+                            These options are specific to the DataImporter being used and must conform to
+                            the schema defined in the DataImporter's .spec.config.openAPIV3Schema.
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        dataImporterName:
+                          description: DataImporterName is the data importer to use for the import.
+                          type: string
+                        source:
+                          description: Source is the source of the data to import.
+                          properties:
+                            path:
+                              description: |-
+                                Path is the path to the directory to import the data from.
+                                This may be a path to a file or a directory, depending on the data importer.
+                                Only absolute file paths are allowed. Leading and trailing '/' are optional.
+                              type: string
+                              x-kubernetes-validations:
+                                - message: path must be an absolute file or directory path
+                                  rule: self.matches('^/?([^/]+(/[^/]+)*)/?$')
+                            s3:
+                              description: S3 contains the S3 information for the data import.
+                              properties:
+                                accessKeyId:
+                                  description: |-
+                                    AccessKeyID allows specifying the S3 access key ID inline.
+                                    It is provided as a write-only input field for convenience.
+                                    When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                                    and empties this field.
+                                    This field is not stored in the API.
+                                  type: string
+                                bucket:
+                                  description: Bucket is the name of the S3 bucket.
+                                  type: string
+                                credentialsSecretName:
+                                  description: |-
+                                    CredentialsSecreName is the reference to the secret containing the S3 credentials.
+                                    The Secret must contain the keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+                                  type: string
+                                endpointURL:
+                                  description: EndpointURL is an endpoint URL of backup storage.
+                                  type: string
+                                  x-kubernetes-validations:
+                                    - message: endpointURL must be a valid URL
+                                      rule: isURL(self)
+                                forcePathStyle:
+                                  default: false
+                                  description: |-
+                                    ForcePathStyle is set to use path-style URLs.
+                                    If unspecified, the default value is false.
+                                  type: boolean
+                                region:
+                                  description: Region is the region of the S3 bucket.
+                                  type: string
+                                secretAccessKey:
+                                  description: |-
+                                    SecretAccessKey allows specifying the S3 secret access key inline.
+                                    It is provided as a write-only input field for convenience.
+                                    When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                                    and empties this field.
+                                    This field is not stored in the API.
+                                  type: string
+                                verifyTLS:
+                                  default: true
+                                  description: |-
+                                    VerifyTLS is set to ensure TLS/SSL verification.
+                                    If unspecified, the default value is true.
+                                  type: boolean
+                              required:
+                                - bucket
+                                - credentialsSecretName
+                                - endpointURL
+                                - region
+                              type: object
+                          required:
+                            - path
+                          type: object
+                      required:
+                        - dataImporterName
+                        - source
+                      type: object
+                      x-kubernetes-validations:
+                        - message: .spec.dataSource.dataImport is immutable
+                          rule: self == oldSelf
                     dbClusterBackupName:
                       description: DBClusterBackupName is the name of the DB cluster backup to restore from
                       type: string
@@ -463,6 +552,11 @@ spec:
                   type: array
                 crVersion:
                   description: CRVersion is the observed version of the CR used with the underlying operator.
+                  type: string
+                dataImportJobName:
+                  description: |-
+                    DataImportJobName refers to the DataImportJob that is used to import data into the cluster.
+                    This is set only when .spec.dataSource.dataImport is set.
                   type: string
                 details:
                   description: Details provides full status of the upstream cluster as a plain text.
