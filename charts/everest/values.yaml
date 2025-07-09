@@ -150,6 +150,37 @@ operator:
   #   value: value1
   # - name: key2
   #   value: value2
+  webhook:
+    # -- Certificates to use for the webhook server.
+    # The values must be base64 encoded.
+    # If unset, uses self-signed certificates.
+    certs:
+      tls.key: ""
+      tls.crt: ""
+      ca.crt: ""
+
+dataImporters:
+  # -- Settings for the Percona PostgreSQL Operator data importer.
+  perconaPGOperator:
+    # -- If set, installs the Percona PostgreSQL Operator data importer.
+    enabled: true
+    # -- Image to use for the Percona PostgreSQL Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
+  # -- Settings for the Percona PXC Operator data importer.
+  perconaPXCOperator:
+    # -- If set, installs the Percona PXC Operator data importer.
+    enabled: true
+    # -- Image to use for the Percona PXC Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
+  # -- Settings for the Percona PSMDB Operator data importer.
+  perconaPSMDBOperator:
+    # -- If set, installs the Percona PSMDB Operator data importer.
+    enabled: true
+    # -- Image to use for the Percona PSMDB Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
 
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"

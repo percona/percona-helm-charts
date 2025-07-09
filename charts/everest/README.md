@@ -167,6 +167,12 @@ The following table shows the configurable parameters of the Percona Everest cha
 |-----|------|---------|-------------|
 | compatibility.openshift | bool | `false` | Enable OpenShift compatibility. |
 | createMonitoringResources | bool | `true` | If set, creates resources for Kubernetes monitoring. |
+| dataImporters.perconaPGOperator | object | `{"enabled":true}` | Settings for the Percona PostgreSQL Operator data importer. |
+| dataImporters.perconaPGOperator.enabled | bool | `true` | If set, installs the Percona PostgreSQL Operator data importer. |
+| dataImporters.perconaPSMDBOperator | object | `{"enabled":true}` | Settings for the Percona PSMDB Operator data importer. |
+| dataImporters.perconaPSMDBOperator.enabled | bool | `true` | If set, installs the Percona PSMDB Operator data importer. |
+| dataImporters.perconaPXCOperator | object | `{"enabled":true}` | Settings for the Percona PXC Operator data importer. |
+| dataImporters.perconaPXCOperator.enabled | bool | `true` | If set, installs the Percona PXC Operator data importer. |
 | dbNamespace.enabled | bool | `true` | If set, deploy the database operators in `everest` namespace. The namespace may be overridden by setting `dbNamespace.namespaceOverride`. |
 | dbNamespace.namespaceOverride | string | `"everest"` | If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace. |
 | ingress.annotations | object | `{}` | Additional annotations for the ingress resource. |
@@ -190,6 +196,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
+| operator.webhook.certs | object | `{"ca.crt":"","tls.crt":"","tls.key":""}` | Certificates to use for the webhook server. The values must be base64 encoded. If unset, uses self-signed certificates. |
 | pmm | object | `{"enabled":false,"nameOverride":"pmm"}` | PMM settings. |
 | pmm.enabled | bool | `false` | If set, deploys PMM in the release namespace. |
 | server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |

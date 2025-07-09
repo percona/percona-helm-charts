@@ -102,3 +102,22 @@ admin:
 tls.key: {{ index $tlsCerts "tls.key" | default $cert.Key | b64enc }}
 tls.crt: {{ index $tlsCerts "tls.crt" | default $cert.Cert | b64enc }}
 {{- end }}
+
+{{- define "everestOperator.tlsCerts" -}}
+{{- $tlsCerts := .Values.operator.webhook.certs }}
+{{- if (and (get $tlsCerts "tls.key" ) (get $tlsCerts "tls.crt") (get $tlsCerts "ca.crt") )}}
+tls.key: {{ index $tlsCerts "tls.key" }}
+tls.crt: {{ index $tlsCerts "tls.crt" }}
+ca.crt: {{ index $tlsCerts "ca.crt" }}
+{{- else }}
+{{- $svcName := printf "everest-operator-webhook-service" }}
+{{- $svcNameWithNS := ( printf "%s.%s" $svcName (include "everest.namespace" .) ) }}
+{{- $fullName := ( printf "%s.svc" $svcNameWithNS ) }}
+{{- $altNames := list $svcName $svcNameWithNS $fullName }}
+{{- $ca := genCA $svcName 3650 }}
+{{- $cert := genSignedCert $fullName nil $altNames 3650 $ca }}
+tls.key: {{ $cert.Key | b64enc }}
+tls.crt: {{ $cert.Cert | b64enc }}
+ca.crt: {{ $ca.Cert | b64enc }}
+{{- end }}
+{{- end }}
