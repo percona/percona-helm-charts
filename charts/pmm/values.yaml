@@ -14,7 +14,7 @@ image:
   repository: perconalab/pmm-server-fb
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-3952-4e6a9de"
+  tag: "PR-3952-87d58f2"
   imagePullSecrets: []
 
 ## PMM environment variables
