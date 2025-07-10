@@ -45,9 +45,9 @@ crVersion: 2.7.0
 #   labels:
 #     example-label: value
 repository: percona/percona-postgresql-operator
-image: percona/percona-postgresql-operator:2.6.0-ppg16.8-postgres
+image: percona/percona-postgresql-operator:2.7.0-ppg17.5.2-postgres
 imagePullPolicy: Always
-postgresVersion: 16
+postgresVersion: 17
 # port: 5432
 pause: false
 unmanaged: false
@@ -309,7 +309,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: percona/percona-postgresql-operator:2.6.0-ppg16.8-pgbouncer1.24.0
+    image: percona/percona-pgbouncer:1.24.1
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -420,7 +420,7 @@ backups:
 #          level: s0:c123,c456
 #    metadata:
 #    labels:
-    image: percona/percona-postgresql-operator:2.6.0-ppg16.8-pgbackrest2.54.2
+    image: percona/percona-pgbackrest:2.55.0
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -570,7 +570,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.44.0
+    tag: 3.2.0
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -607,7 +607,7 @@ pmm:
 #   - basebackup
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.6.0
+#   image: percona/percona-postgresql-operator:2.7.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
