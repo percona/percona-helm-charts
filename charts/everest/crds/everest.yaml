@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: backupstorages.everest.percona.com
 spec:
   group: everest.percona.com
@@ -86,16 +86,26 @@ spec:
             - type
             type: object
           status:
+            default:
+              inUse: false
             description: BackupStorageStatus defines the observed state of BackupStorage.
             properties:
+              inUse:
+                default: false
+                description: InUse is a flag that indicates if any DB cluster uses
+                  the backup storage.
+                type: boolean
+              lastObservedGeneration:
+                description: LastObservedGeneration is the most recent generation
+                  observed for this BackupStorage.
+                format: int64
+                type: integer
               usedNamespaces:
                 additionalProperties:
                   type: boolean
                 description: 'Deprecated: BackupStorages are now used only in the
                   namespaces where they are created.'
                 type: object
-            required:
-            - usedNamespaces
             type: object
         type: object
     served: true
@@ -107,7 +117,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: databaseclusterbackups.everest.percona.com
 spec:
   group: everest.percona.com
@@ -220,7 +230,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: databaseclusterrestores.everest.percona.com
 spec:
   group: everest.percona.com
@@ -356,7 +366,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: databaseclusters.everest.percona.com
 spec:
   group: everest.percona.com
@@ -496,6 +506,100 @@ spec:
                     - backupStorageName
                     - path
                     type: object
+                  dataImport:
+                    description: DataImport allows importing data from an external
+                      backup source.
+                    properties:
+                      config:
+                        description: |-
+                          Config defines the configuration for the data import job.
+                          These options are specific to the DataImporter being used and must conform to
+                          the schema defined in the DataImporter's .spec.config.openAPIV3Schema.
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      dataImporterName:
+                        description: DataImporterName is the data importer to use
+                          for the import.
+                        type: string
+                      source:
+                        description: Source is the source of the data to import.
+                        properties:
+                          path:
+                            description: |-
+                              Path is the path to the directory to import the data from.
+                              This may be a path to a file or a directory, depending on the data importer.
+                              Only absolute file paths are allowed. Leading and trailing '/' are optional.
+                            type: string
+                            x-kubernetes-validations:
+                            - message: path must be an absolute file or directory
+                                path
+                              rule: self.matches('^/?([^/]+(/[^/]+)*)/?$')
+                          s3:
+                            description: S3 contains the S3 information for the data
+                              import.
+                            properties:
+                              accessKeyId:
+                                description: |-
+                                  AccessKeyID allows specifying the S3 access key ID inline.
+                                  It is provided as a write-only input field for convenience.
+                                  When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                                  and empties this field.
+                                  This field is not stored in the API.
+                                type: string
+                              bucket:
+                                description: Bucket is the name of the S3 bucket.
+                                type: string
+                              credentialsSecretName:
+                                description: |-
+                                  CredentialsSecreName is the reference to the secret containing the S3 credentials.
+                                  The Secret must contain the keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+                                type: string
+                              endpointURL:
+                                description: EndpointURL is an endpoint URL of backup
+                                  storage.
+                                type: string
+                                x-kubernetes-validations:
+                                - message: endpointURL must be a valid URL
+                                  rule: isURL(self)
+                              forcePathStyle:
+                                default: false
+                                description: |-
+                                  ForcePathStyle is set to use path-style URLs.
+                                  If unspecified, the default value is false.
+                                type: boolean
+                              region:
+                                description: Region is the region of the S3 bucket.
+                                type: string
+                              secretAccessKey:
+                                description: |-
+                                  SecretAccessKey allows specifying the S3 secret access key inline.
+                                  It is provided as a write-only input field for convenience.
+                                  When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                                  and empties this field.
+                                  This field is not stored in the API.
+                                type: string
+                              verifyTLS:
+                                default: true
+                                description: |-
+                                  VerifyTLS is set to ensure TLS/SSL verification.
+                                  If unspecified, the default value is true.
+                                type: boolean
+                            required:
+                            - bucket
+                            - credentialsSecretName
+                            - endpointURL
+                            - region
+                            type: object
+                        required:
+                        - path
+                        type: object
+                    required:
+                    - dataImporterName
+                    - source
+                    type: object
+                    x-kubernetes-validations:
+                    - message: .spec.dataSource.dataImport is immutable
+                      rule: self == oldSelf
                   dbClusterBackupName:
                     description: DBClusterBackupName is the name of the DB cluster
                       backup to restore from
@@ -828,6 +932,11 @@ spec:
                 description: CRVersion is the observed version of the CR used with
                   the underlying operator.
                 type: string
+              dataImportJobName:
+                description: |-
+                  DataImportJobName refers to the DataImportJob that is used to import data into the cluster.
+                  This is set only when .spec.dataSource.dataImport is set.
+                type: string
               details:
                 description: Details provides full status of the upstream cluster
                   as a plain text.
@@ -875,7 +984,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: databaseengines.everest.percona.com
 spec:
   group: everest.percona.com
@@ -927,6 +1036,29 @@ spec:
                 items:
                   type: string
                 type: array
+              secretKeys:
+                description: |-
+                  SecretKeys contains the definition of the various Secrets that
+                  the given DBEngine supports.
+                  This information acts like metadata for the Everest UI to guide the users
+                  in filling out the correct Secret keys for their clusters.
+                properties:
+                  user:
+                    description: User secret keys are used to store the details of
+                      the users.
+                    items:
+                      description: SecretKey defines a single Secret key.
+                      properties:
+                        description:
+                          description: Description is a human-readable description
+                            of the Secret key.
+                          type: string
+                        name:
+                          description: Name is the name of the Secret key.
+                          type: string
+                      type: object
+                    type: array
+                type: object
               type:
                 description: |-
                   EngineType stands for the supported database engines. Right now it's only pxc
@@ -1111,7 +1243,397 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: dataimporters.everest.percona.com
+spec:
+  group: everest.percona.com
+  names:
+    kind: DataImporter
+    listKind: DataImporterList
+    plural: dataimporters
+    singular: dataimporter
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.displayName
+      name: DisplayName
+      type: string
+    - jsonPath: .spec.description
+      name: Description
+      type: string
+    - jsonPath: .spec.supportedEngines
+      name: SupportedEngines
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DataImporter defines a reusable strategy for importing data into
+          a DatabaseCluster.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DataImporterSpec defines the specification of a DataImporter.
+            properties:
+              clusterPermissions:
+                description: |-
+                  ClusterPermissions defines the cluster-wide permissions required by the data importer.
+                  These permissions are used to generate a ClusterRole for the data importer job.
+                items:
+                  description: |-
+                    PolicyRule holds information that describes a policy rule, but does not contain information
+                    about who the rule applies to or which namespace the rule applies to.
+                  properties:
+                    apiGroups:
+                      description: |-
+                        APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                        the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    nonResourceURLs:
+                      description: |-
+                        NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                        Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
+                        Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    resourceNames:
+                      description: ResourceNames is an optional white list of names
+                        that the rule applies to.  An empty set means that everything
+                        is allowed.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    resources:
+                      description: Resources is a list of resources this rule applies
+                        to. '*' represents all resources.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    verbs:
+                      description: Verbs is a list of Verbs that apply to ALL the
+                        ResourceKinds contained in this rule. '*' represents all verbs.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                  required:
+                  - verbs
+                  type: object
+                type: array
+              config:
+                description: Config contains additional configuration defined for
+                  the data importer.
+                properties:
+                  openAPIV3Schema:
+                    description: OpenAPIV3Schema is the OpenAPI v3 schema of the data
+                      importer.
+                    x-kubernetes-preserve-unknown-fields: true
+                type: object
+              databaseClusterConstraints:
+                description: |-
+                  DatabaseClusterConstraints defines compatibility requirements and prerequisites that must be satisfied
+                  by a DatabaseCluster before this data importer can be used with it. This allows the data importer to
+                  express specific requirements about the database configuration needed for successful import operations,
+                  such as required database fields, specific engine configurations, or other database properties.
+                  When a DatabaseCluster references this data importer, the operator will validate the DatabaseCluster
+                  against these constraints before proceeding with the import operation.
+                properties:
+                  requiredFields:
+                    description: |-
+                      RequiredFields contains a list of fields that must be set in the DatabaseCluster spec.
+                      Each key is a JSON path expressions that points to a field in the DatabaseCluster spec.
+                      For example, ".spec.engine.type" or ".spec.dataSource.dataImport.config.someField".
+                    items:
+                      type: string
+                    type: array
+                type: object
+              description:
+                description: Description is the description of the data importer.
+                type: string
+              displayName:
+                description: DisplayName is a human-readable name for the data importer.
+                type: string
+              jobSpec:
+                description: JobSpec is the specification of the data importer job.
+                properties:
+                  command:
+                    description: Command is the command to run the data importer.
+                    items:
+                      type: string
+                    type: array
+                  image:
+                    description: Image is the image of the data importer.
+                    type: string
+                type: object
+              permissions:
+                description: |-
+                  Permissions defines the permissions required by the data importer.
+                  These permissions are used to generate a Role for the data importer job.
+                items:
+                  description: |-
+                    PolicyRule holds information that describes a policy rule, but does not contain information
+                    about who the rule applies to or which namespace the rule applies to.
+                  properties:
+                    apiGroups:
+                      description: |-
+                        APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                        the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    nonResourceURLs:
+                      description: |-
+                        NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                        Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
+                        Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    resourceNames:
+                      description: ResourceNames is an optional white list of names
+                        that the rule applies to.  An empty set means that everything
+                        is allowed.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    resources:
+                      description: Resources is a list of resources this rule applies
+                        to. '*' represents all resources.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    verbs:
+                      description: Verbs is a list of Verbs that apply to ALL the
+                        ResourceKinds contained in this rule. '*' represents all verbs.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: atomic
+                  required:
+                  - verbs
+                  type: object
+                type: array
+              supportedEngines:
+                description: SupportedEngines is the list of engines that the data
+                  importer supports.
+                items:
+                  description: |-
+                    EngineType stands for the supported database engines. Right now it's only pxc
+                    and psmdb. However, it can be ps, pg and any other source.
+                  type: string
+                type: array
+            type: object
+          status:
+            description: DataImporterStatus defines the status of the DataImporter.
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: dataimportjobs.everest.percona.com
+spec:
+  group: everest.percona.com
+  names:
+    kind: DataImportJob
+    listKind: DataImportJobList
+    plural: dataimportjobs
+    shortNames:
+    - dij
+    singular: dataimportjob
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.targetClusterName
+      name: TargetCluster
+      type: string
+    - jsonPath: .status.state
+      name: State
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: DataImportJob is the schema for the dataimportjobs API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DataImportJobSpec defines the desired state of DataImportJob.
+            properties:
+              config:
+                description: |-
+                  Config defines the configuration for the data import job.
+                  These options are specific to the DataImporter being used and must conform to
+                  the schema defined in the DataImporter's .spec.config.openAPIV3Schema.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              dataImporterName:
+                description: DataImporterName is the data importer to use for the
+                  import.
+                type: string
+              source:
+                description: Source is the source of the data to import.
+                properties:
+                  path:
+                    description: |-
+                      Path is the path to the directory to import the data from.
+                      This may be a path to a file or a directory, depending on the data importer.
+                      Only absolute file paths are allowed. Leading and trailing '/' are optional.
+                    type: string
+                    x-kubernetes-validations:
+                    - message: path must be an absolute file or directory path
+                      rule: self.matches('^/?([^/]+(/[^/]+)*)/?$')
+                  s3:
+                    description: S3 contains the S3 information for the data import.
+                    properties:
+                      accessKeyId:
+                        description: |-
+                          AccessKeyID allows specifying the S3 access key ID inline.
+                          It is provided as a write-only input field for convenience.
+                          When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                          and empties this field.
+                          This field is not stored in the API.
+                        type: string
+                      bucket:
+                        description: Bucket is the name of the S3 bucket.
+                        type: string
+                      credentialsSecretName:
+                        description: |-
+                          CredentialsSecreName is the reference to the secret containing the S3 credentials.
+                          The Secret must contain the keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+                        type: string
+                      endpointURL:
+                        description: EndpointURL is an endpoint URL of backup storage.
+                        type: string
+                        x-kubernetes-validations:
+                        - message: endpointURL must be a valid URL
+                          rule: isURL(self)
+                      forcePathStyle:
+                        default: false
+                        description: |-
+                          ForcePathStyle is set to use path-style URLs.
+                          If unspecified, the default value is false.
+                        type: boolean
+                      region:
+                        description: Region is the region of the S3 bucket.
+                        type: string
+                      secretAccessKey:
+                        description: |-
+                          SecretAccessKey allows specifying the S3 secret access key inline.
+                          It is provided as a write-only input field for convenience.
+                          When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                          and empties this field.
+                          This field is not stored in the API.
+                        type: string
+                      verifyTLS:
+                        default: true
+                        description: |-
+                          VerifyTLS is set to ensure TLS/SSL verification.
+                          If unspecified, the default value is true.
+                        type: boolean
+                    required:
+                    - bucket
+                    - credentialsSecretName
+                    - endpointURL
+                    - region
+                    type: object
+                required:
+                - path
+                type: object
+              targetClusterName:
+                description: TargetClusterName is the reference to the target cluster.
+                type: string
+            required:
+            - dataImporterName
+            - source
+            - targetClusterName
+            type: object
+          status:
+            description: DataImportJobStatus defines the observed state of DataImportJob.
+            properties:
+              completedAt:
+                description: CompletedAt is the time when the data import job completed
+                  successfully.
+                format: date-time
+                type: string
+              jobName:
+                description: JobName is the reference to the job that is running the
+                  data import.
+                type: string
+              lastObservedGeneration:
+                description: LastObservedGeneration is the last observed generation
+                  of the data import job.
+                format: int64
+                type: integer
+              message:
+                description: Message is the message of the data import job.
+                type: string
+              startedAt:
+                description: StartedAt is the time when the data import job started.
+                format: date-time
+                type: string
+              state:
+                description: State is the current state of the data import job.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: monitoringconfigs.everest.percona.com
 spec:
   group: everest.percona.com
@@ -1126,6 +1648,10 @@ spec:
     - description: Monitoring instance type
       jsonPath: .spec.type
       name: Type
+      type: string
+    - description: Indicates if any DB cluster uses the monitoring config
+      jsonPath: .status.inUse
+      name: InUse
       type: string
     name: v1alpha1
     schema:
@@ -1192,7 +1718,20 @@ spec:
             - type
             type: object
           status:
+            default:
+              inUse: false
             description: MonitoringConfigStatus defines the observed state of MonitoringConfig.
+            properties:
+              inUse:
+                default: false
+                description: InUse is a flag that indicates if any DB cluster uses
+                  the monitoring config.
+                type: boolean
+              lastObservedGeneration:
+                description: LastObservedGeneration is the most recent generation
+                  observed for this MonitoringConfig.
+                format: int64
+                type: integer
             type: object
         type: object
     served: true
@@ -1204,7 +1743,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   name: podschedulingpolicies.everest.percona.com
 spec:
   group: everest.percona.com
@@ -7775,6 +8314,8 @@ spec:
                 type: integer
             type: object
         type: object
+    selectableFields:
+    - jsonPath: .spec.engineType
     served: true
     storage: true
     subresources:

@@ -153,6 +153,12 @@ The following table shows the configurable parameters of the Percona Everest cha
 |-----|------|---------|-------------|
 | compatibility.openshift | bool | `false` | Enable OpenShift compatibility. If set, ignores olm.install and olm.namespace settings. |
 | createMonitoringResources | bool | `true` | If set, creates resources for Kubernetes monitoring. |
+| dataImporters.perconaPGOperator | object | `{"enabled":true}` | Settings for the Percona PostgreSQL Operator data importer. |
+| dataImporters.perconaPGOperator.enabled | bool | `true` | If set, installs the Percona PostgreSQL Operator data importer. |
+| dataImporters.perconaPSMDBOperator | object | `{"enabled":true}` | Settings for the Percona PSMDB Operator data importer. |
+| dataImporters.perconaPSMDBOperator.enabled | bool | `true` | If set, installs the Percona PSMDB Operator data importer. |
+| dataImporters.perconaPXCOperator | object | `{"enabled":true}` | Settings for the Percona PXC Operator data importer. |
+| dataImporters.perconaPXCOperator.enabled | bool | `true` | If set, installs the Percona PXC Operator data importer. |
 | dbNamespace.enabled | bool | `true` | If set, deploy the database operators in `everest` namespace. The namespace may be overridden by setting `dbNamespace.namespaceOverride`. |
 | dbNamespace.namespaceOverride | string | `"everest"` | If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace. |
 | ingress.annotations | object | `{}` | Additional annotations for the ingress resource. |
@@ -162,7 +168,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | ingress.tls | list | `[]` | Each entry in the list specifies a TLS certificate and the hosts it applies to. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
-| olm.image | string | `"quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6"` | Image to use for the OLM components. |
+| olm.image | string | `"percona/olm@sha256:13e8f4e919e753faa7da35a9064822381098bcd44acc284877bf0964ceecbfd5"` | Image to use for the OLM components. |
 | olm.install | bool | `true` | If set, installs OLM in the provided namespace. |
 | olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
 | olm.packageserver.tls.caCert | string | `""` | CA certificate for the PackageServer APIService. Overrides the tls.type setting. |
@@ -175,6 +181,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
+| operator.webhook.certs | object | `{"ca.crt":"","tls.crt":"","tls.key":""}` | Certificates to use for the webhook server. The values must be base64 encoded. If unset, uses self-signed certificates. |
 | pmm | object | `{"enabled":false,"nameOverride":"pmm"}` | PMM settings. |
 | pmm.enabled | bool | `false` | If set, deploys PMM in the release namespace. |
 | server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |
@@ -213,3 +220,17 @@ The following table shows the configurable parameters of the Percona Everest cha
 | telemetry | bool | `false` | If set, enabled sending telemetry information. In production release, this value is `true` by default. |
 | upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
 | versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |
+
+## Notice for developers
+In case you made any changes in `percona-helm-charts/charts/everest/charts/common` or `percona-helm-charts/charts/everest/charts/everest-db-namespace` directories,
+please make sure you perform the following actions before creating PR:
+- bump chart version in `percona-helm-charts/charts/everest/charts/common/Chart.yaml` or `percona-helm-charts/charts/everest/charts/everest-db-namespace/Chart.yaml` accordingly in `version` parameter.
+- in `percona-helm-charts/charts/everest` directory run:
+    ```bash
+    make prepare-pr
+    ```
+
+In case you need to update the Everest Custom Resource Definitions (CRDs) after the changes in `github.com/percona/everest-operator` repository, please run the following command:
+```bash
+CRD_VERSION=<branch name in percona/everest-operator repo> make prepare-pr
+```

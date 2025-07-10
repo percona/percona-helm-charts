@@ -151,6 +151,37 @@ operator:
   #   value: value1
   # - name: key2
   #   value: value2
+  webhook:
+    # -- Certificates to use for the webhook server.
+    # The values must be base64 encoded.
+    # If unset, uses self-signed certificates.
+    certs:
+      tls.key: ""
+      tls.crt: ""
+      ca.crt: ""
+
+dataImporters:
+  # -- Settings for the Percona PostgreSQL Operator data importer.
+  perconaPGOperator:
+    # -- If set, installs the Percona PostgreSQL Operator data importer.
+    enabled: true
+    # -- Image to use for the Percona PostgreSQL Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
+  # -- Settings for the Percona PXC Operator data importer.
+  perconaPXCOperator:
+    # -- If set, installs the Percona PXC Operator data importer.
+    enabled: true
+    # -- Image to use for the Percona PXC Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
+  # -- Settings for the Percona PSMDB Operator data importer.
+  perconaPSMDBOperator:
+    # -- If set, installs the Percona PSMDB Operator data importer.
+    enabled: true
+    # -- Image to use for the Percona PSMDB Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
 
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"
@@ -166,7 +197,7 @@ olm:
   # -- Image to use for Everest CatalogSource.
   catalogSourceImage: perconalab/everest-catalog
   # -- Image to use for the OLM components.
-  image: quay.io/operator-framework/olm@sha256:1b6002156f568d722c29138575733591037c24b4bfabc67946f268ce4752c3e6
+  image: percona/olm@sha256:13e8f4e919e753faa7da35a9064822381098bcd44acc284877bf0964ceecbfd5
   packageserver:
     tls:
       # -- Type of TLS certificates. Supported values are "helm" and "cert-manager".
