@@ -13,15 +13,41 @@ finalizers:
 #  - percona.com/delete-backups
 
 crVersion: 2.7.0
+# initContainer:
+#   image: perconalab/percona-postgresql-operator:main
+#   resources:
+#     limits:
+#       cpu: 2.0
+#       memory: 4Gi
+#   containerSecurityContext:
+#     runAsUser: 1001
+#     runAsGroup: 1001
+#     runAsNonRoot: true
+#     privileged: false
+#     allowPrivilegeEscalation: false
+#     readOnlyRootFilesystem: true
+#     capabilities:
+#       add:
+#         - NET_ADMIN
+#         - SYS_TIME
+#       drop:
+#         - ALL
+#     seccompProfile:
+#       type: Localhost
+#       localhostProfile: localhost/profile.json
+#     procMount: Default
+#     seLinuxOptions:
+#       type: spc_t
+#       level: s0:c123,c456
 # metadata:
 #   annotations:
 #     example-annotation: value
 #   labels:
 #     example-label: value
 repository: percona/percona-postgresql-operator
-image: percona/percona-postgresql-operator:2.6.0-ppg16.8-postgres
+image: percona/percona-postgresql-operator:2.7.0-ppg17.5.2-postgres
 imagePullPolicy: Always
-postgresVersion: 16
+postgresVersion: 17
 # port: 5432
 pause: false
 unmanaged: false
@@ -158,6 +184,32 @@ customReplicationTLSSecret:
 instances:
 - name: instance1
   replicas: 3
+#  initContainer:
+#    image: perconalab/percona-postgresql-operator:main
+#    resources:
+#      limits:
+#        cpu: 2.0
+#        memory: 4Gi
+#    containerSecurityContext:
+#      runAsUser: 1001
+#      runAsGroup: 1001
+#      runAsNonRoot: true
+#      privileged: false
+#      allowPrivilegeEscalation: false
+#      readOnlyRootFilesystem: true
+#      capabilities:
+#        add:
+#          - NET_ADMIN
+#          - SYS_TIME
+#        drop:
+#          - ALL
+#      seccompProfile:
+#        type: Localhost
+#        localhostProfile: localhost/profile.json
+#      procMount: Default
+#      seLinuxOptions:
+#        type: spc_t
+#        level: s0:c123,c456
 
   affinity:
     podAntiAffinity:
@@ -257,7 +309,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: percona/percona-postgresql-operator:2.6.0-ppg16.8-pgbouncer1.24.0
+    image: percona/percona-pgbouncer:1.24.1
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -340,9 +392,35 @@ backups:
   enabled: true
   trackLatestRestorableTime: true
   pgbackrest:
+#    initContainer:
+#      image: perconalab/percona-postgresql-operator:main
+#      resources:
+#        limits:
+#          cpu: 2.0
+#          memory: 4Gi
+#      containerSecurityContext:
+#        runAsUser: 1001
+#        runAsGroup: 1001
+#        runAsNonRoot: true
+#        privileged: false
+#        allowPrivilegeEscalation: false
+#        readOnlyRootFilesystem: true
+#        capabilities:
+#          add:
+#            - NET_ADMIN
+#            - SYS_TIME
+#          drop:
+#            - ALL
+#        seccompProfile:
+#          type: Localhost
+#          localhostProfile: localhost/profile.json
+#        procMount: Default
+#        seLinuxOptions:
+#          type: spc_t
+#          level: s0:c123,c456
 #    metadata:
 #    labels:
-    image: percona/percona-postgresql-operator:2.6.0-ppg16.8-pgbackrest2.54.2
+    image: percona/percona-pgbackrest:2.55.0
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -492,7 +570,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.44.0
+    tag: 3.3.0
 #  imagePullPolicy: IfNotPresent
 #  secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -529,7 +607,7 @@ pmm:
 #   - basebackup
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.6.0
+#   image: percona/percona-postgresql-operator:2.7.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3

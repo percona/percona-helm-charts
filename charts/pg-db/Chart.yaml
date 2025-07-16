@@ -6,12 +6,14 @@ version: 2.7.0
 appVersion: 2.7.0
 home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
 maintainers:
-  - name: spron-in
-    email: sergey.pronin@percona.com
   - name: nmarukovich
     email: natalia.marukovich@gmail.com
   - name: jvpasinatto
     email: julio.pasinatto@percona.com
+  - name: eleo007
+    email: eleonora.zinchenko@percona.com
+  - name: valmiranogueira
+    email: valmira.nogueira@percona.com
 keywords:
   - PostgreSQL
   - Operator

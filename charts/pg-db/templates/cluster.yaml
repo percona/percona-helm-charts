@@ -22,6 +22,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
+  {{- include "pg-database.initContainer" .Values | indent 2 }}
   {{- if .Values.metadata }}
   metadata: {{ .Values.metadata | toYaml | nindent 4 }}
   {{- end }}
@@ -190,6 +191,7 @@ spec:
   instances:
   {{- range $instance := .Values.instances }}
     - name: {{ $instance.name }}
+      {{- include "pg-database.initContainer" $instance | indent 6 }}
       replicas: {{ $instance.replicas }}
       {{- if $instance.affinity }}
       affinity:
@@ -394,6 +396,7 @@ spec:
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
       image: {{ .Values.backups.pgbackrest.image }}
+      {{- include "pg-database.initContainer" .Values.backups.pgbackrest | indent 6 }}
       {{- if .Values.backups.pgbackrest.configuration }}
       configuration:
 {{ .Values.backups.pgbackrest.configuration | toYaml | indent 6 }}
