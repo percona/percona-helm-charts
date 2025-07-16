@@ -5,7 +5,7 @@
 replicaCount: 1
 
 operatorImageRepository: percona/percona-postgresql-operator
-imagePullPolicy: IfNotPresent
+imagePullPolicy: Always
 image: ""
 
 # set if you want to specify a namespace to watch
