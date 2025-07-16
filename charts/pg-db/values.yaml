@@ -570,7 +570,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.2.0
+    tag: 3.3.0
 #  imagePullPolicy: IfNotPresent
   secret: cluster1-pmm-secret
   serverHost: monitoring-service
