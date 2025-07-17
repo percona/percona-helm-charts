@@ -4,7 +4,7 @@
 
 replicaCount: 1
 
-operatorImageRepository: percona/percona-postgresql-operator
+operatorImageRepository: docker.io/percona/percona-postgresql-operator
 imagePullPolicy: Always
 image: ""
 
