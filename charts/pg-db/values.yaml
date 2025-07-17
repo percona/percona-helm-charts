@@ -14,7 +14,7 @@ finalizers:
 
 crVersion: 2.7.0
 # initContainer:
-#   image: perconalab/percona-postgresql-operator:main
+#   image: docker.io/percona/percona-postgresql-operator:2.7.0
 #   resources:
 #     limits:
 #       cpu: 2.0
@@ -44,8 +44,8 @@ crVersion: 2.7.0
 #     example-annotation: value
 #   labels:
 #     example-label: value
-repository: percona/percona-postgresql-operator
-image: percona/percona-postgresql-operator:2.7.0-ppg17.5.2-postgres
+repository: docker.io/percona/percona-postgresql-operator
+image: docker.io/percona/percona-postgresql-operator:2.7.0-ppg17.5.2-postgres
 imagePullPolicy: Always
 postgresVersion: 17
 # port: 5432
@@ -185,7 +185,7 @@ instances:
 - name: instance1
   replicas: 3
 #  initContainer:
-#    image: perconalab/percona-postgresql-operator:main
+#    image: docker.io/percona/percona-postgresql-operator:2.7.0
 #    resources:
 #      limits:
 #        cpu: 2.0
@@ -309,7 +309,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: percona/percona-pgbouncer:1.24.1
+    image: docker.io/percona/percona-pgbouncer:1.24.1
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -393,7 +393,7 @@ backups:
   trackLatestRestorableTime: true
   pgbackrest:
 #    initContainer:
-#      image: perconalab/percona-postgresql-operator:main
+#      image: docker.io/perconalab/percona-postgresql-operator:2.7.0
 #      resources:
 #        limits:
 #          cpu: 2.0
@@ -420,7 +420,7 @@ backups:
 #          level: s0:c123,c456
 #    metadata:
 #    labels:
-    image: percona/percona-pgbackrest:2.55.0
+    image: docker.io/percona/percona-pgbackrest:2.55.0
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -569,7 +569,7 @@ backups:
 pmm:
   enabled: false
   image:
-    repository: percona/pmm-client
+    repository: docker.io/percona/pmm-client
     tag: 3.3.0
 #  imagePullPolicy: IfNotPresent
 #  secret: cluster1-pmm-secret
@@ -607,7 +607,7 @@ pmm:
 #   - basebackup
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.7.0
+#   image: docker.io/percona/percona-postgresql-operator:2.7.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3

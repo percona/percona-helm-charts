@@ -33,18 +33,18 @@ helm install my-operator percona/pg-operator --version 2.7.0 --namespace my-name
 The following shows the configurable parameters that are relevant to the Helm
 Chart.
 
-| Parameter            | Description                                                                        | Default                                     |
-| -------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
-| `image`              | PG Operator Container image full path                                              | `percona/percona-postgresql-operator:2.7.0` |
-| `imagePullPolicy`    | PG Operator Container pull policy                                                  | `Always`                                    |
-| `resources`          | Resource requests and limits                                                       | `{}`                                        |
-| `nodeSelector`       | Labels for Pod assignment                                                          | `{}`                                        |
-| `logStructured`      | Force PG operator to print JSON-wrapped log messages                               | `false`                                     |
-| `logLevel`           | PG Operator logging level                                                          | `INFO`                                      |
-| `disableTelemetry`   | Disable sending PG Operator telemetry data to Percona                              | `false`                                     |
-| `podAnnotations`     | Add annotations to the Operator Pod                                                | `{}`                                        |
-| `watchNamespace`     | Set this variable if the target cluster namespace differs from operators namespace | ``                                          |
-| `watchAllNamespaces` | K8S Cluster-wide operation                                                         | `false`                                     |
+| Parameter            | Description                                                                        | Default                                               |
+| -------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `image`              | PG Operator Container image full path                                              | `docker.io/percona/percona-postgresql-operator:2.7.0` |
+| `imagePullPolicy`    | PG Operator Container pull policy                                                  | `Always`                                              |
+| `resources`          | Resource requests and limits                                                       | `{}`                                                  |
+| `nodeSelector`       | Labels for Pod assignment                                                          | `{}`                                                  |
+| `logStructured`      | Force PG operator to print JSON-wrapped log messages                               | `false`                                               |
+| `logLevel`           | PG Operator logging level                                                          | `INFO`                                                |
+| `disableTelemetry`   | Disable sending PG Operator telemetry data to Percona                              | `false`                                               |
+| `podAnnotations`     | Add annotations to the Operator Pod                                                | `{}`                                                  |
+| `watchNamespace`     | Set this variable if the target cluster namespace differs from operators namespace | ``                                                    |
+| `watchAllNamespaces` | K8S Cluster-wide operation                                                         | `false`                                               |
 
 ## Deploy the database
 To deploy Percona Operator for PostgreSQL cluster with disabled telemetry run the following command:
