@@ -470,15 +470,10 @@ spec:
 {{ .Values.backups.pgbackrest.repoHost.securityContext | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
+      {{- if .Values.backups.pgbackrest.manual }}
       manual:
-        repoName: {{ .Values.backups.pgbackrest.manual.repoName }}
-        options:
-        {{- range .Values.backups.pgbackrest.manual.options }}
-        - {{ . }}
-        {{- end }}
-{{ if hasKey .Values.backups.pgbackrest.manual "initialDelaySeconds" }}
-        initialDelaySeconds: {{ .Values.backups.pgbackrest.manual.initialDelaySeconds }}
-{{- end}}
+{{ pick .Values.backups.pgbackrest.manual "repoName" "options" "initialDelaySeconds" | toYaml | indent 8 }}
+      {{- end }}
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
       - name: {{ $repo.name }}
