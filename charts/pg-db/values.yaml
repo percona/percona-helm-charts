@@ -168,6 +168,12 @@ instances:
             matchLabels:
               postgres-operator.crunchydata.com/data: postgres
           topologyKey: kubernetes.io/hostname
+#  env:
+#  - name: MY_ENV
+#    value: "1000"
+#  envFrom:
+#  - secretRef:
+#      name: instance-env-secret
 #  metadata:
 #    annotations: {}
 #    labels: {}
@@ -256,6 +262,12 @@ proxy:
   pgBouncer:
     replicas: 3
     image: percona/percona-postgresql-operator:2.6.0-ppg16.8-pgbouncer1.24.0
+#    env:
+#    - name: MY_ENV
+#      value: "1000"
+#    envFrom:
+#    - secretRef:
+#        name: pgbouncer-env-secret
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -354,6 +366,12 @@ backups:
 #      - secret:
 #          name: cluster1-pgbackrest-secrets
 #    jobs:
+#      env:
+#      - name: MY_ENV
+#        value: "1000"
+#      envFrom:
+#      - secretRef:
+#          name: backup-env-secret
 #      restartPolicy: OnFailure
 #      backoffLimit: 2
 #      priorityClassName: high-priority
@@ -398,6 +416,12 @@ backups:
 #      repo4-path: /pgbackrest/postgres-operator/cluster1-multi-repo/repo4
 
     repoHost:
+#     env:
+#     - name: MY_ENV
+#       value: "1000"
+#     envFrom:
+#     - secretRef:
+#         name: repo-host-env-secret
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
