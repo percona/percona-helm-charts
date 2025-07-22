@@ -457,6 +457,20 @@ spec:
 {{ $constraint.labelSelector.matchLabels | toYaml | indent 16 }}
         {{- end }}
         {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.sidecars }}
+        sidecars:
+        {{- range $sidecar := .Values.backups.pgbackrest.repoHost.sidecars }}
+        - name: {{ $sidecar.name }}
+          image: {{ $sidecar.image }}
+          {{- with $sidecar.command }}
+          command: {{ toJson . }}
+          {{- end }}
+          {{- with $sidecar.securityContext }}
+          securityContext: 
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
         affinity:
 {{ .Values.backups.pgbackrest.repoHost.affinity | toYaml | indent 10 }}

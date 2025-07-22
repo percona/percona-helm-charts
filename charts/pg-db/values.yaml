@@ -492,6 +492,11 @@ backups:
                   postgres-operator.crunchydata.com/data: pgbackrest
               topologyKey: kubernetes.io/hostname
 
+#      sidecars:
+#      - name: repohosttestcontainer1
+#        image: mycontainer1:latest
+#        command: ["sleep", "30d"]
+#        securityContext: {}
 #      tolerations:
 #      - effect: NoSchedule
 #        key: role
