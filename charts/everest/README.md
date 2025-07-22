@@ -111,18 +111,32 @@ kubectl delete ns everest-system
 As of Helm v3, CRDs are not automatically updated during a Helm upgrade. You must manually upgrade the CRDs.
 
 ```sh
-VERSION=<Next version> # e.g. v1.3.0
-kubectl apply -k https://github.com/percona/everest-operator/config/crd?ref=$(VERSION) --server-side
+helm repo update
+helm upgrade --install everest-crds \
+    percona/everest-crds \
+    --namespace everest-system
+    --take-ownership
 ```
 
-> **Note:** You may encounter an error due to conflicting field ownership — for example:
+> **Note:** If you're using a version of Helm older than `3.17.0`, the `--take-ownership` flag will not be available.
+> This flag is only required when upgrading to Everest `1.8.0`. Without it, you may encounter the following error:
 >
-> ```
-> error: Apply failed with 1 conflict: conflict with "helm" using apiextensions.k8s.io/v1: .spec.versions
+> ```sh
+> invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm";
+> annotation validation error: missing key "meta.helm.sh/release-name": must be set to "everest-crds";
+> annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "everest-system"
 > ```
 >
-> In such cases, you can add the `--force-conflicts` flag to override the conflicts.
-> This is generally safe when applying CRDs from a trusted source, as it ensures your CRDs are updated to the correct version, even if Helm manages some of the fields.
+> If you must use a Helm version older than `3.17.0`, you can manually simulate the behavior of `--take-ownership` by adding the required labels and annotations to the Everest CRDs:
+>
+> ```sh
+> CRDS=(databaseclusters.everest.percona.com databaseengines.everest.percona.com databaseclusterbackups.everest.percona.com databaseclusterrestores.everest.percona.com backupstorages.everest.percona.com monitoringconfigs.everest.percona.com)
+> kubectl label crds "${CRDS[@]}" app.kubernetes.io/managed-by=Helm --overwrite
+> kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-name=everest-crds
+> kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=everest-system
+> ```
+>
+> This ensures the CRDs are correctly recognized as managed by Helm, avoiding validation issues during the upgrade.
 
 #### 6.2 Upgrade Helm Releases
 
@@ -151,7 +165,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| compatibility.openshift | bool | `false` | Enable OpenShift compatibility. If set, ignores olm.install and olm.namespace settings. |
+| compatibility.openshift | bool | `false` | Enable OpenShift compatibility. |
 | createMonitoringResources | bool | `true` | If set, creates resources for Kubernetes monitoring. |
 | dataImporters.perconaPGOperator | object | `{"enabled":true}` | Settings for the Percona PostgreSQL Operator data importer. |
 | dataImporters.perconaPGOperator.enabled | bool | `true` | If set, installs the Percona PostgreSQL Operator data importer. |
@@ -169,8 +183,9 @@ The following table shows the configurable parameters of the Percona Everest cha
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | olm.catalogSourceImage | string | `"perconalab/everest-catalog"` | Image to use for Everest CatalogSource. |
 | olm.image | string | `"percona/olm@sha256:13e8f4e919e753faa7da35a9064822381098bcd44acc284877bf0964ceecbfd5"` | Image to use for the OLM components. |
-| olm.install | bool | `true` | If set, installs OLM in the provided namespace. |
-| olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
+| olm.install | bool | `true` | If set, installs OLM in the provided namespace. Should be set to `false` if compatibility.openshift=true. |
+| olm.namespace | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. DEPRECATED: Will be removed in a future release. Use olm.namespaceOverride instead. |
+| olm.namespaceOverride | string | `"everest-olm"` | Namespace where OLM is installed. Do no change unless you know what you are doing. |
 | olm.packageserver.tls.caCert | string | `""` | CA certificate for the PackageServer APIService. Overrides the tls.type setting. |
 | olm.packageserver.tls.tlsCert | string | `""` | Client certificate for the PackageServer APIService. Overrides the tls.type setting. |
 | olm.packageserver.tls.tlsKey | string | `""` | Client key for the PackageServer APIService. Overrides the tls.type setting. |
@@ -218,7 +233,8 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.tls.secret.certs | object | `{"tls.crt":"","tls.key":""}` | Use the specified tls.crt and tls.key in the Secret. If unspecified, the server creates a self-signed certificate (not recommended for production). |
 | server.tls.secret.name | string | `"everest-server-tls"` | Name of the Secret containing the TLS certificates. This Secret is created if tls.enabled=true and certificate.create=false. |
 | telemetry | bool | `false` | If set, enabled sending telemetry information. In production release, this value is `true` by default. |
-| upgrade.preflightChecks | bool | `true` | If set, run preliminary checks before upgrading. It is strongly recommended to enable this setting. |
+| upgrade.crdChecks | bool | `true` | Ensures that CRDs are upgraded first (default: true). Set to false to disable. |
+| upgrade.preflightChecks | bool | `true` | Ensures that preflight checks are run before the upgrade (default: true). Set to false to disable. |
 | versionMetadataURL | string | `"https://check.percona.com"` | URL of the Version Metadata Service. |
 
 ## Notice for developers
