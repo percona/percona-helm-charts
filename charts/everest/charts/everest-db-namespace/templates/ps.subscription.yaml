@@ -10,7 +10,7 @@ metadata:
     # The uninstallation of operators is handled gracefully in the pre-delete hook.
     helm.sh/resource-policy: keep
 spec:
-  channel: stable-v1
+  channel: stable-v0
   installPlanApproval: Manual
   name: percona-server-mysql-operator
   source: everest-catalog
