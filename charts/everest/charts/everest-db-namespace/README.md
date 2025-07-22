@@ -28,6 +28,7 @@ Kubernetes: `>= 1.27.0-0`
 | compatibility.openshift | bool | `false` | If set, enable OpenShift compatibility. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | postgresql | bool | `true` | If set, installs the Percona Postgresql Server operator. |
+| ps | bool | `true` | If set, installs the Percona Server MySQL operator. |
 | psmdb | bool | `true` | If set, installs the Percona Server MongoDB operator. |
 | pxc | bool | `true` | If set, installs the Percona XtraDB Cluster operator. |
 | telemetry | bool | `true` | If set, enabled sending telemetry information. |
