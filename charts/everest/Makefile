@@ -1,11 +1,15 @@
 HELM ?= helm
 
+.PHONY: help
+help: ## Display this help.
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
 # values to override
 IMAGE_PREFIX ?= percona
 TELEMETRY ?= true
 
 .PHONY: prepare-chart
-prepare-chart:
+prepare-chart: ## Prepare the Helm chart for release or development
 	CHART_FILES="Chart.yaml ./charts/everest-db-namespace/Chart.yaml"; \
 	for chart in $$CHART_FILES; do \
 		yq eval -i '.version = "${VERSION}"' $$chart; \
@@ -19,39 +23,38 @@ prepare-chart:
 	$(MAKE) deps
 
 .PHONY: release
-release: prepare-chart
+release: prepare-chart ## Prepare the chart for release
 
 .PHONY: release-dev
 release-dev: IMAGE_PREFIX=perconalab
 release-dev: TELEMETRY=false
-release-dev: prepare-chart
+release-dev: prepare-chart ## Prepare the chart for development release
 
 .PHONY: add-repos
-add-repos:
+add-repos: ## Add required Helm repositories
 	$(HELM) version
 	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	$(HELM) repo add vm https://victoriametrics.github.io/helm-charts
 	$(HELM) repo add percona https://percona.github.io/percona-helm-charts/
 
 .PHONY: deps
-deps: add-repos
+deps: add-repos ## Update Helm dependencies
 	$(HELM) dependency update .
 	$(HELM) dependency update ./charts/everest-db-namespace
 
 .PHONY: docs-gen
-docs-gen:
+docs-gen: ## Generate documentation for the Helm chart
 	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.14.2
-
 
 EVEREST_REPO_URL ?= https://github.com/percona/everest-operator
 CRD_DIR ?= config/crd
 CRD_VERSION ?= main
 .PHONY: crds-gen
-crds-gen:
+crds-gen: ## Generate CRDs from the Everest repository
 	docker run --rm registry.k8s.io/kustomize/kustomize:v5.0.0 build $(EVEREST_REPO_URL)/$(CRD_DIR)?ref=$(CRD_VERSION) > crds/everest.yaml
 
 .PHONY: prepare-pr
-prepare-pr:
+prepare-pr: ## Prepare the chart for a pull request
 	$(MAKE) deps
 	$(MAKE) docs-gen
 	EVEREST_REPO_URL=$(EVEREST_REPO_URL) \
