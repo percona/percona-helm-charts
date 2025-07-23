@@ -119,7 +119,7 @@ helm upgrade --install everest-crds \
 ```
 
 > **Note:** If you're using a version of Helm older than `3.17.0`, the `--take-ownership` flag will not be available.
-> This flag is only required when upgrading to Everest `1.8.0`. Without it, you may encounter the following error:
+> This flag is required only when upgrading from Everest 1.8.0. Without it, you may encounter the following error:
 >
 > ```sh
 > invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm";
