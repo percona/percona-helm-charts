@@ -1,6 +1,5 @@
 compatibility:
   # -- Enable OpenShift compatibility.
-  # If set, ignores olm.install and olm.namespace settings.
   openshift: false
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
@@ -151,18 +150,54 @@ operator:
   #   value: value1
   # - name: key2
   #   value: value2
+  webhook:
+    # -- Certificates to use for the webhook server.
+    # The values must be base64 encoded.
+    # If unset, uses self-signed certificates.
+    certs:
+      tls.key: ""
+      tls.crt: ""
+      ca.crt: ""
+
+dataImporters:
+  # -- Settings for the Percona PostgreSQL Operator data importer.
+  perconaPGOperator:
+    # -- If set, installs the Percona PostgreSQL Operator data importer.
+    enabled: true
+    # -- Image to use for the Percona PostgreSQL Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
+  # -- Settings for the Percona PXC Operator data importer.
+  perconaPXCOperator:
+    # -- If set, installs the Percona PXC Operator data importer.
+    enabled: true
+    # -- Image to use for the Percona PXC Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
+  # -- Settings for the Percona PSMDB Operator data importer.
+  perconaPSMDBOperator:
+    # -- If set, installs the Percona PSMDB Operator data importer.
+    enabled: true
+    # -- Image to use for the Percona PSMDB Operator data importer.
+    # @default -- uses the same image as the Everest operator.
+    # image: ""
 
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"
 upgrade:
-  # -- If set, run preliminary checks before upgrading.
-  # It is strongly recommended to enable this setting.
+  # -- Ensures that preflight checks are run before the upgrade (default: true). Set to false to disable.
   preflightChecks: true
+  # -- Ensures that CRDs are upgraded first (default: true). Set to false to disable.
+  crdChecks: true
 olm:
   # -- If set, installs OLM in the provided namespace.
+  # Should be set to `false` if compatibility.openshift=true.
   install: true
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
-  namespace: everest-olm
+  # DEPRECATED: Will be removed in a future release. Use olm.namespaceOverride instead.
+  namespace: "everest-olm"
+  # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
+  namespaceOverride: everest-olm
   # -- Image to use for Everest CatalogSource.
   catalogSourceImage: perconalab/everest-catalog
   # -- Image to use for the OLM components.
@@ -254,3 +289,9 @@ pmm:
   # -- If set, deploys PMM in the release namespace.
   enabled: false
   nameOverride: pmm
+# DO NOT CHANGE.
+# We set this to `false` to prevent the CRDs from being rendered as a template.
+# The CRDs are already installed as a part of the crds/ directory via the sub-chart.
+# @ignore
+everest-crds:
+  enabled: false

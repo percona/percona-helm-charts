@@ -11,6 +11,7 @@ A sub-chart for provisioning Everest DB namespaces.
 | mayankshah1607 | <mayank.shah@percona.com> |  |
 | oksana-grishchenko | <oksana.grishchenko@percona.com> |  |
 | recharte | <diogo.recharte@percona.com> |  |
+| maxkondr | <maxim.kondratenko@percona.com> |  |
 
 ## Requirements
 

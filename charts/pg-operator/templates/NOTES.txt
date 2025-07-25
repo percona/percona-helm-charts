@@ -12,4 +12,27 @@
 
     helm install my-db percona/pg-db --namespace={{ .Release.Namespace }}
 
+{{- if .Release.IsUpgrade }}
+  {{- $ctx := dict "upgradeCrd" false }}
+  {{- $crdNames := list "perconapgclusters.pgv2.percona.com" "perconapgbackups.pgv2.percona.com" "perconapgrestores.pgv2.percona.com" }}
+  {{- range $name := $crdNames }}
+    {{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" $name }}
+    {{- if $crd }}
+      {{- $crdLabels := (($crd).metadata).labels | default dict }}
+      {{- $crdVersion := index $crdLabels "pgv2.percona.com/version" }}
+      {{- if or (not $crdVersion) (semverCompare (printf "< %s" $.Chart.AppVersion) (trimPrefix "v" $crdVersion)) }}
+        {{- $_ := set $ctx "upgradeCrd" true }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if $ctx.upgradeCrd }}
+
+** WARNING ** During Helm upgrade CRDs are not automatically upgraded.
+
+Please manually apply any new CRDs:
+
+  kubectl apply --server-side --force-conflicts -f https://raw.githubusercontent.com/percona/percona-postgresql-operator/v{{ .Chart.AppVersion }}/deploy/crd.yaml
+  {{- end }}
+{{- end }}
+
 Read more in our documentation: https://docs.percona.com/percona-operator-for-postgresql/2.0/

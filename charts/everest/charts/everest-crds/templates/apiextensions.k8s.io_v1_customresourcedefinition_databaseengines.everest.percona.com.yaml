@@ -1,0 +1,250 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: databaseengines.everest.percona.com
+  labels:
+    everest.percona.com/crd: "true"
+    everest.percona.com/version: 0.0.0
+spec:
+  group: everest.percona.com
+  names:
+    kind: DatabaseEngine
+    listKind: DatabaseEngineList
+    plural: databaseengines
+    shortNames:
+      - dbengine
+    singular: databaseengine
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.type
+          name: Type
+          type: string
+        - jsonPath: .status.status
+          name: Status
+          type: string
+        - jsonPath: .status.operatorVersion
+          name: Operator Version
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: DatabaseEngine is the Schema for the databaseengines API.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: DatabaseEngineSpec is a spec for a database engine.
+              properties:
+                allowedVersions:
+                  items:
+                    type: string
+                  type: array
+                secretKeys:
+                  description: |-
+                    SecretKeys contains the definition of the various Secrets that
+                    the given DBEngine supports.
+                    This information acts like metadata for the Everest UI to guide the users
+                    in filling out the correct Secret keys for their clusters.
+                  properties:
+                    user:
+                      description: User secret keys are used to store the details of the users.
+                      items:
+                        description: SecretKey defines a single Secret key.
+                        properties:
+                          description:
+                            description: Description is a human-readable description of the Secret key.
+                            type: string
+                          name:
+                            description: Name is the name of the Secret key.
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+                type:
+                  description: |-
+                    EngineType stands for the supported database engines. Right now it's only pxc
+                    and psmdb. However, it can be ps, pg and any other source.
+                  type: string
+              required:
+                - type
+              type: object
+            status:
+              description: DatabaseEngineStatus defines the observed state of DatabaseEngine.
+              properties:
+                availableVersions:
+                  description: Versions struct represents available versions of database engine components.
+                  properties:
+                    backup:
+                      additionalProperties:
+                        description: |-
+                          Component contains information of the database engine component.
+                          Database Engine component can be database engine, database proxy or tools image path.
+                        properties:
+                          critical:
+                            type: boolean
+                          imageHash:
+                            type: string
+                          imagePath:
+                            type: string
+                          status:
+                            description: ComponentStatus represents status of the database engine component.
+                            type: string
+                        type: object
+                      description: ComponentsMap is a map of database engine components.
+                      type: object
+                    engine:
+                      additionalProperties:
+                        description: |-
+                          Component contains information of the database engine component.
+                          Database Engine component can be database engine, database proxy or tools image path.
+                        properties:
+                          critical:
+                            type: boolean
+                          imageHash:
+                            type: string
+                          imagePath:
+                            type: string
+                          status:
+                            description: ComponentStatus represents status of the database engine component.
+                            type: string
+                        type: object
+                      description: ComponentsMap is a map of database engine components.
+                      type: object
+                    proxy:
+                      additionalProperties:
+                        additionalProperties:
+                          description: |-
+                            Component contains information of the database engine component.
+                            Database Engine component can be database engine, database proxy or tools image path.
+                          properties:
+                            critical:
+                              type: boolean
+                            imageHash:
+                              type: string
+                            imagePath:
+                              type: string
+                            status:
+                              description: ComponentStatus represents status of the database engine component.
+                              type: string
+                          type: object
+                        description: ComponentsMap is a map of database engine components.
+                        type: object
+                      type: object
+                    tools:
+                      additionalProperties:
+                        additionalProperties:
+                          description: |-
+                            Component contains information of the database engine component.
+                            Database Engine component can be database engine, database proxy or tools image path.
+                          properties:
+                            critical:
+                              type: boolean
+                            imageHash:
+                              type: string
+                            imagePath:
+                              type: string
+                            status:
+                              description: ComponentStatus represents status of the database engine component.
+                              type: string
+                          type: object
+                        description: ComponentsMap is a map of database engine components.
+                        type: object
+                      type: object
+                  type: object
+                operatorUpgrade:
+                  description: OperatorUpgrade contains the status of the operator upgrade.
+                  properties:
+                    installPlanRef:
+                      description: |-
+                        InstallPlanRef is a reference to the InstallPlan object created for the operator upgrade.
+
+                        We do not recommended approving this InstallPlan directly from the Kubernetes API.
+                        This is because this InstallPlan may also upgrade other operators in the namespace and that
+                        can have unintended consequences.
+                        This behaviour is not a bug from Everest, but an unfortunate limitation of OLM.
+                        We suggest using the Everest API/UI to handle operator upgrades, which will perform a series
+                        of checks and safely upgrade all operators in the namespace.
+                      properties:
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    message:
+                      type: string
+                    phase:
+                      description: UpgradePhase represents the phase of the operator upgrade.
+                      type: string
+                    startedAt:
+                      format: date-time
+                      type: string
+                    targetVersion:
+                      description: TargetVersion is the version to which the operator should be upgraded.
+                      type: string
+                  type: object
+                operatorVersion:
+                  type: string
+                pendingOperatorUpgrades:
+                  items:
+                    description: OperatorUpgrade contains the information about the operator upgrade.
+                    properties:
+                      installPlanRef:
+                        description: |-
+                          InstallPlanRef is a reference to the InstallPlan object created for the operator upgrade.
+
+                          We do not recommended approving this InstallPlan directly from the Kubernetes API.
+                          This is because this InstallPlan may also upgrade other operators in the namespace and that
+                          can have unintended consequences.
+                          This behaviour is not a bug from Everest, but an unfortunate limitation of OLM.
+                          We suggest using the Everest API/UI to handle operator upgrades, which will perform a series
+                          of checks and safely upgrade all operators in the namespace.
+                        properties:
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      targetVersion:
+                        description: TargetVersion is the version to which the operator should be upgraded.
+                        type: string
+                    type: object
+                  type: array
+                status:
+                  description: EngineState represents state of engine in a k8s cluster.
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

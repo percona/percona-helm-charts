@@ -28,6 +28,7 @@ spec:
         - --health-probe-bind-address=:8081
         - --monitoring-namespace={{ .Values.monitoring.namespaceOverride }}
         - --system-namespace={{ include  "everest.namespace" . }}
+        - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
         command:
         - /manager
         image: {{ .Values.operator.image }}:{{ .Chart.Version }}
@@ -71,6 +72,10 @@ spec:
             - ALL
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: webhook-server-cert
+          readOnly: true
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
@@ -79,3 +84,7 @@ spec:
       serviceAccount: everest-operator-controller-manager
       serviceAccountName: everest-operator-controller-manager
       terminationGracePeriodSeconds: 10
+      volumes:
+      - name: webhook-server-cert
+        secret:
+          secretName: webhook-server-cert
