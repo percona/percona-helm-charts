@@ -38,6 +38,16 @@ Allows overriding the install namespace in combined charts.
 {{- end }}
 
 {{/*
+Determines whether to include namespace specification.
+Includes namespace for:
+- Fresh installs
+- Upgrades from chart version 1.4.1+ (detected by existing namespace field)
+*/}}
+{{- define "pmm.includeNamespace" -}}
+{{- or .Release.IsInstall (and .Release.IsUpgrade (lookup "apps/v1" "StatefulSet" .Release.Namespace (include "pmm.fullname" .)).metadata.namespace) }}
+{{- end }}
+
+{{/*
 Common labels
 */}}
 {{- define "pmm.labels" -}}
