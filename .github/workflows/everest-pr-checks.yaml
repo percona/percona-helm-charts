@@ -25,15 +25,26 @@ jobs:
             echo "Docs are out of date. Please run 'make docs-gen' and commit the changes."
             exit 1
           fi
-
-      - name: Check CRDs
+          
+      - name: Check CRD gen
         run: |
           cd charts/everest
           make crds-gen
           if git diff --quiet; then
             echo "CRDs are up to date."
           else
-            echo "CRDs are out of date. Please run 'make crds-gen' and commit the changes."
+            echo "CRDs are not up-to-date. Please run 'make crds-gen' and commit the changes."
+            exit 1
+          fi
+
+      - name: Check CRD symlinks
+        run: |
+          cd charts/everest
+          make link-crds
+          if git diff --quiet; then
+            echo "CRD symlinks are up to date."
+          else
+            echo "CRD symlinks are not up-to-date. Please run 'make link-crds' and commit the changes."
             exit 1
           fi
 
