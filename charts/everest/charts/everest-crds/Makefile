@@ -19,7 +19,7 @@ crds-gen:
 	docker run --rm \
 		-v "$(CRD_SUBCHART_DIR)":/workspace \
 		-w /workspace \
-		registry.k8s.io/kustomize/kustomize:v5.0.0 \
+		registry.k8s.io/kustomize/kustomize:v5.7.0 \
 		build $(EVEREST_REPO_URL)/$(CRD_DIR)?ref=$(CRD_VERSION) > $(CRD_SUBCHART_DIR)/$$crd_tmp_file --output templates;
 
 	@bash $(CRD_SUBCHART_DIR)/scripts/labels.sh templates "everest.percona.com/crd=true,everest.percona.com/version=$(VERSION)";

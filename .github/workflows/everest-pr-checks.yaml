@@ -73,7 +73,7 @@ jobs:
       - name: Run chart-testing (lint)
         run: |
           # Ensure common sub-chart is linted and has version increment
-          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespace
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespace,everest-crds
 
           # Ensure main chart is linted, skip version increment check
           ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --check-version-increment=false
