@@ -52,12 +52,8 @@ mysql:
     tag: 8.0.42-33
   imagePullPolicy: Always
   imagePullSecrets: []
-<<<<<<< HEAD
   # - name: private-registry-credentials
   # initImage: percona/percona-server-mysql-operator:0.11.0
-=======
-  # initImage: percona/percona-server-mysql-operator:0.10.0
->>>>>>> main
 
   size: 3
 
@@ -185,11 +181,7 @@ proxy:
       tag: 2.8.14
     imagePullPolicy: Always
     imagePullSecrets: []
-<<<<<<< HEAD
     # initImage: percona/percona-server-mysql-operator:0.11.0
-=======
-    # initImage: percona/percona-server-mysql-operator:0.10.0
->>>>>>> main
 
     size: 3
 
@@ -313,11 +305,7 @@ proxy:
       tag: 8.0.42
     imagePullPolicy: Always
     imagePullSecrets: []
-<<<<<<< HEAD
     # initImage: percona/percona-server-mysql-operator:0.11.0
-=======
-    # initImage: percona/percona-server-mysql-operator:0.10.0
->>>>>>> main
 
     size: 3
 
@@ -396,11 +384,7 @@ orchestrator:
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-<<<<<<< HEAD
   # initImage: percona/percona-server-mysql-operator:0.11.0
-=======
-  # initImage: percona/percona-server-mysql-operator:0.10.0
->>>>>>> main
 
   size: 3
 
