@@ -272,6 +272,7 @@ spec:
 
     {{- $router := .Values.proxy.router }}
     router:
+      size: {{ $router.size }}
     {{- if or (not $router.enabled) (ne .Values.mysql.clusterType "group-replication") }}
       enabled: false
       image: {{ $router.image.repository }}:{{ $router.image.tag }}
@@ -287,9 +288,6 @@ spec:
       {{- end }}
       {{- if $router.initImage }}
       initImage: "{{ $router.initImage }}"
-      {{- end }}
-      {{- if $router.size }}
-      size: {{ $router.size }}
       {{- end }}
       affinity:
 {{ $router.affinity | toYaml | indent 8 }}
@@ -354,6 +352,7 @@ spec:
     {{- end }}
 
   orchestrator:
+    size: {{ .Values.orchestrator.size }}
   {{- $orc := .Values.orchestrator }}
   {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
     enabled: false
