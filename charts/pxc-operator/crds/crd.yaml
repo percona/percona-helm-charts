@@ -3077,8 +3077,6 @@ spec:
                     type: object
                   replicasExternalTrafficPolicy:
                     type: string
-                  replicasLoadBalancerIP:
-                    type: string
                   replicasLoadBalancerSourceRanges:
                     items:
                       type: string
