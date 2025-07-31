@@ -1108,11 +1108,11 @@ spec:
                               type: boolean
                             type:
                               enum:
-                                - count
+                              - count
                               type: string
                           required:
-                            - deleteFromStorage
-                            - type
+                          - deleteFromStorage
+                          - type
                           type: object
                         schedule:
                           type: string
@@ -2638,6 +2638,10 @@ spec:
                       type:
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: '''loadBalancerClass'' can only be set when service
+                        type is ''LoadBalancer'''
+                      rule: '!(has(self.loadBalancerClass)) || self.type == ''LoadBalancer'''
                   exposeReplicas:
                     properties:
                       annotations:
@@ -2669,10 +2673,12 @@ spec:
                       type:
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: '''loadBalancerClass'' can only be set when service
+                        type is ''LoadBalancer'''
+                      rule: '!(has(self.loadBalancerClass)) || self.type == ''LoadBalancer'''
                   externalTrafficPolicy:
                     type: string
-                  forceUnsafeBootstrap:
-                    type: boolean
                   gracePeriod:
                     format: int64
                     type: integer
@@ -2817,6 +2823,8 @@ spec:
                             - port
                             type: object
                         type: object
+                      stopSignal:
+                        type: string
                     type: object
                   livenessDelaySec:
                     format: int32
@@ -4369,6 +4377,8 @@ spec:
                                   - port
                                   type: object
                               type: object
+                            stopSignal:
+                              type: string
                           type: object
                         livenessProbe:
                           properties:
@@ -5326,6 +5336,8 @@ spec:
                             type: string
                         type: object
                     type: object
+                  customClusterName:
+                    type: string
                   enabled:
                     type: boolean
                   image:
@@ -6095,10 +6107,12 @@ spec:
                       type:
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: '''loadBalancerClass'' can only be set when service
+                        type is ''LoadBalancer'''
+                      rule: '!(has(self.loadBalancerClass)) || self.type == ''LoadBalancer'''
                   externalTrafficPolicy:
                     type: string
-                  forceUnsafeBootstrap:
-                    type: boolean
                   gracePeriod:
                     format: int64
                     type: integer
@@ -6243,6 +6257,8 @@ spec:
                             - port
                             type: object
                         type: object
+                      stopSignal:
+                        type: string
                     type: object
                   livenessDelaySec:
                     format: int32
@@ -7789,6 +7805,8 @@ spec:
                                   - port
                                   type: object
                               type: object
+                            stopSignal:
+                              type: string
                           type: object
                         livenessProbe:
                           properties:
@@ -8985,10 +9003,12 @@ spec:
                       type:
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: '''loadBalancerClass'' can only be set when service
+                        type is ''LoadBalancer'''
+                      rule: '!(has(self.loadBalancerClass)) || self.type == ''LoadBalancer'''
                   externalTrafficPolicy:
                     type: string
-                  forceUnsafeBootstrap:
-                    type: boolean
                   gracePeriod:
                     format: int64
                     type: integer
@@ -9133,6 +9153,8 @@ spec:
                             - port
                             type: object
                         type: object
+                      stopSignal:
+                        type: string
                     type: object
                   livenessDelaySec:
                     format: int32
@@ -10712,6 +10734,8 @@ spec:
                                   - port
                                   type: object
                               type: object
+                            stopSignal:
+                              type: string
                           type: object
                         livenessProbe:
                           properties:

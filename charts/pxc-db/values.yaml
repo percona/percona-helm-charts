@@ -78,6 +78,7 @@ pxc:
   #   internalTrafficPolicy: Local
   #   loadBalancerSourceRanges:
   #   - 10.0.0.0/8
+  #   loadBalancerIP: 127.0.0.1
   #   annotations:
   #     networking.gke.io/load-balancer-type: "Internal"
   #   labels:
@@ -355,6 +356,7 @@ haproxy:
   #     rack: rack-22
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
+  #   loadBalancerIP: 127.0.0.1
   # exposeReplicas:
   #   enabled: true
   #   onlyReaders: false
@@ -368,6 +370,7 @@ haproxy:
   #     rack: rack-22
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
+  #   loadBalancerIP: 127.0.0.1
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
@@ -452,6 +455,7 @@ proxysql:
   #     rack: rack-22
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
+  #   loadBalancerIP: 127.0.0.1
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
   readinessDelaySec: 15
