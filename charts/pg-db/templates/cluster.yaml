@@ -381,6 +381,14 @@ spec:
   backups:
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
+      {{- if .Values.backups.pgbackrest.envFrom }}
+      envFrom:
+{{ .Values.backups.pgbackrest.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.env }}
+      env:
+{{ .Values.backups.pgbackrest.env | toYaml | indent 8 }}
+      {{- end }}
       image: {{ .Values.backups.pgbackrest.image }}
       {{- if .Values.backups.pgbackrest.configuration }}
       configuration:
@@ -401,14 +409,6 @@ spec:
       jobs:
         {{- if .Values.backups.pgbackrest.jobs.restartPolicy }}
         restartPolicy: {{ .Values.backups.pgbackrest.jobs.restartPolicy }}
-        {{- end }}
-        {{- if .Values.backups.pgbackrest.jobs.envFrom }}
-        envFrom:
-{{ .Values.backups.pgbackrest.jobs.envFrom | toYaml | indent 10 }}
-        {{- end }}
-        {{- if .Values.backups.pgbackrest.jobs.env }}
-        env:
-{{ .Values.backups.pgbackrest.jobs.env | toYaml | indent 10 }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.backoffLimit }}
         backoffLimit: {{ .Values.backups.pgbackrest.jobs.backoffLimit }}
@@ -435,14 +435,6 @@ spec:
         {{- include "pg-database.resources" .Values.backups.pgbackrest.repoHost | indent 8 }}
         {{- if .Values.backups.pgbackrest.repoHost.priorityClassName }}
         priorityClassName: {{ .Values.backups.pgbackrest.repoHost.priorityClassName }}
-        {{- end }}
-        {{- if .Values.backups.pgbackrest.repoHost.envFrom }}
-        envFrom:
-{{ .Values.backups.pgbackrest.repoHost.envFrom | toYaml | indent 10 }}
-        {{- end }}
-        {{- if .Values.backups.pgbackrest.repoHost.env }}
-        env:
-{{ .Values.backups.pgbackrest.repoHost.env | toYaml | indent 10 }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.topologySpreadConstraints }}
         topologySpreadConstraints:
