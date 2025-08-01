@@ -38,6 +38,20 @@ Allows overriding the install namespace in combined charts.
 {{- end }}
 
 {{/*
+Determines whether to include namespace specification.
+Includes namespace for:
+- Fresh installs
+- Upgrades from chart version 1.4.1+ (detected by existing namespace field)
+*/}}
+{{- define "pmm.includeNamespace" -}}
+{{- if .Release.IsInstall }}
+  true
+{{- else }}
+  false
+{{- end }}
+{{- end }}
+
+{{/*
 Common labels
 */}}
 {{- define "pmm.labels" -}}
