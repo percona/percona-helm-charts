@@ -44,7 +44,11 @@ Includes namespace for:
 - Upgrades from chart version 1.4.1+ (detected by existing namespace field)
 */}}
 {{- define "pmm.includeNamespace" -}}
-{{- or .Release.IsInstall (and .Release.IsUpgrade (lookup "apps/v1" "StatefulSet" .Release.Namespace (include "pmm.fullname" .)).metadata.namespace) }}
+{{- if .Release.IsInstall }}
+  true
+{{- else }}
+  false
+{{- end }}
 {{- end }}
 
 {{/*

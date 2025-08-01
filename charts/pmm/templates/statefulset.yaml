@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ include "pmm.fullname" . }}
-  {{- if include "pmm.includeNamespace" . }}
+  {{- if .Release.IsInstall }}
   namespace: {{ include  "pmm.namespace" . }}
   {{- end }}
   labels:
@@ -19,7 +19,7 @@ spec:
     metadata:
       annotations:
         {{- include "pmm.podAnnotations" . | nindent 8 }}
-      {{- if include "pmm.includeNamespace" . }}
+      {{- if .Release.IsInstall }}
       namespace: {{ include  "pmm.namespace" . }}
       {{- end }}
       labels:
@@ -130,7 +130,7 @@ spec:
       kind: PersistentVolumeClaim
       metadata:
         name: {{ .Values.storage.name }}
-        {{- if include "pmm.includeNamespace" . }}
+        {{- if .Release.IsInstall }}
         namespace: {{ include  "pmm.namespace" . }}
         {{- end }}
       spec:
