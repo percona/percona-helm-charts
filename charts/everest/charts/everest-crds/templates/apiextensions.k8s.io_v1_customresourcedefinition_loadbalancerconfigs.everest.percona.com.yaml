@@ -53,9 +53,6 @@ spec:
                     type: string
                   description: Annotations key-value pairs to apply as annotations to the load balancer
                   type: object
-                  x-kubernetes-validations:
-                    - message: 'Invalid annotation key: must conform to DNS subdomain (e.g., ''example.com/key'') or start with ''kubernetes.io/'' or ''k8s.io/'''
-                      rule: self.all(key, key.matches('^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$') || key.startsWith('kubernetes.io/') || key.startsWith('k8s.io/'))
               type: object
             status:
               default:
