@@ -17,6 +17,7 @@ finalizers:
 #    proxy: false
 #    proxySize: false
 crVersion: 0.11.0
+enableVolumeExpansion: false
 pause: false
 # initImage: percona/percona-server-mysql-operator:0.11.0
 
