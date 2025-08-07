@@ -7,7 +7,7 @@ Useful links
 * [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/index.html)
 
 ## Pre-requisites
-* Kubernetes 1.29+
+* Kubernetes 1.30+
 * Helm v3
 
 # Installation
