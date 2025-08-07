@@ -31,5 +31,5 @@ To get a PostgreSQL prompt inside your new cluster you can run:
 
 And then connect to a cluster with a temporary Pod:
 
-  $ kubectl run -i --rm --tty percona-client --image=perconalab/percona-distribution-postgresql:16 --restart=Never \
+  $ kubectl run -i --rm --tty percona-client --image=docker.io/percona/percona-distribution-postgresql:17 --restart=Never \
   -- psql $PGBOUNCER_URI

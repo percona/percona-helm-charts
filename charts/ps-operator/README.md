@@ -6,7 +6,7 @@ Useful links:
 - [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-mysql/ps/index.html)
 
 ## Pre-requisites
-* Kubernetes 1.29+
+* Kubernetes 1.30+
 * Helm v3
 
 # Installation
@@ -19,7 +19,7 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/ps-operator --version 0.9.0 --namespace my-namespace
+helm install my-operator percona/ps-operator --version 0.10.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -27,7 +27,7 @@ The chart can be customized using the following configurable parameters:
 | Parameter               | Description                                                                                    | Default                                 |
 | ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------- |
 | `image.repository`      | PS Operator Container image name                                                               | `percona/percona-server-mysql-operator` |
-| `image.tag`             | PS Operator Container image tag                                                                | `0.9.0`                                 |
+| `image.tag`             | PS Operator Container image tag                                                                | `0.10.0`                                |
 | `image.pullPolicy`      | PS Operator Container pull policy                                                              | `Always`                                |
 | `imagePullSecrets`      | PS Operator Pod pull secret                                                                    | `[]`                                    |
 | `replicaCount`          | PS Operator Pod quantity                                                                       | `1`                                     |

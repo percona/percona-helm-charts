@@ -1,7 +1,7 @@
 dependencies:
 - name: common
   repository: file://charts/common
-  version: 0.0.16
+  version: 0.0.18
 - name: everest-db-namespace
   repository: file://charts/everest-db-namespace
   version: 0.0.0
@@ -14,5 +14,11 @@ dependencies:
 - name: pmm
   repository: https://percona.github.io/percona-helm-charts
   version: 1.3.21
-digest: sha256:09b342605be8f33004031ac606c8f4d79ebb1406da29b0f57e011e94e08f2b47
-generated: "2025-05-19T16:59:03.723694+03:00"
+- name: everest-crds
+  repository: file://charts/everest-crds
+  version: 0.0.0
+- name: operator-lifecycle-manager
+  repository: https://percona.github.io/operator-lifecycle-manager
+  version: 0.1.0
+digest: sha256:173cc5fe0aa501e3a21e6c492f167d12f7d06c1c81dfa23b03944a1104a02fd1
+generated: "2025-06-19T12:46:45.206626+05:30"
