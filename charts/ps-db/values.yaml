@@ -123,6 +123,10 @@ mysql:
       resources:
         requests:
           storage: 3G
+    # emptyDir: {}
+    # hostPath:
+    #   path: /data
+    #   type: Directory
 
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
