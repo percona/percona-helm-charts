@@ -16,8 +16,10 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 0.10.0
+crVersion: 0.11.0
+enableVolumeExpansion: false
 pause: false
+# initImage: percona/percona-server-mysql-operator:0.11.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -51,7 +53,8 @@ mysql:
     tag: 8.0.42-33
   imagePullPolicy: Always
   imagePullSecrets: []
-  # initImage: percona/percona-server-mysql-operator:0.10.0
+  # - name: private-registry-credentials
+  # initImage: percona/percona-server-mysql-operator:0.11.0
 
   size: 3
 
@@ -120,6 +123,10 @@ mysql:
       resources:
         requests:
           storage: 3G
+    # emptyDir: {}
+    # hostPath:
+    #   path: /data
+    #   type: Directory
 
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
@@ -179,7 +186,7 @@ proxy:
       tag: 2.8.14
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.10.0
+    # initImage: percona/percona-server-mysql-operator:0.11.0
 
     size: 3
 
@@ -303,7 +310,7 @@ proxy:
       tag: 8.0.42
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.10.0
+    # initImage: percona/percona-server-mysql-operator:0.11.0
 
     size: 3
 
@@ -382,7 +389,7 @@ orchestrator:
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.10.0
+  # initImage: percona/percona-server-mysql-operator:0.11.0
 
   size: 3
 
@@ -451,7 +458,6 @@ pmm:
     tag: 3.2.0
   imagePullPolicy: Always
   serverHost: monitoring-service
-  serverUser: admin
   resources:
     requests:
       memory: 150M

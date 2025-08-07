@@ -13,6 +13,9 @@ metadata:
 
 spec:
   crVersion: {{ .Chart.AppVersion }}
+  {{- if .Values.enableVolumeExpansion }}
+  enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
+  {{- end }}
   {{- if .Values.unsafeFlags }}
   unsafeFlags:
 {{ .Values.unsafeFlags | toYaml | indent 4 }}
@@ -127,8 +130,8 @@ spec:
     volumeSpec:
       {{- if $mysql.volumeSpec.hostPath }}
       hostPath:
-        path: {{ $mysql.volumeSpec.hostPath }}
-        type: Directory
+        path: {{ $mysql.volumeSpec.hostPath.path }}
+        type: {{ $mysql.volumeSpec.hostPath.type | default "Directory" }}
       {{- else if $mysql.volumeSpec.pvc }}
       persistentVolumeClaim:
 {{ $mysql.volumeSpec.pvc | toYaml | indent 8 }}
@@ -445,7 +448,6 @@ spec:
     imagePullPolicy: {{ $pmm.imagePullPolicy }}
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
-    serverUser: {{ $pmm.serverUser }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
