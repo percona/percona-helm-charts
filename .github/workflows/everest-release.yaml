@@ -22,6 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: everest-1.8.0
           sparse-checkout: |
             charts/everest
 
