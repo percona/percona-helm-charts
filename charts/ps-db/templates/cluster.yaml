@@ -446,6 +446,10 @@ spec:
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
     serverUser: {{ $pmm.serverUser }}
+    readinessProbes:
+{{ tpl ($pmm.readinessProbes | toYaml) $ | indent 6 }}
+    livenessProbes:
+{{ tpl ($pmm.livenessProbes | toYaml) $ | indent 6 }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
