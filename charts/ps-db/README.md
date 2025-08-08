@@ -191,6 +191,16 @@ The chart can be customized using the following configurable parameters:
 | `pmm.image.repository`   | PMM Container image repository          | `percona/pmm-client`                |
 | `pmm.image.tag`          | PMM Container image tag                 | `3.2.0`                             |
 | `pmm.imagePullPolicy`    | The policy used to update images        | ``                                  |
+| `pmm.readinessProbes.failureThreshold`   | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                     | `5`                                 |
+| `pmm.readinessProbes.initialDelaySeconds`| Number of seconds after the container has started before liveness or readiness probes are initiated                                                                                                 | `15`                                |
+| `pmm.readinessProbes.periodSeconds`      | How often (in seconds) to perform the probe                                                                                                                                                         | `30`                                |
+| `pmm.readinessProbes.successThreshold`   | Minimum consecutive successes for the probe to be considered successful after having failed                                                                                                         | `1`                                 |
+| `pmm.readinessProbes.timeoutSeconds`     | Number of seconds after which the probe times out                                                                                                                                                   | `15`                                |
+| `pmm.livenessProbes.failureThreshold`    | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                     | `3`                                 |
+| `pmm.livenessProbes.initialDelaySeconds` | Number of seconds after the container has started before liveness or readiness probes are initiated                                                                                                 | `300`                               |
+| `pmm.livenessProbes.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                         | `10`                                |
+| `pmm.livenessProbes.successThreshold`    | Minimum consecutive successes for the probe to be considered successful after having failed                                                                                                         | `1`                                 |
+| `pmm.livenessProbes.timeoutSeconds`      | Number of seconds after which the probe times out     
 | `pmm.serverHost`         | PMM server related K8S service hostname | `monitoring-service`                |
 | `pmm.serverUser`         | PMM server user                         | `admin`                             |
 | `pmm.resources.requests` | PMM Container resource requests         | `{"memory": "150M", "cpu": "300m"}` |
