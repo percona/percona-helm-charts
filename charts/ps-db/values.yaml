@@ -127,6 +127,8 @@ mysql:
     # hostPath:
     #   path: /data
     #   type: Directory
+  
+  gracePeriod: 600
 
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
@@ -215,6 +217,8 @@ proxy:
     #   periodSeconds: 5
     #   failureThreshold: 3
     #   successThreshold: 1
+
+    gracePeriod: 30
 
     # configuration: |
     #
@@ -340,6 +344,8 @@ proxy:
     #   topologyKey: kubernetes.io/hostname
     #   whenUnsatisfiable: DoNotSchedule
 
+    gracePeriod: 30
+
     # configuration: |
     #   [default]
     #   logging_folder=/tmp/router/log
@@ -415,6 +421,8 @@ orchestrator:
       resources:
         requests:
           storage: 1G
+
+  gracePeriod: 30
 
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
