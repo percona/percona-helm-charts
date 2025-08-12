@@ -139,6 +139,9 @@ spec:
       emptyDir: {}
       {{- end }}
     {{- end }}
+    {{- if $mysql.gracePeriod }}
+    gracePeriod: {{ $mysql.gracePeriod }}
+    {{- end }}
     {{- if $mysql.configuration }}
     configuration: |
 {{- tpl $mysql.configuration $ | nindent 6 }}
@@ -233,6 +236,9 @@ spec:
       readinessProbe:
 {{ $haproxy.readinessProbe | toYaml | indent 8 }}
       {{- end }}
+      {{- if $haproxy.gracePeriod }}
+      gracePeriod: {{ $haproxy.gracePeriod }}
+      {{- end }}
       {{- if $haproxy.configuration }}
       configuration: |
 {{- tpl $haproxy.configuration $ | nindent 8 }}
@@ -297,6 +303,9 @@ spec:
       {{- if $router.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ $router.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.gracePeriod }}
+      gracePeriod: {{ $router.gracePeriod }}
       {{- end }}
       {{- if $router.configuration }}
       configuration: |
@@ -386,6 +395,9 @@ spec:
     {{- if $orc.topologySpreadConstraints }}
     topologySpreadConstraints:
 {{ $orc.topologySpreadConstraints | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.gracePeriod }}
+    gracePeriod: {{ $orc.gracePeriod }}
     {{- end }}
     {{- if $orc.priorityClassName }}
     priorityClassName: {{ $orc.priorityClassName }}
