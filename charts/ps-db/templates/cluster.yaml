@@ -59,7 +59,7 @@ spec:
   {{- end }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
-{{ .Values.imagePullSecrets | toYaml | indent 4 }}
+{{ .Values.ignoreAnnotations | toYaml | indent 4 }}
   {{- end }}
   {{- if .Values.ignoreLabels }}
   ignoreLabels:
