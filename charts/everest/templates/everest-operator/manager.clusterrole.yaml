@@ -104,6 +104,7 @@ rules:
   - databaseclusters/status
   - databaseengines/status
   - dataimportjobs/status
+  - loadbalancerconfigs/status
   - monitoringconfigs/status
   - podschedulingpolicies/status
   verbs:
