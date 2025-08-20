@@ -116,6 +116,15 @@ mysql:
     #   - 10.0.0.0/8
 
   volumeSpec:
+    # dataSource:
+    #   apiGroup: ""
+    #   kind: PersistentVolumeClaim
+    #   name: source-pvc
+    # dataSourceRef:
+    #   apiGroup: ""
+    #   kind: PersistentVolumeClaim
+    #   name: source-pvc
+    #   namespace: default
     pvc:
       resources:
         requests:
