@@ -31,7 +31,7 @@ unsafeFlags:
   backupIfUnhealthy: false
 
 enableVolumeExpansion: false
-
+# enableExternalVolumeAutoscaling: false
 annotations: {}
 
 # ignoreAnnotations:
