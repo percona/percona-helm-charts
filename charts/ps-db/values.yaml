@@ -24,7 +24,19 @@ upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
   apply: disabled
 
-# initImage: percona/percona-server-mysql-operator:0.10.0
+# initContainer:
+#   image: perconalab/percona-server-mysql-operator:main
+#   containerSecurityContext:
+#     privileged: false
+#     runAsUser: 1001
+#     runAsGroup: 1001
+#   resources:
+#     requests:
+#       memory: 100M
+#       cpu: 100m
+#     limits:
+#       memory: 200M
+#       cpu: 200m
 # ignoreAnnotations:
 #   - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
 # ignoreLabels:
@@ -51,7 +63,19 @@ mysql:
     tag: 8.0.42-33
   imagePullPolicy: Always
   imagePullSecrets: []
-  # initImage: percona/percona-server-mysql-operator:0.10.0
+  # initContainer:
+  #   image: perconalab/percona-server-mysql-operator:main
+  #   containerSecurityContext:
+  #     privileged: false
+  #     runAsUser: 1001
+  #     runAsGroup: 1001
+  #   resources:
+  #     requests:
+  #       memory: 100M
+  #       cpu: 100m
+  #     limits:
+  #       memory: 200M
+  #       cpu: 200m
 
   size: 3
 
@@ -179,7 +203,19 @@ proxy:
       tag: 2.8.14
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.10.0
+    # initContainer:
+    #   image: perconalab/percona-server-mysql-operator:main
+    #   containerSecurityContext:
+    #     privileged: false
+    #     runAsUser: 1001
+    #     runAsGroup: 1001
+    #   resources:
+    #     requests:
+    #       memory: 100M
+    #       cpu: 100m
+    #     limits:
+    #       memory: 200M
+    #       cpu: 200m
 
     size: 3
 
@@ -303,7 +339,19 @@ proxy:
       tag: 8.0.42
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.10.0
+    # initContainer:
+    #   image: perconalab/percona-server-mysql-operator:main
+    #   containerSecurityContext:
+    #     privileged: false
+    #     runAsUser: 1001
+    #     runAsGroup: 1001
+    #   resources:
+    #     requests:
+    #       memory: 100M
+    #       cpu: 100m
+    #     limits:
+    #       memory: 200M
+    #       cpu: 200m
 
     size: 3
 
@@ -382,7 +430,19 @@ orchestrator:
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.10.0
+  # initContainer:
+  #   image: perconalab/percona-server-mysql-operator:main
+  #   containerSecurityContext:
+  #     privileged: false
+  #     runAsUser: 1001
+  #     runAsGroup: 1001
+  #   resources:
+  #     requests:
+  #       memory: 100M
+  #       cpu: 100m
+  #     limits:
+  #       memory: 200M
+  #       cpu: 200m
 
   size: 3
 
@@ -460,6 +520,19 @@ pmm:
 
 backup:
   enabled: true
+  # initContainer:
+  #   image: perconalab/percona-server-mysql-operator:main
+  #   containerSecurityContext:
+  #     privileged: false
+  #     runAsUser: 1001
+  #     runAsGroup: 1001
+  #   resources:
+  #     requests:
+  #       memory: 100M
+  #       cpu: 100m
+  #     limits:
+  #       memory: 200M
+  #       cpu: 200m
   image:
     repository: percona/percona-xtrabackup
     tag: 8.0.35-33
