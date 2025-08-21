@@ -19,6 +19,7 @@ spec:
       labels:
         app: everest-operator
     spec:
+      {{- if .Values.operator.init }}
       initContainers:
       - name: crs-migration
         env:
@@ -28,6 +29,7 @@ spec:
         command:
         - /migrator
         imagePullPolicy: IfNotPresent
+      {{- end }}
       containers:
       - args:
         {{- if .Values.operator.enableLeaderElection }}
