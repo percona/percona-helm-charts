@@ -194,6 +194,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.env | list | `[]` | Additional environment variables to pass to the operator deployment. |
 | operator.healthProbeAddr | string | `":8081"` | Health probe address for the operator. |
 | operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
+| operator.init | bool | `true` | Enable initContainer migration |
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
 | operator.webhook.certs | object | `{"ca.crt":"","tls.crt":"","tls.key":""}` | Certificates to use for the webhook server. The values must be base64 encoded. If unset, uses self-signed certificates. |
