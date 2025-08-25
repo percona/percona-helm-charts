@@ -169,6 +169,20 @@ rules:
   - list
   - watch
 - apiGroups:
+    - ps.percona.com
+  resources:
+    - perconaservermysqlbackups
+    - perconaservermysqlrestores
+    - perconaservermysqls
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+- apiGroups:
   - psmdb.percona.com
   resources:
   - perconaservermongodbbackups
