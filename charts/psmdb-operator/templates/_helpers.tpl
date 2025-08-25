@@ -43,3 +43,14 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "psmdb-operator.serviceAccountName" -}}
+{{- if .Values.serviceAccount.name -}}
+{{- printf "%s" .Values.serviceAccount.name }}
+{{- else -}}
+{{- printf "%s" (include "psmdb-operator.fullname" .) }}
+{{- end }}
+{{- end -}}
