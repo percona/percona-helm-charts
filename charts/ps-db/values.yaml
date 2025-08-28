@@ -460,6 +460,7 @@ pmm:
 
 backup:
   enabled: true
+#  sourceHost: cluster1-mysql-0.<mysql_service_name>.<namespace>
   image:
     repository: percona/percona-xtrabackup
     tag: 8.0.35-33

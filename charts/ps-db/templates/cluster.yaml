@@ -472,6 +472,9 @@ spec:
   backup:
   {{- $backup := .Values.backup }}
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
+  {{- if $backup.sourceHost }}
+    sourceHost: {{ $backup.sourceHost }}
+  {{- end }}
   {{- if not $backup.enabled }}
     enabled: false
   {{- else }}
