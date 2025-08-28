@@ -3,9 +3,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Values.service.name }}
-  {{- if include "pmm.includeNamespace" . }}
-  namespace: {{ include  "pmm.namespace" . }}
-  {{- end }}
+  {{- include "pmm.includeNamespace" . | nindent 2 }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
   {{- with .Values.service.annotations }}
@@ -30,9 +28,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Values.service.name }}-grpc
-  {{- if include "pmm.includeNamespace" . }}
-  namespace: {{ include  "pmm.namespace" . }}
-  {{- end }}
+  {{- include "pmm.includeNamespace" . | nindent 2 }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
   {{- with .Values.service.annotations }}

@@ -44,11 +44,38 @@ Includes namespace for:
 - Upgrades from chart version 1.4.1+ (detected by existing namespace field)
 */}}
 {{- define "pmm.includeNamespace" -}}
-{{- if .Release.IsInstall }}
-  true
-{{- else }}
-  false
-{{- end }}
+{{- $shouldInclude := true -}}
+{{- if .Release.IsInstall -}}
+  {{- $shouldInclude = true -}}
+{{- else -}}
+  {{- /* Try to detect previous chart version from existing StatefulSet labels/annotations */ -}}
+  {{- $prevVersion := "" -}}
+  {{- $sts := lookup "apps/v1" "StatefulSet" .Release.Namespace (include "pmm.fullname" .) -}}
+  {{- if $sts -}}
+    {{- $labels := (index $sts "metadata" "labels" | default (dict)) -}}
+    {{- $annotations := (index $sts "metadata" "annotations" | default (dict)) -}}
+    {{- $tplLabels := (index $sts "spec" "template" "metadata" "labels" | default (dict)) -}}
+    {{- $tplAnn := (index $sts "spec" "template" "metadata" "annotations" | default (dict)) -}}
+    {{- $chartLabel := (index $labels "helm.sh/chart" 
+                      | default (index $tplLabels "helm.sh/chart" 
+                      | default (index $annotations "helm.sh/chart" 
+                      | default (index $tplAnn "helm.sh/chart" | default "")))) -}}
+    {{- if $chartLabel -}}
+      {{- /* Extract semver (x.y.z with optional -prerelease or +build) from label */ -}}
+      {{- $found := regexFind "[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z\\.-]+)?" $chartLabel -}}
+      {{- if $found -}}
+        {{- $prevVersion = $found -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $prevVersion = (regexFind "^[0-9]+\\.[0-9]+\\.[0-9]+" (trim $prevVersion)) -}}
+  {{- if and $prevVersion (semverCompare "<=1.4.1" $prevVersion) -}}
+    {{- $shouldInclude = false -}}
+  {{- end -}}
+{{- end -}}
+{{- if $shouldInclude -}}
+namespace: {{ include "pmm.namespace" . }}
+{{- end -}}
 {{- end }}
 
 {{/*
