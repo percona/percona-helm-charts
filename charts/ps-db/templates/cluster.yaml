@@ -127,11 +127,11 @@ spec:
       enabled: false
       {{- end }}
     exposePrimary:
-          {{- if $mysql.exposePrimary.enabled }}
-    {{ tpl ($mysql.exposePrimary | toYaml) $ | indent 6 }}
-          {{- else }}
+      {{- if $mysql.exposePrimary.enabled }}
+{{- tpl ($mysql.exposePrimary | toYaml) $ | nindent 6 }}
+      {{- else }}
       enabled: false
-          {{- end }}
+      {{- end }}
     {{- if $mysql.volumeSpec }}
     volumeSpec:
       {{- if $mysql.volumeSpec.hostPath }}
