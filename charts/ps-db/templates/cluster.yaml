@@ -182,6 +182,7 @@ spec:
     {{- if not $haproxy.enabled }}
       enabled: false
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
+      size: 0
     {{- else }}
       enabled: true
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
