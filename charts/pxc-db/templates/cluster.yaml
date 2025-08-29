@@ -317,7 +317,7 @@ spec:
     readinessDelaySec: {{ $haproxy.readinessDelaySec }}
     {{- end }}
     {{- if $haproxy.livenessDelaySec }}
-    livenessDelaySec: {{ $pxc.livenessDelaySec }}
+    livenessDelaySec: {{ $haproxy.livenessDelaySec }}
     {{- end }}
     readinessProbes:
 {{ tpl ($haproxy.readinessProbes | toYaml) $ | indent 6 }}
