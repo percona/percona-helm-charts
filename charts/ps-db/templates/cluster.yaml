@@ -126,6 +126,12 @@ spec:
       {{- else }}
       enabled: false
       {{- end }}
+    exposePrimary:
+      {{- if $mysql.exposePrimary.enabled }}
+{{- tpl ($mysql.exposePrimary | toYaml) $ | nindent 6 }}
+      {{- else }}
+      enabled: false
+      {{- end }}
     {{- if $mysql.volumeSpec }}
     volumeSpec:
       {{- if $mysql.volumeSpec.hostPath }}
