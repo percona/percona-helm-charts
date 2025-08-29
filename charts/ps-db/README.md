@@ -98,7 +98,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `proxy.haproxy.enabled`                          | Enable/Disable HAProxy pods                                                                                                                                   | `true`                     |
 | `proxy.haproxy.image.repository`                 | HAProxy Container image repository                                                                                                                            | `percona/haproxy`          |
-| `proxy.haproxy.image.tag`                        | HAProxy Container image tag                                                                                                                                   | `2.8.14`                   |
+| `proxy.haproxy.image.tag`                        | HAProxy Container image tag                                                                                                                                   | `2.8.15`                   |
 | `proxy.haproxy.imagePullPolicy`                  | The policy used to update images                                                                                                                              | `Always`                   |
 | `proxy.haproxy.imagePullSecrets`                 | HAProxy Container pull secret                                                                                                                                 | `[]`                       |
 | `proxy.haproxy.initImage`                        | An alternative image for the initial haproxy setup                                                                                                            | `""`                       |
@@ -198,7 +198,7 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
 ||
 | `pmm.image.repository`   | PMM Container image repository          | `percona/pmm-client`                |
-| `pmm.image.tag`          | PMM Container image tag                 | `3.2.0`                             |
+| `pmm.image.tag`          | PMM Container image tag                 | `3.3.1`                             |
 | `pmm.imagePullPolicy`    | The policy used to update images        | ``                                  |
 | `pmm.serverHost`         | PMM server related K8S service hostname | `monitoring-service`                |
 | `pmm.resources.requests` | PMM Container resource requests         | `{"memory": "150M", "cpu": "300m"}` |

@@ -26,7 +26,7 @@ upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
   apply: disabled
 
-# initImage: percona/percona-server-mysql-operator:0.10.0
+# initImage: percona/percona-server-mysql-operator:0.11.0
 # ignoreAnnotations:
 #   - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
 # ignoreLabels:
@@ -185,7 +185,7 @@ proxy:
     enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.8.14
+      tag: 2.8.15
     imagePullPolicy: Always
     imagePullSecrets: []
     # initImage: percona/percona-server-mysql-operator:0.11.0
@@ -463,7 +463,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.2.0
+    tag: 3.3.1
   imagePullPolicy: Always
   serverHost: monitoring-service
   resources:
