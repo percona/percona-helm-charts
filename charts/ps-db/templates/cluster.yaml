@@ -84,6 +84,10 @@ spec:
     {{- if $mysql.initImage }}
     initImage: "{{ $mysql.initImage }}"
     {{- end }}
+    {{- if $mysql.podDisruptionBudget }}
+    podDisruptionBudget:
+{{ $mysql.podDisruptionBudget | toYaml | indent 6 }}
+    {{- end }}
     {{- if $mysql.size }}
     size: {{ $mysql.size }}
     {{- end }}
@@ -178,6 +182,10 @@ spec:
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
     {{- else }}
       enabled: true
+      {{- if $haproxy.podDisruptionBudget }}
+      podDisruptionBudget:
+{{ $haproxy.podDisruptionBudget | toYaml | indent 8 }}
+      {{- end }}
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
       {{- if $haproxy.imagePullPolicy }}
       imagePullPolicy: {{ $haproxy.imagePullPolicy }}
@@ -289,8 +297,10 @@ spec:
       {{- if $router.initImage }}
       initImage: "{{ $router.initImage }}"
       {{- end }}
-      affinity:
-{{ $router.affinity | toYaml | indent 8 }}
+      {{- if $router.podDisruptionBudget }}
+      podDisruptionBudget:
+{{ $router.podDisruptionBudget | toYaml | indent 8 }}
+      {{- end }}
       {{- if $router.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ $router.topologySpreadConstraints | toYaml | indent 8 }}
@@ -377,6 +387,10 @@ spec:
     {{- end }}
     {{- if $orc.size }}
     size: {{ $orc.size }}
+    {{- end }}
+    {{- if $orc.podDisruptionBudget }}
+    podDisruptionBudget:
+{{ $orc.podDisruptionBudget | toYaml | indent 6 }}
     {{- end }}
     affinity:
 {{ $orc.affinity | toYaml | indent 6 }}
