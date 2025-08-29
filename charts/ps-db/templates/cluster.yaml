@@ -13,6 +13,9 @@ metadata:
 
 spec:
   crVersion: {{ .Chart.AppVersion }}
+  {{- if .Values.enableVolumeExpansion }}
+  enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
+  {{- end }}
   {{- if .Values.unsafeFlags }}
   unsafeFlags:
 {{ .Values.unsafeFlags | toYaml | indent 4 }}
@@ -56,7 +59,7 @@ spec:
   {{- end }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
-{{ .Values.imagePullSecrets | toYaml | indent 4 }}
+{{ .Values.ignoreAnnotations | toYaml | indent 4 }}
   {{- end }}
   {{- if .Values.ignoreLabels }}
   ignoreLabels:
@@ -133,14 +136,17 @@ spec:
     volumeSpec:
       {{- if $mysql.volumeSpec.hostPath }}
       hostPath:
-        path: {{ $mysql.volumeSpec.hostPath }}
-        type: Directory
+        path: {{ $mysql.volumeSpec.hostPath.path }}
+        type: {{ $mysql.volumeSpec.hostPath.type | default "Directory" }}
       {{- else if $mysql.volumeSpec.pvc }}
       persistentVolumeClaim:
 {{ $mysql.volumeSpec.pvc | toYaml | indent 8 }}
       {{- else }}
       emptyDir: {}
       {{- end }}
+    {{- end }}
+    {{- if $mysql.gracePeriod }}
+    gracePeriod: {{ $mysql.gracePeriod }}
     {{- end }}
     {{- if $mysql.configuration }}
     configuration: |
@@ -182,6 +188,7 @@ spec:
     {{- if not $haproxy.enabled }}
       enabled: false
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
+      size: 0
     {{- else }}
       enabled: true
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
@@ -236,6 +243,9 @@ spec:
       readinessProbe:
 {{ $haproxy.readinessProbe | toYaml | indent 8 }}
       {{- end }}
+      {{- if $haproxy.gracePeriod }}
+      gracePeriod: {{ $haproxy.gracePeriod }}
+      {{- end }}
       {{- if $haproxy.configuration }}
       configuration: |
 {{- tpl $haproxy.configuration $ | nindent 8 }}
@@ -278,6 +288,7 @@ spec:
 
     {{- $router := .Values.proxy.router }}
     router:
+      size: {{ $router.size }}
     {{- if or (not $router.enabled) (ne .Values.mysql.clusterType "group-replication") }}
       enabled: false
       image: {{ $router.image.repository }}:{{ $router.image.tag }}
@@ -287,6 +298,10 @@ spec:
       {{- if $router.imagePullPolicy }}
       imagePullPolicy: {{ $router.imagePullPolicy }}
       {{- end }}
+      {{- if $router.ports }}
+      ports: 
+{{ $router.ports | toYaml | indent 8 }}
+      {{- end }}
       {{- if $router.imagePullSecrets }}
       imagePullSecrets:
 {{ $router.imagePullSecrets | toYaml | indent 8 }}
@@ -294,14 +309,14 @@ spec:
       {{- if $router.initImage }}
       initImage: "{{ $router.initImage }}"
       {{- end }}
-      {{- if $router.size }}
-      size: {{ $router.size }}
-      {{- end }}
       affinity:
 {{ $router.affinity | toYaml | indent 8 }}
       {{- if $router.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ $router.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.gracePeriod }}
+      gracePeriod: {{ $router.gracePeriod }}
       {{- end }}
       {{- if $router.configuration }}
       configuration: |
@@ -360,6 +375,7 @@ spec:
     {{- end }}
 
   orchestrator:
+    size: {{ .Values.orchestrator.size }}
   {{- $orc := .Values.orchestrator }}
   {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
     enabled: false
@@ -390,6 +406,9 @@ spec:
     {{- if $orc.topologySpreadConstraints }}
     topologySpreadConstraints:
 {{ $orc.topologySpreadConstraints | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.gracePeriod }}
+    gracePeriod: {{ $orc.gracePeriod }}
     {{- end }}
     {{- if $orc.priorityClassName }}
     priorityClassName: {{ $orc.priorityClassName }}

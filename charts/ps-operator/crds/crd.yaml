@@ -3,6 +3,11 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.3
+  labels:
+    app.kubernetes.io/component: crd
+    app.kubernetes.io/name: percona-server-crd
+    app.kubernetes.io/part-of: percona-server-mysql-operator
+    app.kubernetes.io/version: v0.11.0
   name: perconaservermysqlbackups.ps.percona.com
 spec:
   group: ps.percona.com
@@ -512,7 +517,7 @@ spec:
                     type: object
                   azure:
                     properties:
-                      containerName:
+                      container:
                         type: string
                       credentialsSecret:
                         type: string
@@ -523,7 +528,7 @@ spec:
                       storageClass:
                         type: string
                     required:
-                    - containerName
+                    - container
                     - credentialsSecret
                     type: object
                   containerSecurityContext:
@@ -958,6 +963,11 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.3
+  labels:
+    app.kubernetes.io/component: crd
+    app.kubernetes.io/name: percona-server-crd
+    app.kubernetes.io/part-of: percona-server-mysql-operator
+    app.kubernetes.io/version: v0.11.0
   name: perconaservermysqlrestores.ps.percona.com
 spec:
   group: ps.percona.com
@@ -1451,7 +1461,7 @@ spec:
                         type: object
                       azure:
                         properties:
-                          containerName:
+                          container:
                             type: string
                           credentialsSecret:
                             type: string
@@ -1462,7 +1472,7 @@ spec:
                           storageClass:
                             type: string
                         required:
-                        - containerName
+                        - container
                         - credentialsSecret
                         type: object
                       containerSecurityContext:
@@ -1912,6 +1922,11 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.3
+  labels:
+    app.kubernetes.io/component: crd
+    app.kubernetes.io/name: percona-server-crd
+    app.kubernetes.io/part-of: percona-server-mysql-operator
+    app.kubernetes.io/version: v0.11.0
   name: perconaservermysqls.ps.percona.com
 spec:
   group: ps.percona.com
@@ -3287,6 +3302,7 @@ spec:
                         - image
                         - readTimeout
                         - serverId
+                        - size
                         - storage
                         - writeTimeout
                         type: object
@@ -3793,7 +3809,7 @@ spec:
                           type: object
                         azure:
                           properties:
-                            containerName:
+                            container:
                               type: string
                             credentialsSecret:
                               type: string
@@ -3804,7 +3820,7 @@ spec:
                             storageClass:
                               type: string
                           required:
-                          - containerName
+                          - container
                           - credentialsSecret
                           type: object
                         containerSecurityContext:
@@ -4233,6 +4249,8 @@ spec:
                 type: object
               crVersion:
                 type: string
+              enableVolumeExpansion:
+                type: boolean
               ignoreAnnotations:
                 items:
                   type: string
@@ -4878,8 +4896,29 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      loadBalancerIP:
+                      loadBalancerSourceRanges:
+                        items:
+                          type: string
+                        type: array
+                      type:
                         type: string
+                    type: object
+                  exposePrimary:
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      enabled:
+                        type: boolean
+                      externalTrafficPolicy:
+                        type: string
+                      internalTrafficPolicy:
+                        type: string
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
                       loadBalancerSourceRanges:
                         items:
                           type: string
@@ -6331,6 +6370,8 @@ spec:
                                   - port
                                   type: object
                               type: object
+                            stopSignal:
+                              type: string
                           type: object
                         livenessProbe:
                           properties:
@@ -7044,6 +7085,7 @@ spec:
                     type: object
                 required:
                 - image
+                - size
                 type: object
               orchestrator:
                 properties:
@@ -7676,8 +7718,6 @@ spec:
                         additionalProperties:
                           type: string
                         type: object
-                      loadBalancerIP:
-                        type: string
                       loadBalancerSourceRanges:
                         items:
                           type: string
@@ -8260,6 +8300,7 @@ spec:
                     type: object
                 required:
                 - image
+                - size
                 type: object
               pause:
                 type: boolean
@@ -8343,6 +8384,8 @@ spec:
                     type: string
                   imagePullPolicy:
                     type: string
+                  mysqlParams:
+                    type: string
                   resources:
                     properties:
                       claims:
@@ -8376,8 +8419,6 @@ spec:
                           x-kubernetes-int-or-string: true
                         type: object
                     type: object
-                  runtimeClassName:
-                    type: string
                   serverHost:
                     type: string
                 required:
@@ -9016,8 +9057,6 @@ spec:
                             additionalProperties:
                               type: string
                             type: object
-                          loadBalancerIP:
-                            type: string
                           loadBalancerSourceRanges:
                             items:
                               type: string
@@ -9600,6 +9639,7 @@ spec:
                         type: object
                     required:
                     - image
+                    - size
                     type: object
                   router:
                     properties:
@@ -10232,8 +10272,6 @@ spec:
                             additionalProperties:
                               type: string
                             type: object
-                          loadBalancerIP:
-                            type: string
                           loadBalancerSourceRanges:
                             items:
                               type: string
@@ -10427,6 +10465,31 @@ spec:
                                 type: string
                             type: object
                         type: object
+                      ports:
+                        items:
+                          properties:
+                            appProtocol:
+                              type: string
+                            name:
+                              type: string
+                            nodePort:
+                              format: int32
+                              type: integer
+                            port:
+                              format: int32
+                              type: integer
+                            protocol:
+                              default: TCP
+                              type: string
+                            targetPort:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              x-kubernetes-int-or-string: true
+                          required:
+                          - port
+                          type: object
+                        type: array
                       priorityClassName:
                         type: string
                       readinessProbe:
@@ -10816,6 +10879,7 @@ spec:
                         type: object
                     required:
                     - image
+                    - size
                     type: object
                 type: object
               secretsName:
@@ -11320,6 +11384,32 @@ spec:
                     type: string
                 type: object
             type: object
+            x-kubernetes-validations:
+            - message: 'Invalid configuration: When ''mysql.clusterType'' is set to
+                ''async'', ''orchestrator.enabled'' must be true unless ''unsafeFlags.orchestrator''
+                is enabled'
+              rule: '!(self.mysql.clusterType == ''async'') || self.unsafeFlags.orchestrator
+                || self.orchestrator.enabled'
+            - message: 'Invalid configuration: When ''mysql.clusterType'' is set to
+                ''async'', ''proxy.haproxy.enabled'' must be true unless ''unsafeFlags.proxy''
+                is enabled'
+              rule: '!(self.mysql.clusterType == ''async'') || self.unsafeFlags.proxy
+                || self.proxy.haproxy.enabled'
+            - message: 'Invalid configuration: When ''mysql.clusterType'' is set to
+                ''async'', ''proxy.router.enabled'' must be disabled'
+              rule: '!(self.mysql.clusterType == ''async'') || self.proxy.router ==
+                null || !has(self.proxy.router.enabled) || !self.proxy.router.enabled'
+            - message: 'Invalid configuration: Scaling MySQL replicas below 3 requires
+                ''unsafeFlags.mysqlSize: true'''
+              rule: '!(has(self.mysql.size) && self.mysql.size < 3) || self.unsafeFlags.mysqlSize'
+            - message: 'Invalid configuration: For ''group replication'', scaling
+                MySQL replicas above 9 requires ''unsafeFlags.mysqlSize: true'''
+              rule: '!(self.mysql.clusterType == ''group-replication'' && has(self.mysql.size)
+                && self.mysql.size >= 9) || self.unsafeFlags.mysqlSize'
+            - message: 'Invalid configuration: For ''group replication'', using an
+                even number of MySQL replicas requires ''unsafeFlags.mysqlSize: true'''
+              rule: '!(self.mysql.clusterType == ''group-replication'' && has(self.mysql.size)
+                && self.mysql.size % 2 == 0) || self.unsafeFlags.mysqlSize'
           status:
             properties:
               backupVersion:
@@ -11362,6 +11452,8 @@ spec:
                 type: array
               haproxy:
                 properties:
+                  imageID:
+                    type: string
                   ready:
                     format: int32
                     type: integer
@@ -11377,6 +11469,8 @@ spec:
                 type: string
               mysql:
                 properties:
+                  imageID:
+                    type: string
                   ready:
                     format: int32
                     type: integer
@@ -11390,6 +11484,8 @@ spec:
                 type: object
               orchestrator:
                 properties:
+                  imageID:
+                    type: string
                   ready:
                     format: int32
                     type: integer
@@ -11405,6 +11501,8 @@ spec:
                 type: string
               router:
                 properties:
+                  imageID:
+                    type: string
                   ready:
                     format: int32
                     type: integer
