@@ -19,14 +19,14 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 0.10.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 0.12.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                             | Default                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `0.10.0`                    |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `0.12.0`                    |
 | `finalizers:percona.com/delete-mysql-pods-in-order` | Set this if you want to delete MySQL pods in order on cluster deletion                                                                                                  | `[]`                        |
 | `finalizers:percona.com/delete-ssl`                 | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion                                                                            | `[]`                        |
 | `pause`                                             | Stop PS Cluster safely                                                                                                                                                  | `false`                     |

@@ -16,7 +16,7 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 0.10.0
+crVersion: 0.12.0
 pause: false
 
 updateStrategy: SmartUpdate
@@ -24,7 +24,7 @@ upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
   apply: disabled
 
-# initImage: percona/percona-server-mysql-operator:0.10.0
+# initImage: percona/percona-server-mysql-operator:0.12.0
 # ignoreAnnotations:
 #   - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
 # ignoreLabels:
@@ -51,7 +51,7 @@ mysql:
     tag: 8.0.42-33
   imagePullPolicy: Always
   imagePullSecrets: []
-  # initImage: percona/percona-server-mysql-operator:0.10.0
+  # initImage: percona/percona-server-mysql-operator:0.12.0
 
   size: 3
 
@@ -179,7 +179,7 @@ proxy:
       tag: 2.8.14
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.10.0
+    # initImage: percona/percona-server-mysql-operator:0.12.0
 
     size: 3
 
@@ -303,7 +303,7 @@ proxy:
       tag: 8.0.42
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.10.0
+    # initImage: percona/percona-server-mysql-operator:0.12.0
 
     size: 3
 
@@ -382,7 +382,7 @@ orchestrator:
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.10.0
+  # initImage: percona/percona-server-mysql-operator:0.12.0
 
   size: 3
 
