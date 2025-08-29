@@ -205,12 +205,13 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.expose.labels`                             | Network service labels                                                                                                                                        | `{}`                           |
 | `orchestrator.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
 ||
-| `pmm.image.repository`   | PMM Container image repository          | `percona/pmm-client`                |
-| `pmm.image.tag`          | PMM Container image tag                 | `3.3.1`                             |
-| `pmm.imagePullPolicy`    | The policy used to update images        | ``                                  |
-| `pmm.serverHost`         | PMM server related K8S service hostname | `monitoring-service`                |
-| `pmm.resources.requests` | PMM Container resource requests         | `{"memory": "150M", "cpu": "300m"}` |
-| `pmm.resources.limits`   | PMM Container resource limits           | `{}`                                |
+| `pmm.image.repository`   | PMM Container image repository                                                                                                                                                                        | `percona/pmm-client`                |
+| `pmm.image.tag`          | PMM Container image tag                                                                                                                                                                               | `3.3.1`                             |
+| `pmm.imagePullPolicy`    | The policy used to update images                                                                                                                                                                      | ``                                  |
+| `pmm.serverHost`         | PMM server related K8S service hostname                                                                                                                                                               | `monitoring-service`                |
+| `pmm.mysqlParams`        | Additional parameters which will be passed to the [pmm-admin add mysql](https://docs.percona.com/percona-monitoring-and-management/setting-up/client/mysql.html#add-service) command for `mysql` Pods | `""`                                |
+| `pmm.resources.requests` | PMM Container resource requests                                                                                                                                                                       | `{"memory": "150M", "cpu": "300m"}` |
+| `pmm.resources.limits`   | PMM Container resource limits                                                                                                                                                                         | `{}`                                |
 ||
 | `toolkit.image.repository`   | Percona Toolkit Container image repository | `percona/percona-toolkit` |
 | `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.7.0`                   |

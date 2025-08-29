@@ -506,6 +506,7 @@ pmm:
     tag: 3.3.1
   imagePullPolicy: Always
   serverHost: monitoring-service
+  # mysqlParams: "--disable-tablestats-limit=2000"
   resources:
     requests:
       memory: 150M

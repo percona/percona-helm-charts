@@ -465,6 +465,9 @@ spec:
     enabled: false
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
   {{- else }}
+  {{- if $pmm.mysqlParams }}
+    mysqlParams: {{ $pmm.mysqlParams }}
+  {{- end }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
     {{- if $pmm.imagePullPolicy }}
