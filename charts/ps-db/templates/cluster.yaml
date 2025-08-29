@@ -292,6 +292,10 @@ spec:
       {{- if $router.imagePullPolicy }}
       imagePullPolicy: {{ $router.imagePullPolicy }}
       {{- end }}
+      {{- if $router.ports }}
+      ports: 
+{{ $router.ports | toYaml | indent 8 }}
+      {{- end }}
       {{- if $router.imagePullSecrets }}
       imagePullSecrets:
 {{ $router.imagePullSecrets | toYaml | indent 8 }}

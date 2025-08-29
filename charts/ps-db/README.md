@@ -132,6 +132,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.haproxy.expose.loadBalancerSourceRanges`  | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                       |
 ||
 | `proxy.router.enabled`                          | Enable/Disable Router pods in group replication                                                                                                               | `false`                        |
+| `proxy.router.ports`                            | Add/Modify the ports of Router service                                                                                                                        | `[]`                           |
 | `proxy.router.image.repository`                 | Router Container image repository                                                                                                                             | `percona/percona-mysql-router` |
 | `proxy.router.image.tag`                        | Router Container image tag                                                                                                                                    | `8.0.42`                       |
 | `proxy.router.imagePullPolicy`                  | The policy used to update images                                                                                                                              | `Always`                       |
