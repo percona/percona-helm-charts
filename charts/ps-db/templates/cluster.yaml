@@ -13,6 +13,9 @@ metadata:
 
 spec:
   crVersion: {{ .Chart.AppVersion }}
+  {{- if .Values.enableVolumeExpansion }}
+  enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
+  {{- end }}
   {{- if .Values.unsafeFlags }}
   unsafeFlags:
 {{ .Values.unsafeFlags | toYaml | indent 4 }}
@@ -56,7 +59,7 @@ spec:
   {{- end }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
-{{ .Values.imagePullSecrets | toYaml | indent 4 }}
+{{ .Values.ignoreAnnotations | toYaml | indent 4 }}
   {{- end }}
   {{- if .Values.ignoreLabels }}
   ignoreLabels:
@@ -127,14 +130,17 @@ spec:
     volumeSpec:
       {{- if $mysql.volumeSpec.hostPath }}
       hostPath:
-        path: {{ $mysql.volumeSpec.hostPath }}
-        type: Directory
+        path: {{ $mysql.volumeSpec.hostPath.path }}
+        type: {{ $mysql.volumeSpec.hostPath.type | default "Directory" }}
       {{- else if $mysql.volumeSpec.pvc }}
       persistentVolumeClaim:
 {{ $mysql.volumeSpec.pvc | toYaml | indent 8 }}
       {{- else }}
       emptyDir: {}
       {{- end }}
+    {{- end }}
+    {{- if $mysql.gracePeriod }}
+    gracePeriod: {{ $mysql.gracePeriod }}
     {{- end }}
     {{- if $mysql.configuration }}
     configuration: |
@@ -176,6 +182,7 @@ spec:
     {{- if not $haproxy.enabled }}
       enabled: false
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
+      size: 0
     {{- else }}
       enabled: true
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
@@ -229,6 +236,9 @@ spec:
       {{- if $haproxy.readinessProbe }}
       readinessProbe:
 {{ $haproxy.readinessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $haproxy.gracePeriod }}
+      gracePeriod: {{ $haproxy.gracePeriod }}
       {{- end }}
       {{- if $haproxy.configuration }}
       configuration: |
@@ -298,6 +308,9 @@ spec:
       {{- if $router.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ $router.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.gracePeriod }}
+      gracePeriod: {{ $router.gracePeriod }}
       {{- end }}
       {{- if $router.configuration }}
       configuration: |
@@ -388,6 +401,9 @@ spec:
     topologySpreadConstraints:
 {{ $orc.topologySpreadConstraints | toYaml | indent 6 }}
     {{- end }}
+    {{- if $orc.gracePeriod }}
+    gracePeriod: {{ $orc.gracePeriod }}
+    {{- end }}
     {{- if $orc.priorityClassName }}
     priorityClassName: {{ $orc.priorityClassName }}
     {{- end }}
@@ -449,7 +465,6 @@ spec:
     imagePullPolicy: {{ $pmm.imagePullPolicy }}
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
-    serverUser: {{ $pmm.serverUser }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}

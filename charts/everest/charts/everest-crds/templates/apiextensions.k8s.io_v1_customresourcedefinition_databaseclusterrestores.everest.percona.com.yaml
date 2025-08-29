@@ -1,0 +1,134 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: databaseclusterrestores.everest.percona.com
+  labels:
+    everest.percona.com/crd: "true"
+    everest.percona.com/version: 0.0.0
+spec:
+  group: everest.percona.com
+  names:
+    kind: DatabaseClusterRestore
+    listKind: DatabaseClusterRestoreList
+    plural: databaseclusterrestores
+    shortNames:
+      - dbrestore
+      - dbr
+    singular: databaseclusterrestore
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - description: Cluster name
+          jsonPath: .spec.dbClusterName
+          name: Cluster
+          type: string
+        - description: DBClusterBackup name
+          jsonPath: .spec.dataSource.dbClusterBackupName
+          name: Backup
+          type: string
+        - description: Backup path
+          jsonPath: .spec.dataSource.backupSource.path
+          name: Path
+          type: string
+        - description: Storage name
+          jsonPath: .spec.dataSource.backupSource.backupStorageName
+          name: Storage
+          type: string
+        - description: Job status
+          jsonPath: .status.state
+          name: Status
+          type: string
+        - description: Completed time
+          jsonPath: .status.completed
+          name: Completed
+          type: date
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: DatabaseClusterRestore is the Schema for the databaseclusterrestores API.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: DatabaseClusterRestoreSpec defines the desired state of DatabaseClusterRestore.
+              properties:
+                dataSource:
+                  description: DataSource defines a data source for restoration.
+                  properties:
+                    backupSource:
+                      description: BackupSource is the backup source to restore from
+                      properties:
+                        backupStorageName:
+                          description: |-
+                            BackupStorageName is the name of the BackupStorage used for backups.
+                            The BackupStorage must be created in the same namespace as the DatabaseCluster.
+                          type: string
+                        path:
+                          description: Path is the path to the backup file/directory.
+                          type: string
+                      required:
+                        - backupStorageName
+                        - path
+                      type: object
+                    dbClusterBackupName:
+                      description: DBClusterBackupName is the name of the DB cluster backup to restore from
+                      type: string
+                    pitr:
+                      description: PITR is the point-in-time recovery configuration
+                      properties:
+                        date:
+                          description: 'Date is the UTC date to recover to. The accepted format: "2006-01-02T15:04:05Z".'
+                          type: string
+                        type:
+                          default: date
+                          description: Type is the type of recovery.
+                          enum:
+                            - date
+                            - latest
+                          type: string
+                      type: object
+                  type: object
+                dbClusterName:
+                  description: DBClusterName defines the cluster name to restore.
+                  type: string
+              required:
+                - dataSource
+                - dbClusterName
+              type: object
+            status:
+              description: DatabaseClusterRestoreStatus defines the observed state of DatabaseClusterRestore.
+              properties:
+                completed:
+                  format: date-time
+                  type: string
+                message:
+                  type: string
+                state:
+                  description: RestoreState represents state of restoration.
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

@@ -16,15 +16,17 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 0.10.0
+crVersion: 0.11.0
+enableVolumeExpansion: false
 pause: false
+# initImage: percona/percona-server-mysql-operator:0.11.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
   versionServiceEndpoint: https://check.percona.com
   apply: disabled
 
-# initImage: percona/percona-server-mysql-operator:0.10.0
+# initImage: percona/percona-server-mysql-operator:0.11.0
 # ignoreAnnotations:
 #   - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
 # ignoreLabels:
@@ -51,7 +53,8 @@ mysql:
     tag: 8.0.42-33
   imagePullPolicy: Always
   imagePullSecrets: []
-  # initImage: percona/percona-server-mysql-operator:0.10.0
+  # - name: private-registry-credentials
+  # initImage: percona/percona-server-mysql-operator:0.11.0
 
   size: 3
 
@@ -120,6 +123,12 @@ mysql:
       resources:
         requests:
           storage: 3G
+    # emptyDir: {}
+    # hostPath:
+    #   path: /data
+    #   type: Directory
+  
+  gracePeriod: 600
 
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
@@ -176,10 +185,10 @@ proxy:
     enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.8.14
+      tag: 2.8.15
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.10.0
+    # initImage: percona/percona-server-mysql-operator:0.11.0
 
     size: 3
 
@@ -208,6 +217,8 @@ proxy:
     #   periodSeconds: 5
     #   failureThreshold: 3
     #   successThreshold: 1
+
+    gracePeriod: 30
 
     # configuration: |
     #
@@ -303,7 +314,7 @@ proxy:
       tag: 8.0.42
     imagePullPolicy: Always
     imagePullSecrets: []
-    # initImage: percona/percona-server-mysql-operator:0.10.0
+    # initImage: percona/percona-server-mysql-operator:0.11.0
     # ports:
     # - name: http
     #   port: 8443
@@ -332,7 +343,6 @@ proxy:
     # - name: custom-port
     #   port: 1111
     #   targetPort: 6446
-
     size: 3
 
     resources:
@@ -360,6 +370,8 @@ proxy:
     #   maxSkew: 1
     #   topologyKey: kubernetes.io/hostname
     #   whenUnsatisfiable: DoNotSchedule
+
+    gracePeriod: 30
 
     # configuration: |
     #   [default]
@@ -410,7 +422,7 @@ orchestrator:
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
-  # initImage: percona/percona-server-mysql-operator:0.10.0
+  # initImage: percona/percona-server-mysql-operator:0.11.0
 
   size: 3
 
@@ -436,6 +448,8 @@ orchestrator:
       resources:
         requests:
           storage: 1G
+
+  gracePeriod: 30
 
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
@@ -476,10 +490,9 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.2.0
+    tag: 3.3.1
   imagePullPolicy: Always
   serverHost: monitoring-service
-  serverUser: admin
   resources:
     requests:
       memory: 150M
@@ -552,6 +565,7 @@ backup:
     #   podSecurityContext:
     #     fsGroup: 1001
     #     supplementalGroups: [1001, 1002, 1003]
+    #   runtimeClassName: image-rc
     #   s3:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
     #     credentialsSecret: cluster1-s3-credentials

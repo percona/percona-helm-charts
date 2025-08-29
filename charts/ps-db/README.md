@@ -19,14 +19,15 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 0.10.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 0.11.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                             | Default                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `0.10.0`                    |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `0.11.0`                    |
+| `enableVolumeExpansion`                             | Enable or disable volume expansion                                                                                                                                      | `false`                     |
 | `finalizers:percona.com/delete-mysql-pods-in-order` | Set this if you want to delete MySQL pods in order on cluster deletion                                                                                                  | `[]`                        |
 | `finalizers:percona.com/delete-ssl`                 | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion                                                                            | `[]`                        |
 | `pause`                                             | Stop PS Cluster safely                                                                                                                                                  | `false`                     |
@@ -82,6 +83,11 @@ The chart can be customized using the following configurable parameters:
 | `mysql.volumeSpec.pvc.storageClassName`           | MySQL Pods PVC target storageClass                                                                                                                            | `""`                       |
 | `mysql.volumeSpec.pvc.accessModes`                | MySQL Pods PVC access policy                                                                                                                                  | `[]`                       |
 | `mysql.volumeSpec.pvc.resources.requests.storage` | MySQL Pods PVC storage size                                                                                                                                   | `3G`                       |
+| `mysql.volumeSpec.hostPath`                       | MySQL Pods hostPath parameters                                                                                                                                |                            |
+| `mysql.volumeSpec.hostPath.path`                  | MySQL Pods local path for data volume                                                                                                                         | `""`                       |
+| `mysql.volumeSpec.hostPath.type`                  | MySQL Pods type of hostPath                                                                                                                                   | `Directory`                |
+| `mysql.volumeSpec.emptyDir`                       | MySQL Pods data volume using ephemeral storage                                                                                                                | `{}`                       |
+| `mysql.gracePeriod`                               | MySQL Pods termination grace period                                                                                                                           | `600`                      |
 | `mysql.configuration`                             | Custom config for MySQL                                                                                                                                       | `""`                       |
 | `mysql.sidecars`                                  | MySQL Pod sidecars                                                                                                                                            | `{}`                       |
 | `mysql.sidecarVolumes`                            | MySQL Pod sidecar volumes                                                                                                                                     | `[]`                       |
@@ -92,7 +98,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `proxy.haproxy.enabled`                          | Enable/Disable HAProxy pods                                                                                                                                   | `true`                     |
 | `proxy.haproxy.image.repository`                 | HAProxy Container image repository                                                                                                                            | `percona/haproxy`          |
-| `proxy.haproxy.image.tag`                        | HAProxy Container image tag                                                                                                                                   | `2.8.14`                   |
+| `proxy.haproxy.image.tag`                        | HAProxy Container image tag                                                                                                                                   | `2.8.15`                   |
 | `proxy.haproxy.imagePullPolicy`                  | The policy used to update images                                                                                                                              | `Always`                   |
 | `proxy.haproxy.imagePullSecrets`                 | HAProxy Container pull secret                                                                                                                                 | `[]`                       |
 | `proxy.haproxy.initImage`                        | An alternative image for the initial haproxy setup                                                                                                            | `""`                       |
@@ -113,6 +119,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.haproxy.envFrom`                          | HAProxy Pods set env variable from secret                                                                                                                     | `[]`                       |
 | `proxy.haproxy.livenessProbe`                    | HAProxy Pods livenessProbe structure                                                                                                                          | `{}`                       |
 | `proxy.haproxy.readinessProbe`                   | HAProxy Pods readinessProbe structure                                                                                                                         | `{}`                       |
+| `proxy.haproxy.gracePeriod`                      | HAProxy Pods termination grace period                                                                                                                         | `30`                       |
 | `proxy.haproxy.configuration`                    | Custom config for HAProxy                                                                                                                                     | `""`                       |
 | `proxy.haproxy.containerSecurityContext`         | A custom Kubernetes Security Context for a Container to be used instead of the default one                                                                    | `{}`                       |
 | `proxy.haproxy.podSecurityContext`               | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                                                          | `{}`                       |
@@ -141,6 +148,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.router.affinity.antiAffinityTopologyKey` | Router Pods simple scheduling restriction on/off for host, zone, region                                                                                       | `"kubernetes.io/hostname"`     |
 | `proxy.router.affinity.advanced`                | Router Pods advanced scheduling restriction with match expression engine                                                                                      | `{}`                           |
 | `proxy.router.topologySpreadConstraints`        | The Label selector for the [Kubernetes Pod Topology Spread Constraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/) | `[]`                           |
+| `proxy.router.gracePeriod`                      | Router Pods termination grace period                                                                                                                         | `30`                           |
 | `proxy.router.configuration`                    | User defined Router options according to Router configuration file syntax                                                                                     | ``                             |
 | `proxy.router.tolerations`                      | List of node taints to tolerate for Router Pods                                                                                                               | `[]`                           |
 | `proxy.router.resources.requests`               | Router Pods resource requests                                                                                                                                 | `memory: 256M`                 |
@@ -180,6 +188,7 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.volumeSpec.pvc.storageClassName`           | Orchestrator Pods PVC target storageClass                                                                                                                     | `""`                           |
 | `orchestrator.volumeSpec.pvc.accessModes`                | Orchestrator Pods PVC access policy                                                                                                                           | `[]`                           |
 | `orchestrator.volumeSpec.pvc.resources.requests.storage` | Orchestrator Pods PVC storage size                                                                                                                            | `1G`                           |
+| `orchestrator.gracePeriod`                               | Orchestrator Pods termination grace period                                                                                                                    | `30`                           |
 | `orchestrator.containerSecurityContext`                  | A custom Kubernetes Security Context for a Container to be used instead of the default one                                                                    | `{}`                           |
 | `orchestrator.podSecurityContext`                        | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                                                          | `{}`                           |
 | `orchestrator.expose.type`                               | Network service access point type                                                                                                                             | `""`                           |
@@ -190,10 +199,9 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
 ||
 | `pmm.image.repository`   | PMM Container image repository          | `percona/pmm-client`                |
-| `pmm.image.tag`          | PMM Container image tag                 | `3.2.0`                             |
+| `pmm.image.tag`          | PMM Container image tag                 | `3.3.1`                             |
 | `pmm.imagePullPolicy`    | The policy used to update images        | ``                                  |
 | `pmm.serverHost`         | PMM server related K8S service hostname | `monitoring-service`                |
-| `pmm.serverUser`         | PMM server user                         | `admin`                             |
 | `pmm.resources.requests` | PMM Container resource requests         | `{"memory": "150M", "cpu": "300m"}` |
 | `pmm.resources.limits`   | PMM Container resource limits           | `{}`                                |
 ||
