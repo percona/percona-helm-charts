@@ -45,9 +45,7 @@ Includes namespace for:
 */}}
 {{- define "pmm.includeNamespace" -}}
 {{- $shouldInclude := true -}}
-{{- if .Release.IsInstall -}}
-  {{- $shouldInclude = true -}}
-{{- else -}}
+{{- if !.Release.IsInstall -}}
   {{- /* Try to detect previous chart version from existing StatefulSet labels/annotations */ -}}
   {{- $prevVersion := "" -}}
   {{- $sts := lookup "apps/v1" "StatefulSet" .Release.Namespace (include "pmm.fullname" .) -}}
