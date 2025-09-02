@@ -234,7 +234,6 @@ podSecurityContext:
   fsGroup: 1000
 # to make it work with openshift comment everything above and uncomment lines below
 #  runAsNonRoot: true
-#  runAsGroup: 1000
 #  seccompProfile:
 #    type: RuntimeDefault
 
