@@ -294,10 +294,10 @@ podSecurityContext:
   ## runAsNonRoot: true
   ## runAsUser: 1000
 securityContext:
-    capabilities:
-        drop:
-        - ALL
-    allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  allowPrivilegeEscalation: false
 
 
 ## @param nodeSelector Node labels for pod assignment
