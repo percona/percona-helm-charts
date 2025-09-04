@@ -2277,6 +2277,28 @@ entries:
   pmm:
   - apiVersion: v2
     appVersion: 3.3.1
+    created: "2025-09-04T09:40:55.575542432Z"
+    description: A Helm chart for Percona Monitoring and Management (PMM)
+    digest: c75a4b03dbdfff20b87f0e0d56787fa19fe23e9a1b65c4e21868d537143e7dee
+    home: https://github.com/percona/pmm
+    icon: https://www.percona.com/sites/default/files/pmm-logo.png
+    keywords:
+    - PMM
+    - Monitoring
+    maintainers:
+    - email: tomislav.plavcic@percona.com
+      name: tplavcic
+    - email: nurlan.moldomurov@percona.com
+      name: bupychuk
+    - email: sergey.pronin@percona.com
+      name: spron-in
+    name: pmm
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-1.4.8/pmm-1.4.8.tgz
+    version: 1.4.8
+  - apiVersion: v2
+    appVersion: 3.3.1
     created: "2025-08-01T10:24:04.775248909Z"
     description: A Helm chart for Percona Monitoring and Management (PMM)
     digest: 5144aca78df4a7e9ec441c92e3ebb6dfd732edc7dcb22d01e330ecf56f77ce6f
@@ -6939,4 +6961,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-09-02T11:23:01.048771031Z"
+generated: "2025-09-04T09:40:55.576077495Z"
