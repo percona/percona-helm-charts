@@ -123,3 +123,15 @@ checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sh
 {{ toYaml .Values.podAnnotations }}
 {{- end }}
 {{- end }}
+
+{{/*
+Create password if it does not exist or reuse existing one.
+*/}}
+{{- define "pmm.password" -}}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace .Values.secret.name -}}
+{{- if and $secret $secret.data.PMM_ADMIN_PASSWORD -}}
+{{ $secret.data.PMM_ADMIN_PASSWORD }}
+{{- else -}}
+{{ .Values.secret.pmm_password | default (randAscii 16) | b64enc }}
+{{- end -}}
+{{- end -}}

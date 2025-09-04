@@ -274,6 +274,11 @@ podSecurityContext:
   runAsGroup: 1000
   fsGroupChangePolicy: OnRootMismatch
   fsGroup: 1000
+# to make it work with openshift comment everything above and uncomment lines below
+#  runAsNonRoot: true
+#  seccompProfile:
+#    type: RuntimeDefault
+
 
 ## @param securityContext Configure Container Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
@@ -288,7 +293,11 @@ podSecurityContext:
   ## readOnlyRootFilesystem: true
   ## runAsNonRoot: true
   ## runAsUser: 1000
-securityContext: {}
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  allowPrivilegeEscalation: false
 
 
 ## @param nodeSelector Node labels for pod assignment
