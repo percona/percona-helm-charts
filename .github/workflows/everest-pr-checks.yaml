@@ -103,7 +103,7 @@ jobs:
 
           # Wait for system components
           kubectl wait --for=condition=available --timeout=60s deployment/everest-server -n everest-system
-          kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
+          kubectl wait --for=condition=available --timeout=120s deployment/everest-operator -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/kube-state-metrics -n everest-monitoring
           kubectl wait --for=condition=available --timeout=60s deployment/vm-operator -n everest-monitoring
           kubectl wait --for=condition=ready pods --timeout=120s -n everest-system -l app.kubernetes.io/name=pmm
