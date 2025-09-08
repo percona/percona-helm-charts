@@ -159,10 +159,10 @@ operator:
       tls.crt: ""
       ca.crt: ""
 
-    # -- If set to true, preserves the existing TLS Certificate Secrets.
-    # Ignored if certificates are explicitly provided in operator.webhook.certs,
-    # in which case, the specifed certificater are used.
-    # Ignored during installation.
+    # -- If set to true, preserves existing TLS Certificate Secrets during upgrades.
+    # This setting is ignored if certificates are explicitly provided in operator.webhook.certs,
+    # in which case the specified certificates are used instead.
+    # This setting has no effect during installation.
     # @default -- true
     preserveTLSCerts: true
 
