@@ -159,6 +159,13 @@ operator:
       tls.crt: ""
       ca.crt: ""
 
+    # -- If set to true, preserves the existing TLS Certificate Secrets.
+    # Ignored if certificates are explicitly provided in operator.webhook.certs,
+    # in which case, the specifed certificater are used.
+    # Ignored during installation.
+    # @default -- true
+    preserveTLSCerts: true
+
 dataImporters:
   # -- Settings for the Percona PostgreSQL Operator data importer.
   perconaPGOperator:
