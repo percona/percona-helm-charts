@@ -5,7 +5,7 @@ metadata:
   name: {{ include "pmm.fullname" . }}
   {{- include "pmm.includeNamespace" . | nindent 4 }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
+    {{- include "pmm.labels" . | nindent 2 }}
 rules:
 # standard RBAC
 - apiGroups: [""] # "" indicates the core API group
