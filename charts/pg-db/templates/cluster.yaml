@@ -70,6 +70,9 @@ spec:
         - {{ $database }}
       {{- end }}
       {{- end }}
+      {{- if hasKey $user "grantPublicSchemaAccess" }}
+      grantPublicSchemaAccess: {{ $user.grantPublicSchemaAccess }}
+      {{- end }}
       {{- if $user.options }}
       options: {{ $user.options }}
       {{- end }}
