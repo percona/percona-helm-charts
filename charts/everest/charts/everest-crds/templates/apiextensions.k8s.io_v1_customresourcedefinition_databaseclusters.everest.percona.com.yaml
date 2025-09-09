@@ -308,6 +308,7 @@ spec:
                       description: Type is the engine type
                       enum:
                         - pxc
+                        - ps
                         - postgresql
                         - psmdb
                       type: string
