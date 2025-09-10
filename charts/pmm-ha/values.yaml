@@ -399,4 +399,3 @@ victoria-metrics-cluster:
                 - key: app
                   operator: In
                   values: ["vmstorage"]
-
