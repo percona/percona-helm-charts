@@ -11,12 +11,12 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  repository: perconalab/pmm-server-fb
-  #repository: percona/pmm-server
+  # repository: perconalab/pmm-server-fb
+  repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-3910-04f3709"
-  #tag: "latest"
+  # tag: "PR-3910-04f3709"
+  tag: "latest"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -27,29 +27,30 @@ pmmEnv:
   ##
   DISABLE_UPDATES: "1"
   PMM_DEBUG: "0"
-  #PMM_ACTIVE_IP: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local"
-  #PMM_ACTIVE_NODE_ID: "pmmhak8s-0"
+  # PMM_ACTIVE_IP: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local"
+  # PMM_ACTIVE_NODE_ID: "pmmhak8s-0"
   PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
-  #PMM_CLICKHOUSE_ADDR: "pmmhak8s-clickhouse.pmmhak8s.svc.cluster.local:9000"
+  # PMM_CLICKHOUSE_ADDR: "pmmhak8s-clickhouse.pmmhak8s.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
   PMM_CLICKHOUSE_POOL_SIZE: "2"
-  #PMM_CLICKHOUSE_USER: "chuser"
-  #PMM_CLICKHOUSE_PASSWORD: "chpass"
-  #PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
+  # PMM_CLICKHOUSE_USER: "chuser"
+  # PMM_CLICKHOUSE_PASSWORD: "chpass"
+  # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
-  #GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
+  # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
-  #PMM_VM_URL: "http://vmadmin:vmpass@pmmhak8s-victoria-metrics-cluster-vmauth.pmmhak8s.svc.cluster.local:8427/"
-  #VMAGENT_remoteWrite_basicAuth_username: "vmadmin"
-  #VMAGENT_remoteWrite_basicAuth_password: "vmpass"
+  # PMM_VM_URL: "http://vmadmin:vmpass@pmmhak8s-victoria-metrics-cluster-vmauth.pmmhak8s.svc.cluster.local:8427/"
+  # VMAGENT_remoteWrite_basicAuth_username: "vmadmin"
+  # VMAGENT_remoteWrite_basicAuth_password: "vmpass"
   PMM_TEST_HA_ENABLE: "1"
   PMM_TEST_HA_BOOTSTRAP: "1"
   PMM_TEST_HA_GOSSIP_PORT: "9096"
   PMM_TEST_HA_RAFT_PORT: "9097"
   PMM_TEST_HA_GRAFANA_GOSSIP_PORT: "9094"
-  #PMM_TEST_HA_PEERS: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local"
+  # PMM_TEST_HA_PEERS: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local"
+
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
 #  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
@@ -146,7 +147,7 @@ service:
       ## @param service.ports[1].name port name
       name: http
 
-#haservice:
+# haservice:
 #  type: "ClusterIP"
 #  name: "pmmha"
 
@@ -289,7 +290,13 @@ tolerations: []
 ## @param affinity Affinity for pod assignment
 ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 ##
-affinity: {}
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: pmm
+        topologyKey: kubernetes.io/hostname
 
 ## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts
 ##
@@ -303,3 +310,92 @@ global:
   pmm_ha_1: pmm-ha-1.monitoring-service.pmmha.svc.cluster.local
   pmm_ha_2: pmm-ha-2.monitoring-service.pmmha.svc.cluster.local
 
+
+# Subchart scheduling overrides to spread replicas across nodes
+clickhouse:
+  zookeeper:
+    podAntiAffinityPreset: hard
+  podAntiAffinityPreset: hard
+  distributeReplicasByZone: true
+
+haproxy:
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: haproxy
+
+pg-db:
+  instances:
+    - name: instance1
+      replicas: 3
+      dataVolumeClaimSpec:
+        # storageClassName: ""  # optional; inherit default if omitted
+        resources:
+          requests:
+            storage: 5Gi
+  proxy:
+    pgBouncer:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  postgres-operator.crunchydata.com/role: pgbouncer
+
+victoria-metrics-cluster:
+  vmselect:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values: ["victoria-metrics-cluster"]
+                - key: app
+                  operator: In
+                  values: ["vmselect"]
+  vminsert:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values: ["victoria-metrics-cluster"]
+                - key: app
+                  operator: In
+                  values: ["vminsert"]
+  vmauth:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values: ["victoria-metrics-cluster"]
+                - key: app
+                  operator: In
+                  values: ["vmauth"]
+  vmstorage:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values: ["victoria-metrics-cluster"]
+                - key: app
+                  operator: In
+                  values: ["vmstorage"]
