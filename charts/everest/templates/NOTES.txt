@@ -1,4 +1,14 @@
 {{- if .Release.IsInstall }}
+{{- $pfSrcPort := "8080" }}
+{{- $pfDstPort := "8080" }}
+{{- $pfUrlProto := "http" }}
+{{- if .Values.server.tls.enabled }}
+{{- $pfSrcPort = "8443" }}
+{{- $pfDstPort = "443" }}
+{{- $pfUrlProto = "https" }}
+{{- end }}
+{{- $pfCmd := printf "kubectl port-forward svc/%s %s:%s -n %s" .Values.server.service.name $pfSrcPort $pfDstPort .Release.Namespace }}
+{{- $pfUrl := printf "%s://localhost:%s" $pfUrlProto $pfSrcPort }}
 Thank you for installing Everest (v{{ .Chart.AppVersion }})!
 
 Follow the steps below to get started:
@@ -26,9 +36,9 @@ Run the following command to fetch the initial admin password:
 ACCESS THE EVEREST UI
 ======================
 
-To access the web UI, set up port-forwarding and visit http://localhost:8080 in your browser:
+To access the web UI, set up port-forwarding and visit {{ $pfUrl }} in your browser:
 
-    kubectl port-forward svc/everest 8080:8080 -n everest-system
+    {{ $pfCmd }}
 {{- end }}
 
 {{- if .Release.IsUpgrade }}

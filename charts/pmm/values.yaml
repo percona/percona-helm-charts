@@ -14,7 +14,7 @@ image:
   repository: perconalab/pmm-server-fb
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-3934-397d15e"
+  tag: "3.2.0"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -200,6 +200,10 @@ storage:
 ##
 nameOverride: ""
 
+## @param namespaceOverride String to override namespace. Defaults to the value of .Release.Namespace.
+##
+namespaceOverride: ""
+
 ## @param extraLabels Labels to add to all deployed objects
 ##
 extraLabels: {}
@@ -211,9 +215,9 @@ extraLabels: {}
 ## @param serviceAccount.name Name of the service account to use. If not set and create is true, a name is generated using the fullname template.
 ##
 serviceAccount:
-  create: true
+  create: false
   annotations: {}
-  name: "pmm-service-account"
+#  name: "pmm-service-account"
 
 ## @param podAnnotations Pod annotations
 ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
@@ -226,6 +230,7 @@ podAnnotations: {}
 podSecurityContext:
   runAsUser: 1000
   runAsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
   fsGroup: 1000
 
 ## @param securityContext Configure Container Security Context

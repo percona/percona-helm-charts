@@ -9,7 +9,7 @@ A job will be created based on `helm` `install`, `upgrade`, or `uninstall`. Afte
 job has completed the RBAC will be cleaned up.
 
 ## Pre-requisites
-* Kubernetes 1.28+
+* Kubernetes 1.29+
 * At least `v3.2.3` version of helm
 
 # Installation
@@ -26,7 +26,7 @@ To install the chart with the `pg-operator` release name using a dedicated names
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pg-operator --version 2.5.1 --namespace my-namespace --create-namespace
+helm install my-operator percona/pg-operator --version 2.6.0 --namespace my-namespace --create-namespace
 ```
 
 ## Configuration
@@ -35,7 +35,7 @@ Chart.
 
 | Parameter            | Description                                                                        | Default                                     |
 | -------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
-| `image`              | PG Operator Container image full path                                              | `percona/percona-postgresql-operator:2.5.1` |
+| `image`              | PG Operator Container image full path                                              | `percona/percona-postgresql-operator:2.6.0` |
 | `imagePullPolicy`    | PG Operator Container pull policy                                                  | `Always`                                    |
 | `resources`          | Resource requests and limits                                                       | `{}`                                        |
 | `nodeSelector`       | Labels for Pod assignment                                                          | `{}`                                        |
@@ -50,7 +50,7 @@ Chart.
 To deploy Percona Operator for PostgreSQL cluster with disabled telemetry run the following command:
 
 ```sh
-helm install my-db percona/pg-db --version 2.5.4 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.6.0 --namespace my-namespace
 ```
 
 See more about Percona Operator for PostgreSQL deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).

@@ -1,6 +1,11 @@
 {{- if (ne (include "everest.namespace" .) "everest-system") }}
 {{ fail "Namespace cannot be set to anything other than everest-system" }}
 {{- end }}
+{{- $tlsCertsPath := "/etc/tls" }}
+{{- $probeScheme := "HTTP" }}
+{{- if .Values.server.tls.enabled }}
+{{- $probeScheme = "HTTPS" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,34 +31,56 @@ spec:
       - name: jwt-secret
         secret:
           secretName: everest-jwt
+      {{- if .Values.server.tls.enabled }}
+      - name: tls-certs
+        secret:
+          secretName: {{ .Values.server.tls.secret.name }}
+      {{- end }}
       containers:
       - name: everest
         image: {{ .Values.server.image }}:{{ .Chart.Version }}
         ports:
-          - containerPort: 8080
+          - containerPort: {{ .Values.server.service.port }}
         readinessProbe:
           httpGet:
             path: /healthz
-            port: 8080
+            port: {{ .Values.server.service.port }}
+            scheme: {{ $probeScheme }}
           initialDelaySeconds: 5
           periodSeconds: 5
         livenessProbe:
           httpGet:
             path: /healthz
-            port: 8080
+            port: {{ .Values.server.service.port }}
+            scheme: {{ $probeScheme }}
           initialDelaySeconds: 300
           periodSeconds: 15
         resources: {{ toYaml .Values.server.resources | nindent 12 }}
         volumeMounts:
         - name: jwt-secret
           mountPath: /etc/jwt
+        {{- if .Values.server.tls.enabled }}
+        - name: tls-certs
+          mountPath: {{ $tlsCertsPath }}
+          readOnly: true
+        {{- end }}
         env:
+        {{- if not .Values.telemetry }}
+        - name: DISABLE_TELEMETRY
+          value: "true"
+        {{- end }}
         {{- if hasKey .Values.server "apiRequestsRateLimit" }}
         - name: API_REQUESTS_RATE_LIMIT
           value: "{{ .Values.server.apiRequestsRateLimit }}"
         {{- end }}
         - name: VERSION_SERVICE_URL
           value: {{ (include "everest.versionMetadataURL" .) }}
+        - name: PORT
+          value: {{ .Values.server.service.port | quote }}
+        {{- if .Values.server.tls.enabled }}
+        - name: TLS_CERTS_PATH
+          value: {{ $tlsCertsPath | quote }}
+        {{- end }}
         {{- if .Values.server.env }}
         {{- toYaml .Values.server.env | nindent 8 }}
         {{- end }}
