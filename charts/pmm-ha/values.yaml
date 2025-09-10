@@ -147,7 +147,7 @@ service:
       ## @param service.ports[1].name port name
       name: http
 
-#haservice:
+# haservice:
 #  type: "ClusterIP"
 #  name: "pmmha"
 
@@ -313,6 +313,8 @@ global:
 
 # Subchart scheduling overrides to spread replicas across nodes
 clickhouse:
+  zookeeper:
+    podAntiAffinityPreset: hard
   podAntiAffinityPreset: hard
   distributeReplicasByZone: true
 
@@ -398,6 +400,3 @@ victoria-metrics-cluster:
                   operator: In
                   values: ["vmstorage"]
 
-clickhouse:
-  zookeeper:
-    podAntiAffinityPreset: hard
