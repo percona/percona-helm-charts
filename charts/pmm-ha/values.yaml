@@ -50,6 +50,7 @@ pmmEnv:
   PMM_TEST_HA_RAFT_PORT: "9097"
   PMM_TEST_HA_GRAFANA_GOSSIP_PORT: "9094"
   # PMM_TEST_HA_PEERS: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local"
+
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
 #  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
@@ -400,4 +401,3 @@ victoria-metrics-cluster:
 clickhouse:
   zookeeper:
     podAntiAffinityPreset: hard
-
