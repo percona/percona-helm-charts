@@ -289,7 +289,13 @@ tolerations: []
 ## @param affinity Affinity for pod assignment
 ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 ##
-affinity: {}
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: pmm
+        topologyKey: kubernetes.io/hostname
 
 ## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts
 ##
@@ -302,4 +308,96 @@ global:
   pmm_ha_0: pmm-ha-0.monitoring-service.pmmha.svc.cluster.local
   pmm_ha_1: pmm-ha-1.monitoring-service.pmmha.svc.cluster.local
   pmm_ha_2: pmm-ha-2.monitoring-service.pmmha.svc.cluster.local
+
+
+# Subchart scheduling overrides to spread replicas across nodes
+clickhouse:
+  podAntiAffinityPreset: hard
+  distributeReplicasByZone: true
+
+haproxy:
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: haproxy
+
+pg-db:
+  instances:
+    - name: instance1
+      replicas: 3
+      dataVolumeClaimSpec:
+        # storageClassName: ""  # optional; inherit default if omitted
+        resources:
+          requests:
+            storage: 5Gi
+  proxy:
+    pgBouncer:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  postgres-operator.crunchydata.com/role: pgbouncer
+
+victoria-metrics-cluster:
+  vmselect:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values: ["victoria-metrics-cluster"]
+                - key: app
+                  operator: In
+                  values: ["vmselect"]
+  vminsert:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values: ["victoria-metrics-cluster"]
+                - key: app
+                  operator: In
+                  values: ["vminsert"]
+  vmauth:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values: ["victoria-metrics-cluster"]
+                - key: app
+                  operator: In
+                  values: ["vmauth"]
+  vmstorage:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values: ["victoria-metrics-cluster"]
+                - key: app
+                  operator: In
+                  values: ["vmstorage"]
+
+clickhouse:
+  zookeeper:
+    podAntiAffinityPreset: hard
 
