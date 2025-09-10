@@ -11,12 +11,12 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  repository: perconalab/pmm-server-fb
-  # repository: percona/pmm-server
+  # repository: perconalab/pmm-server-fb
+  repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-3910-04f3709"
-  # tag: "latest"
+  # tag: "PR-3910-04f3709"
+  tag: "latest"
   imagePullSecrets: []
 
 ## PMM environment variables
