@@ -13,4 +13,7 @@
 
 {{- /* #  Cleanup all default pod scheduling policies during uninstall. */}}
 {{- include "everest.pspCleanup" (dict "namespace" (include "everest.namespace" .)) }}
+
+{{- /* #  Cleanup all default load balancer configs during uninstall. */}}
+{{- include "everest.lbcCleanup" (dict "namespace" (include "everest.namespace" .)) }}
 ---
