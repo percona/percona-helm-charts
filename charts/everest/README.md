@@ -197,6 +197,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
 | operator.webhook.certs | object | `{"ca.crt":"","tls.crt":"","tls.key":""}` | Certificates to use for the webhook server. The values must be base64 encoded. If unset, uses self-signed certificates. |
+| operator.webhook.preserveTLSCerts | bool |  | If set to true, preserves existing TLS Certificate Secrets during upgrades. This setting is ignored if certificates are explicitly provided in operator.webhook.certs, in which case the specified certificates are used instead. This setting has no effect during installation. |
 | pmm | object | `{"enabled":false,"nameOverride":"pmm"}` | PMM settings. |
 | pmm.enabled | bool | `false` | If set, deploys PMM in the release namespace. |
 | server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |
