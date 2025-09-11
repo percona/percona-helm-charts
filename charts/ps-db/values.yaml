@@ -525,6 +525,7 @@ pmm:
 
 backup:
   enabled: true
+#  sourcePod: ps-cluster1-mysql-1
   image:
     repository: percona/percona-xtrabackup
     tag: 8.0.35-33

@@ -224,6 +224,7 @@ The chart can be customized using the following configurable parameters:
 | `toolkit.resources.limits`   | Toolkit Container resource limits          | `{}`                      |
 ||
 | `backup.enabled`                  | Enable backups                                                                              | `true`                       |
+| `backup.sourcePod`                | Specify backup source pod                                                                   | ``                           |
 | `backup.image.repository`         | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
 | `backup.image.tag`                | Backup Container image tag                                                                  | `8.0.35-33`                  |
 | `backup.backoffLimit`             | The number of retries to make a backup                                                      | ``                           |

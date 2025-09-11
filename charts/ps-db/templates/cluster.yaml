@@ -514,6 +514,9 @@ spec:
   backup:
   {{- $backup := .Values.backup }}
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
+  {{- if $backup.sourcePod }}
+    sourcePod: {{ $backup.sourcePod }}
+  {{- end }}
   {{- if not $backup.enabled }}
     enabled: false
   {{- else }}
