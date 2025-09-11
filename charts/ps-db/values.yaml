@@ -17,7 +17,9 @@ finalizers:
 #    proxy: false
 #    proxySize: false
 crVersion: 0.12.0
+enableVolumeExpansion: false
 pause: false
+# initImage: percona/percona-server-mysql-operator:0.12.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -118,11 +120,30 @@ mysql:
     # loadBalancerSourceRanges:
     #   - 10.0.0.0/8
 
+  exposePrimary:
+    enabled: false
+    type: ClusterIP
+    # annotations:
+    #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    # externalTrafficPolicy: Cluster
+    # internalTrafficPolicy: Cluster
+    # labels:
+    #   rack: rack-22
+    # loadBalancerSourceRanges:
+    #   - 10.0.0.0/8
+
   volumeSpec:
     pvc:
       resources:
         requests:
           storage: 3G
+    # emptyDir: {}
+    # hostPath:
+    #   path: /data
+    #   type: Directory
+  
+  gracePeriod: 600
 
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
@@ -179,7 +200,7 @@ proxy:
     enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.8.14
+      tag: 2.8.15
     imagePullPolicy: Always
     imagePullSecrets: []
     # initImage: percona/percona-server-mysql-operator:0.12.0
@@ -214,6 +235,8 @@ proxy:
     #   periodSeconds: 5
     #   failureThreshold: 3
     #   successThreshold: 1
+
+    gracePeriod: 30
 
     # configuration: |
     #
@@ -313,7 +336,34 @@ proxy:
     podDisruptionBudget:
       maxUnavailable: 1
       # minAvailable: 0
-
+    # ports:
+    # - name: http
+    #   port: 8443
+    #   targetPort: 0
+    # - name: rw-default
+    #   port: 3306
+    #   targetPort: 6446
+    # - name: read-write
+    #   port: 6446
+    #   targetPort: 0
+    # - name: read-only
+    #   port: 6447
+    #   targetPort: 0
+    # - name: x-read-write
+    #   port: 6448
+    #   targetPort: 0
+    # - name: x-read-only
+    #   port: 6449
+    #   targetPort: 0
+    # - name: x-default
+    #   port: 33060
+    #   targetPort: 0
+    # - name: rw-admin
+    #   port: 33062
+    #   targetPort: 0
+    # - name: custom-port
+    #   port: 1111
+    #   targetPort: 6446
     size: 3
 
     resources:
@@ -341,6 +391,8 @@ proxy:
     #   maxSkew: 1
     #   topologyKey: kubernetes.io/hostname
     #   whenUnsatisfiable: DoNotSchedule
+
+    gracePeriod: 30
 
     # configuration: |
     #   [default]
@@ -420,6 +472,8 @@ orchestrator:
         requests:
           storage: 1G
 
+  gracePeriod: 30
+
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
@@ -459,10 +513,10 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.2.0
+    tag: 3.3.1
   imagePullPolicy: Always
   serverHost: monitoring-service
-  serverUser: admin
+  # mysqlParams: "--disable-tablestats-limit=2000"
   resources:
     requests:
       memory: 150M
@@ -494,6 +548,13 @@ backup:
   #   privileged: true
   # serviceAccountName: percona-server-mysql-operator-workload
   storages: {}
+    # azure-blob:
+    #   type: azure
+    #   azure:
+    #     container: CONTAINER-NAME
+    #     prefix: PREFIX-NAME
+    #     endpointUrl: https://accountName.blob.core.windows.net
+    #     credentialsSecret: SECRET-NAME
     # s3-us-west:
     #   type: s3
     #   verifyTLS: true
@@ -536,6 +597,7 @@ backup:
     #   podSecurityContext:
     #     fsGroup: 1001
     #     supplementalGroups: [1001, 1002, 1003]
+    #   runtimeClassName: image-rc
     #   s3:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
     #     credentialsSecret: cluster1-s3-credentials

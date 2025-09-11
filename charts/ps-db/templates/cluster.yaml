@@ -1,9 +1,9 @@
-apiVersion: ps.percona.com/v1alpha1
+apiVersion: ps.percona.com/v1
 kind: PerconaServerMySQL
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"ps.percona.com/v1alpha1","kind":"PerconaServerMySQL"}
+      {"apiVersion":"ps.percona.com/v1","kind":"PerconaServerMySQL"}
   name: {{ include "ps-database.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
@@ -13,6 +13,9 @@ metadata:
 
 spec:
   crVersion: {{ .Chart.AppVersion }}
+  {{- if .Values.enableVolumeExpansion }}
+  enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
+  {{- end }}
   {{- if .Values.unsafeFlags }}
   unsafeFlags:
 {{ .Values.unsafeFlags | toYaml | indent 4 }}
@@ -56,7 +59,7 @@ spec:
   {{- end }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
-{{ .Values.imagePullSecrets | toYaml | indent 4 }}
+{{ .Values.ignoreAnnotations | toYaml | indent 4 }}
   {{- end }}
   {{- if .Values.ignoreLabels }}
   ignoreLabels:
@@ -127,18 +130,27 @@ spec:
       {{- else }}
       enabled: false
       {{- end }}
+    exposePrimary:
+      {{- if $mysql.exposePrimary.enabled }}
+{{- tpl ($mysql.exposePrimary | toYaml) $ | nindent 6 }}
+      {{- else }}
+      enabled: false
+      {{- end }}
     {{- if $mysql.volumeSpec }}
     volumeSpec:
       {{- if $mysql.volumeSpec.hostPath }}
       hostPath:
-        path: {{ $mysql.volumeSpec.hostPath }}
-        type: Directory
+        path: {{ $mysql.volumeSpec.hostPath.path }}
+        type: {{ $mysql.volumeSpec.hostPath.type | default "Directory" }}
       {{- else if $mysql.volumeSpec.pvc }}
       persistentVolumeClaim:
 {{ $mysql.volumeSpec.pvc | toYaml | indent 8 }}
       {{- else }}
       emptyDir: {}
       {{- end }}
+    {{- end }}
+    {{- if $mysql.gracePeriod }}
+    gracePeriod: {{ $mysql.gracePeriod }}
     {{- end }}
     {{- if $mysql.configuration }}
     configuration: |
@@ -180,6 +192,7 @@ spec:
     {{- if not $haproxy.enabled }}
       enabled: false
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
+      size: 0
     {{- else }}
       enabled: true
       {{- if $haproxy.podDisruptionBudget }}
@@ -238,6 +251,9 @@ spec:
       readinessProbe:
 {{ $haproxy.readinessProbe | toYaml | indent 8 }}
       {{- end }}
+      {{- if $haproxy.gracePeriod }}
+      gracePeriod: {{ $haproxy.gracePeriod }}
+      {{- end }}
       {{- if $haproxy.configuration }}
       configuration: |
 {{- tpl $haproxy.configuration $ | nindent 8 }}
@@ -290,6 +306,10 @@ spec:
       {{- if $router.imagePullPolicy }}
       imagePullPolicy: {{ $router.imagePullPolicy }}
       {{- end }}
+      {{- if $router.ports }}
+      ports: 
+{{ $router.ports | toYaml | indent 8 }}
+      {{- end }}
       {{- if $router.imagePullSecrets }}
       imagePullSecrets:
 {{ $router.imagePullSecrets | toYaml | indent 8 }}
@@ -304,6 +324,9 @@ spec:
       {{- if $router.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ $router.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.gracePeriod }}
+      gracePeriod: {{ $router.gracePeriod }}
       {{- end }}
       {{- if $router.configuration }}
       configuration: |
@@ -398,6 +421,9 @@ spec:
     topologySpreadConstraints:
 {{ $orc.topologySpreadConstraints | toYaml | indent 6 }}
     {{- end }}
+    {{- if $orc.gracePeriod }}
+    gracePeriod: {{ $orc.gracePeriod }}
+    {{- end }}
     {{- if $orc.priorityClassName }}
     priorityClassName: {{ $orc.priorityClassName }}
     {{- end }}
@@ -453,13 +479,15 @@ spec:
     enabled: false
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
   {{- else }}
+  {{- if $pmm.mysqlParams }}
+    mysqlParams: {{ $pmm.mysqlParams }}
+  {{- end }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
     {{- if $pmm.imagePullPolicy }}
     imagePullPolicy: {{ $pmm.imagePullPolicy }}
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
-    serverUser: {{ $pmm.serverUser }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
