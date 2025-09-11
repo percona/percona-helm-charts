@@ -271,9 +271,9 @@ podAnnotations: {}
 ## E.g
 podSecurityContext:
   runAsUser: 1000
-  runAsGroup: 1000
+  runAsGroup: 0
   fsGroupChangePolicy: OnRootMismatch
-  fsGroup: 1000
+  fsGroup: 0
 # to make it work with openshift comment everything above and uncomment lines below
 #  runAsNonRoot: true
 #  seccompProfile:
