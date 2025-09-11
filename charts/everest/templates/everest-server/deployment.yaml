@@ -73,6 +73,10 @@ spec:
         - name: API_REQUESTS_RATE_LIMIT
           value: "{{ .Values.server.apiRequestsRateLimit }}"
         {{- end }}
+        {{- if hasKey .Values.server "sessionRequestsRateLimit" }}
+        - name: CREATE_SESSION_RATE_LIMIT
+          value: "{{ .Values.server.sessionRequestsRateLimit }}"
+        {{- end }}
         - name: VERSION_SERVICE_URL
           value: {{ (include "everest.versionMetadataURL" .) }}
         - name: PORT

@@ -50,8 +50,10 @@ server:
   # - profile
   # - email
   # - groups
-  # -- Set the allowed number of requests per second.
+  # -- Set the allowed number of API requests per second.
   apiRequestsRateLimit: 100
+  # -- Set the allowed number of requests to /session endpoint per second.
+  sessionRequestsRateLimit: 1
   # -- The initial password configured for the admin user.
   # If unset, a random password is generated.
   # It is strongly recommended to reset the admin password after installation.

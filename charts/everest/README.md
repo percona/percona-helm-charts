@@ -200,7 +200,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.webhook.preserveTLSCerts | bool |  | If set to true, preserves existing TLS Certificate Secrets during upgrades. This setting is ignored if certificates are explicitly provided in operator.webhook.certs, in which case the specified certificates are used instead. This setting has no effect during installation. |
 | pmm | object | `{"enabled":false,"nameOverride":"pmm"}` | PMM settings. |
 | pmm.enabled | bool | `false` | If set, deploys PMM in the release namespace. |
-| server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |
+| server.apiRequestsRateLimit | int | `100` | Set the allowed number of API requests per second. |
 | server.env | list | `[]` | Additional environment variables to pass to the server deployment. |
 | server.image | string | `"perconalab/everest"` | Image to use for the server container. |
 | server.initialAdminPassword | string | `""` | The initial password configured for the admin user. If unset, a random password is generated. It is strongly recommended to reset the admin password after installation. |
@@ -214,6 +214,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | server.service.name | string | `"everest"` | Name of the service for everest |
 | server.service.port | int | `8080` | Port to expose on the service. If `tls.enabled=true`, then the service is exposed on port 443. |
 | server.service.type | string | `"ClusterIP"` | Type of service to create. |
+| server.sessionRequestsRateLimit | int | `1` | Set the allowed number of requests to /session endpoint per second. |
 | server.tls.certificate.additionalHosts | list | `[]` | Certificate Subject Alternate Names (SANs) |
 | server.tls.certificate.create | bool | `false` | Create a Certificate resource (requires cert-manager to be installed) If set, creates a Certificate resource instead of a Secret. The Certificate uses the Secret name provided by `tls.secret.name` The Everest server pod will come up only after cert-manager has reconciled the Certificate resource. |
 | server.tls.certificate.domain | string | `""` | Certificate primary domain (commonName) |
