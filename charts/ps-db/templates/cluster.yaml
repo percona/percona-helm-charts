@@ -488,6 +488,14 @@ spec:
     imagePullPolicy: {{ $pmm.imagePullPolicy }}
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
+    {{- if $pmm.readinessProbes }}
+    readinessProbes:
+{{ tpl ($pmm.readinessProbes | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $pmm.livenessProbes }}
+    livenessProbes:
+{{ tpl ($pmm.livenessProbes | toYaml) $ | indent 6 }}
+    {{- end }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
