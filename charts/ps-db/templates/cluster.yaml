@@ -12,6 +12,17 @@ metadata:
 {{ .Values.finalizers | toYaml | indent 4 }}
 
 spec:
+  {{- if .Values.metadata }}
+  metadata: 
+    {{- if .Values.metadata.labels }}
+    labels:
+{{ .Values.metadata.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.metadata.annotations }}
+    annotations:
+{{ .Values.metadata.annotations | toYaml | indent 6 }}
+    {{- end }}
+  {{- end }}
   crVersion: {{ .Chart.AppVersion }}
   {{- if .Values.enableVolumeExpansion }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
