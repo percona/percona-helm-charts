@@ -609,6 +609,17 @@ backup:
     #   podSecurityContext:
     #     fsGroup: 1001
     #     supplementalGroups: [1001, 1002, 1003]
+    #   containerOptions:
+    #     env:
+    #     - name: CUSTOM_VAR
+    #       value: "false"
+    #     args:
+    #       xtrabackup:
+    #       - "--someflag=abc"
+    #       xbcloud:
+    #       - "--someflag=abc"
+    #       xbstream:
+    #       - "--someflag=abc"
     #   runtimeClassName: image-rc
     #   s3:
     #     bucket: S3-BACKUP-BUCKET-NAME-HERE
