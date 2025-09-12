@@ -1,9 +1,9 @@
-apiVersion: ps.percona.com/v1alpha1
+apiVersion: ps.percona.com/v1
 kind: PerconaServerMySQL
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"ps.percona.com/v1alpha1","kind":"PerconaServerMySQL"}
+      {"apiVersion":"ps.percona.com/v1","kind":"PerconaServerMySQL"}
   name: {{ include "ps-database.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
@@ -12,6 +12,17 @@ metadata:
 {{ .Values.finalizers | toYaml | indent 4 }}
 
 spec:
+  {{- if .Values.metadata }}
+  metadata: 
+    {{- if .Values.metadata.labels }}
+    labels:
+{{ .Values.metadata.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.metadata.annotations }}
+    annotations:
+{{ .Values.metadata.annotations | toYaml | indent 6 }}
+    {{- end }}
+  {{- end }}
   crVersion: {{ .Chart.AppVersion }}
   {{- if .Values.enableVolumeExpansion }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
@@ -86,6 +97,10 @@ spec:
     {{- end }}
     {{- if $mysql.initImage }}
     initImage: "{{ $mysql.initImage }}"
+    {{- end }}
+    {{- if $mysql.podDisruptionBudget }}
+    podDisruptionBudget:
+{{ $mysql.podDisruptionBudget | toYaml | indent 6 }}
     {{- end }}
     {{- if $mysql.size }}
     size: {{ $mysql.size }}
@@ -191,6 +206,10 @@ spec:
       size: 0
     {{- else }}
       enabled: true
+      {{- if $haproxy.podDisruptionBudget }}
+      podDisruptionBudget:
+{{ $haproxy.podDisruptionBudget | toYaml | indent 8 }}
+      {{- end }}
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
       {{- if $haproxy.imagePullPolicy }}
       imagePullPolicy: {{ $haproxy.imagePullPolicy }}
@@ -309,8 +328,10 @@ spec:
       {{- if $router.initImage }}
       initImage: "{{ $router.initImage }}"
       {{- end }}
-      affinity:
-{{ $router.affinity | toYaml | indent 8 }}
+      {{- if $router.podDisruptionBudget }}
+      podDisruptionBudget:
+{{ $router.podDisruptionBudget | toYaml | indent 8 }}
+      {{- end }}
       {{- if $router.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ $router.topologySpreadConstraints | toYaml | indent 8 }}
@@ -401,6 +422,10 @@ spec:
     {{- if $orc.size }}
     size: {{ $orc.size }}
     {{- end }}
+    {{- if $orc.podDisruptionBudget }}
+    podDisruptionBudget:
+{{ $orc.podDisruptionBudget | toYaml | indent 6 }}
+    {{- end }}
     affinity:
 {{ $orc.affinity | toYaml | indent 6 }}
     {{- if $orc.topologySpreadConstraints }}
@@ -474,6 +499,14 @@ spec:
     imagePullPolicy: {{ $pmm.imagePullPolicy }}
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
+    {{- if $pmm.readinessProbes }}
+    readinessProbes:
+{{ tpl ($pmm.readinessProbes | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $pmm.livenessProbes }}
+    livenessProbes:
+{{ tpl ($pmm.livenessProbes | toYaml) $ | indent 6 }}
+    {{- end }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
@@ -500,6 +533,9 @@ spec:
   backup:
   {{- $backup := .Values.backup }}
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
+  {{- if $backup.sourcePod }}
+    sourcePod: {{ $backup.sourcePod }}
+  {{- end }}
   {{- if not $backup.enabled }}
     enabled: false
   {{- else }}
