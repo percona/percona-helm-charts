@@ -210,7 +210,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.livenessProbes.successThreshold`    | Minimum consecutive successes for the probe to be considered successful after having failed                                                                                                         | `1`                                 |
 | `pmm.livenessProbes.timeoutSeconds`      | Number of seconds after which the probe times out     
 | `pmm.serverHost`         | PMM server related K8S service hostname | `monitoring-service`                |
-| `pmm.serverUser`         | PMM server user                         | `admin`                             |
+| `pmm.mysqlParams`        | Additional parameters which will be passed to the [pmm-admin add mysql](https://docs.percona.com/percona-monitoring-and-management/setting-up/client/mysql.html#add-service) command for `mysql` Pods | `""`                                |
 | `pmm.resources.requests` | PMM Container resource requests         | `{"memory": "150M", "cpu": "300m"}` |
 | `pmm.resources.limits`   | PMM Container resource limits           | `{}`                                |
 ||
