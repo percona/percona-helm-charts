@@ -599,7 +599,7 @@ backup:
     #     supplementalGroups: [1001, 1002, 1003]
     #   containerOptions:
     #     env:
-    #     - name: VERIFY_TLS
+    #     - name: CUSTOM_VAR
     #       value: "false"
     #     args:
     #       xtrabackup:
