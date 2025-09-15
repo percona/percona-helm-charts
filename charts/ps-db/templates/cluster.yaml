@@ -507,17 +507,17 @@ spec:
       containerSecurityContext:
 {{ tpl ($orc.initContainer.containerSecurityContext | toYaml) $ | indent 8 }}
         {{- end }}
-        {{- if $orc.initContainer.resources }}
-        resources:
-          {{- if hasKey $orc.initContainer.resources "requests" }}
-          requests:
+      {{- if $orc.initContainer.resources }}
+      resources:
+        {{- if hasKey $orc.initContainer.resources "requests" }}
+        requests:
 {{ tpl ($orc.initContainer.resources.requests | toYaml) $ | indent 10 }}
-          {{- end }}
-          {{- if hasKey $orc.initContainer.resources "limits" }}
-          limits:
+        {{- end }}
+        {{- if hasKey $orc.initContainer.resources "limits" }}
+        limits:
 {{ tpl ($orc.initContainer.resources.limits | toYaml) $ | indent 10 }}
-          {{- end }}
-      {{- end }}
+        {{- end }}
+    {{- end }}
     {{- end }}
     {{- if $orc.size }}
     size: {{ $orc.size }}
@@ -661,16 +661,16 @@ spec:
       containerSecurityContext:
 {{ tpl ($backup.initContainer.containerSecurityContext | toYaml) $ | indent 8 }}
         {{- end }}
-        {{- if $backup.initContainer.resources }}
-        resources:
-          {{- if hasKey $backup.initContainer.resources "requests" }}
-          requests:
+      {{- if $backup.initContainer.resources }}
+      resources:
+        {{- if hasKey $backup.initContainer.resources "requests" }}
+        requests:
 {{ tpl ($backup.initContainer.resources.requests | toYaml) $ | indent 12 }}
-          {{- end }}
-          {{- if hasKey $backup.initContainer.resources "limits" }}
-          limits:
+        {{- end }}
+        {{- if hasKey $backup.initContainer.resources "limits" }}
+        limits:
 {{ tpl ($backup.initContainer.resources.limits | toYaml) $ | indent 12 }}
-          {{- end }}
+        {{- end }}
       {{- end }}
     {{- end }}
     {{- if $backup.backoffLimit }}
