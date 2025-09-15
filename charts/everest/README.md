@@ -175,9 +175,10 @@ The following table shows the configurable parameters of the Percona Everest cha
 | dataImporters.perconaPXCOperator.enabled | bool | `true` | If set, installs the Percona PXC Operator data importer. |
 | dbNamespace.enabled | bool | `true` | If set, deploy the database operators in `everest` namespace. The namespace may be overridden by setting `dbNamespace.namespaceOverride`. |
 | dbNamespace.namespaceOverride | string | `"everest"` | If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace. |
-| hooks | object | `{"image":"bitnamilegacy/kubectl","pspCleanup":{},"upgradeChecks":{"image":"alpine:3.20"}}` | Configuration for Helm chart hooks. |
+| hooks | object | `{"image":"bitnamilegacy/kubectl","lbcCleanup":{},"pspCleanup":{},"upgradeChecks":{"image":"alpine:3.20"}}` | Configuration for Helm chart hooks. |
 | hooks.image | string |  | Default image to use for the Helm chart hooks job. |
-| hooks.upgradeChecks | object | `{"image":"alpine:3.20"}` | Image to use for the PSP cleanup job. If not set, uses the value of `hooks.image`. image: "" |
+| hooks.lbcCleanup | object | `{}` | Image to use for the PSP cleanup job. If not set, uses the value of `hooks.image`. image: "" |
+| hooks.upgradeChecks | object | `{"image":"alpine:3.20"}` | Image to use for the Load Balancer Config cleanup job. If not set, uses the value of `hooks.image`. image: "" |
 | hooks.upgradeChecks.image | string |  | Image to use for the upgrade checks job. If not set, uses the value of `hooks.image`. |
 | ingress.annotations | object | `{}` | Additional annotations for the ingress resource. |
 | ingress.enabled | bool | `false` | Enable ingress for Everest server |
@@ -198,6 +199,7 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.env | list | `[]` | Additional environment variables to pass to the operator deployment. |
 | operator.healthProbeAddr | string | `":8081"` | Health probe address for the operator. |
 | operator.image | string | `"perconalab/everest-operator"` | Image to use for the Everest operator container. |
+| operator.init | bool | `true` | Enable initContainer migration |
 | operator.metricsAddr | string | `"127.0.0.1:8080"` | Metrics address for the operator. |
 | operator.resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"5m","memory":"64Mi"}}` | Resources to allocate for the operator container. |
 | operator.webhook.certs | object | `{"ca.crt":"","tls.crt":"","tls.key":""}` | Certificates to use for the webhook server. The values must be base64 encoded. If unset, uses self-signed certificates. |
