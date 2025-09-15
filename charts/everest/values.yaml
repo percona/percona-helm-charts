@@ -7,6 +7,10 @@ hooks:
     # -- Image to use for the PSP cleanup job.
     # If not set, uses the value of `hooks.image`.
     # image: ""
+  lbcCleanup: {}
+    # -- Image to use for the Load Balancer Config cleanup job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
   upgradeChecks:
     # -- Image to use for the upgrade checks job.
     # If not set, uses the value of `hooks.image`.

@@ -15,5 +15,5 @@
 {{- include "everest.pspCleanup" (dict "namespace" (include "everest.namespace" .) "image" (.Values.hooks.pspCleanup.image | default .Values.hooks.image)) }}
 
 {{- /* #  Cleanup all default load balancer configs during uninstall. */}}
-{{- include "everest.lbcCleanup" (dict "namespace" (include "everest.namespace" .)) }}
+{{- include "everest.lbcCleanup" (dict "namespace" (include "everest.namespace" .) "image" (.Values.hooks.lbcCleanup.image | default .Values.hooks.image)) }}
 ---

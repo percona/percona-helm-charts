@@ -1,6 +1,7 @@
 # Cleanup all load balancer configs during uninstall.
 #
 # @param .namespace     The namespace where Everest server is installed
+# @param .image         The image to use for running the hook Job
 #
 {{- define "everest.lbcCleanup" }}
 {{- $hookName := printf "everest-helm-lbc-cleanup-hook" }}
@@ -63,7 +64,7 @@ spec:
   template:
     spec:
       containers:
-        - image: bitnami/kubectl:latest
+        - image: {{ .image }}
           name: {{ $hookName }}
           command:
             - /bin/sh

@@ -427,6 +427,9 @@ spec:
                             - external
                           type: string
                       type: object
+                      x-kubernetes-validations:
+                        - message: .spec.proxy.expose.loadBalancerConfigName cannot be cleared once set
+                          rule: self.type == 'internal' || !has(oldSelf.loadBalancerConfigName) || oldSelf.loadBalancerConfigName == '' || (has(self.loadBalancerConfigName) && self.loadBalancerConfigName != '')
                     replicas:
                       description: Replicas is the number of proxy replicas
                       format: int32
