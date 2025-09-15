@@ -1,5 +1,6 @@
 #
 # @param .namespace     The namespace where the operator is installed
+# @param .image         The image to use for running the hook Job
 #
 {{- define "everest.csvCleanup" }}
 {{- $hookName := printf "everest-helm-pre-delete-hook" }}
@@ -59,7 +60,7 @@ spec:
   template:
     spec:
       containers:
-        - image: bitnami/kubectl:latest
+        - image: {{ .image }}
           name: {{ $hookName }}
           command:
             - /bin/sh
