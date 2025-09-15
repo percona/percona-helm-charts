@@ -30,7 +30,7 @@ Kubernetes: `>= 1.27.0-0`
 | hooks | object | `{"csvCleanup":{},"dbResourcesCleanup":{},"image":"bitnamilegacy/kubectl","operatorsInstaller":{}}` | Configuration for Helm chart hooks. |
 | hooks.csvCleanup | object | `{}` | Configuration for the CSV cleanup job. |
 | hooks.dbResourcesCleanup | object | `{}` | Configuration for the DB resources cleanup job. |
-| hooks.image | string | `registry.k8s.io/kubectl` | Default image to use for the Helm chart hooks job. |
+| hooks.image | string | `bitnamilegacy/kubectl` | Default image to use for the Helm chart hooks job. |
 | hooks.operatorsInstaller | object | `{}` | Configuration for the operators installer job. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | postgresql | bool | `true` | If set, installs the Percona Postgresql Server operator. |
