@@ -1,7 +1,7 @@
 # -- Configuration for Helm chart hooks.
 hooks:
   # -- Default image to use for the Helm chart hooks job.
-  # @default -- `registry.k8s.io/kubectl`
+  # @default -- `bitnamilegacy/kubectl`
   image: bitnamilegacy/kubectl
   pspCleanup: {}
     # -- Image to use for the PSP cleanup job.
