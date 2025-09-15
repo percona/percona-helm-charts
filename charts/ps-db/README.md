@@ -19,14 +19,14 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 0.10.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 0.12.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                             | Default                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `0.10.0`                    |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `0.12.0`                    |
 | `finalizers:percona.com/delete-mysql-pods-in-order` | Set this if you want to delete MySQL pods in order on cluster deletion                                                                                                  | `[]`                        |
 | `finalizers:percona.com/delete-ssl`                 | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion                                                                            | `[]`                        |
 | `pause`                                             | Stop PS Cluster safely                                                                                                                                                  | `false`                     |
@@ -46,6 +46,8 @@ The chart can be customized using the following configurable parameters:
 | `sslSecretName`                                     | Secret name for ssl certificates                                                                                                                                        | `{}`                        |
 | `ignoreAnnotations`                                 | Mark annotations which will be ignored by the operator                                                                                                                  | `[]`                        |
 | `ignoreLabels`                                      | Mark labels which will be ignored by the operator                                                                                                                       | `[]`                        |
+| `metadata.labels`                                   | The Kubernetes labels for all objects created by the operator                                                                                                           | `{}`                        |
+| `metadata.annotations`                              | The Kubernetes annotations for all objects created by the operator                                                                                                      | `{}`                        |
 | `tls.SANs`                                          | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration                                                              | `[]`                        |
 | `tls.issuerConf.name`                               | A cert-manager issuer name                                                                                                                                              | `""`                        |
 | `tls.issuerConf.kind`                               | A cert-manager issuer type                                                                                                                                              | `""`                        |
@@ -53,6 +55,8 @@ The chart can be customized using the following configurable parameters:
 ||
 | `mysql.clusterType`                               | MySQL Cluster type (`async` or `group-replication`)                                                                                                           | `group-replication`        |
 | `mysql.autoRecovery`                              | Enable/Disable auto recovery from full cluster crash                                                                                                          | `true`                     |
+| `mysql.podDisruptionBudget.maxUnavailable`        | MySQL failed Pods maximum quantity                                                                                                                            | `1`                        |
+| `mysql.podDisruptionBudget.minAvailable`          | MySQL available Pods minimum quantity                                                                                                                         | ``                         |
 | `mysql.image.repository`                          | MySQL Container image repository                                                                                                                              | `percona/percona-server`   |
 | `mysql.image.tag`                                 | MySQL Container image tag                                                                                                                                     | `8.0.42-33`                |
 | `mysql.imagePullPolicy`                           | The policy used to update images                                                                                                                              | `Always`                   |
@@ -83,11 +87,23 @@ The chart can be customized using the following configurable parameters:
 | `mysql.expose.internalTrafficPolicy`              | Network service internalTrafficPolicy                                                                                                                         | ``                         |
 | `mysql.expose.labels`                             | Network service labels                                                                                                                                        | `{}`                       |
 | `mysql.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                       |
+| `mysql.exposePrimary.enabled`                     | Allow access to MySQL primary from outside of Kubernetes                                                                                                      | `false`                    |
+| `mysql.exposePrimary.type`                        | Network service access point type                                                                                                                             | `ClusterIP`                |
+| `mysql.exposePrimary.annotations`                 | Network service annotations                                                                                                                                   | `{}`                       |
+| `mysql.exposePrimary.externalTrafficPolicy`       | Network service externalTrafficPolicy                                                                                                                         | ``                         |
+| `mysql.exposePrimary.internalTrafficPolicy`       | Network service internalTrafficPolicy                                                                                                                         | ``                         |
+| `mysql.exposePrimary.labels`                      | Network service labels                                                                                                                                        | `{}`                       |
+| `mysql.exposePrimary.loadBalancerSourceRanges`    | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                       |
 | `mysql.volumeSpec`                                | MySQL Pods storage resources                                                                                                                                  | `{}`                       |
 | `mysql.volumeSpec.pvc`                            | MySQL Pods PVC request parameters                                                                                                                             |                            |
 | `mysql.volumeSpec.pvc.storageClassName`           | MySQL Pods PVC target storageClass                                                                                                                            | `""`                       |
 | `mysql.volumeSpec.pvc.accessModes`                | MySQL Pods PVC access policy                                                                                                                                  | `[]`                       |
 | `mysql.volumeSpec.pvc.resources.requests.storage` | MySQL Pods PVC storage size                                                                                                                                   | `3G`                       |
+| `mysql.volumeSpec.hostPath`                       | MySQL Pods hostPath parameters                                                                                                                                |                            |
+| `mysql.volumeSpec.hostPath.path`                  | MySQL Pods local path for data volume                                                                                                                         | `""`                       |
+| `mysql.volumeSpec.hostPath.type`                  | MySQL Pods type of hostPath                                                                                                                                   | `Directory`                |
+| `mysql.volumeSpec.emptyDir`                       | MySQL Pods data volume using ephemeral storage                                                                                                                | `{}`                       |
+| `mysql.gracePeriod`                               | MySQL Pods termination grace period                                                                                                                           | `600`                      |
 | `mysql.configuration`                             | Custom config for MySQL                                                                                                                                       | `""`                       |
 | `mysql.sidecars`                                  | MySQL Pod sidecars                                                                                                                                            | `{}`                       |
 | `mysql.sidecarVolumes`                            | MySQL Pod sidecar volumes                                                                                                                                     | `[]`                       |
@@ -98,9 +114,10 @@ The chart can be customized using the following configurable parameters:
 ||
 | `proxy.haproxy.enabled`                                | Enable/Disable HAProxy pods                                                                                                                                   | `true`                     |
 | `proxy.haproxy.image.repository`                       | HAProxy Container image repository                                                                                                                            | `percona/haproxy`          |
-| `proxy.haproxy.image.tag`                              | HAProxy Container image tag                                                                                                                                   | `2.8.14`                   |
+| `proxy.haproxy.image.tag`                              | HAProxy Container image tag                                                                                                                                   | `2.8.15`                   |
 | `proxy.haproxy.imagePullPolicy`                        | The policy used to update images                                                                                                                              | `Always`                   |
 | `proxy.haproxy.imagePullSecrets`                       | HAProxy Container pull secret                                                                                                                                 | `[]`                       |
+| `proxy.haproxy.initImage`                              | An alternative image for the initial haproxy setup                                                                                                            | `""`                       |
 | `proxy.haproxy.initContainer.image`                    | An alternative image for the initial Operator installation                                                                                                    | `""`                       |
 | `proxy.haproxy.initContainer.containerSecurityContext` | A custom Kubernetes Security Context for an init container                                                                                                    | `{}`                       |
 | `proxy.haproxy.initContainer.resources.requests`       | Init container resource requests                                                                                                                              | `{}`                       |
@@ -112,6 +129,8 @@ The chart can be customized using the following configurable parameters:
 | `proxy.haproxy.labels`                                 | HAProxy Pods user-defined labels                                                                                                                              | `{}`                       |
 | `proxy.haproxy.schedulerName`                          | The Kubernetes Scheduler                                                                                                                                      | `""`                       |
 | `proxy.haproxy.nodeSelector`                           | HAProxy Pods key-value pairs setting for K8S node assignment                                                                                                  | `{}`                       |
+| `proxy.haproxy.podDisruptionBudget.maxUnavailable`     | HAProxy failed Pods maximum quantity                                                                                                                          | `1`                        |
+| `proxy.haproxy.podDisruptionBudget.minAvailable`       | HAProxy available Pods minimum quantity                                                                                                                       | ``                         |
 | `proxy.haproxy.affinity.antiAffinityTopologyKey`       | HAProxy Pods simple scheduling restriction on/off for host, zone, region                                                                                      | `"kubernetes.io/hostname"` |
 | `proxy.haproxy.affinity.advanced`                      | HAProxy Pods advanced scheduling restriction with match expression engine                                                                                     | `{}`                       |
 | `proxy.haproxy.topologySpreadConstraints`              | The Label selector for the [Kubernetes Pod Topology Spread Constraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/) | `[]`                       |
@@ -149,6 +168,8 @@ The chart can be customized using the following configurable parameters:
 | `proxy.router.labels`                                 | Router Pods user-defined labels                                                                                                                               | `{}`                           |
 | `proxy.router.schedulerName`                          | The Kubernetes Scheduler                                                                                                                                      | `""`                           |
 | `proxy.router.nodeSelector`                           | Router Pods key-value pairs setting for K8S node assignment                                                                                                   | `{}`                           |
+| `proxy.router.podDisruptionBudget.maxUnavailable`     | Router failed Pods maximum quantity                                                                                                                           | `1`                            |
+| `proxy.router.podDisruptionBudget.minAvailable`       | Router available Pods minimum quantity                                                                                                                        | ``                             |
 | `proxy.router.affinity.antiAffinityTopologyKey`       | Router Pods simple scheduling restriction on/off for host, zone, region                                                                                       | `"kubernetes.io/hostname"`     |
 | `proxy.router.affinity.advanced`                      | Router Pods advanced scheduling restriction with match expression engine                                                                                      | `{}`                           |
 | `proxy.router.topologySpreadConstraints`              | The Label selector for the [Kubernetes Pod Topology Spread Constraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/) | `[]`                           |
@@ -189,11 +210,14 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.tolerations`                               | List of node taints to tolerate for Orchestrator Pods                                                                                                         | `[]`                           |
 | `orchestrator.resources.requests`                        | Orchestrator Pods resource requests                                                                                                                           | `memory: 128M`                 |
 | `orchestrator.resources.limits`                          | Orchestrator Pods resource limits                                                                                                                             | `memory: 256M`                 |
+| `orchestrator.podDisruptionBudget.maxUnavailable`        | Orchestrator failed Pods maximum quantity                                                                                                                     | `1`                            |
+| `orchestrator.podDisruptionBudget.minAvailable`          | Orchestrator available Pods minimum quantity                                                                                                                  | ``                             |
 | `orchestrator.volumeSpec`                                | Orchestrator Pods storage resources                                                                                                                           | `{}`                           |
 | `orchestrator.volumeSpec.pvc`                            | Orchestrator Pods PVC request parameters                                                                                                                      |                                |
 | `orchestrator.volumeSpec.pvc.storageClassName`           | Orchestrator Pods PVC target storageClass                                                                                                                     | `""`                           |
 | `orchestrator.volumeSpec.pvc.accessModes`                | Orchestrator Pods PVC access policy                                                                                                                           | `[]`                           |
 | `orchestrator.volumeSpec.pvc.resources.requests.storage` | Orchestrator Pods PVC storage size                                                                                                                            | `1G`                           |
+| `orchestrator.gracePeriod`                               | Orchestrator Pods termination grace period                                                                                                                    | `30`                           |
 | `orchestrator.containerSecurityContext`                  | A custom Kubernetes Security Context for a Container to be used instead of the default one                                                                    | `{}`                           |
 | `orchestrator.podSecurityContext`                        | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                                                          | `{}`                           |
 | `orchestrator.expose.type`                               | Network service access point type                                                                                                                             | `""`                           |
@@ -203,13 +227,23 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.expose.labels`                             | Network service labels                                                                                                                                        | `{}`                           |
 | `orchestrator.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
 ||
-| `pmm.image.repository`   | PMM Container image repository          | `percona/pmm-client`                |
-| `pmm.image.tag`          | PMM Container image tag                 | `3.2.0`                             |
-| `pmm.imagePullPolicy`    | The policy used to update images        | ``                                  |
-| `pmm.serverHost`         | PMM server related K8S service hostname | `monitoring-service`                |
-| `pmm.serverUser`         | PMM server user                         | `admin`                             |
-| `pmm.resources.requests` | PMM Container resource requests         | `{"memory": "150M", "cpu": "300m"}` |
-| `pmm.resources.limits`   | PMM Container resource limits           | `{}`                                |
+| `pmm.image.repository`   | PMM Container image repository                                                                                                                                                                        | `percona/pmm-client`                |
+| `pmm.image.tag`          | PMM Container image tag                                                                                                                                                                               | `3.3.1`                             |
+| `pmm.imagePullPolicy`    | The policy used to update images                                                                                                                                                                      | ``                                  |
+| `pmm.readinessProbes.failureThreshold`   | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                     | `5`                                 |
+| `pmm.readinessProbes.initialDelaySeconds`| Number of seconds after the container has started before liveness or readiness probes are initiated                                                                                                 | `15`                                |
+| `pmm.readinessProbes.periodSeconds`      | How often (in seconds) to perform the probe                                                                                                                                                         | `30`                                |
+| `pmm.readinessProbes.successThreshold`   | Minimum consecutive successes for the probe to be considered successful after having failed                                                                                                         | `1`                                 |
+| `pmm.readinessProbes.timeoutSeconds`     | Number of seconds after which the probe times out                                                                                                                                                   | `15`                                |
+| `pmm.livenessProbes.failureThreshold`    | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                     | `3`                                 |
+| `pmm.livenessProbes.initialDelaySeconds` | Number of seconds after the container has started before liveness or readiness probes are initiated                                                                                                 | `300`                               |
+| `pmm.livenessProbes.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                         | `10`                                |
+| `pmm.livenessProbes.successThreshold`    | Minimum consecutive successes for the probe to be considered successful after having failed                                                                                                         | `1`                                 |
+| `pmm.livenessProbes.timeoutSeconds`      | Number of seconds after which the probe times out     
+| `pmm.serverHost`         | PMM server related K8S service hostname                                                                                                                                                               | `monitoring-service`                |
+| `pmm.mysqlParams`        | Additional parameters which will be passed to the [pmm-admin add mysql](https://docs.percona.com/percona-monitoring-and-management/setting-up/client/mysql.html#add-service) command for `mysql` Pods | `""`                                |
+| `pmm.resources.requests` | PMM Container resource requests                                                                                                                                                                       | `{"memory": "150M", "cpu": "300m"}` |
+| `pmm.resources.limits`   | PMM Container resource limits                                                                                                                                                                         | `{}`                                |
 ||
 | `toolkit.image.repository`   | Percona Toolkit Container image repository | `percona/percona-toolkit` |
 | `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.7.0`                   |
@@ -217,25 +251,26 @@ The chart can be customized using the following configurable parameters:
 | `toolkit.resources.requests` | Toolkit Container resource requests        | `{}`                      |
 | `toolkit.resources.limits`   | Toolkit Container resource limits          | `{}`                      |
 ||
-| `backup.enabled`                                           | Enable backups                                                                              | `true`                       |
-| `backup.image.repository`                                  | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
-| `backup.image.tag`                                         | Backup Container image tag                                                                  | `8.0.35-33`                  |
-| `backup.backoffLimit`                                      | The number of retries to make a backup                                                      | ``                           |
-| `backup.imagePullPolicy`                                   | The policy used to update images                                                            | `Always`                     |
-| `backup.imagePullSecrets`                                  | Backup Container pull secret                                                                | `[]`                         |
-| `backup.initContainer.image`                               | An alternative image for the initial Operator installation                                  | `""`                         |
-| `backup.initContainer.containerSecurityContext`            | A custom Kubernetes Security Context for an init container                                  | `{}`                         |
-| `backup.initContainer.resources.requests`                  | Init container resource requests                                                            | `{}`                         |
-| `backup.initContainer.resources.limits`                    | Init container resource limits                                                              | `{}`                         |
-| `backup.serviceAccountName`                                | Run Backup Container under specified K8S SA                                                 | `""`                         |
-| `backup.containerSecurityContext`                          | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                         |
-| `backup.resources`                                         | Backup Pods resource requests and limits                                                    | `{}`                         |
-| `backup.storages`                                          | Local/remote backup storages settings                                                       | `{}`                         |
-| `backup.schedule`                                          | Backup execution timetable                                                                  | `[]`                         |
-| `backup.schedule.[0].name`                                 | Backup execution timetable name                                                             | `daily-backup`               |
-| `backup.schedule.[0].schedule`                             | Backup execution timetable cron timing                                                      | `0 0 * * *`                  |
-| `backup.schedule.[0].keep`                                 | Backup items to keep                                                                        | `5`                          |
-| `backup.schedule.[0].storageName`                          | Backup target storage                                                                       | `fs-pvc`                     |
+| `backup.enabled`                                | Enable backups                                                                              | `true`                       |
+| `backup.sourcePod`                              | Specify backup source pod                                                                   | ``                           |
+| `backup.image.repository`                       | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
+| `backup.image.tag`                              | Backup Container image tag                                                                  | `8.0.35-33`                  |
+| `backup.backoffLimit`                           | The number of retries to make a backup                                                      | ``                           |
+| `backup.imagePullPolicy`                        | The policy used to update images                                                            | `Always`                     |
+| `backup.imagePullSecrets`                       | Backup Container pull secret                                                                | `[]`                         |
+| `backup.initContainer.image`                    | An alternative image for the initial Operator installation                                  | `""`                         |
+| `backup.initContainer.containerSecurityContext` | A custom Kubernetes Security Context for an init container                                  | `{}`                         |
+| `backup.initContainer.resources.requests`       | Init container resource requests                                                            | `{}`                         |
+| `backup.initContainer.resources.limits`         | Init container resource limits                                                              | `{}`                         |
+| `backup.serviceAccountName`                     | Run Backup Container under specified K8S SA                                                 | `""`                         |
+| `backup.containerSecurityContext`               | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                         |
+| `backup.resources`                              | Backup Pods resource requests and limits                                                    | `{}`                         |
+| `backup.storages`                               | Local/remote backup storages settings                                                       | `{}`                         |
+| `backup.schedule`                               | Backup execution timetable                                                                  | `[]`                         |
+| `backup.schedule.[0].name`                      | Backup execution timetable name                                                             | `daily-backup`               |
+| `backup.schedule.[0].schedule`                  | Backup execution timetable cron timing                                                      | `0 0 * * *`                  |
+| `backup.schedule.[0].keep`                      | Backup items to keep                                                                        | `5`                          |
+| `backup.schedule.[0].storageName`               | Backup target storage                                                                       | `fs-pvc`                     |
 ||
 | `passwords` | Cluster user passwords (by default generated by operator) | `{}` |
 
