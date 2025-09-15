@@ -1,3 +1,22 @@
+# -- Configuration for Helm chart hooks.
+hooks:
+  # -- Default image to use for the Helm chart hooks job.
+  # @default -- `bitnamilegacy/kubectl`
+  image: bitnamilegacy/kubectl
+  pspCleanup: {}
+    # -- Image to use for the PSP cleanup job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+  lbcCleanup: {}
+    # -- Image to use for the Load Balancer Config cleanup job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+  upgradeChecks:
+    # -- Image to use for the upgrade checks job.
+    # If not set, uses the value of `hooks.image`.
+    # @default -- `alpine:3.20`
+    image: "alpine:3.20"
+
 compatibility:
   # -- Enable OpenShift compatibility.
   openshift: false
@@ -128,6 +147,8 @@ server:
   # - name: key2
   #   value: value2
 operator:
+  # -- Enable initContainer migration
+  init: true
   # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator
   # -- Health probe address for the operator.
