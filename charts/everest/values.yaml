@@ -1,3 +1,18 @@
+# -- Configuration for Helm chart hooks.
+hooks:
+  # -- Default image to use for the Helm chart hooks job.
+  # @default -- `registry.k8s.io/kubectl`
+  image: bitnamilegacy/kubectl
+  pspCleanup: {}
+    # -- Image to use for the PSP cleanup job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+  upgradeChecks:
+    # -- Image to use for the upgrade checks job.
+    # If not set, uses the value of `hooks.image`.
+    # @default -- `alpine:3.20`
+    image: "alpine:3.20"
+
 compatibility:
   # -- Enable OpenShift compatibility.
   openshift: false

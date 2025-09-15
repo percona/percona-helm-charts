@@ -1,3 +1,26 @@
+# -- Configuration for Helm chart hooks.
+hooks:
+  # -- Default image to use for the Helm chart hooks job.
+  # @default -- `registry.k8s.io/kubectl`
+  image: bitnamilegacy/kubectl
+  # -- Configuration for the CSV cleanup job.
+  csvCleanup: {}
+    # -- Image to use for the CSV cleanup job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+
+  # -- Configuration for the DB resources cleanup job.
+  dbResourcesCleanup: {}
+    # -- Image to use for the DB resources cleanup job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+
+  # -- Configuration for the operators installer job.
+  operatorsInstaller: {}
+    # -- Image to use for the operators installer job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+
 compatibility:
   # -- If set, enable OpenShift compatibility.
   openshift: false
