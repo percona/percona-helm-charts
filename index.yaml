@@ -314,7 +314,51 @@ entries:
     urls:
     - https://github.com/percona/percona-helm-charts/releases/download/everest-1.3.0/everest-1.3.0.tgz
     version: 1.3.0
+  everest-crds:
+  - apiVersion: v2
+    appVersion: 1.9.0-rc1
+    created: "2025-09-15T18:57:28.305600102Z"
+    description: A Helm chart for Everest Custom Resource Definitions (CRDs).
+    digest: 75f58862f450e36432142fd0f6d7502783ccc95425175dee856e0a2c33319c50
+    maintainers:
+    - email: mayank.shah@percona.com
+      name: mayankshah1607
+    - email: oksana.grishchenko@percona.com
+      name: oksana-grishchenko
+    - email: diogo.recharte@percona.com
+      name: recharte
+    - email: maxim.kondratenko@percona.com
+      name: maxkondr
+    name: everest-crds
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/everest-crds-1.9.0-rc1/everest-crds-1.9.0-rc1.tgz
+    version: 1.9.0-rc1
   everest-db-namespace:
+  - apiVersion: v2
+    appVersion: 1.9.0-rc1
+    created: "2025-09-15T18:57:28.459540368Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.0.*
+    description: A sub-chart for provisioning Everest DB namespaces.
+    digest: b68093e59021d7a292160efb77cda11ecb347fd6ba638ecbc03172ddb4a8956d
+    kubeVersion: '>= 1.27.0-0'
+    maintainers:
+    - email: mayank.shah@percona.com
+      name: mayankshah1607
+    - email: oksana.grishchenko@percona.com
+      name: oksana-grishchenko
+    - email: diogo.recharte@percona.com
+      name: recharte
+    - email: maxim.kondratenko@percona.com
+      name: maxkondr
+    name: everest-db-namespace
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/everest-db-namespace-1.9.0-rc1/everest-db-namespace-1.9.0-rc1.tgz
+    version: 1.9.0-rc1
   - apiVersion: v2
     appVersion: 1.8.1
     created: "2025-08-11T15:21:01.40424255Z"
@@ -7076,4 +7120,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-09-15T18:57:23.614355349Z"
+generated: "2025-09-15T18:57:28.460371157Z"
