@@ -43,6 +43,54 @@ jobs:
         # Only build a kind cluster if there are chart changes to test.
         if: steps.list-changed.outputs.changed == 'true'
 
+      - name: Prepare PMM-HA prerequisites
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          # pmm-secret (namespace-agnostic)
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: pmm-secret
+            labels:
+              app.kubernetes.io/name: pmm
+          type: Opaque
+          data:
+            PMM_ADMIN_PASSWORD: YWRtaW4=
+            PG_USERNAME: cG1tdXNlcg==
+            PG_PASSWORD: cG1tcGFzcw==
+            GF_USERNAME: Z2Z1c2Vy
+            GF_PASSWORD: Z2ZwYXNz
+            VMAGENT_remoteWrite_basicAuth_username: dm11c2Vy
+            VMAGENT_remoteWrite_basicAuth_password: dm1wYXNz
+            PMM_CLICKHOUSE_USER: Y2h1c2Vy
+            PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
+          EOF
+
+          # cluster1-init-sql (namespace-agnostic)
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: cluster1-init-sql
+          data:
+            init.sql: |
+              CREATE DATABASE grafana;
+              CREATE DATABASE "pmm-managed";
+              CREATE USER pmmuser WITH SUPERUSER ENCRYPTED PASSWORD 'pmmpass';
+              CREATE USER gfuser WITH SUPERUSER ENCRYPTED PASSWORD 'gfpass';
+              GRANT ALL PRIVILEGES ON DATABASE "pmm-managed" TO pmmuser;
+              GRANT ALL PRIVILEGES ON DATABASE grafana TO gfuser;
+              \c pmm-managed
+              CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+          EOF
+
+          # TLS secret for HAProxy (self-signed; ephemeral)
+          openssl genrsa -out pmm.key 2048
+          openssl req -new -x509 -key pmm.key -out pmm.crt -days 1 -subj "/CN=localhost"
+          cat pmm.crt pmm.key > pmm.pem
+          kubectl create secret generic haproxy-tls-secret --from-file=pmm.pem
+
       - name: Run chart-testing (install)
         run: |
           OPERATOR_INSTALL=$(ct list-changed --config .github/ct.yaml | sed 's:charts/::' | grep "\-db$" | sed 's/-db$/-operator/')
