@@ -28,10 +28,10 @@ Kubernetes: `>= 1.27.0-0`
 | cleanupOnUninstall | bool | `true` | If set, cleans up the DB resources on uninstall. |
 | compatibility.openshift | bool | `false` | If set, enable OpenShift compatibility. |
 | hooks | object | `{"csvCleanup":{},"dbResourcesCleanup":{},"image":"bitnamilegacy/kubectl","operatorsInstaller":{}}` | Configuration for Helm chart hooks. |
-| hooks.csvCleanup | object | `{}` | Configuration for the CSV cleanup job. |
-| hooks.dbResourcesCleanup | object | `{}` | Configuration for the DB resources cleanup job. |
+| hooks.csvCleanup | object | `{}` | Configuration for the ClusterServiceVersion cleanup hook. |
+| hooks.dbResourcesCleanup | object | `{}` | Configuration for the DB resources cleanup hook. |
 | hooks.image | string | `bitnamilegacy/kubectl` | Default image to use for the Helm chart hooks job. |
-| hooks.operatorsInstaller | object | `{}` | Configuration for the operators installer job. |
+| hooks.operatorsInstaller | object | `{}` | Configuration for the operators installer hook. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | postgresql | bool | `true` | If set, installs the Percona Postgresql Server operator. |
 | psmdb | bool | `true` | If set, installs the Percona Server MongoDB operator. |
