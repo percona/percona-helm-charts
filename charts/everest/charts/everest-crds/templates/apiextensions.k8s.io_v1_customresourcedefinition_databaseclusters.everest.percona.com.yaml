@@ -416,6 +416,9 @@ spec:
                             description: IPSourceRange represents IP addresses in CIDR notation or without a netmask.
                             type: string
                           type: array
+                        loadBalancerConfigName:
+                          description: LoadBalancerConfigName is the name of load balancer config if applied
+                          type: string
                         type:
                           default: internal
                           description: Type is the expose type, can be internal or external
@@ -424,6 +427,9 @@ spec:
                             - external
                           type: string
                       type: object
+                      x-kubernetes-validations:
+                        - message: .spec.proxy.expose.loadBalancerConfigName cannot be cleared once set
+                          rule: self.type == 'internal' || !has(oldSelf.loadBalancerConfigName) || oldSelf.loadBalancerConfigName == '' || (has(self.loadBalancerConfigName) && self.loadBalancerConfigName != '')
                     replicas:
                       description: Replicas is the number of proxy replicas
                       format: int32

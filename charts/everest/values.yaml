@@ -1,3 +1,25 @@
+# -- Configuration for Helm chart hooks.
+hooks:
+  # -- Default image to use for the Helm chart hooks job.
+  # @default -- `bitnamilegacy/kubectl`
+  image: bitnamilegacy/kubectl
+  # -- Configuration for PodSchedulingPolicy clean-up hook.
+  pspCleanup: {}
+    # Image to use for the hook job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+  # -- Configuration for LoadBalancerConfig clean-up hook.
+  lbcCleanup: {}
+    # Image to use for the hook job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+  # -- Configuration for the upgrade checks hook.
+  upgradeChecks:
+    # Image to use for the hook job.
+    # If not set, uses the value of `hooks.image`.
+    # @default -- `alpine:3.20`
+    image: "alpine:3.20"
+
 compatibility:
   # -- Enable OpenShift compatibility.
   openshift: false
@@ -128,6 +150,8 @@ server:
   # - name: key2
   #   value: value2
 operator:
+  # -- Enable initContainer migration
+  init: true
   # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator
   # -- Health probe address for the operator.
@@ -158,6 +182,13 @@ operator:
       tls.key: ""
       tls.crt: ""
       ca.crt: ""
+
+    # -- If set to true, preserves existing TLS Certificate Secrets during upgrades.
+    # This setting is ignored if certificates are explicitly provided in operator.webhook.certs,
+    # in which case the specified certificates are used instead.
+    # This setting has no effect during installation.
+    # @default -- true
+    preserveTLSCerts: true
 
 dataImporters:
   # -- Settings for the Percona PostgreSQL Operator data importer.

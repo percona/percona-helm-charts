@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: everest-operator-loadbalancerconfig-editor-role
+rules:
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - loadbalancerconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - loadbalancerconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
