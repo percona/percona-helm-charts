@@ -27,7 +27,7 @@ The chart can be customized using the following configurable parameters:
 | Parameter               | Description                                                                                    | Default                                 |
 | ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------- |
 | `image.repository`      | PS Operator Container image name                                                               | `percona/percona-server-mysql-operator` |
-| `image.tag`             | PS Operator Container image tag                                                                | `0.10.0`                                |
+| `image.tag`             | PS Operator Container image tag                                                                | `0.11.0`                                |
 | `image.pullPolicy`      | PS Operator Container pull policy                                                              | `IfNotPresent`                          |
 | `imagePullSecrets`      | PS Operator Pod pull secret                                                                    | `[]`                                    |
 | `replicaCount`          | PS Operator Pod quantity                                                                       | `1`                                     |
