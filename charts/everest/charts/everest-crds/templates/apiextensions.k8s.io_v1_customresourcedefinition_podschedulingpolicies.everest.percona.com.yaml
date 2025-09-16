@@ -6204,8 +6204,6 @@ spec:
                   type: integer
               type: object
           type: object
-      selectableFields:
-        - jsonPath: .spec.engineType
       served: true
       storage: true
       subresources:

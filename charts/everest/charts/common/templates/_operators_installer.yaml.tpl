@@ -1,5 +1,6 @@
 #
 # @param .namespace     The namespace where the operators are installed
+# @param .image         The image to use for running the hook Job
 #
 {{- define "everest.operatorsInstaller" }}
 {{- $hookName := "everest-operators-installer" }}
@@ -79,7 +80,7 @@ spec:
   template:
     spec:
       containers:
-        - image: bitnami/kubectl:latest
+        - image: {{ .image }}
           name: {{ $hookName }}
           command:
             - /bin/sh
