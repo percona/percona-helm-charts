@@ -307,6 +307,11 @@ extraVolumeMounts: []
 ##
 extraVolumes: []
 
+global:
+  pmm_ha_0: "{{ .Release.Name }}-0.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
+  pmm_ha_1: "{{ .Release.Name }}-1.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
+  pmm_ha_2: "{{ .Release.Name }}-2.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
+
 # Subchart scheduling overrides to spread replicas across nodes
 clickhouse:
   zookeeper:
