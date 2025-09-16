@@ -3,16 +3,19 @@ hooks:
   # -- Default image to use for the Helm chart hooks job.
   # @default -- `bitnamilegacy/kubectl`
   image: bitnamilegacy/kubectl
+  # -- Configuration for PodSchedulingPolicy clean-up hook.
   pspCleanup: {}
-    # -- Image to use for the PSP cleanup job.
+    # Image to use for the hook job.
     # If not set, uses the value of `hooks.image`.
     # image: ""
+  # -- Configuration for LoadBalancerConfig clean-up hook.
   lbcCleanup: {}
-    # -- Image to use for the Load Balancer Config cleanup job.
+    # Image to use for the hook job.
     # If not set, uses the value of `hooks.image`.
     # image: ""
+  # -- Configuration for the upgrade checks hook.
   upgradeChecks:
-    # -- Image to use for the upgrade checks job.
+    # Image to use for the hook job.
     # If not set, uses the value of `hooks.image`.
     # @default -- `alpine:3.20`
     image: "alpine:3.20"

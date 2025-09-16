@@ -3,21 +3,20 @@ hooks:
   # -- Default image to use for the Helm chart hooks job.
   # @default -- `bitnamilegacy/kubectl`
   image: bitnamilegacy/kubectl
-  # -- Configuration for the CSV cleanup job.
+  # -- Configuration for the ClusterServiceVersion cleanup hook.
   csvCleanup: {}
-    # -- Image to use for the CSV cleanup job.
+    # Image to use for the hook job.
     # If not set, uses the value of `hooks.image`.
     # image: ""
-
-  # -- Configuration for the DB resources cleanup job.
+  # -- Configuration for the DB resources cleanup hook.
   dbResourcesCleanup: {}
-    # -- Image to use for the DB resources cleanup job.
+    # Image to use for the hook job.
     # If not set, uses the value of `hooks.image`.
     # image: ""
 
-  # -- Configuration for the operators installer job.
+  # -- Configuration for the operators installer hook.
   operatorsInstaller: {}
-    # -- Image to use for the operators installer job.
+    # Image to use for the hook job.
     # If not set, uses the value of `hooks.image`.
     # image: ""
 
