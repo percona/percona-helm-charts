@@ -102,7 +102,6 @@ jobs:
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm install --namespace default $operator charts/$operator/.; done
           fi
-          ct install --config .github/ct.yaml --excluded-charts=everest,pmm-ha
           ct install --namespace "${{ env.NS }}" --config .github/ct.yaml --charts=pmm-ha
 
           if [ -n "$OPERATOR_INSTALL" ]; then
