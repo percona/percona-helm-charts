@@ -314,8 +314,8 @@ global:
 # Subchart scheduling overrides to spread replicas across nodes
 clickhouse:
   zookeeper:
-    podAntiAffinityPreset: hard
-  podAntiAffinityPreset: hard
+    podAntiAffinityPreset: soft
+  podAntiAffinityPreset: soft
   distributeReplicasByZone: true
 
 haproxy:
