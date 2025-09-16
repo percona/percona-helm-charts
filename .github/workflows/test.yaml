@@ -46,8 +46,13 @@ jobs:
       - name: Prepare PMM-HA prerequisites
         if: steps.list-changed.outputs.changed == 'true'
         run: |
+          # Generate and export a unique namespace for this run
+          NS="pmm-ha-$(openssl rand -hex 5)"
+          echo "NS=$NS" >> $GITHUB_ENV
+          kubectl create namespace "$NS" || true
+
           # pmm-secret (namespace-agnostic)
-          cat <<'EOF' | kubectl apply -f -
+          cat <<'EOF' | kubectl apply -n "$NS" -f -
           apiVersion: v1
           kind: Secret
           metadata:
@@ -68,7 +73,7 @@ jobs:
           EOF
 
           # cluster1-init-sql (namespace-agnostic)
-          cat <<'EOF' | kubectl apply -f -
+          cat <<'EOF' | kubectl apply -n "$NS" -f -
           apiVersion: v1
           kind: ConfigMap
           metadata:
@@ -89,7 +94,7 @@ jobs:
           openssl genrsa -out pmm.key 2048
           openssl req -new -x509 -key pmm.key -out pmm.crt -days 1 -subj "/CN=localhost"
           cat pmm.crt pmm.key > pmm.pem
-          kubectl create secret generic haproxy-tls-secret --from-file=pmm.pem
+          kubectl create secret generic haproxy-tls-secret --from-file=pmm.pem -n "$NS"
 
       - name: Run chart-testing (install)
         run: |
@@ -97,7 +102,9 @@ jobs:
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm install --namespace default $operator charts/$operator/.; done
           fi
-          ct install --config .github/ct.yaml --excluded-charts=everest
+          ct install --config .github/ct.yaml --excluded-charts=everest,pmm-ha
+          ct install --namespace "${{ env.NS }}" --config .github/ct.yaml --charts=pmm-ha
+
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm uninstall --namespace default $operator; done
           fi
