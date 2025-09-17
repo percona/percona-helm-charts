@@ -11,12 +11,12 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  # repository: perconalab/pmm-server-fb
-  repository: percona/pmm-server
+  repository: perconalab/pmm-server-fb
+  # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  # tag: "PR-3910-04f3709"
-  tag: "latest"
+  tag: "PR-3910-04f3709"
+  # tag: "latest"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -311,8 +311,6 @@ global:
   pmm_ha_0: "{{ .Release.Name }}-0.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
   pmm_ha_1: "{{ .Release.Name }}-1.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
   pmm_ha_2: "{{ .Release.Name }}-2.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
-  vm_write: "{{ .Release.Name }}-victoria-metrics-cluster-vminsert.{{ .Release.Namespace }}.svc.cluster.local:8480"
-  vm_read: "{{ .Release.Name }}-victoria-metrics-cluster-vmselect.{{ .Release.Namespace }}.svc.cluster.local:8481"
 
 # Subchart scheduling overrides to spread replicas across nodes
 clickhouse:
@@ -320,6 +318,18 @@ clickhouse:
     podAntiAffinityPreset: soft
   podAntiAffinityPreset: soft
   distributeReplicasByZone: true
+  service:
+    ports:
+      http: 8123
+      https: 443
+      interserver: 9009
+  zookeeper:
+    service:
+      ports:
+        client: 2181
+        follower: 2888
+        election: 3888
+        tls: 3181
 
 haproxy:
   affinity:
@@ -432,14 +442,14 @@ victoria-metrics-cluster:
           url_map:
             - src_paths:
                 - "/api/v1/write"
-              url_prefix: "http://{{ tpl .Values.global.vm_write . }}/insert/1/prometheus/"
+              url_prefix: "http://{{ .Release.Name }}-victoria-metrics-cluster-vminsert.{{ .Release.Namespace }}.svc.cluster.local:8480/insert/1/prometheus/"
             - src_paths:
                 - "/api/v1/query"
                 - "/api/v1/query_range"
                 - "/api/v1/series"
                 - "/api/v1/labels"
                 - "/api/v1/label/.+/values"
-              url_prefix: "http://{{ tpl .Values.global.vm_read . }}/select/1/prometheus/"
+              url_prefix: "http://{{ .Release.Name }}-victoria-metrics-cluster-vmselect.{{ .Release.Namespace }}.svc.cluster.local:8481/select/1/prometheus/"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:

@@ -13,12 +13,18 @@ spec:
       restartPolicy: Never
       containers:
       - name: check-clusters
-        image: "bitnami/kubectl:latest" # Or an image with kubectl
+        image: "alpine:3.18" # Alpine base image with kubectl installed
         command:
           - /bin/sh
           - -c
         args:
           - |
+            echo "Installing kubectl..."
+            apk add --no-cache curl
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /usr/local/bin/
+            
             echo "Checking for running PostgreSQL clusters before deleting the operator..."
             
             while true; do
