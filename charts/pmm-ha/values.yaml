@@ -318,18 +318,7 @@ clickhouse:
     podAntiAffinityPreset: soft
   podAntiAffinityPreset: soft
   distributeReplicasByZone: true
-  service:
-    ports:
-      http: 8123
-      https: 443
-      interserver: 9009
-  zookeeper:
-    service:
-      ports:
-        client: 2181
-        follower: 2888
-        election: 3888
-        tls: 3181
+
 
 haproxy:
   affinity:
