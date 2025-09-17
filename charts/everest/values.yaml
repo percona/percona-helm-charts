@@ -1,8 +1,8 @@
 # -- Configuration for Helm chart hooks.
 hooks:
   # -- Default image to use for the Helm chart hooks job.
-  # @default -- `bitnamilegacy/kubectl`
-  image: bitnamilegacy/kubectl
+  # @default -- `percona/everest-helmtools:0.0.1`
+  image: "percona/everest-helmtools:0.0.1"
   # -- Configuration for PodSchedulingPolicy clean-up hook.
   pspCleanup: {}
     # Image to use for the hook job.
@@ -14,11 +14,10 @@ hooks:
     # If not set, uses the value of `hooks.image`.
     # image: ""
   # -- Configuration for the upgrade checks hook.
-  upgradeChecks:
+  upgradeChecks: {}
     # Image to use for the hook job.
     # If not set, uses the value of `hooks.image`.
-    # @default -- `alpine:3.20`
-    image: "alpine:3.20"
+    # image: "alpine:3.20"
 
 compatibility:
   # -- Enable OpenShift compatibility.

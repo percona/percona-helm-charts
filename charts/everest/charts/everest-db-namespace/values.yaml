@@ -1,8 +1,8 @@
 # -- Configuration for Helm chart hooks.
 hooks:
   # -- Default image to use for the Helm chart hooks job.
-  # @default -- `bitnamilegacy/kubectl`
-  image: bitnamilegacy/kubectl
+  # @default -- `percona/everest-helmtools:0.0.1`
+  image: "percona/everest-helmtools:0.0.1"
   # -- Configuration for the ClusterServiceVersion cleanup hook.
   csvCleanup: {}
     # Image to use for the hook job.
