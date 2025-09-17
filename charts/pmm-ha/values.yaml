@@ -311,6 +311,8 @@ global:
   pmm_ha_0: "{{ .Release.Name }}-0.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
   pmm_ha_1: "{{ .Release.Name }}-1.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
   pmm_ha_2: "{{ .Release.Name }}-2.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
+  vm_write: "{{ .Release.Name }}-victoria-metrics-cluster-vminsert.{{ .Release.Namespace }}.svc.cluster.local:8480"
+  vm_read: "{{ .Release.Name }}-victoria-metrics-cluster-vmselect.{{ .Release.Namespace }}.svc.cluster.local:8481"
 
 # Subchart scheduling overrides to spread replicas across nodes
 clickhouse:
@@ -422,6 +424,22 @@ victoria-metrics-cluster:
                     operator: In
                     values: ["vminsert"]
   vmauth:
+    config:
+      unauthorized_user: {}
+      users:
+        - username: "vmuser"
+          password: "vmpass"
+          url_map:
+            - src_paths:
+                - "/api/v1/write"
+              url_prefix: "http://{{ tpl .Values.global.vm_write . }}/insert/1/prometheus/"
+            - src_paths:
+                - "/api/v1/query"
+                - "/api/v1/query_range"
+                - "/api/v1/series"
+                - "/api/v1/labels"
+                - "/api/v1/label/.+/values"
+              url_prefix: "http://{{ tpl .Values.global.vm_read . }}/select/1/prometheus/"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
