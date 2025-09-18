@@ -3,7 +3,7 @@ appVersion: "0.11.0"
 description: A Helm chart for Deploying the Percona Operator for MySQL (based on Percona Server for MySQL)
 name: ps-operator
 home: https://docs.percona.com/percona-operator-for-mysql/ps/
-version: 0.11.0
+version: 0.11.1
 maintainers:
   - name: jvpasinatto
     email: julio.pasinatto@percona.com
