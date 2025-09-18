@@ -1,0 +1,21 @@
+apiVersion: v2
+appVersion: 2.5.0
+description: A Helm chart to deploy the Percona Operator for PostgreSQL
+home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+keywords:
+- PostgreSQL
+- Operator
+- Database
+- Postgres
+- SQL
+- RDBMS
+maintainers:
+- email: tomislav.plavcic@percona.com
+  name: tplavcic
+- email: sergey.pronin@percona.com
+  name: spron-in
+- email: natalia.marukovich@gmail.com
+  name: nmarukovich
+name: pg-operator
+type: application
+version: 2.5.0

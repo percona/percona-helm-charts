@@ -1,0 +1,26 @@
+kind: DaemonSet
+replicaCount: 2
+livenessProbe:
+  failureThreshold: 3
+  successThreshold: 1
+  initialDelaySeconds: 0
+  timeoutSeconds: 1
+  tcpSocket:
+    port: 80
+  periodSeconds: 10
+readinessProbe:
+  failureThreshold: 3
+  successThreshold: 1
+  initialDelaySeconds: 0
+  timeoutSeconds: 1
+  tcpSocket:
+    port: 80
+  periodSeconds: 10
+startupProbe:
+  failureThreshold: 20
+  successThreshold: 1
+  initialDelaySeconds: 0
+  timeoutSeconds: 1
+  tcpSocket:
+    port: 80
+  periodSeconds: 1

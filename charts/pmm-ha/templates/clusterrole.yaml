@@ -1,0 +1,28 @@
+{{- if .Values.serviceAccount.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "pmm.fullname" . }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+# standard RBAC
+- apiGroups: [""] # "" indicates the core API group
+  resources:
+  - namespaces
+  - endpoints
+  - services
+  - nodes
+  - pods
+  - secrets
+  - serviceaccounts
+  verbs:
+  - get
+  - watch
+  - list
+- nonResourceURLs:
+  - /metrics
+  - /metrics/resources
+  verbs:
+  - get
+{{- end }}

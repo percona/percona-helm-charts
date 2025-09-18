@@ -1,0 +1,563 @@
+apiVersion: pgv2.percona.com/v2
+kind: PerconaPGCluster
+metadata:
+  annotations:
+    current-primary: {{ include "pg-database.fullname" . }}
+  labels:
+    crunchy-pgha-scope: {{ include "pg-database.fullname" . }}
+    deployment-name: {{ include "pg-database.fullname" . }}
+    name: {{ include "pg-database.fullname" . }}
+    pg-cluster: {{ include "pg-database.fullname" . }}
+    pgo-version: {{ .Chart.AppVersion }}
+    pgouser: admin
+{{ include "pg-database.labels" . | indent 4 }}
+  finalizers:
+{{ .Values.finalizers | toYaml | indent 4 }}
+  name: {{ include "pg-database.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  crVersion: {{ .Values.crVersion }}
+  image: {{ .Values.image }}
+  imagePullPolicy: Always
+  port: {{ default 5432 .Values.port }}
+  postgresVersion: {{ .Values.postgresVersion }}
+  standby: {{- .Values.standby | toYaml | nindent 4 }}
+  {{- if or (.Values.customTLSSecret.name) (.Values.customReplicationTLSSecret.name) }}
+  secrets:
+    {{- if .Values.customRootCATLSSecret.name }}
+    customRootCATLSSecret:
+      name: {{ .Values.customRootCATLSSecret.name }}
+      items:
+{{- toYaml .Values.customRootCATLSSecret.items | nindent 8 }}
+    {{- end }}
+    {{- if .Values.customTLSSecret.name }}
+    customTLSSecret:
+      name: {{ .Values.customTLSSecret.name }}
+    {{- end }}
+    {{- if .Values.customReplicationTLSSecret.name }}
+    customReplicationTLSSecret:
+      name: {{ .Values.customReplicationTLSSecret.name }}
+    {{- end }}
+  {{- end }}
+
+  openshift: {{ default false .Values.openshift }}
+  
+  {{- if .Values.users }}
+  users:
+  {{- range $user := .Values.users }}
+    - name: {{ $user.name }}
+      {{- if $user.databases }} 
+      databases:
+      {{- range $database := $user.databases }}
+        - {{ $database }}
+      {{- end }}
+      {{- end }}
+      {{- if $user.options }}
+      options: {{ $user.options }}
+      {{- end }}
+      {{- if $user.password }}
+      password:
+        type: {{ $user.password.type }}
+      {{- end }}
+      {{- if $user.secretName }}
+      secretName: {{ $user.secretName }}
+      {{- end }}
+  {{- end }}
+  {{- end }}
+
+  {{- if .Values.databaseInitSQL }}
+  databaseInitSQL:
+    key: {{ .Values.databaseInitSQL.key }}
+    name: {{ .Values.databaseInitSQL.name }}
+  {{- end }}
+
+  pause: {{ default false .Values.pause }}
+  unmanaged: {{ default false .Values.unmanaged }}
+  {{- if $dataSource := .Values.dataSource }}
+  dataSource:
+    {{- if $postgresCluster := $dataSource.postgresCluster }}
+    postgresCluster:
+      clusterName: {{ $postgresCluster.clusterName }}
+      repoName: {{ $postgresCluster.repoName }}
+      options:
+      {{- range $option := $postgresCluster.options }}
+      - {{ $option }}
+      {{- end }}
+      {{- if $postgresCluster.tolerations }}
+      tolerations:
+{{ $postgresCluster.tolerations | toYaml | indent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- if $pgbackrest := $dataSource.pgbackrest }}
+    pgbackrest:
+      stanza: {{ $pgbackrest.stanza }}
+      configuration:
+{{ $pgbackrest.configuration | toYaml | indent 6 }}
+      global:
+{{ $pgbackrest.global | toYaml | indent 8 }}
+      options:
+      {{- range $option := $pgbackrest.options }}
+      - {{ $option }}
+      {{- end }}
+      {{- if $pgbackrest.tolerations }}
+      tolerations:
+{{ $pgbackrest.tolerations | toYaml | indent 8 }}
+      {{- end }}
+      repo:
+        name: {{ $pgbackrest.repo.name }}
+        {{- if $s3 := $pgbackrest.repo.s3 }}
+        s3:
+          bucket: {{ $s3.bucket }}
+          endpoint: {{ $s3.endpoint }}
+          region: {{ $s3.region }}
+        {{- end }}
+        {{- if $gcs := $pgbackrest.repo.gcs }}
+        gcs:
+          bucket: {{ $gcs.bucket }}
+        {{- end }}
+        {{- if $azure := $pgbackrest.repo.azure }}
+        azure:
+          container: {{ $azure.container }}
+        {{- end }}
+    {{- end }}
+    {{- if $volumes := $dataSource.volumes }}
+    volumes:
+      {{- if $pgDataVolume := $volumes.pgDataVolume }}
+      pgDataVolume:
+{{ $pgDataVolume | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $pgWALVolume := $volumes.pgWALVolume }}
+      pgWALVolume:
+{{ $pgWALVolume | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $pgBackRestVolume := $volumes.pgBackRestVolume }}
+      pgBackRestVolume:
+{{ $pgBackRestVolume | toYaml | indent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
+  {{- if .Values.expose }}
+  expose:
+    type: {{ .Values.expose.type }}
+    {{- if .Values.expose.annotations }}
+    annotations:
+{{ .Values.expose.annotations | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.expose.labels }}
+    labels:
+{{ .Values.expose.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.expose.loadBalancerSourceRanges }}
+    loadBalancerSourceRanges:
+{{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 6 }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.exposeReplicas }}
+  exposeReplicas:
+    type: {{ .Values.exposeReplicas.type }}
+    {{- if .Values.exposeReplicas.annotations }}
+    annotations:
+{{ .Values.exposeReplicas.annotations | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.exposeReplicas.labels }}
+    labels:
+{{ .Values.exposeReplicas.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.exposeReplicas.loadBalancerSourceRanges }}
+    loadBalancerSourceRanges:
+{{ .Values.exposeReplicas.loadBalancerSourceRanges | toYaml | indent 6 }}
+    {{- end }}
+  {{- end }}
+
+  instances:
+  {{- range $instance := .Values.instances }}
+    - name: {{ $instance.name }}
+      replicas: {{ $instance.replicas }}
+      {{- if $instance.affinity }}
+      affinity:
+{{ $instance.affinity | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $instance.resources }}
+      resources:
+        {{- if $instance.resources.requests }}
+        requests:
+          cpu: {{ $instance.resources.requests.cpu }}
+          memory: {{ $instance.resources.requests.memory }}
+        {{- end }}
+        {{- if $instance.resources.limits }}
+        limits:
+          cpu: {{ $instance.resources.limits.cpu }}
+          memory: {{ $instance.resources.limits.memory }}
+        {{- end }}
+      {{- end }}
+      {{- if $instance.containers }}
+      containers:
+        {{- if $instance.containers.replicaCertCopy }}
+        replicaCertCopy:
+          {{- if $instance.containers.replicaCertCopy.resources }}
+          resources:
+            {{- if $instance.containers.replicaCertCopy.resources.limits }}
+            limits:
+              cpu: {{ $instance.containers.replicaCertCopy.resources.limits.cpu }}
+              memory: {{ $instance.containers.replicaCertCopy.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if $instance.sidecars }}
+      sidecars:
+      {{- range $sidecar := $instance.sidecars }}
+      - name: {{ $sidecar.name }}
+        image: {{ $sidecar.image }}
+      {{- end }}
+      {{- end }}
+      {{- if $instance.topologySpreadConstraints }}
+      topologySpreadConstraints:
+      {{- range $constraint :=  $instance.topologySpreadConstraints }}
+        - maxSkew: {{ $constraint.maxSkew }}
+          topologyKey: {{ $constraint.topologyKey }}
+          whenUnsatisfiable: {{ $constraint.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+{{ $constraint.labelSelector.matchLabels | toYaml | indent 14 }}
+      {{- end }}
+      {{- end }}
+
+      {{- if $instance.tolerations }}
+      tolerations:
+{{ $instance.tolerations | toYaml | indent 8 }}
+      {{- end }}
+
+      {{- if $instance.priorityClassName }}
+      priorityClassName: {{ $instance.priorityClassName }}
+      {{- end }}
+      {{- if $instance.securityContext }}
+      securityContext: 
+{{ $instance.securityContext | toYaml | indent 8 }}
+      {{- end }}
+
+      {{- if $instance.walVolumeClaimSpec }}
+      walVolumeClaimSpec:
+        {{- if $instance.walVolumeClaimSpec.storageClassName }}
+        storageClassName: {{ $instance.walVolumeClaimSpec.storageClassName }}
+        {{- end }}
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ $instance.walVolumeClaimSpec.resources.requests.storage }}
+      {{- end }}
+      dataVolumeClaimSpec:
+        {{- if $instance.dataVolumeClaimSpec.storageClassName }}
+        storageClassName: {{ $instance.dataVolumeClaimSpec.storageClassName }}
+        {{- end }}
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ $instance.dataVolumeClaimSpec.resources.requests.storage }}
+      {{- if $instance.tablespaceVolumes }}
+      tablespaceVolumes:
+      {{- range $volume := $instance.tablespaceVolumes }}
+        - name: {{ $volume.name }}
+          dataVolumeClaimSpec:
+            accessModes:
+            {{- range $accessMode := $volume.dataVolumeClaimSpec.accessModes }}
+              - {{ $accessMode }}
+            {{- end }}
+            resources:
+              requests:
+                storage: {{ $volume.dataVolumeClaimSpec.resources.requests.storage }}
+      {{- end }}
+      {{- end }}
+  {{- end }}
+
+  proxy:
+    pgBouncer:
+      image: {{ .Values.proxy.pgBouncer.image }}
+      replicas: {{ .Values.proxy.pgBouncer.replicas}}
+      exposeSuperusers: {{ .Values.proxy.pgBouncer.exposeSuperusers | default true }}
+      {{- if .Values.proxy.pgBouncer.resources }}
+      resources:
+        {{- if .Values.proxy.pgBouncer.resources.requests }}
+        requests:
+          cpu: {{ .Values.proxy.pgBouncer.resources.requests.cpu }}
+          memory: {{ .Values.proxy.pgBouncer.resources.requests.memory }}
+        {{- end }}
+        {{- if .Values.proxy.pgBouncer.resources.limits }}
+        limits:
+          cpu: {{ .Values.proxy.pgBouncer.resources.limits.cpu }}
+          memory: {{ .Values.proxy.pgBouncer.resources.limits.memory }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.containers }}
+      containers:
+        {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig }}
+        pgbouncerConfig:
+          {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources }}
+          resources:
+            {{- if .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits }}
+            limits:
+              cpu: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits.cpu }}
+              memory: {{ .Values.proxy.pgBouncer.containers.pgbouncerConfig.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.expose }}
+      expose:
+        type: {{ .Values.proxy.pgBouncer.expose.type }}
+        {{- if .Values.proxy.pgBouncer.expose.annotations }}
+        annotations:
+{{ .Values.proxy.pgBouncer.expose.annotations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.proxy.pgBouncer.expose.labels }}
+        labels:
+{{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges }}
+        loadBalancerSourceRanges:
+{{ .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.sidecars }}
+      sidecars:
+      {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
+      - name: {{ $sidecar.name }}
+        image: {{ $sidecar.image }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.customTLSSecret }}
+      customTLSSecret:
+        name: {{ .Values.proxy.pgBouncer.customTLSSecret.name }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.config }}
+      config:
+        global:
+{{ .Values.proxy.pgBouncer.config.global | toYaml | indent 10 }}
+      {{- end }}
+
+      {{- if .Values.proxy.pgBouncer.topologySpreadConstraints }}
+      topologySpreadConstraints:
+      {{- range $constraint := .Values.proxy.pgBouncer.topologySpreadConstraints }}
+        - maxSkew: {{ $constraint.maxSkew }}
+          topologyKey: {{ $constraint.topologyKey }}
+          whenUnsatisfiable: {{ $constraint.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+{{ $constraint.labelSelector.matchLabels | toYaml | indent 14 }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.affinity }}
+      affinity:
+{{ .Values.proxy.pgBouncer.affinity | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.tolerations }}
+      tolerations:
+{{ .Values.proxy.pgBouncer.tolerations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.securityContext }}
+      securityContext: 
+{{ .Values.proxy.pgBouncer.securityContext | toYaml | indent 8 }}
+      {{- end }}
+
+  pmm:
+    enabled: {{ .Values.pmm.enabled }}
+    image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
+    serverHost: {{ .Values.pmm.serverHost }}
+    secret: {{ include "pg-database.fullname" . }}-pmm-secret
+    querySource: {{ .Values.pmm.querySource }}
+
+  backups:
+    trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
+    pgbackrest:
+      image: {{ .Values.backups.pgbackrest.image }}
+      {{- if .Values.backups.pgbackrest.configuration }}
+      configuration:
+{{ .Values.backups.pgbackrest.configuration | toYaml | indent 6 }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.containers }}
+      containers:
+        {{- if .Values.backups.pgbackrest.containers.pgbackrest }}
+        pgbackrest:
+          {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources }}
+          resources:
+            {{- if .Values.backups.pgbackrest.containers.pgbackrest.resources.limits }}
+            limits:
+              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.limits.cpu }}
+              memory: {{ .Values.backups.pgbackrest.containers.pgbackrest.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig }}
+        pgbackrestConfig:
+          {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources }}
+          resources:
+            {{- if .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits }}
+            limits:
+              cpu: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits.cpu }}
+              memory: {{ .Values.backups.pgbackrest.containers.pgbackrestConfig.resources.limits.memory }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.jobs }}
+      jobs:
+        priorityClassName: {{ .Values.backups.pgbackrest.jobs.priorityClassName }}
+        resources:
+          limits:
+            cpu: {{ .Values.backups.pgbackrest.jobs.resources.limits.cpu }}
+            memory: {{ .Values.backups.pgbackrest.jobs.resources.limits.memory }}
+        {{- if .Values.backups.pgbackrest.jobs.tolerations }}
+        tolerations:
+{{ .Values.backups.pgbackrest.jobs.tolerations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.securityContext }}
+        securityContext:
+{{ .Values.backups.pgbackrest.jobs.securityContext | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.global }}
+      global:
+{{ .Values.backups.pgbackrest.global | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.repoHost }}
+      repoHost:
+        priorityClassName: {{ .Values.backups.pgbackrest.repoHost.priorityClassName }}
+        {{- if .Values.backups.pgbackrest.repoHost.topologySpreadConstraints }}
+        topologySpreadConstraints:
+        {{- range $constraint := .Values.backups.pgbackrest.repoHost.topologySpreadConstraints }}
+          - maxSkew: {{ $constraint.maxSkew }}
+            topologyKey: {{ $constraint.topologyKey }}
+            whenUnsatisfiable: {{ $constraint.whenUnsatisfiable }}
+            labelSelector:
+              matchLabels:
+{{ $constraint.labelSelector.matchLabels | toYaml | indent 16 }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.affinity }}
+        affinity:
+{{ .Values.backups.pgbackrest.repoHost.affinity | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.tolerations }}
+        tolerations:
+{{ .Values.backups.pgbackrest.repoHost.tolerations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.securityContext }}
+        securityContext: 
+{{ .Values.backups.pgbackrest.repoHost.securityContext | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
+      manual:
+        repoName: repo1
+        options:
+         - --type=full
+      repos:
+      {{- range $repo := .Values.backups.pgbackrest.repos }}
+      - name: {{ $repo.name }}
+        {{- if $schedules := $repo.schedules }}
+        schedules:
+          {{- if $schedules.full }}
+          full: {{ $schedules.full | quote }}
+          {{- end }}
+          {{- if $schedules.differential }}
+          differential: {{ $schedules.differential | quote }}
+          {{- end }}
+          {{- if $schedules.incremental }}
+          incremental: {{ $schedules.incremental | quote }}
+          {{- end }}
+        {{- end }}
+        {{- if $volume := $repo.volume }}
+        volume:
+          volumeClaimSpec:
+            {{- if $repo.volume.volumeClaimSpec.storageClassName }}
+            storageClassName: {{ $volume.volumeClaimSpec.storageClassName }}
+            {{- end }}
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: {{ $volume.volumeClaimSpec.resources.requests.storage }}
+        {{- end }}
+        {{- if $s3 := $repo.s3 }}
+        s3:
+          bucket: {{ $s3.bucket }}
+          endpoint: {{ $s3.endpoint }}
+          region: {{ $s3.region }}
+        {{- end }}
+        {{- if $gcs := $repo.gcs }}
+        gcs:
+          bucket: {{ $gcs.bucket }}
+        {{- end }}
+        {{- if $azure := $repo.azure }}
+        azure:
+          container: {{ $azure.container }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.restore }}
+      restore:
+        repoName: {{ .Values.backups.pgbackrest.restore.repoName }} 
+        {{- if .Values.backups.pgbackrest.restore.tolerations }}
+        tolerations:
+{{ .Values.backups.pgbackrest.restore.tolerations | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
+
+{{- if .Values.patroni }}
+  patroni:
+    {{- if .Values.patroni.syncPeriodSeconds }}
+    syncPeriodSeconds: {{ .Values.patroni.syncPeriodSeconds }}
+    {{- end }}
+    {{- if .Values.patroni.leaderLeaseDurationSeconds }}
+    leaderLeaseDurationSeconds: {{ .Values.patroni.leaderLeaseDurationSeconds }}
+    {{- end }}
+    {{- if .Values.patroni.dynamicConfiguration }}
+    dynamicConfiguration:
+{{- .Values.patroni.dynamicConfiguration | toYaml | nindent 6 }}
+    {{- end }}
+    {{- if .Values.patroni.switchover }}
+    switchover:
+      enabled: {{ .Values.patroni.switchover.enabled }}
+      {{- if .Values.patroni.switchover.targetInstance }}
+      targetInstance: {{ .Values.patroni.switchover.targetInstance }}
+      {{- end }}
+    {{- end }}
+{{- end }}
+
+{{- if .Values.extensions }}
+  extensions:
+    {{- if .Values.extensions.image }}
+    image: {{ .Values.extensions.image }}
+    {{- end }}
+    {{- if .Values.extensions.imagePullPolicy }}
+    imagePullPolicy: {{ .Values.extensions.imagePullPolicy }}
+    {{- end }}
+    {{- if .Values.extensions.storage }}
+    storage:
+      {{- if .Values.extensions.storage.type }}
+      type: {{ .Values.extensions.storage.type }}
+      {{- end }}
+      {{- if .Values.extensions.storage.bucket }}
+      bucket: {{ .Values.extensions.storage.bucket }}
+      {{- end }}
+      {{- if .Values.extensions.storage.region }}
+      region: {{ .Values.extensions.storage.region }}
+      {{- end }}
+      {{- if .Values.extensions.storage.endpoint }}
+      endpoint: {{ .Values.extensions.storage.endpoint }}
+      {{- end }}
+      {{- if .Values.extensions.storage.secret.name }}
+      secret:
+        name: {{ .Values.extensions.storage.secret.name }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.extensions.builtin }}
+    builtin:
+{{ .Values.extensions.builtin | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.custom }}
+    custom:
+{{ .Values.extensions.custom | toYaml | indent 6 }}
+    {{- end }}
+{{- end }}
