@@ -260,42 +260,6 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/everest-1.6.0/everest-1.6.0.tgz
     version: 1.6.0
   - apiVersion: v2
-    appVersion: 1.5.0
-    created: "2025-03-04T15:13:19.465020593Z"
-    dependencies:
-    - name: common
-      repository: file://charts/common
-      version: 0.0.*
-    - alias: dbNamespace
-      condition: dbNamespace.enabled
-      name: everest-db-namespace
-      repository: file://charts/everest-db-namespace
-      version: 1.5.0
-    - condition: kube-state-metrics.enabled
-      name: kube-state-metrics
-      repository: https://prometheus-community.github.io/helm-charts
-      version: 5.27.0
-    - alias: monitoring
-      condition: monitoring.enabled
-      name: victoria-metrics-operator
-      repository: https://victoriametrics.github.io/helm-charts
-      version: 0.37.0
-    description: A cloud-native database platform
-    digest: f0f661b9b38c11a222b2354130379685d6f8d75455cbcecd651954f4ee27900a
-    kubeVersion: '>= 1.27.0-0'
-    maintainers:
-    - email: mayank.shah@percona.com
-      name: mayankshah1607
-    - email: oksana.grishchenko@percona.com
-      name: oksana-grishchenko
-    - email: diogo.recharte@percona.com
-      name: recharte
-    name: everest
-    type: application
-    urls:
-    - https://github.com/percona/percona-helm-charts/releases/download/everest-1.5.0/everest-1.5.0.tgz
-    version: 1.5.0
-  - apiVersion: v2
     appVersion: 1.4.0
     created: "2025-09-18T11:51:57.427956035Z"
     dependencies:
@@ -539,28 +503,6 @@ entries:
     urls:
     - https://github.com/percona/percona-helm-charts/releases/download/everest-db-namespace-1.6.0/everest-db-namespace-1.6.0.tgz
     version: 1.6.0
-  - apiVersion: v2
-    appVersion: 1.5.0
-    created: "2025-03-04T15:13:24.996974754Z"
-    dependencies:
-    - name: common
-      repository: file://../common
-      version: 0.0.*
-    description: A sub-chart for provisioning Everest DB namespaces.
-    digest: a62cefbfca3c629ef1f481f39b5573425ad3f77ee79de44134a07ae3fa2b0b90
-    kubeVersion: '>= 1.27.0-0'
-    maintainers:
-    - email: mayank.shah@percona.com
-      name: mayankshah1607
-    - email: oksana.grishchenko@percona.com
-      name: oksana-grishchenko
-    - email: diogo.recharte@percona.com
-      name: recharte
-    name: everest-db-namespace
-    type: application
-    urls:
-    - https://github.com/percona/percona-helm-charts/releases/download/everest-db-namespace-1.5.0/everest-db-namespace-1.5.0.tgz
-    version: 1.5.0
   - apiVersion: v2
     appVersion: 1.4.0
     created: "2025-09-18T11:52:01.253984307Z"
