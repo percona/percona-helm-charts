@@ -19,6 +19,9 @@ spec:
   platform: {{ .Values.platform }}
   {{- end }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
+  {{- if hasKey .Values "enableExternalVolumeAutoscaling" }}
+  enableExternalVolumeAutoscaling: {{ .Values.enableExternalVolumeAutoscaling }}
+  {{- end }}
   {{- if .Values.clusterServiceDNSSuffix }}
   clusterServiceDNSSuffix: {{ .Values.clusterServiceDNSSuffix }}
   {{- end }}
