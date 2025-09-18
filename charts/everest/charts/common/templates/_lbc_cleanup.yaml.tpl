@@ -1,53 +1,50 @@
+# Cleanup all load balancer configs during uninstall.
 #
-# @param .namespace     The namespace where DB and its resources are deployed
+# @param .namespace     The namespace where Everest server is installed
 # @param .image         The image to use for running the hook Job
 #
-{{- define "everest.dbResourcesCleanup" }}
-{{- $hookName := printf "everest-helm-pre-delete-db-resource-cleanup" }}
+{{- define "everest.lbcCleanup" }}
+{{- $hookName := printf "everest-helm-lbc-cleanup-hook" }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": post-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-weight": "0"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: {{ $hookName }}
-  namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": post-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-weight": "0"
 rules:
   - apiGroups:
       - everest.percona.com
     resources:
-      - databaseclusters
-      - backupstorages
-      - monitoringconfigs
+      - loadbalancerconfigs
     verbs:
       - get
-      - delete
       - list
-      - watch
+      - patch
+      - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: {{ $hookName }}
-  namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": post-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-weight": "0"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
+  kind: ClusterRole
   name: {{ $hookName }}
 subjects:
   - kind: ServiceAccount
@@ -60,9 +57,9 @@ metadata:
   name: {{ $hookName }}-{{ randNumeric 6 }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook": pre-delete
+    "helm.sh/hook": post-delete
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
-    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-weight": "0"
 spec:
   template:
     spec:
@@ -71,17 +68,12 @@ spec:
           name: {{ $hookName }}
           command:
             - /bin/sh
-            - -ec
-          args:
+            - -c
             - |
-              echo "Deleting DatabaseClusters"
-              kubectl delete databaseclusters -n {{ .namespace }} --all --wait --cascade='foreground'
-              
-              echo "Deleting BackupStorages"
-              kubectl delete backupstorages -n {{ .namespace }} --all --wait
-                
-              echo "Deleting MonitoringConfigs"
-              kubectl delete monitoringconfigs -n {{ .namespace }} --all --wait
+              for lbc in $(kubectl get loadbalancerconfig -o name); do
+                kubectl patch $lbc -p '{"metadata":{"finalizers":[]}}' --type=merge || true
+                kubectl delete $lbc || true
+              done
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure
       serviceAccount: {{ $hookName }}
@@ -89,4 +81,3 @@ spec:
       terminationGracePeriodSeconds: 30
 ---
 {{- end }}
-

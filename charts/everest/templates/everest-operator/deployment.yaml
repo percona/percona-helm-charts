@@ -19,6 +19,17 @@ spec:
       labels:
         app: everest-operator
     spec:
+      {{- if .Values.operator.init }}
+      initContainers:
+      - name: crs-migration
+        env:
+        - name: SYSTEM_NAMESPACE
+          value: {{ include  "everest.namespace" . }}
+        image: {{ .Values.operator.image }}:{{ .Chart.Version }}
+        command:
+        - /migrator
+        imagePullPolicy: IfNotPresent
+      {{- end }}
       containers:
       - args:
         {{- if .Values.operator.enableLeaderElection }}
