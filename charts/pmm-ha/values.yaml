@@ -37,9 +37,9 @@ pmmEnv:
   PMM_CLICKHOUSE_POOL_SIZE: "2"
   # PMM_CLICKHOUSE_USER: "chuser"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
-  # PMM_POSTGRES_ADDR: "pmmhak8s-pg-ha.pmmhak8s.svc.cluster.local:5432"
+  # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
-  # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-ha.pmmhak8s.svc.cluster.local:5432/grafana"
+  # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
   # PMM_VM_URL: "http://vmadmin:vmpass@pmmhak8s-victoria-metrics-cluster-vmauth.pmmhak8s.svc.cluster.local:8427/"
   # VMAGENT_remoteWrite_basicAuth_username: "vmadmin"
@@ -318,7 +318,6 @@ clickhouse:
     podAntiAffinityPreset: soft
   podAntiAffinityPreset: soft
   distributeReplicasByZone: true
-
 
 haproxy:
   affinity:
