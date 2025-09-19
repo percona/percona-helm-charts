@@ -21,5 +21,5 @@ data:
     {{- end }}
   {{- end }}
   {{- $_ := set $config.unauthorized_user "url_map" $urlMap }}
-  auth.yml: | {{ toYaml $config | b64enc | nindent 4 }}
+  auth.yml: | {{ tpl (toYaml $config) $ | b64enc | nindent 4 }}
 {{- end }}

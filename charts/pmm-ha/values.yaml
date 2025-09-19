@@ -11,12 +11,12 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  repository: perconalab/pmm-server-fb
-  #repository: percona/pmm-server
+  repository: perconalab/pmm-server
+  # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-3910-04f3709"
-  #tag: "latest"
+  tag: "3-dev-latest"
+  # tag: "latest"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -27,29 +27,30 @@ pmmEnv:
   ##
   DISABLE_UPDATES: "1"
   PMM_DEBUG: "0"
-  #PMM_ACTIVE_IP: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local"
-  #PMM_ACTIVE_NODE_ID: "pmmhak8s-0"
+  # PMM_ACTIVE_IP: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local"
+  # PMM_ACTIVE_NODE_ID: "pmmhak8s-0"
   PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
-  #PMM_CLICKHOUSE_ADDR: "pmmhak8s-clickhouse.pmmhak8s.svc.cluster.local:9000"
+  # PMM_CLICKHOUSE_ADDR: "pmmhak8s-clickhouse.pmmhak8s.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
   PMM_CLICKHOUSE_POOL_SIZE: "2"
-  #PMM_CLICKHOUSE_USER: "chuser"
-  #PMM_CLICKHOUSE_PASSWORD: "chpass"
-  #PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
+  # PMM_CLICKHOUSE_USER: "chuser"
+  # PMM_CLICKHOUSE_PASSWORD: "chpass"
+  # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
-  #GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
+  # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
-  #PMM_VM_URL: "http://vmadmin:vmpass@pmmhak8s-victoria-metrics-cluster-vmauth.pmmhak8s.svc.cluster.local:8427/"
-  #VMAGENT_remoteWrite_basicAuth_username: "vmadmin"
-  #VMAGENT_remoteWrite_basicAuth_password: "vmpass"
+  # PMM_VM_URL: "http://vmadmin:vmpass@pmmhak8s-victoria-metrics-cluster-vmauth.pmmhak8s.svc.cluster.local:8427/"
+  # VMAGENT_remoteWrite_basicAuth_username: "vmadmin"
+  # VMAGENT_remoteWrite_basicAuth_password: "vmpass"
   PMM_TEST_HA_ENABLE: "1"
   PMM_TEST_HA_BOOTSTRAP: "1"
   PMM_TEST_HA_GOSSIP_PORT: "9096"
   PMM_TEST_HA_RAFT_PORT: "9097"
   PMM_TEST_HA_GRAFANA_GOSSIP_PORT: "9094"
-  #PMM_TEST_HA_PEERS: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local"
+  # PMM_TEST_HA_PEERS: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local"
+
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
 #  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
@@ -146,7 +147,7 @@ service:
       ## @param service.ports[1].name port name
       name: http
 
-#haservice:
+# haservice:
 #  type: "ClusterIP"
 #  name: "pmmha"
 
@@ -289,7 +290,15 @@ tolerations: []
 ## @param affinity Affinity for pod assignment
 ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 ##
-affinity: {}
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: pmm
+          topologyKey: kubernetes.io/hostname
 
 ## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts
 ##
@@ -299,7 +308,162 @@ extraVolumeMounts: []
 extraVolumes: []
 
 global:
-  pmm_ha_0: pmm-ha-0.monitoring-service.pmmha.svc.cluster.local
-  pmm_ha_1: pmm-ha-1.monitoring-service.pmmha.svc.cluster.local
-  pmm_ha_2: pmm-ha-2.monitoring-service.pmmha.svc.cluster.local
+  pmm_ha_0: "{{ .Release.Name }}-0.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
+  pmm_ha_1: "{{ .Release.Name }}-1.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
+  pmm_ha_2: "{{ .Release.Name }}-2.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
 
+# Subchart scheduling overrides to spread replicas across nodes
+clickhouse:
+  zookeeper:
+    podAntiAffinityPreset: soft
+  podAntiAffinityPreset: soft
+  distributeReplicasByZone: true
+
+haproxy:
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: haproxy
+  config: |
+      global
+          log stdout    local0 debug
+          log stdout    local1 info
+          log stdout    local2 info
+          daemon
+      
+      defaults
+          log     global
+          mode    http
+          option  httplog
+          option  dontlognull
+          timeout connect 5000
+          timeout client  50000
+          timeout server  50000
+      
+      frontend http_front
+          bind *:80
+          default_backend http_back    
+     
+      frontend https_front
+          bind *:443 ssl crt /etc/haproxy/certs/pmm.pem
+          default_backend https_back
+
+      backend http_back
+          option httpchk
+          http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
+          http-check expect status 200
+          server pmm-server-active-http  {{ tpl .Values.global.pmm_ha_0 . }}:8080 check
+          server pmm-server-passive-http {{ tpl .Values.global.pmm_ha_1 . }}:8080 check backup
+          server pmm-server-passive-2-http {{ tpl .Values.global.pmm_ha_2 . }}:8080 check backup
+
+      backend https_back
+          option httpchk
+          http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
+          http-check expect status 200
+          server pmm-server-active-https {{ tpl .Values.global.pmm_ha_0 . }}:8443 check ssl verify none
+          server pmm-server-passive-https {{ tpl .Values.global.pmm_ha_1 . }}:8443 check ssl verify none
+          server pmm-server-passive-2-https {{ tpl .Values.global.pmm_ha_2 . }}:8443 check ssl verify none
+
+pg-db:
+  instances:
+    - name: instance1
+      replicas: 3
+      dataVolumeClaimSpec:
+        # storageClassName: ""  # optional; inherit default if omitted
+        resources:
+          requests:
+            storage: 5Gi
+  proxy:
+    pgBouncer:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    postgres-operator.crunchydata.com/role: pgbouncer
+
+victoria-metrics-cluster:
+  vmselect:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["victoria-metrics-cluster"]
+                  - key: app
+                    operator: In
+                    values: ["vmselect"]
+  vminsert:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["victoria-metrics-cluster"]
+                  - key: app
+                    operator: In
+                    values: ["vminsert"]
+  vmauth:
+    config:
+      unauthorized_user: {}
+      users:
+        - username: "vmuser"
+          password: "vmpass"
+          url_map:
+            - src_paths:
+                - "/api/v1/write"
+              url_prefix: "http://{{ .Release.Name }}-victoria-metrics-cluster-vminsert.{{ .Release.Namespace }}.svc.cluster.local:8480/insert/1/prometheus/"
+            - src_paths:
+                - "/api/v1/query"
+                - "/api/v1/query_range"
+                - "/api/v1/series"
+                - "/api/v1/labels"
+                - "/api/v1/label/.+/values"
+              url_prefix: "http://{{ .Release.Name }}-victoria-metrics-cluster-vmselect.{{ .Release.Namespace }}.svc.cluster.local:8481/select/1/prometheus/"
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["victoria-metrics-cluster"]
+                  - key: app
+                    operator: In
+                    values: ["vmauth"]
+  vmstorage:
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["victoria-metrics-cluster"]
+                  - key: app
+                    operator: In
+                    values: ["vmstorage"]

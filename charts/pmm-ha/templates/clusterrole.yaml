@@ -25,4 +25,27 @@ rules:
   - /metrics/resources
   verbs:
   - get
+# PostgreSQL custom resource permissions for pre-delete hook
+- apiGroups: ["pgv2.percona.com"]
+  resources:
+  - perconapgclusters
+  - perconapgclusters/finalizers
+  - perconapgbackups
+  - perconapgbackups/finalizers
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - delete
+- apiGroups: ["postgres-operator.crunchydata.com"]
+  resources:
+  - postgresclusters
+  - postgresclusters/finalizers
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - delete
 {{- end }}

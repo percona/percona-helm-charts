@@ -78,3 +78,11 @@ checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sh
 {{- end }}
 {{- end }}
 
+{{/*
+Override pg-database.fullname to ensure consistent naming
+This overrides the function from the pg-db subchart
+*/}}
+{{- define "pg-database.fullname" -}}
+{{- printf "%s-pg-db" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+

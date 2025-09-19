@@ -16,7 +16,7 @@ global:
       adaptSecurityContext: "auto"
   # -- k8s cluster domain suffix, uses for building storage pods' FQDN. Details are [here](https://kubernetes.io/docs/tasks/administer-cluster/dns-custom-nameservers/)
   cluster:
-    dnsDomain: cluster.local.
+    dnsDomain: cluster.local
 
 # -- Print information after deployment
 printNotes: true
@@ -601,23 +601,7 @@ vmauth:
   # -- VMAuth configuration secret name
   configSecretName: ""
   # -- VMAuth configuration object
-  config:
-    unauthorized_user: {}
-    users:
-      - username: "vmuser"
-        password: "vmpass"
-        url_map:
-        - src_paths:
-          - "/api/v1/write"
-          url_prefix: "http://pmm-ha-victoria-metrics-cluster-vminsert.pmmha.svc.cluster.local:8480/insert/1/prometheus/"
-        - src_paths:
-          - "/api/v1/query"
-          - "/api/v1/query_range"
-          - "/api/v1/series"
-          - "/api/v1/labels"
-          - "/api/v1/label/.+/values"
-          url_prefix: "http://pmm-ha-victoria-metrics-cluster-vmselect.pmmha.svc.cluster.local:8481/select/1/prometheus/"
-
+  config: {}
 
   strategy: {}
    # rollingUpdate:
