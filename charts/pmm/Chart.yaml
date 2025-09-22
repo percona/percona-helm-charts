@@ -10,8 +10,6 @@ maintainers:
     email: tomislav.plavcic@percona.com
   - name: bupychuk
     email: nurlan.moldomurov@percona.com
-  - name: spron-in
-    email: sergey.pronin@percona.com
 keywords:
   - PMM
   - Monitoring
