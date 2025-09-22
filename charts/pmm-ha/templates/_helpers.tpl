@@ -86,4 +86,33 @@ This overrides the function from the pg-db subchart
 {{- printf "%s-pg-db" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/*
+Generate PMM HA peer list dynamically based on replicas count
+*/}}
+{{- define "pmm.haPeers" -}}
+{{- $peers := list }}
+{{- $serviceName := .Values.service.name | default "monitoring-service" }}
+{{- $replicas := int .Values.replicas }}
+{{- range $i := until $replicas }}
+  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $.Release.Name $i $serviceName $.Release.Namespace }}
+  {{- $peers = append $peers $peer }}
+{{- end }}
+{{- join "," $peers }}
+{{- end -}}
+
+{{/*
+Generate PMM HA peer list for specific replica index
+*/}}
+{{- define "pmm.haPeer" -}}
+{{- $serviceName := .Values.service.name | default "monitoring-service" }}
+{{- printf "%s-%d.%s.%s.svc.cluster.local" .Release.Name .index $serviceName .Release.Namespace }}
+{{- end -}}
+
+{{/*
+Generate PMM HA node ID for specific replica index
+*/}}
+{{- define "pmm.haNodeId" -}}
+{{- printf "%s-%d" .Release.Name .index }}
+{{- end -}}
+
 
