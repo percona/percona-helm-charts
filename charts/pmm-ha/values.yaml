@@ -329,6 +329,30 @@ haproxy:
             labelSelector:
               matchLabels:
                 app.kubernetes.io/name: haproxy
+  # Init container to wait for PMM instances to be ready
+  initContainers:
+    - name: wait-for-pmm-ready
+      image: "alpine:3.18"
+      command:
+        - /bin/sh
+        - /scripts/wait-for-pmm.sh
+      volumeMounts:
+        - name: init-script
+          mountPath: /scripts
+          readOnly: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+  # Additional volumes for init container
+  extraVolumes:
+    - name: init-script
+      configMap:
+        name: pmm-ha-haproxy-init-script
+        defaultMode: 0755
   config: |
       global
           log stdout    local0 debug

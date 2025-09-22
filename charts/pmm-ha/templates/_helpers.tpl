@@ -86,3 +86,4 @@ This overrides the function from the pg-db subchart
 {{- printf "%s-pg-db" .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+
