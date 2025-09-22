@@ -28,7 +28,7 @@ The chart can be customized using the following configurable parameters:
 | ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------- |
 | `image.repository`      | PS Operator Container image name                                                               | `percona/percona-server-mysql-operator` |
 | `image.tag`             | PS Operator Container image tag                                                                | `0.11.0`                                |
-| `image.pullPolicy`      | PS Operator Container pull policy                                                              | `Always`                                |
+| `image.pullPolicy`      | PS Operator Container pull policy                                                              | `IfNotPresent`                          |
 | `imagePullSecrets`      | PS Operator Pod pull secret                                                                    | `[]`                                    |
 | `replicaCount`          | PS Operator Pod quantity                                                                       | `1`                                     |
 | `tolerations`           | List of node taints to tolerate                                                                | `[]`                                    |
@@ -39,6 +39,8 @@ The chart can be customized using the following configurable parameters:
 | `env.logStructured`     | Enable JSON format for logs                                                                    | `false`                                 |
 | `env.logLevel`          | Set appropriate log level (INFO, DEBUG, ERROR)                                                 | `INFO`                                  |
 | `disableTelemetry`      | Disable sending PS Operator telemetry data to Percona                                          | `false`                                 |
+| `watchNamespace`        | Set this variable if the target cluster namespace differs from operator's namespace            | `.Release.Namespace`                    |
+| `watchAllNamespaces`    | Set if operator should be deployed in cluster-wide mode                                        | `false`                                 |
 
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
