@@ -71,7 +71,7 @@ mysql:
     # minAvailable: 0
   image:
     repository: percona/percona-server
-    tag: 8.0.42-33
+    tag: 8.4.6-6.1
   imagePullPolicy: Always
   imagePullSecrets: []
   # initContainer:
@@ -371,7 +371,7 @@ proxy:
     enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.0.42
+      tag: 8.4.6
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
@@ -494,7 +494,7 @@ orchestrator:
   enabled: false
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-17
+    tag: 3.2.6-18
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
@@ -581,7 +581,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.3.1
+    tag: 3.4.0
   imagePullPolicy: Always
 #  readinessProbes:
 #    initialDelaySeconds: 15
@@ -621,7 +621,7 @@ backup:
 #  sourcePod: ps-cluster1-mysql-1
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.0.35-33
+    tag: 8.4.0-4.1
 #  schedule:
 #    - name: "sat-night-backup"
 #      schedule: "0 0 * * 6"
@@ -711,7 +711,7 @@ backup:
 toolkit:
   image:
     repository: percona/percona-toolkit
-    tag: 3.7.0
+    tag: 3.7.0-2
   imagePullPolicy: Always
   resources:
     requests: {}

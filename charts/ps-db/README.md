@@ -58,7 +58,7 @@ The chart can be customized using the following configurable parameters:
 | `mysql.podDisruptionBudget.maxUnavailable`        | MySQL failed Pods maximum quantity                                                                                                                            | `1`                        |
 | `mysql.podDisruptionBudget.minAvailable`          | MySQL available Pods minimum quantity                                                                                                                         | ``                         |
 | `mysql.image.repository`                          | MySQL Container image repository                                                                                                                              | `percona/percona-server`   |
-| `mysql.image.tag`                                 | MySQL Container image tag                                                                                                                                     | `8.0.42-33`                |
+| `mysql.image.tag`                                 | MySQL Container image tag                                                                                                                                     | `8.4.6-6.1`                |
 | `mysql.imagePullPolicy`                           | The policy used to update images                                                                                                                              | `Always`                   |
 | `mysql.imagePullSecrets`                          | MySQL Container pull secret                                                                                                                                   | `[]`                       |
 | `mysql.initContainer.image`                       | An alternative image for the initial Operator installation                                                                                                    | `""`                       |
@@ -154,7 +154,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `proxy.router.enabled`                                | Enable/Disable Router pods in group replication                                                                                                               | `false`                        |
 | `proxy.router.image.repository`                       | Router Container image repository                                                                                                                             | `percona/percona-mysql-router` |
-| `proxy.router.image.tag`                              | Router Container image tag                                                                                                                                    | `8.0.42`                       |
+| `proxy.router.image.tag`                              | Router Container image tag                                                                                                                                    | `8.4.6`                        |
 | `proxy.router.imagePullPolicy`                        | The policy used to update images                                                                                                                              | `Always`                       |
 | `proxy.router.imagePullSecrets`                       | Router Container pull secret                                                                                                                                  | `[]`                           |
 | `proxy.router.initContainer.image`                    | An alternative image for the initial Operator installation                                                                                                    | `""`                           |
@@ -189,7 +189,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `orchestrator.enabled`                                   | Enable/Disable orchestrator pods in async replication                                                                                                         | `true`                         |
 | `orchestrator.image.repository`                          | Orchestrator Container image repository                                                                                                                       | `percona/percona-orchestrator` |
-| `orchestrator.image.tag`                                 | Orchestrator Container image tag                                                                                                                              | `3.2.6-17`                     |
+| `orchestrator.image.tag`                                 | Orchestrator Container image tag                                                                                                                              | `3.2.6-18`                     |
 | `orchestrator.imagePullPolicy`                           | The policy used to update images                                                                                                                              | `Always`                       |
 | `orchestrator.imagePullSecrets`                          | Orchestrator Container pull secret                                                                                                                            | `[]`                           |
 | `orchestrator.serviceAccountName`                        | A custom service account to be used instead of the default one                                                                                                | `""`                           |
@@ -228,7 +228,7 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
 ||
 | `pmm.image.repository`   | PMM Container image repository                                                                                                                                                                        | `percona/pmm-client`                |
-| `pmm.image.tag`          | PMM Container image tag                                                                                                                                                                               | `3.3.1`                             |
+| `pmm.image.tag`          | PMM Container image tag                                                                                                                                                                               | `3.4.0`                             |
 | `pmm.imagePullPolicy`    | The policy used to update images                                                                                                                                                                      | ``                                  |
 | `pmm.readinessProbes.failureThreshold`   | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                     | `5`                                 |
 | `pmm.readinessProbes.initialDelaySeconds`| Number of seconds after the container has started before liveness or readiness probes are initiated                                                                                                 | `15`                                |
@@ -246,7 +246,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.limits`   | PMM Container resource limits                                                                                                                                                                         | `{}`                                |
 ||
 | `toolkit.image.repository`   | Percona Toolkit Container image repository | `percona/percona-toolkit` |
-| `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.7.0`                   |
+| `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.7.0-2`                 |
 | `toolkit.imagePullPolicy`    | The policy used to update images           | ``                        |
 | `toolkit.resources.requests` | Toolkit Container resource requests        | `{}`                      |
 | `toolkit.resources.limits`   | Toolkit Container resource limits          | `{}`                      |
@@ -254,7 +254,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.enabled`                                | Enable backups                                                                              | `true`                       |
 | `backup.sourcePod`                              | Specify backup source pod                                                                   | ``                           |
 | `backup.image.repository`                       | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
-| `backup.image.tag`                              | Backup Container image tag                                                                  | `8.0.35-33`                  |
+| `backup.image.tag`                              | Backup Container image tag                                                                  | `8.4.0-4.1`                  |
 | `backup.backoffLimit`                           | The number of retries to make a backup                                                      | ``                           |
 | `backup.imagePullPolicy`                        | The policy used to update images                                                            | `Always`                     |
 | `backup.imagePullSecrets`                       | Backup Container pull secret                                                                | `[]`                         |
