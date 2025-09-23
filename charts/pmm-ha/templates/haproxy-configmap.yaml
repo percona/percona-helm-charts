@@ -38,9 +38,9 @@ data:
         http-check expect status 200
         {{- range $i := until (int .Values.replicas) }}
         {{- if eq $i 0 }}
-        server pmm-server-active-http  {{ $.Release.Name }}-{{ $i }}.monitoring-service.{{ $.Release.Namespace }}.svc.cluster.local:8080 check
+        server pmm-server-active-http  {{ $.Release.Name }}-{{ $i }}.{{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8080 check
         {{- else }}
-        server pmm-server-passive-{{ $i }}-http {{ $.Release.Name }}-{{ $i }}.monitoring-service.{{ $.Release.Namespace }}.svc.cluster.local:8080 check backup
+        server pmm-server-passive-{{ $i }}-http {{ $.Release.Name }}-{{ $i }}.{{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8080 check backup
         {{- end }}
         {{- end }}
 
@@ -50,8 +50,8 @@ data:
         http-check expect status 200
         {{- range $i := until (int .Values.replicas) }}
         {{- if eq $i 0 }}
-        server pmm-server-active-https {{ $.Release.Name }}-{{ $i }}.monitoring-service.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none
+        server pmm-server-active-https {{ $.Release.Name }}-{{ $i }}.{{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none
         {{- else }}
-        server pmm-server-passive-{{ $i }}-https {{ $.Release.Name }}-{{ $i }}.monitoring-service.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none
+        server pmm-server-passive-{{ $i }}-https {{ $.Release.Name }}-{{ $i }}.{{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none
         {{- end }}
         {{- end }}
