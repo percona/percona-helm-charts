@@ -98,9 +98,9 @@ mysql:
   #      value: "600"
   resources:
     requests:
-      memory: 1G
+      memory: 2Gi
     limits:
-      memory: 2G
+      memory: 4Gi
 
   # readinessProbe:
   #   initialDelaySeconds: 30
@@ -137,9 +137,9 @@ mysql:
   #   topologyKey: kubernetes.io/hostname
   #   whenUnsatisfiable: DoNotSchedule
 
-  expose:
-    enabled: false
-    type: ClusterIP
+  # expose:
+  #   enabled: true
+  #   type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
@@ -151,8 +151,8 @@ mysql:
     #   - 10.0.0.0/8
 
   exposePrimary:
-    enabled: false
-    type: ClusterIP
+    enabled: true
+    # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
@@ -167,7 +167,7 @@ mysql:
     pvc:
       resources:
         requests:
-          storage: 3G
+          storage: 3Gi
     # emptyDir: {}
     # hostPath:
     #   path: /data
@@ -254,7 +254,7 @@ proxy:
 
     resources:
       requests:
-        memory: 1G
+        memory: 1Gi
         cpu: 600m
       limits: {}
 

@@ -175,12 +175,10 @@ spec:
 {{ $mysql.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $mysql.nodeSelector | toYaml | indent 6 }}
+{{- if and $mysql.expose (hasKey $mysql.expose "enabled") }}
     expose:
-      {{- if $mysql.expose.enabled }}
 {{ tpl ($mysql.expose | toYaml) $ | indent 6 }}
-      {{- else }}
-      enabled: false
-      {{- end }}
+{{- end }}
     exposePrimary:
       {{- if $mysql.exposePrimary.enabled }}
 {{- tpl ($mysql.exposePrimary | toYaml) $ | nindent 6 }}
