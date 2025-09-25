@@ -1,6 +1,26 @@
+# -- Configuration for Helm chart hooks.
+hooks:
+  # -- Default image to use for the Helm chart hooks job.
+  # @default -- `percona/everest-helmtools:0.0.1`
+  image: "percona/everest-helmtools:0.0.1"
+  # -- Configuration for PodSchedulingPolicy clean-up hook.
+  pspCleanup: {}
+    # Image to use for the hook job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+  # -- Configuration for LoadBalancerConfig clean-up hook.
+  lbcCleanup: {}
+    # Image to use for the hook job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+  # -- Configuration for the upgrade checks hook.
+  upgradeChecks: {}
+    # Image to use for the hook job.
+    # If not set, uses the value of `hooks.image`.
+    # image: "alpine:3.20"
+
 compatibility:
   # -- Enable OpenShift compatibility.
-  # If set, ignores olm.install and olm.namespace settings.
   openshift: false
 # -- Namespace override. Defaults to the value of .Release.Namespace.
 namespaceOverride: ""
@@ -129,6 +149,8 @@ server:
   # - name: key2
   #   value: value2
 operator:
+  # -- Enable initContainer migration
+  init: true
   # -- Image to use for the Everest operator container.
   image: perconalab/everest-operator
   # -- Health probe address for the operator.
@@ -160,6 +182,13 @@ operator:
       tls.crt: ""
       ca.crt: ""
 
+    # -- If set to true, preserves existing TLS Certificate Secrets during upgrades.
+    # This setting is ignored if certificates are explicitly provided in operator.webhook.certs,
+    # in which case the specified certificates are used instead.
+    # This setting has no effect during installation.
+    # @default -- true
+    preserveTLSCerts: true
+
 dataImporters:
   # -- Settings for the Percona PostgreSQL Operator data importer.
   perconaPGOperator:
@@ -186,14 +215,19 @@ dataImporters:
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"
 upgrade:
-  # -- If set, run preliminary checks before upgrading.
-  # It is strongly recommended to enable this setting.
+  # -- Ensures that preflight checks are run before the upgrade (default: true). Set to false to disable.
   preflightChecks: true
+  # -- Ensures that CRDs are upgraded first (default: true). Set to false to disable.
+  crdChecks: true
 olm:
   # -- If set, installs OLM in the provided namespace.
+  # Should be set to `false` if compatibility.openshift=true.
   install: true
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
-  namespace: everest-olm
+  # DEPRECATED: Will be removed in a future release. Use olm.namespaceOverride instead.
+  namespace: "everest-olm"
+  # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
+  namespaceOverride: everest-olm
   # -- Image to use for Everest CatalogSource.
   catalogSourceImage: perconalab/everest-catalog
   # -- Image to use for the OLM components.
@@ -285,3 +319,9 @@ pmm:
   # -- If set, deploys PMM in the release namespace.
   enabled: false
   nameOverride: pmm
+# DO NOT CHANGE.
+# We set this to `false` to prevent the CRDs from being rendered as a template.
+# The CRDs are already installed as a part of the crds/ directory via the sub-chart.
+# @ignore
+everest-crds:
+  enabled: false

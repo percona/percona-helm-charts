@@ -14,7 +14,7 @@ image:
   repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "3.3.0"
+  tag: "3.4.0"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -42,16 +42,44 @@ pmmEnv:
     ##      cpu: "32"
 pmmResources: {}
 
-## Readiness probe Config
+## Probe Configurations
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
+
+## Startup probe configuration
+## @param startupProbeConf.initialDelaySeconds Number of seconds after the container has started before startup probes is initiated
+## @param startupProbeConf.periodSeconds How often (in seconds) to perform the probe
+## @param startupProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up
+## @param startupProbeConf.timeoutSeconds Number of seconds after which the probe times out
+##
+startupProbeConf:
+  initialDelaySeconds: 60
+  periodSeconds: 15
+  failureThreshold: 20
+  timeoutSeconds: 10
+
+## Readiness probe configuration
 ## @param readyProbeConf.initialDelaySeconds  Number of seconds after the container has started before readiness probes is initiated
 ## @param readyProbeConf.periodSeconds How often (in seconds) to perform the probe
 ## @param readyProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up
+## @param readyProbeConf.timeoutSeconds Number of seconds after which the probe times out
 ##
 readyProbeConf:
-  initialDelaySeconds: 1
-  periodSeconds: 5
-  failureThreshold: 6
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 30
+  timeoutSeconds: 5
+
+## Liveness probe configuration
+## @param livenessProbeConf.initialDelaySeconds Number of seconds after the container has started before liveness probes is initiated
+## @param livenessProbeConf.periodSeconds How often (in seconds) to perform the probe
+## @param livenessProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up
+## @param livenessProbeConf.timeoutSeconds Number of seconds after which the probe times out
+##
+livenessProbeConf:
+  initialDelaySeconds: 120
+  periodSeconds: 30
+  failureThreshold: 10
+  timeoutSeconds: 10
 
 ## @section PMM secrets
 ##
@@ -88,6 +116,20 @@ secret:
   ##  dhparam.pem:
   ##  certificate.conf:
 certs: {}
+
+## @section PMM upgrade configuration
+## Upgrade strategy for StatefulSet-based deployments
+##
+upgrade:
+  ## @param upgrade.strategy Strategy to use when upgrading from StatefulSet-based deployments
+  ## Options: "rolling" (default), "recreate"
+  ## Use "recreate" if you encounter StatefulSet upgrade conflicts
+  strategy: "rolling"
+  
+  ## @param upgrade.force Force upgrade by recreating StatefulSet if needed
+  ## This will cause a brief downtime but ensures upgrade compatibility
+  ## Set to true only if you encounter StatefulSet field conflicts
+  force: false
 
 ## @section PMM network configuration
 ## Service configuration
@@ -232,6 +274,11 @@ podSecurityContext:
   runAsGroup: 1000
   fsGroupChangePolicy: OnRootMismatch
   fsGroup: 1000
+# to make it work with openshift comment everything above and uncomment lines below
+#  runAsNonRoot: true
+#  seccompProfile:
+#    type: RuntimeDefault
+
 
 ## @param securityContext Configure Container Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
@@ -246,7 +293,11 @@ podSecurityContext:
   ## readOnlyRootFilesystem: true
   ## runAsNonRoot: true
   ## runAsUser: 1000
-securityContext: {}
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  allowPrivilegeEscalation: false
 
 
 ## @param nodeSelector Node labels for pod assignment
