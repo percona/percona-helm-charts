@@ -1,0 +1,111 @@
+name: PMM-HA PR checks
+on:
+  pull_request:
+    paths:
+      - 'charts/pmm-ha/**'
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          sparse-checkout: |
+            .github/
+            charts/pmm-ha
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4.2.0
+        with:
+          version: v3.15.4
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.6.1
+
+      - name: Run chart-testing (list-changed)
+        id: list-changed
+        run: |
+          changed=$(ct list-changed --config .github/ct.yaml)
+          if [[ -n "$changed" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run chart-testing (lint)
+        run: |
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts --charts=charts/pmm-ha --check-version-increment=true
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        if: steps.list-changed.outputs.changed == 'true'
+
+      - name: Prepare PMM-HA prerequisites
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          NS="pmm-ha-$(openssl rand -hex 5)"
+          echo "NS=$NS" >> $GITHUB_ENV
+          kubectl create namespace "$NS" || true
+
+          # pmm-secret
+          cat <<'EOF' | kubectl apply -n "$NS" -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: pmm-secret
+            labels:
+              app.kubernetes.io/name: pmm
+          type: Opaque
+          data:
+            PMM_ADMIN_PASSWORD: YWRtaW4=
+            PG_USERNAME: cG1tdXNlcg==
+            PG_PASSWORD: cG1tcGFzcw==
+            GF_USERNAME: Z2Z1c2Vy
+            GF_PASSWORD: Z2ZwYXNz
+            VMAGENT_remoteWrite_basicAuth_username: dm11c2Vy
+            VMAGENT_remoteWrite_basicAuth_password: dm1wYXNz
+            PMM_CLICKHOUSE_USER: Y2h1c2Vy
+            PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
+          EOF
+
+          # cluster1-init-sql
+          cat <<'EOF' | kubectl apply -n "$NS" -f -
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: cluster1-init-sql
+          data:
+            init.sql: |
+              CREATE DATABASE grafana;
+              CREATE DATABASE "pmm-managed";
+              CREATE USER pmmuser WITH SUPERUSER ENCRYPTED PASSWORD 'pmmpass';
+              CREATE USER gfuser WITH SUPERUSER ENCRYPTED PASSWORD 'gfpass';
+              GRANT ALL PRIVILEGES ON DATABASE "pmm-managed" TO pmmuser;
+              GRANT ALL PRIVILEGES ON DATABASE grafana TO gfuser;
+              \c pmm-managed
+              CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+          EOF
+
+          # TLS secret for HAProxy (self-signed; ephemeral)
+          openssl genrsa -out pmm.key 2048
+          openssl req -new -x509 -key pmm.key -out pmm.crt -days 1 -subj "/CN=localhost"
+          cat pmm.crt pmm.key > pmm.pem
+          kubectl create secret generic haproxy-tls-secret --from-file=pmm.pem -n "$NS"
+
+      - name: Run chart-testing (install)
+        run: |
+          ct install --namespace "${{ env.NS }}" --config .github/ct.yaml --charts=charts/pmm-ha
+
+      - name: Build chart package
+        run: |
+          changed=$(ct list-changed --config .github/ct.yaml)
+          [ $(echo -n "$changed" | grep -c '^') == 1 ] && helm package $changed || echo "skipping package"
+
+      - name: Upload helm chart
+        uses: actions/upload-artifact@v4
+        with:
+          path: ./*.tgz
+          retention-days: 30
+          if-no-files-found: ignore

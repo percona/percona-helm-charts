@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pre-delete-check-pg-clusters
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": "pre-delete"
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+spec:
+  template:
+    spec:
+      serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+      restartPolicy: Never
+      containers:
+      - name: check-clusters
+        image: "ubuntu:22.04"
+        command:
+          - /bin/bash
+          - -c
+        args:
+          - |
+            set -euo pipefail
+            
+            # Function to clean up custom resources
+            cleanup_resource() {
+              local resource_type="$1"
+              local namespace="$2"
+              
+              echo "Checking $resource_type resources..."
+              local resources=$(timeout 10 kubectl get "$resource_type" -n "$namespace" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+              
+              if [ -n "$resources" ]; then
+                echo "Found $resource_type resources: $resources"
+                for resource in $resources; do
+                  echo "Removing finalizers from $resource"
+                  timeout 10 kubectl patch "$resource_type" "$resource" -n "$namespace" --type merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || echo "Failed to patch $resource"
+                  echo "Deleting $resource"
+                  timeout 10 kubectl delete "$resource_type" "$resource" -n "$namespace" --force --grace-period=0 2>/dev/null || echo "Failed to delete $resource"
+                done
+                echo "✅ $resource_type resources cleaned up"
+              else
+                echo "✅ No $resource_type resources found"
+              fi
+            }
+            
+            echo "Installing kubectl..."
+            apt-get update -qq && apt-get install -y curl > /dev/null 2>&1
+            curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl" > /dev/null 2>&1
+            chmod +x kubectl && mv kubectl /usr/local/bin/
+            
+            echo "Pre-delete: Cleaning up PostgreSQL resources..."
+            echo "Current namespace: {{ .Release.Namespace }}"
+            
+            # Clean up all PostgreSQL custom resources
+            cleanup_resource "perconapgcluster" "{{ .Release.Namespace }}"
+            cleanup_resource "postgrescluster" "{{ .Release.Namespace }}"
+            cleanup_resource "perconapgbackup" "{{ .Release.Namespace }}"
+            
+            # Wait for Kubernetes to clean up managed resources
+            echo "Waiting for Kubernetes to clean up managed resources..."
+            sleep 3
+            
+            echo "✅ Pre-delete cleanup completed"
+            
+            exit 0
