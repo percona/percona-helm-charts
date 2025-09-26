@@ -23,17 +23,18 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.20.1 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.21.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                                                   | Default                               |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.20.1`                              |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.21.0`                              |
 | `pause`                                             | Stop PSMDB Database safely                                                                                                                                                                    | `false`                               |
 | `unmanaged`                                         | Start cluster and don't manage it (cross cluster replication)                                                                                                                                 | `false`                               |
 | `enableVolumeExpansion`                             | Allows to resize `PersistentVolumeClaim`s by changing `.volumeSpec.persistentVolumeClaim.resources` field                                                                                     | `false`                               |
+| `enableExternalVolumeAutoscaling`                   | Supress storage discrepancy error if external volume autoscaling is enabled                                                                                                                   | `false`                               |
 | `unsafeFlags.tls`                                   | Allows users from configuring a cluster without TLS/SSL certificates                                                                                                                          | `false`                               |
 | `unsafeFlags.replsetSize`                           | Allows users from configuring a cluster with unsafe parameters: starting it with less than 3 replica set instances or with an even number of replica set instances without additional arbiter | `false`                               |
 | `unsafeFlags.mongosSize`                            | Allows users from configuring a sharded cluster with less than 3 config server Pods or less than 2 mongos Pods                                                                                | `false`                               |
