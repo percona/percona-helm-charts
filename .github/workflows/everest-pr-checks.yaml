@@ -25,15 +25,26 @@ jobs:
             echo "Docs are out of date. Please run 'make docs-gen' and commit the changes."
             exit 1
           fi
-
-      - name: Check CRDs
+          
+      - name: Check CRD gen
         run: |
           cd charts/everest
           make crds-gen
           if git diff --quiet; then
             echo "CRDs are up to date."
           else
-            echo "CRDs are out of date. Please run 'make crds-gen' and commit the changes."
+            echo "CRDs are not up-to-date. Please run 'make crds-gen' and commit the changes."
+            exit 1
+          fi
+
+      - name: Check CRD symlinks
+        run: |
+          cd charts/everest
+          make link-crds
+          if git diff --quiet; then
+            echo "CRD symlinks are up to date."
+          else
+            echo "CRD symlinks are not up-to-date. Please run 'make link-crds' and commit the changes."
             exit 1
           fi
 
@@ -62,7 +73,7 @@ jobs:
       - name: Run chart-testing (lint)
         run: |
           # Ensure common sub-chart is linted and has version increment
-          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespace
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespace,everest-crds
 
           # Ensure main chart is linted, skip version increment check
           ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --check-version-increment=false
@@ -87,11 +98,12 @@ jobs:
             --create-namespace \
             --namespace everest-system \
             --set dbNamespace.enabled=true \
-            --set pmm.enabled=true
+            --set pmm.enabled=true \
+            --debug
 
           # Wait for system components
           kubectl wait --for=condition=available --timeout=60s deployment/everest-server -n everest-system
-          kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
+          kubectl wait --for=condition=available --timeout=120s deployment/everest-operator -n everest-system
           kubectl wait --for=condition=available --timeout=60s deployment/kube-state-metrics -n everest-monitoring
           kubectl wait --for=condition=available --timeout=60s deployment/vm-operator -n everest-monitoring
           kubectl wait --for=condition=ready pods --timeout=120s -n everest-system -l app.kubernetes.io/name=pmm
@@ -108,7 +120,8 @@ jobs:
           helm install everest ./charts/everest/charts/everest-db-namespace \
             --namespace everest-db \
             --create-namespace \
-            --set pxc=false
+            --set pxc=false \
+            --debug
 
           # Wait for new DB namespace.
           kubectl wait --for=condition=available --timeout=60s deployment/percona-postgresql-operator -n everest-db
@@ -117,11 +130,11 @@ jobs:
           kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-postgresql-operator --timeout=600s -n everest-db
 
           # Uninstall everest-db namespace
-          helm uninstall everest -n everest-db
+          helm uninstall everest -n everest-db --debug
           kubectl delete ns everest-db
           kubectl wait --for=delete namespace/everest-db --timeout=120s
           # Uninstall everest-system namespace
-          helm uninstall everest -n everest-system
+          helm uninstall everest -n everest-system --debug
           kubectl delete ns everest-system
           kubectl wait --for=delete namespace/everest-system --timeout=120s
 

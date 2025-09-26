@@ -20,6 +20,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
+
 crVersion: 1.21.0
 pause: false
 unmanaged: false
