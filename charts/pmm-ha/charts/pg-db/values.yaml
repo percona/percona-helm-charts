@@ -494,13 +494,9 @@ patroni:
 #   # - failureThreshold: leaderLeaseDurationSeconds / syncPeriodSeconds.
 #   syncPeriodSeconds: 10
 #   leaderLeaseDurationSeconds: 30
-   dynamicConfiguration:
-     postgresql:
-       pg_hba:
-         - host all gfuser 10.1.0.0/8 md5
-         - host all pmmuser 10.1.0.0/8 md5
-         - host all gfuser 172.17.0.0/8 md5
-         - host all pmmuser 172.17.0.0/8 md5
+#   dynamicConfiguration:
+#     postgresql:
+#       pg_hba: []
 
 #   switchover:
 #     enabled: "true"
