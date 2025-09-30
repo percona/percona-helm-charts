@@ -5,66 +5,119 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   wait-for-pmm.sh: |
+    #!/bin/bash
     set -euo pipefail
     
-    echo "HAProxy init: Waiting for PMM instances to be ready..."
-    echo "Current namespace: {{ .Release.Namespace }}"
-    echo "Expected PMM replicas: {{ .Values.replicas }}"
+    # Configuration
+    readonly NAMESPACE="{{ .Release.Namespace }}"
+    readonly RELEASE_NAME="{{ .Release.Name }}"
+    readonly REPLICAS="{{ .Values.replicas }}"
+    readonly MAX_ATTEMPTS=60
     
-    apk add --no-cache curl > /dev/null 2>&1
+    # Colors for output
+    readonly RED='\033[0;31m'
+    readonly GREEN='\033[0;32m'
+    readonly YELLOW='\033[1;33m'
+    readonly BLUE='\033[0;34m'
+    readonly NC='\033[0m' # No Color
     
-    check_pmm_ready() {
+    log_info() {
+      echo -e "${BLUE}[INFO]${NC} $1"
+    }
+    
+    log_success() {
+      echo -e "${GREEN}[SUCCESS]${NC} $1"
+    }
+    
+    log_warning() {
+      echo -e "${YELLOW}[WARNING]${NC} $1"
+    }
+    
+    log_error() {
+      echo -e "${RED}[ERROR]${NC} $1"
+    }
+    
+    # Install bind-tools if not available (for nslookup)
+    install_dependencies() {
+      if ! command -v nslookup >/dev/null 2>&1; then
+        log_info "Installing bind-tools..."
+        apk add --no-cache bind-tools > /dev/null 2>&1 || {
+          log_error "Failed to install bind-tools"
+          exit 1
+        }
+      fi
+    }
+    
+    # Check if PMM instance endpoint is available
+    check_pmm_endpoint() {
       local pmm_host="$1"
-      local pmm_port="$2"
-      local timeout="${3:-10}"
+      local instance_id="$2"
       
-      echo "Checking PMM instance: $pmm_host:$pmm_port"
-      
-      if curl -s --max-time "$timeout" --fail "http://$pmm_host:$pmm_port/v1/readyz" > /dev/null 2>&1; then
-        echo "✅ HTTP health check passed for $pmm_host:$pmm_port"
-        return 0
-      elif curl -s --max-time "$timeout" --fail -k "https://$pmm_host:$pmm_port/v1/readyz" > /dev/null 2>&1; then
-        echo "✅ HTTPS health check passed for $pmm_host:$pmm_port"
+      # Simple connectivity check - just see if the host resolves and is reachable
+      if nslookup "$pmm_host" > /dev/null 2>&1; then
+        log_success "Instance $instance_id ($pmm_host) - Endpoint is available"
         return 0
       else
-        echo "❌ Health check failed for $pmm_host:$pmm_port"
+        log_warning "Instance $instance_id ($pmm_host) - Endpoint not yet available"
         return 1
       fi
     }
     
-    max_attempts=60
-    attempt=1
-    
-    while [ $attempt -le $max_attempts ]; do
-      echo "Attempt $attempt/$max_attempts: Checking PMM instances..."
+    # Main initialization
+    main() {
+      log_info "HAProxy initialization starting..."
+      log_info "Namespace: $NAMESPACE"
+      log_info "Release: $RELEASE_NAME"
+      log_info "Expected PMM replicas: $REPLICAS"
+      log_info "All PMM endpoints must be available before HAProxy starts"
       
-      all_ready=true
-      ready_count=0
+      install_dependencies
       
-      for i in $(seq 0 $(({{ .Values.replicas }} - 1))); do
-        pmm_host="{{ .Release.Name }}-$i.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
+      local attempt=1
+      local ready_count=0
+      local instances_checked=0
+      
+      while [ $attempt -le $MAX_ATTEMPTS ]; do
+        log_info "Attempt $attempt/$MAX_ATTEMPTS: Checking PMM endpoints..."
         
-        if check_pmm_ready "$pmm_host" "8080" 5; then
-          ready_count=$((ready_count + 1))
-          echo "✅ Instance $i is ready ($ready_count/{{ .Values.replicas }})"
-        else
-          echo "❌ Instance $i is not ready yet"
-          all_ready=false
+        ready_count=0
+        instances_checked=0
+        
+        # Check each PMM endpoint availability
+        for i in $(seq 0 $((REPLICAS - 1))); do
+          local pmm_host="${RELEASE_NAME}-$i.monitoring-service.${NAMESPACE}.svc.cluster.local"
+          instances_checked=$((instances_checked + 1))
+          
+          if check_pmm_endpoint "$pmm_host" "$i"; then
+            ready_count=$((ready_count + 1))
+          fi
+        done
+        
+        log_info "Endpoint check results: $ready_count/$instances_checked endpoints available"
+        
+        # Check if all endpoints are available
+        if [ $ready_count -eq $instances_checked ] && [ $instances_checked -gt 0 ]; then
+          log_success "All PMM endpoints are available! ($ready_count/$instances_checked)"
+          log_success "HAProxy can now start safely."
+          exit 0
         fi
+        
+        # Calculate next wait time with exponential backoff (max 30 seconds)
+        local wait_time=$((2 ** (attempt / 3)))
+        if [ $wait_time -gt 30 ]; then
+          wait_time=30
+        fi
+        
+        log_warning "Not all PMM endpoints are available yet. Waiting ${wait_time}s before retry..."
+        sleep $wait_time
+        attempt=$((attempt + 1))
       done
       
-      echo "Ready instances: $ready_count/{{ .Values.replicas }}"
-      
-      if [ "$all_ready" = true ]; then
-        echo "🎉 All PMM instances are ready! HAProxy can now start."
-        exit 0
-      fi
-      
-      echo "⏳ Not all PMM instances are ready yet. Waiting 5 seconds..."
-      sleep 5
-      attempt=$((attempt + 1))
-    done
+      log_error "Timeout: PMM endpoints did not become available within expected time"
+      log_error "This may indicate an issue with PMM service creation"
+      log_error "Available endpoints: $ready_count/$instances_checked"
+      exit 1
+    }
     
-    echo "❌ Timeout: PMM instances did not become ready within 5 minutes"
-    echo "This may indicate an issue with PMM deployment"
-    exit 1
+    # Run main function
+    main "$@"

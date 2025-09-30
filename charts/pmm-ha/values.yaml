@@ -320,6 +320,11 @@ clickhouse:
   distributeReplicasByZone: true
 
 haproxy:
+  # HAProxy dependency configuration
+  enabled: true
+  # Number of HAProxy replicas
+  replicaCount: 3
+  # Pod anti-affinity for HAProxy pods
   affinity:
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -355,6 +360,41 @@ haproxy:
         defaultMode: 0755
   # Disable the default configmap creation since we have our own
   config: ""
+  # Disable default ConfigMap creation
+  configMap:
+    enabled: false
+  # Mount SSL certificate
+  mountedSecrets:
+    - volumeName: ssl-certificate
+      secretName: haproxy-tls-secret
+      mountPath: /etc/haproxy/certs/pmm.pem
+  
+  # HAProxy monitoring and metrics configuration
+  monitoring:
+    # Enable Prometheus metrics export
+    prometheus:
+      enabled: true
+      port: 1024
+      path: /metrics
+  
+  # HAProxy security configuration
+  security:
+    # Enable HTTP to HTTPS redirect
+    redirectToHttps: true
+
+# HAProxy TLS configuration
+tls:
+  enabled: true
+  # If you already have a Secret with tls.crt/tls.key, set it here; we'll convert it to PEM.
+  existingTLSSecret: ""            # e.g. "my-tls" (type=kubernetes.io/tls)
+  # Name of the PEM secret we mount into HAProxy:
+  pemSecretName: "haproxy-tls-secret"
+  cn: "pmm.local"
+  dnsNames: 
+    - "pmm.local"
+    - "*.pmm.local" 
+    - "localhost"
+  validityDays: 1825 # 5 years
 
 pg-db:
   instances:

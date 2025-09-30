@@ -24,8 +24,23 @@ data:
         timeout client  50000
         timeout server  50000
     
+    # Statistics and monitoring
+    frontend stats
+        bind *:1024
+        stats enable
+        stats uri /stats
+        stats refresh 30s
+        stats admin if TRUE
+        {{- if .Values.haproxy.monitoring.prometheus.enabled | default true }}
+        http-request use-service prometheus-exporter if { path {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }} }
+        {{- end }}
+    
     frontend http_front
         bind *:80
+        {{- if .Values.haproxy.security.redirectToHttps | default true }}
+        # Redirect all HTTP traffic to HTTPS
+        redirect scheme https code 301 if !{ ssl_fc }
+        {{- end }}
         default_backend http_back    
     
     frontend https_front
@@ -39,11 +54,11 @@ data:
         server pmm-server-active-http  {{ tpl .Values.global.pmm_ha_0 . }}:8080 check
         server pmm-server-passive-http {{ tpl .Values.global.pmm_ha_1 . }}:8080 check backup
         server pmm-server-passive-2-http {{ tpl .Values.global.pmm_ha_2 . }}:8080 check backup
-
+    
     backend https_back
         option httpchk
         http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
         http-check expect status 200
         server pmm-server-active-https {{ tpl .Values.global.pmm_ha_0 . }}:8443 check ssl verify none
-        server pmm-server-passive-https {{ tpl .Values.global.pmm_ha_1 . }}:8443 check ssl verify none
-        server pmm-server-passive-2-https {{ tpl .Values.global.pmm_ha_2 . }}:8443 check ssl verify none
+        server pmm-server-passive-https {{ tpl .Values.global.pmm_ha_1 . }}:8443 check ssl verify none backup
+        server pmm-server-passive-2-https {{ tpl .Values.global.pmm_ha_2 . }}:8443 check ssl verify none backup

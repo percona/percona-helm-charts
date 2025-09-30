@@ -1,0 +1,18 @@
+dependencies:
+- name: victoria-metrics-cluster
+  repository: file://charts/victoria-metrics-cluster
+  version: 0.18.0
+- name: clickhouse
+  repository: file://charts/clickhouse
+  version: 4.0.3
+- name: haproxy
+  repository: https://haproxytech.github.io/helm-charts/
+  version: 1.24.0
+- name: pg-db
+  repository: file://charts/pg-db
+  version: 2.5.2
+- name: pg-operator
+  repository: file://charts/pg-operator
+  version: 2.5.0
+digest: sha256:5b57f66320fae49997b7ac3aa7bb035c6fbf17fce04e3f99632e1e8c36ef0e27
+generated: "2025-09-30T16:55:23.647766+02:00"
