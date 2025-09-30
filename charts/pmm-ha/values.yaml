@@ -353,45 +353,8 @@ haproxy:
       configMap:
         name: pmm-ha-haproxy-init-script
         defaultMode: 0755
-  config: |
-      global
-          log stdout    local0 debug
-          log stdout    local1 info
-          log stdout    local2 info
-          daemon
-      
-      defaults
-          log     global
-          mode    http
-          option  httplog
-          option  dontlognull
-          timeout connect 5000
-          timeout client  50000
-          timeout server  50000
-      
-      frontend http_front
-          bind *:80
-          default_backend http_back    
-     
-      frontend https_front
-          bind *:443 ssl crt /etc/haproxy/certs/pmm.pem
-          default_backend https_back
-
-      backend http_back
-          option httpchk
-          http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
-          http-check expect status 200
-          server pmm-server-active-http  {{ tpl .Values.global.pmm_ha_0 . }}:8080 check
-          server pmm-server-passive-http {{ tpl .Values.global.pmm_ha_1 . }}:8080 check backup
-          server pmm-server-passive-2-http {{ tpl .Values.global.pmm_ha_2 . }}:8080 check backup
-
-      backend https_back
-          option httpchk
-          http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
-          http-check expect status 200
-          server pmm-server-active-https {{ tpl .Values.global.pmm_ha_0 . }}:8443 check ssl verify none
-          server pmm-server-passive-https {{ tpl .Values.global.pmm_ha_1 . }}:8443 check ssl verify none
-          server pmm-server-passive-2-https {{ tpl .Values.global.pmm_ha_2 . }}:8443 check ssl verify none
+  # Disable the default configmap creation since we have our own
+  config: ""
 
 pg-db:
   instances:
@@ -413,6 +376,20 @@ pg-db:
                 labelSelector:
                   matchLabels:
                     postgres-operator.crunchydata.com/role: pgbouncer
+  patroni:
+    dynamicConfiguration:
+      postgresql:
+        pg_hba:
+          # Allow connections from private RFC1918 networks (common Kubernetes ranges)
+          # 10.0.0.0/8 covers AWS and GCP
+          # 172.16.0.0/12 covers Azure and Docker
+          # 192.168.0.0/16 covers minikube and many on-prem setups
+          - host all gfuser 10.0.0.0/8 md5
+          - host all pmmuser 10.0.0.0/8 md5
+          - host all gfuser 172.16.0.0/12 md5
+          - host all pmmuser 172.16.0.0/12 md5
+          - host all gfuser 192.168.0.0/16 md5
+          - host all pmmuser 192.168.0.0/16 md5
 
 victoria-metrics-cluster:
   vmselect:
