@@ -1,0 +1,54 @@
+{{- if .Values.clickhouse.enabled }}
+apiVersion: clickhouse.altinity.com/v1
+kind: ClickHouseInstallation
+metadata:
+  name: {{ .Release.Name }}-clickhouse
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "pmm.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: clickhouse
+spec:
+  configuration:
+    clusters:
+      - name: pmm-cluster
+        layout:
+          shardsCount: {{ .Values.clickhouse.shards | default 1 }}
+          replicasCount: {{ .Values.clickhouse.replicas | default 3 }}
+        templates:
+          podTemplate: clickhouse-pod-template
+          volumeClaimTemplate: clickhouse-volume-template
+        users:
+          chuser/password: chpass
+          chuser/networks/ip: "::/0"
+          chuser/profile: default
+          chuser/quota: default
+        settings:
+          {{- range $key, $value := .Values.clickhouse.customSettings }}
+          {{ $key }}: {{ $value }}
+          {{- end }}
+  templates:
+    podTemplates:
+      - name: clickhouse-pod-template
+        spec:
+          containers:
+            - name: clickhouse
+              image: clickhouse/clickhouse-server:23.3.21
+              resources:
+                requests:
+                  memory: {{ .Values.clickhouse.resources.requests.memory | default "1Gi" }}
+                  cpu: {{ .Values.clickhouse.resources.requests.cpu | default "500m" }}
+                limits:
+                  memory: {{ .Values.clickhouse.resources.limits.memory | default "2Gi" }}
+                  cpu: {{ .Values.clickhouse.resources.limits.cpu | default "1000m" }}
+              affinity:
+                {{- toYaml .Values.clickhouse.affinity | nindent 16 }}
+    volumeClaimTemplates:
+      - name: clickhouse-volume-template
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: {{ .Values.clickhouse.storage.size | default "10Gi" }}
+{{- end }}
