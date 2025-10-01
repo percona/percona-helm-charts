@@ -63,3 +63,39 @@ repos:
 {{- end }}
 {{- end }}
 {{- end }}
+
+{{/*
+Common resources template
+*/}}
+{{- define "pg-database.resources" -}}
+{{- if .resources }}
+resources:
+  {{- if .resources.requests }}
+  requests:
+    cpu: {{ .resources.requests.cpu }}
+    memory: {{ .resources.requests.memory }}
+  {{- end }}
+  {{- if .resources.limits }}
+  limits:
+    cpu: {{ .resources.limits.cpu }}
+    memory: {{ .resources.limits.memory }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Common initContainer template
+*/}}
+{{- define "pg-database.initContainer" -}}
+{{- if .initContainer }}
+initContainer:
+  {{- if .initContainer.image }}
+  image: {{ .initContainer.image }}
+  {{- end }}
+  {{- include "pg-database.resources" .initContainer | indent 2 }}
+  {{- if .initContainer.containerSecurityContext }}
+  containerSecurityContext: 
+{{ .initContainer.containerSecurityContext | toYaml | indent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

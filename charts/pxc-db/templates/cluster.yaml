@@ -56,6 +56,10 @@ spec:
     {{- else }}
     image: {{ include "pxc-db.operator-image" . }}
     {{- end }}
+    {{- if .Values.initContainer.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl (.Values.initContainer.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
     {{- if .Values.initContainer.resources }}
     resources:
       {{- if hasKey .Values.initContainer.resources "requests" }}
@@ -313,7 +317,7 @@ spec:
     readinessDelaySec: {{ $haproxy.readinessDelaySec }}
     {{- end }}
     {{- if $haproxy.livenessDelaySec }}
-    livenessDelaySec: {{ $pxc.livenessDelaySec }}
+    livenessDelaySec: {{ $haproxy.livenessDelaySec }}
     {{- end }}
     readinessProbes:
 {{ tpl ($haproxy.readinessProbes | toYaml) $ | indent 6 }}
@@ -471,6 +475,10 @@ spec:
 {{ tpl ($logcollector.containerSecurityContext | toYaml) $ | indent 6 }}
     {{- end }}
   {{- end }}
+{{- if .Values.users }}
+  users:
+{{ .Values.users | toYaml | indent 2 }}
+  {{- end }}
   pmm:
   {{- if not .Values.pmm.enabled }}
     enabled: false
@@ -497,6 +505,10 @@ spec:
     {{- if $pmm.proxysqlParams }}
     proxysqlParams: {{ $pmm.proxysqlParams }}
     {{- end }}
+    readinessProbes:
+{{ tpl ($pmm.readinessProbes | toYaml) $ | indent 6 }}
+    livenessProbes:
+{{ tpl ($pmm.livenessProbes | toYaml) $ | indent 6 }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
@@ -506,12 +518,21 @@ spec:
   {{- $backup := .Values.backup }}
   {{- if $backup.enabled }}
   backup:
-    {{- if $backup.allowParallel }}
+    {{- if hasKey $backup "allowParallel" }}
     allowParallel: {{ $backup.allowParallel }}
     {{- end }}
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
     {{- if $backup.backoffLimit }}
     backoffLimit: {{ $backup.backoffLimit }}
+    {{- end }}
+    {{- if $backup.activeDeadlineSeconds }}
+    activeDeadlineSeconds: {{ $backup.activeDeadlineSeconds }}
+    {{- end }}
+    {{- if $backup.startingDeadlineSeconds }}
+    startingDeadlineSeconds: {{ $backup.startingDeadlineSeconds }}
+    {{- end }}
+    {{- if $backup.suspendedDeadlineSeconds }}
+    suspendedDeadlineSeconds: {{ $backup.suspendedDeadlineSeconds }}
     {{- end }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}

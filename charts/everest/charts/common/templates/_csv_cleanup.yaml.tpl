@@ -1,5 +1,6 @@
 #
 # @param .namespace     The namespace where the operator is installed
+# @param .image         The image to use for running the hook Job
 #
 {{- define "everest.csvCleanup" }}
 {{- $hookName := printf "everest-helm-pre-delete-hook" }}
@@ -9,7 +10,8 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -17,12 +19,14 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
   - apiGroups:
       - operators.coreos.com
     resources:
       - clusterserviceversions
+      - subscriptions
     verbs:
       - delete
       - list
@@ -33,7 +37,8 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -50,17 +55,18 @@ metadata:
   namespace: {{ .namespace }}
   annotations:
     "helm.sh/hook": pre-delete
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
     spec:
       containers:
-        - image: bitnami/kubectl:latest
+        - image: {{ .image }}
           name: {{ $hookName }}
           command:
             - /bin/sh
             - -c
             - |
+              kubectl delete subscription -n {{ .namespace }} --all --wait
               kubectl delete csv -n {{ .namespace }} --all --wait
       dnsPolicy: ClusterFirst
       restartPolicy: OnFailure

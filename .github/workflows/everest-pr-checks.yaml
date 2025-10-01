@@ -11,6 +11,42 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          sparse-checkout: |
+            .github/
+            charts/everest
+
+      - name: Check docs
+        run: |
+          cd charts/everest
+          make docs-gen
+          if git diff --quiet; then
+            echo "Docs are up to date."
+          else
+            echo "Docs are out of date. Please run 'make docs-gen' and commit the changes."
+            exit 1
+          fi
+          
+      - name: Check CRD gen
+        run: |
+          cd charts/everest
+          make crds-gen
+          if git diff --quiet; then
+            echo "CRDs are up to date."
+          else
+            echo "CRDs are not up-to-date. Please run 'make crds-gen' and commit the changes."
+            exit 1
+          fi
+
+      - name: Check CRD symlinks
+        run: |
+          cd charts/everest
+          make link-crds
+          if git diff --quiet; then
+            echo "CRD symlinks are up to date."
+          else
+            echo "CRD symlinks are not up-to-date. Please run 'make link-crds' and commit the changes."
+            exit 1
+          fi
 
       - name: Set up Helm
         uses: azure/setup-helm@v4.2.0
@@ -29,11 +65,15 @@ jobs:
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
+      
+      - name: Add dependent repos
+        run: |
+          make -C charts/everest add-repos
 
       - name: Run chart-testing (lint)
         run: |
           # Ensure common sub-chart is linted and has version increment
-          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespace
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts/everest/charts --excluded-charts=everest-db-namespace,everest-crds
 
           # Ensure main chart is linted, skip version increment check
           ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --check-version-increment=false
@@ -46,43 +86,55 @@ jobs:
         # Only build a kind cluster if there are chart changes to test.
         if: steps.list-changed.outputs.changed == 'true'
 
+      - name: Build dependencies
+        run: |
+          cd charts/everest
+          make deps
+
       - name: Basic tests
         run: |
           # Install the chart
-          helm install everest-core ./charts/everest --create-namespace --namespace everest-system
+          helm install everest ./charts/everest \
+            --create-namespace \
+            --namespace everest-system \
+            --set dbNamespace.enabled=true \
+            --set pmm.enabled=true \
+            --debug
 
           # Wait for system components
-          kubectl wait --for=condition=available --timeout=60s deployment/percona-everest -n everest-system
-          kubectl wait --for=condition=available --timeout=60s deployment/everest-operator -n everest-system
+          kubectl wait --for=condition=available --timeout=60s deployment/everest-server -n everest-system
+          kubectl wait --for=condition=available --timeout=120s deployment/everest-operator -n everest-system
+          kubectl wait --for=condition=available --timeout=60s deployment/kube-state-metrics -n everest-monitoring
+          kubectl wait --for=condition=available --timeout=60s deployment/vm-operator -n everest-monitoring
+          kubectl wait --for=condition=ready pods --timeout=120s -n everest-system -l app.kubernetes.io/name=pmm
 
-          # Provision DB namespace
-          kubectl create ns everest
-          kubectl label ns everest app.kubernetes.io/managed-by=everest
-          helm install everest ./charts/everest/charts/everest-db-namespace --namespace everest
+          # Wait for default DB namespace.
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-postgresql-operator -n everest
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-server-mongodb-operator -n everest
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-xtradb-cluster-operator -n everest
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-server-mongodb-operator --timeout=600s -n everest
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-xtradb-cluster-operator --timeout=600s -n everest
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-postgresql-operator --timeout=600s -n everest
 
-          # Ensure operators are installed
-          subs=$(kubectl -n everest get subscription -o jsonpath='{.items[*].metadata.name}')
-          for sub in $subs
-          do
-            echo "Waiting for InstallPlan to be created for Subscription $sub"
-            kubectl wait --for=jsonpath='.status.installplan.name' sub/$sub -n everest --timeout=600s
-            
-            ip=$(kubectl -n everest get sub $sub -o jsonpath='{.status.installplan.name}')
-            echo "InstallPlan $ip created for Subscription $sub"
+          # Provision new DB namespace
+          helm install everest ./charts/everest/charts/everest-db-namespace \
+            --namespace everest-db \
+            --create-namespace \
+            --set pxc=false \
+            --debug
 
-            echo "Waiting for InstallPlan to be complete $ip"
-            kubectl wait --for=jsonpath='.status.phase'=Complete installplan/$ip -n everest --timeout=600s
+          # Wait for new DB namespace.
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-postgresql-operator -n everest-db
+          kubectl wait --for=condition=available --timeout=60s deployment/percona-server-mongodb-operator -n everest-db
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-server-mongodb-operator --timeout=600s -n everest-db
+          kubectl wait --for=jsonpath='.status.status'=installed dbengine/percona-postgresql-operator --timeout=600s -n everest-db
 
-            csv=$(kubectl get sub $sub -n everest -o jsonpath='{.status.installedCSV}')
-            echo "Waiting for CSV $csv to succeed"
-            kubectl wait --for=jsonpath='.status.phase'=Succeeded csv/$csv -n everest --timeout=600s
-          done
-
-          # Uninstall
-          helm uninstall everest -n everest
-          kubectl delete ns everest
-          kubectl wait --for=delete namespace/everest --timeout=120s
-          helm uninstall everest-core -n everest-system
+          # Uninstall everest-db namespace
+          helm uninstall everest -n everest-db --debug
+          kubectl delete ns everest-db
+          kubectl wait --for=delete namespace/everest-db --timeout=120s
+          # Uninstall everest-system namespace
+          helm uninstall everest -n everest-system --debug
           kubectl delete ns everest-system
           kubectl wait --for=delete namespace/everest-system --timeout=120s
 

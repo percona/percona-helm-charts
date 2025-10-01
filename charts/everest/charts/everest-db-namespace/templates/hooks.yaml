@@ -1,7 +1,7 @@
-{{- include "everest.csvCleanup" (dict "namespace" (include "db.namespace" .)) }}
+{{- include "everest.csvCleanup" (dict "namespace" (include "db.namespace" .) "image" (.Values.hooks.csvCleanup.image | default .Values.hooks.image)) }}
 ---
-{{- include "everest.installplanApprover" (dict "namespace" (include "db.namespace" .)) }}
+{{- include "everest.operatorsInstaller" (dict "namespace" (include "db.namespace" .) "image" (.Values.hooks.operatorsInstaller.image | default .Values.hooks.image)) }}
 ---
 {{ if .Values.cleanupOnUninstall }}
-{{- include "everest.dbResourcesCleanup" (dict "namespace" (include "db.namespace" .)) }}
+{{- include "everest.dbResourcesCleanup" (dict "namespace" (include "db.namespace" .) "image" (.Values.hooks.dbResourcesCleanup.image | default .Values.hooks.image)) }}
 {{- end }}

@@ -2,17 +2,52 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# annotations:
+#   pgv2.percona.com/custom-patroni-version: "4"
 finalizers:
 # Set this if you want that operator deletes the PVCs on cluster deletion
 #  - percona.com/delete-pvc
 # Set this if you want that operator deletes the ssl objects on cluster deletion
 #  - percona.com/delete-ssl
+# Set this if you want that operator deletes the backups on cluster deletion
+#  - percona.com/delete-backups
 
-crVersion: 2.5.0
-repository: percona/percona-postgresql-operator
-image: percona/percona-postgresql-operator:2.5.0-ppg16.4-postgres
+crVersion: 2.7.0
+# initContainer:
+#   image: docker.io/percona/percona-postgresql-operator:2.7.0
+#   resources:
+#     limits:
+#       cpu: 2.0
+#       memory: 4Gi
+#   containerSecurityContext:
+#     runAsUser: 1001
+#     runAsGroup: 1001
+#     runAsNonRoot: true
+#     privileged: false
+#     allowPrivilegeEscalation: false
+#     readOnlyRootFilesystem: true
+#     capabilities:
+#       add:
+#         - NET_ADMIN
+#         - SYS_TIME
+#       drop:
+#         - ALL
+#     seccompProfile:
+#       type: Localhost
+#       localhostProfile: localhost/profile.json
+#     procMount: Default
+#     seLinuxOptions:
+#       type: spc_t
+#       level: s0:c123,c456
+# metadata:
+#   annotations:
+#     example-annotation: value
+#   labels:
+#     example-label: value
+repository: docker.io/percona/percona-postgresql-operator
+image: docker.io/percona/percona-postgresql-operator:2.7.0-ppg17.5.2-postgres
 imagePullPolicy: Always
-postgresVersion: 16
+postgresVersion: 17
 # port: 5432
 pause: false
 unmanaged: false
@@ -34,7 +69,11 @@ customTLSSecret:
 customReplicationTLSSecret:
   name: ""
 
+# tlsOnly: false
+
 # openshift: true
+
+# autoCreateUserSchema: true
 
 # users:
 #   - name: rhino
@@ -145,6 +184,32 @@ customReplicationTLSSecret:
 instances:
 - name: instance1
   replicas: 3
+#  initContainer:
+#    image: docker.io/percona/percona-postgresql-operator:2.7.0
+#    resources:
+#      limits:
+#        cpu: 2.0
+#        memory: 4Gi
+#    containerSecurityContext:
+#      runAsUser: 1001
+#      runAsGroup: 1001
+#      runAsNonRoot: true
+#      privileged: false
+#      allowPrivilegeEscalation: false
+#      readOnlyRootFilesystem: true
+#      capabilities:
+#        add:
+#          - NET_ADMIN
+#          - SYS_TIME
+#        drop:
+#          - ALL
+#      seccompProfile:
+#        type: Localhost
+#        localhostProfile: localhost/profile.json
+#      procMount: Default
+#      seLinuxOptions:
+#        type: spc_t
+#        level: s0:c123,c456
 
   affinity:
     podAntiAffinity:
@@ -155,7 +220,9 @@ instances:
             matchLabels:
               postgres-operator.crunchydata.com/data: postgres
           topologyKey: kubernetes.io/hostname
-
+#  metadata:
+#    annotations: {}
+#    labels: {}
 #  resources:
 #    requests:
 #      cpu: 2.0
@@ -173,6 +240,8 @@ instances:
 #  sidecars:
 #  - name: testcontainer
 #    image: mycontainer1:latest
+#    command: ["sleep", "30d"]
+#    securityContext: {}
 #  - name: testcontainer2
 #    image: mycontainer1:latest
 #
@@ -240,7 +309,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: percona/percona-postgresql-operator:2.5.0-ppg16.4-pgbouncer1.23.1
+    image: docker.io/percona/percona-pgbouncer:1.24.1
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -309,6 +378,8 @@ proxy:
 #      sidecars:
 #      - name: bouncertestcontainer1
 #        image: mycontainer1:latest
+#        command: ["sleep", "30d"]
+#        securityContext: {}
 #
 #      customTLSSecret:
 #        name: keycloakdb-pgbouncer.tls
@@ -318,11 +389,38 @@ proxy:
 #          pool_mode: transaction
 
 backups:
+  enabled: true
   trackLatestRestorableTime: true
   pgbackrest:
+#    initContainer:
+#      image: docker.io/perconalab/percona-postgresql-operator:2.7.0
+#      resources:
+#        limits:
+#          cpu: 2.0
+#          memory: 4Gi
+#      containerSecurityContext:
+#        runAsUser: 1001
+#        runAsGroup: 1001
+#        runAsNonRoot: true
+#        privileged: false
+#        allowPrivilegeEscalation: false
+#        readOnlyRootFilesystem: true
+#        capabilities:
+#          add:
+#            - NET_ADMIN
+#            - SYS_TIME
+#          drop:
+#            - ALL
+#        seccompProfile:
+#          type: Localhost
+#          localhostProfile: localhost/profile.json
+#        procMount: Default
+#        seLinuxOptions:
+#          type: spc_t
+#          level: s0:c123,c456
 #    metadata:
 #    labels:
-    image: percona/percona-postgresql-operator:2.5.0-ppg16.4-pgbackrest2.53-1
+    image: docker.io/percona/percona-pgbackrest:2.55.0
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -339,7 +437,10 @@ backups:
 #      - secret:
 #          name: cluster1-pgbackrest-secrets
 #    jobs:
+#      restartPolicy: OnFailure
+#      backoffLimit: 2
 #      priorityClassName: high-priority
+#      ttlSecondsAfterFinished: 60
 #      resources:
 #        limits:
 #          cpu: 200m
@@ -430,6 +531,7 @@ backups:
       repoName: repo1
       options:
       - --type=full
+#      initialDelaySeconds: 120
     repos:
     - name: repo1
       schedules:
@@ -467,12 +569,14 @@ backups:
 pmm:
   enabled: false
   image:
-    repository: percona/pmm-client
-    tag: 2.43.1
+    repository: docker.io/percona/pmm-client
+    tag: 3.3.0
 #  imagePullPolicy: IfNotPresent
-  secret: cluster1-pmm-secret
+#  secret: cluster1-pmm-secret
   serverHost: monitoring-service
-  querySource: pgstatmonitor
+#  querySource: pgstatmonitor
+#  customClusterName: "<string>"
+#  postgresParams: "<string>"
 #  resources:
 #    requests:
 #      memory: 200M
@@ -488,6 +592,7 @@ pmm:
 #   dynamicConfiguration:
 #     postgresql:
 #       parameters:
+#         restore_command: "pgbackrest --stanza=db archive-get %f \"%p\""
 #         max_parallel_workers: 2
 #         max_worker_processes: 2
 #         shared_buffers: 1GB
@@ -497,9 +602,12 @@ pmm:
 #   switchover:
 #     enabled: "true"
 #     targetInstance: ""
+#   createReplicaMethods:
+#   - pgbackrest
+#   - basebackup
 
 # extensions:
-#   image: percona/percona-postgresql-operator:2.5.0
+#   image: docker.io/percona/percona-postgresql-operator:2.7.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
@@ -510,7 +618,10 @@ pmm:
 #       name: cluster1-extensions-secret
 #   builtin:
 #     pg_stat_monitor: true
+#     pg_stat_statements: false
 #     pg_audit: true
+#     pgvector: false
+#     pg_repack: false
 #   custom:
 #   - name: pg_cron
 #     version: 1.6.1

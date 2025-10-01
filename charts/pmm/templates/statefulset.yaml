@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ include "pmm.fullname" . }}
+  {{- include "pmm.includeNamespace" . | nindent 2 }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 spec:
@@ -11,11 +12,27 @@ spec:
     matchLabels:
       {{- include "pmm.selectorLabels" . | nindent 6 }}
   updateStrategy:
+    {{- if eq .Values.upgrade.strategy "recreate" }}
+    type: OnDelete
+    {{- else }}
     type: RollingUpdate
+    {{- if .Values.upgrade.force }}
+    rollingUpdate:
+      partition: 0
+    {{- end }}
+    {{- end }}
+  {{- if .Values.upgrade.force }}
+  # These fields are only set on fresh installations or forced upgrades
+  minReadySeconds: 10
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  {{- end }}
   template:
     metadata:
       annotations:
         {{- include "pmm.podAnnotations" . | nindent 8 }}
+      {{- include "pmm.includeNamespace" . | nindent 6 }}
       labels:
         {{- include "pmm.selectorLabels" . | nindent 8 }}
     spec:
@@ -23,7 +40,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
+      {{- if or ( .Values.serviceAccount.create) (include "pmm.serviceAccountName" .) }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
       securityContext:
@@ -58,7 +75,7 @@ spec:
             - configMapRef:
                 name: {{ include "pmm.fullname" . }}
                 optional: true
-            {{ if not .Values.secret.create }}
+            {{ if and (not .Values.secret.create) .Values.secret.name }}
             - secretRef:
                  name: {{ .Values.secret.name }}
             {{ end }}
@@ -67,20 +84,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
-            {{ if .Values.secret.create }}
-            # additional secrets that could be used for Grafana iDP
-            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
-                  optional: true
-            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-                  optional: true
+            {{ if .Values.secret.name }}
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -90,15 +94,29 @@ spec:
             {{ end }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
             - name: https
-              containerPort: 443
+              containerPort: 8443
+          startupProbe:
+            httpGet:
+              path: /v1/readyz
+              port: http
+          {{- if .Values.startupProbeConf }}
+            {{- toYaml .Values.startupProbeConf | nindent 12 }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /v1/readyz
               port: http
           {{- if .Values.readyProbeConf }}
             {{- toYaml .Values.readyProbeConf | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /v1/readyz
+              port: http
+          {{- if .Values.livenessProbeConf }}
+            {{- toYaml .Values.livenessProbeConf | nindent 12 }}
           {{- end }}
           volumeMounts:
             - name: {{ .Values.storage.name }}
@@ -133,8 +151,11 @@ spec:
         {{- toYaml .Values.extraVolumes | nindent 8 }}
       {{- end }}
   volumeClaimTemplates:
-    - metadata:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
         name: {{ .Values.storage.name }}
+        {{- include "pmm.includeNamespace" . | nindent 8 }}
       spec:
         {{- if .Values.storage.selector }}
         selector:

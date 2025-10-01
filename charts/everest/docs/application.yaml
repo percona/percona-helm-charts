@@ -1,0 +1,72 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: everest
+  namespace: argocd
+spec:
+  destination:
+    namespace: everest-system
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  # If `server.jwtKey` is not set, the Secret will be updated with
+  # a new random key on every sync.
+  - group: ""
+    jsonPointers:
+    - /data
+    kind: Secret
+    name: everest-jwt
+    namespace: everest-system
+  - group: ""
+    jsonPointers:
+    - /data
+    kind: Secret
+    name: everest-accounts
+    namespace: everest-system
+  # If deploying OLM without using cert-manager, the certificates are
+  # are changed on every sync since they are randomly generated.
+  - group: ""
+    jsonPointers:
+    - /data
+    kind: Secret
+    name: packageserver-service-cert
+    namespace: everest-olm
+  - group: apiregistration.k8s.io
+    jqPathExpressions:
+    - .spec.caBundle
+    - .metadata.annotations
+    kind: APIService
+    name: v1.packages.operators.coreos.com
+  # If `operator.webhook.certs` are not set explicitly, the chart will generate random certificates.
+  # As a result, the TLS Secret and Mutating/Validating webhook configurations (caBundle) will always appear out of sync.
+  - group: ""
+    jsonPointers:
+    - /data
+    kind: Secret
+    name: webhook-server-cert
+    namespace: everest-system
+  - group: admissionregistration.k8s.io
+    jqPathExpressions:
+    - .webhooks[].clientConfig.caBundle
+    kind: MutatingWebhookConfiguration
+    name: everest-operator-mutating-webhook-configuration
+  - group: admissionregistration.k8s.io
+    jqPathExpressions:
+    - .webhooks[].clientConfig.caBundle
+    kind: ValidatingWebhookConfiguration
+    name: everest-operator-validating-webhook-configuration
+  project: default
+  source:
+    chart: everest
+    helm:
+      parameters:
+      - name: dbNamespace.enabled
+        value: "false"
+      - name: upgrade.preflightChecks
+        value: "false"
+    repoURL: https://percona.github.io/percona-helm-charts/
+    targetRevision: 1.3.0
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+    - ServerSideApply=true

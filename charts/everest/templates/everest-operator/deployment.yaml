@@ -19,57 +19,27 @@ spec:
       labels:
         app: everest-operator
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.io/arch
-                operator: In
-                values:
-                - amd64
-                - arm64
-                - ppc64le
-                - s390x
-              - key: kubernetes.io/os
-                operator: In
-                values:
-                - linux
+      {{- if .Values.operator.init }}
+      initContainers:
+      - name: crs-migration
+        env:
+        - name: SYSTEM_NAMESPACE
+          value: {{ include  "everest.namespace" . }}
+        image: {{ .Values.operator.image }}:{{ .Chart.Version }}
+        command:
+        - /migrator
+        imagePullPolicy: IfNotPresent
+      {{- end }}
       containers:
       - args:
-        - --secure-listen-address=0.0.0.0:8443
-        - --upstream=http://127.0.0.1:8080/
-        - --logtostderr=true
-        - --v=0
-        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.1
-        imagePullPolicy: IfNotPresent
-        name: kube-rbac-proxy
-        ports:
-        - containerPort: 8443
-          name: https
-          protocol: TCP
-        resources:
-          limits:
-            cpu: 500m
-            memory: 128Mi
-          requests:
-            cpu: 5m
-            memory: 64Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-      - args:
-        - --health-probe-bind-address={{ .Values.operator.healthProbeAddr }}
-        - --metrics-bind-address={{ .Values.operator.metricsAddr }}
         {{- if .Values.operator.enableLeaderElection }}
         - --leader-elect
         {{- end }}
-        - --monitoring-namespace={{ .Values.monitoring.namespace }}
+        - --metrics-bind-address=:8443
+        - --health-probe-bind-address=:8081
+        - --monitoring-namespace={{ .Values.monitoring.namespaceOverride }}
         - --system-namespace={{ include  "everest.namespace" . }}
+        - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
         command:
         - /manager
         image: {{ .Values.operator.image }}:{{ .Chart.Version }}
@@ -101,6 +71,11 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+        - name: PERCONA_VERSION_SERVICE_URL
+          value: {{ printf "%s/%s" (include "everest.versionMetadataURL" .) "versions/v1" }}
+        {{- if .Values.operator.env }}
+        {{- toYaml .Values.operator.env | nindent 8 }}
+        {{- end }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -108,6 +83,10 @@ spec:
             - ALL
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: webhook-server-cert
+          readOnly: true
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
@@ -116,3 +95,7 @@ spec:
       serviceAccount: everest-operator-controller-manager
       serviceAccountName: everest-operator-controller-manager
       terminationGracePeriodSeconds: 10
+      volumes:
+      - name: webhook-server-cert
+        secret:
+          secretName: webhook-server-cert

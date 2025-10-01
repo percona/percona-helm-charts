@@ -19,7 +19,7 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.15.1
+crVersion: 1.18.0
 
 enableVolumeExpansion: false
 
@@ -29,7 +29,11 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.15.1"
+#   image: "percona/percona-xtradb-cluster-operator:1.18.0"
+#   containerSecurityContext:
+#     privileged: false
+#     runAsUser: 1001
+#     runAsGroup: 1001
 #   resources:
 #     requests:
 #       memory: 100M
@@ -63,12 +67,13 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.36-28.1
+    tag: 8.0.42-33.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
   #   enabled: true
   #   type: LoadBalancer
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   externalTrafficPolicy: Local
   #   internalTrafficPolicy: Local
   #   loadBalancerSourceRanges:
@@ -210,7 +215,7 @@ pxc:
 haproxy:
   enabled: true
   size: 3
-  image: percona/haproxy:2.8.5
+  image: percona/haproxy:2.8.15
   # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -341,8 +346,8 @@ haproxy:
     successThreshold: 1
     failureThreshold: 4
   # exposePrimary:
-  #   enabled: false
   #   type: ClusterIP
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
   #   externalTrafficPolicy: Cluster
@@ -356,6 +361,7 @@ haproxy:
   #   enabled: true
   #   onlyReaders: false
   #   type: ClusterIP
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
   #   externalTrafficPolicy: Cluster
@@ -377,7 +383,7 @@ haproxy:
 proxysql:
   enabled: false
   size: 3
-  image: "percona/proxysql2:2.5.5"
+  image: percona/proxysql2:2.7.3
   # imagePullPolicy: Always
   imagePullSecrets: []
 #  configuration: |
@@ -440,6 +446,7 @@ proxysql:
   # expose:
   #   enabled: false
   #   type: ClusterIP
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
   #   externalTrafficPolicy: Cluster
@@ -529,7 +536,7 @@ proxysql:
 
 logcollector:
   enabled: true
-  image: percona/percona-xtradb-cluster-operator:1.15.1-logcollector-fluentbit3.1.4
+  image: percona/fluentbit:4.0.1
   # imagePullPolicy: Always
   imagePullSecrets: []
   # configuration: |
@@ -549,13 +556,41 @@ logcollector:
   # containerSecurityContext:
   #   privileged: false
 
+# users:
+# - name: my-user
+#   dbs:
+#   - db1
+#   - db2
+#   hosts:
+#   - localhost
+#   grants:
+#   - SELECT
+#   - DELETE
+#   - INSERT
+#   withGrantOption: true
+#   passwordSecretRef:
+#     name: my-user-pwd
+#     key: my-user-pwd-key
+# - name: my-user-two
+
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.42.0
+    tag: 3.3.1
   # imagePullPolicy: Always
   imagePullSecrets: []
+#  readinessProbes:
+#    initialDelaySeconds: 15
+#    timeoutSeconds: 15
+#    periodSeconds: 30
+#    successThreshold: 1
+#    failureThreshold: 5
+#  livenessProbes:
+#    initialDelaySeconds: 300
+#    timeoutSeconds: 5
+#    periodSeconds: 10
+#    successThreshold: 1
   serverHost: monitoring-service
   serverUser: admin
   # pxcParams: "--disable-tablestats-limit=2000"
@@ -572,9 +607,12 @@ backup:
   enabled: true
   # allowParallel: true
   image:
-    repository: percona/percona-xtradb-cluster-operator
-    tag: 1.15.1-pxc8.0-backup-pxb8.0.35
+    repository: percona/percona-xtrabackup
+    tag: 8.0.35-33.1
   # backoffLimit: 6
+  # activeDeadlineSeconds: 3600
+  # startingDeadlineSeconds: 300
+  # suspendedDeadlineSeconds: 1200
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
@@ -672,16 +710,24 @@ backup:
     #     container: test
     #     endpointUrl: https://accountName.blob.core.windows.net
     #     storageClass: Hot
+    #     blockSize: 4194304
+    #     concurrency: 4
 
   schedule: []
-    # - name: "daily-backup"
-    #   schedule: "0 0 * * *"
-    #   keep: 5
-    #   storageName: fs-pvc
-    # - name: "sat-night-backup"
-    #   schedule: "0 0 * * 6"
-    #   keep: 3
-    #   storageName: s3-us-west
+#     - name: "daily-backup"
+#       schedule: "0 0 * * *"
+#       retention:
+#         type: "count"
+#         count: 5
+#         deleteFromStorage: true
+#       storageName: fs-pvc
+#     - name: "sat-night-backup"
+#       schedule: "0 0 * * 6"
+#       retention:
+#         type: "count"
+#         count: 3
+#         deleteFromStorage: true
+#       storageName: s3-us-west
 
 secrets:
   ## You should be overriding these with your own or specify name for clusterSecretName.
@@ -689,7 +735,6 @@ secrets:
   #   root: insecure-root-password
   #   xtrabackup: insecure-xtrabackup-password
   #   monitor: insecure-monitor-password
-  #   clustercheck: insecure-clustercheck-password
   #   proxyadmin: insecure-proxyadmin-password
   #   pmmserver: insecure-pmmserver-password
   #   # If pmmserverkey is set in that case pmmserver pass will not be included

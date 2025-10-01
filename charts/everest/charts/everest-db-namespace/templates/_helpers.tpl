@@ -6,8 +6,13 @@ Allows overriding the install namespace in combined charts.
 {{- end }}
 
 {{/*
-Allow overriding OLM namespacse
+Allow overriding OLM namespace
 */}}
 {{- define "db.olmNamespace"}}
+{{- if .Values.compatibility.openshift }}
+{{- "openshift-marketplace" }}
+{{- else }}
 {{- .Values.olm.namespace }}
 {{- end }}
+{{- end }}
+

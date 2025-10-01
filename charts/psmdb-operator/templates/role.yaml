@@ -139,6 +139,7 @@ rules:
     resources:
     - issuers
     - certificates
+    - certificaterequests
     verbs:
     - get
     - list

@@ -23,3 +23,7 @@
 .vscode/
 
 Makefile
+go.mod
+go.sum
+helm.go
+docs/

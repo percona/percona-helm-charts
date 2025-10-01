@@ -1,5 +1,6 @@
 #
 # @param .namespace     The namespace where DB and its resources are deployed
+# @param .image         The image to use for running the hook Job
 #
 {{- define "everest.dbResourcesCleanup" }}
 {{- $hookName := printf "everest-helm-pre-delete-db-resource-cleanup" }}
@@ -9,7 +10,9 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -17,7 +20,9 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
 rules:
   - apiGroups:
       - everest.percona.com
@@ -26,8 +31,10 @@ rules:
       - backupstorages
       - monitoringconfigs
     verbs:
+      - get
       - delete
       - list
+      - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -35,7 +42,9 @@ metadata:
   name: {{ $hookName }}
   namespace: {{ .namespace }}
   annotations:
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -52,19 +61,21 @@ metadata:
   namespace: {{ .namespace }}
   annotations:
     "helm.sh/hook": pre-delete
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "-1"
 spec:
   template:
     spec:
       containers:
-        - image: bitnami/kubectl:latest
+        - image: {{ .image }}
           name: {{ $hookName }}
           command:
             - /bin/sh
-            - -c
+            - -ec
+          args:
             - |
               echo "Deleting DatabaseClusters"
-              kubectl delete databaseclusters -n {{ .namespace }} --all --wait
+              kubectl delete databaseclusters -n {{ .namespace }} --all --wait --cascade='foreground'
               
               echo "Deleting BackupStorages"
               kubectl delete backupstorages -n {{ .namespace }} --all --wait

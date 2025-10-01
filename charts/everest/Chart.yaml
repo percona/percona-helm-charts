@@ -1,10 +1,10 @@
 apiVersion: v2
 name: everest
 description: A cloud-native database platform
-version: 0.0.0
-appVersion: 0.0.0
+version: "0.0.0"
+appVersion: "0.0.0"
 type: application
-kubeVersion: '>= 1.27.0'
+kubeVersion: '>= 1.27.0-0'
 maintainers:
   - name: mayankshah1607
     email: mayank.shah@percona.com
@@ -12,8 +12,6 @@ maintainers:
     email: oksana.grishchenko@percona.com
   - name: recharte
     email: diogo.recharte@percona.com
-  - name: michal-kralik
-    email: michal.kralik@percona.com
 dependencies:
   - name: common
     version: 0.0.*
@@ -22,6 +20,29 @@ dependencies:
     # able to conditionally disable rendering these manifests along with the core chart manifests.
     # The default behaviour of Helm is to always include the sub-chart manfiests unless explicitly disabled.
   - name: everest-db-namespace
-    version: 0.0.0
+    alias: dbNamespace
+    version: "0.0.0"
     repository: "file://charts/everest-db-namespace"
-    condition: "everest-db-namespace.enabled"
+    condition: "dbNamespace.enabled"
+  - name: kube-state-metrics
+    repository: https://prometheus-community.github.io/helm-charts
+    version: 5.27.0
+    condition: "kube-state-metrics.enabled"
+  - name: victoria-metrics-operator
+    alias: monitoring
+    version: 0.43.0
+    repository: "https://victoriametrics.github.io/helm-charts"
+    condition: "monitoring.enabled"
+  - name: pmm
+    repository: "https://percona.github.io/percona-helm-charts"
+    condition: "pmm.enabled"
+    version: 1.3.*
+  - name: everest-crds
+    repository: "file://charts/everest-crds"
+    condition: "everest-crds.enabled"
+    version: "0.0.0"
+  - name: operator-lifecycle-manager
+    alias: olm
+    repository: "https://percona.github.io/operator-lifecycle-manager"
+    condition: "olm.install"
+    version: "0.1.*"
