@@ -394,7 +394,7 @@ tls:
     - "pmm.local"
     - "*.pmm.local" 
     - "localhost"
-  validityDays: 1825 # 5 years
+  validityDays: 1825  # 5 years
 
 pg-db:
   instances:
