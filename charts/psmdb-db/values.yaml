@@ -709,11 +709,11 @@ backup:
 #   # PMM_SERVER_USER: admin
 #   # PMM_SERVER_PASSWORD: admin
 
-logCollector:
+logcollector:
   enabled: true
   image:
     repository: percona/fluentbit
-    tag: main-logcollector
+    tag: 4.0.1
 #  configuration: |
 #    [SERVICE]
 #        Flush        1

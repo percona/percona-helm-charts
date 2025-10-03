@@ -692,7 +692,7 @@ spec:
     tasks:
 {{ .Values.backup.tasks | toYaml | indent 6 }}
   logcollector:
-    enabled: {{ .Values.logCollector.enabled }}
+    enabled: {{ .Values.logcollector.enabled }}
     image: "{{ .Values.logcollector.image.repository }}:{{ .Values.logcollector.image.tag }}"
     {{- if .Values.logcollector.configuration }}
     configuration: {{ .Values.logcollector.configuration }}
