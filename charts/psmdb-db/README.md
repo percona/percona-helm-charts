@@ -292,24 +292,32 @@ The chart can be customized using the following configurable parameters:
 | `roles.roles.role`                               | Name of the role to inherit from.                                                                                                                                                                                                                                                                                       | `""`      |
 | `roles.roles.db`                                 | Name of database that contains the role to inherit from.                                                                                                                                                                                                                                                                | `""`      |
 | |
-| `backup.enabled`                      | Enable backup PBM agent                                           | `true`                           |
-| `backup.annotations`                  | Backup job annotations                                            | `{}`                             |
-| `backup.podSecurityContext`           | Set the security context for a Pod                                | `{}`                             |
-| `backup.containerSecurityContext`     | Set the security context for a Container                          | `{}`                             |
-| `backup.restartOnFailure`             | Backup Pods restart policy                                        | `true`                           |
-| `backup.image.repository`             | PBM Container image repository                                    | `percona/percona-backup-mongodb` |
-| `backup.image.tag`                    | PBM Container image tag                                           | `2.9.1`                          |
-| `backup.storages`                     | Local/remote backup storages settings                             | `{}`                             |
-| `backup.volumeMounts`                 | Name of the remote backup storage                                 | `""`                             |
-| `backup.pitr.enabled`                 | Enable point in time recovery for backup                          | `false`                          |
-| `backup.pitr.oplogOnly`               | Start collecting oplogs even if full logical backup doesn't exist | `false`                          |
-| `backup.pitr.oplogSpanMin`            | Number of minutes between the uploads of oplogs                   | `10`                             |
-| `backup.pitr.compressionType`         | The point-in-time-recovery chunks compression format              | `""`                             |
-| `backup.pitr.compressionLevel`        | The point-in-time-recovery chunks compression level               | `""`                             |
-| `backup.configuration.backupOptions`  | Custom configuration settings for backup                          | `{}`                             |
-| `backup.configuration.restoreOptions` | Custom configuration settings for restore                         | `{}`                             |
-| `backup.tasks`                        | Backup working schedule                                           | `{}`                             |
-| `systemUsers`                         | PSMDB operator system users                                       | `{}`                             |
+| `backup.enabled`                                   | Enable backup PBM agent                                                       | `true`                           |
+| `backup.annotations`                               | Backup job annotations                                                        | `{}`                             |
+| `backup.podSecurityContext`                        | Set the security context for a Pod                                            | `{}`                             |
+| `backup.containerSecurityContext`                  | Set the security context for a Container                                      | `{}`                             |
+| `backup.restartOnFailure`                          | Backup Pods restart policy                                                    | `true`                           |
+| `backup.image.repository`                          | PBM Container image repository                                                | `percona/percona-backup-mongodb` |
+| `backup.image.tag`                                 | PBM Container image tag                                                       | `2.9.1`                          |
+| `backup.storages`                                  | Local/remote backup storages settings                                         | `{}`                             |
+| `backup.volumeMounts`                              | Name of the remote backup storage                                             | `""`                             |
+| `backup.pitr.enabled`                              | Enable point in time recovery for backup                                      | `false`                          |
+| `backup.pitr.oplogOnly`                            | Start collecting oplogs even if full logical backup doesn't exist             | `false`                          |
+| `backup.pitr.oplogSpanMin`                         | Number of minutes between the uploads of oplogs                               | `10`                             |
+| `backup.pitr.compressionType`                      | The point-in-time-recovery chunks compression format                          | `""`                             |
+| `backup.pitr.compressionLevel`                     | The point-in-time-recovery chunks compression level                           | `""`                             |
+| `backup.configuration.backupOptions`               | Custom configuration settings for backup                                      | `{}`                             |
+| `backup.configuration.restoreOptions`              | Custom configuration settings for restore                                     | `{}`                             |
+| `backup.tasks`                                     | Backup working schedule                                                       | `[]`                             |
+| `backup.tasks[].name`                              | Name of the backup schedule                                                   | `""`                             |
+| `backup.tasks[].enabled`                           | Enable scheduled backup task                                                  | `false`                          |
+| `backup.tasks[].schedule`                          | Backup execution timetable cron timing                                        | `false`                          |
+| `backup.tasks[].retention.count`                   | Backup jobs to keep                                                           | `0`                              |
+| `backup.tasks[].retention.type`                    | Backup retention type                                                         | `count`                          |
+| `backup.tasks[].retention.deleteFromStorage`       | Whether to add the "percona.com/delete-backup" finalizer to new backups       | `true`                           |
+| `backup.tasks[].storageName`                       | Backup storage name                                                           | `""`                             |
+| `backup.tasks[].compressionType`                   | Backup compression type                                                       | `gzip`                           |
+| `systemUsers`                                      | PSMDB operator system users                                                   | `{}`                             |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
