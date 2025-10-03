@@ -20,6 +20,7 @@ finalizers:
 nameOverride: ""
 fullnameOverride: ""
 
+
 crVersion: 1.21.0
 pause: false
 unmanaged: false
@@ -31,7 +32,7 @@ unsafeFlags:
   backupIfUnhealthy: false
 
 enableVolumeExpansion: false
-
+# enableExternalVolumeAutoscaling: false
 annotations: {}
 
 # ignoreAnnotations:
@@ -50,7 +51,7 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 7.0.18-11
+  tag: 8.0.12-4
 
 imagePullPolicy: Always
 # imagePullSecrets: []
@@ -83,7 +84,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.44.1
+    tag: 3.4.0
   serverHost: monitoring-service
 #  customClusterName: ""
 #  mongodParams: ""
@@ -581,7 +582,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.9.1
+    tag: 2.11.0
   # annotations:
   #   iam.amazonaws.com/role: role-arn
   # podSecurityContext: {}
@@ -665,19 +666,28 @@ backup:
   # - name: daily-s3-us-west
   #   enabled: true
   #   schedule: "0 0 * * *"
-  #   keep: 3
+  #   retention:
+  #     count: 3
+  #     type: count
+  #     deleteFromStorage: true
   #   storageName: s3-us-west
   #   compressionType: gzip
   # - name: weekly-s3-us-west
   #   enabled: false
   #   schedule: "0 0 * * 0"
-  #   keep: 5
+  #   retention:
+  #     count: 3
+  #     type: count
+  #     deleteFromStorage: true
   #   storageName: s3-us-west
   #   compressionType: gzip
   # - name: weekly-s3-us-west-physical
   #   enabled: false
   #   schedule: "0 5 * * 0"
-  #   keep: 5
+  #   retention:
+  #     count: 3
+  #     type: count
+  #     deleteFromStorage: true
   #   type: physical
   #   storageName: s3-us-west
   #   compressionType: gzip
