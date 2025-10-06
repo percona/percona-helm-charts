@@ -39,7 +39,7 @@ spec:
                   podAffinityTerm:
                     labelSelector:
                       matchLabels:
-                        clickhouse-keeper.altinity.com/app: chop-keeper
+                        clickhouse-keeper.altinity.com/chk: {{ .Release.Name }}-keeper
                     topologyKey: kubernetes.io/hostname
           containers:
             - name: clickhouse-keeper

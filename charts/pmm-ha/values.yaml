@@ -38,6 +38,7 @@ pmmEnv:
   PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
   PMM_CLICKHOUSE_POOL_SIZE: "2"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
+  PMM_CLICKHOUSE_CLUSTER_NAME: "{{ .Values.clickhouse.cluster.name }}"
   # PMM_CLICKHOUSE_USER: "chuser"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
@@ -317,7 +318,7 @@ global:
 
 clickhouse:
   cluster:
-    name: clickhouse
+    name: pmm-clickhouse
     # Sharding and Replication setup
     shards: 1
     replicas: 3

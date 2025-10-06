@@ -18,7 +18,7 @@ spec:
     
     # 1 Shard, 3 Replicas setup
     clusters:
-      - name: pmm-clickhouse
+      - name: {{ .Values.clickhouse.cluster.name }}
         templates:
           podTemplate: clickhouse-pod-template
         layout:
@@ -91,7 +91,7 @@ spec:
                   podAffinityTerm:
                     labelSelector:
                       matchLabels:
-                        clickhouse.altinity.com/app: chop
+                        clickhouse.altinity.com/chi: {{ .Release.Name }}-clickhouse
                     topologyKey: kubernetes.io/hostname
           containers:
             - name: clickhouse
