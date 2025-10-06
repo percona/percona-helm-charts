@@ -145,7 +145,7 @@ spec:
             - name: PMM_ACTIVE_NODE_IP
               value: "{{ .Release.Name }}-0"
             - name: PMM_CLICKHOUSE_ADDR
-              value: "clickhouse-{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
+              value: "clickhouse-{{ .Release.Name }}.{{ .Release.Namespace }}.svc.cluster.local:9000"
             - name: PMM_POSTGRES_ADDR
               value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
             - name: PMM_TEST_HA_PEERS

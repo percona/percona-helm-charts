@@ -7,7 +7,7 @@ spec:
     clusters:
       - name: nodes
         layout:
-          replicasCount: 3
+          replicasCount: {{ .Values.clickhouse.keeper.replicasCount }}
     settings:
       keeper_server/tcp_port: "2181"
       logger/level: "information"

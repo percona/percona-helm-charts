@@ -323,6 +323,11 @@ clickhouse:
     shards: 1
     replicas: 3
   
+  # ClickHouse Keeper configuration
+  keeper:
+    # Number of Keeper nodes (should be odd number: 1, 3, 5, etc.)
+    replicasCount: 3
+  
   # PMM application user configuration
   users:
     chuser:
