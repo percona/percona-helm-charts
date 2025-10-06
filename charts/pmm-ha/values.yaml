@@ -33,12 +33,12 @@ pmmEnv:
   # PMM_ACTIVE_NODE_ID: "pmmhak8s-0"
   PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
-  #PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
+  # PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
   PMM_CLICKHOUSE_POOL_SIZE: "2"
-  #PMM_CLICKHOUSE_USER: "chuser"
-  #PMM_CLICKHOUSE_PASSWORD: "chpass"
+  # PMM_CLICKHOUSE_USER: "chuser"
+  # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
   # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
@@ -334,23 +334,7 @@ clickhouse:
           - 10.0.0.0/8
           - 172.16.0.0/12
           - 192.168.0.0/16
-    
-  
-haproxy:
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            topologyKey: kubernetes.io/hostname
-            labelSelector:
-              matchLabels:
-                app.kubernetes.io/name: haproxy
-  # Init container to wait for PMM instances to be ready
-  initContainers:
-    - name: wait-for-pmm-ready
-      image: "alpine:3.18"
-      command:
+
 haproxy:
   affinity:
     podAntiAffinity:
