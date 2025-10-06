@@ -11,13 +11,13 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  # repository: perconalab/pmm-server
-  repository: perconalab/pmm-server-fb
+  repository: perconalab/pmm-server
+  # repository: perconalab/pmm-server-fb
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4047-16861fb"
-  # tag: "3-dev-latest"
+  # tag: "PR-4047-16861fb"
+  tag: "3-dev-latest"
   # tag: "latest"
   imagePullSecrets: []
 
@@ -37,6 +37,7 @@ pmmEnv:
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
   PMM_CLICKHOUSE_POOL_SIZE: "2"
+  PMM_CLICKHOUSE_IS_CLUSTER: "1"
   # PMM_CLICKHOUSE_USER: "chuser"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
