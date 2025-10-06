@@ -3,7 +3,7 @@ dependencies:
   repository: file://charts/victoria-metrics-cluster
   version: 0.18.0
 - name: altinity-clickhouse-operator
-  repository: https://helm.altinity.com
+  repository: https://altinity.github.io/clickhouse-operator/
   version: 0.25.4
 - name: haproxy
   repository: file://charts/haproxy
@@ -14,5 +14,5 @@ dependencies:
 - name: pg-operator
   repository: file://charts/pg-operator
   version: 2.5.0
-digest: sha256:43cfaa7abdbaf9cee890c58e4300aa5f880e5f21839c429b7cea8b18ffc09bc7
-generated: "2025-09-30T15:00:46.781128+02:00"
+digest: sha256:f110ac1db6f265a4923df4b96cfca5f2cf638685b6fcc73ced7d2bf5b086d6fe
+generated: "2025-10-01T15:23:51.541955+02:00"

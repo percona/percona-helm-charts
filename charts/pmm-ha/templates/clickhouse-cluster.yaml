@@ -1,54 +1,110 @@
-{{- if .Values.clickhouse.enabled }}
-apiVersion: clickhouse.altinity.com/v1
+apiVersion: "clickhouse.altinity.com/v1"
 kind: ClickHouseInstallation
 metadata:
   name: {{ .Release.Name }}-clickhouse
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: {{ include "pmm.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/component: clickhouse
 spec:
   configuration:
+    # ClickHouse Keeper coordination
+    zookeeper:
+      nodes:
+        - host: chk-{{ .Release.Name }}-keeper-nodes-0-0.{{ .Release.Namespace }}.svc.cluster.local
+          port: 2181
+        - host: chk-{{ .Release.Name }}-keeper-nodes-0-1.{{ .Release.Namespace }}.svc.cluster.local
+          port: 2181
+        - host: chk-{{ .Release.Name }}-keeper-nodes-0-2.{{ .Release.Namespace }}.svc.cluster.local
+          port: 2181
+      session_timeout_ms: 30000
+      operation_timeout_ms: 10000
+    
+    # 1 Shard, 3 Replicas setup
     clusters:
-      - name: pmm-cluster
-        layout:
-          shardsCount: {{ .Values.clickhouse.shards | default 1 }}
-          replicasCount: {{ .Values.clickhouse.replicas | default 3 }}
+      - name: pmm-clickhouse
         templates:
           podTemplate: clickhouse-pod-template
-          volumeClaimTemplate: clickhouse-volume-template
-        users:
-          chuser/password: chpass
-          chuser/networks/ip: "::/0"
-          chuser/profile: default
-          chuser/quota: default
-        settings:
-          {{- range $key, $value := .Values.clickhouse.customSettings }}
-          {{ $key }}: {{ $value }}
-          {{- end }}
+        layout:
+          shardsCount: {{ .Values.clickhouse.cluster.shards }}
+          replicasCount: {{ .Values.clickhouse.cluster.replicas }}
+    
+    # Prometheus metrics configuration
+    settings:
+      prometheus/port: "9363"
+      prometheus/endpoint: "/metrics"
+      prometheus/metrics: "true"
+      prometheus/events: "true"
+      prometheus/asynchronous_metrics: "true"
+    
+    # Profiles configuration
+    profiles:
+      clickhouse_operator/allow_experimental_analyzer: "0"
+      clickhouse_operator/prefer_localhost_replica: "1"
+      readonly/readonly: "2"
+    
+    # User management - provision secure default users
+    users:
+      # Admin user for operator management
+      clickhouse_operator/access_management: "1"
+      clickhouse_operator/named_collection_control: "1"
+      clickhouse_operator/networks/ip:
+        - 127.0.0.1
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+      clickhouse_operator/profile: clickhouse_operator
+      clickhouse_operator/quota: default
+      clickhouse_operator/show_named_collections: "1"
+      clickhouse_operator/show_named_collections_secrets: "1"
+      
+      # PMM application user (chuser)
+      {{ .Values.clickhouse.users.chuser.name }}/password_sha256_hex: "{{ .Values.clickhouse.users.chuser.password_sha256_hex }}"
+      {{ .Values.clickhouse.users.chuser.name }}/networks/ip:
+        {{- range .Values.clickhouse.users.chuser.networks.ip }}
+        - {{ . }}
+        {{- end }}
+      {{ .Values.clickhouse.users.chuser.name }}/profile: default
+      {{ .Values.clickhouse.users.chuser.name }}/quota: default
+      {{ .Values.clickhouse.users.chuser.name }}/access_management: "1"
+    
+    # Disable default user completely via XML override
+    files:
+      users.d/disable-default-user.xml: |
+        <clickhouse>
+          <users>
+            <default remove="1"/>
+          </users>
+        </clickhouse>
+
   templates:
     podTemplates:
       - name: clickhouse-pod-template
+        generateName: "{{ .Release.Name }}-{cluster}-{shard}-{replica}"
+        metadata:
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9363"
+            prometheus.io/path: "/metrics"
         spec:
+          # Pod anti-affinity to spread replicas across different nodes
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        clickhouse.altinity.com/app: chop
+                    topologyKey: kubernetes.io/hostname
           containers:
             - name: clickhouse
-              image: clickhouse/clickhouse-server:23.3.21
+              image: altinity/clickhouse-server:25.3.6.10034.altinitystable-alpine # Use a stable image
+              ports:
+                - name: metrics
+                  containerPort: 9363
+                  protocol: TCP
               resources:
                 requests:
-                  memory: {{ .Values.clickhouse.resources.requests.memory | default "1Gi" }}
-                  cpu: {{ .Values.clickhouse.resources.requests.cpu | default "500m" }}
+                  memory: "1Gi"
+                  cpu: "500m"
                 limits:
-                  memory: {{ .Values.clickhouse.resources.limits.memory | default "2Gi" }}
-                  cpu: {{ .Values.clickhouse.resources.limits.cpu | default "1000m" }}
-              affinity:
-                {{- toYaml .Values.clickhouse.affinity | nindent 16 }}
-    volumeClaimTemplates:
-      - name: clickhouse-volume-template
-        spec:
-          accessModes:
-            - ReadWriteOnce
-          resources:
-            requests:
-              storage: {{ .Values.clickhouse.storage.size | default "10Gi" }}
-{{- end }}
+                  memory: "4Gi"
+                  cpu: "2"
+

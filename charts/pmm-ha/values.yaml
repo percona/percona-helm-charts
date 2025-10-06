@@ -11,11 +11,13 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  repository: perconalab/pmm-server
+  # repository: perconalab/pmm-server
+  repository: perconalab/pmm-server-fb
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "3-dev-latest"
+  tag: "PR-4047-16861fb"
+  # tag: "3-dev-latest"
   # tag: "latest"
   imagePullSecrets: []
 
@@ -31,12 +33,12 @@ pmmEnv:
   # PMM_ACTIVE_NODE_ID: "pmmhak8s-0"
   PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
-  PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
+  #PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
   PMM_CLICKHOUSE_POOL_SIZE: "2"
-  PMM_CLICKHOUSE_USER: "chuser"
-  PMM_CLICKHOUSE_PASSWORD: "chpass"
+  #PMM_CLICKHOUSE_USER: "chuser"
+  #PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
   # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
@@ -312,34 +314,43 @@ global:
   pmm_ha_1: "{{ .Release.Name }}-1.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
   pmm_ha_2: "{{ .Release.Name }}-2.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
 
-# ClickHouse configuration using Altinity operator
 clickhouse:
-  enabled: true
-  # Altinity ClickHouse operator configuration
-  shards: 1
-  replicas: 3
+  cluster:
+    name: clickhouse
+    # Sharding and Replication setup
+    shards: 1
+    replicas: 3
+  
+  # PMM application user configuration
+  users:
+    chuser:
+      name: chuser
+      # Password hash for "chpass" - In production, this should reference a secret
+      # Generated with: echo -n "chpass" | sha256sum
+      password_sha256_hex: "2cbe8881ad45dbaaef2b0398b382cbbc10fa55b50205763ef8f0b2f5bf511367"
+      networks:
+        ip:
+          # Allow access from Kubernetes pod networks and HAProxy
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+    
+  
+haproxy:
   affinity:
     podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/component
-                operator: In
-                values:
-                  - clickhouse
-          topologyKey: kubernetes.io/hostname
-  resources:
-    requests:
-      memory: "1Gi"
-      cpu: "500m"
-    limits:
-      memory: "2Gi"
-      cpu: "1000m"
-  storage:
-    size: 10Gi
-  customSettings:
-    default/default_database: pmm
-
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: haproxy
+  # Init container to wait for PMM instances to be ready
+  initContainers:
+    - name: wait-for-pmm-ready
+      image: "alpine:3.18"
+      command:
 haproxy:
   affinity:
     podAntiAffinity:
