@@ -32,6 +32,8 @@ spec:
             prometheus.io/path: "/metrics"
         spec:
           # Pod anti-affinity to spread Keeper nodes across different hosts
+          # Using preferredDuringScheduling for soft anti-affinity (allows single-node deployments)
+          # Weight 100 (max) makes this the highest priority soft constraint
           affinity:
             podAntiAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
@@ -58,7 +60,10 @@ spec:
         spec:
           accessModes:
             - ReadWriteOnce
+          {{- if .Values.clickhouse.keeper.storage.storageClassName }}
+          storageClassName: {{ .Values.clickhouse.keeper.storage.storageClassName }}
+          {{- end }}
           resources:
             requests:
-              storage: 5Gi
+              storage: {{ .Values.clickhouse.keeper.storage.size }}
 
