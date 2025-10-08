@@ -1,3 +1,10 @@
+{{- $secret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
+{{- $clickhouseUser := "clickhouse_pmm" }}
+{{- if $secret }}
+{{- $clickhouseUser = (index $secret.data "PMM_CLICKHOUSE_USER" | b64dec) }}
+{{- else if .Values.secret.clickhouse_user }}
+{{- $clickhouseUser = .Values.secret.clickhouse_user }}
+{{- end }}
 apiVersion: "clickhouse.altinity.com/v1"
 kind: ClickHouseInstallation
 metadata:
@@ -56,18 +63,18 @@ spec:
       
       # PMM application user - password from Kubernetes secret
       # Using valueFrom with secretKeyRef to read password from secret
-      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/password:
+      {{ $clickhouseUser }}/password:
         valueFrom:
           secretKeyRef:
             name: {{ .Values.secret.name }}
             key: PMM_CLICKHOUSE_PASSWORD
-      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/networks/ip:
+      {{ $clickhouseUser }}/networks/ip:
         {{- range .Values.clickhouse.users.networks.ip }}
         - {{ . }}
         {{- end }}
-      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/profile: default
-      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/quota: default
-      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/access_management: "1"
+      {{ $clickhouseUser }}/profile: default
+      {{ $clickhouseUser }}/quota: default
+      {{ $clickhouseUser }}/access_management: "1"
     
     # Disable default user for security
     files:
