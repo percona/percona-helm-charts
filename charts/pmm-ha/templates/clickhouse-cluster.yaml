@@ -56,18 +56,18 @@ spec:
       
       # PMM application user - password from Kubernetes secret
       # Using valueFrom with secretKeyRef to read password from secret
-      {{ .Values.secret.clickhouse_user | default "chuser" }}/password:
+      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/password:
         valueFrom:
           secretKeyRef:
             name: {{ .Values.secret.name }}
             key: PMM_CLICKHOUSE_PASSWORD
-      {{ .Values.secret.clickhouse_user | default "chuser" }}/networks/ip:
+      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/networks/ip:
         {{- range .Values.clickhouse.users.networks.ip }}
         - {{ . }}
         {{- end }}
-      {{ .Values.secret.clickhouse_user | default "chuser" }}/profile: default
-      {{ .Values.secret.clickhouse_user | default "chuser" }}/quota: default
-      {{ .Values.secret.clickhouse_user | default "chuser" }}/access_management: "1"
+      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/profile: default
+      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/quota: default
+      {{ .Values.secret.clickhouse_user | default "clickhouse_pmm" }}/access_management: "1"
     
     # Disable default user for security
     files:

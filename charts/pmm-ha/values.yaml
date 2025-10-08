@@ -39,7 +39,7 @@ pmmEnv:
   PMM_CLICKHOUSE_POOL_SIZE: "2"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
   # PMM_CLICKHOUSE_CLUSTER_NAME is set directly in statefulset.yaml
-  # PMM_CLICKHOUSE_USER: "chuser"
+  # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
@@ -103,9 +103,9 @@ secret:
   ##
   pmm_password: ""
   ##
-  ## @param secret.clickhouse_user ClickHouse username. If not set, defaults to "chuser"
+  ## @param secret.clickhouse_user ClickHouse username. If not set, defaults to "clickhouse_pmm"
   ## E.g.
-  ## clickhouse_user: chuser
+  ## clickhouse_user: clickhouse_pmm
   ##
   clickhouse_user: ""
   ##
