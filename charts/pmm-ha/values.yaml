@@ -16,8 +16,8 @@ image:
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4047-5157c0a"
-  # tag: "3-dev-latest"
+  # tag: "PR-4047-5157c0a"
+  tag: "3-dev-latest"
   # tag: "latest"
   imagePullSecrets: []
 
@@ -335,7 +335,7 @@ global:
 
 clickhouse:
   cluster:
-    name: pmmclickhouse
+    name: pmm-clickhouse
     # Sharding and Replication setup
     shards: 1
     replicas: 3
