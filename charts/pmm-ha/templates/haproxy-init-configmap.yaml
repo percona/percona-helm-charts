@@ -20,14 +20,12 @@ data:
       
       echo "Checking PMM instance: $pmm_host:$pmm_port"
       
-      if curl -s --max-time "$timeout" --fail "http://$pmm_host:$pmm_port/v1/readyz" > /dev/null 2>&1; then
-        echo "✅ HTTP health check passed for $pmm_host:$pmm_port"
-        return 0
-      elif curl -s --max-time "$timeout" --fail -k "https://$pmm_host:$pmm_port/v1/readyz" > /dev/null 2>&1; then
-        echo "✅ HTTPS health check passed for $pmm_host:$pmm_port"
+      local https_code=$(curl -s --max-time "$timeout" -k -o /dev/null -w "%{http_code}" "https://$pmm_host:$pmm_port/")
+      if [ "$https_code" = "200" ] || [ "$https_code" = "302" ]; then
+        echo "✅ HTTPS connection check passed for $pmm_host:$pmm_port (status: $https_code)"
         return 0
       else
-        echo "❌ Health check failed for $pmm_host:$pmm_port"
+        echo "❌ Connection check failed for $pmm_host:$pmm_port (HTTPS status: $https_code)"
         return 1
       fi
     }
@@ -44,7 +42,7 @@ data:
       for i in $(seq 0 $(({{ .Values.replicas }} - 1))); do
         pmm_host="{{ .Release.Name }}-$i.{{ .Values.service.name | default "monitoring-service" }}.{{ .Release.Namespace }}.svc.cluster.local"
         
-        if check_pmm_ready "$pmm_host" "8080" 5; then
+        if check_pmm_ready "$pmm_host" "8443" 5; then
           ready_count=$((ready_count + 1))
           echo "✅ Instance $i is ready ($ready_count/{{ .Values.replicas }})"
         else
