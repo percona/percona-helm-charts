@@ -42,7 +42,7 @@ data:
       ready_count=0
       
       for i in $(seq 0 $(({{ .Values.replicas }} - 1))); do
-        pmm_host="{{ .Release.Name }}-$i.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
+        pmm_host="{{ .Release.Name }}-$i.{{ .Values.service.name | default "monitoring-service" }}.{{ .Release.Namespace }}.svc.cluster.local"
         
         if check_pmm_ready "$pmm_host" "8080" 5; then
           ready_count=$((ready_count + 1))
