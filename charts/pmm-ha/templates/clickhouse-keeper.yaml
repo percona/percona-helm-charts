@@ -45,8 +45,8 @@ spec:
                     topologyKey: kubernetes.io/hostname
           containers:
             - name: clickhouse-keeper
-              image: clickhouse/clickhouse-keeper:24.8
-              imagePullPolicy: IfNotPresent
+              image: {{ .Values.clickhouse.keeper.image.repository }}:{{ .Values.clickhouse.keeper.image.tag }}
+              imagePullPolicy: {{ .Values.clickhouse.keeper.image.pullPolicy }}
               resources:
                 requests:
                   memory: "256Mi"

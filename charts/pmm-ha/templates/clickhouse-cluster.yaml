@@ -110,7 +110,8 @@ spec:
                     topologyKey: kubernetes.io/hostname
           containers:
             - name: clickhouse
-              image: altinity/clickhouse-server:25.3.6.10034.altinitystable-alpine # Use a stable image
+              image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
+              imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
               ports:
                 - name: metrics
                   containerPort: 9363
