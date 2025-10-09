@@ -115,4 +115,31 @@ Generate PMM HA node ID for specific replica index
 {{- printf "%s-%d" .Release.Name .index }}
 {{- end -}}
 
+{{/*
+Generate comma-separated list of ClickHouse pod FQDNs (without port)
+
+NOTE: This naming pattern is defined by the ClickHouse Operator (Altinity).
+Reference: https://github.com/Altinity/clickhouse-operator/blob/master/pkg/model/chi/namer/patterns.go
+Pattern: chi-{chi}-{cluster}-{shard}-{replica}.{namespace}.svc.cluster.local
+Where:
+  - chi = ClickHouseInstallation CR name (Release.Name)
+  - cluster = cluster name from spec.configuration.clusters[].name
+  - shard = shard index (0-based)
+  - replica = replica index (0-based)
+
+Example output: chi-pmm-ha-bela-pmm-clickhouse-0-0.pmm-ha-dafasief.svc.cluster.local,chi-pmm-ha-bela-pmm-clickhouse-0-1.pmm-ha-dafasief.svc.cluster.local
+
+Alternative discovery: PMM can query ClickHouse system.clusters table at runtime for dynamic node discovery.
+*/}}
+{{- define "pmm.clickhouse.nodes" -}}
+{{- $nodes := list -}}
+{{- range $shardIndex := until (int .Values.clickhouse.cluster.shards) -}}
+{{- range $replicaIndex := until (int $.Values.clickhouse.cluster.replicas) -}}
+{{- $nodeFQDN := printf "chi-%s-%s-%d-%d.%s.svc.cluster.local" $.Release.Name $.Values.clickhouse.cluster.name $shardIndex $replicaIndex $.Release.Namespace -}}
+{{- $nodes = append $nodes $nodeFQDN -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $nodes -}}
+{{- end -}}
+
 

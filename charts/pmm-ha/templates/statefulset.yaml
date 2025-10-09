@@ -145,11 +145,15 @@ spec:
             - name: PMM_ACTIVE_NODE_IP
               value: "{{ include "pmm.haNodeId" (dict "Release" .Release "Values" .Values "index" 0) }}"
             - name: PMM_CLICKHOUSE_ADDR
-              value: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
+              value: "{{ .Release.Name }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
+            - name: PMM_CLICKHOUSE_CLUSTER_NAME
+              value: "{{ .Values.clickhouse.cluster.name }}"
             - name: PMM_POSTGRES_ADDR
               value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
             - name: PMM_TEST_HA_PEERS
               value: "{{ include "pmm.haPeers" . }}"
+            - name: PMM_CLICKHOUSE_NODES
+              value: {{ include "pmm.clickhouse.nodes" . | quote }}
           ports:
             - name: http
               containerPort: 8080
