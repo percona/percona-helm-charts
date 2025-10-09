@@ -5,6 +5,8 @@ on:
     path-ignore:
     - 'charts/gcp-marketplace/**'
     - 'charts/everest/**'
+    - 'charts/pmm-ha/**'
+
 
 jobs:
   lint-test:
@@ -36,7 +38,7 @@ jobs:
           fi
 
       - name: Run chart-testing (lint)
-        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest
+        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest,pmm-ha
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0

@@ -20,9 +20,9 @@ dependencies:
   - name: victoria-metrics-cluster
     version: 0.18.0
     repository: file://charts/victoria-metrics-cluster
-  - name: clickhouse
-    version: 4.0.3
-    repository: file://charts/clickhouse
+  - name: altinity-clickhouse-operator
+    version: 0.25.4
+    repository: https://helm.altinity.com
   - name: haproxy
     version: 1.24.0
     repository: file://charts/haproxy

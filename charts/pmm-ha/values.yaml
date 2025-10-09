@@ -12,9 +12,11 @@
 ##
 image:
   repository: perconalab/pmm-server
+  # repository: perconalab/pmm-server-fb
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
+  # tag: "PR-4047-5157c0a"
   tag: "3-dev-latest"
   # tag: "latest"
   imagePullSecrets: []
@@ -31,11 +33,13 @@ pmmEnv:
   # PMM_ACTIVE_NODE_ID: "pmmhak8s-0"
   PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
-  # PMM_CLICKHOUSE_ADDR: "pmmhak8s-clickhouse.pmmhak8s.svc.cluster.local:9000"
+  # PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
   PMM_CLICKHOUSE_POOL_SIZE: "2"
-  # PMM_CLICKHOUSE_USER: "chuser"
+  PMM_CLICKHOUSE_IS_CLUSTER: "1"
+  # PMM_CLICKHOUSE_CLUSTER_NAME is set directly in statefulset.yaml
+  # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
@@ -98,6 +102,23 @@ secret:
   ## To get password execute `kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode`
   ##
   pmm_password: ""
+  ##
+  ## @param secret.clickhouse_user ClickHouse username. If not set, defaults to "clickhouse_pmm"
+  ## E.g.
+  ## clickhouse_user: clickhouse_pmm
+  ##
+  clickhouse_user: ""
+  ##
+  ## @param secret.clickhouse_password ClickHouse password. If not set, it will be auto-generated
+  ## When secret.create: true and this is empty, a random 32-character password is generated.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get password after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' | base64 --decode
+  ## E.g.
+  ## clickhouse_password: my_secure_password
+  ##
+  clickhouse_password: ""
   ##
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID optional client ID to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
@@ -312,12 +333,85 @@ global:
   pmm_ha_1: "{{ .Release.Name }}-1.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
   pmm_ha_2: "{{ .Release.Name }}-2.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
 
-# Subchart scheduling overrides to spread replicas across nodes
 clickhouse:
-  zookeeper:
-    podAntiAffinityPreset: soft
-  podAntiAffinityPreset: soft
-  distributeReplicasByZone: true
+  # ClickHouse server image configuration
+  image:
+    repository: altinity/clickhouse-server
+    tag: 25.3.6.10034.altinitystable-alpine
+    pullPolicy: IfNotPresent
+  
+  # ClickHouse server resource configuration
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2"
+  
+  cluster:
+    # Cluster name restrictions: alphanumeric only, max 15 chars, no underscores
+    name: pmmdb
+    # Sharding and Replication setup
+    shards: 1
+    replicas: 3
+  
+  # Service configuration for sticky connections
+  service:
+    # Enable sticky service with session affinity
+    enabled: true
+    # Session affinity timeout in seconds (how long connections stay sticky)
+    sessionAffinityTimeout: 10800  # 3 hours
+  
+  # ClickHouse Keeper configuration
+  keeper:
+    # ClickHouse Keeper image configuration
+    image:
+      repository: clickhouse/clickhouse-keeper
+      tag: "25.3.6.56"
+      pullPolicy: IfNotPresent
+    # ClickHouse Keeper resource configuration
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    # ClickHouse Keeper cluster configuration
+    cluster:
+      # Keeper cluster name (follows same restrictions as ClickHouse cluster)
+      # Regex: ^[a-zA-Z0-9-]{0,15}$
+      name: keeper-nodes
+    # Number of Keeper nodes (should be odd number: 1, 3, 5, etc.)
+    replicasCount: 3
+    # Persistent storage configuration for Keeper data
+    storage:
+      # Size of persistent volume for each Keeper pod
+      size: 5Gi
+      # Storage class for Keeper persistent volumes
+      # If empty, uses the cluster's default storage class
+      storageClassName: ""
+  
+  # Persistent storage configuration for ClickHouse data
+  storage:
+    # Size of persistent volume for each ClickHouse pod
+    size: 20Gi
+    # Storage class for ClickHouse persistent volumes
+    # If empty, uses the cluster's default storage class
+    # storageClassName: ""
+    storageClassName: ""
+  
+  # PMM application user configuration
+  # User credentials are read from the pmm-secret at chart installation time
+  users:
+    # Network access configuration for ClickHouse user
+    networks:
+      ip:
+        # Allow access from Kubernetes pod networks and HAProxy
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
 
 haproxy:
   affinity:
