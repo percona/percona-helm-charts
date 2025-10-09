@@ -337,8 +337,7 @@ clickhouse:
   # ClickHouse server image configuration
   image:
     repository: altinity/clickhouse-server
-    # tag: 25.3.6.10034.altinitystable-alpine
-    tag: 25.6.5.20420.altinityantalya-alpine
+    tag: 25.3.6.10034.altinitystable-alpine
     pullPolicy: IfNotPresent
   
   cluster:
