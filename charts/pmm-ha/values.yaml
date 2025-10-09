@@ -341,6 +341,7 @@ clickhouse:
     pullPolicy: IfNotPresent
   
   cluster:
+    # Cluster name restrictions: alphanumeric only, max 15 chars, no underscores
     name: pmmdb
     # Sharding and Replication setup
     shards: 1
