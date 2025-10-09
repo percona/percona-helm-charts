@@ -142,4 +142,30 @@ Alternative discovery: PMM can query ClickHouse system.clusters table at runtime
 {{- join "," $nodes -}}
 {{- end -}}
 
+{{/*
+Generate ClickHouse Keeper nodes list dynamically based on replicasCount
+
+NOTE: This naming pattern is defined by the ClickHouse Keeper Operator (Altinity).
+Reference: https://github.com/Altinity/clickhouse-keeper-operator
+Pattern: chk-{name}-{cluster}-0-{replica}.{namespace}.svc.cluster.local
+Where:
+  - name = ClickHouseKeeperInstallation CR name (Release.Name-keeper)
+  - cluster = keeper cluster name from spec.configuration.clusters[].name
+  - replica = replica index (0-based)
+
+Example output for 3 replicas:
+  - host: chk-pmm-ha-keeper-keeper-nodes-0-0.pmm-ha.svc.cluster.local
+    port: 2181
+  - host: chk-pmm-ha-keeper-keeper-nodes-0-1.pmm-ha.svc.cluster.local
+    port: 2181
+*/}}
+{{- define "pmm.clickhouse.keeper.nodes" -}}
+{{- $keeperClusterName := .Values.clickhouse.keeper.cluster.name -}}
+{{- $replicasCount := int .Values.clickhouse.keeper.replicasCount -}}
+{{- range $replicaIndex := until $replicasCount }}
+- host: chk-{{ $.Release.Name }}-keeper-{{ $keeperClusterName }}-0-{{ $replicaIndex }}.{{ $.Release.Namespace }}.svc.cluster.local
+  port: 2181
+{{- end -}}
+{{- end -}}
+
 
