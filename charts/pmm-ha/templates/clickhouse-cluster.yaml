@@ -117,12 +117,7 @@ spec:
                   containerPort: 9363
                   protocol: TCP
               resources:
-                requests:
-                  memory: "1Gi"
-                  cpu: "500m"
-                limits:
-                  memory: "4Gi"
-                  cpu: "2"
+                {{- toYaml .Values.clickhouse.resources | nindent 16 }}
     
     # Persistent volume configuration for ClickHouse data
     volumeClaimTemplates:

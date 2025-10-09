@@ -5,7 +5,7 @@ metadata:
 spec:
   configuration:
     clusters:
-      - name: nodes
+      - name: {{ .Values.clickhouse.keeper.cluster.name }}
         layout:
           replicasCount: {{ .Values.clickhouse.keeper.replicasCount }}
     settings:
@@ -48,12 +48,7 @@ spec:
               image: {{ .Values.clickhouse.keeper.image.repository }}:{{ .Values.clickhouse.keeper.image.tag }}
               imagePullPolicy: {{ .Values.clickhouse.keeper.image.pullPolicy }}
               resources:
-                requests:
-                  memory: "256Mi"
-                  cpu: "100m"
-                limits:
-                  memory: "512Mi"
-                  cpu: "500m"
+                {{- toYaml .Values.clickhouse.keeper.resources | nindent 16 }}
     
     volumeClaimTemplates:
       - name: keeper-data-volume
