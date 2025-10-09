@@ -368,7 +368,7 @@ clickhouse:
     # ClickHouse Keeper image configuration
     image:
       repository: clickhouse/clickhouse-keeper
-      tag: "24.8"
+      tag: "25.3.6.56"
       pullPolicy: IfNotPresent
     # ClickHouse Keeper resource configuration
     resources:
