@@ -80,6 +80,9 @@ spec:
       {{- if $user.secretName }}
       secretName: {{ $user.secretName }}
       {{- end }}
+      {{- if $user.grantPublicSchemaAccess }}
+      grantPublicSchemaAccess: {{ $user.grantPublicSchemaAccess }}
+      {{- end}}
   {{- end }}
   {{- end }}
 
