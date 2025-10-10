@@ -29,8 +29,8 @@ pmmEnv:
   ##
   DISABLE_UPDATES: "1"
   PMM_DEBUG: "0"
-  # PMM_ACTIVE_IP: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local"
-  # PMM_ACTIVE_NODE_ID: "pmmhak8s-0"
+  # PMM_ACTIVE_IP: "{{ include "pmm.haPeer" (dict "Release" .Release "Values" .Values "index" 0) }}"
+  # PMM_ACTIVE_NODE_ID: "{{ include "pmm.haNodeId" (dict "Release" .Release "Values" .Values "index" 0) }}"
   PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
   # PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
@@ -43,17 +43,17 @@ pmmEnv:
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
-  # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
+  # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
-  # PMM_VM_URL: "http://vmadmin:vmpass@pmmhak8s-victoria-metrics-cluster-vmauth.pmmhak8s.svc.cluster.local:8427/"
-  # VMAGENT_remoteWrite_basicAuth_username: "vmadmin"
-  # VMAGENT_remoteWrite_basicAuth_password: "vmpass"
+  # PMM_VM_URL: "http://:@:8427/"
+  # VMAGENT_remoteWrite_basicAuth_username: ""
+  # VMAGENT_remoteWrite_basicAuth_password: ""
   PMM_TEST_HA_ENABLE: "1"
   PMM_TEST_HA_BOOTSTRAP: "1"
   PMM_TEST_HA_GOSSIP_PORT: "9096"
   PMM_TEST_HA_RAFT_PORT: "9097"
   PMM_TEST_HA_GRAFANA_GOSSIP_PORT: "9094"
-  # PMM_TEST_HA_PEERS: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local"
+  # PMM_TEST_HA_PEERS: "{{ include "pmm.haPeers" . }}"
 
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
@@ -354,11 +354,6 @@ extraVolumeMounts: []
 ## @param extraVolumes Optionally specify extra list of additional volumes
 ##
 extraVolumes: []
-
-global:
-  pmm_ha_0: "{{ .Release.Name }}-0.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
-  pmm_ha_1: "{{ .Release.Name }}-1.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
-  pmm_ha_2: "{{ .Release.Name }}-2.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
 
 clickhouse:
   # ClickHouse server image configuration

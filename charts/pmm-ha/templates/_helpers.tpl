@@ -87,6 +87,35 @@ This overrides the function from the pg-db subchart
 {{- end -}}
 
 {{/*
+Generate PMM HA peer list dynamically based on replicas count
+*/}}
+{{- define "pmm.haPeers" -}}
+{{- $peers := list }}
+{{- $serviceName := .Values.service.name | default "monitoring-service" }}
+{{- $replicas := int .Values.replicas }}
+{{- range $i := until $replicas }}
+  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $.Release.Name $i $serviceName $.Release.Namespace }}
+  {{- $peers = append $peers $peer }}
+{{- end }}
+{{- join "," $peers }}
+{{- end -}}
+
+{{/*
+Generate PMM HA peer list for specific replica index
+*/}}
+{{- define "pmm.haPeer" -}}
+{{- $serviceName := .Values.service.name | default "monitoring-service" }}
+{{- printf "%s-%d.%s.%s.svc.cluster.local" .Release.Name .index $serviceName .Release.Namespace }}
+{{- end -}}
+
+{{/*
+Generate PMM HA node ID for specific replica index
+*/}}
+{{- define "pmm.haNodeId" -}}
+{{- printf "%s-%d" .Release.Name .index }}
+{{- end -}}
+
+{{/*
 Generate comma-separated list of ClickHouse pod FQDNs (without port)
 
 NOTE: This naming pattern is defined by the ClickHouse Operator (Altinity).
@@ -112,4 +141,31 @@ Alternative discovery: PMM can query ClickHouse system.clusters table at runtime
 {{- end -}}
 {{- join "," $nodes -}}
 {{- end -}}
+
+{{/*
+Generate ClickHouse Keeper nodes list dynamically based on replicasCount
+
+NOTE: This naming pattern is defined by the ClickHouse Keeper Operator (Altinity).
+Reference: https://github.com/Altinity/clickhouse-keeper-operator
+Pattern: chk-{name}-{cluster}-0-{replica}.{namespace}.svc.cluster.local
+Where:
+  - name = ClickHouseKeeperInstallation CR name (Release.Name-keeper)
+  - cluster = keeper cluster name from spec.configuration.clusters[].name
+  - replica = replica index (0-based)
+
+Example output for 3 replicas:
+  - host: chk-pmm-ha-keeper-keeper-nodes-0-0.pmm-ha.svc.cluster.local
+    port: 2181
+  - host: chk-pmm-ha-keeper-keeper-nodes-0-1.pmm-ha.svc.cluster.local
+    port: 2181
+*/}}
+{{- define "pmm.clickhouse.keeper.nodes" -}}
+{{- $keeperClusterName := .Values.clickhouse.keeper.cluster.name -}}
+{{- $replicasCount := int .Values.clickhouse.keeper.replicasCount -}}
+{{- range $replicaIndex := until $replicasCount }}
+- host: chk-{{ $.Release.Name }}-keeper-{{ $keeperClusterName }}-0-{{ $replicaIndex }}.{{ $.Release.Namespace }}.svc.cluster.local
+  port: 2181
+{{- end -}}
+{{- end -}}
+
 

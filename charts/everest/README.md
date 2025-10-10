@@ -114,7 +114,7 @@ As of Helm v3, CRDs are not automatically updated during a Helm upgrade. You mus
 helm repo update
 helm upgrade --install everest-crds \
     percona/everest-crds \
-    --namespace everest-system
+    --namespace everest-system \
     --take-ownership
 ```
 
