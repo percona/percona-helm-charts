@@ -26,9 +26,10 @@ jobs:
       - name: Set up chart-testing
         uses: helm/chart-testing-action@v2.6.1
 
-      - name: Add Altinity Helm repository
+      - name: Add Helm repositories
         run: |
           helm repo add altinity https://helm.altinity.com
+          helm repo add vm https://victoriametrics.github.io/helm-charts/
           helm repo update
 
       - name: Run chart-testing (list-changed)
