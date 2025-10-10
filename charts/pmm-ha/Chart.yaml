@@ -19,7 +19,7 @@ icon: https://www.percona.com/sites/default/files/pmm-logo.png
 dependencies:
   - name: victoria-metrics-cluster
     version: 0.18.0
-    repository: file://charts/victoria-metrics-cluster
+    repository: https://victoriametrics.github.io/helm-charts/
   - name: altinity-clickhouse-operator
     version: 0.25.4
     repository: https://helm.altinity.com
