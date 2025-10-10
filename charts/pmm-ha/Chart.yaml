@@ -25,7 +25,7 @@ dependencies:
     repository: https://helm.altinity.com
   - name: haproxy
     version: 1.24.0
-    repository: file://charts/haproxy
+    repository: https://haproxytech.github.io/helm-charts/
   - name: pg-db
     version: 2.5.2
     repository: file://charts/pg-db
