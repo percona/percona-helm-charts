@@ -53,12 +53,14 @@ data:
       local pmm_host="$1"
       local instance_id="$2"
       
-      # Simple connectivity check - just see if the host resolves and is reachable
-      if nslookup "$pmm_host" > /dev/null 2>&1; then
-        log_success "Instance $instance_id ($pmm_host) - Endpoint is available"
+      echo "Checking PMM instance: $pmm_host:$pmm_port"
+      
+      local https_code=$(curl -s --max-time "$timeout" -k -o /dev/null -w "%{http_code}" "https://$pmm_host:$pmm_port/")
+      if [ "$https_code" = "200" ] || [ "$https_code" = "302" ]; then
+        echo "✅ HTTPS connection check passed for $pmm_host:$pmm_port (status: $https_code)"
         return 0
       else
-        log_warning "Instance $instance_id ($pmm_host) - Endpoint not yet available"
+        echo "❌ Connection check failed for $pmm_host:$pmm_port (HTTPS status: $https_code)"
         return 1
       fi
     }
@@ -73,33 +75,15 @@ data:
       
       install_dependencies
       
-      local attempt=1
-      local ready_count=0
-      local instances_checked=0
-      
-      while [ $attempt -le $MAX_ATTEMPTS ]; do
-        log_info "Attempt $attempt/$MAX_ATTEMPTS: Checking PMM endpoints..."
+      for i in $(seq 0 $(({{ .Values.replicas }} - 1))); do
+        pmm_host="{{ .Release.Name }}-$i.{{ .Values.service.name | default "monitoring-service" }}.{{ .Release.Namespace }}.svc.cluster.local"
         
-        ready_count=0
-        instances_checked=0
-        
-        # Check each PMM endpoint availability
-        for i in $(seq 0 $((REPLICAS - 1))); do
-          local pmm_host="${RELEASE_NAME}-$i.monitoring-service.${NAMESPACE}.svc.cluster.local"
-          instances_checked=$((instances_checked + 1))
-          
-          if check_pmm_endpoint "$pmm_host" "$i"; then
-            ready_count=$((ready_count + 1))
-          fi
-        done
-        
-        log_info "Endpoint check results: $ready_count/$instances_checked endpoints available"
-        
-        # Check if all endpoints are available
-        if [ $ready_count -eq $instances_checked ] && [ $instances_checked -gt 0 ]; then
-          log_success "All PMM endpoints are available! ($ready_count/$instances_checked)"
-          log_success "HAProxy can now start safely."
-          exit 0
+        if check_pmm_ready "$pmm_host" "8443" 5; then
+          ready_count=$((ready_count + 1))
+          echo "✅ Instance $i is ready ($ready_count/{{ .Values.replicas }})"
+        else
+          echo "❌ Instance $i is not ready yet"
+          all_ready=false
         fi
         
         # Calculate next wait time with exponential backoff (max 30 seconds)

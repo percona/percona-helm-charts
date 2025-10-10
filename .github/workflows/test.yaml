@@ -5,6 +5,8 @@ on:
     path-ignore:
     - 'charts/gcp-marketplace/**'
     - 'charts/everest/**'
+    - 'charts/pmm-ha/**'
+
 
 jobs:
   lint-test:
