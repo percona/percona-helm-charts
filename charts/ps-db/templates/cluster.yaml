@@ -163,6 +163,18 @@ spec:
 {{ tpl ($mysql.resources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($mysql.resources.limits | toYaml) $ | indent 8 }}
+    {{- if $mysql.env }}
+    env:
+{{ $mysql.env | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.envFrom }}
+    envFrom:
+{{ $mysql.envFrom | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.startupProbe }}
+    startupProbe:
+{{ $mysql.startupProbe | toYaml | indent 6 }}
+    {{- end }}
     {{- if $mysql.livenessProbe }}
     livenessProbe:
 {{ $mysql.livenessProbe | toYaml | indent 6 }}
@@ -312,6 +324,10 @@ spec:
       envFrom:
 {{ $haproxy.envFrom | toYaml | indent 8 }}
       {{- end }}
+      {{- if $haproxy.startupProbe }}
+      startupProbe:
+{{ $haproxy.startupProbe | toYaml | indent 8 }}
+      {{- end }}
       {{- if $haproxy.livenessProbe }}
       livenessProbe:
 {{ $haproxy.livenessProbe | toYaml | indent 8 }}
@@ -366,6 +382,9 @@ spec:
     {{- $router := .Values.proxy.router }}
     router:
       size: {{ $router.size }}
+      {{- if $router.gracePeriod }}
+      gracePeriod: {{ $router.gracePeriod }}
+      {{- end }}
     {{- if or (not $router.enabled) (ne .Values.mysql.clusterType "group-replication") }}
       enabled: false
       image: {{ $router.image.repository }}:{{ $router.image.tag }}
@@ -416,6 +435,26 @@ spec:
       {{- end }}
       {{- if $router.gracePeriod }}
       gracePeriod: {{ $router.gracePeriod }}
+
+      {{- if $router.env }}
+      env:
+{{ $router.env | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.envFrom }}
+      envFrom:
+{{ $router.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.startupProbe }}
+      startupProbe:
+{{ $router.startupProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.livenessProbe }}
+      livenessProbe:
+{{ $router.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.readinessProbe }}
+      readinessProbe:
+{{ $router.readinessProbe | toYaml | indent 8 }}
       {{- end }}
       {{- if $router.configuration }}
       configuration: |
@@ -474,7 +513,6 @@ spec:
     {{- end }}
 
   orchestrator:
-    size: {{ .Values.orchestrator.size }}
   {{- $orc := .Values.orchestrator }}
   {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
     enabled: false
@@ -516,6 +554,25 @@ spec:
 {{ tpl ($orc.initContainer.resources.limits | toYaml) $ | indent 10 }}
         {{- end }}
     {{- end }}
+    {{- if $orc.env }}
+    env:
+{{ $orc.env | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.envFrom }}
+    envFrom:
+{{ $orc.envFrom | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.startupProbe }}
+    startupProbe:
+{{ $orc.startupProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.livenessProbe }}
+    livenessProbe:
+{{ $orc.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.readinessProbe }}
+    readinessProbe:
+{{ $orc.readinessProbe | toYaml | indent 6 }}
     {{- end }}
     {{- if $orc.size }}
     size: {{ $orc.size }}

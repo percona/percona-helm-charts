@@ -90,6 +90,8 @@ mysql:
 
   size: 3
 
+  # gracePeriod: 600
+
   # configuration: |
   #   max_connections=250
 
@@ -102,6 +104,13 @@ mysql:
     limits:
       memory: 4Gi
 
+  # startupProbe:
+  #   initialDelaySeconds: 15
+  #   timeoutSeconds: 43200
+  #   periodSeconds: 10
+  #   failureThreshold: 1
+  #   successThreshold: 1
+      
   # readinessProbe:
   #   initialDelaySeconds: 30
   #   timeoutSeconds: 10
@@ -115,6 +124,12 @@ mysql:
   #   periodSeconds: 10
   #   failureThreshold: 3
   #   successThreshold: 1
+  # env:
+  # - name: MY_ENV
+  #   value: "1000"
+  # envFrom:
+  # - secretRef:
+  #     name: my-env-secret
 
   affinity:
     antiAffinityTopologyKey: "kubernetes.io/hostname"
@@ -252,6 +267,8 @@ proxy:
 
     size: 3
 
+    # gracePeriod: 600
+
     resources:
       requests:
         memory: 1Gi
@@ -265,6 +282,13 @@ proxy:
     # envFrom:
     # - secretRef:
     #     name: haproxy-env-secret
+
+    # startupProbe:
+    #   initialDelaySeconds: 15
+    #   timeoutSeconds: 43200
+    #   periodSeconds: 10
+    #   failureThreshold: 1
+    #   successThreshold: 1
 
     # readinessProbe:
     #   timeoutSeconds: 3
@@ -387,6 +411,31 @@ proxy:
     #     limits:
     #       memory: 200M
     #       cpu: 200m
+    # env:
+    # - name: MY_ENV
+    #   value: "1000"
+    # envFrom:
+    # - secretRef:
+    #     name: my-env-secret
+
+    # startupProbe:
+    #   initialDelaySeconds: 15
+    #   timeoutSeconds: 43200
+    #   periodSeconds: 10
+    #   failureThreshold: 1
+    #   successThreshold: 1
+
+    # readinessProbe:
+    #   timeoutSeconds: 3
+    #   periodSeconds: 5
+    #   failureThreshold: 3
+    #   successThreshold: 1
+
+    # livenessProbe:
+    #   timeoutSeconds: 3
+    #   periodSeconds: 5
+    #   failureThreshold: 3
+    #   successThreshold: 1
 
     podDisruptionBudget:
       maxUnavailable: 1
@@ -421,6 +470,7 @@ proxy:
     #   targetPort: 6446
     size: 3
 
+    # gracePeriod: 600
     resources:
       requests:
         memory: 256M
@@ -511,12 +561,37 @@ orchestrator:
   #     limits:
   #       memory: 200M
   #       cpu: 200m
+  # env:
+  # - name: MY_ENV
+  #   value: "1000"
+  # envFrom:
+  # - secretRef:
+  #     name: my-env-secret
+  # startupProbe:
+  #   initialDelaySeconds: 15
+  #   timeoutSeconds: 43200
+  #   periodSeconds: 10
+  #   failureThreshold: 1
+  #   successThreshold: 1
+
+  # readinessProbe:
+  #   timeoutSeconds: 3
+  #   periodSeconds: 5
+  #   failureThreshold: 3
+  #   successThreshold: 1
+
+  # livenessProbe:
+  #   timeoutSeconds: 3
+  #   periodSeconds: 5
+  #   failureThreshold: 3
+  #   successThreshold: 1
 
   podDisruptionBudget:
     maxUnavailable: 1
     # minAvailable: 0
   size: 3
 
+  # gracePeriod: 600
   resources:
     requests:
       memory: 128M
@@ -564,7 +639,6 @@ orchestrator:
   #   fsGroup: 1001
   #   supplementalGroups:
   #   - 1001
-  # serviceAccountName: percona-server-mysql-operator-workload
   # expose:
     # type: ClusterIP
     # annotations:
