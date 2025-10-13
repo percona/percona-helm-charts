@@ -28,7 +28,7 @@ dependencies:
     repository: file://charts/haproxy
   - name: pg-db
     version: 2.5.2
-    repository: file://charts/pg-db
+    repository: https://percona.github.io/percona-helm-charts/
   - name: pg-operator
     version: 2.5.0
-    repository: file://charts/pg-operator
+    repository: https://percona.github.io/percona-helm-charts/

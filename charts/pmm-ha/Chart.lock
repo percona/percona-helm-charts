@@ -9,10 +9,10 @@ dependencies:
   repository: file://charts/haproxy
   version: 1.24.0
 - name: pg-db
-  repository: file://charts/pg-db
+  repository: https://percona.github.io/percona-helm-charts/
   version: 2.5.2
 - name: pg-operator
-  repository: file://charts/pg-operator
+  repository: https://percona.github.io/percona-helm-charts/
   version: 2.5.0
-digest: sha256:43cfaa7abdbaf9cee890c58e4300aa5f880e5f21839c429b7cea8b18ffc09bc7
-generated: "2025-10-06T14:28:30.624955+02:00"
+digest: sha256:f4a0ff19185859ca17a8a3bd047e4a4a0adaa5d6a9be9fed7a8d3cd9f810f9ac
+generated: "2025-10-11T00:01:33.466166+02:00"

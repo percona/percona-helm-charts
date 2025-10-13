@@ -26,9 +26,10 @@ jobs:
       - name: Set up chart-testing
         uses: helm/chart-testing-action@v2.6.1
 
-      - name: Add Altinity Helm repository
+      - name: Add Helm repositories
         run: |
           helm repo add altinity https://helm.altinity.com
+          helm repo add percona https://percona.github.io/percona-helm-charts/
           helm repo update
 
       - name: Run chart-testing (list-changed)
@@ -83,15 +84,12 @@ jobs:
             name: cluster1-init-sql
           data:
             init.sql: |
-              CREATE DATABASE grafana;
-              CREATE DATABASE "pmm-managed";
-              CREATE USER pmmuser WITH SUPERUSER ENCRYPTED PASSWORD 'pmmpass';
-              CREATE USER gfuser WITH SUPERUSER ENCRYPTED PASSWORD 'gfpass';
-              GRANT ALL PRIVILEGES ON DATABASE "pmm-managed" TO pmmuser;
-              GRANT ALL PRIVILEGES ON DATABASE grafana TO gfuser;
               \c pmm-managed
               CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
           EOF
+
+          # User secrets (gfuser-credentials, pmmuser-credentials) will be created by Helm chart automatically
+          # from the pmm-secret values via the pg-user-secrets.yaml template
 
           # TLS secret for HAProxy (self-signed; ephemeral)
           openssl genrsa -out pmm.key 2048

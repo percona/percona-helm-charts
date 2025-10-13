@@ -450,7 +450,27 @@ haproxy:
   # Disable the default configmap creation since we have our own
   config: ""
 
+## @section PostgreSQL operator (pg-db) configuration
+## @param pg-db Configuration values passed to the pg-db dependency chart
+##
 pg-db:
+  autoCreateUserSchema: true
+  users:
+    - name: gfuser
+      databases:
+        - grafana
+        - pmm-managed
+      options: "SUPERUSER"
+      secretName: "gfuser-credentials"
+    - name: pmmuser
+      databases:
+        - pmm-managed
+        - grafana
+      options: "SUPERUSER"
+      secretName: "pmmuser-credentials"
+  databaseInitSQL:
+    key: init.sql
+    name: cluster1-init-sql
   instances:
     - name: instance1
       replicas: 3

@@ -36,3 +36,13 @@ Get ClickHouse credentials:
   export CH_PASS=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' | base64 --decode)
   echo "ClickHouse User: $CH_USER"
   echo "ClickHouse Password: $CH_PASS"
+
+Get PostgreSQL credentials:
+  export PG_USER=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.PG_USERNAME}' | base64 --decode)
+  export PG_PASS=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.PG_PASSWORD}' | base64 --decode)
+  export GF_USER=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.GF_USERNAME}' | base64 --decode)
+  export GF_PASS=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.GF_PASSWORD}' | base64 --decode)
+  echo "PostgreSQL PMM User: $PG_USER"
+  echo "PostgreSQL PMM Password: $PG_PASS"
+  echo "PostgreSQL Grafana User: $GF_USER"
+  echo "PostgreSQL Grafana Password: $GF_PASS"
