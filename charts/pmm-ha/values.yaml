@@ -409,6 +409,7 @@ clickhouse:
         - 192.168.0.0/16
 
 haproxy:
+  config: ""
   # HAProxy dependency configuration
   enabled: true
   # Number of HAProxy replicas
