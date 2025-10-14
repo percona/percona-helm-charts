@@ -410,6 +410,8 @@ clickhouse:
 
 haproxy:
   config: ""
+  configmap:
+    enabled: false
   # HAProxy dependency configuration
   enabled: true
   # Number of HAProxy replicas
