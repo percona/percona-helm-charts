@@ -17,7 +17,7 @@ data:
     
     resolvers k8s
         nameserver dns1 kube-dns.kube-system.svc.cluster.local:53
-        resolve_retries 3
+        resolve_retries 5
         timeout resolve 2s
         timeout retry   1s
         hold valid      10s
@@ -35,40 +35,22 @@ data:
         timeout client  50000
         timeout server  50000
     
+    {{- if .Values.haproxy.monitoring.stats.enabled | default true }}
     # Statistics and monitoring
     frontend stats
-        bind *:1024
+        bind *:{{ .Values.haproxy.monitoring.stats.port | default 1024 }}
         stats enable
-        stats uri /stats
-        stats refresh 30s
+        stats uri {{ .Values.haproxy.monitoring.stats.uri | default "/stats" }}
+        stats refresh {{ .Values.haproxy.monitoring.stats.refresh | default "30s" }}
         stats admin if TRUE
         {{- if .Values.haproxy.monitoring.prometheus.enabled | default true }}
         http-request use-service prometheus-exporter if { path {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }} }
         {{- end }}
-    
-    frontend http_front
-        bind *:80
-        {{- if .Values.haproxy.security.redirectToHttps | default true }}
-        # Redirect all HTTP traffic to HTTPS
-        redirect scheme https code 301 if !{ ssl_fc }
-        {{- end }}
-        default_backend http_back    
+    {{- end }}
     
     frontend https_front
         bind *:443 ssl crt /etc/haproxy/certs/pmm.pem
         default_backend https_back
-
-    backend http_back
-        option httpchk
-        http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
-        http-check expect status 200
-        {{- range $i := until (int .Values.replicas) }}
-        {{- if eq $i 0 }}
-        server {{ $.Release.Name }}-{{ $i }}-http {{ $.Release.Name }}-{{ $i }}.{{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8080 check resolvers k8s init-addr last,libc,none
-        {{- else }}
-        server {{ $.Release.Name }}-{{ $i }}-http {{ $.Release.Name }}-{{ $i }}.{{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8080 check backup resolvers k8s init-addr last,libc,none
-        {{- end }}
-        {{- end }}
 
     backend https_back
         option httpchk

@@ -413,6 +413,11 @@ haproxy:
   enabled: true
   # Number of HAProxy replicas
   replicaCount: 3
+  
+  # Pod annotations - increment the version value to trigger HAProxy pod rolling when config changes
+  podAnnotations:
+    pmm.percona.com/config-version: "3"
+
   # Pod anti-affinity for HAProxy pods
   affinity:
     podAntiAffinity:
@@ -441,25 +446,30 @@ haproxy:
         limits:
           cpu: 100m
           memory: 64Mi
+
   # Additional volumes for init container
   extraVolumes:
     - name: init-script
       configMap:
         name: pmm-ha-haproxy-init-script
         defaultMode: 0755
-  # Disable the default configmap creation since we have our own
-  config: ""
-  # Disable default ConfigMap creation
+  # Disable default ConfigMap creation - we create our own
   configMap:
     enabled: false
   # Mount SSL certificate
   mountedSecrets:
     - volumeName: ssl-certificate
       secretName: haproxy-tls-secret
-      mountPath: /etc/haproxy/certs/pmm.pem
+      mountPath: /etc/haproxy/certs
   
   # HAProxy monitoring and metrics configuration
   monitoring:
+    # Enable HAProxy stats page
+    stats:
+      enabled: true
+      port: 1024
+      uri: /stats
+      refresh: 30s
     # Enable Prometheus metrics export
     prometheus:
       enabled: true
@@ -474,9 +484,13 @@ haproxy:
 # HAProxy TLS configuration
 tls:
   enabled: true
-  # If you already have a Secret with tls.crt/tls.key, set it here; we'll convert it to PEM.
+  # If true, skip secret creation entirely (you must manually create pemSecretName)
+  # Set this to true if you want to manually manage haproxy-tls-secret
+  manualSecret: false
+  # If you have a k8s TLS secret (tls.crt/tls.key), Helm will convert it to PEM format
+  # Leave empty to auto-generate self-signed certificate
   existingTLSSecret: ""            # e.g. "my-tls" (type=kubernetes.io/tls)
-  # Name of the PEM secret we mount into HAProxy:
+  # Name of the PEM secret that HAProxy will mount
   pemSecretName: "haproxy-tls-secret"
   cn: "pmm.local"
   dnsNames: 
@@ -484,6 +498,8 @@ tls:
     - "*.pmm.local" 
     - "localhost"
   validityDays: 1825  # 5 years
+  # Force regeneration of the TLS secret (increment this value to force regeneration)
+  forceRegenerate: 0
 
 pg-db:
   instances:

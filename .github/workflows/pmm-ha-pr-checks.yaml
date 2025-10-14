@@ -94,12 +94,6 @@ jobs:
               CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
           EOF
 
-          # TLS secret for HAProxy (self-signed; ephemeral)
-          openssl genrsa -out pmm.key 2048
-          openssl req -new -x509 -key pmm.key -out pmm.crt -days 1 -subj "/CN=localhost"
-          cat pmm.crt pmm.key > pmm.pem
-          kubectl create secret generic haproxy-tls-secret --from-file=pmm.pem -n "$NS"
-
       - name: Run chart-testing (install)
         run: |
           ct install --namespace "${{ env.NS }}" --config .github/ct.yaml --charts=charts/pmm-ha
