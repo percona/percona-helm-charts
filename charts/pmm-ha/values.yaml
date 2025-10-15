@@ -509,6 +509,14 @@ pg-db:
 
 victoria-metrics-cluster:
   vmselect:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -524,6 +532,14 @@ victoria-metrics-cluster:
                     operator: In
                     values: ["vmselect"]
   vminsert:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -549,6 +565,13 @@ victoria-metrics-cluster:
     # Default password: randomly generated 32-character string
     # Tell the chart NOT to auto-create the secret since we provide our own
     configSecretName: "{{ .Release.Name }}-victoria-metrics-cluster-vmauth"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -564,6 +587,21 @@ victoria-metrics-cluster:
                     operator: In
                     values: ["vmauth"]
   vmstorage:
+    replicaCount: 3
+    retentionPeriod: "90d"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2"
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+      # Storage class for VictoriaMetrics persistent volumes
+      # If empty, uses the cluster's default storage class
+      storageClassName: ""
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
