@@ -1,0 +1,23 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: everest-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: everest-operator-engine-features-splithorizondnsconfig-viewer-role
+rules:
+  - apiGroups:
+      - engine-features.everest.percona.com
+    resources:
+      - splithorizondnsconfigs
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - engine-features.everest.percona.com
+    resources:
+      - splithorizondnsconfigs/status
+    verbs:
+      - get
