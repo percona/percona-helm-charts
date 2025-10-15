@@ -321,6 +321,19 @@ spec:
                     - storage
                     - type
                   type: object
+                engineFeatures:
+                  description: EngineFeatures represents configuration of additional features for the database engine.
+                  properties:
+                    psmdb:
+                      description: PSMDB represents additional features for the PSMDB engine.
+                      properties:
+                        splitHorizonDnsConfigName:
+                          description: |-
+                            SplitHorizonDNSConfigName is the name of a SplitHorizonDNSConfig CR.
+                            The SplitHorizonDNSConfig must be created in the same namespace as the DatabaseCluster.
+                          type: string
+                      type: object
+                  type: object
                 monitoring:
                   description: Monitoring is the monitoring configuration
                   properties:
