@@ -58,10 +58,10 @@ spec:
             - configMapRef:
                 name: {{ include "pmm.fullname" . }}
                 optional: true
-            {{ if and (not .Values.secret.create) .Values.secret.name }}
+            {{- if .Values.secret.name }}
             - secretRef:
-                 name: {{ .Values.secret.name }}
-            {{ end }}
+                name: {{ .Values.secret.name }}
+            {{- end }}
           env:
             - name: PMM_INSTALL_METHOD
               valueFrom:
