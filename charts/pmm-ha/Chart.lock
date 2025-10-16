@@ -14,5 +14,5 @@ dependencies:
 - name: pg-operator
   repository: file://charts/pg-operator
   version: 2.5.0
-digest: sha256:a4652a4f0a9cfe626f96b3672618265de361d41cf1979cf0386f94bf74e1291a
-generated: "2025-10-10T15:16:21.461004+02:00"
+digest: sha256:76f6a07685c9dae8cc22f8a6192abc4e24107aad28c65232e74b4052a5e96668
+generated: "2025-10-16T16:11:56.778521+02:00"
