@@ -103,9 +103,14 @@ secret:
   ##
   pmm_password: ""
   ##
-  ## @param secret.clickhouse_user ClickHouse username. If not set, defaults to "clickhouse_pmm"
+  ## @param secret.clickhouse_user ClickHouse user. If not set, defaults to "clickhouse_pmm"
+  ## When secret.create: true and this is empty, "clickhouse_pmm" is used.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get username after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' | base64 --decode
   ## E.g.
-  ## clickhouse_user: clickhouse_pmm
+  ## clickhouse_user: clickhouse_user
   ##
   clickhouse_user: ""
   ##
@@ -119,6 +124,28 @@ secret:
   ## clickhouse_password: my_secure_password
   ##
   clickhouse_password: ""
+  ##
+  ## @param secret.victoriametrics_user VictoriaMetrics user. If not set, defaults to "victoriametrics_pmm"
+  ## When secret.create: true and this is empty, "victoriametrics_pmm" is used.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get username after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode
+  ## E.g.
+  ## victoriametrics_user: my_victoriametrics_user
+  ##
+  victoriametrics_user: ""
+  ##
+  ## @param secret.victoriametrics_password VictoriaMetrics password. If not set, it will be auto-generated
+  ## When secret.create: true and this is empty, a random 32-character password is generated.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get password after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode
+  ## E.g.
+  ## victoriametrics_password: my_secure_password
+  ##
+  victoriametrics_password: ""
   ##
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID optional client ID to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
@@ -541,6 +568,14 @@ pg-db:
 
 victoria-metrics-cluster:
   vmselect:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -556,6 +591,14 @@ victoria-metrics-cluster:
                     operator: In
                     values: ["vmselect"]
   vminsert:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -571,22 +614,23 @@ victoria-metrics-cluster:
                     operator: In
                     values: ["vminsert"]
   vmauth:
-    config:
-      unauthorized_user: {}
-      users:
-        - username: "vmuser"
-          password: "vmpass"
-          url_map:
-            - src_paths:
-                - "/api/v1/write"
-              url_prefix: "http://{{ .Release.Name }}-victoria-metrics-cluster-vminsert.{{ .Release.Namespace }}.svc.cluster.local:8480/insert/1/prometheus/"
-            - src_paths:
-                - "/api/v1/query"
-                - "/api/v1/query_range"
-                - "/api/v1/series"
-                - "/api/v1/labels"
-                - "/api/v1/label/.+/values"
-              url_prefix: "http://{{ .Release.Name }}-victoria-metrics-cluster-vmselect.{{ .Release.Namespace }}.svc.cluster.local:8481/select/1/prometheus/"
+    enabled: true
+    replicaCount: 2
+    # Custom Secret with properly templated values is defined in templates/vmauth-config.yaml
+    # It follows the naming convention: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
+    # Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+    # If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
+    # Default username: victoriametrics_pmm
+    # Default password: randomly generated 32-character string
+    # Tell the chart NOT to auto-create the secret since we provide our own
+    configSecretName: "{{ .Release.Name }}-victoria-metrics-cluster-vmauth"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -602,6 +646,21 @@ victoria-metrics-cluster:
                     operator: In
                     values: ["vmauth"]
   vmstorage:
+    replicaCount: 3
+    retentionPeriod: "90d"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2"
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+      # Storage class for VictoriaMetrics persistent volumes
+      # If empty, uses the cluster's default storage class
+      storageClassName: ""
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:

@@ -29,6 +29,7 @@ jobs:
       - name: Add Helm repositories
         run: |
           helm repo add altinity https://helm.altinity.com
+          helm repo add vm https://victoriametrics.github.io/helm-charts/
           helm repo add haproxytech https://haproxytech.github.io/helm-charts/
           helm repo update
 
