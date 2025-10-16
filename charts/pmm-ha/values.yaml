@@ -110,7 +110,7 @@ secret:
   ## To get username after install:
   ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' | base64 --decode
   ## E.g.
-  ## clickhouse_user: my_clickhouse_user
+  ## clickhouse_user: clickhouse_user
   ##
   clickhouse_user: ""
   ##
