@@ -3,12 +3,12 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: splithorizondnsconfigs.engine-features.everest.percona.com
+  name: splithorizondnsconfigs.enginefeatures.everest.percona.com
   labels:
     everest.percona.com/crd: "true"
     everest.percona.com/version: 0.0.0
 spec:
-  group: engine-features.everest.percona.com
+  group: enginefeatures.everest.percona.com
   names:
     kind: SplitHorizonDNSConfig
     listKind: SplitHorizonDNSConfigList

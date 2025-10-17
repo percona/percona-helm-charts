@@ -65,7 +65,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - engine-features.everest.percona.com
+  - enginefeatures.everest.percona.com
   resources:
   - splithorizondnsconfigs
   verbs:
@@ -77,13 +77,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - engine-features.everest.percona.com
+  - enginefeatures.everest.percona.com
   resources:
   - splithorizondnsconfigs/finalizers
   verbs:
   - update
 - apiGroups:
-  - engine-features.everest.percona.com
+  - enginefeatures.everest.percona.com
   resources:
   - splithorizondnsconfigs/status
   verbs:

@@ -53,13 +53,13 @@ spec:
               description: Spec defines the desired state of SplitHorizonDNSConfig
               properties:
                 baseDomainNameSuffix:
+                  description: |-
+                    BaseDomainNameSuffix is the base domain name suffix for generating domain names for each Pod in ReplicaSet.
+                    It should be a valid domain name suffix.
                   example: example.com
                   minLength: 3
                   pattern: ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$
                   type: string
-                  x-kubernetes-validations:
-                    - message: must be a valid domain name
-                      rule: '!format.qualifiedName().validate(self).hasValue()'
                 tls:
                   description: TLS is the TLS configuration for the split-horizon DNS configuration.
                   properties:
