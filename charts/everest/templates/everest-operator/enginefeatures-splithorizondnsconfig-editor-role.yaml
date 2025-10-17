@@ -5,18 +5,22 @@ metadata:
   labels:
     app.kubernetes.io/name: everest-operator
     app.kubernetes.io/managed-by: kustomize
-  name: everest-operator-engine-features-splithorizondnsconfig-viewer-role
+  name: enginefeatures.everest-splithorizondnsconfig-editor-role
 rules:
   - apiGroups:
-      - engine-features.everest.percona.com
+      - enginefeatures.everest.percona.com
     resources:
       - splithorizondnsconfigs
     verbs:
+      - create
+      - delete
       - get
       - list
+      - patch
+      - update
       - watch
   - apiGroups:
-      - engine-features.everest.percona.com
+      - enginefeatures.everest.percona.com
     resources:
       - splithorizondnsconfigs/status
     verbs:

@@ -600,9 +600,12 @@ spec:
                   type: integer
                 recommendedCRVersion:
                   description: |-
-                    RecommendedCRVersion is the recommended version of the CR to use.
-                    If set, the CR needs to be updated to this version before upgrading the operator.
-                    If unset, the CR is already at the recommended version.
+                    RecommendedCRVersion indicates the target version that the underlying CR should be updated to.
+                    When this field is set, it means the CR is running an outdated version and requires an update.
+                    The following restrictions apply until the CR is updated to the recommended version:
+                    - The operator cannot be upgraded
+                    - The database engine version (.spec.engine.version) cannot be modified
+                    This field is unset when the CR is already running at the latest recommended version.
                   type: string
                 size:
                   description: Size is the total number of pods
@@ -613,6 +616,9 @@ spec:
                   type: string
               type: object
           type: object
+          x-kubernetes-validations:
+            - message: engine version may not be updated when a CRVersion update is pending
+              rule: '!has(self.?status.recommendedCRVersion) || self.spec.engine.version == oldSelf.spec.engine.version'
       served: true
       storage: true
       subresources:
