@@ -567,6 +567,9 @@ pg-db:
           - host all pmmuser 192.168.0.0/16 md5
 
 victoria-metrics-cluster:
+  # WORKAROUND: VictoriaMetrics chart bug - vmauth template checks .Values.configSecretName
+  # instead of .Values.vmauth.configSecretName, so we set it at top level
+  configSecretName: "pmm-vmauth-config"
   vmselect:
     replicaCount: 2
     resources:
@@ -616,14 +619,6 @@ victoria-metrics-cluster:
   vmauth:
     enabled: true
     replicaCount: 2
-    # Custom Secret with properly templated values is defined in templates/vmauth-config.yaml
-    # It follows the naming convention: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
-    # Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
-    # If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
-    # Default username: victoriametrics_pmm
-    # Default password: randomly generated 32-character string
-    # Tell the chart NOT to auto-create the secret since we provide our own
-    configSecretName: "{{ .Release.Name }}-victoria-metrics-cluster-vmauth"
     resources:
       requests:
         memory: "128Mi"
