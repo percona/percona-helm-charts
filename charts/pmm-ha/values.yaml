@@ -25,9 +25,9 @@ image:
 ## ref: https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables
 ##
 pmmEnv:
-  ## @param pmmEnv.DISABLE_UPDATES Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
+  ## @param pmmEnv.ENABLE_UPDATES Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
   ##
-  DISABLE_UPDATES: "1"
+  PMM_ENABLE_UPDATES: "0"
   PMM_DEBUG: "0"
   # PMM_ACTIVE_IP: "{{ include "pmm.haPeer" (dict "Release" .Release "Values" .Values "index" 0) }}"
   # PMM_ACTIVE_NODE_ID: "{{ include "pmm.haNodeId" (dict "Release" .Release "Values" .Values "index" 0) }}"
@@ -45,15 +45,16 @@ pmmEnv:
   PMM_POSTGRES_SSL_MODE: "require"
   # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
+  GF_ANALYTICS_ENABLE_UPDATES: "false"
   # PMM_VM_URL: "http://:@:8427/"
   # VMAGENT_remoteWrite_basicAuth_username: ""
   # VMAGENT_remoteWrite_basicAuth_password: ""
-  PMM_TEST_HA_ENABLE: "1"
-  PMM_TEST_HA_BOOTSTRAP: "1"
-  PMM_TEST_HA_GOSSIP_PORT: "9096"
-  PMM_TEST_HA_RAFT_PORT: "9097"
-  PMM_TEST_HA_GRAFANA_GOSSIP_PORT: "9094"
-  # PMM_TEST_HA_PEERS: "{{ include "pmm.haPeers" . }}"
+  PMM_HA_ENABLE: "1"
+  PMM_HA_BOOTSTRAP: "1"
+  PMM_HA_GOSSIP_PORT: "9096"
+  PMM_HA_RAFT_PORT: "9097"
+  PMM_HA_GRAFANA_GOSSIP_PORT: "9094"
+  # PMM_HA_PEERS: "{{ include "pmm.haPeers" . }}"
 
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
