@@ -341,6 +341,13 @@ replsets:
       # annotations: {}
       # labels: {}
       # nodeSelector: {}
+      resources:
+        limits:
+          cpu: "600m"
+          memory: "1Gi"
+        requests:
+          cpu: "300m"
+          memory: "1Gi"
 
 sharding:
   enabled: true
@@ -642,8 +649,8 @@ backup:
     enabled: false
     oplogOnly: false
     # oplogSpanMin: 10
-    # compressionType: gzip
-    # compressionLevel: 6
+    compressionType: gzip
+    compressionLevel: 6
   # configuration:
   #   backupOptions:
   #     priority:

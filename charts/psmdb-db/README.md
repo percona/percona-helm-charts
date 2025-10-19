@@ -10,7 +10,7 @@ Useful links:
 ## Pre-requisites
 
 - Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-- Kubernetes 1.30+
+- Kubernetes 1.31+
 - Helm v3
 
 # Chart Details
@@ -181,6 +181,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets.rs0.arbiter.annotations`                                 | MongoDB arbiter Pod annotations                                                                                                                                                                                                                              | `{}`                     |
 | `replsets.rs0.arbiter.labels`                                      | MongoDB arbiter Pod labels                                                                                                                                                                                                                                   | `{}`                     |
 | `replsets.rs0.arbiter.nodeSelector`                                | MongoDB arbiter Pod nodeSelector labels                                                                                                                                                                                                                      | `{}`                     |
+| `replsets.rs0.arbiter.resources`                                   | MongoDB arbiter Pod reource requests and limits                                                                                                                                                                                                              | `{}`                     |
 | |
 | `sharding.enabled`                                            | Enable sharding setup                                                                                                                                                                                                    | `true`                   |
 | `sharding.balancer.enabled`                                   | Enable/disable balancer                                                                                                                                                                                                  | `true`                   |
