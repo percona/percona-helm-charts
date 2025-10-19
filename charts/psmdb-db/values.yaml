@@ -84,7 +84,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.4.0
+    tag: 3.4.1
   serverHost: monitoring-service
 #  customClusterName: ""
 #  mongodParams: ""
@@ -243,11 +243,11 @@ replsets:
     # schedulerName: ""
     resources:
       limits:
-        cpu: "300m"
-        memory: "0.5G"
+        cpu: "600m"
+        memory: "1Gi"
       requests:
         cpu: "300m"
-        memory: "0.5G"
+        memory: "1Gi"
     volumeSpec:
       # emptyDir: {}
       # hostPath:
@@ -300,11 +300,11 @@ replsets:
         maxUnavailable: 1
       resources:
         limits:
-          cpu: "300m"
-          memory: "0.5G"
+          cpu: "600m"
+          memory: "1Gi"
         requests:
           cpu: "300m"
-          memory: "0.5G"
+          memory: "1Gi"
       volumeSpec:
         # emptyDir: {}
         # hostPath:
@@ -419,11 +419,11 @@ sharding:
       # externalTrafficPolicy: Local
     resources:
       limits:
-        cpu: "300m"
-        memory: "0.5G"
+        cpu: "600m"
+        memory: "1Gi"
       requests:
         cpu: "300m"
-        memory: "0.5G"
+        memory: "1Gi"
     volumeSpec:
       # emptyDir: {}
       # hostPath:
@@ -495,11 +495,11 @@ sharding:
       maxUnavailable: 1
     resources:
       limits:
-        cpu: "300m"
-        memory: "0.5G"
+        cpu: "600m"
+        memory: "1Gi"
       requests:
         cpu: "300m"
-        memory: "0.5G"
+        memory: "1Gi"
     expose:
       enabled: false
       type: ClusterIP
