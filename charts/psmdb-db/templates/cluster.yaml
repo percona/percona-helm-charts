@@ -260,6 +260,76 @@ spec:
     hostAliases:
 {{ $replset.hostAliases | toYaml | indent 6 }}
     {{- end }}
+
+{{- if $replset.hidden }}
+    hidden:
+      enabled: {{ $replset.hidden.enabled }}
+      size: {{ $replset.hidden.size }}
+      {{- if $replset.hidden.configuration }}
+      configuration: |
+{{ $replset.hidden.configuration | indent 8 }}
+      {{- end }}
+      affinity:
+      {{- if $replset.hidden.affinity }}
+{{ $replset.hidden.affinity | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.priorityClassName }}
+      priorityClassName: {{ $replset.hidden.priorityClassName }}
+      {{- end }}
+      {{- if $replset.hidden.annotations }}
+      annotations:
+{{ $replset.hidden.annotations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.labels }}
+      labels:
+{{ $replset.hidden.labels | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.podSecurityContext }}
+      podSecurityContext:
+{{ $replset.hidden.podSecurityContext | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.containerSecurityContext }}
+      containerSecurityContext:
+{{ $replset.hidden.containerSecurityContext | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.nodeSelector }}
+      nodeSelector:
+{{ $replset.hidden.nodeSelector | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.tolerations }}
+      tolerations:
+{{ $replset.hidden.tolerations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.podDisruptionBudget }}
+      podDisruptionBudget:
+        {{- if $replset.hidden.podDisruptionBudget.maxUnavailable }}
+        maxUnavailable: {{ $replset.hidden.podDisruptionBudget.maxUnavailable }}
+        {{- else }}
+        minAvailable: {{ $replset.hidden.podDisruptionBudget.minAvailable }}
+        {{- end }}
+      {{- end }}
+      {{- if $replset.hidden.resources }}
+      resources:
+{{ $replset.hidden.resources | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.volumeSpec }}
+      volumeSpec:
+        {{- if $replset.hidden.volumeSpec.hostPath }}
+        hostPath:
+          path: {{ $replset.hidden.volumeSpec.hostPath.path }}
+          {{- if $replset.hidden.volumeSpec.hostPath.type }}
+          type: {{ $replset.hidden.volumeSpec.hostPath.type }}
+          {{- else }}
+          type: Directory
+          {{- end }}
+        {{- else if $replset.hidden.volumeSpec.pvc }}
+        persistentVolumeClaim:
+{{ $replset.hidden.volumeSpec.pvc | toYaml | indent 10 }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- end }}
+    {{- end }}
     {{- if $replset.nonvoting }}
     nonvoting:
       enabled: {{ $replset.nonvoting.enabled }}
