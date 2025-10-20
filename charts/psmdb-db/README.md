@@ -308,6 +308,7 @@ The chart can be customized using the following configurable parameters:
 | `roles.roles.db`                                 | Name of database that contains the role to inherit from.                                                                                                                                                                                                                                                                | `""`      |
 | |
 | `backup.enabled`                                   | Enable backup PBM agent                                                       | `true`                           |
+| `backup.startingDeadlineSeconds`                   | The maximum time in seconds for a backup to start                             | `300`                            |
 | `backup.annotations`                               | Backup job annotations                                                        | `{}`                             |
 | `backup.podSecurityContext`                        | Set the security context for a Pod                                            | `{}`                             |
 | `backup.containerSecurityContext`                  | Set the security context for a Container                                      | `{}`                             |
