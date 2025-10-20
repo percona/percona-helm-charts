@@ -22,12 +22,12 @@ image:
   imagePullSecrets: []
 
 ## PMM environment variables
-## ref: https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables
+## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/env_var.html
 ##
 pmmEnv:
-  ## @param pmmEnv.DISABLE_UPDATES Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
+  ## @param pmmEnv.PMM_ENABLE_UPDATES Enables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
   ##
-  DISABLE_UPDATES: "1"
+  PMM_ENABLE_UPDATES: "0"
   PMM_DEBUG: "0"
   # PMM_ACTIVE_IP: "{{ include "pmm.haPeer" (dict "Release" .Release "Values" .Values "index" 0) }}"
   # PMM_ACTIVE_NODE_ID: "{{ include "pmm.haNodeId" (dict "Release" .Release "Values" .Values "index" 0) }}"
@@ -48,15 +48,26 @@ pmmEnv:
   # PMM_VM_URL: "http://:@:8427/"
   # VMAGENT_remoteWrite_basicAuth_username: ""
   # VMAGENT_remoteWrite_basicAuth_password: ""
-  PMM_TEST_HA_ENABLE: "1"
-  PMM_TEST_HA_BOOTSTRAP: "1"
-  PMM_TEST_HA_GOSSIP_PORT: "9096"
-  PMM_TEST_HA_RAFT_PORT: "9097"
-  PMM_TEST_HA_GRAFANA_GOSSIP_PORT: "9094"
-  # PMM_TEST_HA_PEERS: "{{ include "pmm.haPeers" . }}"
+  PMM_HA_ENABLE: "1"
+  PMM_HA_BOOTSTRAP: "1"
+  PMM_HA_GOSSIP_PORT: "9096"
+  PMM_HA_RAFT_PORT: "9097"
+  PMM_HA_GRAFANA_GOSSIP_PORT: "9094"
+  # PMM_HA_PEERS: "{{ include "pmm.haPeers" . }}"
+  GF_ANALYTICS_CHECK_FOR_UPDATES: "0"
+  GF_ANALYTICS_ENABLE: "0"
+  GF_ANALYTICS_REPORTING_ENABLE: "0"
+  GF_REPORTING_ENABLE: "0"
+  GF_NEWS_NEWS_FEED_ENABLE: "0"
+  GF_SECURITY_DISABLE_GRAVATAR: "1"
+  GF_LOG_LEVEL: "info"
+  PMM_ENABLE_TELEMETRY: "0"
+  PMM_ENABLE_BACKUP_MANAGEMENT: "1"
+  PMM_ENABLE_ALERTING: "1"
+  PMM_ENABLE_ACCESS_CONTROL: "1"
 
 #  optional variables to integrate Grafana with internal iDP, see also secret part
-#  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
+#  GF_AUTH_GENERIC_OAUTH_ENABLED: "1"
 #  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
 #  GF_AUTH_GENERIC_OAUTH_AUTH_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_TOKEN_URL: ''

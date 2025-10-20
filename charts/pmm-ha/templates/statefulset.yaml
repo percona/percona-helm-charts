@@ -67,11 +67,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
-            - name: PMM_TEST_HA_ADVERTISE_ADDRESS
+            - name: PMM_HA_ADVERTISE_ADDRESS
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: PMM_TEST_HA_NODE_ID
+            - name: PMM_HA_NODE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
@@ -150,7 +150,7 @@ spec:
               value: "{{ .Values.clickhouse.cluster.name }}"
             - name: PMM_POSTGRES_ADDR
               value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
-            - name: PMM_TEST_HA_PEERS
+            - name: PMM_HA_PEERS
               value: "{{ include "pmm.haPeers" . }}"
             - name: PMM_CLICKHOUSE_NODES
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
