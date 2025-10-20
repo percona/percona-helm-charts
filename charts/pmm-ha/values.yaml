@@ -402,9 +402,9 @@ clickhouse:
         cpu: "500m"
     # ClickHouse Keeper cluster configuration
     cluster:
-      # Keeper cluster name (follows same restrictions as ClickHouse cluster)
-      # Regex: ^[a-zA-Z0-9-]{0,15}$
-      name: keeper-nodes
+      # Keeper cluster name restrictions: alphanumeric only, max 15 chars, no special characters
+      # Regex: ^[a-zA-Z0-9]{1,15}$
+      name: keepernodes
     # Number of Keeper nodes (should be odd number: 1, 3, 5, etc.)
     replicasCount: 3
     # Persistent storage configuration for Keeper data

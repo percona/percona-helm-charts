@@ -1,3 +1,14 @@
+{{- /* Validate ClickHouse Keeper cluster name */ -}}
+{{- $keeperClusterName := .Values.clickhouse.keeper.cluster.name -}}
+{{- if not $keeperClusterName }}
+  {{- fail "ClickHouse Keeper cluster name (clickhouse.keeper.cluster.name) cannot be empty" }}
+{{- end }}
+{{- if gt (len $keeperClusterName) 15 }}
+  {{- fail (printf "ClickHouse Keeper cluster name '%s' exceeds 15 character limit (current: %d chars)" $keeperClusterName (len $keeperClusterName)) }}
+{{- end }}
+{{- if not (regexMatch "^[a-zA-Z0-9]+$" $keeperClusterName) }}
+  {{- fail (printf "ClickHouse Keeper cluster name '%s' must contain only alphanumeric characters (no underscores, hyphens, or special characters)" $keeperClusterName) }}
+{{- end }}
 apiVersion: "clickhouse-keeper.altinity.com/v1"
 kind: "ClickHouseKeeperInstallation"
 metadata:
