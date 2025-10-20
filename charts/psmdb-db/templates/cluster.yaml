@@ -720,6 +720,9 @@ spec:
 
   backup:
     enabled: {{ .Values.backup.enabled }}
+    {{- if .Values.backup.startingDeadlineSeconds }}
+    startingDeadlineSeconds: {{ .Values.backup.startingDeadlineSeconds }}
+    {{- end }}
     {{- if .Values.backup.annotations }}
     annotations:
 {{ .Values.backup.annotations | toYaml | indent 6 }}
