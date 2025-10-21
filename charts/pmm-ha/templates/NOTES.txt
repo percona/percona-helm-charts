@@ -46,3 +46,9 @@ Get PostgreSQL credentials:
   echo "PostgreSQL PMM Password: $PG_PASS"
   echo "PostgreSQL Grafana User: $GF_USER"
   echo "PostgreSQL Grafana Password: $GF_PASS"
+  
+Get VictoriaMetrics credentials:
+  export VM_USER=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode)
+  export VM_PASS=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode)
+  echo "VictoriaMetrics User: $VM_USER"
+  echo "VictoriaMetrics Password: $VM_PASS"

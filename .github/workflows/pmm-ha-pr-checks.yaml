@@ -30,6 +30,8 @@ jobs:
         run: |
           helm repo add altinity https://helm.altinity.com
           helm repo add percona https://percona.github.io/percona-helm-charts/
+          helm repo add vm https://victoriametrics.github.io/helm-charts/
+          helm repo add haproxytech https://haproxytech.github.io/helm-charts/
           helm repo update
 
       - name: Run chart-testing (list-changed)
@@ -87,15 +89,6 @@ jobs:
               \c pmm-managed
               CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
           EOF
-
-          # User secrets (gfuser-credentials, pmmuser-credentials) will be created by Helm chart automatically
-          # from the pmm-secret values via the pg-user-secrets.yaml template
-
-          # TLS secret for HAProxy (self-signed; ephemeral)
-          openssl genrsa -out pmm.key 2048
-          openssl req -new -x509 -key pmm.key -out pmm.crt -days 1 -subj "/CN=localhost"
-          cat pmm.crt pmm.key > pmm.pem
-          kubectl create secret generic haproxy-tls-secret --from-file=pmm.pem -n "$NS"
 
       - name: Run chart-testing (install)
         run: |

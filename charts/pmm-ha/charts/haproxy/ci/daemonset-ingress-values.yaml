@@ -1,3 +1,0 @@
-kind: DaemonSet
-ingress:
-  enabled: true

@@ -14,12 +14,7 @@ spec:
     # ClickHouse Keeper coordination
     zookeeper:
       nodes:
-        - host: chk-{{ .Release.Name }}-keeper-nodes-0-0.{{ .Release.Namespace }}.svc.cluster.local
-          port: 2181
-        - host: chk-{{ .Release.Name }}-keeper-nodes-0-1.{{ .Release.Namespace }}.svc.cluster.local
-          port: 2181
-        - host: chk-{{ .Release.Name }}-keeper-nodes-0-2.{{ .Release.Namespace }}.svc.cluster.local
-          port: 2181
+        {{- include "pmm.clickhouse.keeper.nodes" . | nindent 8 }}
       session_timeout_ms: 30000
       operation_timeout_ms: 10000
     

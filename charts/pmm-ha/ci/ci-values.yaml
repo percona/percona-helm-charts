@@ -1,0 +1,139 @@
+# CI-specific values for GitHub Actions testing
+# Minimal resource requirements to fit in Kind cluster
+
+# Reduce PMM server replicas and resources
+replicaCount: 3
+
+pmm:
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+storage:
+  size: 5Gi
+
+clickhouse:
+  cluster:
+    shards: 1
+    replicas: 3
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  keeper:
+    replicas: 3
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+
+altinity-clickhouse-operator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+pg-db:
+  instances:
+    - name: instance1
+      replicas: 3
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      dataVolumeClaimSpec:
+        resources:
+          requests:
+            storage: 1Gi
+  proxy:
+    pgBouncer:
+      replicas: 3
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+  backups:
+    enabled: false
+
+pg-operator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# VictoriaMetrics with minimal resources for CI
+victoria-metrics-cluster:
+  vmselect:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"
+  vminsert:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"
+  vmauth:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+  vmstorage:
+    replicaCount: 3
+    retentionPeriod: "1d"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    persistentVolume:
+      enabled: true
+      size: 5Gi
+      storageClassName: ""
+
+# HAProxy with minimal resources
+haproxy:
+  replicaCount: 3
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi

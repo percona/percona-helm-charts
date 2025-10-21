@@ -1,12 +1,12 @@
 dependencies:
 - name: victoria-metrics-cluster
-  repository: file://charts/victoria-metrics-cluster
+  repository: https://victoriametrics.github.io/helm-charts/
   version: 0.18.0
 - name: altinity-clickhouse-operator
   repository: https://helm.altinity.com
   version: 0.25.4
 - name: haproxy
-  repository: file://charts/haproxy
+  repository: https://haproxytech.github.io/helm-charts/
   version: 1.24.0
 - name: pg-db
   repository: https://percona.github.io/percona-helm-charts/

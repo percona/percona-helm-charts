@@ -22,15 +22,15 @@ image:
   imagePullSecrets: []
 
 ## PMM environment variables
-## ref: https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables
+## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/env_var.html
 ##
 pmmEnv:
-  ## @param pmmEnv.DISABLE_UPDATES Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
+  ## @param pmmEnv.PMM_ENABLE_UPDATES Enables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
   ##
-  DISABLE_UPDATES: "1"
+  PMM_ENABLE_UPDATES: "0"
   PMM_DEBUG: "0"
-  # PMM_ACTIVE_IP: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local"
-  # PMM_ACTIVE_NODE_ID: "pmmhak8s-0"
+  # PMM_ACTIVE_IP: "{{ include "pmm.haPeer" (dict "Release" .Release "Values" .Values "index" 0) }}"
+  # PMM_ACTIVE_NODE_ID: "{{ include "pmm.haNodeId" (dict "Release" .Release "Values" .Values "index" 0) }}"
   PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
   # PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
@@ -43,20 +43,31 @@ pmmEnv:
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
-  # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432/grafana"
+  # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
-  # PMM_VM_URL: "http://vmadmin:vmpass@pmmhak8s-victoria-metrics-cluster-vmauth.pmmhak8s.svc.cluster.local:8427/"
-  # VMAGENT_remoteWrite_basicAuth_username: "vmadmin"
-  # VMAGENT_remoteWrite_basicAuth_password: "vmpass"
-  PMM_TEST_HA_ENABLE: "1"
-  PMM_TEST_HA_BOOTSTRAP: "1"
-  PMM_TEST_HA_GOSSIP_PORT: "9096"
-  PMM_TEST_HA_RAFT_PORT: "9097"
-  PMM_TEST_HA_GRAFANA_GOSSIP_PORT: "9094"
-  # PMM_TEST_HA_PEERS: "pmmhak8s-0.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-1.monitoring-service.pmmhak8s.svc.cluster.local,pmmhak8s-2.monitoring-service.pmmhak8s.svc.cluster.local"
+  # PMM_VM_URL: "http://:@:8427/"
+  # VMAGENT_remoteWrite_basicAuth_username: ""
+  # VMAGENT_remoteWrite_basicAuth_password: ""
+  PMM_HA_ENABLE: "1"
+  PMM_HA_BOOTSTRAP: "1"
+  PMM_HA_GOSSIP_PORT: "9096"
+  PMM_HA_RAFT_PORT: "9097"
+  PMM_HA_GRAFANA_GOSSIP_PORT: "9094"
+  # PMM_HA_PEERS: "{{ include "pmm.haPeers" . }}"
+  GF_ANALYTICS_CHECK_FOR_UPDATES: "0"
+  GF_ANALYTICS_ENABLE: "0"
+  GF_ANALYTICS_REPORTING_ENABLE: "0"
+  GF_REPORTING_ENABLE: "0"
+  GF_NEWS_NEWS_FEED_ENABLE: "0"
+  GF_SECURITY_DISABLE_GRAVATAR: "1"
+  GF_LOG_LEVEL: "info"
+  PMM_ENABLE_TELEMETRY: "0"
+  PMM_ENABLE_BACKUP_MANAGEMENT: "1"
+  PMM_ENABLE_ALERTING: "1"
+  PMM_ENABLE_ACCESS_CONTROL: "1"
 
 #  optional variables to integrate Grafana with internal iDP, see also secret part
-#  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
+#  GF_AUTH_GENERIC_OAUTH_ENABLED: "1"
 #  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
 #  GF_AUTH_GENERIC_OAUTH_AUTH_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_TOKEN_URL: ''
@@ -103,9 +114,14 @@ secret:
   ##
   pmm_password: ""
   ##
-  ## @param secret.clickhouse_user ClickHouse username. If not set, defaults to "clickhouse_pmm"
+  ## @param secret.clickhouse_user ClickHouse user. If not set, defaults to "clickhouse_pmm"
+  ## When secret.create: true and this is empty, "clickhouse_pmm" is used.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get username after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' | base64 --decode
   ## E.g.
-  ## clickhouse_user: clickhouse_pmm
+  ## clickhouse_user: clickhouse_user
   ##
   clickhouse_user: ""
   ##
@@ -119,6 +135,28 @@ secret:
   ## clickhouse_password: my_secure_password
   ##
   clickhouse_password: ""
+  ##
+  ## @param secret.victoriametrics_user VictoriaMetrics user. If not set, defaults to "victoriametrics_pmm"
+  ## When secret.create: true and this is empty, "victoriametrics_pmm" is used.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get username after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode
+  ## E.g.
+  ## victoriametrics_user: my_victoriametrics_user
+  ##
+  victoriametrics_user: ""
+  ##
+  ## @param secret.victoriametrics_password VictoriaMetrics password. If not set, it will be auto-generated
+  ## When secret.create: true and this is empty, a random 32-character password is generated.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get password after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode
+  ## E.g.
+  ## victoriametrics_password: my_secure_password
+  ##
+  victoriametrics_password: ""
   ##
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID optional client ID to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
@@ -328,11 +366,6 @@ extraVolumeMounts: []
 ##
 extraVolumes: []
 
-global:
-  pmm_ha_0: "{{ .Release.Name }}-0.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
-  pmm_ha_1: "{{ .Release.Name }}-1.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
-  pmm_ha_2: "{{ .Release.Name }}-2.monitoring-service.{{ .Release.Namespace }}.svc.cluster.local"
-
 clickhouse:
   # ClickHouse server image configuration
   image:
@@ -414,6 +447,19 @@ clickhouse:
         - 192.168.0.0/16
 
 haproxy:
+  config: ""
+  configmap:
+    enabled: false
+  # HAProxy dependency configuration
+  enabled: true
+  # Number of HAProxy replicas
+  replicaCount: 3
+  
+  # Pod annotations - increment the version value to trigger HAProxy pod rolling when config changes
+  podAnnotations:
+    pmm.percona.com/config-version: "3"
+
+  # Pod anti-affinity for HAProxy pods
   affinity:
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
@@ -441,14 +487,60 @@ haproxy:
         limits:
           cpu: 100m
           memory: 64Mi
+
   # Additional volumes for init container
   extraVolumes:
     - name: init-script
       configMap:
         name: pmm-ha-haproxy-init-script
         defaultMode: 0755
-  # Disable the default configmap creation since we have our own
-  config: ""
+  # Disable default ConfigMap creation - we create our own
+  configMap:
+    enabled: false
+  # Mount SSL certificate
+  mountedSecrets:
+    - volumeName: ssl-certificate
+      secretName: haproxy-tls-secret
+      mountPath: /etc/haproxy/certs
+  
+  # HAProxy monitoring and metrics configuration
+  monitoring:
+    # Enable HAProxy stats page
+    stats:
+      enabled: true
+      port: 1024
+      uri: /stats
+      refresh: 30s
+    # Enable Prometheus metrics export
+    prometheus:
+      enabled: true
+      port: 1024
+      path: /metrics
+  
+  # HAProxy security configuration
+  security:
+    # Enable HTTP to HTTPS redirect
+    redirectToHttps: true
+
+# HAProxy TLS configuration
+tls:
+  enabled: true
+  # If true, skip secret creation entirely (you must manually create pemSecretName)
+  # Set this to true if you want to manually manage haproxy-tls-secret
+  manualSecret: false
+  # If you have a k8s TLS secret (tls.crt/tls.key), Helm will convert it to PEM format
+  # Leave empty to auto-generate self-signed certificate
+  existingTLSSecret: ""            # e.g. "my-tls" (type=kubernetes.io/tls)
+  # Name of the PEM secret that HAProxy will mount
+  pemSecretName: "haproxy-tls-secret"
+  cn: "pmm.local"
+  dnsNames: 
+    - "pmm.local"
+    - "*.pmm.local" 
+    - "localhost"
+  validityDays: 1825  # 5 years
+  # Force regeneration of the TLS secret (increment this value to force regeneration)
+  forceRegenerate: 0
 
 ## @section PostgreSQL operator (pg-db) configuration
 ## @param pg-db Configuration values passed to the pg-db dependency chart
@@ -507,6 +599,14 @@ pg-db:
 
 victoria-metrics-cluster:
   vmselect:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -522,6 +622,14 @@ victoria-metrics-cluster:
                     operator: In
                     values: ["vmselect"]
   vminsert:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -537,22 +645,23 @@ victoria-metrics-cluster:
                     operator: In
                     values: ["vminsert"]
   vmauth:
-    config:
-      unauthorized_user: {}
-      users:
-        - username: "vmuser"
-          password: "vmpass"
-          url_map:
-            - src_paths:
-                - "/api/v1/write"
-              url_prefix: "http://{{ .Release.Name }}-victoria-metrics-cluster-vminsert.{{ .Release.Namespace }}.svc.cluster.local:8480/insert/1/prometheus/"
-            - src_paths:
-                - "/api/v1/query"
-                - "/api/v1/query_range"
-                - "/api/v1/series"
-                - "/api/v1/labels"
-                - "/api/v1/label/.+/values"
-              url_prefix: "http://{{ .Release.Name }}-victoria-metrics-cluster-vmselect.{{ .Release.Namespace }}.svc.cluster.local:8481/select/1/prometheus/"
+    enabled: true
+    replicaCount: 2
+    # Custom Secret with properly templated values is defined in templates/vmauth-config.yaml
+    # It follows the naming convention: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
+    # Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+    # If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
+    # Default username: victoriametrics_pmm
+    # Default password: randomly generated 32-character string
+    # Tell the chart NOT to auto-create the secret since we provide our own
+    configSecretName: "{{ .Release.Name }}-victoria-metrics-cluster-vmauth"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -568,6 +677,21 @@ victoria-metrics-cluster:
                     operator: In
                     values: ["vmauth"]
   vmstorage:
+    replicaCount: 3
+    retentionPeriod: "90d"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2"
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+      # Storage class for VictoriaMetrics persistent volumes
+      # If empty, uses the cluster's default storage class
+      storageClassName: ""
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
