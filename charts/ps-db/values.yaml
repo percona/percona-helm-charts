@@ -16,10 +16,10 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 0.12.0
+crVersion: 1.0.0
 enableVolumeExpansion: false
 pause: false
-# initImage: percona/percona-server-mysql-operator:0.12.0
+# initImage: percona/percona-server-mysql-operator:1.0.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -27,7 +27,7 @@ upgradeOptions:
   apply: disabled
 
 # initContainer:
-#   image: perconalab/percona-server-mysql-operator:0.12.0
+#   image: perconalab/percona-server-mysql-operator:1.0.0
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -75,7 +75,7 @@ mysql:
   imagePullPolicy: Always
   imagePullSecrets: []
   # initContainer:
-  #   image: perconalab/percona-server-mysql-operator:0.12.0
+  #   image: percona/percona-server-mysql-operator:1.0.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -234,7 +234,7 @@ proxy:
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: perconalab/percona-server-mysql-operator:0.12.0
+    #   image: percona/percona-server-mysql-operator:1.0.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -375,7 +375,7 @@ proxy:
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: perconalab/percona-server-mysql-operator:0.12.0
+    #   image: percona/percona-server-mysql-operator:1.0.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -499,7 +499,7 @@ orchestrator:
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
   # initContainer:
-  #   image: perconalab/percona-server-mysql-operator:0.12.0
+  #   image: percona/percona-server-mysql-operator:1.0.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -606,7 +606,7 @@ pmm:
 backup:
   enabled: true
   # initContainer:
-  #   image: perconalab/percona-server-mysql-operator:0.12.0
+  #   image: percona/percona-server-mysql-operator:1.0.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
