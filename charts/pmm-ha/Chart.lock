@@ -14,5 +14,5 @@ dependencies:
 - name: pg-operator
   repository: https://percona.github.io/percona-helm-charts/
   version: 2.5.0
-digest: sha256:f4a0ff19185859ca17a8a3bd047e4a4a0adaa5d6a9be9fed7a8d3cd9f810f9ac
-generated: "2025-10-11T00:01:33.466166+02:00"
+digest: sha256:3ccebda63841e02702d21ed96c782a1d84b1eb0b2407bb221d4607b144a244de
+generated: "2025-10-21T13:50:18.015169+02:00"
