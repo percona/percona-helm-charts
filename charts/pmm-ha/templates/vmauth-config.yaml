@@ -10,7 +10,7 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
+  name: pmm-vmauth-config
   namespace: {{ .Release.Namespace }}
   labels:
     app: vmauth
