@@ -29,6 +29,7 @@ jobs:
       - name: Add Helm repositories
         run: |
           helm repo add altinity https://helm.altinity.com
+          helm repo add percona https://percona.github.io/percona-helm-charts/
           helm repo add vm https://victoriametrics.github.io/helm-charts/
           helm repo add haproxytech https://haproxytech.github.io/helm-charts/
           helm repo update
@@ -85,12 +86,6 @@ jobs:
             name: cluster1-init-sql
           data:
             init.sql: |
-              CREATE DATABASE grafana;
-              CREATE DATABASE "pmm-managed";
-              CREATE USER pmmuser WITH SUPERUSER ENCRYPTED PASSWORD 'pmmpass';
-              CREATE USER gfuser WITH SUPERUSER ENCRYPTED PASSWORD 'gfpass';
-              GRANT ALL PRIVILEGES ON DATABASE "pmm-managed" TO pmmuser;
-              GRANT ALL PRIVILEGES ON DATABASE grafana TO gfuser;
               \c pmm-managed
               CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
           EOF

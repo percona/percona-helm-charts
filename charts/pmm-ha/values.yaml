@@ -542,7 +542,27 @@ tls:
   # Force regeneration of the TLS secret (increment this value to force regeneration)
   forceRegenerate: 0
 
+## @section PostgreSQL operator (pg-db) configuration
+## @param pg-db Configuration values passed to the pg-db dependency chart
+##
 pg-db:
+  autoCreateUserSchema: true
+  users:
+    - name: gfuser
+      databases:
+        - grafana
+        - pmm-managed
+      options: "SUPERUSER"
+      secretName: "gfuser-credentials"
+    - name: pmmuser
+      databases:
+        - pmm-managed
+        - grafana
+      options: "SUPERUSER"
+      secretName: "pmmuser-credentials"
+  databaseInitSQL:
+    key: init.sql
+    name: cluster1-init-sql
   instances:
     - name: instance1
       replicas: 3
