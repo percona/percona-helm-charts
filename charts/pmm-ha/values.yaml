@@ -11,13 +11,13 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  repository: perconalab/pmm-server
-  # repository: perconalab/pmm-server-fb
+  # repository: perconalab/pmm-server
+  repository: perconalab/pmm-server-fb
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  # tag: "PR-4047-5157c0a"
-  tag: "3-dev-latest"
+  # Overrides the image tag. If not set, defaults to the chart appVersion.
+  tag: "PR-4078-f8820d4"
+  # tag: "3-dev-latest"
   # tag: "latest"
   imagePullSecrets: []
 
@@ -29,31 +29,32 @@ pmmEnv:
   ##
   PMM_ENABLE_UPDATES: "0"
   PMM_DEBUG: "0"
-  # PMM_ACTIVE_IP: "{{ include "pmm.haPeer" (dict "Release" .Release "Values" .Values "index" 0) }}"
-  # PMM_ACTIVE_NODE_ID: "{{ include "pmm.haNodeId" (dict "Release" .Release "Values" .Values "index" 0) }}"
+  # NOTE: The following variables are set dynamically in statefulset.yaml and cannot be configured here:
+  # - PMM_ACTIVE_IP: Set to first PMM peer FQDN
+  # - PMM_ACTIVE_NODE_IP: Set to first PMM node ID
+  # - PMM_CLICKHOUSE_ADDR: Set to ClickHouse service address with sticky session support
+  # - PMM_CLICKHOUSE_CLUSTER_NAME: Set to clickhouse.cluster.name value
+  # - PMM_CLICKHOUSE_USER: Set from pmm-secret (see secret section)
+  # - PMM_CLICKHOUSE_PASSWORD: Set from pmm-secret (see secret section)
+  # - PMM_POSTGRES_ADDR: Set to PostgreSQL service address
+  # - PMM_VM_URL: Set to VictoriaMetrics vmauth service URL with credentials
+  # - VMAGENT_remoteWrite_basicAuth_username: Set from pmm-secret (see secret section)
+  # - VMAGENT_remoteWrite_basicAuth_password: Set from pmm-secret (see secret section)
+  # - PMM_HA_PEERS: Set to comma-separated list of all PMM peer FQDNs
+  # - GF_DATABASE_URL: Set to PostgreSQL connection string for Grafana
   PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
-  # PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
   PMM_CLICKHOUSE_POOL_SIZE: "2"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
-  # PMM_CLICKHOUSE_CLUSTER_NAME is set directly in statefulset.yaml
-  # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
-  # PMM_CLICKHOUSE_PASSWORD: "chpass"
-  # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
-  # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
-  # PMM_VM_URL: "http://:@:8427/"
-  # VMAGENT_remoteWrite_basicAuth_username: ""
-  # VMAGENT_remoteWrite_basicAuth_password: ""
   PMM_HA_ENABLE: "1"
   PMM_HA_BOOTSTRAP: "1"
   PMM_HA_GOSSIP_PORT: "9096"
   PMM_HA_RAFT_PORT: "9097"
   PMM_HA_GRAFANA_GOSSIP_PORT: "9094"
-  # PMM_HA_PEERS: "{{ include "pmm.haPeers" . }}"
   GF_ANALYTICS_CHECK_FOR_UPDATES: "0"
   GF_ANALYTICS_ENABLE: "0"
   GF_ANALYTICS_REPORTING_ENABLE: "0"
@@ -65,14 +66,18 @@ pmmEnv:
   PMM_ENABLE_BACKUP_MANAGEMENT: "1"
   PMM_ENABLE_ALERTING: "1"
   PMM_ENABLE_ACCESS_CONTROL: "1"
-
-#  optional variables to integrate Grafana with internal iDP, see also secret part
-#  GF_AUTH_GENERIC_OAUTH_ENABLED: "1"
-#  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
-#  GF_AUTH_GENERIC_OAUTH_AUTH_URL: ''
-#  GF_AUTH_GENERIC_OAUTH_TOKEN_URL: ''
-#  GF_AUTH_GENERIC_OAUTH_API_URL: ''
-#  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: ''
+  ##
+  ## Optional variables to integrate Grafana with internal identity provider (iDP).
+  ## Uncomment and configure these variables along with setting GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+  ## and GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET in the secret section.
+  ##
+  ## Example:
+  # GF_AUTH_GENERIC_OAUTH_ENABLED: "1"
+  # GF_AUTH_GENERIC_OAUTH_SCOPES: "openid profile email"
+  # GF_AUTH_GENERIC_OAUTH_AUTH_URL: "https://your-idp.example.com/auth"
+  # GF_AUTH_GENERIC_OAUTH_TOKEN_URL: "https://your-idp.example.com/token"
+  # GF_AUTH_GENERIC_OAUTH_API_URL: "https://your-idp.example.com/userinfo"
+  # GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: "example.com"
 
 ## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server)
     ##  pmmResources:
@@ -158,10 +163,38 @@ secret:
   ##
   victoriametrics_password: ""
   ##
-  # GF_AUTH_GENERIC_OAUTH_CLIENT_ID optional client ID to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
-  # GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
-  # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET optional secret to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
-  # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+  ## @param secret.GF_AUTH_GENERIC_OAUTH_CLIENT_ID Optional OAuth client ID for Grafana iDP integration
+  ## When set, enables Grafana OAuth authentication. Requires corresponding environment variables in pmmEnv section:
+  ##   - GF_AUTH_GENERIC_OAUTH_ENABLED
+  ##   - GF_AUTH_GENERIC_OAUTH_SCOPES
+  ##   - GF_AUTH_GENERIC_OAUTH_AUTH_URL
+  ##   - GF_AUTH_GENERIC_OAUTH_TOKEN_URL
+  ##   - GF_AUTH_GENERIC_OAUTH_API_URL
+  ##   - GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS
+  ##
+  ## To get client ID after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.GF_AUTH_GENERIC_OAUTH_CLIENT_ID}' | base64 --decode
+  ## E.g.
+  ## GF_AUTH_GENERIC_OAUTH_CLIENT_ID: "my-oauth-client-id"
+  ##
+  GF_AUTH_GENERIC_OAUTH_CLIENT_ID: ""
+  ##
+  ## @param secret.GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET Optional OAuth client secret for Grafana iDP integration
+  ## When set, provides the secret for OAuth authentication. Required if GF_AUTH_GENERIC_OAUTH_CLIENT_ID is set.
+  ##
+  ## To get client secret after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}' | base64 --decode
+  ## E.g.
+  ## GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: "my-oauth-client-secret"
+  ##
+  GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: ""
+  ##
+  ## NOTE: The following secrets are auto-generated by the pg-db subchart and managed automatically:
+  ##   - GF_USERNAME: PostgreSQL username for Grafana database
+  ##   - GF_PASSWORD: PostgreSQL password for Grafana database
+  ##   - PG_USERNAME: PostgreSQL username for PMM database
+  ##   - PG_PASSWORD: PostgreSQL password for PMM database
+  ## These do not need to be configured here.
 
 ## @param certs Optional certificates, if not provided PMM would use generated self-signed certificates,
 ##   please provide your own signed ssl certificates like this in base 64 format:
@@ -205,10 +238,6 @@ service:
       protocol: TCP
       ## @param service.ports[1].name port name
       name: http
-
-# haservice:
-#  type: "ClusterIP"
-#  name: "pmmha"
 
 replicas: 3
 
@@ -494,9 +523,7 @@ haproxy:
       configMap:
         name: pmm-ha-haproxy-init-script
         defaultMode: 0755
-  # Disable default ConfigMap creation - we create our own
-  configMap:
-    enabled: false
+
   # Mount SSL certificate
   mountedSecrets:
     - volumeName: ssl-certificate
