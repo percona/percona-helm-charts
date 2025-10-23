@@ -81,7 +81,7 @@ spec:
               value: "{{ .Values.disableTelemetry }}"
             {{- if .Values.maxConcurrentReconciles }}
             - name: MAX_CONCURRENT_RECONCILES
-              value:  "{{ .Values.maxConcurrentReconciles }}"
+              value: "{{ .Values.maxConcurrentReconciles }}"
             {{- end }}
           livenessProbe:
             httpGet:
