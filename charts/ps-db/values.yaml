@@ -95,9 +95,6 @@ mysql:
   # configuration: |
   #   max_connections=250
 
-  #    env:
-  #    - name: BOOTSTRAP_READ_TIMEOUT
-  #      value: "600"
   resources:
     requests:
       memory: 2Gi
@@ -125,8 +122,8 @@ mysql:
   #   failureThreshold: 3
   #   successThreshold: 1
   # env:
-  # - name: MY_ENV
-  #   value: "1000"
+  # - name: BOOTSTRAP_READ_TIMEOUT
+  #   value: "600"
   # envFrom:
   # - secretRef:
   #     name: my-env-secret

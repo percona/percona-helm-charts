@@ -435,7 +435,6 @@ spec:
       {{- end }}
       {{- if $router.gracePeriod }}
       gracePeriod: {{ $router.gracePeriod }}
-
       {{- if $router.env }}
       env:
 {{ $router.env | toYaml | indent 8 }}
