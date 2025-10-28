@@ -140,10 +140,6 @@ spec:
                   key: PMM_CLICKHOUSE_PASSWORD
             - name: PMM_VM_URL
               value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ .Release.Name }}-victoria-metrics-cluster-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
-            - name: PMM_ACTIVE_IP
-              value: "{{ include "pmm.haPeer" (dict "Release" .Release "Values" .Values "index" 0) }}"
-            - name: PMM_ACTIVE_NODE_IP
-              value: "{{ include "pmm.haNodeId" (dict "Release" .Release "Values" .Values "index" 0) }}"
             - name: PMM_CLICKHOUSE_ADDR
               value: "{{ .Release.Name }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
             - name: PMM_CLICKHOUSE_CLUSTER_NAME

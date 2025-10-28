@@ -30,8 +30,6 @@ pmmEnv:
   PMM_ENABLE_UPDATES: "0"
   PMM_DEBUG: "0"
   # NOTE: The following variables are set dynamically in statefulset.yaml and cannot be configured here:
-  # - PMM_ACTIVE_IP: Set to first PMM peer FQDN
-  # - PMM_ACTIVE_NODE_IP: Set to first PMM node ID
   # - PMM_CLICKHOUSE_ADDR: Set to ClickHouse service address with sticky session support
   # - PMM_CLICKHOUSE_CLUSTER_NAME: Set to clickhouse.cluster.name value
   # - PMM_CLICKHOUSE_USER: Set from pmm-secret (see secret section)
