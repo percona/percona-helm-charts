@@ -18,7 +18,7 @@ metadata:
 spec:
   crVersion: {{ .Values.crVersion }}
   image: {{ .Values.image }}
-  imagePullPolicy: Always
+  imagePullPolicy: IfNotPresent
   port: {{ default 5432 .Values.port }}
   postgresVersion: {{ .Values.postgresVersion }}
   standby: {{- .Values.standby | toYaml | nindent 4 }}

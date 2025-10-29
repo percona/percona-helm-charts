@@ -11,7 +11,7 @@ finalizers:
 crVersion: 2.5.0
 repository: percona/percona-postgresql-operator
 image: percona/percona-postgresql-operator:2.5.0-ppg16.4-postgres
-imagePullPolicy: Always
+imagePullPolicy: IfNotPresent
 postgresVersion: 16
 # port: 5432
 pause: false
