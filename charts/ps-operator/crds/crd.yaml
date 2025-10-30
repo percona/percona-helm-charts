@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/component: crd
     app.kubernetes.io/name: percona-server-crd
     app.kubernetes.io/part-of: percona-server-mysql-operator
-    app.kubernetes.io/version: v0.12.0
+    app.kubernetes.io/version: v1.0.0
   name: perconaservermysqlbackups.ps.percona.com
 spec:
   group: ps.percona.com
@@ -1173,7 +1173,7 @@ metadata:
     app.kubernetes.io/component: crd
     app.kubernetes.io/name: percona-server-crd
     app.kubernetes.io/part-of: percona-server-mysql-operator
-    app.kubernetes.io/version: v0.12.0
+    app.kubernetes.io/version: v1.0.0
   name: perconaservermysqlrestores.ps.percona.com
 spec:
   group: ps.percona.com
@@ -2336,7 +2336,7 @@ metadata:
     app.kubernetes.io/component: crd
     app.kubernetes.io/name: percona-server-crd
     app.kubernetes.io/part-of: percona-server-mysql-operator
-    app.kubernetes.io/version: v0.12.0
+    app.kubernetes.io/version: v1.0.0
   name: perconaservermysqls.ps.percona.com
 spec:
   group: ps.percona.com
@@ -9586,7 +9586,7 @@ spec:
                     type: string
                   imagePullPolicy:
                     type: string
-                  livenessProbes:
+                  livenessProbe:
                     properties:
                       exec:
                         properties:
@@ -9669,7 +9669,7 @@ spec:
                     type: object
                   mysqlParams:
                     type: string
-                  readinessProbes:
+                  readinessProbe:
                     properties:
                       exec:
                         properties:
@@ -13093,6 +13093,11 @@ spec:
                 requires Orchestrator to be enabled'
               rule: '!(self.mysql.clusterType == ''async'' && self.updateStrategy
                 == ''SmartUpdate'') || self.orchestrator.enabled'
+            - message: 'Invalid configuration: MySQL Router and HAProxy can''t be
+                enabled at the same time'
+              rule: '!(self.proxy.router != null && has(self.proxy.router.enabled)
+                && self.proxy.router.enabled && self.proxy.haproxy != null && has(self.proxy.haproxy.enabled)
+                && self.proxy.haproxy.enabled)'
           status:
             properties:
               backupVersion:
