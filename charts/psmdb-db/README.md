@@ -10,7 +10,7 @@ Useful links:
 ## Pre-requisites
 
 - Percona Operator for MongoDB running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/blob/main/charts/psmdb-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-psmongodb/helm.html).
-- Kubernetes 1.30+
+- Kubernetes 1.31+
 - Helm v3
 
 # Chart Details
@@ -23,17 +23,18 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.20.1 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.21.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                                                   | Default                               |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.20.1`                              |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.21.0`                              |
 | `pause`                                             | Stop PSMDB Database safely                                                                                                                                                                    | `false`                               |
 | `unmanaged`                                         | Start cluster and don't manage it (cross cluster replication)                                                                                                                                 | `false`                               |
 | `enableVolumeExpansion`                             | Allows to resize `PersistentVolumeClaim`s by changing `.volumeSpec.persistentVolumeClaim.resources` field                                                                                     | `false`                               |
+| `enableExternalVolumeAutoscaling`                   | Supress storage discrepancy error if external volume autoscaling is enabled                                                                                                                   | `false`                               |
 | `unsafeFlags.tls`                                   | Allows users from configuring a cluster without TLS/SSL certificates                                                                                                                          | `false`                               |
 | `unsafeFlags.replsetSize`                           | Allows users from configuring a cluster with unsafe parameters: starting it with less than 3 replica set instances or with an even number of replica set instances without additional arbiter | `false`                               |
 | `unsafeFlags.mongosSize`                            | Allows users from configuring a sharded cluster with less than 3 config server Pods or less than 2 mongos Pods                                                                                | `false`                               |
@@ -55,7 +56,7 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:percona.com/delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)                                                                                                                             | `[]`                                  |
 | `finalizers:percona.com/delete-pitr-chunks`         | Set this if you want to delete all pitr chunks on cluster deletion                                                                                                                            | `[]`                                  |
 | `image.repository`                                  | PSMDB Container image repository                                                                                                                                                              | `percona/percona-server-mongodb`      |
-| `image.tag`                                         | PSMDB Container image tag                                                                                                                                                                     | `7.0.18-11`                           |
+| `image.tag`                                         | PSMDB Container image tag                                                                                                                                                                     | `8.0.12-4`                            |
 | `imagePullPolicy`                                   | The policy used to update images                                                                                                                                                              | `Always`                              |
 | `imagePullSecrets`                                  | PSMDB Container pull secret                                                                                                                                                                   | `[]`                                  |
 | `initImage.repository`                              | Repository for custom init image                                                                                                                                                              | `""`                                  |
@@ -80,13 +81,13 @@ The chart can be customized using the following configurable parameters:
 | |
 | `pmm.enabled`                  | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`              |
 | `pmm.image.repository`         | PMM Container image repository                                                                                                                                                           | `percona/pmm-client` |
-| `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `2.44.1`             |
+| `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `3.4.1`              |
 | `pmm.serverHost`               | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service` |
 | `pmm.containerSecurityContext` | Set the security context for PMM container                                                                                                                                               | `{}`                 |
 | `pmm.resources`                | Set resources for PMM container                                                                                                                                                          | `{}`                 |
 | `pmm.mongodParams`             | PMM mongod params                                                                                                                                                                        | `""`                 |
 | `pmm.mongosParams`             | PMM mongos params                                                                                                                                                                        | `""`                 |
-| `pmm.customClusterName`        | PMM cluster name. If not set Operator uses cr.Name for PMM cluster name.     | `""`                 |
+| `pmm.customClusterName`        | PMM cluster name. If not set Operator uses cr.Name for PMM cluster name                                                                                                                  | `""`                 |
 | |
 | `replsets.rs0.name`                                                | ReplicaSet name                                                                                                                                                                                                                                              | `rs0`                    |
 | `replsets.rs0.size`                                                | ReplicaSet size (pod quantity)                                                                                                                                                                                                                               | `3`                      |
@@ -180,6 +181,21 @@ The chart can be customized using the following configurable parameters:
 | `replsets.rs0.arbiter.annotations`                                 | MongoDB arbiter Pod annotations                                                                                                                                                                                                                              | `{}`                     |
 | `replsets.rs0.arbiter.labels`                                      | MongoDB arbiter Pod labels                                                                                                                                                                                                                                   | `{}`                     |
 | `replsets.rs0.arbiter.nodeSelector`                                | MongoDB arbiter Pod nodeSelector labels                                                                                                                                                                                                                      | `{}`                     |
+| `replsets.rs0.arbiter.resources`                                   | MongoDB arbiter Pod resource requests and limits                                                                                                                                                                                                             | `{}`                     |
+| `replsets.rs0.hidden.enabled`                                      | Enable or disable creation of Replica Set hidden instances within the cluster.                                                                                                                                                                               | `false`                  |
+| `replsets.rs0.hidden.size`                                         | The number of Replica Set hidden instances within the cluster.                                                                                                                                                                                               | `2`                      |
+| `replsets.rs0.hidden.podSecurityContext`                           | A custom [Kubernetes Security Context for a Pod](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/) to be used instead of the default one.                                                                                          | `{}`                     |
+| `replsets.rs0.hidden.containerSecurityContext`                     | A custom [Kubernetes Security Context for a Container](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/) to be used instead of the default one.                                                                                    | `{}`                     |
+| `replsets.rs0.hidden.affinity.antiAffinityTopologyKey`             | The [Kubernetes topologyKey](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#inter-pod-affinity-and-anti-affinity-beta-feature) node affinity constraint for the hidden nodes.                                                            | `kubernetes.io/hostname` |
+| `replsets.rs0.hidden.affinity.advanced`                            | In cases where the pods require complex tuning, the advanced option turns off the `topologykey` effect. This setting allows the standard Kubernetes affinity constraints of any complexity to be used.                                                       | `{}`                     |
+| `replsets.rs0.hidden.tolerations`                                  | MongoDB hidden Pod tolerations                                                                                                                                                                                                                               | `[]`                     |
+| `replsets.rs0.hidden.priorityClassName`                            | The [Kuberentes Pod priority class](https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#priorityclass) for the hidden nodes                                                                                                           | `""`                     |
+| `replsets.rs0.hidden.annotations`                                  | The [Kubernetes annotations](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/) metadata for the hidden nodes.                                                                                                                  | `{}`                     |
+| `replsets.rs0.hidden.labels`                                       | The [Kubernetes affinity labels](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/) for the hidden nodes.                                                                                                                                   | `{}`                     |
+| `replsets.rs0.hidden.nodeSelector`                                 | The [Kubernetes nodeSelector](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector) affinity constraint for the hidden nodes                                                                                                      | `{}`                     |
+| `replsets.rs0.hidden.resources`                                    | MongoDB hidden Pod resource requests and limits                                                                                                                                                                                                              | `{}`                     |
+| `replsets.rs0.hidden.podDisruptionBudget.maxUnavailable`           | The [Kubernetes Pod distribution budget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/) limit specifying the maximum value for unavailable Pods among hidden nodes                                                                         | `1`                      |
+| `replsets.rs0.hidden.podDisruptionBudget.minUnavailable`           | The [Kubernetes Pod distribution budget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/) limit specifying the minimum value for unavailable Pods among hidden nodes                                                                         | `1`                      |
 | |
 | `sharding.enabled`                                            | Enable sharding setup                                                                                                                                                                                                    | `true`                   |
 | `sharding.balancer.enabled`                                   | Enable/disable balancer                                                                                                                                                                                                  | `true`                   |
@@ -291,24 +307,38 @@ The chart can be customized using the following configurable parameters:
 | `roles.roles.role`                               | Name of the role to inherit from.                                                                                                                                                                                                                                                                                       | `""`      |
 | `roles.roles.db`                                 | Name of database that contains the role to inherit from.                                                                                                                                                                                                                                                                | `""`      |
 | |
-| `backup.enabled`                      | Enable backup PBM agent                                           | `true`                           |
-| `backup.annotations`                  | Backup job annotations                                            | `{}`                             |
-| `backup.podSecurityContext`           | Set the security context for a Pod                                | `{}`                             |
-| `backup.containerSecurityContext`     | Set the security context for a Container                          | `{}`                             |
-| `backup.restartOnFailure`             | Backup Pods restart policy                                        | `true`                           |
-| `backup.image.repository`             | PBM Container image repository                                    | `percona/percona-backup-mongodb` |
-| `backup.image.tag`                    | PBM Container image tag                                           | `2.9.1`                          |
-| `backup.storages`                     | Local/remote backup storages settings                             | `{}`                             |
-| `backup.volumeMounts`                 | Name of the remote backup storage                                 | `""`                             |
-| `backup.pitr.enabled`                 | Enable point in time recovery for backup                          | `false`                          |
-| `backup.pitr.oplogOnly`               | Start collecting oplogs even if full logical backup doesn't exist | `false`                          |
-| `backup.pitr.oplogSpanMin`            | Number of minutes between the uploads of oplogs                   | `10`                             |
-| `backup.pitr.compressionType`         | The point-in-time-recovery chunks compression format              | `""`                             |
-| `backup.pitr.compressionLevel`        | The point-in-time-recovery chunks compression level               | `""`                             |
-| `backup.configuration.backupOptions`  | Custom configuration settings for backup                          | `{}`                             |
-| `backup.configuration.restoreOptions` | Custom configuration settings for restore                         | `{}`                             |
-| `backup.tasks`                        | Backup working schedule                                           | `{}`                             |
-| `systemUsers`                         | PSMDB operator system users                                       | `{}`                             |
+| `backup.enabled`                                   | Enable backup PBM agent                                                       | `true`                           |
+| `backup.startingDeadlineSeconds`                   | The maximum time in seconds for a backup to start                             | `300`                            |
+| `backup.annotations`                               | Backup job annotations                                                        | `{}`                             |
+| `backup.podSecurityContext`                        | Set the security context for a Pod                                            | `{}`                             |
+| `backup.containerSecurityContext`                  | Set the security context for a Container                                      | `{}`                             |
+| `backup.restartOnFailure`                          | Backup Pods restart policy                                                    | `true`                           |
+| `backup.image.repository`                          | PBM Container image repository                                                | `percona/percona-backup-mongodb` |
+| `backup.image.tag`                                 | PBM Container image tag                                                       | `2.11.0`                         |
+| `backup.storages`                                  | Local/remote backup storages settings                                         | `{}`                             |
+| `backup.volumeMounts`                              | Name of the remote backup storage                                             | `""`                             |
+| `backup.pitr.enabled`                              | Enable point in time recovery for backup                                      | `false`                          |
+| `backup.pitr.oplogOnly`                            | Start collecting oplogs even if full logical backup doesn't exist             | `false`                          |
+| `backup.pitr.oplogSpanMin`                         | Number of minutes between the uploads of oplogs                               | `10`                             |
+| `backup.pitr.compressionType`                      | The point-in-time-recovery chunks compression format                          | `""`                             |
+| `backup.pitr.compressionLevel`                     | The point-in-time-recovery chunks compression level                           | `""`                             |
+| `backup.configuration.backupOptions`               | Custom configuration settings for backup                                      | `{}`                             |
+| `backup.configuration.restoreOptions`              | Custom configuration settings for restore                                     | `{}`                             |
+| `backup.tasks`                                     | Backup working schedule                                                       | `[]`                             |
+| `backup.tasks[].name`                              | Name of the backup schedule                                                   | `""`                             |
+| `backup.tasks[].enabled`                           | Enable scheduled backup task                                                  | `false`                          |
+| `backup.tasks[].schedule`                          | Backup execution timetable cron timing                                        | `false`                          |
+| `backup.tasks[].retention.count`                   | Backup jobs to keep                                                           | `0`                              |
+| `backup.tasks[].retention.type`                    | Backup retention type                                                         | `count`                          |
+| `backup.tasks[].retention.deleteFromStorage`       | Whether to add the "percona.com/delete-backup" finalizer to new backups       | `true`                           |
+| `backup.tasks[].storageName`                       | Backup storage name                                                           | `""`                             |
+| `backup.tasks[].compressionType`                   | Backup compression type                                                       | `gzip`                           |
+| `systemUsers`                                      | PSMDB operator system users                                                   | `{}`                             |
+| `logcollector.enabled`                             | Enable or disable the log collector sidecar container                         | `true`                           |
+| `logcollector.image.repository`                    | Container image repository for the log collector (Fluent Bit)                 | `percona/fluentbit`              |
+| `logcollector.image.tag`                           | Image tag for the log collector                                               | `main-logcollector`              |
+| `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
+| `logcollector.configuration`                       | Custom configuration (optional, if not commented out)                         | `""`                             |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
