@@ -583,13 +583,13 @@ pmm:
     repository: percona/pmm-client
     tag: 3.4.0
   imagePullPolicy: Always
-#  readinessProbes:
+#  readinessProbe:
 #    initialDelaySeconds: 15
 #    timeoutSeconds: 15
 #    periodSeconds: 30
 #    successThreshold: 1
 #    failureThreshold: 5
-#  livenessProbes:
+#  livenessProbe:
 #    initialDelaySeconds: 300
 #    timeoutSeconds: 5
 #    periodSeconds: 10
