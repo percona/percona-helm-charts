@@ -47,6 +47,7 @@ crVersion: 2.7.0
 repository: docker.io/percona/percona-postgresql-operator
 image: docker.io/percona/percona-postgresql-operator:2.7.0-ppg17.5.2-postgres
 imagePullPolicy: Always
+imagePullSecrets: []
 postgresVersion: 17
 # port: 5432
 pause: false
