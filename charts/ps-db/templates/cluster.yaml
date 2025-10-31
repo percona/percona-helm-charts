@@ -655,13 +655,13 @@ spec:
     imagePullPolicy: {{ $pmm.imagePullPolicy }}
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
-    {{- if $pmm.readinessProbes }}
-    readinessProbes:
-{{ tpl ($pmm.readinessProbes | toYaml) $ | indent 6 }}
+    {{- if $pmm.readinessProbe }}
+    readinessProbe:
+{{ tpl ($pmm.readinessProbe | toYaml) $ | indent 6 }}
     {{- end }}
-    {{- if $pmm.livenessProbes }}
-    livenessProbes:
-{{ tpl ($pmm.livenessProbes | toYaml) $ | indent 6 }}
+    {{- if $pmm.livenessProbe }}
+    livenessProbe:
+{{ tpl ($pmm.livenessProbe | toYaml) $ | indent 6 }}
     {{- end }}
     resources:
       requests:
