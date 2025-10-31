@@ -289,7 +289,7 @@ spec:
           limits:
 {{ tpl ($haproxy.initContainer.resources.limits | toYaml) $ | indent 12 }}
           {{- end }}
-      {{- end }}
+        {{- end }}
       {{- end }}
       {{- if $haproxy.size }}
       size: {{ $haproxy.size }}
@@ -435,6 +435,7 @@ spec:
       {{- end }}
       {{- if $router.gracePeriod }}
       gracePeriod: {{ $router.gracePeriod }}
+      {{- end }}
       {{- if $router.env }}
       env:
 {{ $router.env | toYaml | indent 8 }}
@@ -541,7 +542,7 @@ spec:
       {{- if $orc.initContainer.containerSecurityContext }}
       containerSecurityContext:
 {{ tpl ($orc.initContainer.containerSecurityContext | toYaml) $ | indent 8 }}
-        {{- end }}
+      {{- end }}
       {{- if $orc.initContainer.resources }}
       resources:
         {{- if hasKey $orc.initContainer.resources "requests" }}
@@ -552,6 +553,7 @@ spec:
         limits:
 {{ tpl ($orc.initContainer.resources.limits | toYaml) $ | indent 10 }}
         {{- end }}
+      {{- end }}
     {{- end }}
     {{- if $orc.env }}
     env:
