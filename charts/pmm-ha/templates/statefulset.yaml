@@ -40,6 +40,20 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # Init container to verify secret exists before starting main app
+      initContainers:
+        - name: wait-for-pg-secret
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for secret to be available..."
+              until kubectl get secret pg-encryption-key; do
+                echo "Secret not found, retrying in 5s..."
+                sleep 5
+              done
+              echo "Secret found, proceeding..."
       containers:
         - name: {{ .Chart.Name }}
 
@@ -150,6 +164,8 @@ spec:
               value: "{{ include "pmm.haPeers" . }}"
             - name: PMM_CLICKHOUSE_NODES
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
+            - name: PMM_ENCRYPTION_KEY_PATH
+              value: /etc/secrets/key
           ports:
             - name: http
               containerPort: 8080
@@ -168,6 +184,10 @@ spec:
             - name: annotations
               mountPath: "/var/run/pmm/annotations"
               readOnly: true
+          volumeMounts:
+            - name: encryption-key
+              mountPath: /etc/secrets
+              readOnly: true
             {{- if .Values.certs.name }}
             - name: {{ .Values.certs.name }}
               mountPath: /srv/nginx
@@ -185,6 +205,9 @@ spec:
                   - path: "annotations"
                     fieldRef:
                       fieldPath: metadata.annotations
+        - name: encryption-key
+          secret:
+            secretName: pg-encryption-key
       {{- if .Values.certs.name }}
         - name: {{ .Values.certs.name }}
           secret:
