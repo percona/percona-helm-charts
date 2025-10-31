@@ -12,8 +12,6 @@ keywords:
 maintainers:
 - email: tomislav.plavcic@percona.com
   name: tplavcic
-- email: sergey.pronin@percona.com
-  name: spron-in
 - email: natalia.marukovich@gmail.com
   name: nmarukovich
 name: pg-operator
