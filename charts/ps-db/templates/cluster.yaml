@@ -517,6 +517,7 @@ spec:
   {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
     enabled: false
     image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
+    size: 0
   {{- else }}
     enabled: true
     image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
