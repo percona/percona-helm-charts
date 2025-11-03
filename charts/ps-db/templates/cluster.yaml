@@ -575,9 +575,7 @@ spec:
     readinessProbe:
 {{ $orc.readinessProbe | toYaml | indent 6 }}
     {{- end }}
-    {{- if $orc.size }}
     size: {{ $orc.size }}
-    {{- end }}
     {{- if $orc.podDisruptionBudget }}
     podDisruptionBudget:
 {{ $orc.podDisruptionBudget | toYaml | indent 6 }}
