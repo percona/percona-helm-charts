@@ -68,23 +68,15 @@ spec:
                       properties:
                         ca.crt:
                           description: |-
-                            CACert is based64 encoded CA certificate file content.
+                            CACert is based64 encoded ca.pem file content.
                             It is provided as a write-only input field for convenience.
                             When this field is set, a webhook writes this value in the Secret specified by `.spec.tls.secretName`
                             and empties this field.
                             This field is not stored in the API.
                           type: string
-                        tls.crt:
+                        ca.key:
                           description: |-
-                            TLSCert is based64 encoded TLS certificate file content.
-                            It is provided as a write-only input field for convenience.
-                            When this field is set, a webhook writes this value in the Secret specified by `.spec.tls.secretName`
-                            and empties this field.
-                            This field is not stored in the API.
-                          type: string
-                        tls.key:
-                          description: |-
-                            TLSKey is based64 encoded TLS key file content.
+                            CA Private Key is based64 encoded ca-key.pem file content.
                             It is provided as a write-only input field for convenience.
                             When this field is set, a webhook writes this value in the Secret specified by `.spec.tls.secretName`
                             and empties this field.
@@ -92,8 +84,7 @@ spec:
                           type: string
                       required:
                         - ca.crt
-                        - tls.crt
-                        - tls.key
+                        - ca.key
                       type: object
                     secretName:
                       description: SecretName is the name of the secret containing the TLS certificate and key for the split-horizon DNS configuration.
