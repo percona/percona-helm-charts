@@ -311,6 +311,9 @@ spec:
                         - postgresql
                         - psmdb
                       type: string
+                      x-kubernetes-validations:
+                        - message: .spec.engine.type cannot be changed
+                          rule: self == oldSelf
                     userSecretsName:
                       description: UserSecretsName is the name of the secret containing the user secrets
                       type: string
