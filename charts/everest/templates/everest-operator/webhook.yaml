@@ -12,6 +12,28 @@ webhooks:
     service:
       name: everest-operator-webhook-service
       namespace: {{ include "everest.namespace" . }}
+      path: /validate-enginefeatures-everest-percona-com-v1alpha1-splithorizondnsconfig
+  failurePolicy: Fail
+  name: vsplithorizondnsconfig-v1alpha1.enginefeatures.everest.percona.com
+  rules:
+  - apiGroups:
+    - enginefeatures.everest.percona.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - splithorizondnsconfigs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    caBundle: {{ index $tls "ca.crt" }}
+    service:
+      name: everest-operator-webhook-service
+      namespace: {{ include "everest.namespace" . }}
       path: /validate-everest-percona-com-v1alpha1-databasecluster
   failurePolicy: Fail
   name: vdatabasecluster-v1alpha1.everest.percona.com
@@ -75,6 +97,27 @@ kind: MutatingWebhookConfiguration
 metadata:
   name: everest-operator-mutating-webhook-configuration
 webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    caBundle: {{ index $tls "ca.crt" }}
+    service:
+      name: everest-operator-webhook-service
+      namespace: {{ include "everest.namespace" . }}
+      path: /mutate-enginefeatures-everest-percona-com-v1alpha1-splithorizondnsconfig
+  failurePolicy: Fail
+  name: msplithorizondnsconfig-v1alpha1.enginefeatures.everest.percona.com
+  rules:
+  - apiGroups:
+    - enginefeatures.everest.percona.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - splithorizondnsconfigs
+  sideEffects: None
 - admissionReviewVersions:
   - v1
   clientConfig:
