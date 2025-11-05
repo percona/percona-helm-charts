@@ -9,7 +9,7 @@ A job will be created based on `helm` `install`, `upgrade`, or `uninstall`. Afte
 job has completed the RBAC will be cleaned up.
 
 ## Pre-requisites
-* Kubernetes 1.30+
+* Kubernetes 1.31+
 * At least `v3.2.3` version of helm
 
 # Installation
