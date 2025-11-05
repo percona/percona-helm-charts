@@ -402,7 +402,6 @@ spec:
       imagePullSecrets:
 {{ $router.imagePullSecrets | toYaml | indent 8 }}
       {{- end }}
-      {{- end }}
       {{- if $router.initContainer }}
       initContainer:
         {{- if hasKey $router.initContainer "image" }}
@@ -424,6 +423,7 @@ spec:
           limits:
 {{ tpl ($router.initContainer.resources.limits | toYaml) $ | indent 12 }}
           {{- end }}
+        {{- end }}
       {{- end }}
       {{- if $router.podDisruptionBudget }}
       podDisruptionBudget:
