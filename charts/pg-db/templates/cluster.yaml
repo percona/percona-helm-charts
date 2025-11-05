@@ -591,13 +591,13 @@ spec:
       {{- if .Values.extensions.storage.endpoint }}
       endpoint: {{ .Values.extensions.storage.endpoint }}
       {{- end }}
-      {{- if .Values.extensions.storage.forcePathStyle }}
+      {{- if hasKey .Values.extensions.storage "forcePathStyle" }}
       forcePathStyle: {{ .Values.extensions.storage.forcePathStyle }}
       {{- end }}
-      {{- if .Values.extensions.storage.disableSSL }}
+      {{- if hasKey .Values.extensions.storage "disableSSL" }}
       disableSSL: {{ .Values.extensions.storage.disableSSL }}
       {{- end }}
-      {{- if .Values.extensions.storage.secret.name }}
+      {{- if .Values.extensions.storage.secret }}
       secret:
         name: {{ .Values.extensions.storage.secret.name }}
       {{- end }}
