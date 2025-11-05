@@ -8,6 +8,7 @@ rules:
   resources:
   - namespaces
   - persistentvolumeclaims
+  - services
   verbs:
   - get
   - list
@@ -72,6 +73,7 @@ rules:
   - databaseclusters
   - databaseengines
   - dataimportjobs
+  - loadbalancerconfigs
   - monitoringconfigs
   - podschedulingpolicies
   verbs:
@@ -103,6 +105,7 @@ rules:
   - databaseclusters/status
   - databaseengines/status
   - dataimportjobs/status
+  - loadbalancerconfigs/status
   - monitoringconfigs/status
   - podschedulingpolicies/status
   verbs:
