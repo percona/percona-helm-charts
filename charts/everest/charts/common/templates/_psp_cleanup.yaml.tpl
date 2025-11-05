@@ -1,6 +1,7 @@
 # Cleanup all default pod scheduling policies during uninstall.
 #
 # @param .namespace     The namespace where Everest server is installed
+# @param .image         The image to use for running the hook Job
 #
 {{- define "everest.pspCleanup" }}
 {{- $hookName := printf "everest-helm-psp-cleanup-hook" }}
@@ -63,7 +64,7 @@ spec:
   template:
     spec:
       containers:
-        - image: bitnami/kubectl:latest
+        - image: {{ .image }}
           name: {{ $hookName }}
           command:
             - /bin/sh

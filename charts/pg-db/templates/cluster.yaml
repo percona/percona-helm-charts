@@ -22,6 +22,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
+  {{- include "pg-database.initContainer" .Values | indent 2 }}
   {{- if .Values.metadata }}
   metadata: {{ .Values.metadata | toYaml | nindent 4 }}
   {{- end }}
@@ -198,6 +199,7 @@ spec:
   instances:
   {{- range $instance := .Values.instances }}
     - name: {{ $instance.name }}
+      {{- include "pg-database.initContainer" $instance | indent 6 }}
       replicas: {{ $instance.replicas }}
       {{- if $instance.affinity }}
       affinity:
@@ -216,6 +218,13 @@ spec:
       {{- range $sidecar := $instance.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
+        {{- with $sidecar.securityContext }}
+        securityContext: 
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- end }}
       {{- end }}
       {{- if $instance.topologySpreadConstraints }}
@@ -331,6 +340,13 @@ spec:
       {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
+        {{- with $sidecar.securityContext }}
+        securityContext: 
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.customTLSSecret }}
@@ -370,14 +386,29 @@ spec:
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
+    {{- if .Values.pmm.imagePullPolicy }}
+    imagePullPolicy: {{ .Values.pmm.imagePullPolicy | default "Always" }}
+    {{- end }}
+    {{- if .Values.pmm.postgresParams }}
+    {{- end }}
+    secret: {{ .Values.pmm.secret | default (printf "%s-pmm-secret" (include "pg-database.fullname" .)) }}
     serverHost: {{ .Values.pmm.serverHost }}
-    secret: {{ include "pg-database.fullname" . }}-pmm-secret
+    {{- if .Values.pmm.querySource }}
     querySource: {{ .Values.pmm.querySource }}
+    {{- end }}
+    {{- if .Values.pmm.customClusterName }}
+    customClusterName: {{ .Values.pmm.customClusterName }}
+    {{- end }}
+    {{- include "pg-database.resources" .Values.pmm | indent 4 }}
 
   backups:
+    {{- $isBackupsEnabled := (hasKey .Values.backups "enabled") | ternary .Values.backups.enabled true }}
+    enabled: {{ $isBackupsEnabled }}
+    {{- if $isBackupsEnabled }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
       image: {{ .Values.backups.pgbackrest.image }}
+      {{- include "pg-database.initContainer" .Values.backups.pgbackrest | indent 6 }}
       {{- if .Values.backups.pgbackrest.configuration }}
       configuration:
 {{ .Values.backups.pgbackrest.configuration | toYaml | indent 6 }}
@@ -397,6 +428,9 @@ spec:
       jobs:
         {{- if .Values.backups.pgbackrest.jobs.restartPolicy }}
         restartPolicy: {{ .Values.backups.pgbackrest.jobs.restartPolicy }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.ttlSecondsAfterFinished }}
+        ttlSecondsAfterFinished: {{ .Values.backups.pgbackrest.jobs.ttlSecondsAfterFinished }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.backoffLimit }}
         backoffLimit: {{ .Values.backups.pgbackrest.jobs.backoffLimit }}
@@ -450,7 +484,7 @@ spec:
       {{- end }}
       {{- if .Values.backups.pgbackrest.manual }}
       manual:
-{{ pick .Values.backups.pgbackrest.manual "repoName" "options" | toYaml | indent 8 }}
+{{ pick .Values.backups.pgbackrest.manual "repoName" "options" "initialDelaySeconds" | toYaml | indent 8 }}
       {{- end }}
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
@@ -508,6 +542,7 @@ spec:
 {{ .Values.backups.pgbackrest.restore.tolerations | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
+    {{- end }}
 
 {{- if .Values.patroni }}
   patroni:
@@ -527,6 +562,10 @@ spec:
       {{- if .Values.patroni.switchover.targetInstance }}
       targetInstance: {{ .Values.patroni.switchover.targetInstance }}
       {{- end }}
+    {{- end }}
+    {{- if .Values.patroni.createReplicaMethods }}
+    createReplicaMethods:
+{{ .Values.patroni.createReplicaMethods | toYaml | indent 6 }}
     {{- end }}
 {{- end }}
 

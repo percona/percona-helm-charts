@@ -11,6 +11,7 @@ A sub-chart for provisioning Everest DB namespaces.
 | mayankshah1607 | <mayank.shah@percona.com> |  |
 | oksana-grishchenko | <oksana.grishchenko@percona.com> |  |
 | recharte | <diogo.recharte@percona.com> |  |
+| maxkondr | <maxim.kondratenko@percona.com> |  |
 
 ## Requirements
 
@@ -26,6 +27,11 @@ Kubernetes: `>= 1.27.0-0`
 |-----|------|---------|-------------|
 | cleanupOnUninstall | bool | `true` | If set, cleans up the DB resources on uninstall. |
 | compatibility.openshift | bool | `false` | If set, enable OpenShift compatibility. |
+| hooks | object | `{"csvCleanup":{},"dbResourcesCleanup":{},"image":"percona/everest-helmtools:0.0.1","operatorsInstaller":{}}` | Configuration for Helm chart hooks. |
+| hooks.csvCleanup | object | `{}` | Configuration for the ClusterServiceVersion cleanup hook. |
+| hooks.dbResourcesCleanup | object | `{}` | Configuration for the DB resources cleanup hook. |
+| hooks.image | string | `percona/everest-helmtools:0.0.1` | Default image to use for the Helm chart hooks job. |
+| hooks.operatorsInstaller | object | `{}` | Configuration for the operators installer hook. |
 | namespaceOverride | string | `""` | Namespace override. Defaults to the value of .Release.Namespace. |
 | postgresql | bool | `true` | If set, installs the Percona Postgresql Server operator. |
 | psmdb | bool | `true` | If set, installs the Percona Server MongoDB operator. |
