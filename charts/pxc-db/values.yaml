@@ -696,6 +696,9 @@ backup:
     #     #credentialsSecretKey: REPLACE-WITH-AWS-SECRET-KEY
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
     # s3-us-west-binlogs:
     #   type: s3
     #   s3:
@@ -703,6 +706,9 @@ backup:
     #     credentialsSecret: my-cluster-name-backup-s3
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
     # azure-blob:
     #   type: azure
     #   azure:
