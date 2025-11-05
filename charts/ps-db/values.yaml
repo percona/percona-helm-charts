@@ -90,8 +90,6 @@ mysql:
 
   size: 3
 
-  # gracePeriod: 600
-
   # configuration: |
   #   max_connections=250
 
@@ -263,8 +261,6 @@ proxy:
       # minAvailable: 0
 
     size: 3
-
-    # gracePeriod: 600
 
     resources:
       requests:
@@ -467,7 +463,6 @@ proxy:
     #   targetPort: 6446
     size: 3
 
-    # gracePeriod: 600
     resources:
       requests:
         memory: 256M
@@ -588,7 +583,6 @@ orchestrator:
     # minAvailable: 0
   size: 3
 
-  # gracePeriod: 600
   resources:
     requests:
       memory: 128M

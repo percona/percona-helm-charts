@@ -433,9 +433,6 @@ spec:
       topologySpreadConstraints:
 {{ $router.topologySpreadConstraints | toYaml | indent 8 }}
       {{- end }}
-      {{- if $router.gracePeriod }}
-      gracePeriod: {{ $router.gracePeriod }}
-      {{- end }}
       {{- if $router.env }}
       env:
 {{ $router.env | toYaml | indent 8 }}
