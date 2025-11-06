@@ -3,9 +3,9 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: {{ include "pmm.fullname" . }}
-  namespace: {{ include  "pmm.namespace" . }}
+    {{- include "pmm.includeNamespace" . | nindent 2 }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
+    {{- include "pmm.labels" . | nindent 2 }}
 rules:
 # standard RBAC
 - apiGroups: [""] # "" indicates the core API group

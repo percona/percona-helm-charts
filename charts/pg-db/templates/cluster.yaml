@@ -166,6 +166,10 @@ spec:
     labels:
 {{ .Values.expose.labels | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.expose.loadBalancerClass }}
+    loadBalancerClass:
+{{ .Values.expose.loadBalancerClass | toYaml | indent 6 }}
+    {{- end }}
     {{- if .Values.expose.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 6 }}
@@ -181,6 +185,10 @@ spec:
     {{- if .Values.exposeReplicas.labels }}
     labels:
 {{ .Values.exposeReplicas.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.exposeReplicas.loadBalancerClass }}
+    loadBalancerClass:
+{{ .Values.exposeReplicas.loadBalancerClass | toYaml | indent 6 }}
     {{- end }}
     {{- if .Values.exposeReplicas.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
@@ -317,6 +325,10 @@ spec:
         {{- if .Values.proxy.pgBouncer.expose.labels }}
         labels:
 {{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.proxy.pgBouncer.expose.loadBalancerClass }}
+        loadBalancerClass:
+{{ .Values.proxy.pgBouncer.expose.loadBalancerClass | toYaml | indent 10 }}
         {{- end }}
         {{- if .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges }}
         loadBalancerSourceRanges:
@@ -593,7 +605,13 @@ spec:
       {{- if .Values.extensions.storage.endpoint }}
       endpoint: {{ .Values.extensions.storage.endpoint }}
       {{- end }}
-      {{- if .Values.extensions.storage.secret.name }}
+      {{- if hasKey .Values.extensions.storage "forcePathStyle" }}
+      forcePathStyle: {{ .Values.extensions.storage.forcePathStyle }}
+      {{- end }}
+      {{- if hasKey .Values.extensions.storage "disableSSL" }}
+      disableSSL: {{ .Values.extensions.storage.disableSSL }}
+      {{- end }}
+      {{- if .Values.extensions.storage.secret }}
       secret:
         name: {{ .Values.extensions.storage.secret.name }}
       {{- end }}
