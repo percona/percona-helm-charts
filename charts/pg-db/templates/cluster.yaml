@@ -324,12 +324,12 @@ spec:
         {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.envFrom }}
-        envFrom:
-{{ .Values.proxy.pgBouncer.envFrom | toYaml | indent 10 }}
+      envFrom:
+{{ .Values.proxy.pgBouncer.envFrom | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.env }}
-        env:
-{{ .Values.proxy.pgBouncer.env | toYaml | indent 10 }}
+      env:
+{{ .Values.proxy.pgBouncer.env | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.expose }}
       expose:
