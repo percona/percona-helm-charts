@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.20.1
+  tag: 1.21.1
   pullPolicy: IfNotPresent
 
 # disableTelemetry: according to
@@ -97,3 +97,7 @@ affinity: {}
 
 logStructured: false
 logLevel: "INFO"
+
+# maxConcurrentReconciles controls the number of concurrent workers 
+# that can reconcile resources in Percona Server for MongoDB clusters in parallel.
+maxConcurrentReconciles: "1"

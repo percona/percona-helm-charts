@@ -22,6 +22,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   crVersion: {{ .Values.crVersion }}
+  {{- include "pg-database.initContainer" .Values | indent 2 }}
   {{- if .Values.metadata }}
   metadata: {{ .Values.metadata | toYaml | nindent 4 }}
   {{- end }}
@@ -165,6 +166,10 @@ spec:
     labels:
 {{ .Values.expose.labels | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.expose.loadBalancerClass }}
+    loadBalancerClass:
+{{ .Values.expose.loadBalancerClass | toYaml | indent 6 }}
+    {{- end }}
     {{- if .Values.expose.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 6 }}
@@ -181,6 +186,10 @@ spec:
     labels:
 {{ .Values.exposeReplicas.labels | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.exposeReplicas.loadBalancerClass }}
+    loadBalancerClass:
+{{ .Values.exposeReplicas.loadBalancerClass | toYaml | indent 6 }}
+    {{- end }}
     {{- if .Values.exposeReplicas.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ .Values.exposeReplicas.loadBalancerSourceRanges | toYaml | indent 6 }}
@@ -190,6 +199,7 @@ spec:
   instances:
   {{- range $instance := .Values.instances }}
     - name: {{ $instance.name }}
+      {{- include "pg-database.initContainer" $instance | indent 6 }}
       replicas: {{ $instance.replicas }}
       {{- if $instance.affinity }}
       affinity:
@@ -216,6 +226,13 @@ spec:
       {{- range $sidecar := $instance.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
+        {{- with $sidecar.securityContext }}
+        securityContext: 
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- end }}
       {{- end }}
       {{- if $instance.topologySpreadConstraints }}
@@ -325,6 +342,10 @@ spec:
         labels:
 {{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 10 }}
         {{- end }}
+        {{- if .Values.proxy.pgBouncer.expose.loadBalancerClass }}
+        loadBalancerClass:
+{{ .Values.proxy.pgBouncer.expose.loadBalancerClass | toYaml | indent 10 }}
+        {{- end }}
         {{- if .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges }}
         loadBalancerSourceRanges:
 {{ .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
@@ -335,6 +356,13 @@ spec:
       {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
       - name: {{ $sidecar.name }}
         image: {{ $sidecar.image }}
+        {{- with $sidecar.command }}
+        command: {{ toJson . }}
+        {{- end }}
+        {{- with $sidecar.securityContext }}
+        securityContext: 
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
       {{- end }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.customTLSSecret }}
@@ -374,11 +402,25 @@ spec:
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
+    {{- if .Values.pmm.imagePullPolicy }}
+    imagePullPolicy: {{ .Values.pmm.imagePullPolicy | default "Always" }}
+    {{- end }}
+    {{- if .Values.pmm.postgresParams }}
+    {{- end }}
+    secret: {{ .Values.pmm.secret | default (printf "%s-pmm-secret" (include "pg-database.fullname" .)) }}
     serverHost: {{ .Values.pmm.serverHost }}
-    secret: {{ include "pg-database.fullname" . }}-pmm-secret
+    {{- if .Values.pmm.querySource }}
     querySource: {{ .Values.pmm.querySource }}
+    {{- end }}
+    {{- if .Values.pmm.customClusterName }}
+    customClusterName: {{ .Values.pmm.customClusterName }}
+    {{- end }}
+    {{- include "pg-database.resources" .Values.pmm | indent 4 }}
 
   backups:
+    {{- $isBackupsEnabled := (hasKey .Values.backups "enabled") | ternary .Values.backups.enabled true }}
+    enabled: {{ $isBackupsEnabled }}
+    {{- if $isBackupsEnabled }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
       {{- if .Values.backups.pgbackrest.envFrom }}
@@ -390,6 +432,7 @@ spec:
 {{ .Values.backups.pgbackrest.env | toYaml | indent 8 }}
       {{- end }}
       image: {{ .Values.backups.pgbackrest.image }}
+      {{- include "pg-database.initContainer" .Values.backups.pgbackrest | indent 6 }}
       {{- if .Values.backups.pgbackrest.configuration }}
       configuration:
 {{ .Values.backups.pgbackrest.configuration | toYaml | indent 6 }}
@@ -409,6 +452,9 @@ spec:
       jobs:
         {{- if .Values.backups.pgbackrest.jobs.restartPolicy }}
         restartPolicy: {{ .Values.backups.pgbackrest.jobs.restartPolicy }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.jobs.ttlSecondsAfterFinished }}
+        ttlSecondsAfterFinished: {{ .Values.backups.pgbackrest.jobs.ttlSecondsAfterFinished }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.jobs.backoffLimit }}
         backoffLimit: {{ .Values.backups.pgbackrest.jobs.backoffLimit }}
@@ -447,6 +493,20 @@ spec:
 {{ $constraint.labelSelector.matchLabels | toYaml | indent 16 }}
         {{- end }}
         {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.sidecars }}
+        sidecars:
+        {{- range $sidecar := .Values.backups.pgbackrest.repoHost.sidecars }}
+        - name: {{ $sidecar.name }}
+          image: {{ $sidecar.image }}
+          {{- with $sidecar.command }}
+          command: {{ toJson . }}
+          {{- end }}
+          {{- with $sidecar.securityContext }}
+          securityContext: 
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
         affinity:
 {{ .Values.backups.pgbackrest.repoHost.affinity | toYaml | indent 10 }}
@@ -460,12 +520,10 @@ spec:
 {{ .Values.backups.pgbackrest.repoHost.securityContext | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
+      {{- if .Values.backups.pgbackrest.manual }}
       manual:
-        repoName: {{ .Values.backups.pgbackrest.manual.repoName }}
-        options:
-        {{- range .Values.backups.pgbackrest.manual.options }}
-        - {{ . }}
-        {{- end }}
+{{ pick .Values.backups.pgbackrest.manual "repoName" "options" "initialDelaySeconds" | toYaml | indent 8 }}
+      {{- end }}
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
       - name: {{ $repo.name }}
@@ -522,6 +580,7 @@ spec:
 {{ .Values.backups.pgbackrest.restore.tolerations | toYaml | indent 10 }}
         {{- end }}
       {{- end }}
+    {{- end }}
 
 {{- if .Values.patroni }}
   patroni:
@@ -541,6 +600,10 @@ spec:
       {{- if .Values.patroni.switchover.targetInstance }}
       targetInstance: {{ .Values.patroni.switchover.targetInstance }}
       {{- end }}
+    {{- end }}
+    {{- if .Values.patroni.createReplicaMethods }}
+    createReplicaMethods:
+{{ .Values.patroni.createReplicaMethods | toYaml | indent 6 }}
     {{- end }}
 {{- end }}
 
@@ -566,7 +629,13 @@ spec:
       {{- if .Values.extensions.storage.endpoint }}
       endpoint: {{ .Values.extensions.storage.endpoint }}
       {{- end }}
-      {{- if .Values.extensions.storage.secret.name }}
+      {{- if hasKey .Values.extensions.storage "forcePathStyle" }}
+      forcePathStyle: {{ .Values.extensions.storage.forcePathStyle }}
+      {{- end }}
+      {{- if hasKey .Values.extensions.storage "disableSSL" }}
+      disableSSL: {{ .Values.extensions.storage.disableSSL }}
+      {{- end }}
+      {{- if .Values.extensions.storage.secret }}
       secret:
         name: {{ .Values.extensions.storage.secret.name }}
       {{- end }}
