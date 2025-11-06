@@ -79,6 +79,7 @@ customReplicationTLSSecret:
 #   - name: rhino
 #     databases:
 #       - zoo
+#     grantPublicSchemaAccess: true
 #     options: "SUPERUSER"
 #     password:
 #       type: ASCII
