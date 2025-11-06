@@ -221,6 +221,12 @@ instances:
             matchLabels:
               postgres-operator.crunchydata.com/data: postgres
           topologyKey: kubernetes.io/hostname
+#  env:
+#  - name: MY_ENV
+#    value: "1000"
+#  envFrom:
+#  - secretRef:
+#      name: instance-env-secret
 #  metadata:
 #    annotations: {}
 #    labels: {}
@@ -311,6 +317,12 @@ proxy:
   pgBouncer:
     replicas: 3
     image: docker.io/percona/percona-pgbouncer:1.24.1-1
+#    env:
+#    - name: MY_ENV
+#      value: "1000"
+#    envFrom:
+#    - secretRef:
+#        name: pgbouncer-env-secret
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -421,6 +433,12 @@ backups:
 #          level: s0:c123,c456
 #    metadata:
 #    labels:
+#    env:
+#    - name: MY_ENV
+#      value: "1000"
+#    envFrom:
+#    - secretRef:
+#        name: backup-env-secret
     image: docker.io/percona/percona-pgbackrest:2.56.0-1
 #    containers:
 #      pgbackrest:

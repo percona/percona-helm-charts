@@ -208,6 +208,14 @@ spec:
       affinity:
 {{ $instance.affinity | toYaml | indent 8 }}
       {{- end }}
+      {{- if $instance.envFrom }}
+      envFrom:
+{{ $instance.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $instance.env }}
+      env:
+{{ $instance.env | toYaml | indent 8 }}
+      {{- end }}
       {{- include "pg-database.resources" $instance | indent 6 }}
       {{- if $instance.containers }}
       containers:
@@ -318,6 +326,14 @@ spec:
         {{- include "pg-database.resources" .Values.proxy.pgBouncer.containers.pgbouncerConfig | indent 10 }}
         {{- end }}
       {{- end }}
+      {{- if .Values.proxy.pgBouncer.envFrom }}
+      envFrom:
+{{ .Values.proxy.pgBouncer.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.env }}
+      env:
+{{ .Values.proxy.pgBouncer.env | toYaml | indent 8 }}
+      {{- end }}
       {{- if .Values.proxy.pgBouncer.expose }}
       expose:
         type: {{ .Values.proxy.pgBouncer.expose.type }}
@@ -410,6 +426,14 @@ spec:
     {{- if $isBackupsEnabled }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
+      {{- if .Values.backups.pgbackrest.envFrom }}
+      envFrom:
+{{ .Values.backups.pgbackrest.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.env }}
+      env:
+{{ .Values.backups.pgbackrest.env | toYaml | indent 8 }}
+      {{- end }}
       image: {{ .Values.backups.pgbackrest.image }}
       {{- include "pg-database.initContainer" .Values.backups.pgbackrest | indent 6 }}
       {{- if .Values.backups.pgbackrest.configuration }}
