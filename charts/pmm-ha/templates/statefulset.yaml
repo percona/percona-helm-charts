@@ -167,8 +167,6 @@ spec:
             - name: PMM_ENCRYPTION_KEY_PATH
               value: /etc/secrets/key
           ports:
-            - name: http
-              containerPort: 8080
             - name: https
               containerPort: 8443
           readinessProbe:

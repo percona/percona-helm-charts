@@ -193,13 +193,13 @@ service:
       ## @param service.ports[0].name port name
       name: https
     ## @param service.ports[1].port http port number
-    - port: 8080
+    # - port: 8080
       ## @param service.ports[1].targetPort target port to map for statefulset and ingress
-      targetPort: http
+      # targetPort: http
       ## @param service.ports[1].protocol protocol for http
-      protocol: TCP
+      # protocol: TCP
       ## @param service.ports[1].name port name
-      name: http
+      # name: http
 
 # haservice:
 #  type: "ClusterIP"
