@@ -43,7 +43,7 @@ spec:
       # Init container to verify secret exists before starting main app
       initContainers:
         - name: wait-for-pg-secret
-          image: bitnami/kubectl:latest
+          image: alpine/kubectl:latest
           command:
             - /bin/sh
             - -c
