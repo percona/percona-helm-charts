@@ -15,7 +15,7 @@ image:
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4078-fa6adbc"
+  tag: "PR-4079-fe1275f"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -467,7 +467,7 @@ haproxy:
   # Init container to wait for PMM instances to be ready
   initContainers:
     - name: wait-for-pmm-ready
-      image: "alpine:3.18"
+      image: "alpine:latest"
       command:
         - /bin/sh
         - /scripts/wait-for-pmm.sh
