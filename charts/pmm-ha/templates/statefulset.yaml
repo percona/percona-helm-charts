@@ -162,7 +162,8 @@ spec:
           readinessProbe:
             httpGet:
               path: /v1/readyz
-              port: http
+              port: https
+              scheme: HTTPS
           {{- if .Values.readyProbeConf }}
             {{- toYaml .Values.readyProbeConf | nindent 12 }}
           {{- end }}
