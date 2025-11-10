@@ -33,6 +33,8 @@ psmdb: true
 pxc: true
 # -- If set, installs the Percona Postgresql Server operator.
 postgresql: true
+# -- If set, installs the Percona Server MySQL operator.
+ps: true
 
 # @ignore
 olm:
