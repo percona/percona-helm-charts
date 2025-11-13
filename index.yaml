@@ -517,6 +517,34 @@ entries:
     version: 1.3.0
   pg-db:
   - apiVersion: v2
+    appVersion: 2.8.0
+    created: "2025-11-13T16:40:34.649857654Z"
+    description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
+      for PostgreSQL
+    digest: f9f877c922a7c7be6c07cde3f84e012d99664cf88b75e57d3cfbffb2ece837ae
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    - email: valmira.nogueira@percona.com
+      name: valmiranogueira
+    name: pg-db
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-db-2.8.0/pg-db-2.8.0.tgz
+    version: 2.8.0
+  - apiVersion: v2
     appVersion: 2.7.0
     created: "2025-07-18T15:28:29.633060883Z"
     description: A Helm chart to deploy the PostgreSQL database with the Percona Operator
@@ -1751,6 +1779,33 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/pg-db-0.2.0/pg-db-0.2.0.tgz
     version: 0.2.0
   pg-operator:
+  - apiVersion: v2
+    appVersion: 2.8.0
+    created: "2025-11-13T16:40:34.948428975Z"
+    description: A Helm chart to deploy the Percona Operator for PostgreSQL
+    digest: 3a6d3809d483b820738d0128ed3db5d4bf7f662b7cc03567880c124f9f0c10ea
+    home: https://docs.percona.com/percona-operator-for-postgresql/2.0/
+    keywords:
+    - PostgreSQL
+    - Operator
+    - Database
+    - Postgres
+    - SQL
+    - RDBMS
+    maintainers:
+    - email: natalia.marukovich@gmail.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    - email: valmira.nogueira@percona.com
+      name: valmiranogueira
+    name: pg-operator
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pg-operator-2.8.0/pg-operator-2.8.0.tgz
+    version: 2.8.0
   - apiVersion: v2
     appVersion: 2.7.0
     created: "2025-07-18T15:28:29.786803024Z"
@@ -7303,4 +7358,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-10-30T14:04:32.049290579Z"
+generated: "2025-11-13T16:40:34.949160376Z"
