@@ -27,7 +27,7 @@ upgradeOptions:
   apply: disabled
 
 # initContainer:
-#   image: perconalab/percona-server-mysql-operator:1.0.0
+#   image: percona/percona-server-mysql-operator:1.0.0
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -646,7 +646,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.4.0
+    tag: 3.4.1
   imagePullPolicy: Always
 #  readinessProbe:
 #    initialDelaySeconds: 15
