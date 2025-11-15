@@ -7,7 +7,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: secret-manager
+  name: pmm-secret-manager
   namespace: {{ .Release.Namespace }}
 rules:
 - apiGroups: [""]
@@ -17,12 +17,12 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: secret-generator-binding
+  name: pmm-secret-generator-binding
   namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: secret-manager
+  name: pmm-secret-manager
 subjects:
 - kind: ServiceAccount
   name: pmm-secret-generator
