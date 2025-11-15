@@ -120,16 +120,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_PASSWORD
-            - name: PMM_POSTGRES_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: PG_USERNAME
-            - name: PMM_POSTGRES_DBPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: PG_PASSWORD
             - name: GF_DATABASE_URL
               value: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432/grafana"
             - name: VMAGENT_remoteWrite_basicAuth_username
@@ -167,14 +157,13 @@ spec:
             - name: PMM_ENCRYPTION_KEY_PATH
               value: /etc/secrets/key
           ports:
-            - name: http
-              containerPort: 8080
             - name: https
               containerPort: 8443
           readinessProbe:
             httpGet:
               path: /v1/readyz
-              port: http
+              port: https
+              scheme: HTTPS
           {{- if .Values.readyProbeConf }}
             {{- toYaml .Values.readyProbeConf | nindent 12 }}
           {{- end }}

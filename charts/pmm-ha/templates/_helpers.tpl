@@ -167,5 +167,3 @@ Example output for 3 replicas:
   port: 2181
 {{- end -}}
 {{- end -}}
-
-
