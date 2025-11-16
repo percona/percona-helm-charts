@@ -31,8 +31,12 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: secret-init-job
+  name: pmm-secret-init-job
   namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
   template:
