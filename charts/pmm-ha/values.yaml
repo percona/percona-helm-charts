@@ -562,6 +562,151 @@ pg-db:
           - host all gfuser 192.168.0.0/16 md5
           - host all pmmuser 192.168.0.0/16 md5
 
+victoria-metrics-agent:
+  # VMAgent configuration for scraping VictoriaMetrics cluster components
+  # Note: The remoteWrite URL is automatically configured via ConfigMap (templates/vmagent-config.yaml)
+  replicaCount: 2
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: victoria-metrics-agent
+  
+  extraArgs:
+    envflag.enable: "true"
+    envflag.prefix: "VM_"
+    loggerFormat: "json"
+  
+  # Environment variables for basic auth credentials
+  env:
+    - name: VM_remoteWrite_basicAuth_username
+      valueFrom:
+        secretKeyRef:
+          name: pmm-secret
+          key: VMAGENT_remoteWrite_basicAuth_username
+    - name: VM_remoteWrite_basicAuth_password
+      valueFrom:
+        secretKeyRef:
+          name: pmm-secret
+          key: VMAGENT_remoteWrite_basicAuth_password
+  
+  # Temporary placeholder - will be updated by manual patch or script
+  remoteWrite:
+    - url: http://placeholder:8427/api/v1/write
+      basicAuth:
+        username: placeholder
+        password: placeholder
+  
+  # Scrape configuration for VictoriaMetrics cluster components
+  config:
+    global:
+      scrape_interval: 15s
+      scrape_timeout: 10s
+    
+    scrape_configs:
+      # Scrape VMSelect metrics
+      - job_name: 'vmselect'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vmselect.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+      
+      # Scrape VMInsert metrics
+      - job_name: 'vminsert'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vminsert.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+      
+      # Scrape VMStorage metrics
+      - job_name: 'vmstorage'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vmstorage.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+      
+      # Scrape VMAuth metrics
+      - job_name: 'vmauth'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vmauth.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+      
+      # Scrape VMAgent itself
+      - job_name: 'vmagent'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vmagent.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+
 victoria-metrics-cluster:
   vmselect:
     replicaCount: 2
