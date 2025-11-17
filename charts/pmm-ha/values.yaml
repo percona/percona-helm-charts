@@ -670,7 +670,7 @@ victoria-metrics-cluster:
 
 victoria-metrics-agent:
   # VMAgent configuration for scraping VictoriaMetrics cluster components
-  # Note: The remoteWrite URL is automatically configured via ConfigMap (templates/vmagent-config.yaml)
+  # Note: The remoteWrite URL is automatically configured via init container
   replicaCount: 2
   
   resources:
@@ -709,12 +709,10 @@ victoria-metrics-agent:
           name: pmm-secret
           key: VMAGENT_remoteWrite_basicAuth_password
   
-  # Temporary placeholder - will be updated by manual patch or script
+  # The remoteWrite URL placeholder is required for subchart validation
+  # The post-install job will patch the deployment to use the correct VMAuth URL
   remoteWrite:
-    - url: http://placeholder:8427/api/v1/write
-      basicAuth:
-        username: placeholder
-        password: placeholder
+    - url: "http://placeholder.local/api/v1/write"
   
   # Scrape configuration for VictoriaMetrics cluster components
   config:
