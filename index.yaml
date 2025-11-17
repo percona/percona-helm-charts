@@ -3861,6 +3861,24 @@ entries:
     version: 0.1.0
   ps-db:
   - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2025-11-17T19:26:31.710068906Z"
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
+    digest: 4b29af1593fab654ea8c879aaf257090db2be727c70bd432c206829ff5a99471
+    home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
+    maintainers:
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    name: ps-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/ps-db-1.0.0/ps-db-1.0.0.tgz
+    version: 1.0.0
+  - apiVersion: v2
     appVersion: 0.12.0
     created: "2025-09-23T15:58:57.143511506Z"
     description: A Helm chart for installing Percona Server Databases using the PS
@@ -4241,6 +4259,24 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/ps-db-0.2.0/ps-db-0.2.0.tgz
     version: 0.2.0
   ps-operator:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2025-11-17T19:26:31.969169175Z"
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
+    digest: 316d2894dd241c8ff61bdb2f9f7b33ece8e70b415de98bbc2ed45f10bb4c8ba7
+    home: https://docs.percona.com/percona-operator-for-mysql/ps/
+    maintainers:
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    name: ps-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/ps-operator-1.0.0/ps-operator-1.0.0.tgz
+    version: 1.0.0
   - apiVersion: v2
     appVersion: 0.12.0
     created: "2025-09-23T15:58:57.295157736Z"
@@ -7358,4 +7394,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-11-13T16:40:34.949160376Z"
+generated: "2025-11-17T19:26:31.969823036Z"
