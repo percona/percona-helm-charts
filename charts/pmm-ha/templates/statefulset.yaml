@@ -40,6 +40,20 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # Init container to verify secret exists before starting main app
+      initContainers:
+        - name: wait-for-pg-secret
+          image: alpine/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for secret to be available..."
+              until kubectl get secret pg-encryption-key; do
+                echo "Secret not found, retrying in 5s..."
+                sleep 5
+              done
+              echo "Secret found, proceeding..."
       containers:
         - name: {{ .Chart.Name }}
 
@@ -67,11 +81,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
-            - name: PMM_TEST_HA_ADVERTISE_ADDRESS
+            - name: PMM_HA_ADVERTISE_ADDRESS
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: PMM_TEST_HA_NODE_ID
+            - name: PMM_HA_NODE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
@@ -140,20 +154,18 @@ spec:
                   key: PMM_CLICKHOUSE_PASSWORD
             - name: PMM_VM_URL
               value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ .Release.Name }}-victoria-metrics-cluster-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
-            - name: PMM_ACTIVE_IP
-              value: "{{ include "pmm.haPeer" (dict "Release" .Release "Values" .Values "index" 0) }}"
-            - name: PMM_ACTIVE_NODE_IP
-              value: "{{ include "pmm.haNodeId" (dict "Release" .Release "Values" .Values "index" 0) }}"
             - name: PMM_CLICKHOUSE_ADDR
               value: "{{ .Release.Name }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
             - name: PMM_POSTGRES_ADDR
               value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
-            - name: PMM_TEST_HA_PEERS
+            - name: PMM_HA_PEERS
               value: "{{ include "pmm.haPeers" . }}"
             - name: PMM_CLICKHOUSE_NODES
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
+            - name: PMM_ENCRYPTION_KEY_PATH
+              value: /etc/secrets/key
           ports:
             - name: http
               containerPort: 8080
@@ -172,6 +184,10 @@ spec:
             - name: annotations
               mountPath: "/var/run/pmm/annotations"
               readOnly: true
+          volumeMounts:
+            - name: encryption-key
+              mountPath: /etc/secrets
+              readOnly: true
             {{- if .Values.certs.name }}
             - name: {{ .Values.certs.name }}
               mountPath: /srv/nginx
@@ -189,6 +205,9 @@ spec:
                   - path: "annotations"
                     fieldRef:
                       fieldPath: metadata.annotations
+        - name: encryption-key
+          secret:
+            secretName: pg-encryption-key
       {{- if .Values.certs.name }}
         - name: {{ .Values.certs.name }}
           secret:
