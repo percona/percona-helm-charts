@@ -757,14 +757,10 @@ victoria-metrics-cluster:
   vmauth:
     enabled: true
     replicaCount: 2
-    # Custom Secret with properly templated values is defined in templates/vmauth-config.yaml
-    # It follows the naming convention: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
-    # Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
-    # If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
-    # Default username: victoriametrics_pmm
-    # Default password: randomly generated 32-character string
-    # Tell the chart NOT to auto-create the secret since we provide our own
-    configSecretName: "{{ .Release.Name }}-victoria-metrics-cluster-vmauth"
+    # Custom Secret with auth configuration is created in templates/vmauth-config.yaml
+    # The secret name follows: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
+    # The subchart evaluates this template using .helm.Release.Name from its context
+    configSecretName: "{{ .helm.Release.Name }}-victoria-metrics-cluster-vmauth"
     resources:
       requests:
         memory: "128Mi"

@@ -1,7 +1,7 @@
 dependencies:
 - name: victoria-metrics-cluster
   repository: https://victoriametrics.github.io/helm-charts/
-  version: 0.18.0
+  version: 0.29.4
 - name: victoria-metrics-agent
   repository: https://victoriametrics.github.io/helm-charts/
   version: 0.26.4
@@ -17,5 +17,5 @@ dependencies:
 - name: pg-operator
   repository: file://charts/pg-operator
   version: 2.5.0
-digest: sha256:8bccc0a6a8f45ac765e69856ad76d0296c8d2f737eddfae17b86bc73ac17ab8b
-generated: "2025-11-17T01:14:34.522639+03:00"
+digest: sha256:8ae6c4e1d5e38670605c7d72c24cb1e9d8814c38ed66941e80fd00ad1e9a4c69
+generated: "2025-11-17T11:13:21.043266+01:00"

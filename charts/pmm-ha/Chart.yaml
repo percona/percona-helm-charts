@@ -18,7 +18,7 @@ keywords:
 icon: https://www.percona.com/sites/default/files/pmm-logo.png
 dependencies:
   - name: victoria-metrics-cluster
-    version: 0.18.0
+    version: 0.29.4
     repository: https://victoriametrics.github.io/helm-charts/
   - name: victoria-metrics-agent
     version: 0.26.4
