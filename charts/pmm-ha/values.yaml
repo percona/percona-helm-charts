@@ -562,6 +562,112 @@ pg-db:
           - host all gfuser 192.168.0.0/16 md5
           - host all pmmuser 192.168.0.0/16 md5
 
+victoria-metrics-cluster:
+  vmselect:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["victoria-metrics-cluster"]
+                  - key: app
+                    operator: In
+                    values: ["vmselect"]
+  vminsert:
+    replicaCount: 2
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "200m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["victoria-metrics-cluster"]
+                  - key: app
+                    operator: In
+                    values: ["vminsert"]
+  vmauth:
+    enabled: true
+    replicaCount: 2
+    # Custom Secret with auth configuration is created in templates/vmauth-config.yaml
+    # The secret name follows: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
+    # The subchart evaluates this template using .helm.Release.Name from its context
+    configSecretName: "{{ .helm.Release.Name }}-victoria-metrics-cluster-vmauth"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["victoria-metrics-cluster"]
+                  - key: app
+                    operator: In
+                    values: ["vmauth"]
+  vmstorage:
+    replicaCount: 3
+    retentionPeriod: "90d"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2"
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+      # Storage class for VictoriaMetrics persistent volumes
+      # If empty, uses the cluster's default storage class
+      storageClassName: ""
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["victoria-metrics-cluster"]
+                  - key: app
+                    operator: In
+                    values: ["vmstorage"]
+
 victoria-metrics-agent:
   # VMAgent configuration for scraping VictoriaMetrics cluster components
   # Note: The remoteWrite URL is automatically configured via ConfigMap (templates/vmagent-config.yaml)
@@ -706,109 +812,3 @@ victoria-metrics-agent:
             target_label: namespace
           - source_labels: [__meta_kubernetes_service_name]
             target_label: service
-
-victoria-metrics-cluster:
-  vmselect:
-    replicaCount: 2
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "200m"
-      limits:
-        memory: "2Gi"
-        cpu: "1"
-    affinity:
-      podAntiAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              topologyKey: kubernetes.io/hostname
-              labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vmselect"]
-  vminsert:
-    replicaCount: 2
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "200m"
-      limits:
-        memory: "2Gi"
-        cpu: "1"
-    affinity:
-      podAntiAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              topologyKey: kubernetes.io/hostname
-              labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vminsert"]
-  vmauth:
-    enabled: true
-    replicaCount: 2
-    # Custom Secret with auth configuration is created in templates/vmauth-config.yaml
-    # The secret name follows: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
-    # The subchart evaluates this template using .helm.Release.Name from its context
-    configSecretName: "{{ .helm.Release.Name }}-victoria-metrics-cluster-vmauth"
-    resources:
-      requests:
-        memory: "128Mi"
-        cpu: "100m"
-      limits:
-        memory: "512Mi"
-        cpu: "500m"
-    affinity:
-      podAntiAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              topologyKey: kubernetes.io/hostname
-              labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vmauth"]
-  vmstorage:
-    replicaCount: 3
-    retentionPeriod: "90d"
-    resources:
-      requests:
-        memory: "1Gi"
-        cpu: "500m"
-      limits:
-        memory: "4Gi"
-        cpu: "2"
-    persistentVolume:
-      enabled: true
-      size: 50Gi
-      # Storage class for VictoriaMetrics persistent volumes
-      # If empty, uses the cluster's default storage class
-      storageClassName: ""
-    affinity:
-      podAntiAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              topologyKey: kubernetes.io/hostname
-              labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vmstorage"]
