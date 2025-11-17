@@ -20,6 +20,13 @@ rules:
   - get
   - watch
   - list
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - patch
 - nonResourceURLs:
   - /metrics
   - /metrics/resources

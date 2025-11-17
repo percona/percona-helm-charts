@@ -15,14 +15,14 @@ image:
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4078-fa6adbc"
+  tag: "PR-4079-ff16373"
   imagePullSecrets: []
 
 ## PMM environment variables
 ## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/env_var.html
 ##
 pmmEnv:
-  ## @param pmmEnv.PMM_ENABLE_UPDATES Enables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
+  ## @param pmmEnv.PMM_ENABLE_UPDATES needs to be disabled in k8s environment as updates are rolled out via helm/container update
   ##
   PMM_ENABLE_UPDATES: "0"
   PMM_DEBUG: "0"
@@ -30,14 +30,12 @@ pmmEnv:
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
   # PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
-  PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
-  PMM_CLICKHOUSE_POOL_SIZE: "2"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
   # PMM_CLICKHOUSE_CLUSTER_NAME is set directly in statefulset.yaml
   # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
-  PMM_POSTGRES_SSL_MODE: "require"
+  # PMM_POSTGRES_SSL_MODE: "require"
   # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
   # PMM_VM_URL: "http://:@:8427/"
@@ -181,7 +179,7 @@ service:
   ##
   type: "ClusterIP"
 
-  ## Ports 443 and/or 80
+  ## Ports 8443 for https
   ##
   ports:
     ## @param service.ports[0].port https port number
@@ -192,14 +190,6 @@ service:
       protocol: TCP
       ## @param service.ports[0].name port name
       name: https
-    ## @param service.ports[1].port http port number
-    - port: 8080
-      ## @param service.ports[1].targetPort target port to map for statefulset and ingress
-      targetPort: http
-      ## @param service.ports[1].protocol protocol for http
-      protocol: TCP
-      ## @param service.ports[1].name port name
-      name: http
 
 # haservice:
 #  type: "ClusterIP"
@@ -467,7 +457,7 @@ haproxy:
   # Init container to wait for PMM instances to be ready
   initContainers:
     - name: wait-for-pmm-ready
-      image: "alpine:3.18"
+      image: "alpine:latest"
       command:
         - /bin/sh
         - /scripts/wait-for-pmm.sh
@@ -677,3 +667,146 @@ victoria-metrics-cluster:
                   - key: app
                     operator: In
                     values: ["vmstorage"]
+
+victoria-metrics-agent:
+  # VMAgent configuration for scraping VictoriaMetrics cluster components
+  # Note: The remoteWrite URL is automatically configured via init container
+  replicaCount: 2
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: victoria-metrics-agent
+  
+  extraArgs:
+    envflag.enable: "true"
+    envflag.prefix: "VM_"
+    loggerFormat: "json"
+  
+  # Environment variables for basic auth credentials
+  env:
+    - name: VM_remoteWrite_basicAuth_username
+      valueFrom:
+        secretKeyRef:
+          name: pmm-secret
+          key: VMAGENT_remoteWrite_basicAuth_username
+    - name: VM_remoteWrite_basicAuth_password
+      valueFrom:
+        secretKeyRef:
+          name: pmm-secret
+          key: VMAGENT_remoteWrite_basicAuth_password
+  
+  # The remoteWrite URL placeholder is required for subchart validation
+  # The post-install job will patch the deployment to use the correct VMAuth URL
+  remoteWrite:
+    - url: "http://placeholder.local/api/v1/write"
+  
+  # Scrape configuration for VictoriaMetrics cluster components
+  config:
+    global:
+      scrape_interval: 15s
+      scrape_timeout: 10s
+    
+    scrape_configs:
+      # Scrape VMSelect metrics
+      - job_name: 'vmselect'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vmselect.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+      
+      # Scrape VMInsert metrics
+      - job_name: 'vminsert'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vminsert.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+      
+      # Scrape VMStorage metrics
+      - job_name: 'vmstorage'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vmstorage.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+      
+      # Scrape VMAuth metrics
+      - job_name: 'vmauth'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vmauth.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+      
+      # Scrape VMAgent itself
+      - job_name: 'vmagent'
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            regex: '.*-vmagent.*'
+            action: keep
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            regex: 'http'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
