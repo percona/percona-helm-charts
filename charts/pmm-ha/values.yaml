@@ -622,8 +622,8 @@ victoria-metrics-cluster:
     # If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
     # Default username: victoriametrics_pmm
     # Default password: randomly generated 32-character string
-    # Tell the chart NOT to auto-create the secret since we provide our own
-    configSecretName: "{{ .Release.Name }}-victoria-metrics-cluster-vmauth"
+    # Leave configSecretName empty to use default naming (which matches our custom secret)
+    # configSecretName: ""
     resources:
       requests:
         memory: "128Mi"
