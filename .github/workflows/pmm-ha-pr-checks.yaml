@@ -68,9 +68,7 @@ jobs:
           type: Opaque
           data:
             PMM_ADMIN_PASSWORD: YWRtaW4=
-            PG_USERNAME: cG1tdXNlcg==
             PG_PASSWORD: cG1tcGFzcw==
-            GF_USERNAME: Z2Z1c2Vy
             GF_PASSWORD: Z2ZwYXNz
             VMAGENT_remoteWrite_basicAuth_username: dm11c2Vy
             VMAGENT_remoteWrite_basicAuth_password: dm1wYXNz
