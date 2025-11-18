@@ -78,18 +78,6 @@ jobs:
             PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
           EOF
 
-          # cluster1-init-sql
-          cat <<'EOF' | kubectl apply -n "$NS" -f -
-          apiVersion: v1
-          kind: ConfigMap
-          metadata:
-            name: cluster1-init-sql
-          data:
-            init.sql: |
-              \c pmm-managed
-              CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
-          EOF
-
       - name: Run chart-testing (install)
         run: |
           ct install --namespace "${{ env.NS }}" --config .github/ct.yaml --charts=charts/pmm-ha

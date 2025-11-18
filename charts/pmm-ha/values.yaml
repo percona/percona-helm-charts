@@ -589,7 +589,7 @@ pg-db:
       secretName: "pmmuser-credentials"
   databaseInitSQL:
     key: init.sql
-    name: cluster1-init-sql
+    name: postgresql-init-extensions
   instances:
     - name: instance1
       replicas: 3

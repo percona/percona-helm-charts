@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cluster1-init-sql
+  name: postgresql-init-extensions
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
