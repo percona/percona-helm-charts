@@ -6,6 +6,9 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 data:
   init.sql: |
     \c pmm-managed
