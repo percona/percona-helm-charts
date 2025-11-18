@@ -17,9 +17,12 @@ keywords:
   - Monitoring
 icon: https://www.percona.com/sites/default/files/pmm-logo.png
 dependencies:
-  - name: victoria-metrics-cluster
-    version: 0.18.0
-    repository: https://victoriametrics.github.io/helm-charts/
+  # NOTE: victoria-metrics-cluster helm chart has been replaced with VictoriaMetrics Operator CRDs
+  # See templates/vmcluster.yaml and templates/vmauth-operator.yaml
+  # Users must install victoria-metrics-operator separately before installing this chart
+  # - name: victoria-metrics-cluster
+  #   version: 0.18.0
+  #   repository: https://victoriametrics.github.io/helm-charts/
   - name: altinity-clickhouse-operator
     version: 0.25.4
     repository: https://helm.altinity.com

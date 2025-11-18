@@ -1,4 +1,14 @@
-{{- if index .Values "victoria-metrics-cluster" "vmauth" "enabled" -}}
+{{/*
+DEPRECATED: This template is now deprecated and replaced by vmauth-operator.yaml
+This file is kept for backward compatibility with the victoria-metrics-cluster helm chart dependency.
+It will only be used if you explicitly enable the old helm chart approach.
+
+To use the new VictoriaMetrics Operator approach:
+1. Install victoria-metrics-operator in your cluster
+2. Set victoriaMetrics.enabled: true in values.yaml
+3. Remove or comment out the victoria-metrics-cluster dependency from Chart.yaml
+*/}}
+{{- if and (not .Values.victoriaMetrics.enabled) (index .Values "victoria-metrics-cluster" "vmauth" "enabled") -}}
 {{- $existingSecret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
 {{- $existingData := dict }}
 {{- if $existingSecret }}

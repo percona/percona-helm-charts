@@ -566,9 +566,25 @@ pg-db:
           - host all gfuser 192.168.0.0/16 md5
           - host all pmmuser 192.168.0.0/16 md5
 
-victoria-metrics-cluster:
+## @section VictoriaMetrics Operator Configuration
+## NOTE: This configuration uses VictoriaMetrics Operator CRDs (VMCluster, VMAuth)
+## IMPORTANT: You must install victoria-metrics-operator in your cluster before deploying this chart:
+##   helm repo add vm https://victoriametrics.github.io/helm-charts/
+##   helm install victoria-metrics-operator vm/victoria-metrics-operator
+##
+victoriaMetrics:
+  ## @param victoriaMetrics.enabled Enable VictoriaMetrics components via operator
+  enabled: true
+  
+  ## @param victoriaMetrics.replicationFactor Replication factor for VMCluster
+  ## Defines how many copies of data to store across vmstorage nodes
+  replicationFactor: 2
+  
+  ## VMSelect configuration - handles read queries
   vmselect:
+    ## @param victoriaMetrics.vmselect.replicaCount Number of vmselect replicas
     replicaCount: 2
+    ## @param victoriaMetrics.vmselect.resources Resource requests and limits for vmselect
     resources:
       requests:
         memory: "512Mi"
@@ -576,6 +592,7 @@ victoria-metrics-cluster:
       limits:
         memory: "2Gi"
         cpu: "1"
+    ## @param victoriaMetrics.vmselect.affinity Pod affinity configuration for vmselect
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -583,15 +600,22 @@ victoria-metrics-cluster:
             podAffinityTerm:
               topologyKey: kubernetes.io/hostname
               labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vmselect"]
+                matchLabels:
+                  app: vmselect
+    ## @param victoriaMetrics.vmselect.tolerations Tolerations for vmselect pods
+    tolerations: []
+    ## @param victoriaMetrics.vmselect.nodeSelector Node selector for vmselect pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vmselect.podAnnotations Annotations for vmselect pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vmselect.extraArgs Extra arguments for vmselect
+    extraArgs: {}
+  
+  ## VMInsert configuration - handles write requests
   vminsert:
+    ## @param victoriaMetrics.vminsert.replicaCount Number of vminsert replicas
     replicaCount: 2
+    ## @param victoriaMetrics.vminsert.resources Resource requests and limits for vminsert
     resources:
       requests:
         memory: "512Mi"
@@ -599,6 +623,7 @@ victoria-metrics-cluster:
       limits:
         memory: "2Gi"
         cpu: "1"
+    ## @param victoriaMetrics.vminsert.affinity Pod affinity configuration for vminsert
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -606,24 +631,28 @@ victoria-metrics-cluster:
             podAffinityTerm:
               topologyKey: kubernetes.io/hostname
               labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vminsert"]
+                matchLabels:
+                  app: vminsert
+    ## @param victoriaMetrics.vminsert.tolerations Tolerations for vminsert pods
+    tolerations: []
+    ## @param victoriaMetrics.vminsert.nodeSelector Node selector for vminsert pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vminsert.podAnnotations Annotations for vminsert pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vminsert.extraArgs Extra arguments for vminsert
+    extraArgs: {}
+  
+  ## VMAuth configuration - authentication proxy
   vmauth:
+    ## @param victoriaMetrics.vmauth.enabled Enable VMAuth for authentication
     enabled: true
+    ## @param victoriaMetrics.vmauth.replicaCount Number of vmauth replicas
     replicaCount: 2
-    # Custom Secret with properly templated values is defined in templates/vmauth-config.yaml
-    # It follows the naming convention: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
-    # Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
-    # If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
-    # Default username: victoriametrics_pmm
-    # Default password: randomly generated 32-character string
-    # Tell the chart NOT to auto-create the secret since we provide our own
-    configSecretName: "{{ .Release.Name }}-victoria-metrics-cluster-vmauth"
+    ## @param victoriaMetrics.vmauth.resources Resource requests and limits for vmauth
+    ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+    ## If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
+    ## Default username: victoriametrics_pmm
+    ## Default password: randomly generated 32-character string
     resources:
       requests:
         memory: "128Mi"
@@ -631,6 +660,7 @@ victoria-metrics-cluster:
       limits:
         memory: "512Mi"
         cpu: "500m"
+    ## @param victoriaMetrics.vmauth.affinity Pod affinity configuration for vmauth
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -638,16 +668,24 @@ victoria-metrics-cluster:
             podAffinityTerm:
               topologyKey: kubernetes.io/hostname
               labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vmauth"]
+                matchLabels:
+                  app: vmauth
+    ## @param victoriaMetrics.vmauth.tolerations Tolerations for vmauth pods
+    tolerations: []
+    ## @param victoriaMetrics.vmauth.nodeSelector Node selector for vmauth pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vmauth.podAnnotations Annotations for vmauth pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vmauth.extraArgs Extra arguments for vmauth
+    extraArgs: {}
+  
+  ## VMStorage configuration - stores metrics data
   vmstorage:
+    ## @param victoriaMetrics.vmstorage.replicaCount Number of vmstorage replicas
     replicaCount: 3
+    ## @param victoriaMetrics.vmstorage.retentionPeriod Data retention period
     retentionPeriod: "90d"
+    ## @param victoriaMetrics.vmstorage.resources Resource requests and limits for vmstorage
     resources:
       requests:
         memory: "1Gi"
@@ -655,12 +693,12 @@ victoria-metrics-cluster:
       limits:
         memory: "4Gi"
         cpu: "2"
-    persistentVolume:
-      enabled: true
-      size: 50Gi
-      # Storage class for VictoriaMetrics persistent volumes
-      # If empty, uses the cluster's default storage class
-      storageClassName: ""
+    ## @param victoriaMetrics.vmstorage.storageSize Size of persistent volume for each vmstorage pod
+    storageSize: 50Gi
+    ## @param victoriaMetrics.vmstorage.storageClassName Storage class for VictoriaMetrics persistent volumes
+    ## If empty, uses the cluster's default storage class
+    storageClassName: ""
+    ## @param victoriaMetrics.vmstorage.affinity Pod affinity configuration for vmstorage
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -668,10 +706,13 @@ victoria-metrics-cluster:
             podAffinityTerm:
               topologyKey: kubernetes.io/hostname
               labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vmstorage"]
+                matchLabels:
+                  app: vmstorage
+    ## @param victoriaMetrics.vmstorage.tolerations Tolerations for vmstorage pods
+    tolerations: []
+    ## @param victoriaMetrics.vmstorage.nodeSelector Node selector for vmstorage pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vmstorage.podAnnotations Annotations for vmstorage pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vmstorage.extraArgs Extra arguments for vmstorage
+    extraArgs: {}
