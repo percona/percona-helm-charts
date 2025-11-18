@@ -153,6 +153,28 @@ secret:
   ##
   victoriametrics_password: ""
   ##
+  ## @param secret.pg_password PostgreSQL PMM user password. If not set, it will be auto-generated
+  ## When secret.create: true and this is empty, a random 32-character password is generated.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get password after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PG_PASSWORD}' | base64 --decode
+  ## E.g.
+  ## pg_password: my_secure_password
+  ##
+  pg_password: ""
+  ##
+  ## @param secret.gf_password PostgreSQL Grafana user password. If not set, it will be auto-generated
+  ## When secret.create: true and this is empty, a random 32-character password is generated.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get password after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.GF_PASSWORD}' | base64 --decode
+  ## E.g.
+  ## gf_password: my_secure_password
+  ##
+  gf_password: ""
+  ##
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID optional client ID to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
   # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET optional secret to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
@@ -543,17 +565,27 @@ tls:
 pg-db:
   autoCreateUserSchema: true
   users:
+    # Grafana PostgreSQL user
+    # NOTE: The secretName must be "<name>-credentials" (e.g., "gfuser-credentials")
+    # This username is referenced in the PMM StatefulSet and secret init job
     - name: gfuser
       databases:
         - grafana
         - pmm-managed
-      options: "SUPERUSER"
+      options: "CREATEDB CREATEROLE"
+      password:
+        type: ASCII
       secretName: "gfuser-credentials"
+    # PMM PostgreSQL user
+    # NOTE: The secretName must be "<name>-credentials" (e.g., "pmmuser-credentials")
+    # This username is referenced in the PMM StatefulSet and secret init job
     - name: pmmuser
       databases:
         - pmm-managed
         - grafana
-      options: "SUPERUSER"
+      options: "CREATEDB CREATEROLE"
+      password:
+        type: ASCII
       secretName: "pmmuser-credentials"
   databaseInitSQL:
     key: init.sql
@@ -563,6 +595,8 @@ pg-db:
       replicas: 3
       dataVolumeClaimSpec:
         # storageClassName: ""  # optional; inherit default if omitted
+        accessModes:
+          - ReadWriteOnce
         resources:
           requests:
             storage: 5Gi

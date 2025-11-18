@@ -111,20 +111,14 @@ spec:
                   optional: true
             {{ end }}
             - name: GF_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: GF_USERNAME
+              value: {{ index .Values "pg-db" "users" 0 "name" | quote }}
             - name: GF_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_PASSWORD
             - name: PMM_POSTGRES_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: PG_USERNAME
+              value: {{ index .Values "pg-db" "users" 1 "name" | quote }}
             - name: PMM_POSTGRES_DBPASSWORD
               valueFrom:
                 secretKeyRef:

@@ -10,9 +10,9 @@ dependencies:
   version: 1.24.0
 - name: pg-db
   repository: https://percona.github.io/percona-helm-charts/
-  version: 2.5.2
+  version: 2.8.0
 - name: pg-operator
   repository: https://percona.github.io/percona-helm-charts/
-  version: 2.5.0
-digest: sha256:8ae6c4e1d5e38670605c7d72c24cb1e9d8814c38ed66941e80fd00ad1e9a4c69
-generated: "2025-11-17T11:13:21.043266+01:00"
+  version: 2.8.0
+digest: sha256:8d8bf0d148a9805151b1340e471dfce859743a325b50f89e06f35ef6708866bb
+generated: "2025-11-17T15:07:24.238446+01:00"
