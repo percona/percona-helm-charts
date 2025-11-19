@@ -568,9 +568,7 @@ pg-db:
 
 ## @section VictoriaMetrics Operator Configuration
 ## NOTE: This configuration uses VictoriaMetrics Operator CRDs (VMCluster, VMAuth)
-## IMPORTANT: You must install victoria-metrics-operator in your cluster before deploying this chart:
-##   helm repo add vm https://victoriametrics.github.io/helm-charts/
-##   helm install victoria-metrics-operator vm/victoria-metrics-operator
+## The victoria-metrics-operator is automatically installed as a chart dependency
 ##
 victoriaMetrics:
   ## @param victoriaMetrics.enabled Enable VictoriaMetrics components via operator

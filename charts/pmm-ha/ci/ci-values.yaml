@@ -83,8 +83,12 @@ pg-operator:
       cpu: 200m
       memory: 128Mi
 
-# VictoriaMetrics with minimal resources for CI
-victoria-metrics-cluster:
+# VictoriaMetrics Operator Configuration
+# The operator is automatically installed as a chart dependency
+victoriaMetrics:
+  enabled: true
+  replicationFactor: 2
+  
   vmselect:
     replicaCount: 2
     resources:
@@ -94,6 +98,7 @@ victoria-metrics-cluster:
       limits:
         memory: "512Mi"
         cpu: "200m"
+  
   vminsert:
     replicaCount: 2
     resources:
@@ -103,7 +108,9 @@ victoria-metrics-cluster:
       limits:
         memory: "512Mi"
         cpu: "200m"
+  
   vmauth:
+    enabled: true
     replicaCount: 2
     resources:
       requests:
@@ -112,6 +119,7 @@ victoria-metrics-cluster:
       limits:
         memory: "256Mi"
         cpu: "200m"
+  
   vmstorage:
     replicaCount: 3
     retentionPeriod: "1d"
@@ -122,10 +130,8 @@ victoria-metrics-cluster:
       limits:
         memory: "1Gi"
         cpu: "500m"
-    persistentVolume:
-      enabled: true
-      size: 5Gi
-      storageClassName: ""
+    storageSize: 5Gi
+    storageClassName: ""
 
 # HAProxy with minimal resources
 haproxy:

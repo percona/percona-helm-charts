@@ -139,11 +139,7 @@ spec:
                   name: {{ .Values.secret.name }}
                   key: PMM_CLICKHOUSE_PASSWORD
             - name: PMM_VM_URL
-              {{- if .Values.victoriaMetrics.enabled }}
               value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
-              {{- else }}
-              value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ .Release.Name }}-victoria-metrics-cluster-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
-              {{- end }}
             - name: PMM_ACTIVE_IP
               value: "{{ include "pmm.haPeer" (dict "Release" .Release "Values" .Values "index" 0) }}"
             - name: PMM_ACTIVE_NODE_IP
