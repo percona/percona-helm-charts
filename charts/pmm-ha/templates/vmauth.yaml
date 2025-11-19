@@ -44,6 +44,9 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: vmauth
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "10"
 spec:
   # Number of VMAuth replicas
   replicaCount: {{ .Values.victoriaMetrics.vmauth.replicaCount }}
