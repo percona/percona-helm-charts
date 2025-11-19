@@ -38,9 +38,9 @@ Get ClickHouse credentials:
   echo "ClickHouse Password: $CH_PASS"
 
 Get PostgreSQL credentials:
-  export PG_USER="{{ index .Values "pg-db" "users" 1 "name" }}"
+  export PG_USER="{{ index .Values "pg-db" "pmmUserName" }}"
   export PG_PASS=$(kubectl get secret {{ .Values.secret.name }} --namespace {{ .Release.Namespace }} -o jsonpath='{.data.PG_PASSWORD}' | base64 --decode)
-  export GF_USER="{{ index .Values "pg-db" "users" 0 "name" }}"
+  export GF_USER="{{ index .Values "pg-db" "grafanaUserName" }}"
   export GF_PASS=$(kubectl get secret {{ .Values.secret.name }} --namespace {{ .Release.Namespace }} -o jsonpath='{.data.GF_PASSWORD}' | base64 --decode)
   echo "PostgreSQL PMM User: $PG_USER"
   echo "PostgreSQL PMM Password: $PG_PASS"

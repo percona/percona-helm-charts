@@ -564,10 +564,16 @@ tls:
 ##
 pg-db:
   autoCreateUserSchema: true
+  
+  # PostgreSQL user configuration
+  # IMPORTANT: grafanaUserName and pmmUserName must match user names in the users array below
+  # If you change a username here, you MUST also update the corresponding name in the users array
+  grafanaUserName: "gfuser"    # Must match a user.name below
+  pmmUserName: "pmmuser"       # Must match a user.name below
+  
+  # PostgreSQL users array (order doesn't matter - looked up by name)
   users:
-    # Grafana PostgreSQL user
-    # NOTE: The secretName must be "<name>-credentials" (e.g., "gfuser-credentials")
-    # This username is referenced in the PMM StatefulSet and secret init job
+    # Grafana user - name must match grafanaUserName above
     - name: gfuser
       databases:
         - grafana
@@ -576,9 +582,7 @@ pg-db:
       password:
         type: ASCII
       secretName: "gfuser-credentials"
-    # PMM PostgreSQL user
-    # NOTE: The secretName must be "<name>-credentials" (e.g., "pmmuser-credentials")
-    # This username is referenced in the PMM StatefulSet and secret init job
+    # PMM user - name must match pmmUserName above
     - name: pmmuser
       databases:
         - pmm-managed
