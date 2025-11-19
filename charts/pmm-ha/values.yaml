@@ -610,7 +610,7 @@ victoriaMetrics:
               topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels:
-                  app: vmselect
+                  app.kubernetes.io/name: vmselect
     ## @param victoriaMetrics.vmselect.tolerations Tolerations for vmselect pods
     tolerations: []
     ## @param victoriaMetrics.vmselect.nodeSelector Node selector for vmselect pods
@@ -641,7 +641,7 @@ victoriaMetrics:
               topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels:
-                  app: vminsert
+                  app.kubernetes.io/name: vminsert
     ## @param victoriaMetrics.vminsert.tolerations Tolerations for vminsert pods
     tolerations: []
     ## @param victoriaMetrics.vminsert.nodeSelector Node selector for vminsert pods
@@ -678,7 +678,7 @@ victoriaMetrics:
               topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels:
-                  app: vmauth
+                  app.kubernetes.io/name: vmauth
     ## @param victoriaMetrics.vmauth.tolerations Tolerations for vmauth pods
     tolerations: []
     ## @param victoriaMetrics.vmauth.nodeSelector Node selector for vmauth pods
@@ -716,7 +716,7 @@ victoriaMetrics:
               topologyKey: kubernetes.io/hostname
               labelSelector:
                 matchLabels:
-                  app: vmstorage
+                  app.kubernetes.io/name: vmstorage
     ## @param victoriaMetrics.vmstorage.tolerations Tolerations for vmstorage pods
     tolerations: []
     ## @param victoriaMetrics.vmstorage.nodeSelector Node selector for vmstorage pods

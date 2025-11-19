@@ -1,0 +1,48 @@
+{{- if .Values.victoriaMetrics.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "pmm.fullname" . }}-cleanup-vm-resources
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-delete
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      name: cleanup-vm-resources
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+      containers:
+      - name: cleanup
+        image: alpine/kubectl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Cleaning up VictoriaMetrics resources..."
+          
+          # Delete VMAuth and VMCluster
+          kubectl delete vmauth {{ include "pmm.fullname" . }}-vmauth -n {{ .Release.Namespace }} --ignore-not-found=true --timeout=30s || true
+          kubectl delete vmcluster {{ include "pmm.fullname" . }}-vmcluster -n {{ .Release.Namespace }} --ignore-not-found=true --timeout=30s || true
+          
+          # Wait up to 30 seconds for operator to clean up
+          echo "Waiting for operator cleanup..."
+          for i in 1 2 3 4 5 6; do
+            count=$(kubectl get pods -n {{ .Release.Namespace }} -l managed-by=vm-operator --no-headers 2>/dev/null | wc -l | tr -d ' ')
+            [ "$count" -eq 0 ] && echo "Cleanup successful" && exit 0
+            echo "Waiting... ($count pods remaining)"
+            sleep 5
+          done
+          
+          # Force cleanup if needed
+          echo "Force cleaning remaining resources..."
+          kubectl delete deployment,statefulset -n {{ .Release.Namespace }} -l managed-by=vm-operator --force --grace-period=0 2>/dev/null || true
+          echo "Cleanup completed"
+{{- end }}
+
