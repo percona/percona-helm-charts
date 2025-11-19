@@ -14,9 +14,9 @@ spec:
       restartPolicy: Never
       containers:
       - name: check-clusters
-        image: "ubuntu:22.04"
+        image: "alpine/kubectl:latest"
         command:
-          - /bin/bash
+          - /bin/sh
           - -c
         args:
           - |
@@ -43,11 +43,6 @@ spec:
                 echo "✅ No $resource_type resources found"
               fi
             }
-            
-            echo "Installing kubectl..."
-            apt-get update -qq && apt-get install -y curl > /dev/null 2>&1
-            curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl" > /dev/null 2>&1
-            chmod +x kubectl && mv kubectl /usr/local/bin/
             
             echo "Pre-delete: Cleaning up PostgreSQL resources..."
             echo "Current namespace: {{ .Release.Namespace }}"
