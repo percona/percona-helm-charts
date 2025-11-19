@@ -1,0 +1,95 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pre-delete-check-pg-clusters
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": "pre-delete"
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+spec:
+  template:
+    spec:
+      serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+      restartPolicy: Never
+      containers:
+      - name: check-clusters
+        image: "alpine/kubectl:latest"
+        command:
+          - /bin/sh
+          - -c
+        args:
+          - |
+            set -euo pipefail
+            
+            NAMESPACE="{{ .Release.Namespace }}"
+            RELEASE_NAME="{{ .Release.Name }}"
+            PG_CLUSTER_NAME="${RELEASE_NAME}-pg-db"
+            LABEL="postgres-operator.crunchydata.com/cluster=$PG_CLUSTER_NAME"
+            
+            echo "=========================================="
+            echo "Pre-delete: Cleaning up PostgreSQL resources"
+            echo "Namespace: $NAMESPACE"
+            echo "PostgreSQL Cluster: $PG_CLUSTER_NAME"
+            echo "=========================================="
+            
+            # Function to clean up custom resources with finalizer removal
+            cleanup_cr() {
+              local resource_type="$1"
+              local namespace="$2"
+              
+              echo ""
+              echo "► Checking $resource_type custom resources..."
+              local resources=$(kubectl get "$resource_type" -n "$namespace" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+              
+              if [ -n "$resources" ]; then
+                echo "  Found: $resources"
+                for resource in $resources; do
+                  echo "  • Removing finalizers from $resource"
+                  kubectl patch "$resource_type" "$resource" -n "$namespace" --type merge -p '{"metadata":{"finalizers":[]}}' 2>/dev/null || true
+                  echo "  • Deleting $resource"
+                  kubectl delete "$resource_type" "$resource" -n "$namespace" --ignore-not-found=true 2>/dev/null || true
+                done
+                echo "  ✓ $resource_type custom resources deleted"
+              else
+                echo "  ✓ No $resource_type resources found"
+              fi
+            }
+            
+            # Delete PostgreSQL Custom Resources
+            echo ""
+            echo "==== Deleting PostgreSQL Custom Resources ===="
+            cleanup_cr "perconapgcluster" "$NAMESPACE"
+            cleanup_cr "postgrescluster" "$NAMESPACE"
+            cleanup_cr "perconapgbackup" "$NAMESPACE"
+            
+            # Wait for PostgreSQL operator to clean up managed resources
+            echo ""
+            echo "==== Waiting for PostgreSQL Operator ===="
+            echo "Waiting 10 seconds for operator to clean up managed resources..."
+            echo "(pods, services, statefulsets, etc. will be removed by the operator)"
+            sleep 10
+            
+            # Report status
+            echo ""
+            echo "==== Status Report ===="
+            
+            # Check if any workload resources remain
+            REMAINING=$(kubectl get pods,statefulsets,deployments,services -n "$NAMESPACE" -l "$LABEL" -o name 2>/dev/null || echo "")
+            if [ -n "$REMAINING" ]; then
+              echo "⚠️  Some resources are still present (may be terminating):"
+              kubectl get pods,statefulsets,deployments,services -n "$NAMESPACE" -l "$LABEL" 2>/dev/null || true
+              echo ""
+              echo "Note: If resources remain after uninstall completes, the PostgreSQL operator may not be running."
+              echo "      In that case, manually clean up with:"
+              echo "      kubectl delete all -n $NAMESPACE -l $LABEL --force --grace-period=0"
+            else
+              echo "✓ All PostgreSQL workload resources cleaned up"
+            fi
+                        
+            echo ""
+            echo "=========================================="
+            echo "✅ Pre-delete cleanup completed"
+            echo "=========================================="
+            
+            exit 0
