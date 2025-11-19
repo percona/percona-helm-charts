@@ -100,20 +100,6 @@ Generate PMM HA peer list dynamically based on replicas count
 {{- join "," $peers }}
 {{- end -}}
 
-{{/*
-Generate PMM HA peer list for specific replica index
-*/}}
-{{- define "pmm.haPeer" -}}
-{{- $serviceName := .Values.service.name | default "monitoring-service" }}
-{{- printf "%s-%d.%s.%s.svc.cluster.local" .Release.Name .index $serviceName .Release.Namespace }}
-{{- end -}}
-
-{{/*
-Generate PMM HA node ID for specific replica index
-*/}}
-{{- define "pmm.haNodeId" -}}
-{{- printf "%s-%d" .Release.Name .index }}
-{{- end -}}
 
 {{/*
 Generate comma-separated list of ClickHouse pod FQDNs (without port)
