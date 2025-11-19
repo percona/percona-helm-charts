@@ -58,6 +58,8 @@ pg-db:
           cpu: 500m
           memory: 512Mi
       dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
         resources:
           requests:
             storage: 1Gi
