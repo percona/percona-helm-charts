@@ -26,14 +26,14 @@ stringData:
       url_map:
       - src_paths:
         - "/api/v1/write"
-        url_prefix: "http://{{ include "pmm.fullname" . }}-vmcluster-vminsert.{{ .Release.Namespace }}.svc.cluster.local:8480/insert/0/prometheus/"
+        url_prefix: "http://vminsert-{{ include "pmm.fullname" . }}-vmcluster.{{ .Release.Namespace }}.svc.cluster.local:8480/insert/0/prometheus/"
       - src_paths:
         - "/api/v1/query"
         - "/api/v1/query_range"
         - "/api/v1/series"
         - "/api/v1/labels"
         - "/api/v1/label/.+/values"
-        url_prefix: "http://{{ include "pmm.fullname" . }}-vmcluster-vmselect.{{ .Release.Namespace }}.svc.cluster.local:8481/select/0/prometheus/"
+        url_prefix: "http://vmselect-{{ include "pmm.fullname" . }}-vmcluster.{{ .Release.Namespace }}.svc.cluster.local:8481/select/0/prometheus/"
 ---
 # VMAuth CRD managed by VictoriaMetrics operator
 apiVersion: operator.victoriametrics.com/v1beta1
