@@ -14,11 +14,14 @@ dependencies:
 - name: pmm
   repository: https://percona.github.io/percona-helm-charts
   version: 1.3.21
+- name: pmm
+  repository: https://percona.github.io/percona-helm-charts
+  version: 1.4.14
 - name: everest-crds
   repository: file://charts/everest-crds
   version: 0.0.0
 - name: operator-lifecycle-manager
   repository: https://percona.github.io/operator-lifecycle-manager
   version: 0.1.0
-digest: sha256:391cdabf3d1bb7fb8e954fb079fc14f4a5162baa13894f938d36292455463d51
-generated: "2025-09-15T15:28:49.011060593+01:00"
+digest: sha256:52d8da5a7271253126332727ddee8d2649109f52c5f62ae8a7c12397ab1594a9
+generated: "2025-11-20T17:05:36.03029+05:00"

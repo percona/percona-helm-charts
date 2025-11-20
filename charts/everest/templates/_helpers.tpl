@@ -5,6 +5,17 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+
+{{/*
+Mutual exclusion validation
+*/}}
+{{- define "everest.validateInputs" -}}
+{{- if and .Values.pmm.enabled .Values.pmm3.enabled -}}
+{{ fail "Only one of pmm.enabled or pmm3.enabled may be true. They are mutually exclusive." }}
+{{- end }}
+{{- end }}
+
+
 {{/*
 Allows overriding the install namespace in combined charts.
 */}}
