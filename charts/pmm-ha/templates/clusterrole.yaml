@@ -25,6 +25,16 @@ rules:
   - /metrics/resources
   verbs:
   - get
+# VictoriaMetrics custom resource permissions for pre-delete hook
+- apiGroups: ["operator.victoriametrics.com"]
+  resources:
+  - vmclusters
+  - vmauths
+  - vmagents
+  verbs:
+  - get
+  - list
+  - delete
 # PostgreSQL custom resource permissions for pre-delete hook
 - apiGroups: ["pgv2.percona.com"]
   resources:

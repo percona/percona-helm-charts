@@ -17,8 +17,8 @@ keywords:
   - Monitoring
 icon: https://www.percona.com/sites/default/files/pmm-logo.png
 dependencies:
-  - name: victoria-metrics-cluster
-    version: 0.29.4
+  - name: victoria-metrics-operator
+    version: 0.56.4
     repository: https://victoriametrics.github.io/helm-charts/
   - name: altinity-clickhouse-operator
     version: 0.25.4

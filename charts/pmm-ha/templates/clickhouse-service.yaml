@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-clickhouse-sticky
+  name: {{ include "pmm.fullname" . }}-clickhouse-sticky
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
     app: clickhouse

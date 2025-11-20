@@ -49,7 +49,7 @@ spec:
             - -c
             - |
               echo "Waiting for secret to be available..."
-              until kubectl get secret pg-encryption-key; do
+              until kubectl get secret pg-encryption-key -n {{ .Release.Namespace }}; do
                 echo "Secret not found, retrying in 5s..."
                 sleep 5
               done
@@ -147,9 +147,9 @@ spec:
                   name: {{ .Values.secret.name }}
                   key: PMM_CLICKHOUSE_PASSWORD
             - name: PMM_VM_URL
-              value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ .Release.Name }}-victoria-metrics-cluster-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
+              value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
             - name: PMM_CLICKHOUSE_ADDR
-              value: "{{ .Release.Name }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
+              value: "{{ include "pmm.fullname" . }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
             - name: PMM_POSTGRES_ADDR
@@ -178,7 +178,6 @@ spec:
             - name: annotations
               mountPath: "/var/run/pmm/annotations"
               readOnly: true
-          volumeMounts:
             - name: encryption-key
               mountPath: /etc/secrets
               readOnly: true
