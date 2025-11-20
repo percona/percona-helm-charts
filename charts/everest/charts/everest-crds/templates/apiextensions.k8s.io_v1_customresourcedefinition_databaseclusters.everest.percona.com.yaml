@@ -311,6 +311,9 @@ spec:
                         - postgresql
                         - psmdb
                       type: string
+                      x-kubernetes-validations:
+                        - message: .spec.engine.type cannot be changed
+                          rule: self == oldSelf
                     userSecretsName:
                       description: UserSecretsName is the name of the secret containing the user secrets
                       type: string
@@ -320,6 +323,19 @@ spec:
                   required:
                     - storage
                     - type
+                  type: object
+                engineFeatures:
+                  description: EngineFeatures represents configuration of additional features for the database engine.
+                  properties:
+                    psmdb:
+                      description: PSMDB represents additional features for the PSMDB engine.
+                      properties:
+                        splitHorizonDnsConfigName:
+                          description: |-
+                            SplitHorizonDNSConfigName is the name of a SplitHorizonDNSConfig CR.
+                            The SplitHorizonDNSConfig must be created in the same namespace as the DatabaseCluster.
+                          type: string
+                      type: object
                   type: object
                 monitoring:
                   description: Monitoring is the monitoring configuration
@@ -337,7 +353,7 @@ spec:
                             Claims lists the names of resources, defined in spec.resourceClaims,
                             that are used by this container.
 
-                            This is an alpha field and requires enabling the
+                            This field depends on the
                             DynamicResourceAllocation feature gate.
 
                             This field is immutable. It can only be set for containers.
@@ -567,6 +583,37 @@ spec:
                 details:
                   description: Details provides full status of the upstream cluster as a plain text.
                   type: string
+                engineFeatures:
+                  description: EngineFeaturesStatus represents additional features statuses for the database engine.
+                  properties:
+                    psmdb:
+                      description: PSMDB represents additional features statuses for the PSMDB engine.
+                      properties:
+                        splitHorizon:
+                          description: SplitHorizon status of SplitHorizon feature.
+                          properties:
+                            domains:
+                              description: SplitHorizon status of SplitHorizon feature.
+                              items:
+                                description: SplitHorizonDomain defines SplitHorizon domain status (domain -> IPs mapping).
+                                properties:
+                                  domain:
+                                    description: Domain is the SplitHorizon domain name.
+                                    type: string
+                                  privateIP:
+                                    description: PrivateIP is the private IP address for the domain.
+                                    type: string
+                                  publicIP:
+                                    description: PublicIP is the public IP address for the domain.
+                                    type: string
+                                type: object
+                              type: array
+                            host:
+                              description: ConnectionURL is the connection URL using SplitHorizon domains.
+                              type: string
+                          type: object
+                      type: object
+                  type: object
                 hostname:
                   description: Hostname is the hostname where the cluster can be reached
                   type: string
@@ -587,9 +634,12 @@ spec:
                   type: integer
                 recommendedCRVersion:
                   description: |-
-                    RecommendedCRVersion is the recommended version of the CR to use.
-                    If set, the CR needs to be updated to this version before upgrading the operator.
-                    If unset, the CR is already at the recommended version.
+                    RecommendedCRVersion indicates the target version that the underlying CR should be updated to.
+                    When this field is set, it means the CR is running an outdated version and requires an update.
+                    The following restrictions apply until the CR is updated to the recommended version:
+                    - The operator cannot be upgraded
+                    - The database engine version (.spec.engine.version) cannot be modified
+                    This field is unset when the CR is already running at the latest recommended version.
                   type: string
                 size:
                   description: Size is the total number of pods
@@ -600,6 +650,9 @@ spec:
                   type: string
               type: object
           type: object
+          x-kubernetes-validations:
+            - message: engine version may not be updated when a CRVersion update is pending
+              rule: '!has(self.?status.recommendedCRVersion) || self.spec.engine.version == oldSelf.spec.engine.version'
       served: true
       storage: true
       subresources:
