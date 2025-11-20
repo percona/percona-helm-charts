@@ -40,9 +40,9 @@ spec:
             sleep 5
           done
           
-          # Force cleanup if needed
-          echo "Force cleaning remaining resources..."
-          kubectl delete deployment,statefulset -n {{ .Release.Namespace }} -l managed-by=vm-operator --force --grace-period=0 2>/dev/null || true
-          echo "Cleanup completed"
+          # Note: If resources remain, the operator may not be running.
+          # In that case, manually clean up with:
+          # kubectl delete deployment,statefulset -n {{ .Release.Namespace }} -l managed-by=vm-operator --force --grace-period=0
+          echo "Cleanup completed. If resources remain, the operator may not be running."
 {{- end }}
 

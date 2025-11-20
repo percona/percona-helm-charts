@@ -716,16 +716,16 @@ victoriaMetrics:
     extraArgs: {}
   
   ## VMAuth configuration - authentication proxy
+  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  ## If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
+  ## Default username: victoriametrics_pmm
+  ## Default password: randomly generated 32-character string
   vmauth:
     ## @param victoriaMetrics.vmauth.enabled Enable VMAuth for authentication
     enabled: true
     ## @param victoriaMetrics.vmauth.replicaCount Number of vmauth replicas
     replicaCount: 2
     ## @param victoriaMetrics.vmauth.resources Resource requests and limits for vmauth
-    ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
-    ## If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
-    ## Default username: victoriametrics_pmm
-    ## Default password: randomly generated 32-character string
     resources:
       requests:
         memory: "128Mi"
