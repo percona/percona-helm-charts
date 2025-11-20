@@ -205,7 +205,9 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.webhook.certs | object | `{"ca.crt":"","tls.crt":"","tls.key":""}` | Certificates to use for the webhook server. The values must be base64 encoded. If unset, uses self-signed certificates. |
 | operator.webhook.preserveTLSCerts | bool |  | If set to true, preserves existing TLS Certificate Secrets during upgrades. This setting is ignored if certificates are explicitly provided in operator.webhook.certs, in which case the specified certificates are used instead. This setting has no effect during installation. |
 | pmm | object | `{"enabled":false,"nameOverride":"pmm"}` | PMM settings. |
-| pmm.enabled | bool | `false` | If set, deploys PMM in the release namespace. |
+| pmm.enabled | bool | `false` | If set, deploys PMM2 in the release namespace. |
+| pmm3.enabled | bool | `false` | If set, deploys PMM3 in the release namespace. |
+| pmm3.nameOverride | string | `"pmm3"` |  |
 | server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |
 | server.env | list | `[]` | Additional environment variables to pass to the server deployment. |
 | server.image | string | `"perconalab/everest"` | Image to use for the server container. |
