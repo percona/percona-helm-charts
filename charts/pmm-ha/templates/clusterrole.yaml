@@ -30,6 +30,7 @@ rules:
   resources:
   - vmclusters
   - vmauths
+  - vmagents
   verbs:
   - get
   - list

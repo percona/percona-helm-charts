@@ -752,6 +752,46 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmauth.extraArgs Extra arguments for vmauth
     extraArgs: {}
   
+  ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
+  ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
+  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  vmagent:
+    ## @param victoriaMetrics.vmagent.enabled Enable VMAgent for metrics scraping
+    enabled: true
+    ## @param victoriaMetrics.vmagent.replicaCount Number of vmagent replicas
+    replicaCount: 2
+    ## @param victoriaMetrics.vmagent.resources Resource requests and limits for vmagent
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    ## @param victoriaMetrics.vmagent.affinity Pod affinity configuration for vmagent
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: vmagent
+    ## @param victoriaMetrics.vmagent.tolerations Tolerations for vmagent pods
+    tolerations: []
+    ## @param victoriaMetrics.vmagent.nodeSelector Node selector for vmagent pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vmagent.podAnnotations Annotations for vmagent pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vmagent.extraArgs Extra arguments for vmagent
+    extraArgs: {}
+    ## @param victoriaMetrics.vmagent.scrapeConfigs Scrape configurations for VMAgent
+    ## Can be used to configure Kubernetes service discovery, static targets, etc.
+    ## Example:
+    ## scrapeConfigs: []
+    scrapeConfigs: []
+  
   ## VMStorage configuration - stores metrics data
   vmstorage:
     ## @param victoriaMetrics.vmstorage.replicaCount Number of vmstorage replicas

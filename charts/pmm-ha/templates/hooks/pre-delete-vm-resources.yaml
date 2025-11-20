@@ -27,8 +27,9 @@ spec:
         - |
           echo "Cleaning up VictoriaMetrics resources..."
           
-          # Delete VMAuth and VMCluster
+          # Delete VMAuth, VMAgent, and VMCluster
           kubectl delete vmauth {{ include "pmm.fullname" . }}-vmauth -n {{ .Release.Namespace }} --ignore-not-found=true --timeout=30s || true
+          kubectl delete vmagent {{ include "pmm.fullname" . }}-vmagent -n {{ .Release.Namespace }} --ignore-not-found=true --timeout=30s || true
           kubectl delete vmcluster {{ include "pmm.fullname" . }}-vmcluster -n {{ .Release.Namespace }} --ignore-not-found=true --timeout=30s || true
           
           # Wait up to 30 seconds for operator to clean up
