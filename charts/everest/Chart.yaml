@@ -34,8 +34,14 @@ dependencies:
     repository: "https://victoriametrics.github.io/helm-charts"
     condition: "monitoring.enabled"
   - name: pmm
+    alias: pmm2
     repository: "https://percona.github.io/percona-helm-charts"
     condition: "pmm.enabled"
+    version: 1.3.*
+  - name: pmm
+    alias: pmm3
+    repository: "https://percona.github.io/percona-helm-charts"
+    condition: "pmm3.enabled"
     version: 1.4.*
   - name: everest-crds
     repository: "file://charts/everest-crds"

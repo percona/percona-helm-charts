@@ -129,3 +129,7 @@ tls.crt: {{ $cert.Cert | b64enc }}
 ca.crt: {{ $ca.Cert | b64enc }}
 {{- end }}
 {{- end }}
+
+{{- if and .Values.pmm.enabled .Values.pmm3.enabled -}}
+{{ fail "Only one of pmm.enabled or pmm3.enabled may be true. They are mutually exclusive." }}
+{{- end }}
