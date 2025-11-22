@@ -4,6 +4,61 @@ entries:
   - annotations:
       helm.sh/release-max-history: "5"
     apiVersion: v2
+    appVersion: 1.10.0-rc3
+    created: "2025-11-22T13:53:37.541956489Z"
+    dependencies:
+    - name: common
+      repository: file://charts/common
+      version: 0.0.*
+    - alias: dbNamespace
+      condition: dbNamespace.enabled
+      name: everest-db-namespace
+      repository: file://charts/everest-db-namespace
+      version: 1.10.0-rc3
+    - condition: kube-state-metrics.enabled
+      name: kube-state-metrics
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 5.27.0
+    - alias: monitoring
+      condition: monitoring.enabled
+      name: victoria-metrics-operator
+      repository: https://victoriametrics.github.io/helm-charts
+      version: 0.43.0
+    - condition: pmm.enabled
+      name: pmm
+      repository: https://percona.github.io/percona-helm-charts
+      version: 1.3.*
+    - condition: pmm3.enabled
+      name: pmm3
+      repository: file://charts/pmm3
+      version: 0.0.*
+    - condition: everest-crds.enabled
+      name: everest-crds
+      repository: file://charts/everest-crds
+      version: 1.10.0-rc3
+    - alias: olm
+      condition: olm.install
+      name: operator-lifecycle-manager
+      repository: https://percona.github.io/operator-lifecycle-manager
+      version: 0.1.*
+    description: A cloud-native database platform
+    digest: 958b8866979f5ee53436b818f6697206503ee8c9a5bf1de1a9c996bfe181e4fb
+    kubeVersion: '>= 1.27.0-0'
+    maintainers:
+    - email: mayank.shah@percona.com
+      name: mayankshah1607
+    - email: oksana.grishchenko@percona.com
+      name: oksana-grishchenko
+    - email: diogo.recharte@percona.com
+      name: recharte
+    name: everest
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/everest-1.10.0-rc3/everest-1.10.0-rc3.tgz
+    version: 1.10.0-rc3
+  - annotations:
+      helm.sh/release-max-history: "5"
+    apiVersion: v2
     appVersion: 1.10.0-rc2
     created: "2025-11-22T12:56:28.715829585Z"
     dependencies:
@@ -7609,4 +7664,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2025-11-22T12:56:33.567578592Z"
+generated: "2025-11-22T13:53:37.542424945Z"
