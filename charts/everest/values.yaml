@@ -307,7 +307,9 @@ pmm:
 pmm3:
   # -- If set, deploys PMM3 in the release namespace.
   enabled: false
-  nameOverride: pmm3
+  # -- PMM configuration. All PMM chart values go under this key.
+  pmm:
+    nameOverride: pmm3
 # DO NOT CHANGE.
 # We set this to `false` to prevent the CRDs from being rendered as a template.
 # The CRDs are already installed as a part of the crds/ directory via the sub-chart.
