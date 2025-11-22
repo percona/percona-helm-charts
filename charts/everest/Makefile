@@ -49,6 +49,7 @@ add-repos:
 deps: add-repos
 	$(HELM) dependency update .
 	$(HELM) dependency update ./charts/everest-db-namespace
+	$(HELM) dependency update ./charts/pmm3
 
 .PHONY: docs-gen
 docs-gen:
