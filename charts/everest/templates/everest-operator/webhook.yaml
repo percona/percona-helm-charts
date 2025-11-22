@@ -27,6 +27,12 @@ webhooks:
     resources:
     - splithorizondnsconfigs
   sideEffects: None
+  objectSelector:
+    matchExpressions:
+    - key: everest.percona.com/skip-validating-webhook
+      operator: NotIn
+      values:
+      - "true"
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -48,6 +54,12 @@ webhooks:
     resources:
     - databaseclusters
   sideEffects: None
+  objectSelector:
+    matchExpressions:
+    - key: everest.percona.com/skip-validating-webhook
+      operator: NotIn
+      values:
+      - "true"
 - admissionReviewVersions:
     - v1
   clientConfig:
@@ -69,6 +81,12 @@ webhooks:
       resources:
         - monitoringconfigs
   sideEffects: None
+  objectSelector:
+    matchExpressions:
+    - key: everest.percona.com/skip-validating-webhook
+      operator: NotIn
+      values:
+      - "true"
 - admissionReviewVersions:
     - v1
   clientConfig:
@@ -91,6 +109,12 @@ webhooks:
       resources:
         - loadbalancerconfigs
   sideEffects: None
+  objectSelector:
+    matchExpressions:
+    - key: everest.percona.com/skip-validating-webhook
+      operator: NotIn
+      values:
+      - "true"
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
@@ -118,6 +142,12 @@ webhooks:
     resources:
     - splithorizondnsconfigs
   sideEffects: None
+  objectSelector:
+    matchExpressions:
+    - key: everest.percona.com/skip-mutating-webhook
+      operator: NotIn
+      values:
+      - "true"
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -139,6 +169,12 @@ webhooks:
     resources:
     - databaseclusters
   sideEffects: None
+  objectSelector:
+    matchExpressions:
+    - key: everest.percona.com/skip-mutating-webhook
+      operator: NotIn
+      values:
+      - "true"
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -160,6 +196,12 @@ webhooks:
     resources:
     - dataimportjobs
   sideEffects: None
+  objectSelector:
+    matchExpressions:
+    - key: everest.percona.com/skip-mutating-webhook
+      operator: NotIn
+      values:
+      - "true"
 ---
 apiVersion: v1
 kind: Secret
