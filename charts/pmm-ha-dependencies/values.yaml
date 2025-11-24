@@ -21,4 +21,3 @@ altinity-clickhouse-operator:
 ## The pg-operator manages PostgreSQL clusters
 pg-operator:
   enabled: true
-

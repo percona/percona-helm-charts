@@ -25,4 +25,3 @@ dependencies:
   - name: pg-operator
     version: 2.8.0
     repository: https://percona.github.io/percona-helm-charts/
-
