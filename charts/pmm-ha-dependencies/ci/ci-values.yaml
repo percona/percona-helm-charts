@@ -4,6 +4,8 @@
 # Altinity ClickHouse Operator
 altinity-clickhouse-operator:
   enabled: true
+  # Override the name to avoid hitting Kubernetes 63-character resource name limit
+  fullnameOverride: clickhouse-op
   resources:
     requests:
       cpu: 50m

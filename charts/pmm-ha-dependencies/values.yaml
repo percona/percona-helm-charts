@@ -16,6 +16,7 @@ victoria-metrics-operator:
 ## The altinity-clickhouse-operator manages ClickHouse clusters
 altinity-clickhouse-operator:
   enabled: true
+  # fullnameOverride: clickhouse-op  # Uncomment to shorten resource names if hitting 63-char limit
 
 ## @section PostgreSQL Operator Configuration
 ## The pg-operator manages PostgreSQL clusters
