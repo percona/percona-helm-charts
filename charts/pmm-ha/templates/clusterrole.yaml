@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 rules:
-# standard RBAC
+# Standard RBAC for Kubernetes service discovery and monitoring
 - apiGroups: [""] # "" indicates the core API group
   resources:
   - namespaces
@@ -20,42 +20,10 @@ rules:
   - get
   - watch
   - list
+# Access to metrics endpoints for scraping
 - nonResourceURLs:
   - /metrics
   - /metrics/resources
   verbs:
   - get
-# VictoriaMetrics custom resource permissions for pre-delete hook
-- apiGroups: ["operator.victoriametrics.com"]
-  resources:
-  - vmclusters
-  - vmauths
-  - vmagents
-  verbs:
-  - get
-  - list
-  - delete
-# PostgreSQL custom resource permissions for pre-delete hook
-- apiGroups: ["pgv2.percona.com"]
-  resources:
-  - perconapgclusters
-  - perconapgclusters/finalizers
-  - perconapgbackups
-  - perconapgbackups/finalizers
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - delete
-- apiGroups: ["postgres-operator.crunchydata.com"]
-  resources:
-  - postgresclusters
-  - postgresclusters/finalizers
-  verbs:
-  - get
-  - list
-  - patch
-  - update
-  - delete
 {{- end }}

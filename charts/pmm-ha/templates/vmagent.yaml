@@ -1,13 +1,4 @@
 {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmagent.enabled -}}
-{{- $existingSecret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
-{{- $existingData := dict }}
-{{- if $existingSecret }}
-{{- $existingData = $existingSecret.data }}
-{{- end }}
-{{- if or .Values.secret.create $existingSecret -}}
-{{- $vmuser := get $existingData "VMAGENT_remoteWrite_basicAuth_username" | default (.Values.secret.victoriametrics_user | default "victoriametrics_pmm" | b64enc) | b64dec }}
-{{- $vmpass := get $existingData "VMAGENT_remoteWrite_basicAuth_password" | default (.Values.secret.victoriametrics_password | b64enc) | b64dec }}
-{{- if $vmpass }}
 ---
 # VMAgent CRD managed by VictoriaMetrics operator
 apiVersion: operator.victoriametrics.com/v1beta1
@@ -18,16 +9,20 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: vmagent
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "10"
 spec:
   # Number of VMAgent replicas
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
   
-  # Remote write configuration - forwards metrics to VMAuth
+  # Remote write configuration - forwards metrics to VMAuth with secure basicAuth
   remoteWrite:
-    - url: "http://{{ $vmuser }}:{{ $vmpass }}@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/api/v1/write"
+    - url: "http://{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/api/v1/write"
+      basicAuth:
+        username:
+          name: {{ .Values.secret.name }}
+          key: VMAGENT_remoteWrite_basicAuth_username
+        password:
+          name: {{ .Values.secret.name }}
+          key: VMAGENT_remoteWrite_basicAuth_password
       {{- if .Values.victoriaMetrics.vmagent.remoteWrite }}
       {{- toYaml .Values.victoriaMetrics.vmagent.remoteWrite | nindent 6 }}
       {{- end }}
@@ -92,7 +87,5 @@ spec:
   
   # Port configuration
   port: "8429"
-{{- end }}
-{{- end }}
 {{- end }}
 

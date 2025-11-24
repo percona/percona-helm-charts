@@ -7,17 +7,15 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: victoria-metrics-cluster
-  annotations:
-    "helm.sh/hook": post-install,post-upgrade
-    "helm.sh/hook-weight": "10"
 spec:
   # Retention period for metrics
   retentionPeriod: {{ .Values.victoriaMetrics.vmstorage.retentionPeriod | quote }}
   
-  # Replication factor for vmstorage
+  # Replication factor for vmstorage (how many copies of data to store)
+  # Should be <= vmstorage.replicaCount for redundancy
   replicationFactor: {{ .Values.victoriaMetrics.replicationFactor }}
 
-  # VMSelect component configuration
+  # VMSelect component configuration (handles read queries)
   vmselect:
     replicaCount: {{ .Values.victoriaMetrics.vmselect.replicaCount }}
     {{- if .Values.victoriaMetrics.vmselect.resources }}
@@ -58,7 +56,7 @@ spec:
             port: 8481
             targetPort: http
 
-  # VMInsert component configuration
+  # VMInsert component configuration (handles write requests)
   vminsert:
     replicaCount: {{ .Values.victoriaMetrics.vminsert.replicaCount }}
     {{- if .Values.victoriaMetrics.vminsert.resources }}
@@ -99,7 +97,7 @@ spec:
             port: 8480
             targetPort: http
 
-  # VMStorage component configuration
+  # VMStorage component configuration (stores metrics data)
   vmstorage:
     replicaCount: {{ .Values.victoriaMetrics.vmstorage.replicaCount }}
     {{- if .Values.victoriaMetrics.vmstorage.resources }}

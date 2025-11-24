@@ -634,15 +634,6 @@ pg-db:
 ## The victoria-metrics-operator is automatically installed as a chart dependency
 ## with CRDs enabled by default
 
-## VictoriaMetrics Operator subchart configuration
-victoria-metrics-operator:
-  enabled: true
-  crds:
-    enabled: true
-  admissionWebhooks:
-    # Disabled to avoid timing issues during installation
-    # The operator will still manage resources correctly without validation webhooks
-    enabled: false
 
 ## NOTE: This configuration uses VictoriaMetrics Operator CRDs (VMCluster, VMAuth)
 victoriaMetrics:
