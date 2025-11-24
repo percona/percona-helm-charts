@@ -99,9 +99,6 @@ spec:
                   description: LastObservedGeneration is the most recent generation observed for this MonitoringConfig.
                   format: int64
                   type: integer
-                pmmServerVersion:
-                  description: PMMServerVersion shows PMM server version
-                  type: string
               type: object
           type: object
       served: true
