@@ -475,7 +475,7 @@ kubectl get pods -l app.kubernetes.io/name=pmm -n pmm
 # Check HAProxy pods
 kubectl get pods -l app.kubernetes.io/name=haproxy -n pmm
 
-# Check ClickHouse cluster status
+# Check ClickHouse cluster pods
 kubectl get pods -l clickhouse.altinity.com/app=chop -n pmm
 
 # Check VictoriaMetrics cluster resources
