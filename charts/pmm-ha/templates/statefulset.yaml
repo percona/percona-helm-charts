@@ -40,6 +40,27 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # Init container to verify secret exists before starting main app
+      initContainers:
+        - name: wait-for-pg-secret
+          image: alpine/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for secret to be available..."
+              until kubectl get secret pg-encryption-key -n {{ .Release.Namespace }}; do
+                echo "Secret not found, retrying in 5s..."
+                sleep 5
+              done
+              echo "Secret found, proceeding..."
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
       containers:
         - name: {{ .Chart.Name }}
 
@@ -97,20 +118,14 @@ spec:
                   optional: true
             {{ end }}
             - name: GF_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: GF_USERNAME
+              value: {{ index .Values "pg-db" "grafanaUserName" | quote }}
             - name: GF_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_PASSWORD
             - name: PMM_POSTGRES_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: PG_USERNAME
+              value: {{ index .Values "pg-db" "pmmUserName" | quote }}
             - name: PMM_POSTGRES_DBPASSWORD
               valueFrom:
                 secretKeyRef:
@@ -139,13 +154,9 @@ spec:
                   name: {{ .Values.secret.name }}
                   key: PMM_CLICKHOUSE_PASSWORD
             - name: PMM_VM_URL
-              value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ .Release.Name }}-victoria-metrics-cluster-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
-            - name: PMM_ACTIVE_IP
-              value: "{{ include "pmm.haPeer" (dict "Release" .Release "Values" .Values "index" 0) }}"
-            - name: PMM_ACTIVE_NODE_IP
-              value: "{{ include "pmm.haNodeId" (dict "Release" .Release "Values" .Values "index" 0) }}"
+              value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
             - name: PMM_CLICKHOUSE_ADDR
-              value: "{{ .Release.Name }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
+              value: "{{ include "pmm.fullname" . }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
             - name: PMM_POSTGRES_ADDR
@@ -154,6 +165,8 @@ spec:
               value: "{{ include "pmm.haPeers" . }}"
             - name: PMM_CLICKHOUSE_NODES
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
+            - name: PMM_ENCRYPTION_KEY_PATH
+              value: /etc/secrets/key
           ports:
             - name: http
               containerPort: 8080
@@ -172,6 +185,9 @@ spec:
             - name: annotations
               mountPath: "/var/run/pmm/annotations"
               readOnly: true
+            - name: encryption-key
+              mountPath: /etc/secrets
+              readOnly: true
             {{- if .Values.certs.name }}
             - name: {{ .Values.certs.name }}
               mountPath: /srv/nginx
@@ -189,6 +205,9 @@ spec:
                   - path: "annotations"
                     fieldRef:
                       fieldPath: metadata.annotations
+        - name: encryption-key
+          secret:
+            secretName: pg-encryption-key
       {{- if .Values.certs.name }}
         - name: {{ .Values.certs.name }}
           secret:

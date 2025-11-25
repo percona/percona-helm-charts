@@ -24,18 +24,34 @@ This PMM HA chart provides the following high availability features:
 - Kubernetes 1.22+
 - Helm 3.2.0+
 - PV provisioner support in the underlying infrastructure
-- **For HA Setup**: Minimum 3 worker nodes recommended for proper anti-affinity distribution
-- **Storage Requirements**: Sufficient persistent storage for all components (PMM, ClickHouse, VictoriaMetrics, PostgreSQL)
-- **Resource Requirements**: Adequate CPU and memory resources for multiple replicas
-- **Network Requirements**: Proper network policies and ingress configuration for external access
+- **pmm-ha-dependencies chart must be installed first** (see below)
 
 ## Installing the Chart
 
-To install the PMM HA chart with the release name `pmm-ha`:
+### Step 1: Install Operators First
+
+**IMPORTANT**: You must install the `pmm-ha-dependencies` chart before installing `pmm-ha`. This chart installs the required Kubernetes operators (VictoriaMetrics, ClickHouse, PostgreSQL).
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install pmm-ha percona/pmm-ha
+helm repo update
+
+# Install the operators
+helm install pmm-ha-operators percona/pmm-ha-dependencies --namespace pmm --create-namespace
+
+# Wait for operators to be ready
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=victoria-metrics-operator -n pmm --timeout=300s
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickhouse-operator -n pmm --timeout=300s
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n pmm --timeout=300s
+```
+
+### Step 2: Install PMM HA
+
+Once all operators are ready, install the PMM HA chart:
+
+```sh
+# Install PMM HA
+helm install pmm percona/pmm-ha --namespace pmm
 ```
 
 The command deploys PMM HA on the Kubernetes cluster with the default high availability configuration. The [Parameters](#parameters) section lists the parameters that can be configured during installation.
@@ -46,15 +62,36 @@ The command deploys PMM HA on the Kubernetes cluster with the default high avail
 
 ## Uninstalling the Chart
 
-To uninstall `pmm-ha` deployment:
+**IMPORTANT**: When uninstalling, you must follow the reverse order - uninstall `pmm-ha` first, then `pmm-ha-dependencies`.
+
+### Step 1: Uninstall PMM HA
 
 ```sh
-helm uninstall pmm-ha
+helm uninstall pmm --namespace pmm
 ```
 
-This command takes a release name and uninstalls the release.
+### Step 2: Wait for Resources to be Cleaned Up (Optional but Recommended)
 
-It removes all of the resources associated with the last release of the chart as well as the release history.
+```sh
+# Wait for VictoriaMetrics resources to be removed
+kubectl wait --for=delete vmcluster -l app.kubernetes.io/instance=pmm -n pmm --timeout=300s
+
+# Wait for PostgreSQL resources to be removed
+kubectl wait --for=delete postgrescluster -l app.kubernetes.io/instance=pmm -n pmm --timeout=300s
+
+# Wait for ClickHouse resources to be removed
+kubectl wait --for=delete clickhouseinstallation -l app.kubernetes.io/instance=pmm -n pmm --timeout=300s
+```
+
+### Step 3: Uninstall Operators
+
+Once PMM HA resources are fully removed, you can safely uninstall the operators:
+
+```sh
+helm uninstall pmm-ha-operators --namespace pmm
+```
+
+This removes all of the resources associated with the last release of the chart as well as the release history.
 
 > **Warning**: This will remove all PMM data, including metrics, dashboards, and configuration. Make sure to backup any important data before uninstalling.
 
