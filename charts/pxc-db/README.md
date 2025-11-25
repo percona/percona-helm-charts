@@ -51,11 +51,13 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:percona.com/delete-ssl`               | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion         | []                                   |
 | `annotations`                                     | PerconaXtraDBCluster custom resource annotations                                                     | {}                                   |
 | |
-| `tls.enabled`          | Enable PXC Pod communication with TLS                                                                      | `true` | 
-| `tls.SANs`             | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]`   |
-| `tls.issuerConf.name`  | A cert-manager issuer name                                                                                 | `""`   |
-| `tls.issuerConf.kind`  | A cert-manager issuer type                                                                                 | `""`   |
-| `tls.issuerConf.group` | A cert-manager issuer group                                                                                | `""`   |
+| `tls.enabled`             | Enable PXC Pod communication with TLS                                                                      | `true`  |
+| `tls.certValidityDuration`| Defines how long certificates will remain valid from the moment it is issued by cert-manager               | `2160h` | 
+| `tls.caValidityDuration`  | Defines how long certificate authority will remain valid from the moment it is issued by cert-manager      | `26280h`| 
+| `tls.SANs`                | Additional domains (SAN) to be added to the TLS certificate within the extended cert-manager configuration | `[]`    |
+| `tls.issuerConf.name`     | A cert-manager issuer name                                                                                 | `""`    |
+| `tls.issuerConf.kind`     | A cert-manager issuer type                                                                                 | `""`    |
+| `tls.issuerConf.group`    | A cert-manager issuer group                                                                                | `""`    |
 | |
 | `pxc.size`                                   | PXC Cluster target member (pod) quantity. Can't even if `unsafeFlags.pxcSize` is `true`                                                                                                                                                                                                                         | `3`                               |
 | `pxc.clusterSecretName`                      | Specify if you want to use custom or Operator generated users secret (if the one specified doesn't exist)                                                                                                                                                                                                       | ``                                |

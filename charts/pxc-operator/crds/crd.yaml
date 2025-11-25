@@ -11385,6 +11385,10 @@ spec:
                     items:
                       type: string
                     type: array
+                  caValidityDuration:
+                    type: string
+                  certValidityDuration:
+                    type: string
                   enabled:
                     type: boolean
                   issuerConf:

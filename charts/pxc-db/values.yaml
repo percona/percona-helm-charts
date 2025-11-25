@@ -54,6 +54,8 @@ upgradeOptions:
 enableCRValidationWebhook: false
 tls:
   enabled: true
+  # certValidityDuration: 2160h
+  # caValidityDuration: 26280h
   # SANs:
   #   - pxc-1.example.com
   #   - pxc-2.example.com
