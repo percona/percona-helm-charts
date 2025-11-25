@@ -489,7 +489,7 @@ kubectl get all -l app.kubernetes.io/instance=pmm-ha -n pmm
 
 # Check PMM HA cluster status (requires port-forward to PMM UI)
 kubectl port-forward -n pmm svc/monitoring-service 8443:8443
-# Then visit https://localhost:8443 and check the HA status in the UI
+# Then visit https://localhost:8443 to log in to PMM
 ```
 
 #### Troubleshooting HA Issues
