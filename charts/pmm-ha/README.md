@@ -2,19 +2,28 @@
 
 ## Introduction
 
-PMM HA is a high availability deployment of Percona Monitoring and Management (PMM), an open source database monitoring, observability and management tool. This chart provides a production-ready, scalable, and fault-tolerant PMM deployment with multiple replicas, load balancing, and external database backends.
+PMM HA is a high availability deployment of Percona Monitoring and Management (PMM), an open source database monitoring, observability and management tool. This chart provides a production-ready, scalable, and fault-tolerant PMM deployment with multiple replicas, load balancing, and operator-managed database backends.
+
+**Important**: This chart works together with the `pmm-ha-dependencies` chart, which must be installed first to deploy the required Kubernetes operators.
 
 Check more info here: https://docs.percona.com/percona-monitoring-and-management/index.html
 
+## Architecture
+
+PMM HA uses a **two-chart architecture**:
+
+1. **pmm-ha-dependencies**: Installs Kubernetes operators (VictoriaMetrics, ClickHouse, PostgreSQL)
+2. **pmm-ha** (this chart): Deploys PMM servers and creates operator-managed database resources
+
 ## High Availability Features
 
-This PMM HA chart provides the following high availability features:
+This PMM HA deployment provides the following high availability features:
 
 - **Multiple PMM Server Replicas**: Deploy 3 PMM server instances for redundancy
 - **HAProxy Load Balancing**: 3 HAProxy replicas with anti-affinity for traffic distribution
-- **External ClickHouse Cluster**: Dedicated ClickHouse cluster with 3 replicas and ClickHouse Keeper
-- **External VictoriaMetrics Cluster**: Distributed metrics storage with multiple replicas
-- **External PostgreSQL Database**: HA PostgreSQL cluster for Grafana metadata
+- **Operator-Managed ClickHouse Cluster**: Dedicated ClickHouse cluster with 3 replicas and ClickHouse Keeper (managed by Altinity ClickHouse Operator)
+- **Operator-Managed VictoriaMetrics Cluster**: Distributed metrics storage with multiple replicas (managed by VictoriaMetrics Operator)
+- **Operator-Managed PostgreSQL Cluster**: HA PostgreSQL cluster for Grafana metadata (managed by Percona PostgreSQL Operator)
 - **Pod Anti-Affinity**: Ensures components are distributed across different nodes
 - **Health Checks**: Comprehensive readiness and liveness probes
 - **TLS/SSL Support**: Secure communication with configurable certificates
@@ -24,10 +33,12 @@ This PMM HA chart provides the following high availability features:
 - Kubernetes 1.22+
 - Helm 3.2.0+
 - PV provisioner support in the underlying infrastructure
-- **Required Kubernetes Operators** (install via pmm-ha-dependencies chart OR manually):
-  - VictoriaMetrics Operator (v0.56.4+)
-  - Altinity ClickHouse Operator (v0.25.4+)
-  - Percona PostgreSQL Operator (v2.8.0+)
+- **Required Kubernetes Operators** (must be installed BEFORE this chart):
+  - Install via `pmm-ha-dependencies` chart (recommended), OR
+  - Install manually (advanced):
+    - VictoriaMetrics Operator (v0.56.4+)
+    - Altinity ClickHouse Operator (v0.25.4+)
+    - Percona PostgreSQL Operator (v2.8.0+)
 
 ## Installing the Chart
 
