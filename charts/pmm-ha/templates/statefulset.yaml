@@ -54,6 +54,13 @@ spec:
                 sleep 5
               done
               echo "Secret found, proceeding..."
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
       containers:
         - name: {{ .Chart.Name }}
 

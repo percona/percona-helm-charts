@@ -70,13 +70,14 @@ pmmEnv:
 #  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: ''
 
 ## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server)
-    ##  pmmResources:
-    ##    requests:
-    ##      memory: "32Gi"
-    ##      cpu: "8"
-    ##    limits:
-    ##      memory: "64Gi"
-    ##      cpu: "32"
+## Example:
+##  pmmResources:
+##    requests:
+##      memory: "32Gi"
+##      cpu: "8"
+##    limits:
+##      memory: "64Gi"
+##      cpu: "32"
 pmmResources: {}
 
 ## Readiness probe Config
@@ -630,21 +631,16 @@ pg-db:
           - host all gfuser 192.168.0.0/16 md5
           - host all pmmuser 192.168.0.0/16 md5
 
-## @section VictoriaMetrics Operator Configuration  
-## The victoria-metrics-operator is automatically installed as a chart dependency
-## with CRDs enabled by default
-
-## VictoriaMetrics Operator subchart configuration
-victoria-metrics-operator:
-  enabled: true
-  crds:
-    enabled: true
-  admissionWebhooks:
-    # Disabled to avoid timing issues during installation
-    # The operator will still manage resources correctly without validation webhooks
-    enabled: false
-
-## NOTE: This configuration uses VictoriaMetrics Operator CRDs (VMCluster, VMAuth)
+## @section VictoriaMetrics Configuration
+## 
+## IMPORTANT: The VictoriaMetrics Operator must be installed separately using the pmm-ha-dependencies chart
+## before installing this chart. This section configures the VictoriaMetrics resources (not the operator itself).
+## 
+## Installation order:
+##   1. helm install pmm-operators charts/pmm-ha-dependencies -n <namespace>
+##   2. helm install pmm charts/pmm-ha -n <namespace>
+## 
+## This configuration uses VictoriaMetrics Operator CRDs (VMCluster, VMAuth, VMAgent, VMStorage)
 victoriaMetrics:
   ## @param victoriaMetrics.enabled Enable VictoriaMetrics components via operator
   enabled: true

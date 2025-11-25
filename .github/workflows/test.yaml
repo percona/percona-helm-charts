@@ -6,6 +6,7 @@ on:
     - 'charts/gcp-marketplace/**'
     - 'charts/everest/**'
     - 'charts/pmm-ha/**'
+    - 'charts/pmm-ha-dependencies/**'
 
 
 jobs:
@@ -38,7 +39,7 @@ jobs:
           fi
 
       - name: Run chart-testing (lint)
-        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest,pmm-ha
+        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest,pmm-ha,pmm-ha-dependencies
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
@@ -51,7 +52,7 @@ jobs:
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm install --namespace default $operator charts/$operator/.; done
           fi
-          ct install --config .github/ct.yaml --excluded-charts=everest,pmm-ha
+          ct install --config .github/ct.yaml --excluded-charts=everest,pmm-ha,pmm-ha-dependencies
 
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm uninstall --namespace default $operator; done

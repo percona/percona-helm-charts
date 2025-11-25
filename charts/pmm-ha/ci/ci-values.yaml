@@ -37,15 +37,6 @@ clickhouse:
         memory: "256Mi"
         cpu: "200m"
 
-altinity-clickhouse-operator:
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 200m
-      memory: 128Mi
-
 pg-db:
   instances:
     - name: instance1
@@ -76,26 +67,8 @@ pg-db:
   backups:
     enabled: false
 
-pg-operator:
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 200m
-      memory: 128Mi
-
-# VictoriaMetrics Operator subchart configuration
-victoria-metrics-operator:
-  enabled: true
-  crds:
-    enabled: true
-  admissionWebhooks:
-    # Disabled to avoid timing issues during installation
-    enabled: false
-
-# VictoriaMetrics Operator Configuration
-# The operator is automatically installed as a chart dependency
+# VictoriaMetrics Configuration
+# NOTE: The VictoriaMetrics operator must be installed separately via pmm-ha-dependencies
 victoriaMetrics:
   enabled: true
   replicationFactor: 2
