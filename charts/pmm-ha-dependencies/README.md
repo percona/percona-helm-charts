@@ -125,8 +125,8 @@ kubectl delete crds $(kubectl get crds -o name | grep victoriametrics)
 # Remove ClickHouse CRDs
 kubectl delete crds $(kubectl get crds -o name | grep clickhouse)
 
-# Remove PostgreSQL CRDs
-kubectl delete crds $(kubectl get crds -o name | grep postgres-operator)
+# Remove PostgreSQL Operator CRDs
+kubectl delete crds $(kubectl get crds -o name | grep -E "(postgres-operator|perconapg)")
 ```
 
 ## Troubleshooting
