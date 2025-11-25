@@ -487,7 +487,7 @@ kubectl get postgrescluster -n pmm
 # Check all PMM-related resources
 kubectl get all -l app.kubernetes.io/instance=pmm-ha -n pmm
 
-# Check PMM HA cluster status (requires port-forward to PMM UI)
+# Port-forward PMM UI to the host
 kubectl port-forward -n pmm svc/monitoring-service 8443:8443
 # Then visit https://localhost:8443 to log in to PMM
 ```
