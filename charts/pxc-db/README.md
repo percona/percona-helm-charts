@@ -317,6 +317,10 @@ The chart can be customized using the following configurable parameters:
 | `secrets.tls.internal`           | Specify internal secret name for TLS.                                                                                                                                    | ``                               |
 | `secrets.logCollector`           | Specify secret name used for Fluent Bit Log Collector                                                                                                                    | ``                               |
 | `secrets.vault`                  | Specify secret name used for HashiCorp Vault to carry on Data at Rest Encryption                                                                                         | ``                               |
+| |
+| `passwordGenerationOptions.minLength` | Minimum length for generated passwords                                                                                                                            | `16`                             |
+| `passwordGenerationOptions.maxLength` | Maximum length for generated passwords                                                                                                                            | `20`                             |
+| `passwordGenerationOptions.symbols`   | Character set of symbols to use in generated passwords                                                                                                            | `!#$%&()*+,-.<=>?@[]^_{}~`       |
 
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
