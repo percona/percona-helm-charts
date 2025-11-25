@@ -316,7 +316,6 @@ The chart can be customized using the following configurable parameters:
 | `secrets.logCollector`                                                           | Specify secret name used for Fluent Bit Log Collector                                                                                                                                                                                                                                                           | ``                               |
 | `secrets.vault`                                                                  | Specify secret name used for HashiCorp Vault to carry on Data at Rest Encryption                                                                                                                                                                                                                                | ``                               |
 
-
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 
 ## Examples
