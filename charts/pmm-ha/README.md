@@ -24,20 +24,27 @@ This PMM HA chart provides the following high availability features:
 - Kubernetes 1.22+
 - Helm 3.2.0+
 - PV provisioner support in the underlying infrastructure
-- **pmm-ha-dependencies chart must be installed first** (see below)
+- **Required Kubernetes Operators** (install via pmm-ha-dependencies chart OR manually):
+  - VictoriaMetrics Operator (v0.56.4+)
+  - Altinity ClickHouse Operator (v0.25.4+)
+  - Percona PostgreSQL Operator (v2.8.0+)
 
 ## Installing the Chart
 
-### Step 1: Install Operators First
+PMM HA requires three Kubernetes operators to be installed before deployment. You can install them either:
+- **Option A**: Using the `pmm-ha-dependencies` chart (recommended, simpler)
+- **Option B**: Installing operators manually (advanced, more control)
 
-**IMPORTANT**: You must install the `pmm-ha-dependencies` chart before installing `pmm-ha`. This chart installs the required Kubernetes operators (VictoriaMetrics, ClickHouse, PostgreSQL).
+### Option A: Install Using pmm-ha-dependencies Chart (Recommended)
+
+#### Step 1: Install Operators
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
 helm repo update
 
 # Install the operators
-helm install pmm-ha-operators percona/pmm-ha-dependencies --namespace pmm --create-namespace
+helm install pmm-operators percona/pmm-ha-dependencies --namespace pmm --create-namespace
 
 # Wait for operators to be ready
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=victoria-metrics-operator -n pmm --timeout=300s
@@ -45,13 +52,60 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickh
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n pmm --timeout=300s
 ```
 
-### Step 2: Install PMM HA
+#### Step 2: Install PMM HA
 
 Once all operators are ready, install the PMM HA chart:
 
 ```sh
 # Install PMM HA
-helm install pmm percona/pmm-ha --namespace pmm
+helm install pmm-ha percona/pmm-ha --namespace pmm
+```
+
+### Option B: Install Operators Manually (Advanced)
+
+If you prefer to manage operators independently or need custom configurations:
+
+#### Step 1: Install VictoriaMetrics Operator
+
+```sh
+helm repo add vm https://victoriametrics.github.io/helm-charts/
+helm repo update
+
+helm install victoria-metrics-operator vm/victoria-metrics-operator \
+  --namespace pmm \
+  --create-namespace \
+  --set admissionWebhooks.enabled=true
+```
+
+#### Step 2: Install Altinity ClickHouse Operator
+
+```sh
+helm repo add altinity https://helm.altinity.com
+helm repo update
+
+helm install clickhouse-operator altinity/altinity-clickhouse-operator \
+  --namespace pmm
+```
+
+#### Step 3: Install Percona PostgreSQL Operator
+
+```sh
+helm install postgres-operator percona/pg-operator \
+  --namespace pmm
+```
+
+#### Step 4: Verify All Operators Are Ready
+
+```sh
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=victoria-metrics-operator -n pmm --timeout=300s
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickhouse-operator -n pmm --timeout=300s
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n pmm --timeout=300s
+```
+
+#### Step 5: Install PMM HA
+
+```sh
+helm install pmm-ha percona/pmm-ha --namespace pmm
 ```
 
 The command deploys PMM HA on the Kubernetes cluster with the default high availability configuration. The [Parameters](#parameters) section lists the parameters that can be configured during installation.
@@ -62,36 +116,63 @@ The command deploys PMM HA on the Kubernetes cluster with the default high avail
 
 ## Uninstalling the Chart
 
-**IMPORTANT**: When uninstalling, you must follow the reverse order - uninstall `pmm-ha` first, then `pmm-ha-dependencies`.
+**IMPORTANT**: You must uninstall PMM HA first, then the operators. Uninstalling in the wrong order may leave orphaned resources.
 
 ### Step 1: Uninstall PMM HA
 
 ```sh
-helm uninstall pmm --namespace pmm
+helm uninstall pmm-ha --namespace pmm
 ```
 
 ### Step 2: Wait for Resources to be Cleaned Up (Optional but Recommended)
 
+Wait for operator-managed resources to be fully removed:
+
 ```sh
 # Wait for VictoriaMetrics resources to be removed
-kubectl wait --for=delete vmcluster -l app.kubernetes.io/instance=pmm -n pmm --timeout=300s
+kubectl wait --for=delete vmcluster -l app.kubernetes.io/instance=pmm-ha -n pmm --timeout=300s
 
 # Wait for PostgreSQL resources to be removed
-kubectl wait --for=delete postgrescluster -l app.kubernetes.io/instance=pmm -n pmm --timeout=300s
+kubectl wait --for=delete postgrescluster -l app.kubernetes.io/instance=pmm-ha -n pmm --timeout=300s
 
 # Wait for ClickHouse resources to be removed
-kubectl wait --for=delete clickhouseinstallation -l app.kubernetes.io/instance=pmm -n pmm --timeout=300s
+kubectl wait --for=delete clickhouseinstallation -l app.kubernetes.io/instance=pmm-ha -n pmm --timeout=300s
 ```
 
 ### Step 3: Uninstall Operators
 
-Once PMM HA resources are fully removed, you can safely uninstall the operators:
+Choose the appropriate method based on how you installed the operators:
+
+#### If Using pmm-ha-dependencies Chart:
 
 ```sh
-helm uninstall pmm-ha-operators --namespace pmm
+helm uninstall pmm-operators --namespace pmm
 ```
 
-This removes all of the resources associated with the last release of the chart as well as the release history.
+#### If Installed Operators Manually:
+
+```sh
+helm uninstall victoria-metrics-operator --namespace pmm
+helm uninstall clickhouse-operator --namespace pmm
+helm uninstall postgres-operator --namespace pmm
+```
+
+### Step 4: Clean Up CRDs (Optional)
+
+**WARNING**: This will remove CRDs cluster-wide and delete ALL custom resources of these types in ALL namespaces! This action will cause permanent data loss.
+
+Only do this if you're completely removing the operators and have no other deployments using them:
+
+```sh
+# Remove VictoriaMetrics CRDs
+kubectl delete crds $(kubectl get crds -o name | grep victoriametrics)
+
+# Remove ClickHouse CRDs
+kubectl delete crds $(kubectl get crds -o name | grep clickhouse)
+
+# Remove PostgreSQL Operator CRDs
+kubectl delete crds $(kubectl get crds -o name | grep -E "(postgres-operator|perconapg)")
+```
 
 > **Warning**: This will remove all PMM data, including metrics, dashboards, and configuration. Make sure to backup any important data before uninstalling.
 
@@ -179,17 +260,17 @@ This removes all of the resources associated with the last release of the chart 
 Specify each parameter using the `--set key=value[,key=value]` or `--set-string key=value[,key=value]` arguments to `helm install`. For example,
 
 ```sh
-helm install pmm-ha percona/pmm-ha
+helm install pmm-ha --namespace pmm percona/pmm-ha
 ```
 
-The above command installs PMM HA 3 replicas for PMM Servers
+The above command installs PMM HA with 3 replicas for PMM Servers (default configuration).
 
 > NOTE: Once this chart is deployed, it is impossible to change the application's access credentials, such as password, using Helm. To change these application credentials after deployment, delete any persistent volumes (PVs) used by the chart and re-deploy it, or use the application's built-in administrative tools if available.
 
 Alternatively, a YAML file that specifies the values for the above parameters can be provided while installing the chart. For example:
 
 ```sh
-helm install pmm-ha -f values.yaml percona/pmm-ha
+helm install pmm-ha -f values.yaml --namespace pmm percona/pmm-ha
 ```
 
 > **Tip**: You can use the default [values.yaml](values.yaml) or get them from chart definition: `helm show values percona/pmm-ha > values.yaml`
@@ -202,11 +283,13 @@ The PMM HA chart deploys the following components:
 
 1. **PMM Server Cluster**: 3 PMM server replicas with built-in HA clustering
 2. **HAProxy Load Balancer**: 3 HAProxy replicas for traffic distribution and failover
-3. **ClickHouse Cluster**: 3 ClickHouse replicas with ClickHouse Keeper for coordination
-4. **VictoriaMetrics Cluster**: Distributed metrics storage with multiple replicas
-5. **PostgreSQL Cluster**: HA PostgreSQL cluster for Grafana metadata storage
+3. **ClickHouse Cluster**: 3 ClickHouse replicas with ClickHouse Keeper for coordination (managed by Altinity ClickHouse Operator)
+4. **VictoriaMetrics Cluster**: Distributed metrics storage with multiple replicas (managed by VictoriaMetrics Operator)
+5. **PostgreSQL Cluster**: HA PostgreSQL cluster for Grafana metadata storage (managed by Percona PostgreSQL Operator)
 
 All components are configured with pod anti-affinity to ensure distribution across different nodes for maximum resilience.
+
+> **Important**: The three Kubernetes operators (VictoriaMetrics, ClickHouse, PostgreSQL) must be installed before deploying PMM HA. They manage the lifecycle of their respective resources through Custom Resource Definitions (CRDs).
 
 ### [Image tags](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 
@@ -223,7 +306,7 @@ If PMM admin password is not set explicitly (default), it will be generated.
 To get admin password execute:
 
 ```sh
-kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode && echo
 ```
 
 ### Creating PMM Secret Manually
@@ -240,9 +323,9 @@ kubectl create secret generic pmm-secret \
   --from-literal=PMM_CLICKHOUSE_PASSWORD="your-clickhouse-password" \
   --from-literal=VMAGENT_remoteWrite_basicAuth_username="victoriametrics_pmm" \
   --from-literal=VMAGENT_remoteWrite_basicAuth_password="your-victoriametrics-password" \
-  --from-literal=GF_DATABASE_PASSWORD="your-grafana-db-password" \
-  --from-literal=GF_SECURITY_ADMIN_PASSWORD="your-grafana-admin-password" \
-  --namespace=your-namespace
+  --from-literal=PG_PASSWORD="your-pmm-postgres-password" \
+  --from-literal=GF_PASSWORD="your-grafana-postgres-password" \
+  --namespace pmm
 ```
 
 #### Option 2: Create Secret from YAML
@@ -254,16 +337,16 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: pmm-secret
-  namespace: your-namespace
+  namespace: pmm
 type: Opaque
-data:
-  PMM_ADMIN_PASSWORD: <base64-encoded-password>
-  PMM_CLICKHOUSE_USER: <base64-encoded-username>
-  PMM_CLICKHOUSE_PASSWORD: <base64-encoded-password>
-  VMAGENT_remoteWrite_basicAuth_username: <base64-encoded-username>
-  VMAGENT_remoteWrite_basicAuth_password: <base64-encoded-password>
-  GF_DATABASE_PASSWORD: <base64-encoded-password>
-  GF_SECURITY_ADMIN_PASSWORD: <base64-encoded-password>
+stringData:
+  PMM_ADMIN_PASSWORD: "your-secure-password"
+  PMM_CLICKHOUSE_USER: "clickhouse_pmm"
+  PMM_CLICKHOUSE_PASSWORD: "your-clickhouse-password"
+  VMAGENT_remoteWrite_basicAuth_username: "victoriametrics_pmm"
+  VMAGENT_remoteWrite_basicAuth_password: "your-victoriametrics-password"
+  PG_PASSWORD: "your-pmm-postgres-password"
+  GF_PASSWORD: "your-grafana-postgres-password"
 ```
 
 Then apply it:
@@ -272,27 +355,27 @@ Then apply it:
 kubectl apply -f pmm-secret.yaml
 ```
 
+> **Note**: Using `stringData` instead of `data` allows you to provide plain text values, which Kubernetes will automatically base64-encode.
+
 #### Retrieving Credentials After Deployment
 
 After the PMM HA deployment is complete, you can retrieve the credentials using these commands:
 
 ```sh
 # Get PMM admin password
-kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode && echo
 
 # Get ClickHouse credentials
-kubectl get secret pmm-secret -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' | base64 --decode && echo
-kubectl get secret pmm-secret -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' | base64 --decode && echo
 
 # Get VictoriaMetrics credentials
-kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode && echo
-kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode && echo
 
-# Get Grafana database password
-kubectl get secret pmm-secret -o jsonpath='{.data.GF_DATABASE_PASSWORD}' | base64 --decode && echo
-
-# Get Grafana admin password
-kubectl get secret pmm-secret -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' | base64 --decode && echo
+# Get PostgreSQL passwords
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PG_PASSWORD}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.GF_PASSWORD}' | base64 --decode && echo
 ```
 
 ### PMM SSL certificates
@@ -341,7 +424,7 @@ PMM HA updates should happen in a standard way:
 
 ```sh
 helm repo update percona
-helm upgrade pmm-ha -f values.yaml percona/pmm-ha
+helm upgrade pmm-ha -f values.yaml --namespace pmm percona/pmm-ha
 ```
 
 This will check updates in the repo and upgrade deployment if the updates are available. The rolling update strategy ensures zero-downtime upgrades.
@@ -364,19 +447,20 @@ To scale the PMM HA deployment:
 
 ```sh
 # Scale PMM server replicas
-helm upgrade pmm-ha --set replicas=5 percona/pmm-ha
+helm upgrade pmm-ha --set replicas=5 --namespace pmm percona/pmm-ha
 
 # Scale HAProxy replicas
-helm upgrade pmm-ha --set haproxy.replicaCount=5 percona/pmm-ha
+helm upgrade pmm-ha --set haproxy.replicaCount=5 --namespace pmm percona/pmm-ha
 
 # Scale ClickHouse replicas
-helm upgrade pmm-ha --set clickhouse.cluster.replicas=5 percona/pmm-ha
+helm upgrade pmm-ha --set clickhouse.cluster.replicas=5 --namespace pmm percona/pmm-ha
 
 # Scale VictoriaMetrics components
 helm upgrade pmm-ha \
-  --set victoria-metrics-cluster.vmselect.replicaCount=3 \
-  --set victoria-metrics-cluster.vminsert.replicaCount=3 \
-  --set victoria-metrics-cluster.vmstorage.replicaCount=5 \
+  --set victoriaMetrics.vmselect.replicaCount=3 \
+  --set victoriaMetrics.vminsert.replicaCount=3 \
+  --set victoriaMetrics.vmstorage.replicaCount=5 \
+  --namespace pmm \
   percona/pmm-ha
 ```
 
@@ -386,19 +470,25 @@ Check the health of your PMM HA deployment:
 
 ```sh
 # Check PMM server pods
-kubectl get pods -l app.kubernetes.io/name=pmm-ha
+kubectl get pods -l app.kubernetes.io/name=pmm -n pmm
 
 # Check HAProxy pods
-kubectl get pods -l app.kubernetes.io/name=haproxy
+kubectl get pods -l app.kubernetes.io/name=haproxy -n pmm
 
 # Check ClickHouse cluster status
-kubectl get pods -l app.kubernetes.io/name=clickhouse
+kubectl get pods -l clickhouse.altinity.com/app=chop -n pmm
 
-# Check VictoriaMetrics cluster status
-kubectl get pods -l app.kubernetes.io/name=victoria-metrics-cluster
+# Check VictoriaMetrics cluster resources
+kubectl get vmcluster,vmagent,vmauth -n pmm
+
+# Check PostgreSQL cluster status
+kubectl get postgrescluster -n pmm
+
+# Check all PMM-related resources
+kubectl get all -l app.kubernetes.io/instance=pmm-ha -n pmm
 
 # Check PMM HA cluster status (requires port-forward to PMM UI)
-kubectl port-forward svc/monitoring-service 8443:443
+kubectl port-forward -n pmm svc/monitoring-service 8443:8443
 # Then visit https://localhost:8443 and check the HA status in the UI
 ```
 
