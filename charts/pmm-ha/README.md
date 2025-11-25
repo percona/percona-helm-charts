@@ -481,7 +481,7 @@ kubectl get pods -l clickhouse.altinity.com/app=chop -n pmm
 # Check VictoriaMetrics cluster resources
 kubectl get vmcluster,vmagent,vmauth -n pmm
 
-# Check PostgreSQL cluster status
+# Check PostgreSQL cluster pods
 kubectl get postgrescluster -n pmm
 
 # Check all PMM-related resources
