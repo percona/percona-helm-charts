@@ -69,6 +69,8 @@ spec:
               value: "{{ .Values.logLevel }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
+            - name: MAX_CONCURRENT_RECONCILES
+              value: "{{ .Values.maxConcurrentReconciles | default 1 }}"
             {{- if .Values.extraEnvVars }}
               {{- toYaml .Values.extraEnvVars | nindent 12 }}
             {{- end }}
