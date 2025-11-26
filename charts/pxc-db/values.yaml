@@ -458,8 +458,6 @@ proxysql:
   #   loadBalancerIP: 127.0.0.1
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
-  readinessDelaySec: 15
-  livenessDelaySec: 300
   # envVarsSecret: my-env-var-secrets
   resources:
     requests:
