@@ -44,6 +44,18 @@ spec:
   {{- else }}
   vaultSecretName: {{ include "pxc-database.fullname" . }}-vault
   {{- end }}
+  {{- if .Values.passwordGenerationOptions }}
+  passwordGenerationOptions:
+    {{- if hasKey .Values.passwordGenerationOptions "minLength" }}
+    minLength: {{ .Values.passwordGenerationOptions.minLength }}
+    {{- end }}
+    {{- if hasKey .Values.passwordGenerationOptions "maxLength" }}
+    maxLength: {{ .Values.passwordGenerationOptions.maxLength }}
+    {{- end }}
+    {{- if hasKey .Values.passwordGenerationOptions "symbols" }}
+    symbols: {{ .Values.passwordGenerationOptions.symbols | quote }}
+    {{- end }}
+  {{- end }}
   {{- if hasKey .Values.secrets "logCollector" }}
   logCollectorSecretName: {{ .Values.secrets.logCollector }}
   {{- else }}
