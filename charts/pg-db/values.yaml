@@ -47,6 +47,7 @@ crVersion: 2.8.0
 repository: docker.io/percona/percona-distribution-postgresql
 image: docker.io/percona/percona-distribution-postgresql:17.6-1
 imagePullPolicy: Always
+imagePullSecrets: []
 postgresVersion: 17
 # port: 5432
 pause: false
