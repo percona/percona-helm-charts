@@ -29,7 +29,7 @@ Notes:
 * Additionally, it also deploys a new namespace called `everest` for your databases and the database operators.
 * If you prefer to manage your database namespace separately, you may set `dbNamespace.enabled=false`.
 * You may override the name of the database namespace using the `dbNamespace.namespaceOverride` parameter.
-* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
+* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.postgresql=false`, `dbNamespace.psmdb=false`].
 * We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
 ### 3. Retrieve the admin password
@@ -63,7 +63,7 @@ helm install everest \
 ```
 
 Notes:
-* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
+* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.postgresql=false`, `dbNamespace.psmdb=false`].
 * We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
 #### 4.1 Deploying additional operators to an existing database namespace
@@ -75,7 +75,7 @@ helm upgrade everest \
     percona/everest-db-namespace \
     --namespace [NAMESPACE]
     --pxc=true \
-    --pg=true
+    --postgresql=true
 ```
 
 The above example assumes that the MongoDB operator is already installed in the database namespace and you would like to install the Percona XtraDB Cluster and PostgreSQL operators.
@@ -205,7 +205,9 @@ The following table shows the configurable parameters of the Percona Everest cha
 | operator.webhook.certs | object | `{"ca.crt":"","tls.crt":"","tls.key":""}` | Certificates to use for the webhook server. The values must be base64 encoded. If unset, uses self-signed certificates. |
 | operator.webhook.preserveTLSCerts | bool |  | If set to true, preserves existing TLS Certificate Secrets during upgrades. This setting is ignored if certificates are explicitly provided in operator.webhook.certs, in which case the specified certificates are used instead. This setting has no effect during installation. |
 | pmm | object | `{"enabled":false,"nameOverride":"pmm"}` | PMM settings. |
-| pmm.enabled | bool | `false` | If set, deploys PMM in the release namespace. |
+| pmm.enabled | bool | `false` | If set, deploys PMM2 in the release namespace. |
+| pmm3.enabled | bool | `false` | If set, deploys PMM3 in the release namespace. |
+| pmm3.pmm | object | `{"nameOverride":"pmm3"}` | PMM configuration. All PMM chart values go under this key. |
 | server.apiRequestsRateLimit | int | `100` | Set the allowed number of requests per second. |
 | server.env | list | `[]` | Additional environment variables to pass to the server deployment. |
 | server.image | string | `"perconalab/everest"` | Image to use for the server container. |

@@ -1,0 +1,120 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: splithorizondnsconfigs.enginefeatures.everest.percona.com
+  labels:
+    everest.percona.com/crd: "true"
+    everest.percona.com/version: 0.0.0
+spec:
+  group: enginefeatures.everest.percona.com
+  names:
+    kind: SplitHorizonDNSConfig
+    listKind: SplitHorizonDNSConfigList
+    plural: splithorizondnsconfigs
+    shortNames:
+      - splitdns
+    singular: splithorizondnsconfig
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - description: base domain name suffix for generating domain names for each Pod in ReplicaSet
+          jsonPath: .spec.baseDomainNameSuffix
+          name: BaseDomainSuffix
+          type: string
+        - description: Indicates if the config is used by any DB cluster
+          jsonPath: .status.inUse
+          name: InUse
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: SplitHorizonDNSConfig is the Schema for the splithorizondnsconfigs API.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: Spec defines the desired state of SplitHorizonDNSConfig
+              properties:
+                baseDomainNameSuffix:
+                  description: |-
+                    BaseDomainNameSuffix is the base domain name suffix for generating domain names for each Pod in ReplicaSet.
+                    It should be a valid domain name suffix.
+                  example: example.com
+                  minLength: 3
+                  pattern: ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$
+                  type: string
+                tls:
+                  description: TLS is the TLS configuration for the split-horizon DNS configuration.
+                  properties:
+                    certificate:
+                      description: Certificate is the TLS certificate and key for the split-horizon DNS configuration.
+                      properties:
+                        ca.crt:
+                          description: |-
+                            CACert is based64 encoded ca.pem file content.
+                            It is provided as a write-only input field for convenience.
+                            When this field is set, a webhook writes this value in the Secret specified by `.spec.tls.secretName`
+                            and empties this field.
+                            This field is not stored in the API.
+                          type: string
+                        ca.key:
+                          description: |-
+                            CA Private Key is based64 encoded ca-key.pem file content.
+                            It is provided as a write-only input field for convenience.
+                            When this field is set, a webhook writes this value in the Secret specified by `.spec.tls.secretName`
+                            and empties this field.
+                            This field is not stored in the API.
+                          type: string
+                      required:
+                        - ca.crt
+                        - ca.key
+                      type: object
+                    secretName:
+                      description: SecretName is the name of the secret containing the TLS certificate and key for the split-horizon DNS configuration.
+                      example: my-tls-secret
+                      type: string
+                  required:
+                    - secretName
+                  type: object
+              required:
+                - baseDomainNameSuffix
+                - tls
+              type: object
+            status:
+              default:
+                inUse: false
+              description: Status defines the observed state of SplitHorizonDNSConfig
+              properties:
+                inUse:
+                  default: false
+                  description: InUse is a flag that indicates if the config is used by any DB cluster.
+                  type: boolean
+                lastObservedGeneration:
+                  description: LastObservedGeneration is the most recent generation observed for this SplitHorizonDNSConfig.
+                  format: int64
+                  type: integer
+              type: object
+          required:
+            - spec
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
