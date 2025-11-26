@@ -735,6 +735,11 @@ backup:
 #         deleteFromStorage: true
 #       storageName: s3-us-west
 
+# passwordGenerationOptions:
+#   minLength: 16
+#   maxLength: 20
+#   symbols: "!#$%&()*+,-.<=>?@[]^_{}~"
+
 secrets:
   ## You should be overriding these with your own or specify name for clusterSecretName.
   # passwords:
