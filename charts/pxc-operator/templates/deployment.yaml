@@ -71,6 +71,8 @@ spec:
               value: "{{ .Values.disableTelemetry }}"
             - name: MAX_CONCURRENT_RECONCILES
               value: "{{ .Values.maxConcurrentReconciles | default 1 }}"
+            - name: S3_WORKERS_LIMIT
+              value: "{{ .Values.s3WorkersLimit | default 10 }}"
             {{- if .Values.extraEnvVars }}
               {{- toYaml .Values.extraEnvVars | nindent 12 }}
             {{- end }}
