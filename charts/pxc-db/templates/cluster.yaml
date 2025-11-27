@@ -100,6 +100,12 @@ spec:
   {{- if .Values.tls }}
   tls:
     enabled: {{ .Values.tls.enabled }}
+  {{- if hasKey .Values.tls "certValidityDuration" }}
+    certValidityDuration: {{ .Values.tls.certValidityDuration }}
+  {{- end}}
+  {{- if hasKey .Values.tls "caValidityDuration" }}
+    caValidityDuration: {{ .Values.tls.caValidityDuration }}
+  {{- end}}
   {{- if hasKey .Values.tls "SANs" }}
     SANs:
 {{ .Values.tls.SANs | toYaml | indent 6 }}
