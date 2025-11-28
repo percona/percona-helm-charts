@@ -1,12 +1,16 @@
 HELM ?= helm
 
+.PHONY: help
+help: ## Display this help.
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
 # values to override
 IMAGE_PREFIX ?= percona
 TELEMETRY ?= true
 VERSION ?= 0.0.0
 
 .PHONY: prepare-chart
-prepare-chart:
+prepare-chart: ## Prepare the Helm chart for release or development
 	CHART_FILES="Chart.yaml ./charts/everest-db-namespace/Chart.yaml ./charts/everest-crds/Chart.yaml"; \
 	for chart in $$CHART_FILES; do \
 		yq eval -i '.version = "${VERSION}"' $$chart; \
@@ -28,17 +32,17 @@ release-crds:
 
 
 .PHONY: release
-release: release-crds
+release: release-crds ## Prepare the chart for release
 release: prepare-chart
 
 .PHONY: release-dev
 release-dev: IMAGE_PREFIX=perconalab
 release-dev: TELEMETRY=false
-release-dev: release-crds
+release-dev: release-crds ## Prepare the chart for development release
 release-dev: prepare-chart
 
 .PHONY: add-repos
-add-repos:
+add-repos: ## Add required Helm repositories
 	$(HELM) version
 	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	$(HELM) repo add vm https://victoriametrics.github.io/helm-charts
@@ -46,13 +50,13 @@ add-repos:
 	$(HELM) repo add percona-olm https://percona.github.io/operator-lifecycle-manager
 
 .PHONY: deps
-deps: add-repos
+deps: add-repos ## Update Helm dependencies
 	$(HELM) dependency update .
 	$(HELM) dependency update ./charts/everest-db-namespace
 	$(HELM) dependency update ./charts/pmm3
 
 .PHONY: docs-gen
-docs-gen:
+docs-gen: ## Generate documentation for the Helm chart
 	docker run --rm -v "$(PWD)/:/helm-docs" -u $(shell id -u) jnorwood/helm-docs:v1.14.2
 
 .PHONY: link-crds
@@ -67,7 +71,7 @@ EVEREST_REPO_URL ?= https://github.com/percona/everest-operator
 CRD_DIR ?= config/crd
 CRD_VERSION ?= main
 .PHONY: crds-gen
-crds-gen:
+crds-gen: ## Generate CRDs from the Everest repository
 	EVEREST_REPO_URL=$(EVEREST_REPO_URL) \
 	CRD_DIR=$(CRD_DIR) \
 	CRD_VERSION=$(CRD_VERSION) \
@@ -76,7 +80,7 @@ crds-gen:
 	$(MAKE) -C charts/everest-crds crds-gen
 
 .PHONY: prepare-pr
-prepare-pr:
+prepare-pr: ## Prepare the chart for a pull request
 	$(MAKE) deps
 	$(MAKE) docs-gen
 	EVEREST_REPO_URL=$(EVEREST_REPO_URL) \
