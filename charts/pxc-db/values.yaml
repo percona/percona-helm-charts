@@ -615,7 +615,7 @@ backup:
   # activeDeadlineSeconds: 3600
   # startingDeadlineSeconds: 300
   # suspendedDeadlineSeconds: 1200
-  # runningDeadlineSeconds: 1200
+  # runningDeadlineSeconds: 300
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
