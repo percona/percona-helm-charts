@@ -543,6 +543,9 @@ spec:
     {{- if $backup.startingDeadlineSeconds }}
     startingDeadlineSeconds: {{ $backup.startingDeadlineSeconds }}
     {{- end }}
+    {{- if $backup.runningDeadlineSeconds }}
+    runningDeadlineSeconds: {{ $backup.runningDeadlineSeconds }}
+    {{- end }}
     {{- if $backup.suspendedDeadlineSeconds }}
     suspendedDeadlineSeconds: {{ $backup.suspendedDeadlineSeconds }}
     {{- end }}
