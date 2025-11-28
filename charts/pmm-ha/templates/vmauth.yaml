@@ -1,0 +1,116 @@
+{{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled -}}
+{{- /* Lookup existing secret to avoid regenerating passwords on upgrade */ -}}
+{{- $existingSecret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
+{{- $vmuser := "" }}
+{{- $vmpass := "" }}
+{{- if $existingSecret }}
+  {{- /* Use existing credentials from secret */ -}}
+  {{- $vmuser = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_username" | b64dec }}
+  {{- $vmpass = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_password" | b64dec }}
+{{- else }}
+  {{- /* Use values or defaults (secret.yaml will create the secret) */ -}}
+  {{- $vmuser = .Values.secret.victoriametrics_user | default "victoriametrics_pmm" }}
+  {{- $vmpass = .Values.secret.victoriametrics_password | default (randAlphaNum 32) }}
+{{- end }}
+---
+# Secret for VMAuth configuration
+# Note: VMAuth requires plaintext credentials in its config file to validate incoming requests
+# This is the standard VMAuth configuration pattern
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "pmm.fullname" . }}-vmauth-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vmauth
+type: Opaque
+stringData:
+  config.yaml: |
+    users:
+    - username: {{ $vmuser | quote }}
+      password: {{ $vmpass | quote }}
+      url_map:
+      - src_paths:
+        - "/api/v1/write"
+        url_prefix: "http://vminsert-{{ include "pmm.fullname" . }}-vmcluster.{{ .Release.Namespace }}.svc.cluster.local:8480/insert/0/prometheus/"
+      - src_paths:
+        - "/api/v1/query"
+        - "/api/v1/query_range"
+        - "/api/v1/series"
+        - "/api/v1/labels"
+        - "/api/v1/label/.+/values"
+        url_prefix: "http://vmselect-{{ include "pmm.fullname" . }}-vmcluster.{{ .Release.Namespace }}.svc.cluster.local:8481/select/0/prometheus/"
+---
+# VMAuth CRD managed by VictoriaMetrics operator
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMAuth
+metadata:
+  name: {{ include "pmm.fullname" . }}-vmauth
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vmauth
+spec:
+  # Number of VMAuth replicas
+  replicaCount: {{ .Values.victoriaMetrics.vmauth.replicaCount }}
+  
+  # Reference to the config secret
+  configSecret: {{ include "pmm.fullname" . }}-vmauth-config
+  
+  {{- if .Values.victoriaMetrics.vmauth.resources }}
+  # Resource limits and requests
+  resources:
+    {{- toYaml .Values.victoriaMetrics.vmauth.resources | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmauth.affinity }}
+  # Pod affinity configuration
+  affinity:
+    {{- toYaml .Values.victoriaMetrics.vmauth.affinity | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmauth.tolerations }}
+  # Pod tolerations
+  tolerations:
+    {{- toYaml .Values.victoriaMetrics.vmauth.tolerations | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmauth.nodeSelector }}
+  # Node selector
+  nodeSelector:
+    {{- toYaml .Values.victoriaMetrics.vmauth.nodeSelector | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmauth.podAnnotations }}
+  # Pod annotations
+  podMetadata:
+    annotations:
+      {{- toYaml .Values.victoriaMetrics.vmauth.podAnnotations | nindent 6 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmauth.extraArgs }}
+  # Extra arguments for vmauth
+  extraArgs:
+    {{- toYaml .Values.victoriaMetrics.vmauth.extraArgs | nindent 4 }}
+  {{- end }}
+  
+  # Service specification
+  serviceSpec:
+    metadata:
+      name: {{ include "pmm.fullname" . }}-vmauth
+      labels:
+        app: vmauth
+        {{- include "pmm.labels" . | nindent 8 }}
+    spec:
+      type: ClusterIP
+      ports:
+        - name: http
+          port: 8427
+          targetPort: http
+          protocol: TCP
+  
+  # Port configuration
+  port: "8427"
+{{- end }}
+
