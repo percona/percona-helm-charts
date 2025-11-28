@@ -61,6 +61,8 @@ podAnnotations: {}
 logStructured: false
 logLevel: "INFO"
 disableTelemetry: false
+maxConcurrentReconciles: 1
+s3WorkersLimit: 10
 
 extraEnvVars: []
 # - name: http_proxy
