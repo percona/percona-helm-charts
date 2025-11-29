@@ -5,6 +5,8 @@ version: "0.0.0"
 appVersion: "0.0.0"
 type: application
 kubeVersion: '>= 1.27.0-0'
+annotations:
+  helm.sh/release-max-history: "5"
 maintainers:
   - name: mayankshah1607
     email: mayank.shah@percona.com
@@ -37,6 +39,10 @@ dependencies:
     repository: "https://percona.github.io/percona-helm-charts"
     condition: "pmm.enabled"
     version: 1.3.*
+  - name: pmm3
+    repository: "file://charts/pmm3"
+    condition: "pmm3.enabled"
+    version: "0.0.*"
   - name: everest-crds
     repository: "file://charts/everest-crds"
     condition: "everest-crds.enabled"

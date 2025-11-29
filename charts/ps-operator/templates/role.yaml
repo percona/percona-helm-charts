@@ -1,13 +1,15 @@
 {{- if .Values.rbac.create }}
 apiVersion: rbac.authorization.k8s.io/v1
-{{- if .Values.watchNamespace }}
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
 kind: ClusterRole
 {{- else }}
 kind: Role
 {{- end }}
 metadata:
   name: {{ include "ps-operator.fullname" . }}-leaderelection
+{{- if not (or .Values.watchNamespace .Values.watchAllNamespaces) }}
   namespace: {{ .Release.Namespace }}
+{{- end }}
   labels:
 {{ include "ps-operator.labels" . | indent 4 }}
 rules:
@@ -44,14 +46,16 @@ rules:
   - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-{{- if .Values.watchNamespace }}
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
 kind: ClusterRole
 {{- else }}
 kind: Role
 {{- end }}
 metadata:
   name: {{ include "ps-operator.fullname" . }}
+{{- if not (or .Values.watchNamespace .Values.watchAllNamespaces) }}
   namespace: {{ .Release.Namespace }}
+{{- end }}
   labels:
 {{ include "ps-operator.labels" . | indent 4 }}
 rules:
@@ -74,9 +78,13 @@ rules:
   - ""
   resources:
   - events
+  - serviceaccounts
   verbs:
   - create
+  - get
+  - list
   - patch
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -90,16 +98,6 @@ rules:
   - list
   - patch
   - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs:
-  - create
-  - get
-  - list
-  - patch
   - watch
 - apiGroups:
   - apps
@@ -136,6 +134,28 @@ rules:
   - create
   - delete
   - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  - poddisruptionbudgets/finalizers
+  verbs:
+  - create
   - get
   - list
   - patch

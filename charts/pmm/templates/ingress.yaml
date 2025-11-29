@@ -7,7 +7,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "pmm.fullname" . }}
-  namespace: {{ include  "pmm.namespace" . }}
+  {{- include "pmm.includeNamespace" . | nindent 2 }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 {{- if or .Values.ingress.annotations .Values.ingress.nginxInc }}
@@ -85,7 +85,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "pmm.fullname" . }}-grpc
-  namespace: {{ include  "pmm.namespace" . }}
+  {{- include "pmm.includeNamespace" . | nindent 2 }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
   annotations:

@@ -1,0 +1,4 @@
+# PMM3 wrapper chart
+# All PMM configuration goes under the 'pmm' key
+pmm:
+  nameOverride: pmm3

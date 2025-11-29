@@ -1,5 +1,5 @@
 {{- if .Values.upgrade.preflightChecks }}
-{{- include "everest.preUpgradeChecks" (dict "namespace" (include "everest.namespace" .) "version" .Chart.Version "versionMetadataURL" (include "everest.versionMetadataURL" .)) }}
+{{- include "everest.preUpgradeChecks" (dict "namespace" (include "everest.namespace" .) "version" .Chart.Version "versionMetadataURL" (include "everest.versionMetadataURL" .) "image" (.Values.hooks.upgradeChecks.image | default .Values.hooks.image)) }}
 {{- end }}
 ---
 {{- /*
@@ -12,5 +12,8 @@
 {{- end }}
 
 {{- /* #  Cleanup all default pod scheduling policies during uninstall. */}}
-{{- include "everest.pspCleanup" (dict "namespace" (include "everest.namespace" .)) }}
+{{- include "everest.pspCleanup" (dict "namespace" (include "everest.namespace" .) "image" (.Values.hooks.pspCleanup.image | default .Values.hooks.image)) }}
+
+{{- /* #  Cleanup all default load balancer configs during uninstall. */}}
+{{- include "everest.lbcCleanup" (dict "namespace" (include "everest.namespace" .) "image" (.Values.hooks.lbcCleanup.image | default .Values.hooks.image)) }}
 ---

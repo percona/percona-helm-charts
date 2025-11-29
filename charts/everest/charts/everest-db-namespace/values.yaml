@@ -1,3 +1,25 @@
+# -- Configuration for Helm chart hooks.
+hooks:
+  # -- Default image to use for the Helm chart hooks job.
+  # @default -- `percona/everest-helmtools:0.0.1`
+  image: "percona/everest-helmtools:0.0.1"
+  # -- Configuration for the ClusterServiceVersion cleanup hook.
+  csvCleanup: {}
+    # Image to use for the hook job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+  # -- Configuration for the DB resources cleanup hook.
+  dbResourcesCleanup: {}
+    # Image to use for the hook job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+
+  # -- Configuration for the operators installer hook.
+  operatorsInstaller: {}
+    # Image to use for the hook job.
+    # If not set, uses the value of `hooks.image`.
+    # image: ""
+
 compatibility:
   # -- If set, enable OpenShift compatibility.
   openshift: false

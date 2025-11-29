@@ -67,6 +67,24 @@ spec:
     - .metadata.annotations
     kind: APIService
     name: v1.packages.operators.coreos.com
+  # If `operator.webhook.certs` are not set explicitly, the chart will generate random certificates.
+  # As a result, the TLS Secret and Mutating/Validating webhook configurations (caBundle) will always appear out of sync.
+  - group: ""
+    jsonPointers:
+    - /data
+    kind: Secret
+    name: webhook-server-cert
+    namespace: everest-system
+  - group: admissionregistration.k8s.io
+    jqPathExpressions:
+    - .webhooks[].clientConfig.caBundle
+    kind: MutatingWebhookConfiguration
+    name: everest-operator-mutating-webhook-configuration
+  - group: admissionregistration.k8s.io
+    jqPathExpressions:
+    - .webhooks[].clientConfig.caBundle
+    kind: ValidatingWebhookConfiguration
+    name: everest-operator-validating-webhook-configuration
   ...
   source:
     helm:

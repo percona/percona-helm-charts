@@ -19,6 +19,9 @@ spec:
   platform: {{ .Values.platform }}
   {{- end }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
+  {{- if hasKey .Values "enableExternalVolumeAutoscaling" }}
+  enableExternalVolumeAutoscaling: {{ .Values.enableExternalVolumeAutoscaling }}
+  {{- end }}
   {{- if .Values.clusterServiceDNSSuffix }}
   clusterServiceDNSSuffix: {{ .Values.clusterServiceDNSSuffix }}
   {{- end }}
@@ -257,6 +260,76 @@ spec:
     hostAliases:
 {{ $replset.hostAliases | toYaml | indent 6 }}
     {{- end }}
+
+{{- if $replset.hidden }}
+    hidden:
+      enabled: {{ $replset.hidden.enabled }}
+      size: {{ $replset.hidden.size }}
+      {{- if $replset.hidden.configuration }}
+      configuration: |
+{{ $replset.hidden.configuration | indent 8 }}
+      {{- end }}
+      affinity:
+      {{- if $replset.hidden.affinity }}
+{{ $replset.hidden.affinity | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.priorityClassName }}
+      priorityClassName: {{ $replset.hidden.priorityClassName }}
+      {{- end }}
+      {{- if $replset.hidden.annotations }}
+      annotations:
+{{ $replset.hidden.annotations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.labels }}
+      labels:
+{{ $replset.hidden.labels | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.podSecurityContext }}
+      podSecurityContext:
+{{ $replset.hidden.podSecurityContext | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.containerSecurityContext }}
+      containerSecurityContext:
+{{ $replset.hidden.containerSecurityContext | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.nodeSelector }}
+      nodeSelector:
+{{ $replset.hidden.nodeSelector | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.tolerations }}
+      tolerations:
+{{ $replset.hidden.tolerations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.podDisruptionBudget }}
+      podDisruptionBudget:
+        {{- if $replset.hidden.podDisruptionBudget.maxUnavailable }}
+        maxUnavailable: {{ $replset.hidden.podDisruptionBudget.maxUnavailable }}
+        {{- else }}
+        minAvailable: {{ $replset.hidden.podDisruptionBudget.minAvailable }}
+        {{- end }}
+      {{- end }}
+      {{- if $replset.hidden.resources }}
+      resources:
+{{ $replset.hidden.resources | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.volumeSpec }}
+      volumeSpec:
+        {{- if $replset.hidden.volumeSpec.hostPath }}
+        hostPath:
+          path: {{ $replset.hidden.volumeSpec.hostPath.path }}
+          {{- if $replset.hidden.volumeSpec.hostPath.type }}
+          type: {{ $replset.hidden.volumeSpec.hostPath.type }}
+          {{- else }}
+          type: Directory
+          {{- end }}
+        {{- else if $replset.hidden.volumeSpec.pvc }}
+        persistentVolumeClaim:
+{{ $replset.hidden.volumeSpec.pvc | toYaml | indent 10 }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- end }}
+    {{- end }}
     {{- if $replset.nonvoting }}
     nonvoting:
       enabled: {{ $replset.nonvoting.enabled }}
@@ -358,6 +431,10 @@ spec:
       {{- if $replset.arbiter.tolerations }}
       tolerations:
 {{ $replset.arbiter.tolerations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.arbiter.resources }}
+      resources:
+{{ $replset.arbiter.resources | toYaml | indent 8 }}
       {{- end }}
     {{- end }}
   {{- end }}
@@ -643,6 +720,9 @@ spec:
 
   backup:
     enabled: {{ .Values.backup.enabled }}
+    {{- if .Values.backup.startingDeadlineSeconds }}
+    startingDeadlineSeconds: {{ .Values.backup.startingDeadlineSeconds }}
+    {{- end }}
     {{- if .Values.backup.annotations }}
     annotations:
 {{ .Values.backup.annotations | toYaml | indent 6 }}
@@ -688,3 +768,13 @@ spec:
     {{- end }}
     tasks:
 {{ .Values.backup.tasks | toYaml | indent 6 }}
+  logcollector:
+    enabled: {{ .Values.logcollector.enabled }}
+    image: "{{ .Values.logcollector.image.repository }}:{{ .Values.logcollector.image.tag }}"
+    {{- if .Values.logcollector.configuration }}
+    configuration: {{ .Values.logcollector.configuration }}
+    {{- end }}
+    {{- if .Values.logcollector.resources }}
+    resources:
+{{ .Values.logcollector.resources | toYaml | indent 6 }}
+    {{- end }}

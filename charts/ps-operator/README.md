@@ -19,7 +19,7 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/ps-operator --version 0.10.0 --namespace my-namespace
+helm install my-operator percona/ps-operator --version 1.0.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -27,8 +27,8 @@ The chart can be customized using the following configurable parameters:
 | Parameter               | Description                                                                                    | Default                                 |
 | ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------- |
 | `image.repository`      | PS Operator Container image name                                                               | `percona/percona-server-mysql-operator` |
-| `image.tag`             | PS Operator Container image tag                                                                | `0.10.0`                                |
-| `image.pullPolicy`      | PS Operator Container pull policy                                                              | `Always`                                |
+| `image.tag`             | PS Operator Container image tag                                                                | `1.0.0`                                 |
+| `image.pullPolicy`      | PS Operator Container pull policy                                                              | `IfNotPresent`                          |
 | `imagePullSecrets`      | PS Operator Pod pull secret                                                                    | `[]`                                    |
 | `replicaCount`          | PS Operator Pod quantity                                                                       | `1`                                     |
 | `tolerations`           | List of node taints to tolerate                                                                | `[]`                                    |
@@ -39,6 +39,8 @@ The chart can be customized using the following configurable parameters:
 | `env.logStructured`     | Enable JSON format for logs                                                                    | `false`                                 |
 | `env.logLevel`          | Set appropriate log level (INFO, DEBUG, ERROR)                                                 | `INFO`                                  |
 | `disableTelemetry`      | Disable sending PS Operator telemetry data to Percona                                          | `false`                                 |
+| `watchNamespace`        | Set this variable if the target cluster namespace differs from operator's namespace            | `.Release.Namespace`                    |
+| `watchAllNamespaces`    | Set if operator should be deployed in cluster-wide mode                                        | `false`                                 |
 
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`

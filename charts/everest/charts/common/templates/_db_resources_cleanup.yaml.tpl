@@ -1,5 +1,6 @@
 #
 # @param .namespace     The namespace where DB and its resources are deployed
+# @param .image         The image to use for running the hook Job
 #
 {{- define "everest.dbResourcesCleanup" }}
 {{- $hookName := printf "everest-helm-pre-delete-db-resource-cleanup" }}
@@ -66,7 +67,7 @@ spec:
   template:
     spec:
       containers:
-        - image: bitnami/kubectl:latest
+        - image: {{ .image }}
           name: {{ $hookName }}
           command:
             - /bin/sh
