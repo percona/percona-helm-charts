@@ -1,3 +1,14 @@
+{{- /* Validate ClickHouse cluster name */ -}}
+{{- $clusterName := .Values.clickhouse.cluster.name -}}
+{{- if not $clusterName }}
+  {{- fail "ClickHouse cluster name (clickhouse.cluster.name) cannot be empty" }}
+{{- end }}
+{{- if gt (len $clusterName) 15 }}
+  {{- fail (printf "ClickHouse cluster name '%s' exceeds 15 character limit (current: %d chars)" $clusterName (len $clusterName)) }}
+{{- end }}
+{{- if not (regexMatch "^[a-zA-Z0-9]+$" $clusterName) }}
+  {{- fail (printf "ClickHouse cluster name '%s' must contain only alphanumeric characters (no underscores, hyphens, or special characters)" $clusterName) }}
+{{- end }}
 {{- $secret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
 {{- $clickhouseUser := "clickhouse_pmm" }}
 {{- if $secret }}
