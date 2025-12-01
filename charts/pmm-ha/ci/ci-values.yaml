@@ -37,15 +37,6 @@ clickhouse:
         memory: "256Mi"
         cpu: "200m"
 
-altinity-clickhouse-operator:
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 200m
-      memory: 128Mi
-
 pg-db:
   instances:
     - name: instance1
@@ -58,6 +49,8 @@ pg-db:
           cpu: 500m
           memory: 512Mi
       dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
         resources:
           requests:
             storage: 1Gi
@@ -74,17 +67,12 @@ pg-db:
   backups:
     enabled: false
 
-pg-operator:
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 200m
-      memory: 128Mi
-
-# VictoriaMetrics with minimal resources for CI
-victoria-metrics-cluster:
+# VictoriaMetrics Configuration
+# NOTE: The VictoriaMetrics operator must be installed separately via pmm-ha-dependencies
+victoriaMetrics:
+  enabled: true
+  replicationFactor: 2
+  
   vmselect:
     replicaCount: 2
     resources:
@@ -94,6 +82,7 @@ victoria-metrics-cluster:
       limits:
         memory: "512Mi"
         cpu: "200m"
+  
   vminsert:
     replicaCount: 2
     resources:
@@ -103,7 +92,9 @@ victoria-metrics-cluster:
       limits:
         memory: "512Mi"
         cpu: "200m"
+  
   vmauth:
+    enabled: true
     replicaCount: 2
     resources:
       requests:
@@ -112,6 +103,7 @@ victoria-metrics-cluster:
       limits:
         memory: "256Mi"
         cpu: "200m"
+  
   vmstorage:
     replicaCount: 3
     retentionPeriod: "1d"
@@ -122,10 +114,8 @@ victoria-metrics-cluster:
       limits:
         memory: "1Gi"
         cpu: "500m"
-    persistentVolume:
-      enabled: true
-      size: 5Gi
-      storageClassName: ""
+    storageSize: 5Gi
+    storageClassName: ""
 
 # HAProxy with minimal resources
 haproxy:

@@ -68,13 +68,14 @@ pmmEnv:
 #  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: ''
 
 ## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server)
-    ##  pmmResources:
-    ##    requests:
-    ##      memory: "32Gi"
-    ##      cpu: "8"
-    ##    limits:
-    ##      memory: "64Gi"
-    ##      cpu: "32"
+## Example:
+##  pmmResources:
+##    requests:
+##      memory: "32Gi"
+##      cpu: "8"
+##    limits:
+##      memory: "64Gi"
+##      cpu: "32"
 pmmResources: {}
 
 ## Readiness probe Config
@@ -150,6 +151,28 @@ secret:
   ## victoriametrics_password: my_secure_password
   ##
   victoriametrics_password: ""
+  ##
+  ## @param secret.pg_password PostgreSQL PMM user password. If not set, it will be auto-generated
+  ## When secret.create: true and this is empty, a random 32-character password is generated.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get password after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PG_PASSWORD}' | base64 --decode
+  ## E.g.
+  ## pg_password: my_secure_password
+  ##
+  pg_password: ""
+  ##
+  ## @param secret.gf_password PostgreSQL Grafana user password. If not set, it will be auto-generated
+  ## When secret.create: true and this is empty, a random 32-character password is generated.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get password after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.GF_PASSWORD}' | base64 --decode
+  ## E.g.
+  ## gf_password: my_secure_password
+  ##
+  gf_password: ""
   ##
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID optional client ID to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
   # GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
@@ -527,12 +550,48 @@ tls:
   # Force regeneration of the TLS secret (increment this value to force regeneration)
   forceRegenerate: 0
 
+## @section PostgreSQL operator (pg-db) configuration
+## @param pg-db Configuration values passed to the pg-db dependency chart
+##
 pg-db:
+  autoCreateUserSchema: true
+  
+  # PostgreSQL user configuration
+  # IMPORTANT: grafanaUserName and pmmUserName must match user names in the users array below
+  # If you change a username here, you MUST also update the corresponding name in the users array
+  grafanaUserName: "gfuser"    # Must match a user.name below
+  pmmUserName: "pmmuser"       # Must match a user.name below
+  
+  # PostgreSQL users array (order doesn't matter - looked up by name)
+  users:
+    # Grafana user - name must match grafanaUserName above
+    - name: gfuser
+      databases:
+        - grafana
+        - pmm-managed
+      options: "CREATEDB CREATEROLE"
+      password:
+        type: ASCII
+      secretName: "gfuser-credentials"
+    # PMM user - name must match pmmUserName above
+    - name: pmmuser
+      databases:
+        - pmm-managed
+        - grafana
+      options: "CREATEDB CREATEROLE"
+      password:
+        type: ASCII
+      secretName: "pmmuser-credentials"
+  databaseInitSQL:
+    key: init.sql
+    name: postgresql-init-extensions
   instances:
     - name: instance1
       replicas: 3
       dataVolumeClaimSpec:
         # storageClassName: ""  # optional; inherit default if omitted
+        accessModes:
+          - ReadWriteOnce
         resources:
           requests:
             storage: 5Gi
@@ -562,9 +621,29 @@ pg-db:
           - host all gfuser 192.168.0.0/16 md5
           - host all pmmuser 192.168.0.0/16 md5
 
-victoria-metrics-cluster:
+## @section VictoriaMetrics Configuration
+## 
+## IMPORTANT: The VictoriaMetrics Operator must be installed separately using the pmm-ha-dependencies chart
+## before installing this chart. This section configures the VictoriaMetrics resources (not the operator itself).
+## 
+## Installation order:
+##   1. helm install pmm-operators charts/pmm-ha-dependencies -n <namespace>
+##   2. helm install pmm charts/pmm-ha -n <namespace>
+## 
+## This configuration uses VictoriaMetrics Operator CRDs (VMCluster, VMAuth, VMAgent, VMStorage)
+victoriaMetrics:
+  ## @param victoriaMetrics.enabled Enable VictoriaMetrics components via operator
+  enabled: true
+  
+  ## @param victoriaMetrics.replicationFactor Replication factor for VMCluster
+  ## Defines how many copies of data to store across vmstorage nodes
+  replicationFactor: 2
+  
+  ## VMSelect configuration - handles read queries
   vmselect:
+    ## @param victoriaMetrics.vmselect.replicaCount Number of vmselect replicas
     replicaCount: 2
+    ## @param victoriaMetrics.vmselect.resources Resource requests and limits for vmselect
     resources:
       requests:
         memory: "512Mi"
@@ -572,6 +651,7 @@ victoria-metrics-cluster:
       limits:
         memory: "2Gi"
         cpu: "1"
+    ## @param victoriaMetrics.vmselect.affinity Pod affinity configuration for vmselect
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -579,15 +659,22 @@ victoria-metrics-cluster:
             podAffinityTerm:
               topologyKey: kubernetes.io/hostname
               labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vmselect"]
+                matchLabels:
+                  app.kubernetes.io/name: vmselect
+    ## @param victoriaMetrics.vmselect.tolerations Tolerations for vmselect pods
+    tolerations: []
+    ## @param victoriaMetrics.vmselect.nodeSelector Node selector for vmselect pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vmselect.podAnnotations Annotations for vmselect pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vmselect.extraArgs Extra arguments for vmselect
+    extraArgs: {}
+  
+  ## VMInsert configuration - handles write requests
   vminsert:
+    ## @param victoriaMetrics.vminsert.replicaCount Number of vminsert replicas
     replicaCount: 2
+    ## @param victoriaMetrics.vminsert.resources Resource requests and limits for vminsert
     resources:
       requests:
         memory: "512Mi"
@@ -595,6 +682,7 @@ victoria-metrics-cluster:
       limits:
         memory: "2Gi"
         cpu: "1"
+    ## @param victoriaMetrics.vminsert.affinity Pod affinity configuration for vminsert
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -602,20 +690,28 @@ victoria-metrics-cluster:
             podAffinityTerm:
               topologyKey: kubernetes.io/hostname
               labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vminsert"]
+                matchLabels:
+                  app.kubernetes.io/name: vminsert
+    ## @param victoriaMetrics.vminsert.tolerations Tolerations for vminsert pods
+    tolerations: []
+    ## @param victoriaMetrics.vminsert.nodeSelector Node selector for vminsert pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vminsert.podAnnotations Annotations for vminsert pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vminsert.extraArgs Extra arguments for vminsert
+    extraArgs: {}
+  
+  ## VMAuth configuration - authentication proxy
+  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  ## If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
+  ## Default username: victoriametrics_pmm
+  ## Default password: randomly generated 32-character string
   vmauth:
+    ## @param victoriaMetrics.vmauth.enabled Enable VMAuth for authentication
     enabled: true
+    ## @param victoriaMetrics.vmauth.replicaCount Number of vmauth replicas
     replicaCount: 2
-    # Custom Secret with auth configuration is created in templates/vmauth-config.yaml
-    # The secret name follows: {{ .Release.Name }}-victoria-metrics-cluster-vmauth
-    # The subchart evaluates this template using .helm.Release.Name from its context
-    configSecretName: "{{ .helm.Release.Name }}-victoria-metrics-cluster-vmauth"
+    ## @param victoriaMetrics.vmauth.resources Resource requests and limits for vmauth
     resources:
       requests:
         memory: "128Mi"
@@ -623,6 +719,7 @@ victoria-metrics-cluster:
       limits:
         memory: "512Mi"
         cpu: "500m"
+    ## @param victoriaMetrics.vmauth.affinity Pod affinity configuration for vmauth
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -630,16 +727,64 @@ victoria-metrics-cluster:
             podAffinityTerm:
               topologyKey: kubernetes.io/hostname
               labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vmauth"]
+                matchLabels:
+                  app.kubernetes.io/name: vmauth
+    ## @param victoriaMetrics.vmauth.tolerations Tolerations for vmauth pods
+    tolerations: []
+    ## @param victoriaMetrics.vmauth.nodeSelector Node selector for vmauth pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vmauth.podAnnotations Annotations for vmauth pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vmauth.extraArgs Extra arguments for vmauth
+    extraArgs: {}
+  
+  ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
+  ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
+  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  vmagent:
+    ## @param victoriaMetrics.vmagent.enabled Enable VMAgent for metrics scraping
+    enabled: true
+    ## @param victoriaMetrics.vmagent.replicaCount Number of vmagent replicas
+    replicaCount: 2
+    ## @param victoriaMetrics.vmagent.resources Resource requests and limits for vmagent
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    ## @param victoriaMetrics.vmagent.affinity Pod affinity configuration for vmagent
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: vmagent
+    ## @param victoriaMetrics.vmagent.tolerations Tolerations for vmagent pods
+    tolerations: []
+    ## @param victoriaMetrics.vmagent.nodeSelector Node selector for vmagent pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vmagent.podAnnotations Annotations for vmagent pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vmagent.extraArgs Extra arguments for vmagent
+    extraArgs: {}
+    ## @param victoriaMetrics.vmagent.scrapeConfigs Scrape configurations for VMAgent
+    ## Can be used to configure Kubernetes service discovery, static targets, etc.
+    ## Example:
+    ## scrapeConfigs: []
+    scrapeConfigs: []
+  
+  ## VMStorage configuration - stores metrics data
   vmstorage:
+    ## @param victoriaMetrics.vmstorage.replicaCount Number of vmstorage replicas
     replicaCount: 3
+    ## @param victoriaMetrics.vmstorage.retentionPeriod Data retention period
     retentionPeriod: "90d"
+    ## @param victoriaMetrics.vmstorage.resources Resource requests and limits for vmstorage
     resources:
       requests:
         memory: "1Gi"
@@ -647,12 +792,12 @@ victoria-metrics-cluster:
       limits:
         memory: "4Gi"
         cpu: "2"
-    persistentVolume:
-      enabled: true
-      size: 50Gi
-      # Storage class for VictoriaMetrics persistent volumes
-      # If empty, uses the cluster's default storage class
-      storageClassName: ""
+    ## @param victoriaMetrics.vmstorage.storageSize Size of persistent volume for each vmstorage pod
+    storageSize: 50Gi
+    ## @param victoriaMetrics.vmstorage.storageClassName Storage class for VictoriaMetrics persistent volumes
+    ## If empty, uses the cluster's default storage class
+    storageClassName: ""
+    ## @param victoriaMetrics.vmstorage.affinity Pod affinity configuration for vmstorage
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -660,153 +805,13 @@ victoria-metrics-cluster:
             podAffinityTerm:
               topologyKey: kubernetes.io/hostname
               labelSelector:
-                matchExpressions:
-                  - key: app.kubernetes.io/name
-                    operator: In
-                    values: ["victoria-metrics-cluster"]
-                  - key: app
-                    operator: In
-                    values: ["vmstorage"]
-
-victoria-metrics-agent:
-  # VMAgent configuration for scraping VictoriaMetrics cluster components
-  # Note: The remoteWrite URL is automatically configured via init container
-  replicaCount: 2
-  
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "100m"
-    limits:
-      memory: "1Gi"
-      cpu: "500m"
-  
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            topologyKey: kubernetes.io/hostname
-            labelSelector:
-              matchLabels:
-                app.kubernetes.io/name: victoria-metrics-agent
-  
-  extraArgs:
-    envflag.enable: "true"
-    envflag.prefix: "VM_"
-    loggerFormat: "json"
-  
-  # Environment variables for basic auth credentials
-  env:
-    - name: VM_remoteWrite_basicAuth_username
-      valueFrom:
-        secretKeyRef:
-          name: pmm-secret
-          key: VMAGENT_remoteWrite_basicAuth_username
-    - name: VM_remoteWrite_basicAuth_password
-      valueFrom:
-        secretKeyRef:
-          name: pmm-secret
-          key: VMAGENT_remoteWrite_basicAuth_password
-  
-  # The remoteWrite URL placeholder is required for subchart validation
-  # The post-install job will patch the deployment to use the correct VMAuth URL
-  remoteWrite:
-    - url: "http://placeholder.local/api/v1/write"
-  
-  # Scrape configuration for VictoriaMetrics cluster components
-  config:
-    global:
-      scrape_interval: 15s
-      scrape_timeout: 10s
-    
-    scrape_configs:
-      # Scrape VMSelect metrics
-      - job_name: 'vmselect'
-        kubernetes_sd_configs:
-          - role: endpoints
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_service_name]
-            regex: '.*-vmselect.*'
-            action: keep
-          - source_labels: [__meta_kubernetes_endpoint_port_name]
-            regex: 'http'
-            action: keep
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace
-          - source_labels: [__meta_kubernetes_service_name]
-            target_label: service
-      
-      # Scrape VMInsert metrics
-      - job_name: 'vminsert'
-        kubernetes_sd_configs:
-          - role: endpoints
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_service_name]
-            regex: '.*-vminsert.*'
-            action: keep
-          - source_labels: [__meta_kubernetes_endpoint_port_name]
-            regex: 'http'
-            action: keep
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace
-          - source_labels: [__meta_kubernetes_service_name]
-            target_label: service
-      
-      # Scrape VMStorage metrics
-      - job_name: 'vmstorage'
-        kubernetes_sd_configs:
-          - role: endpoints
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_service_name]
-            regex: '.*-vmstorage.*'
-            action: keep
-          - source_labels: [__meta_kubernetes_endpoint_port_name]
-            regex: 'http'
-            action: keep
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace
-          - source_labels: [__meta_kubernetes_service_name]
-            target_label: service
-      
-      # Scrape VMAuth metrics
-      - job_name: 'vmauth'
-        kubernetes_sd_configs:
-          - role: endpoints
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_service_name]
-            regex: '.*-vmauth.*'
-            action: keep
-          - source_labels: [__meta_kubernetes_endpoint_port_name]
-            regex: 'http'
-            action: keep
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace
-          - source_labels: [__meta_kubernetes_service_name]
-            target_label: service
-      
-      # Scrape VMAgent itself
-      - job_name: 'vmagent'
-        kubernetes_sd_configs:
-          - role: endpoints
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_service_name]
-            regex: '.*-vmagent.*'
-            action: keep
-          - source_labels: [__meta_kubernetes_endpoint_port_name]
-            regex: 'http'
-            action: keep
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: namespace
-          - source_labels: [__meta_kubernetes_service_name]
-            target_label: service
+                matchLabels:
+                  app.kubernetes.io/name: vmstorage
+    ## @param victoriaMetrics.vmstorage.tolerations Tolerations for vmstorage pods
+    tolerations: []
+    ## @param victoriaMetrics.vmstorage.nodeSelector Node selector for vmstorage pods
+    nodeSelector: {}
+    ## @param victoriaMetrics.vmstorage.podAnnotations Annotations for vmstorage pods
+    podAnnotations: {}
+    ## @param victoriaMetrics.vmstorage.extraArgs Extra arguments for vmstorage
+    extraArgs: {}

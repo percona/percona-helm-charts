@@ -1,0 +1,91 @@
+{{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmagent.enabled -}}
+---
+# VMAgent CRD managed by VictoriaMetrics operator
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMAgent
+metadata:
+  name: {{ include "pmm.fullname" . }}-vmagent
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vmagent
+spec:
+  # Number of VMAgent replicas
+  replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
+  
+  # Remote write configuration - forwards metrics to VMAuth with secure basicAuth
+  remoteWrite:
+    - url: "http://{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/api/v1/write"
+      basicAuth:
+        username:
+          name: {{ .Values.secret.name }}
+          key: VMAGENT_remoteWrite_basicAuth_username
+        password:
+          name: {{ .Values.secret.name }}
+          key: VMAGENT_remoteWrite_basicAuth_password
+      {{- if .Values.victoriaMetrics.vmagent.remoteWrite }}
+      {{- toYaml .Values.victoriaMetrics.vmagent.remoteWrite | nindent 6 }}
+      {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
+  # Scrape configurations - can reference VMScrapeConfig resources
+  scrapeConfigSelector: {}
+  scrapeConfigNamespaceSelector: {}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.resources }}
+  # Resource limits and requests
+  resources:
+    {{- toYaml .Values.victoriaMetrics.vmagent.resources | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.affinity }}
+  # Pod affinity configuration
+  affinity:
+    {{- toYaml .Values.victoriaMetrics.vmagent.affinity | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.tolerations }}
+  # Pod tolerations
+  tolerations:
+    {{- toYaml .Values.victoriaMetrics.vmagent.tolerations | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.nodeSelector }}
+  # Node selector
+  nodeSelector:
+    {{- toYaml .Values.victoriaMetrics.vmagent.nodeSelector | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.podAnnotations }}
+  # Pod annotations
+  podMetadata:
+    annotations:
+      {{- toYaml .Values.victoriaMetrics.vmagent.podAnnotations | nindent 6 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.extraArgs }}
+  # Extra arguments for vmagent
+  extraArgs:
+    {{- toYaml .Values.victoriaMetrics.vmagent.extraArgs | nindent 4 }}
+  {{- end }}
+  
+  # Service specification
+  serviceSpec:
+    metadata:
+      name: {{ include "pmm.fullname" . }}-vmagent
+      labels:
+        app: vmagent
+        {{- include "pmm.labels" . | nindent 8 }}
+    spec:
+      type: ClusterIP
+      ports:
+        - name: http
+          port: 8429
+          targetPort: http
+          protocol: TCP
+  
+  # Port configuration
+  port: "8429"
+{{- end }}
+

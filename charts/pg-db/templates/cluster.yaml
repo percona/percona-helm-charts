@@ -70,6 +70,9 @@ spec:
         - {{ $database }}
       {{- end }}
       {{- end }}
+      {{- if hasKey $user "grantPublicSchemaAccess" }}
+      grantPublicSchemaAccess: {{ $user.grantPublicSchemaAccess }}
+      {{- end }}
       {{- if $user.options }}
       options: {{ $user.options }}
       {{- end }}
@@ -166,6 +169,10 @@ spec:
     labels:
 {{ .Values.expose.labels | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.expose.loadBalancerClass }}
+    loadBalancerClass:
+{{ .Values.expose.loadBalancerClass | toYaml | indent 6 }}
+    {{- end }}
     {{- if .Values.expose.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ .Values.expose.loadBalancerSourceRanges | toYaml | indent 6 }}
@@ -182,6 +189,10 @@ spec:
     labels:
 {{ .Values.exposeReplicas.labels | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.exposeReplicas.loadBalancerClass }}
+    loadBalancerClass:
+{{ .Values.exposeReplicas.loadBalancerClass | toYaml | indent 6 }}
+    {{- end }}
     {{- if .Values.exposeReplicas.loadBalancerSourceRanges }}
     loadBalancerSourceRanges:
 {{ .Values.exposeReplicas.loadBalancerSourceRanges | toYaml | indent 6 }}
@@ -196,6 +207,14 @@ spec:
       {{- if $instance.affinity }}
       affinity:
 {{ $instance.affinity | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $instance.envFrom }}
+      envFrom:
+{{ $instance.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $instance.env }}
+      env:
+{{ $instance.env | toYaml | indent 8 }}
       {{- end }}
       {{- include "pg-database.resources" $instance | indent 6 }}
       {{- if $instance.containers }}
@@ -307,6 +326,14 @@ spec:
         {{- include "pg-database.resources" .Values.proxy.pgBouncer.containers.pgbouncerConfig | indent 10 }}
         {{- end }}
       {{- end }}
+      {{- if .Values.proxy.pgBouncer.envFrom }}
+      envFrom:
+{{ .Values.proxy.pgBouncer.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.env }}
+      env:
+{{ .Values.proxy.pgBouncer.env | toYaml | indent 8 }}
+      {{- end }}
       {{- if .Values.proxy.pgBouncer.expose }}
       expose:
         type: {{ .Values.proxy.pgBouncer.expose.type }}
@@ -317,6 +344,10 @@ spec:
         {{- if .Values.proxy.pgBouncer.expose.labels }}
         labels:
 {{.Values.proxy.pgBouncer.expose.labels | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.proxy.pgBouncer.expose.loadBalancerClass }}
+        loadBalancerClass:
+{{ .Values.proxy.pgBouncer.expose.loadBalancerClass | toYaml | indent 10 }}
         {{- end }}
         {{- if .Values.proxy.pgBouncer.expose.loadBalancerSourceRanges }}
         loadBalancerSourceRanges:
@@ -395,6 +426,14 @@ spec:
     {{- if $isBackupsEnabled }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
     pgbackrest:
+      {{- if .Values.backups.pgbackrest.envFrom }}
+      envFrom:
+{{ .Values.backups.pgbackrest.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.backups.pgbackrest.env }}
+      env:
+{{ .Values.backups.pgbackrest.env | toYaml | indent 8 }}
+      {{- end }}
       image: {{ .Values.backups.pgbackrest.image }}
       {{- include "pg-database.initContainer" .Values.backups.pgbackrest | indent 6 }}
       {{- if .Values.backups.pgbackrest.configuration }}
@@ -455,6 +494,20 @@ spec:
             labelSelector:
               matchLabels:
 {{ $constraint.labelSelector.matchLabels | toYaml | indent 16 }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.sidecars }}
+        sidecars:
+        {{- range $sidecar := .Values.backups.pgbackrest.repoHost.sidecars }}
+        - name: {{ $sidecar.name }}
+          image: {{ $sidecar.image }}
+          {{- with $sidecar.command }}
+          command: {{ toJson . }}
+          {{- end }}
+          {{- with $sidecar.securityContext }}
+          securityContext: 
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         {{- end }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
@@ -579,7 +632,13 @@ spec:
       {{- if .Values.extensions.storage.endpoint }}
       endpoint: {{ .Values.extensions.storage.endpoint }}
       {{- end }}
-      {{- if .Values.extensions.storage.secret.name }}
+      {{- if hasKey .Values.extensions.storage "forcePathStyle" }}
+      forcePathStyle: {{ .Values.extensions.storage.forcePathStyle }}
+      {{- end }}
+      {{- if hasKey .Values.extensions.storage "disableSSL" }}
+      disableSSL: {{ .Values.extensions.storage.disableSSL }}
+      {{- end }}
+      {{- if .Values.extensions.storage.secret }}
       secret:
         name: {{ .Values.extensions.storage.secret.name }}
       {{- end }}
