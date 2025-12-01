@@ -79,6 +79,7 @@ spec:
           
           echo "Creating/updating Kubernetes secret..."
           kubectl create secret generic pg-encryption-key \
+            --namespace={{ .Release.Namespace }} \
             --from-literal=key="$SECRET_VALUE" \
             --dry-run=client -o yaml | kubectl apply -f -
           
