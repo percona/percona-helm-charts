@@ -175,7 +175,6 @@ spec:
               path: /v1/readyz
               port: https
               scheme: HTTPS
-            initialDelaySeconds: 10
           {{- if .Values.readyProbeConf }}
             {{- toYaml .Values.readyProbeConf | nindent 12 }}
           {{- end }}

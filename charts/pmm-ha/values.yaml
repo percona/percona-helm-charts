@@ -15,7 +15,7 @@ image:
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4078-9897801"
+  tag: "PR-4124-c4ed121"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -35,7 +35,7 @@ pmmEnv:
   # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
-  PMM_POSTGRES_SSL_MODE: "require"
+  # PMM_POSTGRES_SSL_MODE: "require"
   # GF_DATABASE_URL: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@:5432/grafana"
   GF_DATABASE_SSL_MODE: "require"
   # PMM_VM_URL: "http://:@:8427/"
@@ -85,7 +85,7 @@ pmmResources: {}
 ## @param readyProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up
 ##
 readyProbeConf:
-  initialDelaySeconds: 1
+  initialDelaySeconds: 10
   periodSeconds: 5
   failureThreshold: 6
 
