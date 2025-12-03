@@ -7,7 +7,7 @@
 ## ref: https://hub.docker.com/r/percona/pmm-server/tags
 ## @param image.repository PMM image repository
 ## @param image.pullPolicy PMM image pull policy
-## @param image.tag PMM image tag (immutable tags are recommended)
+## @param image.tag PMM image tag
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
@@ -15,7 +15,7 @@ image:
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4124-c4ed121"
+  tag: "PR-4078-9897801"
   imagePullSecrets: []
 
 ## PMM environment variables
