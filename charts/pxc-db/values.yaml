@@ -54,6 +54,8 @@ upgradeOptions:
 enableCRValidationWebhook: false
 tls:
   enabled: true
+  # certValidityDuration: 2160h
+  # caValidityDuration: 26280h
   # SANs:
   #   - pxc-1.example.com
   #   - pxc-2.example.com
@@ -611,6 +613,7 @@ backup:
   # activeDeadlineSeconds: 3600
   # startingDeadlineSeconds: 300
   # suspendedDeadlineSeconds: 1200
+  # runningDeadlineSeconds: 300
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
@@ -694,6 +697,9 @@ backup:
     #     #credentialsSecretKey: REPLACE-WITH-AWS-SECRET-KEY
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
     # s3-us-west-binlogs:
     #   type: s3
     #   s3:
@@ -701,6 +707,9 @@ backup:
     #     credentialsSecret: my-cluster-name-backup-s3
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
     # azure-blob:
     #   type: azure
     #   azure:
