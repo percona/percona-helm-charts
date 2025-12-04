@@ -1,0 +1,9 @@
+dependencies:
+- name: haproxy
+  repository: https://haproxytech.github.io/helm-charts/
+  version: 1.24.0
+- name: pg-db
+  repository: https://percona.github.io/percona-helm-charts/
+  version: 2.8.0
+digest: sha256:23f3ba5ac170e01292c7f7ed4cd02a86448e083859034aa0bd4e8f8adf288cf0
+generated: "2025-11-20T16:19:22.83213+01:00"
