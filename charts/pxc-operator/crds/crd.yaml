@@ -3329,6 +3329,25 @@ spec:
                           type: object
                       type: object
                     type: array
+                  extraPVCs:
+                    items:
+                      properties:
+                        claimName:
+                          type: string
+                        mountPath:
+                          type: string
+                        name:
+                          type: string
+                        readOnly:
+                          type: boolean
+                        subPath:
+                          type: string
+                      required:
+                      - claimName
+                      - mountPath
+                      - name
+                      type: object
+                    type: array
                   sidecarResources:
                     properties:
                       claims:
@@ -6757,6 +6776,25 @@ spec:
                           type: object
                       type: object
                     type: array
+                  extraPVCs:
+                    items:
+                      properties:
+                        claimName:
+                          type: string
+                        mountPath:
+                          type: string
+                        name:
+                          type: string
+                        readOnly:
+                          type: boolean
+                        subPath:
+                          type: string
+                      required:
+                      - claimName
+                      - mountPath
+                      - name
+                      type: object
+                    type: array
                   sidecarResources:
                     properties:
                       claims:
@@ -9684,6 +9722,25 @@ spec:
                             phase:
                               type: string
                           type: object
+                      type: object
+                    type: array
+                  extraPVCs:
+                    items:
+                      properties:
+                        claimName:
+                          type: string
+                        mountPath:
+                          type: string
+                        name:
+                          type: string
+                        readOnly:
+                          type: boolean
+                        subPath:
+                          type: string
+                      required:
+                      - claimName
+                      - mountPath
+                      - name
                       type: object
                     type: array
                   sidecarResources:
