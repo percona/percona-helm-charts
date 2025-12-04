@@ -610,6 +610,7 @@ backup:
     repository: percona/percona-xtrabackup
     tag: 8.0.35-33.1
   # backoffLimit: 6
+  # ttlSecondsAfterFinished: 3600
   # activeDeadlineSeconds: 3600
   # startingDeadlineSeconds: 300
   # suspendedDeadlineSeconds: 1200

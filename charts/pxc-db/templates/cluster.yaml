@@ -543,6 +543,9 @@ spec:
     {{- if $backup.backoffLimit }}
     backoffLimit: {{ $backup.backoffLimit }}
     {{- end }}
+    {{- if $backup.ttlSecondsAfterFinished }}
+    ttlSecondsAfterFinished: {{ $backup.ttlSecondsAfterFinished }}
+    {{- end }}
     {{- if $backup.activeDeadlineSeconds }}
     activeDeadlineSeconds: {{ $backup.activeDeadlineSeconds }}
     {{- end }}
