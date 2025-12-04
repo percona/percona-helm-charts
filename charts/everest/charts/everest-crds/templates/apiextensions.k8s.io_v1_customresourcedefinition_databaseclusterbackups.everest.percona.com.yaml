@@ -40,6 +40,10 @@ spec:
           jsonPath: .status.created
           name: Age
           type: date
+        - description: Indicates if the backup is used by any DB cluster
+          jsonPath: .status.inUse
+          name: InUse
+          type: string
       name: v1alpha1
       schema:
         openAPIV3Schema:
