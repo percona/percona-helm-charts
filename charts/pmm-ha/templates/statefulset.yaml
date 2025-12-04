@@ -168,14 +168,13 @@ spec:
             - name: PMM_ENCRYPTION_KEY_PATH
               value: /etc/secrets/key
           ports:
-            - name: http
-              containerPort: 8080
             - name: https
               containerPort: 8443
           readinessProbe:
             httpGet:
               path: /v1/readyz
-              port: http
+              port: https
+              scheme: HTTPS
           {{- if .Values.readyProbeConf }}
             {{- toYaml .Values.readyProbeConf | nindent 12 }}
           {{- end }}
