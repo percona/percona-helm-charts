@@ -127,6 +127,12 @@ pxc:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # extraPVCs:
+  # - name: my-volume
+  #   claimName: my-existing-pvc
+  #   mountPath: /mnt/data
+  #   readOnly: false
+  #   subPath: ""
   sidecarResources:
     requests: {}
     limits: {}
@@ -293,6 +299,12 @@ haproxy:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # extraPVCs:
+  # - name: my-volume
+  #   claimName: my-existing-pvc
+  #   mountPath: /mnt/data
+  #   readOnly: false
+  #   subPath: ""
   sidecarResources:
     requests: {}
     limits: {}
@@ -471,6 +483,12 @@ proxysql:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # extraPVCs:
+  # - name: my-volume
+  #   claimName: my-existing-pvc
+  #   mountPath: /mnt/data
+  #   readOnly: false
+  #   subPath: ""
   sidecarResources:
     requests: {}
     limits: {}

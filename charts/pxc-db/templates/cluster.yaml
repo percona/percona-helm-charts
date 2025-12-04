@@ -171,6 +171,10 @@ spec:
 {{ $pxc.sidecarVolumes | toYaml | indent 6 }}
     sidecarPVCs:
 {{ $pxc.sidecarPVCs | toYaml | indent 6 }}
+    {{- if $pxc.extraPVCs }}
+    extraPVCs:
+{{ $pxc.extraPVCs | toYaml | indent 6 }}
+    {{- end }}
     sidecarResources:
       requests:
 {{ tpl ($pxc.sidecarResources.requests | toYaml) $ | indent 8 }}
@@ -297,6 +301,10 @@ spec:
 {{ $haproxy.sidecarVolumes | toYaml | indent 6 }}
     sidecarPVCs:
 {{ $haproxy.sidecarPVCs | toYaml | indent 6 }}
+    {{- if $haproxy.extraPVCs }}
+    extraPVCs:
+{{ $haproxy.extraPVCs | toYaml | indent 6 }}
+    {{- end }}
     sidecarResources:
       requests:
 {{ tpl ($haproxy.sidecarResources.requests | toYaml) $ | indent 8 }}
@@ -401,6 +409,10 @@ spec:
 {{ $proxysql.sidecarVolumes | toYaml | indent 6 }}
     sidecarPVCs:
 {{ $proxysql.sidecarPVCs | toYaml | indent 6 }}
+    {{- if $proxysql.extraPVCs }}
+    extraPVCs:
+{{ $proxysql.extraPVCs | toYaml | indent 6 }}
+    {{- end }}
     sidecarResources:
       requests:
 {{ tpl ($proxysql.sidecarResources.requests | toYaml) $ | indent 8 }}
