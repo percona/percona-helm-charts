@@ -131,10 +131,6 @@ spec:
                   default: false
                   description: InUse is a flag that indicates if this restore resource is being used to restore DB cluster from backup.
                   type: boolean
-                lastObservedGeneration:
-                  description: LastObservedGeneration is the most recent generation observed for this DatabaseClusterRestore.
-                  format: int64
-                  type: integer
                 message:
                   type: string
                 state:
