@@ -1,0 +1,49 @@
+{{- /*
+This job runs after the VMAgent deployment is created to patch it with the correct remoteWrite URL.
+It uses the existing pmm-service-account which has deployment patch permissions.
+*/ -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "pmm.fullname" . }}-configure-vmagent
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      name: {{ include "pmm.fullname" . }}-configure-vmagent
+      labels:
+        {{- include "pmm.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+      {{- end }}
+      containers:
+        - name: configure-vmagent
+          image: "bitnami/kubectl:latest"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - /scripts/patch-vmagent.sh
+          volumeMounts:
+            - name: init-script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: init-script
+          configMap:
+            name: {{ include "pmm.fullname" . }}-vmagent-init-script
+            defaultMode: 0755

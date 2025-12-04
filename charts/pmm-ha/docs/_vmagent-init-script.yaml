@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pmm.fullname" . }}-vmagent-init-script
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+data:
+  patch-vmagent.sh: |
+    #!/bin/sh
+    set -e
+    
+    RELEASE_NAME="{{ .Release.Name }}"
+    NAMESPACE="{{ .Release.Namespace }}"
+    DEPLOYMENT_NAME="${RELEASE_NAME}-victoria-metrics-agent"
+    VMAUTH_URL="http://${RELEASE_NAME}-victoria-metrics-cluster-vmauth.${NAMESPACE}.svc.cluster.local:8427/api/v1/write"
+    
+    echo "Waiting for VMAgent deployment to be created..."
+    retries=0
+    max_retries=60
+    while [ $retries -lt $max_retries ]; do
+      if kubectl get deployment "${DEPLOYMENT_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; then
+        echo "VMAgent deployment found"
+        break
+      fi
+      retries=$((retries + 1))
+      echo "Waiting... ($retries/$max_retries)"
+      sleep 2
+    done
+    
+    if [ $retries -eq $max_retries ]; then
+      echo "ERROR: VMAgent deployment not found after ${max_retries} retries"
+      exit 1
+    fi
+    
+    echo "Patching VMAgent deployment with remoteWrite URL: ${VMAUTH_URL}"
+    
+    # Get current args
+    current_args=$(kubectl get deployment "${DEPLOYMENT_NAME}" -n "${NAMESPACE}" -o jsonpath='{.spec.template.spec.containers[0].args}')
+    echo "Current args: ${current_args}"
+    
+    # Check if the correct URL is already present
+    if echo "${current_args}" | grep -q "${VMAUTH_URL}"; then
+      echo "VMAgent already has the correct remoteWrite URL, skipping patch"
+      exit 0
+    fi
+    
+    # Find and replace the placeholder URL with the correct VMAuth URL
+    # The placeholder is at index 0: -remoteWrite.url=http://placeholder.local/api/v1/write
+    kubectl patch deployment "${DEPLOYMENT_NAME}" -n "${NAMESPACE}" --type=json -p="[
+      {
+        \"op\": \"replace\",
+        \"path\": \"/spec/template/spec/containers/0/args/0\",
+        \"value\": \"-remoteWrite.url=${VMAUTH_URL}\"
+      }
+    ]"
+    
+    echo "Successfully patched VMAgent deployment"
+    
+    # Wait for rollout to complete
+    echo "Waiting for VMAgent rollout to complete..."
+    kubectl rollout status deployment/"${DEPLOYMENT_NAME}" -n "${NAMESPACE}" --timeout=5m
+    
+    echo "VMAgent configuration complete"

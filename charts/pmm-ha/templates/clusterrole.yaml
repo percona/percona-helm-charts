@@ -20,7 +20,13 @@ rules:
   - get
   - watch
   - list
-# Access to metrics endpoints for scraping
+- apiGroups: ["apps"]
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - patch
 - nonResourceURLs:
   - /metrics
   - /metrics/resources

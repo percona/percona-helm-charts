@@ -32,12 +32,11 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickh
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n pmm --timeout=300s
 ```
 
-### Step 2: Install PMM HA
+### Step 2: Install the PMM HA chart
 
-Once all operators are ready, install the PMM HA chart:
+Once all operators are ready, install the chart:
 
 ```sh
-# Install PMM HA
 helm install pmm percona/pmm-ha --namespace pmm
 ```
 
