@@ -132,7 +132,7 @@ spec:
                       properties:
                         backupStorageName:
                           description: |-
-                            BackupStorageName is the name of the BackupStorage used for backups.
+                            BackupStorageName is the name of the BackupStorage used for storing backups.
                             The BackupStorage must be created in the same namespace as the DatabaseCluster.
                           type: string
                         path:
