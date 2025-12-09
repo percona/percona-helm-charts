@@ -349,6 +349,18 @@ spec:
 {{ tpl ($haproxy.readinessProbes | toYaml) $ | indent 6 }}
     livenessProbes:
 {{ tpl ($haproxy.livenessProbes | toYaml) $ | indent 6 }}
+    {{- if $haproxy.healthCheck }}
+    healthCheck:
+    {{- if $haproxy.healthCheck.interval }}
+      interval: {{ $haproxy.healthCheck.interval }}
+    {{- end }}
+    {{- if $haproxy.healthCheck.rise }}
+      rise: {{ $haproxy.healthCheck.rise }}
+    {{- end }}
+    {{- if $haproxy.healthCheck.fall }}
+      fall: {{ $haproxy.healthCheck.fall }}
+    {{- end }}
+    {{- end }}
     {{- if $haproxy.containerSecurityContext }}
     containerSecurityContext:
 {{ tpl ($haproxy.containerSecurityContext | toYaml) $ | indent 6 }}
