@@ -69,6 +69,8 @@ spec:
               value: "{{ .Values.logLevel }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
+            - name: PXCO_FEATURE_GATES
+              value: {{ include "pxc-operator.featureGates" . | quote }}
             {{- if .Values.extraEnvVars }}
               {{- toYaml .Values.extraEnvVars | nindent 12 }}
             {{- end }}

@@ -67,3 +67,6 @@ extraEnvVars: []
 #   value: "example-proxy-http"
 # - name: https_proxy
 #   value: "example-proxy-https"
+
+featureGates:
+  xtrabackupSidecar: false

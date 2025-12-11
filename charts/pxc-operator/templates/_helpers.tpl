@@ -54,3 +54,16 @@ Functions returns image URI according to parameters set
 {{- printf "%s:%s" .Values.operatorImageRepository .Chart.AppVersion }}
 {{- end }}
 {{- end -}}
+
+{{- define "pxc-operator.featureGates" }}
+{{- if .Values.featureGates }}
+{{- $gates := list }}
+{{- range $key, $value := .Values.featureGates }}
+{{- if $value }}
+{{- $flagName := $key | title }}
+{{- $gates = append $gates (printf "%s=%v" $flagName $value) }}
+{{- end }}
+{{- end }}
+{{- join "," $gates }}
+{{- end }}
+{{- end }}
