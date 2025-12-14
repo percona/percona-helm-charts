@@ -160,7 +160,7 @@ spec:
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
             - name: PMM_POSTGRES_ADDR
-              value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
+              value: "{{ include "pmm.postgresql.address" . }}"
             - name: PMM_HA_PEERS
               value: "{{ include "pmm.haPeers" . }}"
             - name: PMM_CLICKHOUSE_NODES
