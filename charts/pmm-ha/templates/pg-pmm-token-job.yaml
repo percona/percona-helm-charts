@@ -91,12 +91,11 @@ spec:
           
           echo "Waiting for PMM to be ready at $PMM_URL..."
           
-          # Loop until PMM is ready
-          MAX_ATTEMPTS=120
+          # Loop forever until PMM is ready
           ATTEMPT=0
-          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+          while true; do
             ATTEMPT=$((ATTEMPT + 1))
-            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Checking PMM readiness at ${PMM_URL}/v1/readyz ..."
+            echo "Attempt $ATTEMPT: Checking PMM readiness at ${PMM_URL}/v1/readyz ..."
             
             # Check if PMM is responding (using /v1/readyz which doesn't require auth)
             HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" "${PMM_URL}/v1/readyz" 2>&1) || true
@@ -115,11 +114,6 @@ spec:
             echo "PMM not ready yet (HTTP $HTTP_CODE). Waiting 10 seconds..."
             sleep 10
           done
-          
-          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-            echo "ERROR: PMM did not become ready after $MAX_ATTEMPTS attempts"
-            exit 1
-          fi
           
           echo ""
           echo "=== Creating Service Account ==="
@@ -168,7 +162,7 @@ spec:
             -u "admin:${PMM_ADMIN_PASSWORD}" \
             -d "{\"name\":\"${TOKEN_NAME}\"}" \
             "${PMM_URL}/graph/api/serviceaccounts/${SA_UID}/tokens" 2>/dev/null)
-                    
+          
           # Extract the token key
           TOKEN_KEY=$(echo "$TOKEN_RESPONSE" | grep -o '"key":"[^"]*"' | cut -d'"' -f4)
           
