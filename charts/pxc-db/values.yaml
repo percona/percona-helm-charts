@@ -127,6 +127,7 @@ pxc:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # mysqlAllocator: jemalloc
   # extraPVCs:
   # - name: my-volume
   #   claimName: my-existing-pvc
