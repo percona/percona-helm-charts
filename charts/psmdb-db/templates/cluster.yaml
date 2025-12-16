@@ -92,6 +92,9 @@ spec:
     containerSecurityContext:
 {{ .Values.pmm.containerSecurityContext | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.pmm.customClusterName }}
+    customClusterName: {{ .Values.pmm.customClusterName }}
+    {{- end }}
 
   replsets:
   {{- range $k,$replset := .Values.replsets }}
@@ -201,6 +204,9 @@ spec:
     expose:
       enabled: {{ $replset.expose.enabled }}
       type: {{ $replset.expose.type }}
+      {{- if $replset.expose.loadBalancerClass }}
+      loadBalancerClass: {{ $replset.expose.loadBalancerClass }}
+      {{- end }}
       {{- if $replset.expose.loadBalancerIP }}
       loadBalancerIP: {{ $replset.expose.loadBalancerIP }}
       {{- end }}
@@ -449,6 +455,9 @@ spec:
       expose:
         enabled: {{ .Values.sharding.configrs.expose.enabled }}
         type: {{ .Values.sharding.configrs.expose.type }}
+        {{- if .Values.sharding.configrs.expose.loadBalancerClass }}
+        loadBalancerClass: {{ .Values.sharding.configrs.expose.loadBalancerClass }}
+        {{- end }}
         {{- if .Values.sharding.configrs.expose.loadBalancerIP }}
         loadBalancerIP: {{ .Values.sharding.configrs.expose.loadBalancerIP }}
         {{- end }}
@@ -583,6 +592,9 @@ spec:
           memory: {{ .Values.sharding.mongos.resources.requests.memory }}
       expose:
         type: {{ .Values.sharding.mongos.expose.type }}
+        {{- if .Values.sharding.mongos.expose.loadBalancerClass }}
+        loadBalancerClass: {{ .Values.sharding.mongos.expose.loadBalancerClass }}
+        {{- end }}
         {{- if .Values.sharding.mongos.expose.loadBalancerIP }}
         loadBalancerIP: {{ .Values.sharding.mongos.expose.loadBalancerIP }}
         {{- end }}

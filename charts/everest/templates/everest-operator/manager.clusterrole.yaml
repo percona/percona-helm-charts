@@ -25,6 +25,7 @@ rules:
   - ""
   resources:
   - secrets
+  - serviceaccounts
   verbs:
   - create
   - delete
@@ -51,6 +52,18 @@ rules:
   - list
   - watch
 - apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - everest.percona.com
   resources:
   - backupstorages
@@ -58,7 +71,9 @@ rules:
   - databaseclusterrestores
   - databaseclusters
   - databaseengines
+  - dataimportjobs
   - monitoringconfigs
+  - podschedulingpolicies
   verbs:
   - create
   - delete
@@ -75,6 +90,7 @@ rules:
   - databaseclusterrestores/finalizers
   - databaseclusters/finalizers
   - databaseengines/finalizers
+  - dataimportjobs/finalizers
   - monitoringconfigs/finalizers
   verbs:
   - update
@@ -86,11 +102,21 @@ rules:
   - databaseclusterrestores/status
   - databaseclusters/status
   - databaseengines/status
+  - dataimportjobs/status
   - monitoringconfigs/status
+  - podschedulingpolicies/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - everest.percona.com
+  resources:
+  - dataimporters
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - operator.victoriametrics.com
   resources:
@@ -171,6 +197,34 @@ rules:
   - update
   - watch
 - apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - rolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
+  - roles
+  verbs:
+  - create
+  - delete
+  - escalate
+  - bind
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - storage.k8s.io
   resources:
   - storageclasses
@@ -178,3 +232,4 @@ rules:
   - get
   - list
   - watch
+

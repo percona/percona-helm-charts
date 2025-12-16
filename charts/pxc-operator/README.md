@@ -7,7 +7,7 @@ Useful links
 * [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-pxc/index.html)
 
 ## Pre-requisites
-* Kubernetes 1.29+
+* Kubernetes 1.30+
 * Helm v3
 
 # Installation
@@ -19,14 +19,14 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/pxc-operator --version 1.17.0 --namespace my-namespace
+helm install my-operator percona/pxc-operator --version 1.18.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                       | Description                                                                                    | Default                                          |
 | ------------------------------- | -----------------------------------------------------------------------------------------------| -------------------------------------------------|
-| `image`                         | PXC Operator Container image full path                                                         | `percona/percona-xtradb-cluster-operator:1.17.0` |
+| `image`                         | PXC Operator Container image full path                                                         | `percona/percona-xtradb-cluster-operator:1.18.0` |
 | `imagePullPolicy`               | PXC Operator Container pull policy                                                             | `Always`                                         |
 | `containerSecurityContext`      | PXC Operator Container securityContext                                                         | `{}`                                             |
 | `imagePullSecrets`              | PXC Operator Pod pull secret                                                                   | `[]`                                             |
@@ -38,6 +38,8 @@ The chart can be customized using the following configurable parameters:
 | `logStructured`                 | Force PXC operator to print JSON-wrapped log messages                                          | `false`                                          |
 | `logLevel`                      | PXC Operator logging level                                                                     | `INFO`                                           |
 | `disableTelemetry`              | Disable sending PXC Operator telemetry data to Percona                                         | `false`                                          |
+| `maxConcurrentReconciles`       | Limits the number of parallel cluster reconciles                                               | `1`                                              |
+| `s3WorkersLimit`                | Adjusts the maximum number of parallel workers used for S3 client                              | `10`                                             |
 | `watchAllNamespaces`            | Watch all namespaces (Install cluster-wide)                                                    | `false`                                          |
 | `watchNamespace`                | Comma separated list of namespace(s) to watch when different from release namespace            | `""`                                             |
 | `createNamespace`               | Create the watched namespace(s)                                                                | `false`                                          |
