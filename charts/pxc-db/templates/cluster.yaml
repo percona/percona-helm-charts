@@ -502,6 +502,9 @@ spec:
     {{- if $pmm.pxcParams }}
     pxcParams: {{ $pmm.pxcParams }}
     {{- end }}
+    {{- if $pmm.customClusterName }}
+    customClusterName: {{ $pmm.customClusterName }}
+    {{- end }}
     {{- if $pmm.proxysqlParams }}
     proxysqlParams: {{ $pmm.proxysqlParams }}
     {{- end }}
