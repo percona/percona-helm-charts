@@ -386,6 +386,10 @@ haproxy:
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
   #   loadBalancerIP: 127.0.0.1
+  # healthCheck:
+  #   interval: 10000
+  #   rise: 1
+  #   fall: 2
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
