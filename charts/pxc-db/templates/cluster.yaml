@@ -171,6 +171,9 @@ spec:
 {{ $pxc.sidecarVolumes | toYaml | indent 6 }}
     sidecarPVCs:
 {{ $pxc.sidecarPVCs | toYaml | indent 6 }}
+    {{- if $pxc.mysqlAllocator }}
+    mysqlAllocator: {{ $pxc.mysqlAllocator }}
+    {{- end }}
     {{- if $pxc.extraPVCs }}
     extraPVCs:
 {{ $pxc.extraPVCs | toYaml | indent 6 }}
