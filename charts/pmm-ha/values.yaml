@@ -7,7 +7,7 @@
 ## ref: https://hub.docker.com/r/percona/pmm-server/tags
 ## @param image.repository PMM image repository
 ## @param image.pullPolicy PMM image pull policy
-## @param image.tag PMM image tag (immutable tags are recommended)
+## @param image.tag PMM image tag
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
@@ -22,7 +22,7 @@ image:
 ## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/env_var.html
 ##
 pmmEnv:
-  ## @param pmmEnv.PMM_ENABLE_UPDATES Enables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
+  ## @param pmmEnv.PMM_ENABLE_UPDATES needs to be disabled in k8s environment as updates are rolled out via helm/container update
   ##
   PMM_ENABLE_UPDATES: "0"
   PMM_DEBUG: "0"
@@ -30,8 +30,6 @@ pmmEnv:
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
   # PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
-  PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
-  PMM_CLICKHOUSE_POOL_SIZE: "2"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
   # PMM_CLICKHOUSE_CLUSTER_NAME is set directly in statefulset.yaml
   # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
@@ -87,7 +85,7 @@ pmmResources: {}
 ## @param readyProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up
 ##
 readyProbeConf:
-  initialDelaySeconds: 1
+  initialDelaySeconds: 10
   periodSeconds: 5
   failureThreshold: 6
 
@@ -204,7 +202,7 @@ service:
   ##
   type: "ClusterIP"
 
-  ## Ports 443 and/or 80
+  ## Ports 8443 for https
   ##
   ports:
     ## @param service.ports[0].port https port number
@@ -215,14 +213,6 @@ service:
       protocol: TCP
       ## @param service.ports[0].name port name
       name: https
-    ## @param service.ports[1].port http port number
-    - port: 8080
-      ## @param service.ports[1].targetPort target port to map for statefulset and ingress
-      targetPort: http
-      ## @param service.ports[1].protocol protocol for http
-      protocol: TCP
-      ## @param service.ports[1].name port name
-      name: http
 
 # haservice:
 #  type: "ClusterIP"
@@ -493,7 +483,7 @@ haproxy:
   # Init container to wait for PMM instances to be ready
   initContainers:
     - name: wait-for-pmm-ready
-      image: "alpine:3.18"
+      image: "alpine:latest"
       command:
         - /bin/sh
         - /scripts/wait-for-pmm.sh
