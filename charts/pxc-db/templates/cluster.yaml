@@ -12,7 +12,7 @@ metadata:
     {{- .  | toYaml | nindent 4 }}
   {{- end }}
 spec:
-  crVersion: {{ .Chart.AppVersion }}
+  crVersion: {{ .Values.crVersion | default .Chart.AppVersion }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
@@ -171,6 +171,9 @@ spec:
 {{ $pxc.sidecarVolumes | toYaml | indent 6 }}
     sidecarPVCs:
 {{ $pxc.sidecarPVCs | toYaml | indent 6 }}
+    {{- if $pxc.mysqlAllocator }}
+    mysqlAllocator: {{ $pxc.mysqlAllocator }}
+    {{- end }}
     {{- if $pxc.extraPVCs }}
     extraPVCs:
 {{ $pxc.extraPVCs | toYaml | indent 6 }}
@@ -349,6 +352,18 @@ spec:
 {{ tpl ($haproxy.readinessProbes | toYaml) $ | indent 6 }}
     livenessProbes:
 {{ tpl ($haproxy.livenessProbes | toYaml) $ | indent 6 }}
+    {{- if $haproxy.healthCheck }}
+    healthCheck:
+    {{- if $haproxy.healthCheck.interval }}
+      interval: {{ $haproxy.healthCheck.interval }}
+    {{- end }}
+    {{- if $haproxy.healthCheck.rise }}
+      rise: {{ $haproxy.healthCheck.rise }}
+    {{- end }}
+    {{- if $haproxy.healthCheck.fall }}
+      fall: {{ $haproxy.healthCheck.fall }}
+    {{- end }}
+    {{- end }}
     {{- if $haproxy.containerSecurityContext }}
     containerSecurityContext:
 {{ tpl ($haproxy.containerSecurityContext | toYaml) $ | indent 6 }}
