@@ -80,7 +80,6 @@ pxc:
   #   internalTrafficPolicy: Local
   #   loadBalancerSourceRanges:
   #   - 10.0.0.0/8
-  #   loadBalancerIP: 127.0.0.1
   #   annotations:
   #     networking.gke.io/load-balancer-type: "Internal"
   #   labels:
@@ -371,7 +370,6 @@ haproxy:
   #     rack: rack-22
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
-  #   loadBalancerIP: 127.0.0.1
   # exposeReplicas:
   #   enabled: true
   #   onlyReaders: false
@@ -474,7 +472,6 @@ proxysql:
   #     rack: rack-22
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
-  #   loadBalancerIP: 127.0.0.1
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
   # envVarsSecret: my-env-var-secrets
@@ -616,6 +613,7 @@ pmm:
 #    successThreshold: 1
   serverHost: monitoring-service
   serverUser: admin
+  # customClusterName: "<string>"
   # pxcParams: "--disable-tablestats-limit=2000"
   # proxysqlParams: "--custom-labels=CUSTOM-LABELS"
   # containerSecurityContext:
