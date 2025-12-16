@@ -59,10 +59,8 @@ Functions returns image URI according to parameters set
 {{- if .Values.featureGates }}
 {{- $gates := list }}
 {{- range $key, $value := .Values.featureGates }}
-{{- if $value }}
 {{- $flagName := $key | title }}
 {{- $gates = append $gates (printf "%s=%v" $flagName $value) }}
-{{- end }}
 {{- end }}
 {{- join "," $gates }}
 {{- end }}
