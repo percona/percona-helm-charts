@@ -26,8 +26,8 @@ data:
       
       echo "Checking PMM instance: $pmm_host:$pmm_port"
       
-      local https_code=$(curl -s --max-time "$timeout" -k -o /dev/null -w "%{http_code}" "https://$pmm_host:$pmm_port/")
-      if [ "$https_code" = "200" ] || [ "$https_code" = "302" ]; then
+      local https_code=$(curl -sL --max-time "$timeout" -k -o /dev/null -w "%{http_code}" "https://$pmm_host:$pmm_port/")
+      if [ "$https_code" = "200" ]; then
         echo "✅ HTTPS connection check passed for $pmm_host:$pmm_port (status: $https_code)"
         return 0
       else
