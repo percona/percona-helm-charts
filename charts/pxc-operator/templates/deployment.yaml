@@ -73,6 +73,8 @@ spec:
               value: "{{ .Values.maxConcurrentReconciles | default 1 }}"
             - name: S3_WORKERS_LIMIT
               value: "{{ .Values.s3WorkersLimit | default 10 }}"
+            - name: PXCO_FEATURE_GATES
+              value: {{ include "pxc-operator.featureGates" . | quote }}
             {{- if .Values.extraEnvVars }}
               {{- toYaml .Values.extraEnvVars | nindent 12 }}
             {{- end }}
