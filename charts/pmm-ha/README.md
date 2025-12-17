@@ -187,6 +187,51 @@ kubectl delete crds $(kubectl get crds -o name | grep -E "(postgres-operator|per
 
 > **Warning**: This will remove all PMM data, including metrics, dashboards, and configuration. Make sure to backup any important data before uninstalling.
 
+## Connecting Clients to PMM
+
+### Service Endpoints
+
+PMM HA provides the following service endpoints for clients to connect:
+
+| Service | Description | Port |
+|---------|-------------|------|
+| `pmm-ha-haproxy` | **Recommended** - HAProxy load balancer that routes to the active PMM leader | 443 (HTTPS) |
+| `monitoring-service` | Headless service for direct PMM pod access (used internally) | 8443 (HTTPS) |
+
+**For all external clients and Percona Operators, use `pmm-ha-haproxy` as the PMM server endpoint.**
+
+### Connecting PMM Clients
+
+To connect a PMM client to the HA cluster:
+
+```sh
+# From within the Kubernetes cluster
+pmm-admin config --server-url=https://admin:<password>@pmm-ha-haproxy:443 --server-insecure-tls
+
+# Or using the service token (recommended for automation)
+pmm-admin config --server-url=https://service_token:<token>@pmm-ha-haproxy:443 --server-insecure-tls
+```
+
+### PostgreSQL Monitoring (Automatic)
+
+When `pg-db.pmm.enabled: true` (default), PostgreSQL metrics are automatically pushed to PMM:
+
+1. A **service account token** is automatically created in PMM by the `pmm-token-init` Job
+2. The token is stored in the `pg-pmm-secret` Kubernetes secret
+3. PostgreSQL pods use this token to authenticate and push metrics to PMM via the `pmm-ha-haproxy` endpoint
+
+No manual configuration is required - the Percona PostgreSQL Operator handles the integration automatically.
+
+### Using Service Tokens for Automation
+
+Service tokens are recommended for automated deployments and CI/CD pipelines. To retrieve the auto-generated PostgreSQL monitoring token:
+
+```sh
+kubectl get secret pg-pmm-secret -n <namespace> -o jsonpath='{.data.PMM_SERVER_TOKEN}' | base64 -d
+```
+
+To create additional service tokens manually, see the [PMM documentation on service accounts](https://docs.percona.com/percona-monitoring-and-management/api/authentication.html).
+
 ## Parameters
 
 ### Percona Monitoring and Management (PMM) parameters
