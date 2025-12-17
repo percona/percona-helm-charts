@@ -27,7 +27,7 @@ spec:
       {{- toYaml .Values.victoriaMetrics.vmagent.remoteWrite | nindent 6 }}
       {{- end }}
   
-  # Inline scrape configuration for HAProxy metrics
+  # Inline scrape configuration for metrics collection
   inlineScrapeConfig: |
     # Scrape HAProxy metrics
     - job_name: 'haproxy'
@@ -55,6 +55,116 @@ spec:
         # Set the metrics path
         - target_label: __metrics_path__
           replacement: {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }}
+    # Scrape VMSelect metrics
+    - job_name: 'vmselect'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: 'vmselect-{{ include "pmm.fullname" . }}-vmcluster'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
+    # Scrape VMInsert metrics
+    - job_name: 'vminsert'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: 'vminsert-{{ include "pmm.fullname" . }}-vmcluster'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
+    # Scrape VMStorage metrics
+    - job_name: 'vmstorage'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: 'vmstorage-{{ include "pmm.fullname" . }}-vmcluster'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
+    # Scrape VMAuth metrics
+    - job_name: 'vmauth'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: '{{ include "pmm.fullname" . }}-vmauth'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
+    # Scrape VMAgent metrics (self-monitoring)
+    - job_name: 'vmagent'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: '{{ include "pmm.fullname" . }}-vmagent'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
   {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
   # Additional scrape configurations - can reference VMScrapeConfig resources
   scrapeConfigSelector: {}
