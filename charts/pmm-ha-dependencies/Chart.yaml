@@ -6,10 +6,10 @@ version: 1.0.0
 appVersion: "1.0.0"
 home: https://github.com/percona/percona-helm-charts
 maintainers:
-  - name: bupychuk
-    email: nurlan.moldomurov@percona.com
   - name: tibi
     email: tibor.korocz@percona.com
+  - name: alex
+    email: nurlan.moldomurov@percona.com
 keywords:
   - PMM
   - Operators
