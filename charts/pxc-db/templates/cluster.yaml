@@ -389,6 +389,10 @@ spec:
     imagePullSecrets:
     {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
+    {{- if $proxysql.scheduler }}
+    scheduler:
+{{ $proxysql.scheduler | toYaml | indent 6 }}
+    {{- end }}
     {{- if $proxysql.schedulerName }}
     schedulerName: {{ $proxysql.schedulerName }}
     {{- end }}

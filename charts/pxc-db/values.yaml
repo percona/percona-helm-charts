@@ -403,6 +403,15 @@ proxysql:
   image: percona/proxysql2:2.7.3
   # imagePullPolicy: Always
   imagePullSecrets: []
+#  scheduler:
+#    enabled: false
+#    writerIsAlsoReader: true
+#    checkTimeoutMilliseconds: 2000
+#    successThreshold: 1
+#    failureThreshold: 3
+#    pingTimeoutMilliseconds: 1000
+#    nodeCheckIntervalMilliseconds: 2000
+#    maxConnections: 1000
 #  configuration: |
 #    datadir="/var/lib/proxysql"
 #
