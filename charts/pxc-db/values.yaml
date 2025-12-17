@@ -739,7 +739,7 @@ secrets:
   #   pmmserver: insecure-pmmserver-password
   #   # If pmmserverkey is set in that case pmmserver pass will not be included
   #   # pmmserverkey: set-pmmserver-api-key for PMM 2.x
-   #   # If pmmservertoken is set in that case pmmserver pass will not be included
+  #   # If pmmservertoken is set in that case pmmserver pass will not be included
   #   # pmmservertoken: set-pmmserver-api-key PMMClient 3.x
   #   operator: insecure-operator-password
   #   replication: insecure-replication-password
