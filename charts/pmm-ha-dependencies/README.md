@@ -26,7 +26,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickh
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n pmm --timeout=300s
 
 # Step 3: Install PMM HA
-helm install pmm percona/pmm-ha --namespace pmm
+helm install pmm-ha percona/pmm-ha --namespace pmm
 ```
 
 ## Uninstallation Order
@@ -35,12 +35,12 @@ When uninstalling, follow the **reverse order**:
 
 ```bash
 # Step 1: Uninstall PMM HA first
-helm uninstall pmm --namespace pmm
+helm uninstall pmm-ha --namespace pmm
 
 # Step 2: Wait for PMM resources to be fully removed
-kubectl wait --for=delete vmcluster -l app.kubernetes.io/instance=pmm -n pmm --timeout=300s
-kubectl wait --for=delete postgrescluster -l app.kubernetes.io/instance=pmm -n pmm --timeout=300s
-kubectl wait --for=delete clickhouseinstallation -l app.kubernetes.io/instance=pmm -n pmm --timeout=300s
+kubectl wait --for=delete vmcluster -l app.kubernetes.io/instance=pmm-ha -n pmm --timeout=300s
+kubectl wait --for=delete postgrescluster -l app.kubernetes.io/instance=pmm-ha -n pmm --timeout=300s
+kubectl wait --for=delete clickhouseinstallation -l app.kubernetes.io/instance=pmm-ha -n pmm --timeout=300s
 
 # Step 3: Uninstall the operators
 helm uninstall pmm-ha-operators --namespace pmm
@@ -114,11 +114,11 @@ This safety mechanism ensures you don't accidentally delete production data.
 
 #### Manual CRD Cleanup
 
-If you want to completely remove all operator CRDs (⚠️ **WARNING: This will delete all associated resources!**):
+**WARNING**: This will remove CRDs cluster-wide and delete ALL custom resources of these types in ALL namespaces! This action will cause permanent data loss.
+
+Only do this if you're completely removing the operators and have no other deployments using them:
 
 ```bash
-# Only run these after ensuring all PMM resources are backed up or no longer needed!
-
 # Remove VictoriaMetrics CRDs
 kubectl delete crds $(kubectl get crds -o name | grep victoriametrics)
 

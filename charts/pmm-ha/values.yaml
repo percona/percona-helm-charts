@@ -7,7 +7,7 @@
 ## ref: https://hub.docker.com/r/percona/pmm-server/tags
 ## @param image.repository PMM image repository
 ## @param image.pullPolicy PMM image pull policy
-## @param image.tag PMM image tag (immutable tags are recommended)
+## @param image.tag PMM image tag
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
@@ -22,7 +22,7 @@ image:
 ## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/env_var.html
 ##
 pmmEnv:
-  ## @param pmmEnv.PMM_ENABLE_UPDATES Enables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
+  ## @param pmmEnv.PMM_ENABLE_UPDATES needs to be disabled in k8s environment as updates are rolled out via helm/container update
   ##
   PMM_ENABLE_UPDATES: "0"
   PMM_DEBUG: "0"
@@ -30,8 +30,6 @@ pmmEnv:
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
   # PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
-  PMM_CLICKHOUSE_BLOCK_SIZE: "10000"
-  PMM_CLICKHOUSE_POOL_SIZE: "2"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
   # PMM_CLICKHOUSE_CLUSTER_NAME is set directly in statefulset.yaml
   # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
@@ -87,7 +85,7 @@ pmmResources: {}
 ## @param readyProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up
 ##
 readyProbeConf:
-  initialDelaySeconds: 1
+  initialDelaySeconds: 10
   periodSeconds: 5
   failureThreshold: 6
 
@@ -204,7 +202,7 @@ service:
   ##
   type: "ClusterIP"
 
-  ## Ports 443 and/or 80
+  ## Ports 8443 for https
   ##
   ports:
     ## @param service.ports[0].port https port number
@@ -215,14 +213,6 @@ service:
       protocol: TCP
       ## @param service.ports[0].name port name
       name: https
-    ## @param service.ports[1].port http port number
-    - port: 8080
-      ## @param service.ports[1].targetPort target port to map for statefulset and ingress
-      targetPort: http
-      ## @param service.ports[1].protocol protocol for http
-      protocol: TCP
-      ## @param service.ports[1].name port name
-      name: http
 
 # haservice:
 #  type: "ClusterIP"
@@ -465,6 +455,9 @@ clickhouse:
         - 192.168.0.0/16
 
 haproxy:
+  # Override the HAProxy service name to be fixed (not include release name)
+  # This allows pg-db.pmm.serverHost to use a consistent "pmm-ha-haproxy" value
+  fullnameOverride: pmm-ha-haproxy
   config: ""
   configmap:
     enabled: false
@@ -506,7 +499,7 @@ haproxy:
   # Init container to wait for PMM instances to be ready
   initContainers:
     - name: wait-for-pmm-ready
-      image: "alpine:3.18"
+      image: "alpine:latest"
       command:
         - /bin/sh
         - /scripts/wait-for-pmm.sh
@@ -646,6 +639,33 @@ pg-db:
           - host all pmmuser 172.16.0.0/12 md5
           - host all gfuser 192.168.0.0/16 md5
           - host all pmmuser 192.168.0.0/16 md5
+  
+  ## @param pg-db.pmm PMM integration for PostgreSQL monitoring
+  ## When enabled, PostgreSQL pods will push metrics directly to PMM Server
+  ## A Job will automatically create the required service account token in PMM
+  ## and store it in the specified secret for the PostgreSQL operator to use
+  ##
+  pmm:
+    ## @param pg-db.pmm.enabled Enable PMM monitoring for PostgreSQL
+    ## When true, a sidecar container will be added to PostgreSQL pods
+    ## that pushes metrics to PMM Server
+    enabled: true
+    ## @param pg-db.pmm.image PMM client image configuration
+    image:
+      repository: docker.io/percona/pmm-client
+      tag: "3"
+    ## @param pg-db.pmm.secret Name of the secret containing PMM_SERVER_TOKEN
+    ## This secret is automatically created by the pmm-token-init Job
+    ## The secret must contain a key named PMM_SERVER_TOKEN with the service account token
+    secret: pg-pmm-secret
+    ## @param pg-db.pmm.serverHost PMM server hostname (via HAProxy for HA setup)
+    ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
+    serverHost: pmm-ha-haproxy
+    ## @param pg-db.pmm.resources Resource requests and limits for PMM client sidecar
+    # resources:
+    #   requests:
+    #     memory: 200M
+    #     cpu: 500m
 
 ## @section VictoriaMetrics Configuration
 ## 

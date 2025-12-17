@@ -27,8 +27,36 @@ spec:
       {{- toYaml .Values.victoriaMetrics.vmagent.remoteWrite | nindent 6 }}
       {{- end }}
   
+  # Inline scrape configuration for HAProxy metrics
+  inlineScrapeConfig: |
+    # Scrape HAProxy metrics
+    - job_name: 'haproxy'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        # Keep only HAProxy service endpoints
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: '{{ include "pmm.fullname" . }}-haproxy'
+          action: keep
+        # Target the stats/metrics port (1024)
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'stat'
+          action: keep
+        # Add standard labels
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        # Set the metrics path
+        - target_label: __metrics_path__
+          replacement: {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }}
   {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
-  # Scrape configurations - can reference VMScrapeConfig resources
+  # Additional scrape configurations - can reference VMScrapeConfig resources
   scrapeConfigSelector: {}
   scrapeConfigNamespaceSelector: {}
   {{- end }}
