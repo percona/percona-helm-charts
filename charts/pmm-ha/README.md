@@ -285,6 +285,14 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `ingress.tls`                     | -- Ingress TLS configuration                                                                                                                   | `[]`                  |
 
 
+### HAProxy external access configuration
+
+| Name                          | Description                                                                                                     | Value       |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------- |
+| `haproxy.service.type`        | Service type for HAProxy: ClusterIP (internal), LoadBalancer (external via LB), or NodePort (external via node) | `ClusterIP` |
+| `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
+
+
 ### PMM storage configuration
 
 | Name                       | Description                                                                                                                                                                             | Value         |
@@ -495,6 +503,106 @@ pmmEnv:
   DATA_RETENTION: "2160h" # 90 days
 ```
 
+### External access to PMM HA
+
+By default, HAProxy is only accessible within the cluster. To enable external access from outside the cluster, configure the HAProxy service type.
+
+#### Using LoadBalancer (Recommended for cloud environments)
+
+This automatically provisions a cloud load balancer with a public IP/DNS:
+
+```yaml
+haproxy:
+  service:
+    type: LoadBalancer
+```
+
+After deployment, get the external endpoint:
+
+```sh
+kubectl get svc -n pmm -l app.kubernetes.io/name=haproxy
+```
+
+The `EXTERNAL-IP` column shows the public access point. Connect via `https://<EXTERNAL-IP>:443`.
+
+#### Using NodePort (For bare-metal or when LoadBalancer is unavailable)
+
+```yaml
+haproxy:
+  service:
+    type: NodePort
+```
+
+Access PMM via `https://<any-node-ip>:<nodeport>`. Get the assigned NodePort:
+
+```sh
+kubectl get svc -n pmm -l app.kubernetes.io/name=haproxy -o jsonpath='{.items[0].spec.ports[0].nodePort}'
+```
+
+#### Cloud-specific configurations
+
+Configure LoadBalancer settings for your cloud provider:
+
+##### AWS (EKS)
+
+```yaml
+haproxy:
+  service:
+    type: LoadBalancer
+    annotations:
+      # Use Network Load Balancer (recommended)
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      # Internal (VPC only) - use "internet-facing" for public access
+      service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+      # Optional: Use Elastic IPs for stable IPs (one per AZ, internet-facing only)
+      # service.beta.kubernetes.io/aws-load-balancer-eip-allocations: "eipalloc-xxx,eipalloc-yyy"
+```
+
+##### Google Cloud (GKE)
+
+```yaml
+haproxy:
+  service:
+    type: LoadBalancer
+    # Optional: Use a reserved static IP (created via: gcloud compute addresses create pmm-ip --region=REGION)
+    # loadBalancerIP: "35.x.x.x"
+    annotations:
+      # Internal LB (VPC only) - remove for external/public access
+      networking.gke.io/load-balancer-type: "Internal"
+```
+
+##### Azure (AKS)
+
+```yaml
+haproxy:
+  service:
+    type: LoadBalancer
+    # Optional: Use a pre-created static public IP
+    # loadBalancerIP: "20.x.x.x"
+    annotations:
+      # Internal LB (VNet only) - remove for external/public access
+      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+```
+
+##### On-Premise / Bare Metal (MetalLB)
+
+```yaml
+haproxy:
+  service:
+    type: LoadBalancer
+    loadBalancerIP: "192.168.1.100"
+    annotations:
+      metallb.universe.tf/address-pool: "production-pool"
+```
+
+#### Static IP summary
+
+| Provider | Static IP Method |
+|----------|------------------|
+| AWS | Elastic IPs via `aws-load-balancer-eip-allocations` annotation |
+| GCP | Reserved IP via `spec.loadBalancerIP` |
+| Azure | Static Public IP via `spec.loadBalancerIP` |
+| MetalLB | IP from pool via `spec.loadBalancerIP` |
 ### Scaling and Monitoring
 
 #### Scaling PMM HA

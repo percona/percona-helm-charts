@@ -466,6 +466,22 @@ haproxy:
   # Number of HAProxy replicas
   replicaCount: 3
   
+  ## HAProxy Service configuration for external access
+  ## @param haproxy.service.type Service type for HAProxy
+  ##   - ClusterIP: Internal only (default)
+  ##   - LoadBalancer: External access via cloud/on-prem load balancer
+  ##   - NodePort: External access via node ports
+  ## @param haproxy.service.annotations Service annotations (add cloud-specific annotations as needed)
+  ##
+  service:
+    type: ClusterIP
+    ## Example annotations for different cloud providers:
+    ##   AWS NLB: service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    ##   GCP Internal: cloud.google.com/load-balancer-type: "Internal"
+    ##   Azure Internal: service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    ## For MetalLB: metallb.universe.tf/address-pool: "production-public-ips"
+    annotations: {}
+  
   # Pod annotations - increment the version value to trigger HAProxy pod rolling when config changes
   podAnnotations:
     pmm.percona.com/config-version: "3"
