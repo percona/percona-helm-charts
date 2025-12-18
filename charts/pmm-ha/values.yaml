@@ -321,10 +321,10 @@ podAnnotations: {}
 
 ## @param podSecurityContext Configure Pods Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
-## E.g
+## Note: we intentionally don't use the `runAsGroup` to make it compatible with OpenShift. 
+## However, `runAsUser` needs to be set to nil for OpenShift to assign a random user ID.
 podSecurityContext:
   runAsUser: 1000
-  # runAsGroup: 1000
   fsGroup: 1000
 
 ## @param securityContext Configure Container Security Context
