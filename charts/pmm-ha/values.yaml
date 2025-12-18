@@ -455,6 +455,9 @@ clickhouse:
         - 192.168.0.0/16
 
 haproxy:
+  # Override the HAProxy service name to be fixed (not include release name)
+  # This allows pg-db.pmm.serverHost to use a consistent "pmm-ha-haproxy" value
+  fullnameOverride: pmm-ha-haproxy
   config: ""
   configmap:
     enabled: false
@@ -462,6 +465,22 @@ haproxy:
   enabled: true
   # Number of HAProxy replicas
   replicaCount: 3
+  
+  ## HAProxy Service configuration for external access
+  ## @param haproxy.service.type Service type for HAProxy
+  ##   - ClusterIP: Internal only (default)
+  ##   - LoadBalancer: External access via cloud/on-prem load balancer
+  ##   - NodePort: External access via node ports
+  ## @param haproxy.service.annotations Service annotations (add cloud-specific annotations as needed)
+  ##
+  service:
+    type: ClusterIP
+    ## Example annotations for different cloud providers:
+    ##   AWS NLB: service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    ##   GCP Internal: cloud.google.com/load-balancer-type: "Internal"
+    ##   Azure Internal: service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    ## For MetalLB: metallb.universe.tf/address-pool: "production-public-ips"
+    annotations: {}
   
   # Pod annotations - increment the version value to trigger HAProxy pod rolling when config changes
   podAnnotations:
@@ -620,6 +639,33 @@ pg-db:
           - host all pmmuser 172.16.0.0/12 md5
           - host all gfuser 192.168.0.0/16 md5
           - host all pmmuser 192.168.0.0/16 md5
+  
+  ## @param pg-db.pmm PMM integration for PostgreSQL monitoring
+  ## When enabled, PostgreSQL pods will push metrics directly to PMM Server
+  ## A Job will automatically create the required service account token in PMM
+  ## and store it in the specified secret for the PostgreSQL operator to use
+  ##
+  pmm:
+    ## @param pg-db.pmm.enabled Enable PMM monitoring for PostgreSQL
+    ## When true, a sidecar container will be added to PostgreSQL pods
+    ## that pushes metrics to PMM Server
+    enabled: true
+    ## @param pg-db.pmm.image PMM client image configuration
+    image:
+      repository: docker.io/percona/pmm-client
+      tag: "3"
+    ## @param pg-db.pmm.secret Name of the secret containing PMM_SERVER_TOKEN
+    ## This secret is automatically created by the pmm-token-init Job
+    ## The secret must contain a key named PMM_SERVER_TOKEN with the service account token
+    secret: pg-pmm-secret
+    ## @param pg-db.pmm.serverHost PMM server hostname (via HAProxy for HA setup)
+    ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
+    serverHost: pmm-ha-haproxy
+    ## @param pg-db.pmm.resources Resource requests and limits for PMM client sidecar
+    # resources:
+    #   requests:
+    #     memory: 200M
+    #     cpu: 500m
 
 ## @section VictoriaMetrics Configuration
 ## 
