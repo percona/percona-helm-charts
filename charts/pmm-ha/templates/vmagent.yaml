@@ -39,7 +39,7 @@ spec:
       relabel_configs:
         # Keep only HAProxy service endpoints
         - source_labels: [__meta_kubernetes_service_name]
-          regex: '{{ include "pmm.fullname" . }}-haproxy'
+          regex: 'pmm-ha-haproxy'
           action: keep
         # Target the stats/metrics port (1024)
         - source_labels: [__meta_kubernetes_endpoint_port_name]
@@ -117,6 +117,7 @@ spec:
         # Set the metrics path
         - target_label: __metrics_path__
           replacement: /metrics
+
   {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
   # Additional scrape configurations - can reference VMScrapeConfig resources
   scrapeConfigSelector: {}
