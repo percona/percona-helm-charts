@@ -638,12 +638,13 @@ pg-db:
           # 10.0.0.0/8 covers AWS and GCP
           # 172.16.0.0/12 covers Azure and Docker
           # 192.168.0.0/16 covers minikube and many on-prem setups
-          - host all gfuser 10.0.0.0/8 md5
-          - host all pmmuser 10.0.0.0/8 md5
-          - host all gfuser 172.16.0.0/12 md5
-          - host all pmmuser 172.16.0.0/12 md5
-          - host all gfuser 192.168.0.0/16 md5
-          - host all pmmuser 192.168.0.0/16 md5
+          # Using scram-sha-256 to match PostgreSQL 14+ default password_encryption
+          - host all gfuser 10.0.0.0/8 scram-sha-256
+          - host all pmmuser 10.0.0.0/8 scram-sha-256
+          - host all gfuser 172.16.0.0/12 scram-sha-256
+          - host all pmmuser 172.16.0.0/12 scram-sha-256
+          - host all gfuser 192.168.0.0/16 scram-sha-256
+          - host all pmmuser 192.168.0.0/16 scram-sha-256
   
   ## @param pg-db.pmm PMM integration for PostgreSQL monitoring
   ## When enabled, PostgreSQL pods will push metrics directly to PMM Server
