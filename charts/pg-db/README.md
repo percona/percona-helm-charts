@@ -24,7 +24,7 @@ To install the chart with the `pg` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pg-db --version 2.8.1 --namespace my-namespace
+helm install my-db percona/pg-db --version 2.8.2 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -33,7 +33,7 @@ The chart can be customized using the following configurable parameters:
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `annotations`                     | The Kubernetes annotations for PerconaPGCluster                                                                                                                                                         | ``                                                           |
 | `finalizers`                      | Finalizers list                                                                                                                                                                                         | `{}`                                                         |
-| `crVersion`                       | CR Cluster Manifest version                                                                                                                                                                             | `2.8.1`                                                      |
+| `crVersion`                       | CR Cluster Manifest version                                                                                                                                                                             | `2.8.2`                                                      |
 | `metadata.annotations`            | The Kubernetes annotations metadata to be set at a global level for all resources created by the Operator                                                                                               | ``                                                           |
 | `metadata.labels`                 | The Kubernetes labels metadata to be set at a global level for all resources created by the Operator                                                                                                    | ``                                                           |
 | `repository`                      | PostgreSQL container image repository                                                                                                                                                                   | `docker.io/percona/percona-distribution-postgresql`          |
