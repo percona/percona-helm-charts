@@ -548,13 +548,13 @@ spec:
             {{- if $repo.volume.volumeClaimSpec.storageClassName }}
             storageClassName: {{ $volume.volumeClaimSpec.storageClassName }}
             {{- end }}
-            {{- if $volume.volumeClaimSpec.accessModes }}
             accessModes:
-            {{- range $accessMode := $volume.volumeClaimSpec.accessModes }}
-            - {{ $accessMode }}
-            {{- end }}
+            {{- if $volume.volumeClaimSpec.accessModes }}
+              {{- range $accessMode := $volume.volumeClaimSpec.accessModes }}
+              - {{ $accessMode }}
+              {{- end }}
             {{- else }}
-            - ReadWriteOnce
+              - ReadWriteOnce
             {{- end }}
             resources:
               requests:
