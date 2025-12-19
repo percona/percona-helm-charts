@@ -15,7 +15,7 @@ image:
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4148-07c5f04"
+  tag: "PR-4078-5f26b15"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -212,10 +212,6 @@ service:
       protocol: TCP
       ## @param service.ports[0].name port name
       name: https
-
-# haservice:
-#  type: "ClusterIP"
-#  name: "pmmha"
 
 replicas: 3
 
