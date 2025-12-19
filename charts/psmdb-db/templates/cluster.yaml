@@ -6,7 +6,7 @@ metadata:
 {{ .Values.annotations | toYaml | indent 4 }}
   {{- end }}
   name: {{ include "psmdb-database.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "psmdb-database.namespace" . }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
   finalizers:
