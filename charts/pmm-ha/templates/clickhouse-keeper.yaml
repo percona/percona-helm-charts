@@ -15,6 +15,9 @@ spec:
       listen_host: "0.0.0.0"
       keeper_server/four_letter_word_white_list: "*"
       keeper_server/coordination_settings/raft_logs_level: "information"
+      # Prometheus metrics configuration
+      prometheus/port: "7000"
+      prometheus/endpoint: "/metrics"
   
   defaults:
     templates:
@@ -47,6 +50,10 @@ spec:
             - name: clickhouse-keeper
               image: {{ .Values.clickhouse.keeper.image.repository }}:{{ .Values.clickhouse.keeper.image.tag }}
               imagePullPolicy: {{ .Values.clickhouse.keeper.image.pullPolicy }}
+              ports:
+                - name: metrics
+                  containerPort: 7000
+                  protocol: TCP
               resources:
                 {{- toYaml .Values.clickhouse.keeper.resources | nindent 16 }}
     
