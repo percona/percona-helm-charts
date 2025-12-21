@@ -4,7 +4,7 @@
 
 replicaCount: 1
 
-revisionHistoryLimit: null
+revisionHistoryLimit: 10
 
 image:
   repository: percona/percona-server-mongodb-operator
