@@ -484,13 +484,11 @@ haproxy:
   # Pod anti-affinity for HAProxy pods
   affinity:
     podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            topologyKey: kubernetes.io/hostname
-            labelSelector:
-              matchLabels:
-                app.kubernetes.io/name: haproxy
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: haproxy
   # Init container to wait for PMM instances to be ready
   initContainers:
     - name: wait-for-pmm-ready

@@ -147,3 +147,13 @@ haproxy:
     requests:
       cpu: 50m
       memory: 64Mi
+  # Override hard anti-affinity with soft for CI (allows single-node testing)
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 1
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: haproxy
