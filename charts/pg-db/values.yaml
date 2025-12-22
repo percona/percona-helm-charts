@@ -45,7 +45,7 @@ crVersion: 2.8.2
 #   labels:
 #     example-label: value
 repository: docker.io/percona/percona-distribution-postgresql
-image: docker.io/percona/percona-distribution-postgresql:17.7-1
+image: docker.io/percona/percona-distribution-postgresql:17.7-2
 imagePullPolicy: Always
 postgresVersion: 17
 # port: 5432
