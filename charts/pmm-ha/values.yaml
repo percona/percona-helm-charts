@@ -15,7 +15,7 @@ image:
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4078-5f26b15"
+  tag: "PR-4169-b5418b3"
   imagePullSecrets: []
 
 ## PMM environment variables
