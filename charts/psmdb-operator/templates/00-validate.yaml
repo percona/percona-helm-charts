@@ -1,0 +1,21 @@
+{{- /* validation only – no output */ -}}
+{{- if .Values.replsets }}
+{{- range $name, $rs := .Values.replsets }}
+
+{{- if $rs.name }}
+{{- if not (and
+    (hasKey $rs "volumeSpec")
+    (hasKey $rs.volumeSpec "pvc")
+    (hasKey $rs.volumeSpec.pvc "resources")
+    (hasKey $rs.volumeSpec.pvc.resources "requests")
+    (hasKey $rs.volumeSpec.pvc.resources.requests "storage")
+) }}
+{{- fail (printf
+  "replsets.%s.volumeSpec.pvc.resources.requests.storage is required when replsets.%s.name is set"
+  $name $name
+) }}
+{{- end }}
+{{- end }}
+
+{{- end }}
+{{- end }}
