@@ -125,7 +125,7 @@ upgrade:
   ## Options: "rolling" (default), "recreate"
   ## Use "recreate" if you encounter StatefulSet upgrade conflicts
   strategy: "rolling"
-  
+
   ## @param upgrade.force Force upgrade by recreating StatefulSet if needed
   ## This will cause a brief downtime but ensures upgrade compatibility
   ## Set to true only if you encounter StatefulSet field conflicts
@@ -321,3 +321,7 @@ extraVolumeMounts: []
 ## @param extraVolumes Optionally specify extra list of additional volumes
 ##
 extraVolumes: []
+
+## @param initContainers Optionally specify extra list of init containers
+##
+initContainers: []
