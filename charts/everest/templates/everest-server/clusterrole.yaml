@@ -10,7 +10,7 @@ rules:
     resources: ["secrets", "configmaps", "namespaces"]
     verbs: ["*"]
   - apiGroups: [""]
-    resources: ["nodes", "pods", "persistentvolumes"]
+    resources: ["nodes", "pods", "pods/log", "persistentvolumes"]
     verbs: ["get", "list"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses"]
