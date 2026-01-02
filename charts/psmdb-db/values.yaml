@@ -18,6 +18,7 @@ finalizers:
 #  - percona.com/delete-pitr-chunks
 
 nameOverride: ""
+namespaceOverride: ""
 fullnameOverride: ""
 
 
