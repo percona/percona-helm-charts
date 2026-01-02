@@ -1,0 +1,26 @@
+{{- if .Values.ps }}
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: percona-server-mysql-operator
+  namespace: {{ include "db.namespace" . }}
+  annotations:
+    # This annotation ensures that the Subscription is not removed
+    # during upgrade, which could otherwise result in a broken installation.
+    # The uninstallation of operators is handled gracefully in the pre-delete hook.
+    helm.sh/resource-policy: keep
+spec:
+  channel: stable-v0
+  installPlanApproval: Manual
+  name: percona-server-mysql-operator
+  source: everest-catalog
+  sourceNamespace: {{ include "db.olmNamespace" . }}
+  config:
+    env:
+      - name: DISABLE_TELEMETRY
+      {{- if not $.Values.telemetry }}
+        value: "true"
+      {{- else }}
+        value: "false"
+      {{- end }}
+{{- end }}
