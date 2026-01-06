@@ -135,6 +135,12 @@ haproxy:
       cpu: 50m
       memory: 64Mi
   # Disable anti-affinity for single-node CI testing
-  affinity: {}
-  podAntiAffinity:
-    enabled: false
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: haproxy
