@@ -4,6 +4,9 @@
 # Reduce PMM server replicas and resources
 replicaCount: 3
 
+# Disable anti-affinity for single-node CI testing
+affinity: {}
+
 pmm:
   resources:
     requests:
