@@ -19,7 +19,7 @@ storage:
 clickhouse:
   cluster:
     shards: 1
-    replicas: 3
+    replicas: 2
   resources:
     requests:
       memory: "256Mi"
@@ -28,7 +28,7 @@ clickhouse:
       memory: "512Mi"
       cpu: "500m"
   keeper:
-    replicas: 3
+    replicas: 2
     resources:
       requests:
         memory: "128Mi"
@@ -40,7 +40,7 @@ clickhouse:
 pg-db:
   instances:
     - name: instance1
-      replicas: 3
+      replicas: 2
       resources:
         requests:
           cpu: 100m
@@ -58,7 +58,7 @@ pg-db:
       affinity: {}
   proxy:
     pgBouncer:
-      replicas: 3
+      replicas: 2
       resources:
         requests:
           cpu: 50m
@@ -109,7 +109,7 @@ victoriaMetrics:
         cpu: "200m"
   
   vmstorage:
-    replicaCount: 3
+    replicaCount: 2
     retentionPeriod: "1d"
     resources:
       requests:
