@@ -22,6 +22,44 @@ helm repo add percona https://percona.github.io/percona-helm-charts/
 helm install my-operator percona/psmdb-operator --version 1.21.2 --namespace my-namespace
 ```
 
+## Upgrading CRDs
+
+By default, Helm installs CRDs from the `crds/` directory only during initial installation and does not upgrade them. To upgrade CRDs, you have two options:
+
+### Option 1: Use the Separate CRD Chart (Recommended)
+
+Install or upgrade CRDs using the dedicated CRD chart:
+
+```sh
+helm repo update
+helm upgrade --install psmdb-operator-crds percona/psmdb-operator-crds --namespace my-namespace
+```
+
+> **Note:** If you're using Helm 3.17.0 or later, use `--take-ownership` to take over CRDs that were previously installed via the `crds/` directory:
+>
+> ```sh
+> helm upgrade --install psmdb-operator-crds percona/psmdb-operator-crds --namespace my-namespace --take-ownership
+> ```
+
+For Helm versions older than 3.17.0, manually add ownership labels and annotations before running the upgrade:
+
+```sh
+CRDS=(perconaservermongodbs.psmdb.percona.com perconaservermongodbbackups.psmdb.percona.com perconaservermongodbrestores.psmdb.percona.com)
+kubectl label crds "${CRDS[@]}" app.kubernetes.io/managed-by=Helm --overwrite
+kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-name=psmdb-operator-crds --overwrite
+kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=my-namespace --overwrite
+```
+
+### Option 2: Enable CRD Sub-chart as Dependency
+
+Enable CRD management via the sub-chart dependency:
+
+```sh
+helm upgrade my-operator percona/psmdb-operator --namespace my-namespace --set crds.enabled=true
+```
+
+This allows CRDs to be upgraded alongside the operator chart.
+
 The chart can be customized using the following configurable parameters:
 
 | Parameter                    | Description                                                                                                  | Default                                   |

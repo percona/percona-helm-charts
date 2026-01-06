@@ -1,0 +1,6 @@
+dependencies:
+- name: psmdb-operator-crds
+  repository: file://../psmdb-operator-crds
+  version: 1.21.2
+digest: sha256:c119647be576c678a5420937555396e18ea61b86bc949b5834b57a880b8b659d
+generated: "2026-01-05T13:09:24.291634+02:00"
