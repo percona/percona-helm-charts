@@ -136,3 +136,5 @@ haproxy:
       memory: 64Mi
   # Disable anti-affinity for single-node CI testing
   affinity: {}
+  podAntiAffinity:
+    enabled: false
