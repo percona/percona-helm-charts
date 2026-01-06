@@ -55,10 +55,12 @@ kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=my-namespace -
 Enable CRD management via the sub-chart dependency:
 
 ```sh
-helm upgrade my-operator percona/psmdb-operator --namespace my-namespace --set crds.enabled=true
+helm install my-operator percona/psmdb-operator --namespace my-namespace --set crds.enabled=true
 ```
 
 This allows CRDs to be upgraded alongside the operator chart.
+
+> **Important:** If CRDs were previously installed via the `crds/` directory, you cannot enable `crds.enabled=true` without first taking ownership of the existing CRDs. See the [CRD chart README](../psmdb-operator-crds/README.md#taking-ownership-of-existing-crds) for details.
 
 The chart can be customized using the following configurable parameters:
 
