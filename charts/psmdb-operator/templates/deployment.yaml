@@ -14,6 +14,7 @@ metadata:
   {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 10 }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "psmdb-operator.name" . }}

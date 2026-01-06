@@ -4,6 +4,8 @@
 
 replicaCount: 1
 
+revisionHistoryLimit: 10
+
 image:
   repository: percona/percona-server-mongodb-operator
   tag: 1.22.0
