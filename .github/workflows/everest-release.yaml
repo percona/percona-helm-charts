@@ -5,6 +5,11 @@ on:
       version:
         description: "Everest version"
         required: true
+      branch:
+        required: false
+        default: main
+        description: "Branch to checkout for chart release"
+
 jobs:
   release:
     env:
@@ -22,6 +27,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.inputs.branch }}
           sparse-checkout: |
             charts/everest
 

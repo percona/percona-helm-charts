@@ -29,7 +29,7 @@ Notes:
 * Additionally, it also deploys a new namespace called `everest` for your databases and the database operators.
 * If you prefer to manage your database namespace separately, you may set `dbNamespace.enabled=false`.
 * You may override the name of the database namespace using the `dbNamespace.namespaceOverride` parameter.
-* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
+* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.postgresql=false`, `dbNamespace.psmdb=false`].
 * We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
 ### 3. Retrieve the admin password
@@ -63,7 +63,7 @@ helm install everest \
 ```
 
 Notes:
-* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
+* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.postgresql=false`, `dbNamespace.psmdb=false`].
 * We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
 #### 4.1 Deploying additional operators to an existing database namespace
@@ -75,7 +75,7 @@ helm upgrade everest \
     percona/everest-db-namespace \
     --namespace [NAMESPACE]
     --pxc=true \
-    --pg=true
+    --postgresql=true
 ```
 
 The above example assumes that the MongoDB operator is already installed in the database namespace and you would like to install the Percona XtraDB Cluster and PostgreSQL operators.
@@ -114,7 +114,7 @@ As of Helm v3, CRDs are not automatically updated during a Helm upgrade. You mus
 helm repo update
 helm upgrade --install everest-crds \
     percona/everest-crds \
-    --namespace everest-system
+    --namespace everest-system \
     --take-ownership
 ```
 

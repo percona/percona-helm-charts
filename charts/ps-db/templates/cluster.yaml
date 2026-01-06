@@ -1,9 +1,9 @@
-apiVersion: ps.percona.com/v1alpha1
+apiVersion: ps.percona.com/v1
 kind: PerconaServerMySQL
 metadata:
   annotations:
     kubectl.kubernetes.io/last-applied-configuration: |
-      {"apiVersion":"ps.percona.com/v1alpha1","kind":"PerconaServerMySQL"}
+      {"apiVersion":"ps.percona.com/v1","kind":"PerconaServerMySQL"}
   name: {{ include "ps-database.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
@@ -12,13 +12,47 @@ metadata:
 {{ .Values.finalizers | toYaml | indent 4 }}
 
 spec:
+  {{- if .Values.metadata }}
+  metadata: 
+    {{- if .Values.metadata.labels }}
+    labels:
+{{ .Values.metadata.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.metadata.annotations }}
+    annotations:
+{{ .Values.metadata.annotations | toYaml | indent 6 }}
+    {{- end }}
+  {{- end }}
   crVersion: {{ .Chart.AppVersion }}
+  {{- if .Values.enableVolumeExpansion }}
+  enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
+  {{- end }}
   {{- if .Values.unsafeFlags }}
   unsafeFlags:
 {{ .Values.unsafeFlags | toYaml | indent 4 }}
   {{- end }}
-  {{- if .Values.initImage }}
-  initImage: {{ .Values.initImage }}
+  {{- if .Values.initContainer }}
+  initContainer:
+    {{- if hasKey .Values.initContainer "image" }}
+    image: {{ .Values.initContainer.image }}
+    {{- else }}
+    image: {{ include "ps-db.operator-image" . }}
+    {{- end }}
+    {{- if .Values.initContainer.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl (.Values.initContainer.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if .Values.initContainer.resources }}
+    resources:
+      {{- if hasKey .Values.initContainer.resources "requests" }}
+      requests:
+{{ tpl (.Values.initContainer.resources.requests | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if hasKey .Values.initContainer.resources "limits" }}
+      limits:
+{{ tpl (.Values.initContainer.resources.limits | toYaml) $ | indent 8 }}
+      {{- end }}
+  {{- end }}
   {{- end }}
   {{- if .Values.updateStrategy }}
   updateStrategy: {{ .Values.updateStrategy }}
@@ -56,7 +90,7 @@ spec:
   {{- end }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
-{{ .Values.imagePullSecrets | toYaml | indent 4 }}
+{{ .Values.ignoreAnnotations | toYaml | indent 4 }}
   {{- end }}
   {{- if .Values.ignoreLabels }}
   ignoreLabels:
@@ -81,8 +115,32 @@ spec:
     imagePullSecrets:
 {{ $mysql.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
-    {{- if $mysql.initImage }}
-    initImage: "{{ $mysql.initImage }}"
+    {{- if $mysql.initContainer }}
+    initContainer:
+      {{- if hasKey $mysql.initContainer "image" }}
+      image: {{ $mysql.initContainer.image }}
+      {{- else }}
+      image: {{ include "ps-db.operator-image" . }}
+      {{- end }}
+      {{- if $mysql.initContainer.containerSecurityContext }}
+      containerSecurityContext:
+{{ tpl ($mysql.initContainer.containerSecurityContext | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if $mysql.initContainer.resources }}
+      resources:
+        {{- if hasKey $mysql.initContainer.resources "requests" }}
+        requests:
+{{ tpl ($mysql.initContainer.resources.requests | toYaml) $ | indent 10 }}
+        {{- end }}
+        {{- if hasKey $mysql.initContainer.resources "limits" }}
+        limits:
+{{ tpl ($mysql.initContainer.resources.limits | toYaml) $ | indent 10 }}
+        {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- if $mysql.podDisruptionBudget }}
+    podDisruptionBudget:
+{{ $mysql.podDisruptionBudget | toYaml | indent 6 }}
     {{- end }}
     {{- if $mysql.size }}
     size: {{ $mysql.size }}
@@ -105,6 +163,18 @@ spec:
 {{ tpl ($mysql.resources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($mysql.resources.limits | toYaml) $ | indent 8 }}
+    {{- if $mysql.env }}
+    env:
+{{ $mysql.env | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.envFrom }}
+    envFrom:
+{{ $mysql.envFrom | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $mysql.startupProbe }}
+    startupProbe:
+{{ $mysql.startupProbe | toYaml | indent 6 }}
+    {{- end }}
     {{- if $mysql.livenessProbe }}
     livenessProbe:
 {{ $mysql.livenessProbe | toYaml | indent 6 }}
@@ -117,9 +187,13 @@ spec:
 {{ $mysql.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $mysql.nodeSelector | toYaml | indent 6 }}
+{{- if and $mysql.expose (hasKey $mysql.expose "enabled") }}
     expose:
-      {{- if $mysql.expose.enabled }}
 {{ tpl ($mysql.expose | toYaml) $ | indent 6 }}
+{{- end }}
+    exposePrimary:
+      {{- if $mysql.exposePrimary.enabled }}
+{{- tpl ($mysql.exposePrimary | toYaml) $ | nindent 6 }}
       {{- else }}
       enabled: false
       {{- end }}
@@ -127,14 +201,17 @@ spec:
     volumeSpec:
       {{- if $mysql.volumeSpec.hostPath }}
       hostPath:
-        path: {{ $mysql.volumeSpec.hostPath }}
-        type: Directory
+        path: {{ $mysql.volumeSpec.hostPath.path }}
+        type: {{ $mysql.volumeSpec.hostPath.type | default "Directory" }}
       {{- else if $mysql.volumeSpec.pvc }}
       persistentVolumeClaim:
 {{ $mysql.volumeSpec.pvc | toYaml | indent 8 }}
       {{- else }}
       emptyDir: {}
       {{- end }}
+    {{- end }}
+    {{- if $mysql.gracePeriod }}
+    gracePeriod: {{ $mysql.gracePeriod }}
     {{- end }}
     {{- if $mysql.configuration }}
     configuration: |
@@ -176,8 +253,13 @@ spec:
     {{- if not $haproxy.enabled }}
       enabled: false
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
+      size: 0
     {{- else }}
       enabled: true
+      {{- if $haproxy.podDisruptionBudget }}
+      podDisruptionBudget:
+{{ $haproxy.podDisruptionBudget | toYaml | indent 8 }}
+      {{- end }}
       image: {{ $haproxy.image.repository }}:{{ $haproxy.image.tag }}
       {{- if $haproxy.imagePullPolicy }}
       imagePullPolicy: {{ $haproxy.imagePullPolicy }}
@@ -186,8 +268,28 @@ spec:
       imagePullSecrets:
 {{ $haproxy.imagePullSecrets | toYaml | indent 8 }}
       {{- end }}
-      {{- if $haproxy.initImage }}
-      initImage: "{{ $haproxy.initImage }}"
+      {{- if $haproxy.initContainer }}
+      initContainer:
+        {{- if hasKey $haproxy.initContainer "image" }}
+        image: {{ $haproxy.initContainer.image }}
+        {{- else }}
+        image: {{ include "ps-db.operator-image" . }}
+        {{- end }}
+        {{- if $haproxy.initContainer.containerSecurityContext }}
+        containerSecurityContext:
+{{ tpl ($haproxy.initContainer.containerSecurityContext | toYaml) $ | indent 10 }}
+        {{- end }}
+        {{- if $haproxy.initContainer.resources }}
+        resources:
+          {{- if hasKey $haproxy.initContainer.resources "requests" }}
+          requests:
+{{ tpl ($haproxy.initContainer.resources.requests | toYaml) $ | indent 12 }}
+          {{- end }}
+          {{- if hasKey $haproxy.initContainer.resources "limits" }}
+          limits:
+{{ tpl ($haproxy.initContainer.resources.limits | toYaml) $ | indent 12 }}
+          {{- end }}
+        {{- end }}
       {{- end }}
       {{- if $haproxy.size }}
       size: {{ $haproxy.size }}
@@ -222,6 +324,10 @@ spec:
       envFrom:
 {{ $haproxy.envFrom | toYaml | indent 8 }}
       {{- end }}
+      {{- if $haproxy.startupProbe }}
+      startupProbe:
+{{ $haproxy.startupProbe | toYaml | indent 8 }}
+      {{- end }}
       {{- if $haproxy.livenessProbe }}
       livenessProbe:
 {{ $haproxy.livenessProbe | toYaml | indent 8 }}
@@ -229,6 +335,9 @@ spec:
       {{- if $haproxy.readinessProbe }}
       readinessProbe:
 {{ $haproxy.readinessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $haproxy.gracePeriod }}
+      gracePeriod: {{ $haproxy.gracePeriod }}
       {{- end }}
       {{- if $haproxy.configuration }}
       configuration: |
@@ -273,6 +382,9 @@ spec:
     {{- $router := .Values.proxy.router }}
     router:
       size: {{ $router.size }}
+      {{- if $router.gracePeriod }}
+      gracePeriod: {{ $router.gracePeriod }}
+      {{- end }}
     {{- if or (not $router.enabled) (ne .Values.mysql.clusterType "group-replication") }}
       enabled: false
       image: {{ $router.image.repository }}:{{ $router.image.tag }}
@@ -282,18 +394,64 @@ spec:
       {{- if $router.imagePullPolicy }}
       imagePullPolicy: {{ $router.imagePullPolicy }}
       {{- end }}
+      {{- if $router.ports }}
+      ports: 
+{{ $router.ports | toYaml | indent 8 }}
+      {{- end }}
       {{- if $router.imagePullSecrets }}
       imagePullSecrets:
 {{ $router.imagePullSecrets | toYaml | indent 8 }}
       {{- end }}
-      {{- if $router.initImage }}
-      initImage: "{{ $router.initImage }}"
+      {{- if $router.initContainer }}
+      initContainer:
+        {{- if hasKey $router.initContainer "image" }}
+        image: {{ $router.initContainer.image }}
+        {{- else }}
+        image: {{ include "ps-db.operator-image" . }}
+        {{- end }}
+        {{- if $router.initContainer.containerSecurityContext }}
+        containerSecurityContext:
+{{ tpl ($router.initContainer.containerSecurityContext | toYaml) $ | indent 10 }}
+        {{- end }}
+        {{- if $router.initContainer.resources }}
+        resources:
+          {{- if hasKey $router.initContainer.resources "requests" }}
+          requests:
+{{ tpl ($router.initContainer.resources.requests | toYaml) $ | indent 12 }}
+          {{- end }}
+          {{- if hasKey $router.initContainer.resources "limits" }}
+          limits:
+{{ tpl ($router.initContainer.resources.limits | toYaml) $ | indent 12 }}
+          {{- end }}
+        {{- end }}
       {{- end }}
-      affinity:
-{{ $router.affinity | toYaml | indent 8 }}
+      {{- if $router.podDisruptionBudget }}
+      podDisruptionBudget:
+{{ $router.podDisruptionBudget | toYaml | indent 8 }}
+      {{- end }}
       {{- if $router.topologySpreadConstraints }}
       topologySpreadConstraints:
 {{ $router.topologySpreadConstraints | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.env }}
+      env:
+{{ $router.env | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.envFrom }}
+      envFrom:
+{{ $router.envFrom | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.startupProbe }}
+      startupProbe:
+{{ $router.startupProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.livenessProbe }}
+      livenessProbe:
+{{ $router.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $router.readinessProbe }}
+      readinessProbe:
+{{ $router.readinessProbe | toYaml | indent 8 }}
       {{- end }}
       {{- if $router.configuration }}
       configuration: |
@@ -352,11 +510,11 @@ spec:
     {{- end }}
 
   orchestrator:
-    size: {{ .Values.orchestrator.size }}
   {{- $orc := .Values.orchestrator }}
   {{- if or (not $orc.enabled) (ne .Values.mysql.clusterType "async") }}
     enabled: false
     image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
+    size: 0
   {{- else }}
     enabled: true
     image: {{ $orc.image.repository }}:{{ $orc.image.tag }}
@@ -372,17 +530,62 @@ spec:
     {{- else }}
     serviceAccountName: {{ include "ps-database.fullname" . }}-orchestrator
     {{- end }}
-    {{- if $orc.initImage }}
-    initImage: "{{ $orc.initImage }}"
+    {{- if $orc.initContainer }}
+    initContainer:
+      {{- if hasKey $orc.initContainer "image" }}
+      image: {{ $orc.initContainer.image }}
+      {{- else }}
+      image: {{ include "ps-db.operator-image" . }}
+      {{- end }}
+      {{- if $orc.initContainer.containerSecurityContext }}
+      containerSecurityContext:
+{{ tpl ($orc.initContainer.containerSecurityContext | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if $orc.initContainer.resources }}
+      resources:
+        {{- if hasKey $orc.initContainer.resources "requests" }}
+        requests:
+{{ tpl ($orc.initContainer.resources.requests | toYaml) $ | indent 10 }}
+        {{- end }}
+        {{- if hasKey $orc.initContainer.resources "limits" }}
+        limits:
+{{ tpl ($orc.initContainer.resources.limits | toYaml) $ | indent 10 }}
+        {{- end }}
+      {{- end }}
     {{- end }}
-    {{- if $orc.size }}
+    {{- if $orc.env }}
+    env:
+{{ $orc.env | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.envFrom }}
+    envFrom:
+{{ $orc.envFrom | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.startupProbe }}
+    startupProbe:
+{{ $orc.startupProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.livenessProbe }}
+    livenessProbe:
+{{ $orc.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.readinessProbe }}
+    readinessProbe:
+{{ $orc.readinessProbe | toYaml | indent 6 }}
+    {{- end }}
     size: {{ $orc.size }}
+    {{- if $orc.podDisruptionBudget }}
+    podDisruptionBudget:
+{{ $orc.podDisruptionBudget | toYaml | indent 6 }}
     {{- end }}
     affinity:
 {{ $orc.affinity | toYaml | indent 6 }}
     {{- if $orc.topologySpreadConstraints }}
     topologySpreadConstraints:
 {{ $orc.topologySpreadConstraints | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $orc.gracePeriod }}
+    gracePeriod: {{ $orc.gracePeriod }}
     {{- end }}
     {{- if $orc.priorityClassName }}
     priorityClassName: {{ $orc.priorityClassName }}
@@ -439,13 +642,23 @@ spec:
     enabled: false
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
   {{- else }}
+  {{- if $pmm.mysqlParams }}
+    mysqlParams: {{ $pmm.mysqlParams }}
+  {{- end }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
     {{- if $pmm.imagePullPolicy }}
     imagePullPolicy: {{ $pmm.imagePullPolicy }}
     {{- end }}
     serverHost: {{ $pmm.serverHost }}
-    serverUser: {{ $pmm.serverUser }}
+    {{- if $pmm.readinessProbe }}
+    readinessProbe:
+{{ tpl ($pmm.readinessProbe | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $pmm.livenessProbe }}
+    livenessProbe:
+{{ tpl ($pmm.livenessProbe | toYaml) $ | indent 6 }}
+    {{- end }}
     resources:
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
@@ -472,6 +685,9 @@ spec:
   backup:
   {{- $backup := .Values.backup }}
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
+  {{- if $backup.sourcePod }}
+    sourcePod: {{ $backup.sourcePod }}
+  {{- end }}
   {{- if not $backup.enabled }}
     enabled: false
   {{- else }}
@@ -486,8 +702,28 @@ spec:
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
-    {{- if $backup.initImage }}
-    initImage: "{{ $backup.initImage }}"
+    {{- if $backup.initContainer }}
+    initContainer:
+      {{- if hasKey $backup.initContainer "image" }}
+      image: {{ $backup.initContainer.image }}
+      {{- else }}
+      image: {{ include "ps-db.operator-image" . }}
+      {{- end }}
+      {{- if $backup.initContainer.containerSecurityContext }}
+      containerSecurityContext:
+{{ tpl ($backup.initContainer.containerSecurityContext | toYaml) $ | indent 8 }}
+        {{- end }}
+      {{- if $backup.initContainer.resources }}
+      resources:
+        {{- if hasKey $backup.initContainer.resources "requests" }}
+        requests:
+{{ tpl ($backup.initContainer.resources.requests | toYaml) $ | indent 12 }}
+        {{- end }}
+        {{- if hasKey $backup.initContainer.resources "limits" }}
+        limits:
+{{ tpl ($backup.initContainer.resources.limits | toYaml) $ | indent 12 }}
+        {{- end }}
+      {{- end }}
     {{- end }}
     {{- if $backup.backoffLimit }}
     backoffLimit: {{ $backup.backoffLimit }}

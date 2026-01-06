@@ -4,7 +4,7 @@
 
 PMM is an open source database monitoring, observability and management tool.
 
-Check more info here: https://docs.percona.com/percona-monitoring-and-management/index.html
+Check more info here: https://docs.percona.com/percona-monitoring-and-management/3/
 
 ## Prerequisites
 
@@ -45,9 +45,9 @@ It removes all of the resources associated with the last release of the chart as
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |----------------------|
 | `image.repository`                   | PMM image repository                                                                                                                                                                                                                          | `percona/pmm-server` |
 | `image.pullPolicy`                   | PMM image pull policy                                                                                                                                                                                                                         | `IfNotPresent`       |
-| `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.3.1`             |
+| `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.5.0`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
-| `pmmEnv.DISABLE_UPDATES`             | Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `1`                  |
+| `pmmEnv.PMM_ENABLE_UPDATES`          | Enables a periodic check for new PMM versions as well as the ability to apply upgrades using the UI (needs to be disabled in k8s environment as updates are rolled out with 'helm update')                                                        | `1`                  |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
 | `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |
@@ -180,7 +180,7 @@ By default UI update feature is disabled and should not be enabled. Do not modif
 
 ```yaml
 pmmEnv:
-  DISABLE_UPDATES: "1"
+  PMM_ENABLE_UPDATES: "0"
 ```
 
 Before updating the helm chart,  it is recommended to pre-pull the image on the node where PMM is running, as the PMM images could be large and could take time to download
@@ -200,8 +200,8 @@ In case you want to add extra environment variables (useful for advanced operati
 
 ```yaml
 pmmEnv:
-  DISABLE_UPDATES: "1"
-  DATA_RETENTION: "2160h" # 90 days
+  PMM_ENABLE_UPDATES: "0"
+  PMM_DATA_RETENTION: "2160h" # 90 days
 ```
 
 # Need help?

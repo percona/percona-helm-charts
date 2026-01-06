@@ -5,6 +5,17 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+
+{{/*
+Mutual exclusion validation
+*/}}
+{{- define "everest.validateInputs" -}}
+{{- if and .Values.pmm.enabled .Values.pmm3.enabled -}}
+{{ fail "Only one of pmm.enabled or pmm3.enabled may be true. They are mutually exclusive." }}
+{{- end }}
+{{- end }}
+
+
 {{/*
 Allows overriding the install namespace in combined charts.
 */}}
@@ -104,11 +115,19 @@ tls.crt: {{ index $tlsCerts "tls.crt" | default $cert.Cert | b64enc }}
 {{- end }}
 
 {{- define "everestOperator.tlsCerts" -}}
+{{- $currentSecret := lookup "v1" "Secret" (include "everest.namespace" .) "webhook-server-cert" -}}
 {{- $tlsCerts := .Values.operator.webhook.certs }}
+
 {{- if (and (get $tlsCerts "tls.key" ) (get $tlsCerts "tls.crt") (get $tlsCerts "ca.crt") )}}
 tls.key: {{ index $tlsCerts "tls.key" }}
 tls.crt: {{ index $tlsCerts "tls.crt" }}
 ca.crt: {{ index $tlsCerts "ca.crt" }}
+
+{{- else if (and .Release.IsUpgrade .Values.operator.webhook.preserveTLSCerts $currentSecret ) }}
+tls.key: {{ index $currentSecret.data "tls.key" }}
+tls.crt: {{ index $currentSecret.data "tls.crt" }}
+ca.crt: {{ index $currentSecret.data "ca.crt" }}
+
 {{- else }}
 {{- $svcName := printf "everest-operator-webhook-service" }}
 {{- $svcNameWithNS := ( printf "%s.%s" $svcName (include "everest.namespace" .) ) }}
