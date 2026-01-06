@@ -21,7 +21,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 
-crVersion: 1.21.1
+crVersion: 1.22.0
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -57,7 +57,7 @@ imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.21.1
+#   tag: 1.22.0
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
