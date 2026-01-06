@@ -54,16 +54,8 @@ pg-db:
         resources:
           requests:
             storage: 1Gi
-      # Override hard anti-affinity with soft for CI (allows single-node testing)
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 1
-              podAffinityTerm:
-                topologyKey: kubernetes.io/hostname
-                labelSelector:
-                  matchLabels:
-                    postgres-operator.crunchydata.com/data: postgres
+      # Disable anti-affinity for single-node CI testing
+      affinity: {}
   proxy:
     pgBouncer:
       replicas: 3
@@ -74,16 +66,8 @@ pg-db:
         limits:
           cpu: 100m
           memory: 64Mi
-      # Override hard anti-affinity with soft for CI (allows single-node testing)
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 1
-              podAffinityTerm:
-                topologyKey: kubernetes.io/hostname
-                labelSelector:
-                  matchLabels:
-                    postgres-operator.crunchydata.com/role: pgbouncer
+      # Disable anti-affinity for single-node CI testing
+      affinity: {}
   backups:
     enabled: false
 
@@ -147,13 +131,5 @@ haproxy:
     requests:
       cpu: 50m
       memory: 64Mi
-  # Override hard anti-affinity with soft for CI (allows single-node testing)
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 1
-          podAffinityTerm:
-            topologyKey: kubernetes.io/hostname
-            labelSelector:
-              matchLabels:
-                app.kubernetes.io/name: haproxy
+  # Disable anti-affinity for single-node CI testing
+  affinity: {}
