@@ -136,5 +136,3 @@ This means CRDs were previously installed via the `crds/` directory and lack Hel
 | jvpasinatto | <julio.pasinatto@percona.com> |
 | eleo007 | <eleonora.zinchenko@percona.com> |
 | bogdanjeler-ev | <bogdan.jeler@percona.com> |
-
-
