@@ -54,6 +54,8 @@ upgradeOptions:
 enableCRValidationWebhook: false
 tls:
   enabled: true
+  # certValidityDuration: 2160h
+  # caValidityDuration: 26280h
   # SANs:
   #   - pxc-1.example.com
   #   - pxc-2.example.com
@@ -78,7 +80,6 @@ pxc:
   #   internalTrafficPolicy: Local
   #   loadBalancerSourceRanges:
   #   - 10.0.0.0/8
-  #   loadBalancerIP: 127.0.0.1
   #   annotations:
   #     networking.gke.io/load-balancer-type: "Internal"
   #   labels:
@@ -125,6 +126,13 @@ pxc:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # mysqlAllocator: jemalloc
+  # extraPVCs:
+  # - name: my-volume
+  #   claimName: my-existing-pvc
+  #   mountPath: /mnt/data
+  #   readOnly: false
+  #   subPath: ""
   sidecarResources:
     requests: {}
     limits: {}
@@ -291,6 +299,12 @@ haproxy:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # extraPVCs:
+  # - name: my-volume
+  #   claimName: my-existing-pvc
+  #   mountPath: /mnt/data
+  #   readOnly: false
+  #   subPath: ""
   sidecarResources:
     requests: {}
     limits: {}
@@ -356,7 +370,6 @@ haproxy:
   #     rack: rack-22
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
-  #   loadBalancerIP: 127.0.0.1
   # exposeReplicas:
   #   enabled: true
   #   onlyReaders: false
@@ -371,6 +384,10 @@ haproxy:
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
   #   loadBalancerIP: 127.0.0.1
+  # healthCheck:
+  #   interval: 10000
+  #   rise: 1
+  #   fall: 2
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
@@ -386,6 +403,15 @@ proxysql:
   image: percona/proxysql2:2.7.3
   # imagePullPolicy: Always
   imagePullSecrets: []
+#  scheduler:
+#    enabled: false
+#    writerIsAlsoReader: true
+#    checkTimeoutMilliseconds: 2000
+#    successThreshold: 1
+#    failureThreshold: 3
+#    pingTimeoutMilliseconds: 1000
+#    nodeCheckIntervalMilliseconds: 2000
+#    maxConnections: 1000
 #  configuration: |
 #    datadir="/var/lib/proxysql"
 #
@@ -455,11 +481,8 @@ proxysql:
   #     rack: rack-22
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
-  #   loadBalancerIP: 127.0.0.1
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
-  readinessDelaySec: 15
-  livenessDelaySec: 300
   # envVarsSecret: my-env-var-secrets
   resources:
     requests:
@@ -471,6 +494,12 @@ proxysql:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # extraPVCs:
+  # - name: my-volume
+  #   claimName: my-existing-pvc
+  #   mountPath: /mnt/data
+  #   readOnly: false
+  #   subPath: ""
   sidecarResources:
     requests: {}
     limits: {}
@@ -593,6 +622,7 @@ pmm:
 #    successThreshold: 1
   serverHost: monitoring-service
   serverUser: admin
+  # customClusterName: "<string>"
   # pxcParams: "--disable-tablestats-limit=2000"
   # proxysqlParams: "--custom-labels=CUSTOM-LABELS"
   # containerSecurityContext:
@@ -610,9 +640,11 @@ backup:
     repository: percona/percona-xtrabackup
     tag: 8.0.35-33.1
   # backoffLimit: 6
+  # ttlSecondsAfterFinished: 3600
   # activeDeadlineSeconds: 3600
   # startingDeadlineSeconds: 300
   # suspendedDeadlineSeconds: 1200
+  # runningDeadlineSeconds: 300
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
@@ -696,6 +728,9 @@ backup:
     #     #credentialsSecretKey: REPLACE-WITH-AWS-SECRET-KEY
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
     # s3-us-west-binlogs:
     #   type: s3
     #   s3:
@@ -703,6 +738,9 @@ backup:
     #     credentialsSecret: my-cluster-name-backup-s3
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
     # azure-blob:
     #   type: azure
     #   azure:
@@ -728,6 +766,11 @@ backup:
 #         count: 3
 #         deleteFromStorage: true
 #       storageName: s3-us-west
+
+# passwordGenerationOptions:
+#   minLength: 16
+#   maxLength: 20
+#   symbols: "!#$%&()*+,-.<=>?@[]^_{}~"
 
 secrets:
   ## You should be overriding these with your own or specify name for clusterSecretName.
