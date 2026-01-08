@@ -12,7 +12,7 @@ metadata:
     {{- .  | toYaml | nindent 4 }}
   {{- end }}
 spec:
-  crVersion: {{ .Chart.AppVersion }}
+  crVersion: {{ .Values.crVersion | default .Chart.AppVersion }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
@@ -43,6 +43,18 @@ spec:
   vaultSecretName: {{ .Values.secrets.vault }}
   {{- else }}
   vaultSecretName: {{ include "pxc-database.fullname" . }}-vault
+  {{- end }}
+  {{- if .Values.passwordGenerationOptions }}
+  passwordGenerationOptions:
+    {{- if hasKey .Values.passwordGenerationOptions "minLength" }}
+    minLength: {{ .Values.passwordGenerationOptions.minLength }}
+    {{- end }}
+    {{- if hasKey .Values.passwordGenerationOptions "maxLength" }}
+    maxLength: {{ .Values.passwordGenerationOptions.maxLength }}
+    {{- end }}
+    {{- if hasKey .Values.passwordGenerationOptions "symbols" }}
+    symbols: {{ .Values.passwordGenerationOptions.symbols | quote }}
+    {{- end }}
   {{- end }}
   {{- if hasKey .Values.secrets "logCollector" }}
   logCollectorSecretName: {{ .Values.secrets.logCollector }}
@@ -88,6 +100,12 @@ spec:
   {{- if .Values.tls }}
   tls:
     enabled: {{ .Values.tls.enabled }}
+  {{- if hasKey .Values.tls "certValidityDuration" }}
+    certValidityDuration: {{ .Values.tls.certValidityDuration }}
+  {{- end}}
+  {{- if hasKey .Values.tls "caValidityDuration" }}
+    caValidityDuration: {{ .Values.tls.caValidityDuration }}
+  {{- end}}
   {{- if hasKey .Values.tls "SANs" }}
     SANs:
 {{ .Values.tls.SANs | toYaml | indent 6 }}
@@ -153,6 +171,13 @@ spec:
 {{ $pxc.sidecarVolumes | toYaml | indent 6 }}
     sidecarPVCs:
 {{ $pxc.sidecarPVCs | toYaml | indent 6 }}
+    {{- if $pxc.mysqlAllocator }}
+    mysqlAllocator: {{ $pxc.mysqlAllocator }}
+    {{- end }}
+    {{- if $pxc.extraPVCs }}
+    extraPVCs:
+{{ $pxc.extraPVCs | toYaml | indent 6 }}
+    {{- end }}
     sidecarResources:
       requests:
 {{ tpl ($pxc.sidecarResources.requests | toYaml) $ | indent 8 }}
@@ -279,6 +304,10 @@ spec:
 {{ $haproxy.sidecarVolumes | toYaml | indent 6 }}
     sidecarPVCs:
 {{ $haproxy.sidecarPVCs | toYaml | indent 6 }}
+    {{- if $haproxy.extraPVCs }}
+    extraPVCs:
+{{ $haproxy.extraPVCs | toYaml | indent 6 }}
+    {{- end }}
     sidecarResources:
       requests:
 {{ tpl ($haproxy.sidecarResources.requests | toYaml) $ | indent 8 }}
@@ -323,6 +352,18 @@ spec:
 {{ tpl ($haproxy.readinessProbes | toYaml) $ | indent 6 }}
     livenessProbes:
 {{ tpl ($haproxy.livenessProbes | toYaml) $ | indent 6 }}
+    {{- if $haproxy.healthCheck }}
+    healthCheck:
+    {{- if $haproxy.healthCheck.interval }}
+      interval: {{ $haproxy.healthCheck.interval }}
+    {{- end }}
+    {{- if $haproxy.healthCheck.rise }}
+      rise: {{ $haproxy.healthCheck.rise }}
+    {{- end }}
+    {{- if $haproxy.healthCheck.fall }}
+      fall: {{ $haproxy.healthCheck.fall }}
+    {{- end }}
+    {{- end }}
     {{- if $haproxy.containerSecurityContext }}
     containerSecurityContext:
 {{ tpl ($haproxy.containerSecurityContext | toYaml) $ | indent 6 }}
@@ -347,6 +388,10 @@ spec:
     {{- if $proxysql.imagePullSecrets }}
     imagePullSecrets:
     {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $proxysql.scheduler }}
+    scheduler:
+{{ $proxysql.scheduler | toYaml | indent 6 }}
     {{- end }}
     {{- if $proxysql.schedulerName }}
     schedulerName: {{ $proxysql.schedulerName }}
@@ -383,6 +428,10 @@ spec:
 {{ $proxysql.sidecarVolumes | toYaml | indent 6 }}
     sidecarPVCs:
 {{ $proxysql.sidecarPVCs | toYaml | indent 6 }}
+    {{- if $proxysql.extraPVCs }}
+    extraPVCs:
+{{ $proxysql.extraPVCs | toYaml | indent 6 }}
+    {{- end }}
     sidecarResources:
       requests:
 {{ tpl ($proxysql.sidecarResources.requests | toYaml) $ | indent 8 }}
@@ -502,6 +551,9 @@ spec:
     {{- if $pmm.pxcParams }}
     pxcParams: {{ $pmm.pxcParams }}
     {{- end }}
+    {{- if $pmm.customClusterName }}
+    customClusterName: {{ $pmm.customClusterName }}
+    {{- end }}
     {{- if $pmm.proxysqlParams }}
     proxysqlParams: {{ $pmm.proxysqlParams }}
     {{- end }}
@@ -525,11 +577,17 @@ spec:
     {{- if $backup.backoffLimit }}
     backoffLimit: {{ $backup.backoffLimit }}
     {{- end }}
+    {{- if $backup.ttlSecondsAfterFinished }}
+    ttlSecondsAfterFinished: {{ $backup.ttlSecondsAfterFinished }}
+    {{- end }}
     {{- if $backup.activeDeadlineSeconds }}
     activeDeadlineSeconds: {{ $backup.activeDeadlineSeconds }}
     {{- end }}
     {{- if $backup.startingDeadlineSeconds }}
     startingDeadlineSeconds: {{ $backup.startingDeadlineSeconds }}
+    {{- end }}
+    {{- if $backup.runningDeadlineSeconds }}
+    runningDeadlineSeconds: {{ $backup.runningDeadlineSeconds }}
     {{- end }}
     {{- if $backup.suspendedDeadlineSeconds }}
     suspendedDeadlineSeconds: {{ $backup.suspendedDeadlineSeconds }}
