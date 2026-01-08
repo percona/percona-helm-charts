@@ -7,11 +7,11 @@ replicaCount: 3
 pmm:
   resources:
     requests:
-      memory: "512Mi"
-      cpu: "100m"
-    limits:
       memory: "1Gi"
-      cpu: "500m"
+      cpu: "1"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
 
 storage:
   size: 5Gi

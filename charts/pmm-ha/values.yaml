@@ -88,6 +88,15 @@ readyProbeConf:
   periodSeconds: 5
   failureThreshold: 6
 
+## Log streamer sidecar configuration
+## Streams /srv/logs/pmm-managed.log to stdout for kubectl logs access
+## @param logStreamer.enabled Enable log streamer sidecar container
+## @param logStreamer.logFile Path to the log file to stream
+##
+logStreamer:
+  enabled: true
+  logFile: /srv/logs/pmm-managed.log
+
 ## @section PMM secrets
 ##
 secret:

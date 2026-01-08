@@ -195,6 +195,32 @@ spec:
             {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
             {{- end }}
+        {{- if .Values.logStreamer.enabled }}
+        # Sidecar container to stream PMM logs to stdout
+        - name: log-streamer
+          image: busybox:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for log file to be created..."
+              while [ ! -f {{ .Values.logStreamer.logFile }} ]; do
+                sleep 2
+              done
+              echo "Log file found, starting tail..."
+              tail -F {{ .Values.logStreamer.logFile }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+              readOnly: true
+        {{- end }}
       volumes:
         - name: annotations
           projected:
