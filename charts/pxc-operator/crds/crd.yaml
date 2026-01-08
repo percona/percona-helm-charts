@@ -248,6 +248,94 @@ spec:
               latestRestorableTime:
                 format: date-time
                 type: string
+              pvc:
+                properties:
+                  accessModes:
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  dataSource:
+                    properties:
+                      apiGroup:
+                        type: string
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  dataSourceRef:
+                    properties:
+                      apiGroup:
+                        type: string
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                  resources:
+                    properties:
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        type: object
+                    type: object
+                  selector:
+                    properties:
+                      matchExpressions:
+                        items:
+                          properties:
+                            key:
+                              type: string
+                            operator:
+                              type: string
+                            values:
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  storageClassName:
+                    type: string
+                  volumeAttributesClassName:
+                    type: string
+                  volumeMode:
+                    type: string
+                  volumeName:
+                    type: string
+                type: object
               s3:
                 properties:
                   bucket:
@@ -415,6 +503,94 @@ spec:
                   latestRestorableTime:
                     format: date-time
                     type: string
+                  pvc:
+                    properties:
+                      accessModes:
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      dataSource:
+                        properties:
+                          apiGroup:
+                            type: string
+                          kind:
+                            type: string
+                          name:
+                            type: string
+                        required:
+                        - kind
+                        - name
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      dataSourceRef:
+                        properties:
+                          apiGroup:
+                            type: string
+                          kind:
+                            type: string
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                        required:
+                        - kind
+                        - name
+                        type: object
+                      resources:
+                        properties:
+                          limits:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            type: object
+                          requests:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            type: object
+                        type: object
+                      selector:
+                        properties:
+                          matchExpressions:
+                            items:
+                              properties:
+                                key:
+                                  type: string
+                                operator:
+                                  type: string
+                                values:
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      storageClassName:
+                        type: string
+                      volumeAttributesClassName:
+                        type: string
+                      volumeMode:
+                        type: string
+                      volumeName:
+                        type: string
+                    type: object
                   s3:
                     properties:
                       bucket:
@@ -626,6 +802,94 @@ spec:
                       latestRestorableTime:
                         format: date-time
                         type: string
+                      pvc:
+                        properties:
+                          accessModes:
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          dataSource:
+                            properties:
+                              apiGroup:
+                                type: string
+                              kind:
+                                type: string
+                              name:
+                                type: string
+                            required:
+                            - kind
+                            - name
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          dataSourceRef:
+                            properties:
+                              apiGroup:
+                                type: string
+                              kind:
+                                type: string
+                              name:
+                                type: string
+                              namespace:
+                                type: string
+                            required:
+                            - kind
+                            - name
+                            type: object
+                          resources:
+                            properties:
+                              limits:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                type: object
+                              requests:
+                                additionalProperties:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                  x-kubernetes-int-or-string: true
+                                type: object
+                            type: object
+                          selector:
+                            properties:
+                              matchExpressions:
+                                items:
+                                  properties:
+                                    key:
+                                      type: string
+                                    operator:
+                                      type: string
+                                    values:
+                                      items:
+                                        type: string
+                                      type: array
+                                      x-kubernetes-list-type: atomic
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                type: object
+                            type: object
+                            x-kubernetes-map-type: atomic
+                          storageClassName:
+                            type: string
+                          volumeAttributesClassName:
+                            type: string
+                          volumeMode:
+                            type: string
+                          volumeName:
+                            type: string
+                        type: object
                       s3:
                         properties:
                           bucket:
@@ -1168,7 +1432,7 @@ spec:
                         type: number
                     type: object
                   runningDeadlineSeconds:
-                    default: 300
+                    default: 1200
                     format: int64
                     type: integer
                   schedule:
@@ -2792,6 +3056,28 @@ spec:
                       rule: '!(has(self.loadBalancerClass)) || self.type == ''LoadBalancer'''
                   externalTrafficPolicy:
                     type: string
+                  extraPVCs:
+                    items:
+                      properties:
+                        claimName:
+                          minLength: 1
+                          type: string
+                        mountPath:
+                          minLength: 1
+                          type: string
+                        name:
+                          minLength: 1
+                          type: string
+                        readOnly:
+                          type: boolean
+                        subPath:
+                          type: string
+                      required:
+                      - claimName
+                      - mountPath
+                      - name
+                      type: object
+                    type: array
                   gracePeriod:
                     format: int64
                     type: integer
@@ -3474,25 +3760,6 @@ spec:
                           type: object
                       type: object
                     type: array
-                  extraPVCs:
-                    items:
-                      properties:
-                        claimName:
-                          type: string
-                        mountPath:
-                          type: string
-                        name:
-                          type: string
-                        readOnly:
-                          type: boolean
-                        subPath:
-                          type: string
-                      required:
-                      - claimName
-                      - mountPath
-                      - name
-                      type: object
-                    type: array
                   sidecarResources:
                     properties:
                       claims:
@@ -4152,6 +4419,10 @@ spec:
                                         type: integer
                                       signerName:
                                         type: string
+                                      userAnnotations:
+                                        additionalProperties:
+                                          type: string
+                                        type: object
                                     required:
                                     - keyType
                                     - signerName
@@ -6376,6 +6647,28 @@ spec:
                       rule: '!(has(self.loadBalancerClass)) || self.type == ''LoadBalancer'''
                   externalTrafficPolicy:
                     type: string
+                  extraPVCs:
+                    items:
+                      properties:
+                        claimName:
+                          minLength: 1
+                          type: string
+                        mountPath:
+                          minLength: 1
+                          type: string
+                        name:
+                          minLength: 1
+                          type: string
+                        readOnly:
+                          type: boolean
+                        subPath:
+                          type: string
+                      required:
+                      - claimName
+                      - mountPath
+                      - name
+                      type: object
+                    type: array
                   gracePeriod:
                     format: int64
                     type: integer
@@ -7069,25 +7362,6 @@ spec:
                           type: object
                       type: object
                     type: array
-                  extraPVCs:
-                    items:
-                      properties:
-                        claimName:
-                          type: string
-                        mountPath:
-                          type: string
-                        name:
-                          type: string
-                        readOnly:
-                          type: boolean
-                        subPath:
-                          type: string
-                      required:
-                      - claimName
-                      - mountPath
-                      - name
-                      type: object
-                    type: array
                   sidecarResources:
                     properties:
                       claims:
@@ -7747,6 +8021,10 @@ spec:
                                         type: integer
                                       signerName:
                                         type: string
+                                      userAnnotations:
+                                        additionalProperties:
+                                          type: string
+                                        type: object
                                     required:
                                     - keyType
                                     - signerName
@@ -9416,6 +9694,28 @@ spec:
                       rule: '!(has(self.loadBalancerClass)) || self.type == ''LoadBalancer'''
                   externalTrafficPolicy:
                     type: string
+                  extraPVCs:
+                    items:
+                      properties:
+                        claimName:
+                          minLength: 1
+                          type: string
+                        mountPath:
+                          minLength: 1
+                          type: string
+                        name:
+                          minLength: 1
+                          type: string
+                        readOnly:
+                          type: boolean
+                        subPath:
+                          type: string
+                      required:
+                      - claimName
+                      - mountPath
+                      - name
+                      type: object
+                    type: array
                   gracePeriod:
                     format: int64
                     type: integer
@@ -10115,25 +10415,6 @@ spec:
                           type: object
                       type: object
                     type: array
-                  extraPVCs:
-                    items:
-                      properties:
-                        claimName:
-                          type: string
-                        mountPath:
-                          type: string
-                        name:
-                          type: string
-                        readOnly:
-                          type: boolean
-                        subPath:
-                          type: string
-                      required:
-                      - claimName
-                      - mountPath
-                      - name
-                      type: object
-                    type: array
                   sidecarResources:
                     properties:
                       claims:
@@ -10793,6 +11074,10 @@ spec:
                                         type: integer
                                       signerName:
                                         type: string
+                                      userAnnotations:
+                                        additionalProperties:
+                                          type: string
+                                        type: object
                                     required:
                                     - keyType
                                     - signerName

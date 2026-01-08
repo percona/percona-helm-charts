@@ -19,7 +19,7 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.18.0
+crVersion: 1.19.0
 
 enableVolumeExpansion: false
 
@@ -29,7 +29,7 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.18.0"
+#   image: "percona/percona-xtradb-cluster-operator:1.19.0"
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -223,7 +223,7 @@ pxc:
 haproxy:
   enabled: true
   size: 3
-  image: percona/haproxy:2.8.15
+  image: percona/haproxy:2.8.17
   # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -400,7 +400,7 @@ haproxy:
 proxysql:
   enabled: false
   size: 3
-  image: percona/proxysql2:2.7.3
+  image: percona/proxysql2:2.7.3-1.2
   # imagePullPolicy: Always
   imagePullSecrets: []
 #  scheduler:
@@ -606,7 +606,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.3.1
+    tag: 3.5.0
   # imagePullPolicy: Always
   imagePullSecrets: []
 #  readinessProbes:
