@@ -2,7 +2,7 @@
 # Minimal resource requirements to fit in Kind cluster
 
 # Reduce PMM server replicas and resources
-replicaCount: 3
+replicaCount: 1
 
 pmm:
   resources:
@@ -19,7 +19,7 @@ storage:
 clickhouse:
   cluster:
     shards: 1
-    replicas: 3
+    replicas: 1
   resources:
     requests:
       memory: "256Mi"
@@ -40,7 +40,7 @@ clickhouse:
 pg-db:
   instances:
     - name: instance1
-      replicas: 3
+      replicas: 1
       resources:
         requests:
           cpu: 100m
@@ -119,7 +119,7 @@ victoriaMetrics:
 
 # HAProxy with minimal resources
 haproxy:
-  replicaCount: 3
+  replicaCount: 1
   resources:
     limits:
       cpu: 100m
