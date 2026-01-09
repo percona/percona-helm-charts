@@ -4,14 +4,13 @@
 # Reduce PMM server replicas and resources
 replicaCount: 1
 
-pmm:
-  resources:
-    requests:
-      memory: "1Gi"
-      cpu: "1"
-    limits:
-      memory: "2Gi"
-      cpu: "1"
+pmmResources:
+  requests:
+    memory: "1Gi"
+    cpu: "1"
+  limits:
+    memory: "2Gi"
+    cpu: "1"
 
 storage:
   size: 5Gi
