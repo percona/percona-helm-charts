@@ -87,6 +87,18 @@ readyProbeConf:
   periodSeconds: 5
   failureThreshold: 6
 
+## Log streamer sidecar configuration
+## Streams log files to stdout for kubectl logs access
+## Each log file gets its own sidecar container named log-streamer-<index>
+## @param logStreamer.enabled Enable log streamer sidecar containers
+## @param logStreamer.logFiles List of log file paths to stream
+##
+logStreamer:
+  enabled: false
+  logFiles:
+    - /srv/logs/pmm-managed.log
+    - /srv/logs/qan-api2.log
+
 ## @section PMM secrets
 ##
 secret:

@@ -195,6 +195,34 @@ spec:
             {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
             {{- end }}
+        {{- if .Values.logStreamer.enabled }}
+        {{- range $index, $logFile := .Values.logStreamer.logFiles }}
+        # Sidecar container to stream {{ $logFile }} to stdout
+        - name: log-streamer-{{ $index }}
+          image: busybox:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for log file {{ $logFile }} to be created..."
+              while [ ! -f {{ $logFile }} ]; do
+                sleep 2
+              done
+              echo "Log file found, starting tail from beginning..."
+              tail -F -n +1 {{ $logFile }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: {{ $.Values.storage.name }}
+              mountPath: /srv
+              readOnly: true
+        {{- end }}
+        {{- end }}
       volumes:
         - name: annotations
           projected:
