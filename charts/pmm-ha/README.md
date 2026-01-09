@@ -464,7 +464,6 @@ The PMM HA deployment includes several HA-specific environment variables:
 ```yaml
 pmmEnv:
   PMM_HA_ENABLE: "1"               # Enable HA clustering
-  PMM_HA_BOOTSTRAP: "1"            # Bootstrap HA cluster
   PMM_HA_GOSSIP_PORT: "9096"       # Gossip protocol port
   PMM_HA_RAFT_PORT: "9097"         # Raft consensus port
   PMM_HA_GRAFANA_GOSSIP_PORT: "9094"  # Grafana gossip port

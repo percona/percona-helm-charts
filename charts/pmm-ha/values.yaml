@@ -11,11 +11,11 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  repository: perconalab/pmm-server-fb
+  repository: perconalab/pmm-server
   # repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4078-9897801"
+  tag: "3-dev-latest"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -42,7 +42,6 @@ pmmEnv:
   # VMAGENT_remoteWrite_basicAuth_username: ""
   # VMAGENT_remoteWrite_basicAuth_password: ""
   PMM_HA_ENABLE: "1"
-  PMM_HA_BOOTSTRAP: "1"
   PMM_HA_GOSSIP_PORT: "9096"
   PMM_HA_RAFT_PORT: "9097"
   PMM_HA_GRAFANA_GOSSIP_PORT: "9094"
@@ -88,6 +87,18 @@ readyProbeConf:
   initialDelaySeconds: 10
   periodSeconds: 5
   failureThreshold: 6
+
+## Log streamer sidecar configuration
+## Streams log files to stdout for kubectl logs access
+## Each log file gets its own sidecar container named log-streamer-<index>
+## @param logStreamer.enabled Enable log streamer sidecar containers
+## @param logStreamer.logFiles List of log file paths to stream
+##
+logStreamer:
+  enabled: false
+  logFiles:
+    - /srv/logs/pmm-managed.log
+    - /srv/logs/qan-api2.log
 
 ## @section PMM secrets
 ##
