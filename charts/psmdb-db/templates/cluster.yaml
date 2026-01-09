@@ -18,6 +18,30 @@ spec:
   {{- if .Values.platform }}
   platform: {{ .Values.platform }}
   {{- end }}
+  {{- if .Values.vault }}
+  vault:
+    {{- if .Values.vault.endpointURL }}
+    endpointURL: {{ .Values.vault.endpointURL }}
+    {{- end }}
+    {{- if .Values.vault.tlsSecret }}
+    tlsSecret: {{ .Values.vault.tlsSecret }}
+    {{- end }}
+    {{- if .Values.vault.syncUsers }}
+    syncUsers:
+      {{- if .Values.vault.role }}
+      role: {{ .Values.vault.role }}
+      {{- end }}
+      {{- if .Values.vault.mountPath }}
+      mountPath: {{ .Values.vault.mountPath }}
+      {{- end }}
+      {{- if .Values.vault.keyPath }}
+      keyPath: {{ .Values.vault.keyPath }}
+      {{- end }}
+      {{- if .Values.vault.tokenSecret }}
+      tokenSecret: {{ .Values.vault.tokenSecret }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- if hasKey .Values "enableExternalVolumeAutoscaling" }}
   enableExternalVolumeAutoscaling: {{ .Values.enableExternalVolumeAutoscaling }}
