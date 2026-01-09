@@ -95,7 +95,7 @@ readyProbeConf:
 ## @param logStreamer.logFiles List of log file paths to stream
 ##
 logStreamer:
-  enabled: true
+  enabled: false
   logFiles:
     - /srv/logs/pmm-managed.log
     - /srv/logs/qan-api2.log
