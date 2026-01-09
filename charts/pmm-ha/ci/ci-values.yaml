@@ -120,7 +120,7 @@ victoriaMetrics:
 # HAProxy with minimal resources
 haproxy:
   enabled: false
-  replicaCount: 1
+  replicaCount: 3
   resources:
     limits:
       cpu: 100m
