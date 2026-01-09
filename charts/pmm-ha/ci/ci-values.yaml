@@ -2,16 +2,16 @@
 # Minimal resource requirements to fit in Kind cluster
 
 # Reduce PMM server replicas and resources
-replicaCount: 3
+replicaCount: 1
 
 pmm:
   resources:
     requests:
-      memory: "512Mi"
-      cpu: "100m"
-    limits:
       memory: "1Gi"
-      cpu: "500m"
+      cpu: "1"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
 
 storage:
   size: 5Gi
@@ -22,20 +22,20 @@ clickhouse:
     replicas: 3
   resources:
     requests:
-      memory: "256Mi"
+      memory: "1Gi"
       cpu: "100m"
     limits:
-      memory: "512Mi"
+      memory: "1Gi"
       cpu: "500m"
   keeper:
-    replicas: 3
+    replicas: 1
     resources:
       requests:
-        memory: "128Mi"
-        cpu: "50m"
+        memory: "512Mi"
+        cpu: "100m"
       limits:
-        memory: "256Mi"
-        cpu: "200m"
+        memory: "512Mi"
+        cpu: "500m"
 
 pg-db:
   instances:
@@ -44,10 +44,10 @@ pg-db:
       resources:
         requests:
           cpu: 100m
-          memory: 256Mi
+          memory: 1Gi
         limits:
           cpu: 500m
-          memory: 512Mi
+          memory: 1Gi
       dataVolumeClaimSpec:
         accessModes:
           - ReadWriteOnce
@@ -56,7 +56,7 @@ pg-db:
             storage: 1Gi
   proxy:
     pgBouncer:
-      replicas: 3
+      replicas: 1
       resources:
         requests:
           cpu: 50m
@@ -71,10 +71,10 @@ pg-db:
 # NOTE: The VictoriaMetrics operator must be installed separately via pmm-ha-dependencies
 victoriaMetrics:
   enabled: true
-  replicationFactor: 2
+  replicationFactor: 1
   
   vmselect:
-    replicaCount: 2
+    replicaCount: 1
     resources:
       requests:
         memory: "128Mi"
@@ -84,7 +84,7 @@ victoriaMetrics:
         cpu: "200m"
   
   vminsert:
-    replicaCount: 2
+    replicaCount: 1
     resources:
       requests:
         memory: "128Mi"
@@ -95,7 +95,7 @@ victoriaMetrics:
   
   vmauth:
     enabled: true
-    replicaCount: 2
+    replicaCount: 1
     resources:
       requests:
         memory: "64Mi"
