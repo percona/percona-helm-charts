@@ -119,7 +119,6 @@ victoriaMetrics:
 
 # HAProxy with minimal resources
 haproxy:
-  enabled: false
   replicaCount: 3
   resources:
     limits:
