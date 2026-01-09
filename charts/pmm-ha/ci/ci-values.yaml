@@ -22,8 +22,8 @@ clickhouse:
     replicas: 3
   resources:
     requests:
-      memory: "1Gi"
-      cpu: "100m"
+      memory: "512Mi"
+      cpu: "300m"
     limits:
       memory: "1Gi"
       cpu: "500m"
@@ -40,7 +40,7 @@ clickhouse:
 pg-db:
   instances:
     - name: instance1
-      replicas: 3
+      replicas: 1
       resources:
         requests:
           cpu: 100m
