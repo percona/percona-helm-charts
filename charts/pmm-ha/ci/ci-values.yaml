@@ -55,7 +55,8 @@ pg-db:
           requests:
             storage: 1Gi
       # Disable anti-affinity for single-node CI testing
-      affinity: {}
+      affinity:
+        podAntiAffinity: null
   proxy:
     pgBouncer:
       replicas: 1
@@ -67,7 +68,8 @@ pg-db:
           cpu: 100m
           memory: 64Mi
       # Disable anti-affinity for single-node CI testing
-      affinity: {}
+      affinity:
+        podAntiAffinity: null
   backups:
     enabled: false
 
