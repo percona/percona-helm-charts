@@ -132,4 +132,5 @@ haproxy:
       cpu: 50m
       memory: 64Mi
   # Disable anti-affinity for single-node CI testing
-  affinity: {}
+  affinity:
+    podAntiAffinity: null
