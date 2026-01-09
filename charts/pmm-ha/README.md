@@ -666,6 +666,20 @@ Common troubleshooting steps for PMM HA:
 4. **Validate secrets**: Ensure all required secrets are properly configured
 5. **Check storage**: Verify persistent volumes are properly mounted and accessible
 
+## Known Limitations
+
+### Scaling Down to Single Replica
+
+When scaling down to a single PMM replica, ensure the **Raft leader is on pmm-0** before scaling. Kubernetes StatefulSets remove pods in reverse ordinal order (highest first), so:
+
+- Scaling from 3→1 removes pmm-2 and pmm-1, keeping only pmm-0
+- If the Raft leader is on pmm-1 or pmm-2 when you scale down, **PMM will become unreachable**
+
+Only after confirming pmm-0 is the leader, scale down:
+   ```sh
+   helm upgrade <release-name> percona/pmm-ha --namespace <namespace> --set replicas=1
+   ```
+
 # Need help?
 
 **Commercial Support**  | **Community Support** |
