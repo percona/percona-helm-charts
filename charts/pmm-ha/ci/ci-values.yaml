@@ -23,19 +23,19 @@ clickhouse:
   resources:
     requests:
       memory: "1Gi"
-      cpu: "1"
+      cpu: "100m"
     limits:
       memory: "1Gi"
-      cpu: "1"
+      cpu: "500m"
   keeper:
     replicas: 1
     resources:
       requests:
         memory: "512Mi"
-        cpu: "1"
+        cpu: "100m"
       limits:
         memory: "512Mi"
-        cpu: "1"
+        cpu: "500m"
 
 pg-db:
   instances:
