@@ -220,6 +220,12 @@ service:
 
 replicas: 3
 
+## @param maxReplicas Maximum number of PMM replicas for HAProxy server-template
+## HAProxy uses DNS-based discovery with server-template. This value sets the
+## maximum number of server slots HAProxy will create. Adjust if you plan to
+## scale beyond 10 replicas.
+maxReplicas: 10
+
 ## Ingress controller configuration
 ##
 ingress:
@@ -482,7 +488,10 @@ haproxy:
     ## For MetalLB: metallb.universe.tf/address-pool: "production-public-ips"
     annotations: {}
   
-  # Pod annotations - increment the version value to trigger HAProxy pod rolling when config changes
+  # Pod annotations
+  # Note: HAProxy uses DNS-based discovery (server-template) for PMM backends,
+  # so scaling up/down replicas does NOT require HAProxy restart.
+  # Increment config-version only for other ConfigMap changes that require restart.
   podAnnotations:
     pmm.percona.com/config-version: "3"
 
