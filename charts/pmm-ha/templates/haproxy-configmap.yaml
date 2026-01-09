@@ -56,10 +56,8 @@ data:
         option httpchk
         http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
         http-check expect status 200
-        {{- range $i := until (int .Values.replicas) }}
-        {{- if eq $i 0 }}
-        server {{ $.Release.Name }}-{{ $i }}-https {{ $.Release.Name }}-{{ $i }}.{{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none resolvers k8s init-addr last,libc,none
-        {{- else }}
-        server {{ $.Release.Name }}-{{ $i }}-https {{ $.Release.Name }}-{{ $i }}.{{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none resolvers k8s init-addr last,libc,none
-        {{- end }}
-        {{- end }}
+        # Use server-template for dynamic DNS-based discovery of PMM pods
+        # This automatically discovers pods when scaling up/down without requiring HAProxy restart
+        # HAProxy will re-resolve DNS based on 'hold valid' setting in the resolver (10s)
+        server-template pmm 1-{{ $.Values.maxReplicas | default 10 }} {{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none resolvers k8s init-addr last,libc,none
+    
