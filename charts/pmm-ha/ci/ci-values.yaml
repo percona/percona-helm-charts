@@ -1,17 +1,6 @@
 # CI-specific values for GitHub Actions testing
 # Minimal resource requirements to fit in Kind cluster
 
-# Reduce PMM server replicas and resources
-replicaCount: 1
-
-pmmResources:
-  requests:
-    memory: "1Gi"
-    cpu: "500m"
-  limits:
-    memory: "2Gi"
-    cpu: "1"
-
 storage:
   size: 5Gi
 
