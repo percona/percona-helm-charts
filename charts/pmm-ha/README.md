@@ -65,7 +65,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n 
 
 #### Step 2: Install PMM HA
 
-Once all operators are ready, install the PMM HA chart:
+Once all operators are ready, install the chart:
 
 ```sh
 # Install PMM HA

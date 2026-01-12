@@ -1,18 +1,6 @@
 # CI-specific values for GitHub Actions testing
 # Minimal resource requirements to fit in Kind cluster
 
-# Reduce PMM server replicas and resources
-replicaCount: 1
-
-pmm:
-  resources:
-    requests:
-      memory: "1Gi"
-      cpu: "1"
-    limits:
-      memory: "2Gi"
-      cpu: "1"
-
 storage:
   size: 5Gi
 
@@ -22,8 +10,8 @@ clickhouse:
     replicas: 3
   resources:
     requests:
-      memory: "1Gi"
-      cpu: "100m"
+      memory: "512Mi"
+      cpu: "300m"
     limits:
       memory: "1Gi"
       cpu: "500m"
@@ -40,7 +28,7 @@ clickhouse:
 pg-db:
   instances:
     - name: instance1
-      replicas: 3
+      replicas: 1
       resources:
         requests:
           cpu: 100m
@@ -54,6 +42,9 @@ pg-db:
         resources:
           requests:
             storage: 1Gi
+      # Disable anti-affinity for single-node CI testing
+      affinity:
+        podAntiAffinity: null
   proxy:
     pgBouncer:
       replicas: 1
@@ -64,6 +55,9 @@ pg-db:
         limits:
           cpu: 100m
           memory: 64Mi
+      # Disable anti-affinity for single-node CI testing
+      affinity:
+        podAntiAffinity: null
   backups:
     enabled: false
 
@@ -127,3 +121,6 @@ haproxy:
     requests:
       cpu: 50m
       memory: 64Mi
+  # Disable anti-affinity for single-node CI testing
+  affinity:
+    podAntiAffinity: null
