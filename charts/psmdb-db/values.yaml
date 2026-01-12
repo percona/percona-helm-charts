@@ -49,6 +49,12 @@ upgradeOptions:
   schedule: "0 2 * * *"
   setFCV: false
 
+#storageAutoscaling:
+#  enabled: false
+#  triggerThresholdPercent: 80
+#  growthStepGi: 2
+#  maxSize: "100Gi"
+
 image:
   repository: percona/percona-server-mongodb
   tag: 8.0.12-4

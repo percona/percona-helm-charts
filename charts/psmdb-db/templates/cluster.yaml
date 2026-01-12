@@ -77,6 +77,19 @@ spec:
     schedule: {{ .Values.upgradeOptions.schedule }}
     setFCV: {{ .Values.upgradeOptions.setFCV }}
   {{- end }}
+  {{- if .Values.storageAutoscaling }}
+  storageAutoscaling:
+    enabled: {{ .Values.storageAutoscaling.enabled }}
+    {{- if .Values.storageAutoscaling.triggerThresholdPercent }}
+    triggerThresholdPercent: {{ .Values.storageAutoscaling.triggerThresholdPercent }}
+    {{- end }}
+    {{- if .Values.storageAutoscaling.growthStepGi }}
+    growthStepGi: {{ .Values.storageAutoscaling.growthStepGi }}
+    {{- end }}
+    {{- if .Values.storageAutoscaling.maxSize }}
+    maxSize: {{ .Values.storageAutoscaling.maxSize }}
+    {{- end }}
+  {{- end }}
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
