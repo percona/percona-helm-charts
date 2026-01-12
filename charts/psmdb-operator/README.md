@@ -26,7 +26,7 @@ helm install my-operator percona/psmdb-operator --version 1.22.0 --namespace my-
 
 By default, Helm installs CRDs from the `crds/` directory only during initial installation and does not upgrade them. To upgrade CRDs, you have two options:
 
-### Option 1: Use the Separate CRD Chart (Recommended)
+### Option 1: Use the Separate CRD Chart
 
 Install or upgrade CRDs using the dedicated CRD chart:
 

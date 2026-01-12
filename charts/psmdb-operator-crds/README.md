@@ -20,7 +20,7 @@ This separate CRD chart allows you to:
 
 ## Installation
 
-### Option 1: Install CRDs Separately (Recommended for Production)
+### Option 1: Install CRDs Separately
 
 Install the CRD chart first:
 

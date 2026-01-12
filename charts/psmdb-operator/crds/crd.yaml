@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/component: crd
     app.kubernetes.io/name: percona-server-mongodb
     app.kubernetes.io/part-of: percona-server-mongodb-operator
-    app.kubernetes.io/version: v1.21.0
+    app.kubernetes.io/version: v1.22.0
   name: perconaservermongodbbackups.psmdb.percona.com
 spec:
   group: psmdb.percona.com
@@ -227,9 +227,7 @@ spec:
     served: true
     storage: true
     subresources:
-      status: {}
----
-apiVersion: apiextensions.k8s.io/v1
+      status: {}apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
@@ -238,7 +236,7 @@ metadata:
     app.kubernetes.io/component: crd
     app.kubernetes.io/name: percona-server-mongodb
     app.kubernetes.io/part-of: percona-server-mongodb-operator
-    app.kubernetes.io/version: v1.21.0
+    app.kubernetes.io/version: v1.22.0
   name: perconaservermongodbrestores.psmdb.percona.com
 spec:
   group: psmdb.percona.com
@@ -468,9 +466,7 @@ spec:
     served: true
     storage: true
     subresources:
-      status: {}
----
-apiVersion: apiextensions.k8s.io/v1
+      status: {}apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
@@ -479,7 +475,7 @@ metadata:
     app.kubernetes.io/component: crd
     app.kubernetes.io/name: percona-server-mongodb
     app.kubernetes.io/part-of: percona-server-mongodb-operator
-    app.kubernetes.io/version: v1.21.0
+    app.kubernetes.io/version: v1.22.0
   name: perconaservermongodbs.psmdb.percona.com
 spec:
   group: psmdb.percona.com
