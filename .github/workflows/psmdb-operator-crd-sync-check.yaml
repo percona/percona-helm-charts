@@ -5,12 +5,6 @@ on:
     paths:
       - 'charts/psmdb-operator/**'
       - 'charts/psmdb-operator-crds/**'
-  push:
-    branches:
-      - main
-    paths:
-      - 'charts/psmdb-operator/**'
-      - 'charts/psmdb-operator-crds/**'
 
 jobs:
   check-crd-sync:
