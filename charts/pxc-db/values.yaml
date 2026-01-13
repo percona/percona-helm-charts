@@ -69,7 +69,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.42-33.1
+    tag: 8.4.7-7.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
@@ -638,7 +638,7 @@ backup:
   # allowParallel: true
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.0.35-33.1
+    tag: 8.4.0-5.1
   # backoffLimit: 6
   # ttlSecondsAfterFinished: 3600
   # activeDeadlineSeconds: 3600
