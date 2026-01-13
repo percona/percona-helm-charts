@@ -86,24 +86,25 @@ jobs:
           echo ""
           
           # Combine CRD templates into a single file
+          # Note: The original crd.yaml file concatenates CRDs directly without separators
+          # Format: "status: {}apiVersion: apiextensions.k8s.io/v1" (no newline between CRDs)
           TEMP_COMBINED=$(mktemp)
           for crd in charts/psmdb-operator-crds/templates/*.yaml; do
-            cat "$crd" >> "$TEMP_COMBINED"
-            echo "---" >> "$TEMP_COMBINED"
+            # Remove Windows line endings and trailing newline, then append
+            # This ensures CRDs are concatenated directly: "status: {}apiVersion: ..."
+            # Use awk to print all lines but remove trailing newline from last line
+            awk '{if (NR>1) print prev_line; prev_line=$0} END {printf "%s", prev_line}' "$crd" | sed 's/\r$//' >> "$TEMP_COMBINED"
           done
-          
-          # Remove trailing separator if present
-          if [ "$(tail -c 5 "$TEMP_COMBINED" | tr -d '\n')" = "---" ]; then
-            truncate -s -5 "$TEMP_COMBINED"
-            echo "" >> "$TEMP_COMBINED"
-          fi
+          # Add final newline at end of file (original file has one at the very end)
+          echo "" >> "$TEMP_COMBINED"
           
           # Normalize both files for comparison (remove trailing whitespace, normalize line endings)
           TEMP_CRDS=$(mktemp)
           TEMP_TEMPLATES=$(mktemp)
           
-          cat charts/psmdb-operator/crds/crd.yaml | sed 's/[[:space:]]*$//' > "$TEMP_CRDS"
-          cat "$TEMP_COMBINED" | sed 's/[[:space:]]*$//' > "$TEMP_TEMPLATES"
+          # Normalize: remove Windows line endings, remove trailing whitespace
+          cat charts/psmdb-operator/crds/crd.yaml | sed 's/\r$//' | sed 's/[[:space:]]*$//' > "$TEMP_CRDS"
+          cat "$TEMP_COMBINED" | sed 's/\r$//' | sed 's/[[:space:]]*$//' > "$TEMP_TEMPLATES"
           
           # Compare files
           if diff -q "$TEMP_CRDS" "$TEMP_TEMPLATES" > /dev/null; then
@@ -115,7 +116,10 @@ jobs:
             echo "charts/psmdb-operator-crds/templates/*.yaml must match."
             echo ""
             echo "To sync them, run:"
-            echo "  cat charts/psmdb-operator-crds/templates/*.yaml > charts/psmdb-operator/crds/crd.yaml"
+            echo "  # Combine templates without separators (matching original format)"
+            echo "  rm -f temp.yaml && for f in charts/psmdb-operator-crds/templates/*.yaml; do"
+            echo "    awk '{if (NR>1) print prev_line; prev_line=\$0} END {printf \"%s\", prev_line}' \"\$f\" | sed 's/\r\$//' >> temp.yaml"
+            echo "  done && echo '' >> temp.yaml && mv temp.yaml charts/psmdb-operator/crds/crd.yaml"
             echo ""
             echo "Showing first 50 lines of differences:"
             diff -u "$TEMP_CRDS" "$TEMP_TEMPLATES" | head -50 || true
