@@ -5468,6 +5468,24 @@ entries:
     version: 0.2.0
   psmdb-db:
   - apiVersion: v2
+    appVersion: 1.21.2
+    created: "2026-01-13T11:43:51.703516282Z"
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
+    digest: ba420e43f920cad44d9451aa89044fd64af0dd7a88c9e15e044bddb0c953bf5c
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
+    maintainers:
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    name: psmdb-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-1.21.2/psmdb-db-1.21.2.tgz
+    version: 1.21.2
+  - apiVersion: v2
     appVersion: 1.21.1
     created: "2025-10-30T14:04:31.818391295Z"
     description: A Helm chart for installing Percona Server MongoDB Cluster Databases
@@ -6152,6 +6170,23 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-0.1.0/psmdb-db-0.1.0.tgz
     version: 0.1.0
   psmdb-operator:
+  - apiVersion: v2
+    appVersion: 1.21.2
+    created: "2026-01-13T11:43:51.939784049Z"
+    description: A Helm chart for deploying the Percona Operator for MongoDB
+    digest: 4089d1ae0f4f8c90b172fcde4e06d5ed5cf3df98c1fa1819c3e7ae7d13518277
+    home: https://docs.percona.com/percona-operator-for-mongodb/
+    maintainers:
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    name: psmdb-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-1.21.3/psmdb-operator-1.21.3.tgz
+    version: 1.21.3
   - apiVersion: v2
     appVersion: 1.21.1
     created: "2025-10-30T14:04:32.048432003Z"
@@ -8307,4 +8342,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2026-01-12T10:21:02.131697072Z"
+generated: "2026-01-13T11:43:51.940702554Z"
