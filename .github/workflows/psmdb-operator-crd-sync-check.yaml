@@ -95,16 +95,17 @@ jobs:
             # Use awk to print all lines but remove trailing newline from last line
             awk '{if (NR>1) print prev_line; prev_line=$0} END {printf "%s", prev_line}' "$crd" | sed 's/\r$//' >> "$TEMP_COMBINED"
           done
-          # Add final newline at end of file (original file has one at the very end)
-          echo "" >> "$TEMP_COMBINED"
+          # Original file has no trailing newline, so don't add one
           
           # Normalize both files for comparison (remove trailing whitespace, normalize line endings)
           TEMP_CRDS=$(mktemp)
           TEMP_TEMPLATES=$(mktemp)
           
           # Normalize: remove Windows line endings, remove trailing whitespace
-          cat charts/psmdb-operator/crds/crd.yaml | sed 's/\r$//' | sed 's/[[:space:]]*$//' > "$TEMP_CRDS"
-          cat "$TEMP_COMBINED" | sed 's/\r$//' | sed 's/[[:space:]]*$//' > "$TEMP_TEMPLATES"
+          # Also remove trailing newline to match original format (original has no trailing newline)
+          # Use perl for portable trailing newline removal
+          cat charts/psmdb-operator/crds/crd.yaml | sed 's/\r$//' | sed 's/[[:space:]]*$//' | perl -pe 'chomp if eof' > "$TEMP_CRDS"
+          cat "$TEMP_COMBINED" | sed 's/\r$//' | sed 's/[[:space:]]*$//' | perl -pe 'chomp if eof' > "$TEMP_TEMPLATES"
           
           # Compare files
           if diff -q "$TEMP_CRDS" "$TEMP_TEMPLATES" > /dev/null; then
@@ -119,7 +120,8 @@ jobs:
             echo "  # Combine templates without separators (matching original format)"
             echo "  rm -f temp.yaml && for f in charts/psmdb-operator-crds/templates/*.yaml; do"
             echo "    awk '{if (NR>1) print prev_line; prev_line=\$0} END {printf \"%s\", prev_line}' \"\$f\" | sed 's/\r\$//' >> temp.yaml"
-            echo "  done && echo '' >> temp.yaml && mv temp.yaml charts/psmdb-operator/crds/crd.yaml"
+            echo "  done && mv temp.yaml charts/psmdb-operator/crds/crd.yaml"
+            echo "  # Note: Original file has no trailing newline"
             echo ""
             echo "Showing first 50 lines of differences:"
             diff -u "$TEMP_CRDS" "$TEMP_TEMPLATES" | head -50 || true
