@@ -127,12 +127,3 @@ This means CRDs were previously installed via the `crds/` directory and lack Hel
    helm install psmdb-operator percona/psmdb-operator --namespace psmdb
    # Don't set crds.enabled=true if CRDs already exist from crds/ directory
    ```
-
-## Maintainers
-
-| Name | Email |
-| ---- | ----- |
-| nmarukovich | <natalia.marukovich@percona.com> |
-| jvpasinatto | <julio.pasinatto@percona.com> |
-| eleo007 | <eleonora.zinchenko@percona.com> |
-| bogdanjeler-ev | <bogdan.jeler@percona.com> |
