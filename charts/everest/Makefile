@@ -1,7 +1,10 @@
 HELM ?= helm
 
 # values to override
-IMAGE_PREFIX ?= percona
+IMAGE_PREFIX ?= ghcr.io/openeverest
+EVEREST_SERVER_IMAGE_NAME ?= everest
+EVEREST_OPERATOR_IMAGE_NAME ?= everest-operator
+EVEREST_CATALOG_IMAGE_NAME ?= everest-catalog
 TELEMETRY ?= true
 VERSION ?= 0.0.0
 
@@ -12,9 +15,9 @@ prepare-chart:
 		yq eval -i '.version = "${VERSION}"' $$chart; \
 		yq eval -i '.appVersion = "${VERSION}"' $$chart; \
 	done
-	yq eval -i '.server.image = "$(IMAGE_PREFIX)/everest"' values.yaml
-	yq eval -i '.olm.catalogSourceImage = "$(IMAGE_PREFIX)/everest-catalog"' values.yaml
-	yq eval -i '.operator.image = "$(IMAGE_PREFIX)/everest-operator"' values.yaml
+	yq eval -i '.server.image = "$(IMAGE_PREFIX)/$(EVEREST_SERVER_IMAGE_NAME)"' values.yaml
+	yq eval -i '.olm.catalogSourceImage = "$(IMAGE_PREFIX)/$(EVEREST_CATALOG_IMAGE_NAME)"' values.yaml
+	yq eval -i '.operator.image = "$(IMAGE_PREFIX)/$(EVEREST_OPERATOR_IMAGE_NAME)"' values.yaml
 	yq eval -i '.telemetry = $(TELEMETRY)' values.yaml
 	yq eval -i '(.dependencies[] | select(.name == "everest-db-namespace")).version = "${VERSION}"' Chart.yaml
 	yq eval -i '(.dependencies[] | select(.name == "everest-crds")).version = "${VERSION}"' Chart.yaml
@@ -32,7 +35,9 @@ release: release-crds
 release: prepare-chart
 
 .PHONY: release-dev
-release-dev: IMAGE_PREFIX=perconalab
+release-dev: EVEREST_SERVER_IMAGE_NAME := everest-dev
+release-dev: EVEREST_OPERATOR_IMAGE_NAME := everest-operator-dev
+release-dev: EVEREST_CATALOG_IMAGE_NAME := everest-catalog-dev
 release-dev: TELEMETRY=false
 release-dev: release-crds
 release-dev: prepare-chart
