@@ -2,9 +2,9 @@ HELM ?= helm
 
 # values to override
 IMAGE_PREFIX ?= ghcr.io/openeverest
-EVEREST_SERVER_IMAGE_NAME ?= everest
-EVEREST_OPERATOR_IMAGE_NAME ?= everest-operator
-EVEREST_CATALOG_IMAGE_NAME ?= everest-catalog
+EVEREST_SERVER_IMAGE_NAME ?= openeverest
+EVEREST_OPERATOR_IMAGE_NAME ?= openeverest-operator
+EVEREST_CATALOG_IMAGE_NAME ?= openeverest-catalog
 TELEMETRY ?= true
 VERSION ?= 0.0.0
 
@@ -35,9 +35,9 @@ release: release-crds
 release: prepare-chart
 
 .PHONY: release-dev
-release-dev: EVEREST_SERVER_IMAGE_NAME := everest-dev
-release-dev: EVEREST_OPERATOR_IMAGE_NAME := everest-operator-dev
-release-dev: EVEREST_CATALOG_IMAGE_NAME := everest-catalog-dev
+release-dev: EVEREST_SERVER_IMAGE_NAME := openeverest-dev
+release-dev: EVEREST_OPERATOR_IMAGE_NAME := openeverest-operator-dev
+release-dev: EVEREST_CATALOG_IMAGE_NAME := openeverest-catalog-dev
 release-dev: TELEMETRY=false
 release-dev: release-crds
 release-dev: prepare-chart
