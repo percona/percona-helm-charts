@@ -25,10 +25,10 @@ compatibility:
 namespaceOverride: ""
 # -- If set, enabled sending telemetry information.
 # In production release, this value is `true` by default.
-telemetry: true
+telemetry: false
 server:
   # -- Image to use for the server container.
-  image: ghcr.io/openeverest/openeverest
+  image: ghcr.io/openeverest/openeverest-dev
   # -- Resources to allocate for the server container.
   resources:
     limits:
@@ -147,7 +147,7 @@ operator:
   # -- Enable initContainer migration
   init: true
   # -- Image to use for the Everest operator container.
-  image: ghcr.io/openeverest/openeverest-operator
+  image: ghcr.io/openeverest/openeverest-operator-dev
   # -- Health probe address for the operator.
   healthProbeAddr: ":8081"
   # -- Metrics address for the operator.
@@ -221,7 +221,7 @@ olm:
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
   namespaceOverride: everest-olm
   # -- Image to use for Everest CatalogSource.
-  catalogSourceImage: ghcr.io/openeverest/openeverest-catalog
+  catalogSourceImage: ghcr.io/openeverest/openeverest-catalog-dev
   # -- Image to use for the OLM components.
   image: percona/olm@sha256:13e8f4e919e753faa7da35a9064822381098bcd44acc284877bf0964ceecbfd5
   packageserver:
