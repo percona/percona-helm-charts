@@ -75,7 +75,13 @@ pmmEnv:
 #   limits:
 #     memory: "4Gi"
 #     cpu: "2"
-pmmResources: {}
+pmmResources:
+  requests:
+    memory: "2Gi"
+    cpu: "1"
+  limits:
+    memory: "4Gi"
+    cpu: "2"
 
 ## Readiness probe Config
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
@@ -688,6 +694,18 @@ pg-db:
     #     memory: 200M
     #     cpu: 500m
 
+## @section Kubernetes cluster metrics (kube-state-metrics + node-exporter)
+## Installs kube-state-metrics and node-exporter by default and lets the
+## built-in VMAgent scrape them along with kubelet/cAdvisor and apiserver.
+## ref: https://github.com/kubernetes/kube-state-metrics
+## ref: https://github.com/prometheus/node_exporter
+kube-state-metrics:
+  enabled: true
+
+prometheus-node-exporter:
+  enabled: true
+
+
 ## @section VictoriaMetrics Configuration
 ## 
 ## IMPORTANT: The VictoriaMetrics Operator must be installed separately using the pmm-ha-dependencies chart
@@ -766,7 +784,8 @@ victoriaMetrics:
     ## @param victoriaMetrics.vminsert.podAnnotations Annotations for vminsert pods
     podAnnotations: {}
     ## @param victoriaMetrics.vminsert.extraArgs Extra arguments for vminsert
-    extraArgs: {}
+    extraArgs:
+      maxLabelsPerTimeseries: "50"
   
   ## VMAuth configuration - authentication proxy
   ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)

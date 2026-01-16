@@ -502,6 +502,34 @@ pmmEnv:
   DATA_RETENTION: "2160h" # 90 days
 ```
 
+### Kubernetes cluster metrics
+
+By default, this chart deploys `kube-state-metrics` and `node-exporter`, and the built-in VMAgent scrapes:
+
+- kube-state-metrics (object state)
+- node-exporter (node CPU/memory/disk/network)
+- kubelet and cAdvisor (pod/container usage)
+- Kubernetes apiserver
+
+To disable exporters:
+
+```yaml
+kube-state-metrics:
+  enabled: false
+
+prometheus-node-exporter:
+  enabled: false
+```
+
+**Note on label cardinality**: Container metrics from cAdvisor may have many labels (especially in EKS/GKE with cloud provider labels). The default VMInsert limit is 50 labels per timeseries. If you see "ignoring series... increase -maxLabelsPerTimeseries" warnings, increase the limit:
+
+```yaml
+victoriaMetrics:
+  vminsert:
+    extraArgs:
+      maxLabelsPerTimeseries: "60"
+```
+
 ### External access to PMM HA
 
 By default, HAProxy is only accessible within the cluster. To enable external access from outside the cluster, configure the HAProxy service type.
