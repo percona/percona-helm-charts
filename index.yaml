@@ -810,6 +810,25 @@ entries:
     version: 1.3.0
   everest-crds:
   - apiVersion: v2
+    appVersion: 1.12.0-rc1
+    created: "2026-01-16T14:01:53.814069769Z"
+    description: A Helm chart for Everest Custom Resource Definitions (CRDs).
+    digest: 34466ff7a917c724077988e7b21f48c0c541bbb3c77280f8c1c4160bdc8fe3ee
+    maintainers:
+    - email: mayank.shah@percona.com
+      name: mayankshah1607
+    - email: oksana.grishchenko@percona.com
+      name: oksana-grishchenko
+    - email: diogo.recharte@percona.com
+      name: recharte
+    - email: maxim.kondratenko@percona.com
+      name: maxkondr
+    name: everest-crds
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/everest-crds-1.12.0-rc1/everest-crds-1.12.0-rc1.tgz
+    version: 1.12.0-rc1
+  - apiVersion: v2
     appVersion: 1.11.0
     created: "2026-01-12T10:21:01.970954893Z"
     description: A Helm chart for Everest Custom Resource Definitions (CRDs).
@@ -981,6 +1000,30 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/everest-crds-1.9.0/everest-crds-1.9.0.tgz
     version: 1.9.0
   everest-db-namespace:
+  - apiVersion: v2
+    appVersion: 1.12.0-rc1
+    created: "2026-01-16T14:01:53.97526051Z"
+    dependencies:
+    - name: common
+      repository: file://../common
+      version: 0.0.*
+    description: A sub-chart for provisioning Everest DB namespaces.
+    digest: c0be29fb8facc898648531fdd7e3f70a4e43f1b6bfe3421a24939e10e80d7df0
+    kubeVersion: '>= 1.27.0-0'
+    maintainers:
+    - email: mayank.shah@percona.com
+      name: mayankshah1607
+    - email: oksana.grishchenko@percona.com
+      name: oksana-grishchenko
+    - email: diogo.recharte@percona.com
+      name: recharte
+    - email: maxim.kondratenko@percona.com
+      name: maxkondr
+    name: everest-db-namespace
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/everest-db-namespace-1.12.0-rc1/everest-db-namespace-1.12.0-rc1.tgz
+    version: 1.12.0-rc1
   - apiVersion: v2
     appVersion: 1.11.0
     created: "2026-01-12T10:21:02.131011099Z"
@@ -8397,4 +8440,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2026-01-16T14:01:48.788102294Z"
+generated: "2026-01-16T14:01:53.975975861Z"
