@@ -4,6 +4,14 @@
 storage:
   size: 5Gi
 
+pmmResources:
+  requests:
+    memory: "512Mi"
+    cpu: "200m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
 clickhouse:
   cluster:
     shards: 1
