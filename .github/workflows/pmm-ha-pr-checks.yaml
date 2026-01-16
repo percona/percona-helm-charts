@@ -93,11 +93,11 @@ jobs:
           
           echo "All operators are ready!"
 
-      # - name: Setup tmate session on failure
-      #   uses: mxschmitt/action-tmate@v3
-      #   timeout-minutes: 60
-      #   with:
-      #     limit-access-to-actor: true 
+      - name: Setup tmate session on failure
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 60
+        with:
+          limit-access-to-actor: true 
 
       - name: Run chart-testing (install pmm-ha)
         if: steps.list-changed.outputs.changed == 'true'
