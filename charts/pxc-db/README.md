@@ -259,7 +259,7 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.podSecurityContext`                      | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                                                                                                                                                                                                    | `{}`                              |
 | |
 | `logcollector.enabled`                  | Enable log collector container                                                             | `true`                                                        |
-| `logcollector.image`                    | Log collector image repository                                                             | `percona/fluentbit:4.0.1`                                     |
+| `logcollector.image`                    | Log collector image repository                                                             | `percona/fluentbit:4.0.1-1`                                    |
 | `logcollector.imagePullSecrets`         | Log collector pull secret                                                                  | `[]`                                                          |
 | `logcollector.imagePullPolicy`          | The policy used to update images                                                           | ``                                                            |
 | `logcollector.configuration`            | User defined configuration for logcollector                                                | ``                                                            |
