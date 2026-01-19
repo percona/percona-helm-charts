@@ -20,14 +20,14 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.19.0 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.20.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                         | Description                                                                                          | Default                              |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `crVersion`                                       | Version of the Operator the Custom Resource belongs to                                               | `1.19.0`                             |
+| `crVersion`                                       | Version of the Operator the Custom Resource belongs to                                               | `1.20.0`                             |
 | `ignoreAnnotations`                               | Operator will not remove following annotations                                                       | `[]`                                 |
 | `ignoreLabels`                                    | Operator will not remove following labels                                                            | `[]`                                 |
 | `pause`                                           | Stop PXC Database safely                                                                             | `false`                              |

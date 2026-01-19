@@ -19,7 +19,7 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.19.0
+crVersion: 1.20.0
 
 enableVolumeExpansion: false
 
@@ -29,7 +29,7 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.19.0"
+#   image: "percona/percona-xtradb-cluster-operator:1.20.0"
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
