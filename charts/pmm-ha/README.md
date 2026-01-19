@@ -499,7 +499,7 @@ In case you want to add extra environment variables (useful for advanced operati
 ```yaml
 pmmEnv:
   PMM_ENABLE_UPDATES: "0"
-  DATA_RETENTION: "2160h" # 90 days
+  PMM_DATA_RETENTION: "2160h" # 90 days
 ```
 
 ### Kubernetes cluster metrics
