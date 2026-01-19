@@ -7000,6 +7000,25 @@ entries:
     version: 0.1.0
   pxc-db:
   - apiVersion: v2
+    appVersion: 1.19.0
+    created: "2026-01-19T18:57:13.830707881Z"
+    description: A Helm chart for installing Percona XtraDB Cluster Databases using
+      the PXC Operator.
+    digest: d261ba6e8a6cf1b1826f3d42de0bad9f5879fa9522cfccb713741b6b71534bce
+    home: https://www.percona.com/doc/kubernetes-operator-for-pxc/kubernetes.html
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    name: pxc-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-db-1.19.0/pxc-db-1.19.0.tgz
+    version: 1.19.0
+  - apiVersion: v2
     appVersion: 1.18.0
     created: "2025-08-14T15:35:27.88920376Z"
     description: A Helm chart for installing Percona XtraDB Cluster Databases using
@@ -7941,6 +7960,25 @@ entries:
     version: 0.1.5
   pxc-operator:
   - apiVersion: v2
+    appVersion: 1.19.0
+    created: "2026-01-19T18:57:14.022094595Z"
+    description: A Helm chart for deploying the Percona Operator for MySQL (based
+      on Percona XtraDB Cluster)
+    digest: 59b4ee0f9b807a9eb1b04dcc48c97f3691b1cb865c2df126027b38f3f52c4b3a
+    home: https://docs.percona.com/percona-operator-for-mysql/pxc/
+    icon: https://artifacthub.io/image/0b8875cd-6661-4269-9cf6-0fd92d59017b@1x
+    maintainers:
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    name: pxc-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pxc-operator-1.19.0/pxc-operator-1.19.0.tgz
+    version: 1.19.0
+  - apiVersion: v2
     appVersion: 1.18.0
     created: "2025-08-14T15:35:28.095177031Z"
     description: A Helm chart for deploying the Percona Operator for MySQL (based
@@ -8538,4 +8576,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2026-01-19T11:49:04.511920154Z"
+generated: "2026-01-19T18:57:14.02283884Z"
