@@ -325,6 +325,7 @@ spec:
         - {{ $accessMode }}
         {{- end }}
         {{- else }}
+        accessModes:
         - ReadWriteOnce
         {{- end }}
         resources:
