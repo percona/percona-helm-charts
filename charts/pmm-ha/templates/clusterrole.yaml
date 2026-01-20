@@ -13,13 +13,17 @@ rules:
   - endpoints
   - services
   - nodes
+  - nodes/proxy
+  - nodes/metrics
   - pods
+  - persistentvolumeclaims
   - secrets
   - serviceaccounts
   verbs:
   - get
   - watch
   - list
+  - delete
 # Access to metrics endpoints for scraping
 - nonResourceURLs:
   - /metrics
