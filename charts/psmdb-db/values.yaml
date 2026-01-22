@@ -166,6 +166,12 @@ replsets:
     #   successThreshold: 1
     #   timeoutSeconds: 2
     # runtimeClassName: image-rc
+    # hookScript:
+    #   configMapRef:
+    #     name: hookscript-configmap
+    #   script: |
+    #     #!/usr/bin/env bash
+    #     echo "Hookscript started"
     # storage:
     #   engine: wiredTiger
     #   wiredTiger:
@@ -280,6 +286,12 @@ replsets:
 #          mode: slowOp
 #        systemLog:
 #          verbosity: 1
+#      hookScript:
+#        configMapRef:
+#          name: hookscript-configmap
+#        script: |
+#          #!/usr/bin/env bash
+#          echo "Hookscript started"
       affinity:
         antiAffinityTopologyKey: "kubernetes.io/hostname"
 #        advanced:
@@ -341,6 +353,12 @@ replsets:
       #   systemLog:
       #     verbosity: 1
       # serviceAccountName: percona-server-mongodb-operator
+      # hookScript:
+      #   configMapRef:
+      #     name: hookscript-configmap
+      #   script: |
+      #     #!/usr/bin/env bash
+      #     echo "Hookscript started"
       affinity:
         antiAffinityTopologyKey: "kubernetes.io/hostname"
         # advanced:
@@ -386,6 +404,12 @@ replsets:
       enabled: false
       size: 1
       # serviceAccountName: percona-server-mongodb-operator
+      # hookScript:
+      #   configMapRef:
+      #     name: hookscript-configmap
+      #   script: |
+      #     #!/usr/bin/env bash
+      #     echo "Hookscript started"
       affinity:
         antiAffinityTopologyKey: "kubernetes.io/hostname"
         # advanced:
@@ -461,6 +485,12 @@ sharding:
     # livenessProbe: {}
     # readinessProbe: {}
     # runtimeClassName: image-rc
+    # hookScript:
+    #   configMapRef:
+    #     name: hookscript-configmap
+    #   script: |
+    #     #!/usr/bin/env bash
+    #     echo "Hookscript started"
     # sidecars:
     # - image: busybox
     #   command: ["/bin/sh"]
@@ -528,6 +558,12 @@ sharding:
     #     maxSkew: 1
     #     topologyKey: kubernetes.io/hostname
     #     whenUnsatisfiable: DoNotSchedule
+    # hookScript:
+    #   configMapRef:
+    #     name: hookscript-configmap
+    #   script: |
+    #     #!/usr/bin/env bash
+    #     echo "Hookscript started"
     affinity:
       antiAffinityTopologyKey: "kubernetes.io/hostname"
       # advanced:
@@ -656,6 +692,12 @@ backup:
   # annotations:
   #   iam.amazonaws.com/role: role-arn
   # podSecurityContext: {}
+  # hookScript:
+  #   configMapRef:
+  #     name: hookscript-configmap
+  #   script: |
+  #     #!/usr/bin/env bash
+  #     echo "Hookscript started"
   # containerSecurityContext: {}
   # resources:
   #   limits:
