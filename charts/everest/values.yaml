@@ -5,20 +5,19 @@ hooks:
   image: "percona/everest-helmtools:0.0.1"
   # -- Configuration for PodSchedulingPolicy clean-up hook.
   pspCleanup: {}
-    # Image to use for the hook job.
-    # If not set, uses the value of `hooks.image`.
-    # image: ""
+  # Image to use for the hook job.
+  # If not set, uses the value of `hooks.image`.
+  # image: ""
   # -- Configuration for LoadBalancerConfig clean-up hook.
   lbcCleanup: {}
-    # Image to use for the hook job.
-    # If not set, uses the value of `hooks.image`.
-    # image: ""
+  # Image to use for the hook job.
+  # If not set, uses the value of `hooks.image`.
+  # image: ""
   # -- Configuration for the upgrade checks hook.
   upgradeChecks: {}
-    # Image to use for the hook job.
-    # If not set, uses the value of `hooks.image`.
-    # image: "alpine:3.20"
-
+  # Image to use for the hook job.
+  # If not set, uses the value of `hooks.image`.
+  # image: "alpine:3.20"
 compatibility:
   # -- Enable OpenShift compatibility.
   openshift: false
@@ -29,7 +28,7 @@ namespaceOverride: ""
 telemetry: false
 server:
   # -- Image to use for the server container.
-  image: perconalab/everest
+  image: ghcr.io/openeverest/openeverest-dev
   # -- Resources to allocate for the server container.
   resources:
     limits:
@@ -77,14 +76,12 @@ server:
   # If unset, a random password is generated.
   # It is strongly recommended to reset the admin password after installation.
   initialAdminPassword: ""
-
   # TLS settings for the Everest server.
   tls:
     # -- If set, enables TLS for the Everest server.
     # Setting tls.enabled=true creates a Secret containing the TLS certificates.
     # Along with certificate.create, it creates a Certificate resource instead.
     enabled: false
-
     secret:
       # -- Name of the Secret containing the TLS certificates.
       # This Secret is created if tls.enabled=true and certificate.create=false.
@@ -94,7 +91,6 @@ server:
       certs:
         tls.key: ""
         tls.crt: ""
-    
     certificate:
       # -- Create a Certificate resource (requires cert-manager to be installed)
       # If set, creates a Certificate resource instead of a Secret.
@@ -141,7 +137,6 @@ server:
         annotations: {}
         # -- Labels to add to the Secret created by the Certificate resource.
         labels: {}
-
   # -- Additional environment variables to pass to the server deployment.
   env: []
   # - name: key1
@@ -152,7 +147,7 @@ operator:
   # -- Enable initContainer migration
   init: true
   # -- Image to use for the Everest operator container.
-  image: perconalab/everest-operator
+  image: ghcr.io/openeverest/openeverest-operator-dev
   # -- Health probe address for the operator.
   healthProbeAddr: ":8081"
   # -- Metrics address for the operator.
@@ -181,14 +176,12 @@ operator:
       tls.key: ""
       tls.crt: ""
       ca.crt: ""
-
     # -- If set to true, preserves existing TLS Certificate Secrets during upgrades.
     # This setting is ignored if certificates are explicitly provided in operator.webhook.certs,
     # in which case the specified certificates are used instead.
     # This setting has no effect during installation.
     # @default -- true
     preserveTLSCerts: true
-
 dataImporters:
   # -- Settings for the Percona PostgreSQL Operator data importer.
   perconaPGOperator:
@@ -211,7 +204,6 @@ dataImporters:
     # -- Image to use for the Percona PSMDB Operator data importer.
     # @default -- uses the same image as the Everest operator.
     # image: ""
-
 # -- URL of the Version Metadata Service.
 versionMetadataURL: "https://check.percona.com"
 upgrade:
@@ -229,7 +221,7 @@ olm:
   # -- Namespace where OLM is installed. Do no change unless you know what you are doing.
   namespaceOverride: everest-olm
   # -- Image to use for Everest CatalogSource.
-  catalogSourceImage: perconalab/everest-catalog
+  catalogSourceImage: ghcr.io/openeverest/openeverest-catalog-dev
   # -- Image to use for the OLM components.
   image: percona/olm@sha256:13e8f4e919e753faa7da35a9064822381098bcd44acc284877bf0964ceecbfd5
   packageserver:
@@ -243,14 +235,12 @@ olm:
       tlsCert: ""
       # -- Client key for the PackageServer APIService. Overrides the tls.type setting.
       tlsKey: ""
-
 dbNamespace:
   # -- If set, deploy the database operators in `everest` namespace.
   # The namespace may be overridden by setting `dbNamespace.namespaceOverride`.
   enabled: true
   # -- If `dbNamespace.enabled` is `true`, deploy the database operators in this namespace.
   namespaceOverride: everest
-
 # Do not change the following values unless you know what you are doing.
 # @ignore
 kube-state-metrics:
@@ -262,24 +252,21 @@ kube-state-metrics:
     everest.percona.com/type: monitoring
   fullnameOverride: kube-state-metrics
   volumes:
-  - name: customresourcestate-config
-    configMap:
-      name: customresource-config-ksm
+    - name: customresourcestate-config
+      configMap:
+        name: customresource-config-ksm
   volumeMounts:
-  - name: customresourcestate-config
-    mountPath: /etc/customresourcestate
-    readOnly: true
+    - name: customresourcestate-config
+      mountPath: /etc/customresourcestate
+      readOnly: true
   extraArgs:
-  - --custom-resource-state-config-file=/etc/customresourcestate/config
+    - --custom-resource-state-config-file=/etc/customresourcestate/config
   metricLabelsAllowlist:
-  - "pods=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
-  - "persistentvolumeclaims=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
-  - "jobs=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
-
+    - "pods=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+    - "persistentvolumeclaims=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
+    - "jobs=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]"
 # -- If set, creates resources for Kubernetes monitoring.
 createMonitoringResources: true
-
-
 ingress:
   # -- Enable ingress for Everest server
   enabled: false
@@ -299,7 +286,6 @@ ingress:
   #  - secretName: chart-example-tls
   #    hosts:
   #      - chart-example.local
-
 # Do not change the following values unless you know what you are doing.
 # @ignore
 monitoring:
@@ -313,12 +299,17 @@ monitoring:
     enabled: false
   certManager:
     enabled: false
-
 # -- PMM settings.
 pmm:
-  # -- If set, deploys PMM in the release namespace.
+  # -- If set, deploys PMM2 in the release namespace.
   enabled: false
   nameOverride: pmm
+pmm3:
+  # -- If set, deploys PMM3 in the release namespace.
+  enabled: false
+  # -- PMM configuration. All PMM chart values go under this key.
+  pmm:
+    nameOverride: pmm3
 # DO NOT CHANGE.
 # We set this to `false` to prevent the CRDs from being rendered as a template.
 # The CRDs are already installed as a part of the crds/ directory via the sub-chart.
