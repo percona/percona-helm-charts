@@ -1,0 +1,132 @@
+name: PSMDB Operator CRD Sync Check
+
+on:
+  pull_request:
+    paths:
+      - 'charts/psmdb-operator/**'
+      - 'charts/psmdb-operator-crds/**'
+
+jobs:
+  check-crd-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check version sync
+        run: |
+          set -e
+          
+          echo "Checking if chart versions are in sync..."
+          echo ""
+          
+          # Extract versions - note: psmdb-operator-crds chart version should match operator appVersion, not chart version
+          # This rule applies ONLY to psmdb-operator-crds, not to other charts (e.g., psmdb-db can have independent version)
+          OPERATOR_APP_VERSION=$(grep '^appVersion:' charts/psmdb-operator/Chart.yaml | awk '{print $2}' | tr -d '"')
+          OPERATOR_CHART_VERSION=$(grep '^version:' charts/psmdb-operator/Chart.yaml | awk '{print $2}' | tr -d '"')
+          CRD_VERSION=$(grep '^version:' charts/psmdb-operator-crds/Chart.yaml | awk '{print $2}' | tr -d '"')
+          CRD_APP_VERSION=$(grep '^appVersion:' charts/psmdb-operator-crds/Chart.yaml | awk '{print $2}' | tr -d '"')
+          DEPENDENCY_VERSION=$(grep -A 3 'name: psmdb-operator-crds' charts/psmdb-operator/Chart.yaml | grep 'version:' | awk '{print $2}' | tr -d '"')
+          
+          echo "Operator chart:"
+          echo "  version: $OPERATOR_CHART_VERSION"
+          echo "  appVersion: $OPERATOR_APP_VERSION"
+          echo "psmdb-operator-crds chart:"
+          echo "  version: $CRD_VERSION"
+          echo "  appVersion: $CRD_APP_VERSION"
+          echo "Dependency version: $DEPENDENCY_VERSION"
+          echo ""
+          
+          VERSION_SYNC=true
+          
+          # psmdb-operator-crds chart version should match operator appVersion (CRDs are tied to operator version, not chart version)
+          # Note: This rule applies ONLY to psmdb-operator-crds, other charts can have independent versions
+          if [ "$CRD_VERSION" != "$OPERATOR_APP_VERSION" ]; then
+            echo "✗ psmdb-operator-crds chart version ($CRD_VERSION) does not match operator appVersion ($OPERATOR_APP_VERSION)"
+            echo "  Note: psmdb-operator-crds chart version must match operator appVersion, not operator chart version"
+            VERSION_SYNC=false
+          fi
+          
+          # psmdb-operator-crds appVersion should match operator appVersion
+          if [ "$CRD_APP_VERSION" != "$OPERATOR_APP_VERSION" ]; then
+            echo "✗ psmdb-operator-crds chart appVersion ($CRD_APP_VERSION) does not match operator appVersion ($OPERATOR_APP_VERSION)"
+            VERSION_SYNC=false
+          fi
+          
+          # Dependency version should match psmdb-operator-crds chart version
+          if [ "$CRD_VERSION" != "$DEPENDENCY_VERSION" ]; then
+            echo "✗ psmdb-operator-crds chart version ($CRD_VERSION) does not match dependency version ($DEPENDENCY_VERSION)"
+            VERSION_SYNC=false
+          fi
+          
+          if [ "$VERSION_SYNC" = false ]; then
+            echo ""
+            echo "Version sync requirements for psmdb-operator-crds (this rule applies ONLY to CRD chart):"
+            echo "  - psmdb-operator-crds chart version = operator appVersion"
+            echo "  - psmdb-operator-crds chart appVersion = operator appVersion"
+            echo "  - Dependency version = psmdb-operator-crds chart version"
+            echo ""
+            echo "Note: Other charts (e.g., psmdb-db) can have independent chart versions."
+            echo ""
+            echo "Example:"
+            echo "  operator: appVersion=1.30.0, version=1.30.2"
+            echo "  psmdb-operator-crds: appVersion=1.30.0, version=1.30.0"
+            echo "  dependency: version=1.30.0"
+            exit 1
+          fi
+          
+          echo "✓ Chart versions are in sync"
+          echo ""
+
+      - name: Check CRD content sync
+        run: |
+          set -e
+          
+          echo "Checking if CRD files are in sync..."
+          echo ""
+          
+          # Combine CRD templates into a single file
+          # Note: The original crd.yaml file concatenates CRDs directly without separators
+          # Format: "status: {}apiVersion: apiextensions.k8s.io/v1" (no newline between CRDs)
+          TEMP_COMBINED=$(mktemp)
+          for crd in charts/psmdb-operator-crds/templates/*.yaml; do
+            # Remove Windows line endings and trailing newline, then append
+            # This ensures CRDs are concatenated directly: "status: {}apiVersion: ..."
+            # Use awk to print all lines but remove trailing newline from last line
+            awk '{if (NR>1) print prev_line; prev_line=$0} END {printf "%s", prev_line}' "$crd" | sed 's/\r$//' >> "$TEMP_COMBINED"
+          done
+          # Original file has no trailing newline, so don't add one
+          
+          # Normalize both files for comparison (remove trailing whitespace, normalize line endings)
+          TEMP_CRDS=$(mktemp)
+          TEMP_TEMPLATES=$(mktemp)
+          
+          # Normalize: remove Windows line endings, remove trailing whitespace
+          # Also remove trailing newline to match original format (original has no trailing newline)
+          # Use perl for portable trailing newline removal
+          cat charts/psmdb-operator/crds/crd.yaml | sed 's/\r$//' | sed 's/[[:space:]]*$//' | perl -pe 'chomp if eof' > "$TEMP_CRDS"
+          cat "$TEMP_COMBINED" | sed 's/\r$//' | sed 's/[[:space:]]*$//' | perl -pe 'chomp if eof' > "$TEMP_TEMPLATES"
+          
+          # Compare files
+          if diff -q "$TEMP_CRDS" "$TEMP_TEMPLATES" > /dev/null; then
+            echo "✓ CRD files are in sync"
+          else
+            echo "✗ CRD files are NOT in sync!"
+            echo ""
+            echo "The files in charts/psmdb-operator/crds/crd.yaml and"
+            echo "charts/psmdb-operator-crds/templates/*.yaml must match."
+            echo ""
+            echo "To sync them, run:"
+            echo "  # Combine templates without separators (matching original format)"
+            echo "  rm -f temp.yaml && for f in charts/psmdb-operator-crds/templates/*.yaml; do"
+            echo "    awk '{if (NR>1) print prev_line; prev_line=\$0} END {printf \"%s\", prev_line}' \"\$f\" | sed 's/\r\$//' >> temp.yaml"
+            echo "  done && mv temp.yaml charts/psmdb-operator/crds/crd.yaml"
+            echo "  # Note: Original file has no trailing newline"
+            echo ""
+            echo "Showing first 50 lines of differences:"
+            diff -u "$TEMP_CRDS" "$TEMP_TEMPLATES" | head -50 || true
+            exit 1
+          fi
+          
+          rm -f "$TEMP_COMBINED" "$TEMP_CRDS" "$TEMP_TEMPLATES"
+
