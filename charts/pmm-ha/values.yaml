@@ -66,22 +66,17 @@ pmmEnv:
 #  GF_AUTH_GENERIC_OAUTH_API_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: ''
 
-## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/index.html)
-# pmmResources:
-#   # PMM server resource configuration
-#   requests:
-#     memory: "3Gi"
-#     cpu: "2"
-#   limits:
-#     memory: "4Gi"
-#     cpu: "2"
+## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) 
+## requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/index.html)
 pmmResources:
+  # PMM server resource configuration
   requests:
-    memory: "2Gi"
-    cpu: "1"
+    memory: "3Gi"
+    cpu: "2"
   limits:
     memory: "4Gi"
     cpu: "2"
+# pmmResources: {}
 
 ## Readiness probe Config
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
@@ -343,7 +338,7 @@ podAnnotations: {}
 ## @param podSecurityContext Configure Pods Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 ## Note: we intentionally don't use the `runAsGroup` to make it compatible with OpenShift. 
-## However, `runAsUser` needs to be set to nil for OpenShift to assign a random user ID.
+## However, `runAsUser` needs to be set to nil for OpenShift to be able to assign a random user ID.
 podSecurityContext:
   runAsUser: 1000
   fsGroup: 1000
