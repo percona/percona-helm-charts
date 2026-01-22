@@ -80,6 +80,10 @@ spec:
               value: "{{ .Values.env.resyncPeriod }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
+            {{- if .Values.maxConcurrentReconciles }}
+            - name: MAX_CONCURRENT_RECONCILES
+              value: "{{ .Values.maxConcurrentReconciles }}"
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz

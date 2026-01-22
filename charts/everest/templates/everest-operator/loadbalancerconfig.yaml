@@ -6,6 +6,9 @@ metadata:
     "helm.sh/resource-policy": keep
   finalizers:
     - everest.percona.com/readonly-protection
+  labels:
+    everest.percona.com/skip-validating-webhook: "true"
+    everest.percona.com/skip-mutating-webhook: "true"
 spec:
   annotations:
     "service.beta.kubernetes.io/aws-load-balancer-type": "nlb"
