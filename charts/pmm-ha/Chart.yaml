@@ -13,7 +13,7 @@ maintainers:
 keywords:
   - PMM
   - Monitoring
-icon: https://www.percona.com/sites/default/files/pmm-logo.png
+icon: https://raw.githubusercontent.com/percona/pmm/v3/documentation/docs/assets/pmm-logo.png
 dependencies:
   - name: haproxy
     version: 1.24.0
