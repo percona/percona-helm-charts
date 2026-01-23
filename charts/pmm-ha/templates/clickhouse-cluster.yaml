@@ -79,6 +79,11 @@ spec:
             <default remove="1"/>
           </users>
         </clickhouse>
+      
+      # Create PMM database on startup
+      docker-entrypoint-initdb.d/init-pmm-db.sh: |
+        #!/bin/bash
+        clickhouse-client --user {{ $clickhouseUser }} --password "${PMM_CLICKHOUSE_PASSWORD}" --query "CREATE DATABASE IF NOT EXISTS pmm ON CLUSTER '{{ .Values.clickhouse.cluster.name }}'"
 
   templates:
     podTemplates:
