@@ -153,3 +153,15 @@ Example output for 3 replicas:
   port: 2181
 {{- end -}}
 {{- end -}}
+
+{{/*
+Generate PostgreSQL address for PMM
+If PMM_POSTGRES_ADDR is defined in pmmEnv, use it, otherwise use default
+*/}}
+{{- define "pmm.postgresql.address" -}}
+{{- if and .Values.pmmEnv .Values.pmmEnv.PMM_POSTGRES_ADDR -}}
+{{- .Values.pmmEnv.PMM_POSTGRES_ADDR -}}
+{{- else -}}
+{{- .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432
+{{- end -}}
+{{- end -}}
