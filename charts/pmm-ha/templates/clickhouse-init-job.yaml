@@ -1,0 +1,90 @@
+{{- $secret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
+{{- $clickhouseUser := "clickhouse_pmm" }}
+{{- if $secret }}
+{{- $clickhouseUser = (index $secret.data "PMM_CLICKHOUSE_USER" | b64dec) }}
+{{- else if .Values.secret.clickhouse_user }}
+{{- $clickhouseUser = .Values.secret.clickhouse_user }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-clickhouse-init
+  labels:
+    app.kubernetes.io/name: {{ include "pmm.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: clickhouse-init
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "pmm.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: clickhouse-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: clickhouse-init
+          image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
+          imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              CLUSTER_NAME="{{ .Values.clickhouse.cluster.name }}"
+              EXPECTED_REPLICAS={{ .Values.clickhouse.cluster.replicas }}
+              SERVICE_HOST="{{ .Release.Name }}-${CLUSTER_NAME}"
+              
+              echo "Waiting for ClickHouse cluster to be ready..."
+              echo "Expected replicas: ${EXPECTED_REPLICAS}"
+              
+              # Wait for the ClickHouse service to be available and cluster to form
+              for i in {1..120}; do
+                REPLICA_COUNT=$(clickhouse-client --host "${SERVICE_HOST}" \
+                  --user {{ $clickhouseUser }} --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                  --query "SELECT count() FROM system.clusters WHERE cluster='${CLUSTER_NAME}'" 2>/dev/null || echo 0)
+                
+                if [ "$REPLICA_COUNT" -eq "$EXPECTED_REPLICAS" ]; then
+                  echo "✓ Cluster formed with ${REPLICA_COUNT} replicas"
+                  break
+                fi
+                
+                echo "Waiting for cluster to form... (${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas visible, attempt ${i}/120)"
+                sleep 5
+              done
+              
+              # Verify cluster is ready
+              FINAL_COUNT=$(clickhouse-client --host "${SERVICE_HOST}" \
+                --user {{ $clickhouseUser }} --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                --query "SELECT count() FROM system.clusters WHERE cluster='${CLUSTER_NAME}'" 2>/dev/null || echo 0)
+              
+              if [ "$FINAL_COUNT" -ne "$EXPECTED_REPLICAS" ]; then
+                echo "✗ Failed to form complete cluster. Found ${FINAL_COUNT}/${EXPECTED_REPLICAS} replicas"
+                exit 1
+              fi
+              
+              # Create database on cluster
+              echo "Creating database 'pmm' on cluster '${CLUSTER_NAME}'..."
+              clickhouse-client --host "${SERVICE_HOST}" \
+                --user {{ $clickhouseUser }} --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                --query "CREATE DATABASE IF NOT EXISTS pmm ON CLUSTER '${CLUSTER_NAME}'"
+              
+              echo "✓ Database 'pmm' created successfully on all replicas"
+              
+              # Verify database exists on all nodes
+              echo "Verifying database creation..."
+              clickhouse-client --host "${SERVICE_HOST}" \
+                --user {{ $clickhouseUser }} --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                --query "SELECT hostName(), count() FROM clusterAllReplicas('${CLUSTER_NAME}', system.databases) WHERE name='pmm' GROUP BY hostName()"
+          env:
+            - name: PMM_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_CLICKHOUSE_PASSWORD

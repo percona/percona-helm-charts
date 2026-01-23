@@ -103,50 +103,6 @@ spec:
                         clickhouse.altinity.com/chi: {{ .Release.Name }}
                         clickhouse.altinity.com/cluster: {{ .Values.clickhouse.cluster.name }}
                     topologyKey: kubernetes.io/hostname
-          initContainers:
-            - name: clickhouse-init-db
-              image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
-              imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
-              command:
-                - /bin/bash
-                - -c
-                - |
-                  set -e
-                  
-                  echo "Waiting for ClickHouse to be ready..."
-                  # Wait for local ClickHouse instance to start
-                  until clickhouse-client --query "SELECT 1" 2>/dev/null; do
-                    echo "ClickHouse not ready yet, waiting..."
-                    sleep 2
-                  done
-                  
-                  echo "ClickHouse is ready, waiting for cluster to form..."
-                  # Wait for all replicas to be visible in the cluster
-                  EXPECTED_REPLICAS={{ .Values.clickhouse.cluster.replicas }}
-                  CLUSTER_NAME="{{ .Values.clickhouse.cluster.name }}"
-                  
-                  for i in {1..60}; do
-                    REPLICA_COUNT=$(clickhouse-client --query "SELECT count() FROM system.clusters WHERE cluster='${CLUSTER_NAME}'" 2>/dev/null || echo 0)
-                    if [ "$REPLICA_COUNT" -eq "$EXPECTED_REPLICAS" ]; then
-                      echo "Cluster formed with ${REPLICA_COUNT} replicas"
-                      break
-                    fi
-                    echo "Waiting for cluster to form... (${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas visible, attempt ${i}/60)"
-                    sleep 5
-                  done
-                  
-                  # Create database on cluster
-                  echo "Creating database 'pmm' on cluster '${CLUSTER_NAME}'..."
-                  clickhouse-client --user {{ $clickhouseUser }} --password "${PMM_CLICKHOUSE_PASSWORD}" \
-                    --query "CREATE DATABASE IF NOT EXISTS pmm ON CLUSTER '${CLUSTER_NAME}'" && \
-                    echo "Database 'pmm' created successfully" || \
-                    echo "Database creation failed or already exists"
-              env:
-                - name: PMM_CLICKHOUSE_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ .Values.secret.name }}
-                      key: PMM_CLICKHOUSE_PASSWORD
           containers:
             - name: clickhouse
               image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
