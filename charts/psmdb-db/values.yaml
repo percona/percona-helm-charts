@@ -21,7 +21,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 
-crVersion: 1.21.1
+crVersion: 1.21.2
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -51,13 +51,13 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 8.0.12-4
+  tag: 8.0.17-6
 
 imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.21.1
+#   tag: 1.21.2
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -92,7 +92,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.4.1
+    tag: 3.5.0
   serverHost: monitoring-service
 #  customClusterName: ""
 #  mongodParams: ""

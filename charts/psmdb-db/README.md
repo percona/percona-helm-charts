@@ -23,14 +23,14 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.21.1 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.21.2 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                                                   | Default                               |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.21.1`                              |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                                                   | `1.21.2`                              |
 | `pause`                                             | Stop PSMDB Database safely                                                                                                                                                                    | `false`                               |
 | `unmanaged`                                         | Start cluster and don't manage it (cross cluster replication)                                                                                                                                 | `false`                               |
 | `enableVolumeExpansion`                             | Allows to resize `PersistentVolumeClaim`s by changing `.volumeSpec.persistentVolumeClaim.resources` field                                                                                     | `false`                               |
@@ -56,7 +56,7 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:percona.com/delete-psmdb-pods-in-order` | Set this if you want to delete PSMDB pods in order (primary last)                                                                                                                             | `[]`                                  |
 | `finalizers:percona.com/delete-pitr-chunks`         | Set this if you want to delete all pitr chunks on cluster deletion                                                                                                                            | `[]`                                  |
 | `image.repository`                                  | PSMDB Container image repository                                                                                                                                                              | `percona/percona-server-mongodb`      |
-| `image.tag`                                         | PSMDB Container image tag                                                                                                                                                                     | `8.0.12-4`                            |
+| `image.tag`                                         | PSMDB Container image tag                                                                                                                                                                     | `8.0.17-6`                            |
 | `imagePullPolicy`                                   | The policy used to update images                                                                                                                                                              | `Always`                              |
 | `imagePullSecrets`                                  | PSMDB Container pull secret                                                                                                                                                                   | `[]`                                  |
 | `initImage.repository`                              | Repository for custom init image                                                                                                                                                              | `""`                                  |
@@ -88,7 +88,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `pmm.enabled`                  | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`              |
 | `pmm.image.repository`         | PMM Container image repository                                                                                                                                                           | `percona/pmm-client` |
-| `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `3.4.1`              |
+| `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `3.5.0`              |
 | `pmm.serverHost`               | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service` |
 | `pmm.containerSecurityContext` | Set the security context for PMM container                                                                                                                                               | `{}`                 |
 | `pmm.resources`                | Set resources for PMM container                                                                                                                                                          | `{}`                 |
