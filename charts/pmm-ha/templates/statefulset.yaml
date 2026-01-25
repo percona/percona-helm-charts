@@ -116,9 +116,7 @@ spec:
                   break
                 fi
                 
-                if [ $((i % 2)) -eq 0 ]; then
-                  echo "Cluster status: ${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas visible"
-                fi
+                echo "Cluster status: ${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas visible"
                 
                 sleep 5
               done              
