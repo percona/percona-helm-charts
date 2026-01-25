@@ -76,40 +76,34 @@ spec:
                 exit 1
               fi
               
-              echo "✓ Password environment variable is set"
-              
-              CLUSTER_NAME="${PMM_CLICKHOUSE_CLUSTER_NAME}"
               EXPECTED_REPLICAS={{ .Values.clickhouse.cluster.replicas }}
-              CH_USER="${PMM_CLICKHOUSE_USER}"
-              CHI_NAME="{{ .Release.Name }}"
-              SERVICE_HOST="clickhouse-${CHI_NAME}"
+              SERVICE_HOST="clickhouse-{{ .Release.Name }}"
               
               echo "=== Waiting for ClickHouse Cluster ==="
-              echo "Cluster name: ${CLUSTER_NAME}"
+              echo "Cluster name: ${PMM_CLICKHOUSE_CLUSTER_NAME}"
               echo "Expected replicas: ${EXPECTED_REPLICAS}"
               echo "Service host: ${SERVICE_HOST}"
-              echo "ClickHouse user: ${CH_USER}"
+              echo "ClickHouse user: ${PMM_CLICKHOUSE_USER}"
               echo "======================================"
               
-              # Test basic connectivity
-              echo "Testing ClickHouse connectivity (timeout 5 min)..."
-              for i in {1..60}; do
+              echo "Waiting for ClickHouse connectivity..."
+              while :; do
                 if clickhouse-client --host "${SERVICE_HOST}" \
-                  --user "${CH_USER}" --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                  --user "${PMM_CLICKHOUSE_USER}" --password "${PMM_CLICKHOUSE_PASSWORD}" \
                   --query "SELECT version()" >/dev/null 2>&1; then
                   echo "✓ Connected to ClickHouse successfully"
                   break
                 fi
-                echo "Waiting for ClickHouse to be available... (attempt ${i}/60)"
+
+                echo "Waiting for ClickHouse to become available..."
                 sleep 5
               done
               
-              # Wait for the ClickHouse cluster to form
-              echo "Waiting for cluster to form (no timeout)..."
+              echo "Waiting for cluster to form..."
               while :; do
                 REPLICA_COUNT=$(clickhouse-client --host "${SERVICE_HOST}" \
-                  --user "${CH_USER}" --password "${PMM_CLICKHOUSE_PASSWORD}" \
-                  --query "SELECT count() FROM system.clusters WHERE cluster='${CLUSTER_NAME}'" 2>/dev/null || echo 0)
+                  --user "${PMM_CLICKHOUSE_USER}" --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                  --query "SELECT count() FROM system.clusters WHERE cluster='${PMM_CLICKHOUSE_CLUSTER_NAME}'" 2>/dev/null || echo 0)
                 
                 if [ "$REPLICA_COUNT" -eq "$EXPECTED_REPLICAS" ]; then
                   echo "✓ ClickHouse cluster is ready with ${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas"
@@ -117,7 +111,6 @@ spec:
                 fi
                 
                 echo "Cluster status: ${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas visible"
-                
                 sleep 5
               done              
           env:
