@@ -70,6 +70,13 @@ The chart can be customized using the following configurable parameters:
 | `tls.issuerConf.kind`          | A cert-manager issuer kind                                                      | `""`        |
 | `tls.issuerConf.group`         | A cert-manager issuer group                                                     | `""`        |
 | |
+| `vault.endpointURL`            | Vault address                                                                                      | `""` |
+| `vault.tlsSecret`              | Kubernetes secret containing Vault TLS certs                                                       | `""` |
+| `vault.syncUsers.role`         | Vault role name                                                                                    | `""` |
+| `vault.syncUsers.mountPath`    | Vault mount path (https://developer.hashicorp.com/vault/docs/secrets/kv)                           | `""` |
+| `vault.syncUsers.keyPath`      | Vault key path for password                                                                        | `""` |
+| `vault.syncUsers.tokenSecret`  | Secret containing `token` key for authentication (if not used, operator will use Kubernetes auth)  | `""` |
+| |
 | `secrets.users`         | The name of the Secrets object for the MongoDB users required to run the operator          | `""` |
 | `secrets.encryptionKey` | Set secret for data at rest encryption key                                                 | `""` |
 | `secrets.keyFile`       | Specifies a secret key file for authenticating MongoDB instances                           | `""` |
