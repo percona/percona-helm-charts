@@ -50,10 +50,13 @@ upgradeOptions:
   setFCV: false
 
 #storageAutoscaling:
-#  enabled: false
-#  triggerThresholdPercent: 80
-#  growthStepGi: 2
-#  maxSize: "100Gi"
+#  enableVolumeScaling: false
+#  enableExternalAutoscaling: false
+#  autoscaling:
+#    enabled: false
+#    triggerThresholdPercent: 80
+#    growthStep: "2Gi"
+#    maxSize: "100Gi"
 
 image:
   repository: percona/percona-server-mongodb

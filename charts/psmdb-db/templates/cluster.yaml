@@ -79,15 +79,24 @@ spec:
   {{- end }}
   {{- if .Values.storageAutoscaling }}
   storageAutoscaling:
-    enabled: {{ .Values.storageAutoscaling.enabled }}
-    {{- if .Values.storageAutoscaling.triggerThresholdPercent }}
-    triggerThresholdPercent: {{ .Values.storageAutoscaling.triggerThresholdPercent }}
+    {{- if hasKey .Values.storageAutoscaling "enableVolumeScaling" }}
+    enableVolumeScaling: {{ .Values.storageAutoscaling.enableVolumeScaling }}
     {{- end }}
-    {{- if .Values.storageAutoscaling.growthStepGi }}
-    growthStepGi: {{ .Values.storageAutoscaling.growthStepGi }}
+    {{- if hasKey .Values.storageAutoscaling "enableExternalAutoscaling" }}
+    enableExternalAutoscaling: {{ .Values.storageAutoscaling.enableExternalAutoscaling }}
     {{- end }}
-    {{- if .Values.storageAutoscaling.maxSize }}
-    maxSize: {{ .Values.storageAutoscaling.maxSize }}
+    {{- if .Values.storageAutoscaling.autoscaling }}
+    autoscaling:
+      enabled: {{ .Values.storageAutoscaling.autoscaling.enabled }}
+      {{- if .Values.storageAutoscaling.autoscaling.triggerThresholdPercent }}
+      triggerThresholdPercent: {{ .Values.storageAutoscaling.autoscaling.triggerThresholdPercent }}
+      {{- end }}
+      {{- if .Values.storageAutoscaling.autoscaling.growthStep }}
+      growthStep: {{ .Values.storageAutoscaling.autoscaling.growthStep }}
+      {{- end }}
+      {{- if .Values.storageAutoscaling.autoscaling.maxSize }}
+      maxSize: {{ .Values.storageAutoscaling.autoscaling.maxSize }}
+      {{- end }}
     {{- end }}
   {{- end }}
   pmm:
