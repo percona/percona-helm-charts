@@ -71,7 +71,7 @@ The chart can be customized using the following configurable parameters:
 | `image.pullPolicy`           | PSMDB Operator Container pull policy                                                                | `Always`                                  |
 | `image.pullSecrets`          | PSMDB Operator Pod pull secret                                                                      | `[]`                                      |
 | `replicaCount`               | PSMDB Operator Pod quantity                                                                         | `1`                                       |
-| `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                        | `10`                                      |
+| `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                         | `10`                                      |
 | `tolerations`                | List of node taints to tolerate                                                                     | `[]`                                      |
 | `annotations`                | PSMDB Operator Deployment annotations                                                               | `{}`                                      |
 | `podAnnotations`             | PSMDB Operator Pod annotations                                                                      | `{}`                                      |

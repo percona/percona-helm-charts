@@ -51,7 +51,7 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 8.0.12-4
+  tag: 8.0.17-6
 
 imagePullPolicy: Always
 # imagePullSecrets: []
@@ -84,7 +84,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.4.1
+    tag: 3.5.0
   serverHost: monitoring-service
 #  customClusterName: ""
 #  mongodParams: ""
