@@ -61,6 +61,77 @@ spec:
             limits:
               cpu: 50m
               memory: 64Mi
+        - name: wait-for-clickhouse
+          image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
+          imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              # Check if password is available
+              if [ -z "${PMM_CLICKHOUSE_PASSWORD}" ]; then
+                echo "✗ ERROR: PMM_CLICKHOUSE_PASSWORD environment variable is not set"
+                exit 1
+              fi
+              
+              EXPECTED_REPLICAS={{ .Values.clickhouse.cluster.replicas }}
+              SERVICE_HOST="clickhouse-{{ .Release.Name }}"
+              
+              echo "=== Waiting for ClickHouse Cluster ==="
+              echo "Cluster name: ${PMM_CLICKHOUSE_CLUSTER_NAME}"
+              echo "Expected replicas: ${EXPECTED_REPLICAS}"
+              echo "Service host: ${SERVICE_HOST}"
+              echo "======================================"
+              
+              echo "Waiting for ClickHouse connectivity..."
+              while :; do
+                if clickhouse-client --host "${SERVICE_HOST}" \
+                  --user "${PMM_CLICKHOUSE_USER}" --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                  --query "SELECT version()" >/dev/null 2>&1; then
+                  echo "✓ Connected to ClickHouse successfully"
+                  break
+                fi
+
+                echo "Waiting for ClickHouse to become available..."
+                sleep 5
+              done
+              
+              echo "Waiting for cluster to form..."
+              while :; do
+                REPLICA_COUNT=$(clickhouse-client --host "${SERVICE_HOST}" \
+                  --user "${PMM_CLICKHOUSE_USER}" --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                  --query "SELECT count() FROM system.clusters WHERE cluster='${PMM_CLICKHOUSE_CLUSTER_NAME}'" 2>/dev/null || echo 0)
+                
+                if [ "$REPLICA_COUNT" -eq "$EXPECTED_REPLICAS" ]; then
+                  echo "✓ ClickHouse cluster is ready with ${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas"
+                  break
+                fi
+                
+                echo "Cluster status: ${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas visible"
+                sleep 5
+              done              
+          env:
+            - name: PMM_CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_CLICKHOUSE_USER
+            - name: PMM_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_CLICKHOUSE_PASSWORD
+            - name: PMM_CLICKHOUSE_CLUSTER_NAME
+              value: "{{ .Values.clickhouse.cluster.name }}"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
       containers:
         - name: {{ .Chart.Name }}
 
