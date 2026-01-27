@@ -697,14 +697,19 @@ backup:
     #      backoffInitial: 1
     #      backoffMax: 30
     #      backoffMultiplier: 2
-    # minio:
-    #   type: s3
-    #   s3:
-    #     bucket: MINIO-BACKUP-BUCKET-NAME-HERE
-    #     region: us-east-1
-    #     credentialsSecret: my-cluster-name-backup-minio
-    #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
-    #     prefix: ""
+#     minio:
+#       type: minio
+#       minio:
+#         bucket: MINIO-BACKUP-BUCKET-NAME-HERE
+#         region: us-east-1
+#         credentialsSecret: my-cluster-name-backup-minio
+#         endpointUrl: minio.psmdb.svc.cluster.local:9000/minio/
+#         insecureSkipTLSVerify: false
+#         caBundle:
+#          name: minio-ca-bundle
+#          key: ca.crt
+#         prefix: ""
+#         secure: false
     #   azure-blob:
     #     type: azure
     #     azure:
