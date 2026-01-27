@@ -83,7 +83,6 @@ spec:
               echo "Cluster name: ${PMM_CLICKHOUSE_CLUSTER_NAME}"
               echo "Expected replicas: ${EXPECTED_REPLICAS}"
               echo "Service host: ${SERVICE_HOST}"
-              echo "ClickHouse user: ${PMM_CLICKHOUSE_USER}"
               echo "======================================"
               
               echo "Waiting for ClickHouse connectivity..."
