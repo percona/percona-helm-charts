@@ -3,8 +3,7 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-
-revisionHistoryLimit: 10
+# revisionHistoryLimit: 10
 
 image:
   repository: percona/percona-server-mongodb-operator
