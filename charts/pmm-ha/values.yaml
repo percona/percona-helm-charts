@@ -399,11 +399,11 @@ clickhouse:
   # ClickHouse server resource configuration
   resources:
     requests:
-      memory: "1Gi"
-      cpu: "500m"
-    limits:
       memory: "4Gi"
       cpu: "2"
+    limits:
+      memory: "8Gi"
+      cpu: "4"
   
   cluster:
     # Cluster name restrictions: alphanumeric only, max 15 chars, no underscores
