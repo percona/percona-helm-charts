@@ -705,6 +705,16 @@ backup:
     #     credentialsSecret: my-cluster-name-backup-minio
     #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
     #     prefix: ""
+    # minio-native:
+    #   type: minio
+    #   minio:
+    #     bucket: MINIO-BACKUP-BUCKET-NAME-HERE
+    #     region: us-east-1
+    #     credentialsSecret: my-cluster-name-backup-minio
+    #     endpointUrl: minio.psmdb.svc.cluster.local:9000/minio/
+    #     prefix: ""
+    #     secure: false
+    #     insecureSkipTLSVerify: false
     #   azure-blob:
     #     type: azure
     #     azure:
