@@ -1,0 +1,31 @@
+apiVersion: v2
+name: pmm-ha
+description: A Helm chart for Percona Monitoring and Management (PMM)
+type: application
+version: 1.3.23
+appVersion: "2.44.0"
+home: https://github.com/percona/pmm
+maintainers:
+  - name: tibi
+    email: tibor.korocz@percona.com
+  - name: alex
+    email: alexander.demidoff@percona.com
+keywords:
+  - PMM
+  - Monitoring
+icon: https://raw.githubusercontent.com/percona/pmm/v3/documentation/docs/assets/pmm-logo.png
+dependencies:
+  - name: haproxy
+    version: 1.24.0
+    repository: https://haproxytech.github.io/helm-charts/
+  - name: pg-db
+    version: 2.8.0
+    repository: https://percona.github.io/percona-helm-charts/
+  - name: kube-state-metrics
+    version: 7.0.1
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: "kube-state-metrics.enabled"
+  - name: prometheus-node-exporter
+    version: 4.51.0
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: "prometheus-node-exporter.enabled"
