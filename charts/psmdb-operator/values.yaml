@@ -76,6 +76,7 @@ fullnameOverride: ""
 
 env:
   resyncPeriod: 5s
+  reconcileInterval: 5s
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
