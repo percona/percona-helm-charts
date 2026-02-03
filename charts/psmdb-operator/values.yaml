@@ -3,10 +3,11 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
+# revisionHistoryLimit: 10
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.21.2
+  tag: 1.22.0
   pullPolicy: IfNotPresent
 
 # disableTelemetry: according to
@@ -99,6 +100,19 @@ affinity: {}
 logStructured: false
 logLevel: "INFO"
 
-# maxConcurrentReconciles controls the number of concurrent workers 
+# maxConcurrentReconciles controls the number of concurrent workers
 # that can reconcile resources in Percona Server for MongoDB clusters in parallel.
 maxConcurrentReconciles: "1"
+
+# crds: settings for CRD sub-chart
+crds:
+  # crds.enabled: if false, CRDs will not be installed via the sub-chart.
+  # The CRDs are still included in the crds/ directory and will be installed
+  # on initial `helm install` but not upgraded. Set to true to manage CRDs
+  # via the sub-chart which allows upgrades via `helm upgrade`.
+  #
+  # NOTE: Default is false to maintain backward compatibility. This means
+  # new users installing with `helm install my-operator percona/psmdb-operator`
+  # will get the old CRD behavior (CRDs from crds/ directory, not upgradeable).
+  # Future releases may change this default - see README for migration guidance.
+  enabled: false
