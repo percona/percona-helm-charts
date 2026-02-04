@@ -49,7 +49,7 @@ upgradeOptions:
   schedule: "0 2 * * *"
   setFCV: false
 
-#storageAutoscaling:
+# storageAutoscaling:
 #  enableVolumeScaling: false
 #  enableExternalAutoscaling: false
 #  autoscaling:
