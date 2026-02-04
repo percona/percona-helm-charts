@@ -101,6 +101,28 @@ spec:
     schedule: {{ .Values.upgradeOptions.schedule }}
     setFCV: {{ .Values.upgradeOptions.setFCV }}
   {{- end }}
+  {{- if .Values.storageAutoscaling }}
+  storageAutoscaling:
+    {{- if hasKey .Values.storageAutoscaling "enableVolumeScaling" }}
+    enableVolumeScaling: {{ .Values.storageAutoscaling.enableVolumeScaling }}
+    {{- end }}
+    {{- if hasKey .Values.storageAutoscaling "enableExternalAutoscaling" }}
+    enableExternalAutoscaling: {{ .Values.storageAutoscaling.enableExternalAutoscaling }}
+    {{- end }}
+    {{- if .Values.storageAutoscaling.autoscaling }}
+    autoscaling:
+      enabled: {{ .Values.storageAutoscaling.autoscaling.enabled }}
+      {{- if .Values.storageAutoscaling.autoscaling.triggerThresholdPercent }}
+      triggerThresholdPercent: {{ .Values.storageAutoscaling.autoscaling.triggerThresholdPercent }}
+      {{- end }}
+      {{- if .Values.storageAutoscaling.autoscaling.growthStep }}
+      growthStep: {{ .Values.storageAutoscaling.autoscaling.growthStep }}
+      {{- end }}
+      {{- if .Values.storageAutoscaling.autoscaling.maxSize }}
+      maxSize: {{ .Values.storageAutoscaling.autoscaling.maxSize }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
