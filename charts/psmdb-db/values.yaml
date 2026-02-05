@@ -89,6 +89,14 @@ secrets: {}
   # ldapSecret: my-ldap-secret
   # sse: my-cluster-name-sse
 
+# vault:
+#   endpointURL: https://vault-service:8200
+#   tlsSecret: my-tls-vault-secret
+#   syncUsers:
+#     role: operator
+#     mountPath: secrets
+#     keyPath: psmdb/operator/namespace/my-cluster-name/users
+#     tokenSecret: my-vault-sync-token-secret
 pmm:
   enabled: false
   image:
