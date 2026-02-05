@@ -1,4 +1,3 @@
-{{/* vim: filetype=helm */}}
 apiVersion: psmdb.percona.com/v1
 kind: PerconaServerMongoDB
 metadata:
