@@ -28,17 +28,17 @@ spec:
     {{- end }}
     {{- if .Values.vault.syncUsers }}
     syncUsers:
-      {{- if .Values.vault.role }}
-      role: {{ .Values.vault.role }}
+      {{- if .Values.vault.syncUsers.role }}
+      role: {{ .Values.vault.syncUsers.role }}
       {{- end }}
-      {{- if .Values.vault.mountPath }}
-      mountPath: {{ .Values.vault.mountPath }}
+      {{- if .Values.vault.syncUsers.mountPath }}
+      mountPath: {{ .Values.vault.syncUsers.mountPath }}
       {{- end }}
-      {{- if .Values.vault.keyPath }}
-      keyPath: {{ .Values.vault.keyPath }}
+      {{- if .Values.vault.syncUsers.keyPath }}
+      keyPath: {{ .Values.vault.syncUsers.keyPath }}
       {{- end }}
-      {{- if .Values.vault.tokenSecret }}
-      tokenSecret: {{ .Values.vault.tokenSecret }}
+      {{- if .Values.vault.syncUsers.tokenSecret }}
+      tokenSecret: {{ .Values.vault.syncUsers.tokenSecret }}
       {{- end }}
     {{- end }}
   {{- end }}
