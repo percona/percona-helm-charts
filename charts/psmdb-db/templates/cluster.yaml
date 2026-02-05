@@ -19,6 +19,30 @@ spec:
   {{- if .Values.platform }}
   platform: {{ .Values.platform }}
   {{- end }}
+  {{- if .Values.vault }}
+  vault:
+    {{- if .Values.vault.endpointURL }}
+    endpointURL: {{ .Values.vault.endpointURL }}
+    {{- end }}
+    {{- if .Values.vault.tlsSecret }}
+    tlsSecret: {{ .Values.vault.tlsSecret }}
+    {{- end }}
+    {{- if .Values.vault.syncUsers }}
+    syncUsers:
+      {{- if .Values.vault.syncUsers.role }}
+      role: {{ .Values.vault.syncUsers.role }}
+      {{- end }}
+      {{- if .Values.vault.syncUsers.mountPath }}
+      mountPath: {{ .Values.vault.syncUsers.mountPath }}
+      {{- end }}
+      {{- if .Values.vault.syncUsers.keyPath }}
+      keyPath: {{ .Values.vault.syncUsers.keyPath }}
+      {{- end }}
+      {{- if .Values.vault.syncUsers.tokenSecret }}
+      tokenSecret: {{ .Values.vault.syncUsers.tokenSecret }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- if hasKey .Values "enableExternalVolumeAutoscaling" }}
   enableExternalVolumeAutoscaling: {{ .Values.enableExternalVolumeAutoscaling }}
@@ -77,6 +101,28 @@ spec:
     apply: {{ .Values.upgradeOptions.apply }}
     schedule: {{ .Values.upgradeOptions.schedule }}
     setFCV: {{ .Values.upgradeOptions.setFCV }}
+  {{- end }}
+  {{- if .Values.storageAutoscaling }}
+  storageAutoscaling:
+    {{- if hasKey .Values.storageAutoscaling "enableVolumeScaling" }}
+    enableVolumeScaling: {{ .Values.storageAutoscaling.enableVolumeScaling }}
+    {{- end }}
+    {{- if hasKey .Values.storageAutoscaling "enableExternalAutoscaling" }}
+    enableExternalAutoscaling: {{ .Values.storageAutoscaling.enableExternalAutoscaling }}
+    {{- end }}
+    {{- if .Values.storageAutoscaling.autoscaling }}
+    autoscaling:
+      enabled: {{ .Values.storageAutoscaling.autoscaling.enabled }}
+      {{- if .Values.storageAutoscaling.autoscaling.triggerThresholdPercent }}
+      triggerThresholdPercent: {{ .Values.storageAutoscaling.autoscaling.triggerThresholdPercent }}
+      {{- end }}
+      {{- if .Values.storageAutoscaling.autoscaling.growthStep }}
+      growthStep: {{ .Values.storageAutoscaling.autoscaling.growthStep }}
+      {{- end }}
+      {{- if .Values.storageAutoscaling.autoscaling.maxSize }}
+      maxSize: {{ .Values.storageAutoscaling.autoscaling.maxSize }}
+      {{- end }}
+    {{- end }}
   {{- end }}
   pmm:
     enabled: {{ .Values.pmm.enabled }}
