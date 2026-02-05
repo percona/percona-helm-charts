@@ -1,0 +1,54 @@
+{{- $serviceType := .Values.service.type -}}
+# Headless service for StatefulSet pod discovery and HA peer communication
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.name }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: headless
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.service.finalizers }}
+  finalizers:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  {{- with .Values.service.ports }}
+  ports:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "pmm.selectorLabels" . | nindent 4 }}
+{{- if .Values.ingress.enabled }}
+---
+# Regular ClusterIP service for ingress routing
+# Note: Both HTTP and gRPC traffic use this service when ingress is enabled
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.name }}-grpc
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingress-backend
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.service.finalizers }}
+  finalizers:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $serviceType | default "ClusterIP" }}
+  {{- with .Values.service.ports }}
+  ports:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "pmm.selectorLabels" . | nindent 4 }}
+{{- end }}
