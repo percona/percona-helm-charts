@@ -50,6 +50,15 @@ upgradeOptions:
   schedule: "0 2 * * *"
   setFCV: false
 
+# storageAutoscaling:
+#  enableVolumeScaling: false
+#  enableExternalAutoscaling: false
+#  autoscaling:
+#    enabled: false
+#    triggerThresholdPercent: 80
+#    growthStep: "2Gi"
+#    maxSize: "100Gi"
+
 image:
   repository: percona/percona-server-mongodb
   tag: 8.0.17-6
@@ -81,6 +90,14 @@ secrets: {}
   # ldapSecret: my-ldap-secret
   # sse: my-cluster-name-sse
 
+# vault:
+#   endpointURL: https://vault-service:8200
+#   tlsSecret: my-tls-vault-secret
+#   syncUsers:
+#     role: operator
+#     mountPath: secrets
+#     keyPath: psmdb/operator/namespace/my-cluster-name/users
+#     tokenSecret: my-vault-sync-token-secret
 pmm:
   enabled: false
   image:
@@ -706,6 +723,16 @@ backup:
     #     credentialsSecret: my-cluster-name-backup-minio
     #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
     #     prefix: ""
+    # minio-native:
+    #   type: minio
+    #   minio:
+    #     bucket: MINIO-BACKUP-BUCKET-NAME-HERE
+    #     region: us-east-1
+    #     credentialsSecret: my-cluster-name-backup-minio
+    #     endpointUrl: minio.psmdb.svc.cluster.local:9000/minio/
+    #     prefix: ""
+    #     secure: false
+    #     insecureSkipTLSVerify: false
     #   azure-blob:
     #     type: azure
     #     azure:
