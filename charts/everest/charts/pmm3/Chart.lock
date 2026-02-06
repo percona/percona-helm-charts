@@ -1,0 +1,6 @@
+dependencies:
+- name: pmm
+  repository: https://percona.github.io/percona-helm-charts
+  version: 1.4.14
+digest: sha256:a5e11b584bd2d6e44a8e8171dd480327e48a8565dc191e0a2182626fe73f6787
+generated: "2025-11-22T11:46:48.342086527Z"

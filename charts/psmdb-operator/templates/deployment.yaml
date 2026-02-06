@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "psmdb-operator.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "psmdb-operator.namespace" . }}
   labels:
     {{- include "psmdb-operator.labels" . | nindent 4 }}
     {{- with .Values.labels }}
@@ -14,7 +14,9 @@ metadata:
   {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
-  revisionHistoryLimit: {{ .Values.revisionHistoryLimit | default 10 }}
+  {{- with .Values.revisionHistoryLimit }}
+  revisionHistoryLimit: {{ . }}
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "psmdb-operator.name" . }}
@@ -80,6 +82,10 @@ spec:
               value: "{{ .Values.env.resyncPeriod }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
+            {{- if .Values.maxConcurrentReconciles }}
+            - name: MAX_CONCURRENT_RECONCILES
+              value: "{{ .Values.maxConcurrentReconciles }}"
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz

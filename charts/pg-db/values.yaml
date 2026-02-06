@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 # annotations:
-#   pgv2.percona.com/custom-patroni-version: "4"
+#    test-annotation: value
 finalizers:
 # Set this if you want that operator deletes the PVCs on cluster deletion
 #  - percona.com/delete-pvc
@@ -12,9 +12,9 @@ finalizers:
 # Set this if you want that operator deletes the backups on cluster deletion
 #  - percona.com/delete-backups
 
-crVersion: 2.7.0
+crVersion: 2.8.2
 # initContainer:
-#   image: docker.io/percona/percona-postgresql-operator:2.7.0
+#   image: docker.io/percona/percona-postgresql-operator:2.8.2
 #   resources:
 #     limits:
 #       cpu: 2.0
@@ -44,8 +44,8 @@ crVersion: 2.7.0
 #     example-annotation: value
 #   labels:
 #     example-label: value
-repository: docker.io/percona/percona-postgresql-operator
-image: docker.io/percona/percona-postgresql-operator:2.7.0-ppg17.5.2-postgres
+repository: docker.io/percona/percona-distribution-postgresql
+image: docker.io/percona/percona-distribution-postgresql:17.7-2
 imagePullPolicy: Always
 postgresVersion: 17
 # port: 5432
@@ -79,6 +79,7 @@ customReplicationTLSSecret:
 #   - name: rhino
 #     databases:
 #       - zoo
+#     grantPublicSchemaAccess: true
 #     options: "SUPERUSER"
 #     password:
 #       type: ASCII
@@ -185,7 +186,7 @@ instances:
 - name: instance1
   replicas: 3
 #  initContainer:
-#    image: docker.io/percona/percona-postgresql-operator:2.7.0
+#    image: docker.io/percona/percona-postgresql-operator:2.8.2
 #    resources:
 #      limits:
 #        cpu: 2.0
@@ -220,6 +221,12 @@ instances:
             matchLabels:
               postgres-operator.crunchydata.com/data: postgres
           topologyKey: kubernetes.io/hostname
+#  env:
+#  - name: MY_ENV
+#    value: "1000"
+#  envFrom:
+#  - secretRef:
+#      name: instance-env-secret
 #  metadata:
 #    annotations: {}
 #    labels: {}
@@ -309,7 +316,13 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: docker.io/percona/percona-pgbouncer:1.24.1
+    image: docker.io/percona/percona-pgbouncer:1.25.0-1
+#    env:
+#    - name: MY_ENV
+#      value: "1000"
+#    envFrom:
+#    - secretRef:
+#        name: pgbouncer-env-secret
 #    exposeSuperusers: true
 #    resources:
 #      limits:
@@ -393,7 +406,7 @@ backups:
   trackLatestRestorableTime: true
   pgbackrest:
 #    initContainer:
-#      image: docker.io/perconalab/percona-postgresql-operator:2.7.0
+#      image: docker.io/perconalab/percona-postgresql-operator:2.8.2
 #      resources:
 #        limits:
 #          cpu: 2.0
@@ -420,7 +433,13 @@ backups:
 #          level: s0:c123,c456
 #    metadata:
 #    labels:
-    image: docker.io/percona/percona-pgbackrest:2.55.0
+#    env:
+#    - name: MY_ENV
+#      value: "1000"
+#    envFrom:
+#    - secretRef:
+#        name: backup-env-secret
+    image: docker.io/percona/percona-pgbackrest:2.57.0-1
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -492,6 +511,11 @@ backups:
                   postgres-operator.crunchydata.com/data: pgbackrest
               topologyKey: kubernetes.io/hostname
 
+#      sidecars:
+#      - name: repohosttestcontainer1
+#        image: mycontainer1:latest
+#        command: ["sleep", "30d"]
+#        securityContext: {}
 #      tolerations:
 #      - effect: NoSchedule
 #        key: role
@@ -570,7 +594,7 @@ pmm:
   enabled: false
   image:
     repository: docker.io/percona/pmm-client
-    tag: 3.3.0
+    tag: 3.4.1
 #  imagePullPolicy: IfNotPresent
 #  secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -607,13 +631,15 @@ pmm:
 #   - basebackup
 
 # extensions:
-#   image: docker.io/percona/percona-postgresql-operator:2.7.0
+#   image: docker.io/percona/percona-postgresql-operator:2.8.2
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
 #     bucket: pg-extensions
 #     region: eu-central-1
 #     endpoint: s3.eu-central-1.amazonaws.com
+#     forcePathStyle: false
+#     disableSSL: false
 #     secret:
 #       name: cluster1-extensions-secret
 #   builtin:
