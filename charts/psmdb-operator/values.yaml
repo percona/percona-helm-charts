@@ -73,6 +73,7 @@ securityContext: {}
 
 imagePullSecrets: []
 nameOverride: ""
+namespaceOverride: ""
 fullnameOverride: ""
 
 env:
