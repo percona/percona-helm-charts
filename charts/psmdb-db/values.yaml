@@ -757,40 +757,19 @@ backup:
     #      backoffInitial: 1
     #      backoffMax: 30
     #      backoffMultiplier: 2
-<<<<<<< K8SPSMDB-1418_add_ca
-#     minio:
-#       type: minio
-#       minio:
-#         bucket: MINIO-BACKUP-BUCKET-NAME-HERE
-#         region: us-east-1
-#         credentialsSecret: my-cluster-name-backup-minio
-#         endpointUrl: minio.psmdb.svc.cluster.local:9000/minio/
-#         insecureSkipTLSVerify: false
-#         caBundle:
-#          name: minio-ca-bundle
-#          key: ca.crt
-#         prefix: ""
-#         secure: false
-=======
     # minio:
-    #   type: s3
-    #   s3:
-    #     bucket: MINIO-BACKUP-BUCKET-NAME-HERE
-    #     region: us-east-1
-    #     credentialsSecret: my-cluster-name-backup-minio
-    #     endpointUrl: http://minio.psmdb.svc.cluster.local:9000/minio/
-    #     prefix: ""
-    # minio-native:
     #   type: minio
     #   minio:
     #     bucket: MINIO-BACKUP-BUCKET-NAME-HERE
     #     region: us-east-1
     #     credentialsSecret: my-cluster-name-backup-minio
     #     endpointUrl: minio.psmdb.svc.cluster.local:9000/minio/
+    #     insecureSkipTLSVerify: false
+    #     caBundle:
+    #      name: minio-ca-bundle
+    #      key: ca.crt
     #     prefix: ""
     #     secure: false
-    #     insecureSkipTLSVerify: false
->>>>>>> release-psmdb-1.22.0
     #   azure-blob:
     #     type: azure
     #     azure:
