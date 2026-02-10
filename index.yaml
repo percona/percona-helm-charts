@@ -3709,6 +3709,26 @@ entries:
     version: 0.1.0
   pmm:
   - apiVersion: v2
+    appVersion: 3.6.0
+    created: "2026-02-10T17:17:42.178509974Z"
+    description: A Helm chart for Percona Monitoring and Management (PMM)
+    digest: 80d2018d5ef1edb9d7899c610fe4beffb58097194ca4165262631c1641c9fe04
+    home: https://github.com/percona/pmm
+    icon: https://raw.githubusercontent.com/percona/pmm/v3/documentation/docs/assets/pmm-logo.png
+    keywords:
+    - PMM
+    - Monitoring
+    maintainers:
+    - email: tibor.korocz@percona.com
+      name: tibi
+    - email: alexander.demidoff@percona.com
+      name: alex
+    name: pmm
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-1.5.1/pmm-1.5.1.tgz
+    version: 1.5.1
+  - apiVersion: v2
     appVersion: 3.5.0
     created: "2025-11-20T07:05:38.894361637Z"
     description: A Helm chart for Percona Monitoring and Management (PMM)
@@ -5164,6 +5184,74 @@ entries:
     urls:
     - https://github.com/percona/percona-helm-charts/releases/download/pmm-0.1.0/pmm-0.1.0.tgz
     version: 0.1.0
+  pmm-ha:
+  - apiVersion: v2
+    appVersion: 2.44.0
+    created: "2026-02-10T17:17:42.370748038Z"
+    dependencies:
+    - name: haproxy
+      repository: https://haproxytech.github.io/helm-charts/
+      version: 1.24.0
+    - name: pg-db
+      repository: https://percona.github.io/percona-helm-charts/
+      version: 2.8.0
+    - condition: kube-state-metrics.enabled
+      name: kube-state-metrics
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 7.0.1
+    - condition: prometheus-node-exporter.enabled
+      name: prometheus-node-exporter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 4.51.0
+    description: A Helm chart for Percona Monitoring and Management (PMM)
+    digest: 109cb4afa0a4091f1417ef1e0ed8f5d687dfe0c2020e783a52ccd6077d94cb60
+    home: https://github.com/percona/pmm
+    icon: https://raw.githubusercontent.com/percona/pmm/v3/documentation/docs/assets/pmm-logo.png
+    keywords:
+    - PMM
+    - Monitoring
+    maintainers:
+    - email: tibor.korocz@percona.com
+      name: tibi
+    - email: alexander.demidoff@percona.com
+      name: alex
+    name: pmm-ha
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-ha-1.3.23/pmm-ha-1.3.23.tgz
+    version: 1.3.23
+  pmm-ha-dependencies:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-02-10T17:17:42.619153435Z"
+    dependencies:
+    - name: victoria-metrics-operator
+      repository: https://victoriametrics.github.io/helm-charts/
+      version: 0.56.4
+    - name: altinity-clickhouse-operator
+      repository: https://helm.altinity.com
+      version: 0.25.4
+    - name: pg-operator
+      repository: https://percona.github.io/percona-helm-charts/
+      version: 2.8.0
+    description: Kubernetes operators required for PMM HA deployment
+    digest: ee4f8b1cf3baed4a0dbdb811e8be7fce49a5a2e686a6b852ef998eaace5e7cb9
+    home: https://github.com/percona/percona-helm-charts
+    icon: https://www.percona.com/sites/default/files/pmm-logo.png
+    keywords:
+    - PMM
+    - Operators
+    - Dependencies
+    maintainers:
+    - email: tibor.korocz@percona.com
+      name: tibi
+    - email: alexander.demidoff@percona.com
+      name: alex
+    name: pmm-ha-dependencies
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-ha-dependencies-1.0.0/pmm-ha-dependencies-1.0.0.tgz
+    version: 1.0.0
   ps-db:
   - apiVersion: v2
     appVersion: 1.0.0
@@ -8772,4 +8860,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2026-02-04T10:26:23.590061449Z"
+generated: "2026-02-10T17:17:42.619772698Z"
