@@ -794,7 +794,7 @@ logcollector:
   enabled: true
   image:
     repository: percona/fluentbit
-    tag: 4.0.1
+    tag: 4.0.1-1
 #  configuration: |
 #    [SERVICE]
 #        Flush        1
