@@ -269,6 +269,9 @@ spec:
       configuration: |
 {{ $replset.hidden.configuration | indent 8 }}
       {{- end }}
+      {{- if $replset.hidden.serviceAccountName }}
+      serviceAccountName: {{ $replset.hidden.serviceAccountName }}
+      {{- end }}
       affinity:
       {{- if $replset.hidden.affinity }}
 {{ $replset.hidden.affinity | toYaml | indent 8 }}
