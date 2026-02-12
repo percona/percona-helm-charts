@@ -13,6 +13,7 @@ finalizers:
 #  - percona.com/delete-backups
 
 crVersion: 2.8.2
+# clusterServiceDNSSuffix: svc.cluster.local
 # initContainer:
 #   image: docker.io/percona/percona-postgresql-operator:2.8.2
 #   resources:
