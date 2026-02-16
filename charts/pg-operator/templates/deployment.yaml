@@ -67,6 +67,8 @@ spec:
               value: "{{ .Values.logLevel }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
+            - name: PGO_FEATURE_GATES
+              value: {{ include "pg-operator.featureGates" . | quote }}
           livenessProbe:
             failureThreshold: 3
             httpGet:
