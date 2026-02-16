@@ -43,6 +43,7 @@ Chart.
 | `logLevel`           | PG Operator logging level                                                          | `INFO`                                                |
 | `disableTelemetry`   | Disable sending PG Operator telemetry data to Percona                              | `false`                                               |
 | `podAnnotations`     | Add annotations to the Operator Pod                                                | `{}`                                                  |
+| `pprofBindAddress`   | TCP address for serving pprof (profiling). Set `""` or `"0"` to disable            | `""`                                                  |
 | `watchNamespace`     | Set this variable if the target cluster namespace differs from operators namespace | ``                                                    |
 | `watchAllNamespaces` | K8S Cluster-wide operation                                                         | `false`                                               |
 
