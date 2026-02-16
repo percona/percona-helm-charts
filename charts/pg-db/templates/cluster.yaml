@@ -527,6 +527,10 @@ spec:
       manual:
 {{ pick .Values.backups.pgbackrest.manual "repoName" "options" "initialDelaySeconds" | toYaml | indent 8 }}
       {{- end }}
+      {{- if .Values.backups.volumeSnapshots }}
+      volumeSnapshots:
+{{ .Values.backups.volumeSnapshots | toYaml | indent 8 }}
+      {{- end }}
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
       - name: {{ $repo.name }}
