@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   labels:
     app.kubernetes.io/name: pgo
     app.kubernetes.io/version: latest
@@ -295,7 +295,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   labels:
     pgv2.percona.com/version: v2.9.0
   name: perconapgbackups.pgv2.percona.com
@@ -364,6 +364,13 @@ spec:
             type: object
           spec:
             properties:
+              method:
+                default: pgbackrest
+                description: Method with which to perform the backup
+                enum:
+                - pgbackrest
+                - volumeSnapshot
+                type: string
               options:
                 description: |-
                   Command line options to include when running the pgBackRest backup command.
@@ -374,14 +381,17 @@ spec:
               pgCluster:
                 type: string
               repoName:
-                description: The name of the pgBackRest repo to run the backup command
-                  against.
+                description: |-
+                  The name of the pgBackRest repo to run the backup command against.
+                  This is required when method is 'pgbackrest'.
                 pattern: ^repo[1-4]
                 type: string
             required:
             - pgCluster
-            - repoName
             type: object
+            x-kubernetes-validations:
+            - message: repoName is required when method is 'pgbackrest'
+              rule: self.method == "volumeSnapshot" || has(self.repoName)
           status:
             properties:
               backupName:
@@ -574,7 +584,7 @@ spec:
                           resources:
                             description: |-
                               resources represents the minimum resources the volume should have.
-                              If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                              Users are allowed to specify resource requirements
                               that are lower than previous value but must still be higher than capacity recorded in the
                               status field of the claim.
                               More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -685,6 +695,24 @@ spec:
                 required:
                 - name
                 type: object
+              snapshot:
+                properties:
+                  dataVolumeSnapshotRef:
+                    description: Name of the VolumeSnapshot containing data volume
+                      contents.
+                    type: string
+                  tablespaceVolumeSnapshotRefs:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      Names of the VolumeSnapshots containing tablespace volume contents.
+                      Key is the name of the tablespace, value is the name of the VolumeSnapshot.
+                    type: object
+                  walVolumeSnapshotRef:
+                    description: Name of the VolumeSnapshot containing WAL volume
+                      contents.
+                    type: string
+                type: object
               state:
                 type: string
               storageType:
@@ -703,7 +731,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   labels:
     pgv2.percona.com/version: v2.9.0
   name: perconapgclusters.pgv2.percona.com
@@ -1112,6 +1140,24 @@ spec:
                                   description: Kubelet's generated CSRs will be addressed
                                     to this signer.
                                   type: string
+                                userAnnotations:
+                                  additionalProperties:
+                                    type: string
+                                  description: |-
+                                    userAnnotations allow pod authors to pass additional information to
+                                    the signer implementation.  Kubernetes does not restrict or validate this
+                                    metadata in any way.
+
+                                    These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                    the PodCertificateRequest objects that Kubelet creates.
+
+                                    Entries are subject to the same validation as object metadata annotations,
+                                    with the addition that all keys must be domain-prefixed. No restrictions
+                                    are placed on values, except an overall size limitation on the entire field.
+
+                                    Signers should document the keys and values they support. Signers should
+                                    deny requests that contain keys they do not recognize.
+                                  type: object
                               required:
                               - keyType
                               - signerName
@@ -3091,9 +3137,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -5285,7 +5332,9 @@ spec:
                                       type: integer
                                   type: object
                                 resizePolicy:
-                                  description: Resources resize policy for the container.
+                                  description: |-
+                                    Resources resize policy for the container.
+                                    This field cannot be set on ephemeral containers.
                                   items:
                                     description: ContainerResizePolicy represents
                                       resource resize policy for the container.
@@ -6083,9 +6132,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -6460,7 +6510,7 @@ spec:
                                     resources:
                                       description: |-
                                         resources represents the minimum resources the volume should have.
-                                        If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                                        Users are allowed to specify resource requirements
                                         that are lower than previous value but must still be higher than capacity recorded in the
                                         status field of the claim.
                                         More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -7628,9 +7678,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -7789,6 +7840,51 @@ spec:
                   trackLatestRestorableTime:
                     description: Enable tracking latest restorable time
                     type: boolean
+                  volumeSnapshots:
+                    description: VolumeSnapshots configuration
+                    properties:
+                      className:
+                        description: Name of the VolumeSnapshotClass to use.
+                        type: string
+                      mode:
+                        default: offline
+                        description: Mode of the VolumeSnapshot.
+                        enum:
+                        - offline
+                        type: string
+                      offlineConfig:
+                        description: |-
+                          Configuration for offline snapshot operations.
+                          Ignored if mode is not offline.
+                        properties:
+                          checkpoint:
+                            description: Checkpoint configuration for offline snapshot
+                              operations.
+                            properties:
+                              enabled:
+                                default: true
+                                description: If set, a checkpoint is requested.
+                                type: boolean
+                              timeoutSeconds:
+                                default: 300
+                                description: |-
+                                  Timeout for the checkpoint operation.
+                                  Ignored if checkpoint is not enabled.
+                                format: int32
+                                minimum: 30
+                                type: integer
+                            type: object
+                        type: object
+                      schedule:
+                        description: |-
+                          Defines the Cron schedule for a VolumeSnapshot.
+                          Follows the standard Cron schedule syntax:
+                          https://k8s.io/docs/concepts/workloads/controllers/cron-jobs/#cron-schedule-syntax
+                        minLength: 6
+                        type: string
+                    required:
+                    - className
+                    type: object
                 type: object
                 x-kubernetes-validations:
                 - message: At least one repository must be configured when backups
@@ -9081,6 +9177,24 @@ spec:
                                   description: Kubelet's generated CSRs will be addressed
                                     to this signer.
                                   type: string
+                                userAnnotations:
+                                  additionalProperties:
+                                    type: string
+                                  description: |-
+                                    userAnnotations allow pod authors to pass additional information to
+                                    the signer implementation.  Kubernetes does not restrict or validate this
+                                    metadata in any way.
+
+                                    These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                    the PodCertificateRequest objects that Kubelet creates.
+
+                                    Entries are subject to the same validation as object metadata annotations,
+                                    with the addition that all keys must be domain-prefixed. No restrictions
+                                    are placed on values, except an overall size limitation on the entire field.
+
+                                    Signers should document the keys and values they support. Signers should
+                                    deny requests that contain keys they do not recognize.
+                                  type: object
                               required:
                               - keyType
                               - signerName
@@ -9371,7 +9485,7 @@ spec:
                                   resources:
                                     description: |-
                                       resources represents the minimum resources the volume should have.
-                                      If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                                      Users are allowed to specify resource requirements
                                       that are lower than previous value but must still be higher than capacity recorded in the
                                       status field of the claim.
                                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -9569,9 +9683,10 @@ spec:
                             operator:
                               description: |-
                                 Operator represents a key's relationship to the value.
-                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                 Exists is equivalent to wildcard for value, so that a pod can
                                 tolerate all taints of a particular category.
+                                Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                               type: string
                             tolerationSeconds:
                               description: |-
@@ -10637,9 +10752,10 @@ spec:
                             operator:
                               description: |-
                                 Operator represents a key's relationship to the value.
-                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                 Exists is equivalent to wildcard for value, so that a pod can
                                 tolerate all taints of a particular category.
+                                Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                               type: string
                             tolerationSeconds:
                               description: |-
@@ -10707,9 +10823,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -10774,9 +10891,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -10842,9 +10960,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -12473,7 +12592,7 @@ spec:
                         resources:
                           description: |-
                             resources represents the minimum resources the volume should have.
-                            If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                            Users are allowed to specify resource requirements
                             that are lower than previous value but must still be higher than capacity recorded in the
                             status field of the claim.
                             More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -13926,7 +14045,9 @@ spec:
                                 type: integer
                             type: object
                           resizePolicy:
-                            description: Resources resize policy for the container.
+                            description: |-
+                              Resources resize policy for the container.
+                              This field cannot be set on ephemeral containers.
                             items:
                               description: ContainerResizePolicy represents resource
                                 resize policy for the container.
@@ -15792,7 +15913,9 @@ spec:
                                 type: integer
                             type: object
                           resizePolicy:
-                            description: Resources resize policy for the container.
+                            description: |-
+                              Resources resize policy for the container.
+                              This field cannot be set on ephemeral containers.
                             items:
                               description: ContainerResizePolicy represents resource
                                 resize policy for the container.
@@ -16549,7 +16672,7 @@ spec:
                               resources:
                                 description: |-
                                   resources represents the minimum resources the volume should have.
-                                  If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                                  Users are allowed to specify resource requirements
                                   that are lower than previous value but must still be higher than capacity recorded in the
                                   status field of the claim.
                                   More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -16692,9 +16815,10 @@ spec:
                           operator:
                             description: |-
                               Operator represents a key's relationship to the value.
-                              Valid operators are Exists and Equal. Defaults to Equal.
+                              Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                               Exists is equivalent to wildcard for value, so that a pod can
                               tolerate all taints of a particular category.
+                              Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                             type: string
                           tolerationSeconds:
                             description: |-
@@ -17046,7 +17170,7 @@ spec:
                         resources:
                           description: |-
                             resources represents the minimum resources the volume should have.
-                            If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                            Users are allowed to specify resource requirements
                             that are lower than previous value but must still be higher than capacity recorded in the
                             status field of the claim.
                             More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -18862,6 +18986,24 @@ spec:
                                       description: Kubelet's generated CSRs will be
                                         addressed to this signer.
                                       type: string
+                                    userAnnotations:
+                                      additionalProperties:
+                                        type: string
+                                      description: |-
+                                        userAnnotations allow pod authors to pass additional information to
+                                        the signer implementation.  Kubernetes does not restrict or validate this
+                                        metadata in any way.
+
+                                        These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                        the PodCertificateRequest objects that Kubelet creates.
+
+                                        Entries are subject to the same validation as object metadata annotations,
+                                        with the addition that all keys must be domain-prefixed. No restrictions
+                                        are placed on values, except an overall size limitation on the entire field.
+
+                                        Signers should document the keys and values they support. Signers should
+                                        deny requests that contain keys they do not recognize.
+                                      type: object
                                   required:
                                   - keyType
                                   - signerName
@@ -20576,7 +20718,9 @@ spec:
                                   type: integer
                               type: object
                             resizePolicy:
-                              description: Resources resize policy for the container.
+                              description: |-
+                                Resources resize policy for the container.
+                                This field cannot be set on ephemeral containers.
                               items:
                                 description: ContainerResizePolicy represents resource
                                   resize policy for the container.
@@ -21255,9 +21399,10 @@ spec:
                             operator:
                               description: |-
                                 Operator represents a key's relationship to the value.
-                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                 Exists is equivalent to wildcard for value, so that a pod can
                                 tolerate all taints of a particular category.
+                                Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                               type: string
                             tolerationSeconds:
                               description: |-
@@ -21660,6 +21805,17 @@ spec:
                     description: Network address of the PostgreSQL server to follow
                       via streaming replication.
                     type: string
+                  maxAcceptableLag:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: |-
+                      MaxAcceptableLag is the maximum WAL lag allowed for the standby cluster, measured in bytes of WAL data.
+                      This represents the maximum amount of WAL data that the standby can be behind the primary.
+                      If the lag exceeds this value, the standby cluster is marked as unready.
+                      If unset, lag is not checked.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
                   port:
                     description: Network port of the PostgreSQL server to follow via
                       streaming replication.
@@ -22093,6 +22249,15 @@ spec:
                   version:
                     type: integer
                 type: object
+              standby:
+                properties:
+                  lagBytes:
+                    format: int64
+                    type: integer
+                  lagLastComputedAt:
+                    format: date-time
+                    type: string
+                type: object
               state:
                 type: string
             type: object
@@ -22109,7 +22274,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   labels:
     pgv2.percona.com/version: v2.9.0
   name: perconapgrestores.pgv2.percona.com
@@ -22175,6 +22340,9 @@ spec:
               pgCluster:
                 description: The name of the PerconaPGCluster to perform restore.
                 type: string
+                x-kubernetes-validations:
+                - message: pgCluster is an immutable field
+                  rule: self == oldSelf
               repoName:
                 description: |-
                   The name of the pgBackRest repo within the source PostgresCluster that contains the backups
@@ -22182,10 +22350,23 @@ spec:
                   for the new PostgresCluster.
                 pattern: ^repo[1-4]
                 type: string
+                x-kubernetes-validations:
+                - message: repoName is an immutable field
+                  rule: self == oldSelf
+              volumeSnapshotBackupName:
+                description: The name of the backup to perform in-place volume snapshot
+                  restores from.
+                type: string
+                x-kubernetes-validations:
+                - message: volumeSnapshotBackupName is an immutable field
+                  rule: self == oldSelf
             required:
             - pgCluster
-            - repoName
             type: object
+            x-kubernetes-validations:
+            - message: either repoName or volumeSnapshotBackupName must be set
+              rule: ((has(self.repoName) && self.repoName != "") || (has(self.volumeSnapshotBackupName)
+                && self.volumeSnapshotBackupName != ""))
           status:
             properties:
               completed:
@@ -22209,7 +22390,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   labels:
     pgv2.percona.com/version: v2.9.0
   name: perconapgupgrades.pgv2.percona.com
@@ -24069,7 +24250,9 @@ spec:
                           type: integer
                       type: object
                     resizePolicy:
-                      description: Resources resize policy for the container.
+                      description: |-
+                        Resources resize policy for the container.
+                        This field cannot be set on ephemeral containers.
                       items:
                         description: ContainerResizePolicy represents resource resize
                           policy for the container.
@@ -24838,9 +25021,10 @@ spec:
                     operator:
                       description: |-
                         Operator represents a key's relationship to the value.
-                        Valid operators are Exists and Equal. Defaults to Equal.
+                        Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                         Exists is equivalent to wildcard for value, so that a pod can
                         tolerate all taints of a particular category.
+                        Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                       type: string
                     tolerationSeconds:
                       description: |-
@@ -25013,7 +25197,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   labels:
     app.kubernetes.io/name: pgo
     app.kubernetes.io/version: latest
@@ -26322,6 +26506,24 @@ spec:
                               description: Kubelet's generated CSRs will be addressed
                                 to this signer.
                               type: string
+                            userAnnotations:
+                              additionalProperties:
+                                type: string
+                              description: |-
+                                userAnnotations allow pod authors to pass additional information to
+                                the signer implementation.  Kubernetes does not restrict or validate this
+                                metadata in any way.
+
+                                These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                the PodCertificateRequest objects that Kubelet creates.
+
+                                Entries are subject to the same validation as object metadata annotations,
+                                with the addition that all keys must be domain-prefixed. No restrictions
+                                are placed on values, except an overall size limitation on the entire field.
+
+                                Signers should document the keys and values they support. Signers should
+                                deny requests that contain keys they do not recognize.
+                              type: object
                           required:
                           - keyType
                           - signerName
@@ -26537,7 +26739,7 @@ spec:
                   resources:
                     description: |-
                       resources represents the minimum resources the volume should have.
-                      If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                      Users are allowed to specify resource requirements
                       that are lower than previous value but must still be higher than capacity recorded in the
                       status field of the claim.
                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -26853,9 +27055,10 @@ spec:
                     operator:
                       description: |-
                         Operator represents a key's relationship to the value.
-                        Valid operators are Exists and Equal. Defaults to Equal.
+                        Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                         Exists is equivalent to wildcard for value, so that a pod can
                         tolerate all taints of a particular category.
+                        Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                       type: string
                     tolerationSeconds:
                       description: |-
@@ -27012,7 +27215,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   labels:
     app.kubernetes.io/name: pgo
     app.kubernetes.io/version: latest
@@ -28869,7 +29072,9 @@ spec:
                           type: integer
                       type: object
                     resizePolicy:
-                      description: Resources resize policy for the container.
+                      description: |-
+                        Resources resize policy for the container.
+                        This field cannot be set on ephemeral containers.
                       items:
                         description: ContainerResizePolicy represents resource resize
                           policy for the container.
@@ -29634,9 +29839,10 @@ spec:
                     operator:
                       description: |-
                         Operator represents a key's relationship to the value.
-                        Valid operators are Exists and Equal. Defaults to Equal.
+                        Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                         Exists is equivalent to wildcard for value, so that a pod can
                         tolerate all taints of a particular category.
+                        Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                       type: string
                     tolerationSeconds:
                       description: |-
@@ -29803,7 +30009,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.18.0
+    controller-gen.kubebuilder.io/version: v0.20.0
   labels:
     app.kubernetes.io/name: pgo
     app.kubernetes.io/version: 5.4.2
@@ -30184,6 +30390,24 @@ spec:
                                   description: Kubelet's generated CSRs will be addressed
                                     to this signer.
                                   type: string
+                                userAnnotations:
+                                  additionalProperties:
+                                    type: string
+                                  description: |-
+                                    userAnnotations allow pod authors to pass additional information to
+                                    the signer implementation.  Kubernetes does not restrict or validate this
+                                    metadata in any way.
+
+                                    These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                    the PodCertificateRequest objects that Kubelet creates.
+
+                                    Entries are subject to the same validation as object metadata annotations,
+                                    with the addition that all keys must be domain-prefixed. No restrictions
+                                    are placed on values, except an overall size limitation on the entire field.
+
+                                    Signers should document the keys and values they support. Signers should
+                                    deny requests that contain keys they do not recognize.
+                                  type: object
                               required:
                               - keyType
                               - signerName
@@ -32024,9 +32248,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -34218,7 +34443,9 @@ spec:
                                       type: integer
                                   type: object
                                 resizePolicy:
-                                  description: Resources resize policy for the container.
+                                  description: |-
+                                    Resources resize policy for the container.
+                                    This field cannot be set on ephemeral containers.
                                   items:
                                     description: ContainerResizePolicy represents
                                       resource resize policy for the container.
@@ -35006,9 +35233,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -35384,7 +35612,7 @@ spec:
                                     resources:
                                       description: |-
                                         resources represents the minimum resources the volume should have.
-                                        If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                                        Users are allowed to specify resource requirements
                                         that are lower than previous value but must still be higher than capacity recorded in the
                                         status field of the claim.
                                         More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -36560,9 +36788,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -37064,6 +37293,24 @@ spec:
                               description: Kubelet's generated CSRs will be addressed
                                 to this signer.
                               type: string
+                            userAnnotations:
+                              additionalProperties:
+                                type: string
+                              description: |-
+                                userAnnotations allow pod authors to pass additional information to
+                                the signer implementation.  Kubernetes does not restrict or validate this
+                                metadata in any way.
+
+                                These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                the PodCertificateRequest objects that Kubelet creates.
+
+                                Entries are subject to the same validation as object metadata annotations,
+                                with the addition that all keys must be domain-prefixed. No restrictions
+                                are placed on values, except an overall size limitation on the entire field.
+
+                                Signers should document the keys and values they support. Signers should
+                                deny requests that contain keys they do not recognize.
+                              type: object
                           required:
                           - keyType
                           - signerName
@@ -38604,6 +38851,24 @@ spec:
                                   description: Kubelet's generated CSRs will be addressed
                                     to this signer.
                                   type: string
+                                userAnnotations:
+                                  additionalProperties:
+                                    type: string
+                                  description: |-
+                                    userAnnotations allow pod authors to pass additional information to
+                                    the signer implementation.  Kubernetes does not restrict or validate this
+                                    metadata in any way.
+
+                                    These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                    the PodCertificateRequest objects that Kubelet creates.
+
+                                    Entries are subject to the same validation as object metadata annotations,
+                                    with the addition that all keys must be domain-prefixed. No restrictions
+                                    are placed on values, except an overall size limitation on the entire field.
+
+                                    Signers should document the keys and values they support. Signers should
+                                    deny requests that contain keys they do not recognize.
+                                  type: object
                               required:
                               - keyType
                               - signerName
@@ -38889,7 +39154,7 @@ spec:
                                   resources:
                                     description: |-
                                       resources represents the minimum resources the volume should have.
-                                      If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                                      Users are allowed to specify resource requirements
                                       that are lower than previous value but must still be higher than capacity recorded in the
                                       status field of the claim.
                                       More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -39087,9 +39352,10 @@ spec:
                             operator:
                               description: |-
                                 Operator represents a key's relationship to the value.
-                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                 Exists is equivalent to wildcard for value, so that a pod can
                                 tolerate all taints of a particular category.
+                                Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                               type: string
                             tolerationSeconds:
                               description: |-
@@ -40155,9 +40421,10 @@ spec:
                             operator:
                               description: |-
                                 Operator represents a key's relationship to the value.
-                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                 Exists is equivalent to wildcard for value, so that a pod can
                                 tolerate all taints of a particular category.
+                                Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                               type: string
                             tolerationSeconds:
                               description: |-
@@ -40225,9 +40492,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -40292,9 +40560,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -40360,9 +40629,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -42506,7 +42776,9 @@ spec:
                                 type: integer
                             type: object
                           resizePolicy:
-                            description: Resources resize policy for the container.
+                            description: |-
+                              Resources resize policy for the container.
+                              This field cannot be set on ephemeral containers.
                             items:
                               description: ContainerResizePolicy represents resource
                                 resize policy for the container.
@@ -43253,7 +43525,7 @@ spec:
                         resources:
                           description: |-
                             resources represents the minimum resources the volume should have.
-                            If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                            Users are allowed to specify resource requirements
                             that are lower than previous value but must still be higher than capacity recorded in the
                             status field of the claim.
                             More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -44715,7 +44987,9 @@ spec:
                                 type: integer
                             type: object
                           resizePolicy:
-                            description: Resources resize policy for the container.
+                            description: |-
+                              Resources resize policy for the container.
+                              This field cannot be set on ephemeral containers.
                             items:
                               description: ContainerResizePolicy represents resource
                                 resize policy for the container.
@@ -45874,7 +46148,7 @@ spec:
                               resources:
                                 description: |-
                                   resources represents the minimum resources the volume should have.
-                                  If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                                  Users are allowed to specify resource requirements
                                   that are lower than previous value but must still be higher than capacity recorded in the
                                   status field of the claim.
                                   More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -46017,9 +46291,10 @@ spec:
                           operator:
                             description: |-
                               Operator represents a key's relationship to the value.
-                              Valid operators are Exists and Equal. Defaults to Equal.
+                              Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                               Exists is equivalent to wildcard for value, so that a pod can
                               tolerate all taints of a particular category.
+                              Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                             type: string
                           tolerationSeconds:
                             description: |-
@@ -46372,7 +46647,7 @@ spec:
                         resources:
                           description: |-
                             resources represents the minimum resources the volume should have.
-                            If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                            Users are allowed to specify resource requirements
                             that are lower than previous value but must still be higher than capacity recorded in the
                             status field of the claim.
                             More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -46854,6 +47129,24 @@ spec:
                                       description: Kubelet's generated CSRs will be
                                         addressed to this signer.
                                       type: string
+                                    userAnnotations:
+                                      additionalProperties:
+                                        type: string
+                                      description: |-
+                                        userAnnotations allow pod authors to pass additional information to
+                                        the signer implementation.  Kubernetes does not restrict or validate this
+                                        metadata in any way.
+
+                                        These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                        the PodCertificateRequest objects that Kubelet creates.
+
+                                        Entries are subject to the same validation as object metadata annotations,
+                                        with the addition that all keys must be domain-prefixed. No restrictions
+                                        are placed on values, except an overall size limitation on the entire field.
+
+                                        Signers should document the keys and values they support. Signers should
+                                        deny requests that contain keys they do not recognize.
+                                      type: object
                                   required:
                                   - keyType
                                   - signerName
@@ -48468,6 +48761,24 @@ spec:
                                       description: Kubelet's generated CSRs will be
                                         addressed to this signer.
                                       type: string
+                                    userAnnotations:
+                                      additionalProperties:
+                                        type: string
+                                      description: |-
+                                        userAnnotations allow pod authors to pass additional information to
+                                        the signer implementation.  Kubernetes does not restrict or validate this
+                                        metadata in any way.
+
+                                        These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                        the PodCertificateRequest objects that Kubelet creates.
+
+                                        Entries are subject to the same validation as object metadata annotations,
+                                        with the addition that all keys must be domain-prefixed. No restrictions
+                                        are placed on values, except an overall size limitation on the entire field.
+
+                                        Signers should document the keys and values they support. Signers should
+                                        deny requests that contain keys they do not recognize.
+                                      type: object
                                   required:
                                   - keyType
                                   - signerName
@@ -49434,7 +49745,9 @@ spec:
                                   type: integer
                               type: object
                             resizePolicy:
-                              description: Resources resize policy for the container.
+                              description: |-
+                                Resources resize policy for the container.
+                                This field cannot be set on ephemeral containers.
                               items:
                                 description: ContainerResizePolicy represents resource
                                   resize policy for the container.
@@ -50850,9 +51163,10 @@ spec:
                             operator:
                               description: |-
                                 Operator represents a key's relationship to the value.
-                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                 Exists is equivalent to wildcard for value, so that a pod can
                                 tolerate all taints of a particular category.
+                                Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                               type: string
                             tolerationSeconds:
                               description: |-
@@ -52494,6 +52808,24 @@ spec:
                                       description: Kubelet's generated CSRs will be
                                         addressed to this signer.
                                       type: string
+                                    userAnnotations:
+                                      additionalProperties:
+                                        type: string
+                                      description: |-
+                                        userAnnotations allow pod authors to pass additional information to
+                                        the signer implementation.  Kubernetes does not restrict or validate this
+                                        metadata in any way.
+
+                                        These values are copied verbatim into the `spec.unverifiedUserAnnotations` field of
+                                        the PodCertificateRequest objects that Kubelet creates.
+
+                                        Entries are subject to the same validation as object metadata annotations,
+                                        with the addition that all keys must be domain-prefixed. No restrictions
+                                        are placed on values, except an overall size limitation on the entire field.
+
+                                        Signers should document the keys and values they support. Signers should
+                                        deny requests that contain keys they do not recognize.
+                                      type: object
                                   required:
                                   - keyType
                                   - signerName
@@ -52704,7 +53036,7 @@ spec:
                           resources:
                             description: |-
                               resources represents the minimum resources the volume should have.
-                              If RecoverVolumeExpansionFailure feature is enabled users are allowed to specify resource requirements
+                              Users are allowed to specify resource requirements
                               that are lower than previous value but must still be higher than capacity recorded in the
                               status field of the claim.
                               More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources
@@ -52984,9 +53316,10 @@ spec:
                             operator:
                               description: |-
                                 Operator represents a key's relationship to the value.
-                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                 Exists is equivalent to wildcard for value, so that a pod can
                                 tolerate all taints of a particular category.
+                                Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                               type: string
                             tolerationSeconds:
                               description: |-
