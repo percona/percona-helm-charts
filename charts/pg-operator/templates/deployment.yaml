@@ -67,6 +67,10 @@ spec:
               value: "{{ .Values.logLevel }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
+            {{- if .Values.pprofBindAddress }}
+            - name: PPROF_BIND_ADDRESS
+              value: "{{ .Values.pprofBindAddress }}"
+            {{- end}}
           livenessProbe:
             failureThreshold: 3
             httpGet:
