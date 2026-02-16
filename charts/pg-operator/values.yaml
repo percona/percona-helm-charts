@@ -47,3 +47,6 @@ disableTelemetry: false
 
 logStructured: false
 logLevel: "INFO"
+
+featureGates:
+  backupSnapshots: false

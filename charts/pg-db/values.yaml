@@ -404,6 +404,14 @@ proxy:
 backups:
   enabled: true
   trackLatestRestorableTime: true
+#  volumeSnapshots:
+#    mode: offline
+#    className: STORAGE-CLASS-NAME
+#    schedule: "0 0 * * 6"
+#    offlineConfig:
+#      checkpoint:
+#        enabled: true
+#        timeoutSeconds: 300
   pgbackrest:
 #    initContainer:
 #      image: docker.io/perconalab/percona-postgresql-operator:2.8.0
