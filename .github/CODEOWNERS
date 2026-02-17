@@ -1,5 +1,7 @@
 * @hors @nmarukovich @jvpasinatto @eleo007 @valmiranogueira
 /charts/pmm/ @percona/pmm-review-be
+/charts/pmm-ha/ @percona/pmm-review-be
 /charts/everest/ @percona/everest-backend-devs
 .github/everest-pr-checks.yaml @percona/everest-backend-devs
 .github/everest-release.yaml @percona/everest-backend-devs
+.github/workflows/pmm-ha-pr-checks.yaml @percona/pmm-review-be
