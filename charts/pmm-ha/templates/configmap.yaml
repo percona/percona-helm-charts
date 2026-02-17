@@ -1,0 +1,13 @@
+{{- if .Values.pmmEnv -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pmm.fullname" . }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+data:
+# environment passed to the PMM
+  {{- with .Values.pmmEnv }}
+    {{- . | toYaml | nindent 6 }}
+  {{- end }}
+{{- end }}
