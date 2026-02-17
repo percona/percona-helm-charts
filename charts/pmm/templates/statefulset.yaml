@@ -92,6 +92,19 @@ spec:
                   key: PMM_ADMIN_PASSWORD
                   optional: true
             {{ end }}
+            {{- if and .Values.externalSecrets.enabled .Values.externalSecrets.oauth.enabled }}
+            # OAuth credentials from ExternalSecret
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecrets.oauth.targetSecretName | default (printf "%s-oauth" (include "pmm.fullname" .)) }}
+                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalSecrets.oauth.targetSecretName | default (printf "%s-oauth" (include "pmm.fullname" .)) }}
+                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+            {{- end }}
           ports:
             - name: http
               containerPort: 8080
