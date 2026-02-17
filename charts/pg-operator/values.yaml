@@ -20,9 +20,6 @@ nameOverride: ""
 fullnameOverride: ""
 
 
-# The TCP address that the controller should bind to for serving pprof.
-# Setting "" or "0" will disable pprof serving.
-# pprofBindAddress: ""
 
 resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -52,3 +49,7 @@ disableTelemetry: false
 
 logStructured: false
 logLevel: "INFO"
+
+# The TCP address that the controller should bind to for serving pprof.
+# Setting "" or "0" will disable pprof serving.
+pprofBindAddress: "0"
