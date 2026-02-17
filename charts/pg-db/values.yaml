@@ -12,9 +12,9 @@ finalizers:
 # Set this if you want that operator deletes the backups on cluster deletion
 #  - percona.com/delete-backups
 
-crVersion: 2.8.0
+crVersion: 2.9.0
 # initContainer:
-#   image: docker.io/percona/percona-postgresql-operator:2.8.0
+#   image: docker.io/percona/percona-postgresql-operator:2.9.0
 #   resources:
 #     limits:
 #       cpu: 2.0
@@ -45,7 +45,7 @@ crVersion: 2.8.0
 #   labels:
 #     example-label: value
 repository: docker.io/percona/percona-distribution-postgresql
-image: docker.io/percona/percona-distribution-postgresql:17.6-1
+image: docker.io/percona/percona-distribution-postgresql:17.7-2
 imagePullPolicy: Always
 postgresVersion: 17
 # port: 5432
@@ -186,7 +186,7 @@ instances:
 - name: instance1
   replicas: 3
 #  initContainer:
-#    image: docker.io/percona/percona-postgresql-operator:2.8.0
+#    image: docker.io/percona/percona-postgresql-operator:2.9.0
 #    resources:
 #      limits:
 #        cpu: 2.0
@@ -316,7 +316,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: docker.io/percona/percona-pgbouncer:1.24.1-1
+    image: docker.io/percona/percona-pgbouncer:1.25.0-1
 #    env:
 #    - name: MY_ENV
 #      value: "1000"
@@ -406,7 +406,7 @@ backups:
   trackLatestRestorableTime: true
   pgbackrest:
 #    initContainer:
-#      image: docker.io/perconalab/percona-postgresql-operator:2.8.0
+#      image: docker.io/perconalab/percona-postgresql-operator:2.9.0
 #      resources:
 #        limits:
 #          cpu: 2.0
@@ -439,7 +439,7 @@ backups:
 #    envFrom:
 #    - secretRef:
 #        name: backup-env-secret
-    image: docker.io/percona/percona-pgbackrest:2.56.0-1
+    image: docker.io/percona/percona-pgbackrest:2.57.0-1
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -631,7 +631,7 @@ pmm:
 #   - basebackup
 
 # extensions:
-#   image: docker.io/percona/percona-postgresql-operator:2.8.0
+#   image: docker.io/percona/percona-postgresql-operator:2.9.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3

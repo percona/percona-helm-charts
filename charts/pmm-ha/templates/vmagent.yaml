@@ -1,0 +1,383 @@
+{{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmagent.enabled -}}
+---
+# VMAgent CRD managed by VictoriaMetrics operator
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMAgent
+metadata:
+  name: {{ include "pmm.fullname" . }}-vmagent
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vmagent
+spec:
+  # Number of VMAgent replicas
+  replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
+  
+  # Remote write configuration - forwards metrics to VMAuth with secure basicAuth
+  remoteWrite:
+    - url: "http://{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/api/v1/write"
+      basicAuth:
+        username:
+          name: {{ .Values.secret.name }}
+          key: VMAGENT_remoteWrite_basicAuth_username
+        password:
+          name: {{ .Values.secret.name }}
+          key: VMAGENT_remoteWrite_basicAuth_password
+      {{- if .Values.victoriaMetrics.vmagent.remoteWrite }}
+      {{- toYaml .Values.victoriaMetrics.vmagent.remoteWrite | nindent 6 }}
+      {{- end }}
+  
+  # Inline scrape configuration for infrastructure metrics
+  inlineScrapeConfig: |
+    # Scrape HAProxy metrics
+    - job_name: 'haproxy'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        # Keep only HAProxy service endpoints
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: 'pmm-ha-haproxy'
+          action: keep
+        # Target the stats/metrics port (1024)
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'stat'
+          action: keep
+        # Add standard labels
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        # Set the metrics path
+        - target_label: __metrics_path__
+          replacement: {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }}
+    
+    # Scrape ClickHouse metrics
+    - job_name: 'clickhouse'
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        # Keep only ClickHouse pods from this release
+        - source_labels: [__meta_kubernetes_pod_label_clickhouse_altinity_com_chi]
+          regex: '{{ include "pmm.fullname" . }}'
+          action: keep
+        # Target the metrics port (9363)
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '9363'
+          action: keep
+        # Add standard labels
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        # Add ClickHouse-specific labels
+        - source_labels: [__meta_kubernetes_pod_label_clickhouse_altinity_com_cluster]
+          target_label: clickhouse_cluster
+        - source_labels: [__meta_kubernetes_pod_label_clickhouse_altinity_com_shard]
+          target_label: clickhouse_shard
+        - source_labels: [__meta_kubernetes_pod_label_clickhouse_altinity_com_replica]
+          target_label: clickhouse_replica
+        # Set the metrics path
+        - target_label: __metrics_path__
+          replacement: /metrics
+    
+    # Scrape ClickHouse Keeper metrics
+    - job_name: 'clickhouse-keeper'
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        # Keep only ClickHouse Keeper pods from this release
+        - source_labels: [__meta_kubernetes_pod_label_clickhouse_keeper_altinity_com_chk]
+          regex: '{{ include "pmm.fullname" . }}-keeper'
+          action: keep
+        # Target the metrics port (7000)
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '7000'
+          action: keep
+        # Add standard labels
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        # Add Keeper-specific labels
+        - source_labels: [__meta_kubernetes_pod_label_clickhouse_keeper_altinity_com_cluster]
+          target_label: keeper_cluster
+        - source_labels: [__meta_kubernetes_pod_label_clickhouse_keeper_altinity_com_replica]
+          target_label: keeper_replica
+        # Set the metrics path
+        - target_label: __metrics_path__
+          replacement: /metrics
+
+    # Scrape VMSelect metrics
+    - job_name: 'vmselect'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: 'vmselect-{{ include "pmm.fullname" . }}-vmcluster'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
+    # Scrape VMInsert metrics
+    - job_name: 'vminsert'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: 'vminsert-{{ include "pmm.fullname" . }}-vmcluster'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
+    # Scrape VMStorage metrics
+    - job_name: 'vmstorage'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: 'vmstorage-{{ include "pmm.fullname" . }}-vmcluster'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
+    # Scrape VMAuth metrics
+    - job_name: 'vmauth'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: '{{ include "pmm.fullname" . }}-vmauth'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
+    # Scrape VMAgent metrics (self-monitoring)
+    - job_name: 'vmagent'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: '{{ include "pmm.fullname" . }}-vmagent'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service
+        - target_label: __metrics_path__
+          replacement: /metrics
+    # Scrape kube-state-metrics for Kubernetes object state
+    - job_name: 'kube-state-metrics'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: '.*kube-state-metrics'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'http-metrics|http|metrics'
+          action: keep
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+    # Scrape node-exporter for node-level metrics
+    - job_name: 'node-exporter'
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: '.*prometheus-node-exporter'
+          action: keep
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          regex: 'metrics|http-metrics'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_node_name]
+          target_label: node
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+    # Scrape kubelet metrics via the apiserver proxy
+    - job_name: 'kubelet'
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+        - role: node
+      relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/$1/proxy/metrics
+    # Scrape cAdvisor metrics via the apiserver proxy
+    - job_name: 'cadvisor'
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+        - role: node
+      relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+    # Scrape Kubernetes apiserver metrics
+    - job_name: 'kube-apiserver'
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - default
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          regex: 'kubernetes;https'
+          action: keep
+    {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
+    # User-provided scrape configs (appended)
+    {{- toYaml .Values.victoriaMetrics.vmagent.scrapeConfigs | nindent 4 }}
+    {{- end }}
+
+  {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
+  # Additional scrape configurations - can reference VMScrapeConfig resources
+  scrapeConfigSelector: {}
+  scrapeConfigNamespaceSelector: {}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.resources }}
+  # Resource limits and requests
+  resources:
+    {{- toYaml .Values.victoriaMetrics.vmagent.resources | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.affinity }}
+  # Pod affinity configuration
+  affinity:
+    {{- toYaml .Values.victoriaMetrics.vmagent.affinity | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.tolerations }}
+  # Pod tolerations
+  tolerations:
+    {{- toYaml .Values.victoriaMetrics.vmagent.tolerations | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.nodeSelector }}
+  # Node selector
+  nodeSelector:
+    {{- toYaml .Values.victoriaMetrics.vmagent.nodeSelector | nindent 4 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.podAnnotations }}
+  # Pod annotations
+  podMetadata:
+    annotations:
+      {{- toYaml .Values.victoriaMetrics.vmagent.podAnnotations | nindent 6 }}
+  {{- end }}
+  
+  {{- if .Values.victoriaMetrics.vmagent.extraArgs }}
+  # Extra arguments for vmagent
+  extraArgs:
+    {{- toYaml .Values.victoriaMetrics.vmagent.extraArgs | nindent 4 }}
+  {{- end }}
+  
+  # Service specification
+  serviceSpec:
+    metadata:
+      name: {{ include "pmm.fullname" . }}-vmagent
+      labels:
+        app: vmagent
+        {{- include "pmm.labels" . | nindent 8 }}
+    spec:
+      type: ClusterIP
+      ports:
+        - name: http
+          port: 8429
+          targetPort: http
+          protocol: TCP
+  
+  # Port configuration
+  port: "8429"
+{{- end }}

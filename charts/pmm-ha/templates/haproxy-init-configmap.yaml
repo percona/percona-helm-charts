@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pmm-ha-haproxy-init-script
+  namespace: {{ .Release.Namespace }}
+data:
+  wait-for-pmm.sh: |
+    #!/bin/sh
+    set -euo pipefail
+    
+    echo "HAProxy init: Waiting for PMM instances to be ready..."
+    echo "Current namespace: {{ .Release.Namespace }}"
+    echo "Expected PMM replicas: {{ .Values.replicas }}"
+    
+    # Install curl if not available
+    if ! command -v curl >/dev/null 2>&1; then
+      echo "Installing curl..."
+      apk add --no-cache curl > /dev/null 2>&1
+    fi
+    
+    # Check if PMM instance is ready
+    check_pmm_ready() {
+      local pmm_host="$1"
+      local pmm_port="$2"
+      local timeout="${3:-10}"
+      
+      echo "Checking PMM instance: $pmm_host:$pmm_port"
+      
+      local https_code=$(curl -sL --max-time "$timeout" -k -o /dev/null -w "%{http_code}" "https://$pmm_host:$pmm_port/")
+      if [ "$https_code" = "200" ]; then
+        echo "✅ HTTPS connection check passed for $pmm_host:$pmm_port (status: $https_code)"
+        return 0
+      else
+        echo "❌ Connection check failed for $pmm_host:$pmm_port (HTTPS status: $https_code)"
+        return 1
+      fi
+    }
+    
+    # Main loop
+    max_attempts=60
+    attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+      echo "Attempt $attempt/$max_attempts: Checking PMM instances..."
+      
+      all_ready=true
+      ready_count=0
+      
+      for i in $(seq 0 $(({{ .Values.replicas }} - 1))); do
+        pmm_host="{{ .Release.Name }}-$i.{{ .Values.service.name | default "monitoring-service" }}.{{ .Release.Namespace }}.svc.cluster.local"
+        
+        if check_pmm_ready "$pmm_host" "8443" 5; then
+          ready_count=$((ready_count + 1))
+          echo "✅ Instance $i is ready ($ready_count/{{ .Values.replicas }})"
+        else
+          echo "❌ Instance $i is not ready yet"
+          all_ready=false
+        fi
+      done
+      
+      echo "Ready instances: $ready_count/{{ .Values.replicas }}"
+      
+      if [ "$all_ready" = true ]; then
+        echo "🎉 All PMM instances are ready! HAProxy can now start."
+        exit 0
+      fi
+      
+      echo "⏳ Not all PMM instances are ready yet. Waiting 5 seconds..."
+      sleep 5
+      attempt=$((attempt + 1))
+    done
+    
+    echo "❌ Timeout: PMM instances did not become ready within 5 minutes"
+    echo "This may indicate an issue with PMM deployment"
+    exit 1
