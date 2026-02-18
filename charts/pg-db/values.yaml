@@ -71,6 +71,10 @@ customReplicationTLSSecret:
 
 # tlsOnly: false
 
+# tls:
+#   caValidityDuration: 87600h
+#   certValidityDuration: 2160h
+
 # openshift: true
 
 # autoCreateUserSchema: true

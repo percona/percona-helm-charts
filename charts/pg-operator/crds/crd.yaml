@@ -21670,6 +21670,18 @@ spec:
                     pattern: ^repo[1-4]
                     type: string
                 type: object
+              tls:
+                description: Defines the TLS certificate validity settings for the
+                  cluster.
+                properties:
+                  caValidityDuration:
+                    description: Validity duration for the generated Certificate Authority
+                      certificate.
+                    type: string
+                  certValidityDuration:
+                    description: Validity duration for the generated leaf TLS certificates.
+                    type: string
+                type: object
               tlsOnly:
                 type: boolean
               unmanaged:
@@ -51210,6 +51222,18 @@ spec:
                   minimum: 1
                   type: integer
                 type: array
+              tls:
+                description: Defines the TLS certificate validity settings for the
+                  cluster.
+                properties:
+                  caValidityDuration:
+                    description: Validity duration for the generated Certificate Authority
+                      certificate.
+                    type: string
+                  certValidityDuration:
+                    description: Validity duration for the generated leaf TLS certificates.
+                    type: string
+                type: object
               tlsOnly:
                 type: boolean
               userInterface:

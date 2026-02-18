@@ -52,6 +52,16 @@ spec:
   tlsOnly: {{ .Values.tlsOnly }}
   {{- end -}}
 
+  {{- if .Values.tls }}
+  tls:
+    {{- if .Values.tls.caValidityDuration }}
+    caValidityDuration: {{ .Values.tls.caValidityDuration }}
+    {{- end }}
+    {{- if .Values.tls.certValidityDuration }}
+    certValidityDuration: {{ .Values.tls.certValidityDuration }}
+    {{- end }}
+  {{- end }}
+
   {{- if hasKey .Values "openshift" }}
   openshift: {{ .Values.openshift }}
   {{- end -}}
