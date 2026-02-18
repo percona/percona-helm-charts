@@ -34,6 +34,8 @@ rbac:
 serviceAccount:
   # serviceAccount.create: Whether to create the Service Accounts or not
   create: true
+  # serviceAccount.name: Name of the Service Account to use. If not set, the chart will
+  name: ""
   # annotations to add to the service account
   annotations: {}
 
@@ -50,7 +52,7 @@ podAnnotations: {}
 
 # labels to the operator pod
 podLabels: {}
-  
+
 podSecurityContext: {}
   # runAsNonRoot: true
   # runAsUser: 2
@@ -98,6 +100,6 @@ affinity: {}
 logStructured: false
 logLevel: "INFO"
 
-# maxConcurrentReconciles controls the number of concurrent workers 
+# maxConcurrentReconciles controls the number of concurrent workers
 # that can reconcile resources in Percona Server for MongoDB clusters in parallel.
 maxConcurrentReconciles: "1"
