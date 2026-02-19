@@ -1,4 +1,4 @@
-name: Lint and Test Charts
+name: Lint, Unit and Test Charts
 
 on: 
   pull_request:
@@ -8,13 +8,15 @@ on:
     - 'charts/pmm-ha/**'
     - 'charts/pmm-ha-dependencies/**'
 
-
 jobs:
-  lint-test:
+  setup-test:
     runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.changed.outputs.charts }}
+      changed: ${{ steps.changed.outputs.changed }}
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -23,28 +25,57 @@ jobs:
         with:
           version: v3.20.0
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - uses: helm/chart-testing-action@v2.6.1
 
-      - name: Set up chart-testing
-        uses: helm/chart-testing-action@v2.6.1
-
-      - name: Run chart-testing (list-changed)
-        id: list-changed
+      - id: changed
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
-          if [[ -n "$changed" ]]; then
+          CHARTS=$(ct list-changed --config .github/ct.yaml)
+
+          echo "Detected charts: $CHARTS"
+          echo "charts=$CHARTS" >> $GITHUB_OUTPUT
+          if [[ -n "$CHARTS" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
+
+  unit-test:
+    runs-on: ubuntu-latest
+    needs: setup-test
+    steps:
+      - run: helm plugin install https://github.com/helm-unittest/helm-unittest >/dev/null
+
+      - name: Run unit tests only on changed charts
+        run: |
+          CHARTS="${{ needs.setup-test.outputs.charts }}"
+          if [ -z "$CHARTS" ]; then
+            echo "No changed charts."
+            exit 0
+          fi
+
+          for chart in $CHARTS; do
+            echo "Running tests for $chart"
+            helm unittest $chart --color
+          done
+
+  lint-test:
+    runs-on: ubuntu-latest
+    needs: setup-test
+    steps:
+      - uses: helm/chart-testing-action@v2.6.1
 
       - name: Run chart-testing (lint)
         run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest,pmm-ha,pmm-ha-dependencies
 
+
+  install-test:
+    runs-on: ubuntu-latest
+    needs: setup-test
+    steps:
+      - uses: helm/chart-testing-action@v2.6.1
+
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
         # Only build a kind cluster if there are chart changes to test.
-        if: steps.list-changed.outputs.changed == 'true'
+        if: needs.setup-test.outputs.changed == 'true'
 
       - name: Run chart-testing (install)
         run: |
@@ -75,6 +106,16 @@ jobs:
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm uninstall --namespace default $operator; done
           fi
+
+  post-test:
+    runs-on: ubuntu-latest
+    needs: 
+      - lint-test
+      - unit-test
+      - install-test
+    if: success()
+    steps:
+      - uses: helm/chart-testing-action@v2.6.1
 
       - name: Build chart package
         run: |
