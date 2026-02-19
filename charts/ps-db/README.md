@@ -19,7 +19,7 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 1.0.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 1.0.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
