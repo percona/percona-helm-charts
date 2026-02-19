@@ -19,7 +19,7 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 1.0.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 1.0.2 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -97,6 +97,7 @@ The chart can be customized using the following configurable parameters:
 | `mysql.exposePrimary.internalTrafficPolicy`       | Network service internalTrafficPolicy                                                                                                                         | ``                         |
 | `mysql.exposePrimary.labels`                      | Network service labels                                                                                                                                        | `{}`                       |
 | `mysql.exposePrimary.loadBalancerSourceRanges`    | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                       |
+| `mysql.vaultSecretName`                           | The Kubernetes Secret containing vault configuration for table encryption | `""` |
 | `mysql.volumeSpec`                                | MySQL Pods storage resources                                                                                                                                  | `{}`                       |
 | `mysql.volumeSpec.pvc`                            | MySQL Pods PVC request parameters                                                                                                                             |                            |
 | `mysql.volumeSpec.pvc.storageClassName`           | MySQL Pods PVC target storageClass                                                                                                                            | `""`                       |

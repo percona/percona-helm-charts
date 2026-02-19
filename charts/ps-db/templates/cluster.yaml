@@ -197,6 +197,9 @@ spec:
       {{- else }}
       enabled: false
       {{- end }}
+    {{- if $mysql.vaultSecretName }}
+    vaultSecretName: {{ $mysql.vaultSecretName }}
+    {{- end }}
     {{- if $mysql.volumeSpec }}
     volumeSpec:
       {{- if $mysql.volumeSpec.hostPath }}
