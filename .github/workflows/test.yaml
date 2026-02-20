@@ -56,11 +56,14 @@ jobs:
             for operator in $OPERATOR_INSTALL; do
               HELM_ARGS=()
               if [[ "$GITHUB_BASE_REF" == release-* ]]; then
-                IMAGE_NAME=$(yq e '.image.repository' "charts/$operator/values.yaml" | awk -F/ '{print $NF}')
+                IMAGE_NAME=$(yq e '.operatorImageRepository // .image.repository' "charts/$operator/values.yaml" | awk -F/ '{print $NF}')
                 HELM_ARGS=(
                   --set "image.repository=perconalab/$IMAGE_NAME"
                   --set "image.tag=main"
+                  --set "operatorImageRepository=perconalab/$IMAGE_NAME"
+                  --set "image=perconalab/$IMAGE_NAME:main"
                 )
+                echo "${HELM_ARGS[@]}"
               fi
               helm install --namespace default $operator charts/$operator/. --wait --debug "${HELM_ARGS[@]}"
               excluded_charts+=($operator)
