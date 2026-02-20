@@ -1,4 +1,4 @@
-name: Lint and Test Charts
+name: Lint, Unit and Test Charts
 
 on: 
   pull_request:
@@ -8,45 +8,93 @@ on:
     - 'charts/pmm-ha/**'
     - 'charts/pmm-ha-dependencies/**'
 
-
 jobs:
-  lint-test:
+  setup-test:
     runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.changed.outputs.charts }}
+      changed: ${{ steps.changed.outputs.changed }}
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4.3.1
+      - uses: helm/chart-testing-action@v2.6.1
+
+      - id: changed
+        run: |
+          CHARTS=$(ct list-changed --config .github/ct.yaml)
+
+          echo "Detected charts: $CHARTS"
+          echo "charts=$CHARTS" >> $GITHUB_OUTPUT
+          if [[ -n "$CHARTS" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+  unit-test:
+    runs-on: ubuntu-latest
+    needs: setup-test
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - uses: helm/chart-testing-action@v2.6.1
+      
+      - uses: azure/setup-helm@v4.3.1
         with:
           version: v3.20.0
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
+      - run: helm plugin install https://github.com/helm-unittest/helm-unittest >/dev/null
 
-      - name: Set up chart-testing
-        uses: helm/chart-testing-action@v2.6.1
-
-      - name: Run chart-testing (list-changed)
-        id: list-changed
+      - name: Run unit tests only on changed charts
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
-          if [[ -n "$changed" ]]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
+          CHARTS="${{ needs.setup-test.outputs.charts }}"
+          if [ -z "$CHARTS" ]; then
+            echo "No changed charts."
+            exit 0
           fi
+
+          for chart in $CHARTS; do
+            echo "Running tests for $chart"
+            helm unittest $chart --color
+          done
+
+  lint-test:
+    runs-on: ubuntu-latest
+    needs: setup-test
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - uses: helm/chart-testing-action@v2.6.1
 
       - name: Run chart-testing (lint)
         run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest,pmm-ha,pmm-ha-dependencies
 
+
+  install-test:
+    runs-on: ubuntu-latest
+    needs: setup-test
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - uses: azure/setup-helm@v4.3.1
+        with:
+          version: v3.20.0
+
+      - uses: helm/chart-testing-action@v2.6.1
+
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
-        # Only build a kind cluster if there are chart changes to test.
-        if: steps.list-changed.outputs.changed == 'true'
+        if: needs.setup-test.outputs.changed == 'true'
 
       - name: Run chart-testing (install)
+        if: needs.setup-test.outputs.changed == 'true'
         run: |
           echo "Base branch is $GITHUB_BASE_REF"
           excluded_charts=("everest")
@@ -76,10 +124,24 @@ jobs:
             for operator in $OPERATOR_INSTALL; do helm uninstall --namespace default $operator; done
           fi
 
+  post-test:
+    runs-on: ubuntu-latest
+    needs:
+      - setup-test
+      - lint-test
+      - unit-test
+      - install-test
+    if: success()
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - uses: helm/chart-testing-action@v2.6.1
+
       - name: Build chart package
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
-          [ $(echo -n "$changed" | grep -c '^') == 1 ] && helm package $changed || echo "skipping package"
+          [ $(echo -n "${{ needs.setup-test.outputs.charts }}" | grep -c '^') == 1 ] && helm package $changed || echo "skipping package"
 
       - name: Upload helm chart
         uses: actions/upload-artifact@v4
