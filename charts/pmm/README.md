@@ -65,6 +65,22 @@ It removes all of the resources associated with the last release of the chart as
 | `certs`               | Optional certificates, if not provided PMM would use generated self-signed certificates,                                                                                           | `{}`         |
 
 
+### External Secrets Integration
+
+| Name                                              | Description                                                                                                                                    | Value          |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `externalSecrets.enabled`                         | Enable External Secrets Operator integration                                                                                                  | `false`        |
+| `externalSecrets.oauth.enabled`                   | Enable ExternalSecret for OAuth credentials                                                                                                   | `false`        |
+| `externalSecrets.oauth.name`                      | Name of the ExternalSecret resource (defaults to `<fullname>-oauth-external-secret`)                                                          | `""`           |
+| `externalSecrets.oauth.secretStoreRef.name`       | Name of the SecretStore/ClusterSecretStore (e.g., "vault-backend", "aws-secretsmanager")                                                      | `""`           |
+| `externalSecrets.oauth.secretStoreRef.kind`       | Kind of secret store: "SecretStore" (namespace-scoped) or "ClusterSecretStore" (cluster-wide)                                                 | `SecretStore`  |
+| `externalSecrets.oauth.refreshInterval`           | How often to sync secrets from backend (e.g., "5m", "1h")                                                                                     | `5m`           |
+| `externalSecrets.oauth.targetSecretName`          | Target Kubernetes Secret name (defaults to `<fullname>-oauth`)                                                                                | `""`           |
+| `externalSecrets.oauth.data`                      | Remote secret configuration mapping Kubernetes secret keys to remote secret paths                                                             | `[]`           |
+| `externalSecrets.oauth.annotations`               | Additional annotations for the ExternalSecret resource                                                                                        | `{}`           |
+| `externalSecrets.oauth.labels`                    | Additional labels for the ExternalSecret resource                                                                                             | `{}`           |
+
+
 ### PMM network configuration
 
 | Name                              | Description                                                                                                                                    | Value                 |
@@ -203,6 +219,97 @@ pmmEnv:
   PMM_ENABLE_UPDATES: "0"
   PMM_DATA_RETENTION: "2160h" # 90 days
 ```
+
+### External Secrets Integration for OAuth
+
+PMM supports integration with [External Secrets Operator](https://external-secrets.io/) to fetch OAuth credentials from external secret management systems like HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, or GCP Secret Manager. This provides a secure way to inject credentials without storing them in values files.
+
+#### Prerequisites
+
+1. Install [External Secrets Operator](https://external-secrets.io/latest/introduction/getting-started/) in your cluster
+2. Create a SecretStore or ClusterSecretStore resource pointing to your secret backend
+3. Store your OAuth credentials in your secret backend
+
+#### Example: Using Vault with Okta
+
+```yaml
+externalSecrets:
+  enabled: true
+  oauth:
+    enabled: true
+    secretStoreRef:
+      name: vault-backend
+      kind: SecretStore
+    refreshInterval: "5m"
+    data:
+      - secretKey: "GF_AUTH_GENERIC_OAUTH_CLIENT_ID"
+        remoteRef:
+          key: "secret/data/prod/pmm/okta"
+          property: "client_id"
+      - secretKey: "GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET"
+        remoteRef:
+          key: "secret/data/prod/pmm/okta"
+          property: "client_secret"
+
+pmmEnv:
+  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
+  GF_AUTH_GENERIC_OAUTH_SCOPES: 'openid profile email groups'
+  GF_AUTH_GENERIC_OAUTH_AUTH_URL: 'https://dev-123456.okta.com/oauth2/v1/authorize'
+  GF_AUTH_GENERIC_OAUTH_TOKEN_URL: 'https://dev-123456.okta.com/oauth2/v1/token'
+  GF_AUTH_GENERIC_OAUTH_API_URL: 'https://dev-123456.okta.com/oauth2/v1/userinfo'
+  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: 'example.com'
+```
+
+#### Example: Using AWS Secrets Manager
+
+```yaml
+externalSecrets:
+  enabled: true
+  oauth:
+    enabled: true
+    secretStoreRef:
+      name: aws-secretsmanager
+      kind: ClusterSecretStore
+    refreshInterval: "1h"
+    data:
+      - secretKey: "GF_AUTH_GENERIC_OAUTH_CLIENT_ID"
+        remoteRef:
+          key: "prod/pmm/oauth-credentials"
+          property: "client_id"
+      - secretKey: "GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET"
+        remoteRef:
+          key: "prod/pmm/oauth-credentials"
+          property: "client_secret"
+
+pmmEnv:
+  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
+  # ... other OAuth configuration
+```
+
+#### Example: Using Azure Key Vault
+
+```yaml
+externalSecrets:
+  enabled: true
+  oauth:
+    enabled: true
+    secretStoreRef:
+      name: azure-keyvault
+      kind: SecretStore
+    data:
+      - secretKey: "GF_AUTH_GENERIC_OAUTH_CLIENT_ID"
+        remoteRef:
+          key: "pmm-oauth-client-id"
+      - secretKey: "GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET"
+        remoteRef:
+          key: "pmm-oauth-client-secret"
+
+pmmEnv:
+  GF_AUTH_GENERIC_OAUTH_ENABLED: 'true'
+  # ... other OAuth configuration
+```
+
+> **Note**: When using External Secrets, the OAuth credentials are automatically synced from your secret backend and injected as environment variables into the PMM container. The sync interval is controlled by `externalSecrets.oauth.refreshInterval`.
 
 # Need help?
 
