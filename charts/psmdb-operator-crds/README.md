@@ -16,11 +16,8 @@ Helm has a limitation where CRDs placed in the `crds/` directory of a chart are 
 This separate CRD chart allows you to:
 1. **Install CRDs independently** - Deploy CRDs before installing the operator
 2. **Upgrade CRDs** - Use `helm upgrade` to update CRDs when new versions are released
-3. **Use with GitOps tools** - Works with ArgoCD, FluxCD, and other GitOps tools that support server-side apply
 
 ## Installation
-
-### Option 1: Install CRDs Separately
 
 Install the CRD chart first:
 
@@ -33,14 +30,6 @@ Then install the operator:
 
 ```sh
 helm install psmdb-operator percona/psmdb-operator --namespace psmdb
-```
-
-### Option 2: Install CRDs as Dependency
-
-Enable the CRD sub-chart when installing the operator:
-
-```sh
-helm install psmdb-operator percona/psmdb-operator --namespace psmdb --create-namespace --set crds.enabled=true
 ```
 
 ## Upgrading CRDs
@@ -66,26 +55,7 @@ helm upgrade psmdb-operator percona/psmdb-operator --namespace psmdb
 
 ## Taking Ownership of Existing CRDs
 
-If you have CRDs that were previously installed via the `crds/` directory and want to manage them with this chart, you need to add Helm labels and annotations. **This is required because CRDs installed via the `crds/` directory don't have Helm ownership metadata, which prevents the CRD sub-chart from managing them.**
-
-### Important Limitation
-
-If you install the operator with `crds.enabled=true` when CRDs already exist from a previous installation via the `crds/` directory, Helm will fail with an ownership metadata error. This is expected behavior. You have two options:
-
-1. **Install CRDs separately first** (recommended):
-   ```sh
-   # Install CRD chart first
-   helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb --take-ownership
-   
-   # Then install operator with CRDs enabled
-   helm install psmdb-operator percona/psmdb-operator --namespace psmdb --set crds.enabled=true
-   ```
-
-2. **Keep CRDs disabled** and use existing CRDs:
-   ```sh
-   # Install operator without CRD sub-chart (uses existing CRDs)
-   helm install psmdb-operator percona/psmdb-operator --namespace psmdb
-   ```
+If you have CRDs that were previously installed via the `crds/` directory and want to manage them with this chart, you need to add Helm labels and annotations. **This is required because CRDs installed via the `crds/` directory don't have Helm ownership metadata, which prevents this chart from managing them.**
 
 ### Taking Ownership Manually
 
@@ -121,9 +91,3 @@ This means CRDs were previously installed via the `crds/` directory and lack Hel
    ```
 
 2. **Or manually add ownership metadata** (see [Taking Ownership](#taking-ownership-of-existing-crds) section above)
-
-3. **Or keep CRDs disabled** and use the existing CRDs:
-   ```sh
-   helm install psmdb-operator percona/psmdb-operator --namespace psmdb
-   # Don't set crds.enabled=true if CRDs already exist from crds/ directory
-   ```

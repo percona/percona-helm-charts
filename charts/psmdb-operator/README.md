@@ -50,17 +50,10 @@ kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-name=psmdb-operator-crds
 kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=my-namespace --overwrite
 ```
 
-### Option 2: Enable CRD Sub-chart as Dependency
+### Option 2: Use kubectl to upgrade the CRDs
 
-Enable CRD management via the sub-chart dependency:
+kubectl apply --server-side -f https://raw.githubusercontent.com/percona/percona-server-mongodb-operator/v1.22.0/deploy/crd.yaml -n my-namespace
 
-```sh
-helm install my-operator percona/psmdb-operator --namespace my-namespace --set crds.enabled=true
-```
-
-This allows CRDs to be upgraded alongside the operator chart.
-
-> **Important:** If CRDs were previously installed via the `crds/` directory, you cannot enable `crds.enabled=true` without first taking ownership of the existing CRDs. See the [CRD chart README](../psmdb-operator-crds/README.md#taking-ownership-of-existing-crds) for details.
 
 The chart can be customized using the following configurable parameters:
 
