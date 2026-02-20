@@ -20,11 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4.3.1
-        with:
-          version: v3.20.0
-
       - uses: helm/chart-testing-action@v2.6.1
 
       - id: changed
@@ -41,6 +36,16 @@ jobs:
     runs-on: ubuntu-latest
     needs: setup-test
     steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - uses: helm/chart-testing-action@v2.6.1
+      
+      - uses: azure/setup-helm@v4.3.1
+        with:
+          version: v3.20.0
+
       - run: helm plugin install https://github.com/helm-unittest/helm-unittest >/dev/null
 
       - name: Run unit tests only on changed charts
@@ -60,6 +65,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: setup-test
     steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
       - uses: helm/chart-testing-action@v2.6.1
 
       - name: Run chart-testing (lint)
@@ -70,14 +79,22 @@ jobs:
     runs-on: ubuntu-latest
     needs: setup-test
     steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - uses: azure/setup-helm@v4.3.1
+        with:
+          version: v3.20.0
+
       - uses: helm/chart-testing-action@v2.6.1
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
-        # Only build a kind cluster if there are chart changes to test.
         if: needs.setup-test.outputs.changed == 'true'
 
       - name: Run chart-testing (install)
+        if: needs.setup-test.outputs.changed == 'true'
         run: |
           echo "Base branch is $GITHUB_BASE_REF"
           excluded_charts=("everest")
@@ -109,18 +126,22 @@ jobs:
 
   post-test:
     runs-on: ubuntu-latest
-    needs: 
+    needs:
+      - setup-test
       - lint-test
       - unit-test
       - install-test
     if: success()
     steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
       - uses: helm/chart-testing-action@v2.6.1
 
       - name: Build chart package
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
-          [ $(echo -n "$changed" | grep -c '^') == 1 ] && helm package $changed || echo "skipping package"
+          [ $(echo -n "${{ needs.setup-test.outputs.charts }}" | grep -c '^') == 1 ] && helm package $changed || echo "skipping package"
 
       - name: Upload helm chart
         uses: actions/upload-artifact@v4

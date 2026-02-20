@@ -16,9 +16,8 @@ tests:
           repository: percona/percona-xtradb-cluster
           tag: some-tag
     asserts:
-      - equal:
-          path: spec.pxc.size
-          value: 3
-      - equal:
-          path: spec.pxc.image
-          value: percona/percona-xtradb-cluster:some-tag
+      - isSubset:
+          path: spec.pxc
+          content:
+            size: 3
+            image: percona/percona-xtradb-cluster:some-tag
