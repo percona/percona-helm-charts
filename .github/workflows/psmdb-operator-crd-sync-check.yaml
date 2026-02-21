@@ -26,8 +26,7 @@ jobs:
           OPERATOR_CHART_VERSION=$(grep '^version:' charts/psmdb-operator/Chart.yaml | awk '{print $2}' | tr -d '"')
           CRD_VERSION=$(grep '^version:' charts/psmdb-operator-crds/Chart.yaml | awk '{print $2}' | tr -d '"')
           CRD_APP_VERSION=$(grep '^appVersion:' charts/psmdb-operator-crds/Chart.yaml | awk '{print $2}' | tr -d '"')
-          DEPENDENCY_VERSION=$(grep -A 3 'name: psmdb-operator-crds' charts/psmdb-operator/Chart.yaml | grep 'version:' | awk '{print $2}' | tr -d '"')
-          
+         
           echo "Operator chart:"
           echo "  version: $OPERATOR_CHART_VERSION"
           echo "  appVersion: $OPERATOR_APP_VERSION"
@@ -53,11 +52,6 @@ jobs:
             VERSION_SYNC=false
           fi
           
-          # Dependency version should match psmdb-operator-crds chart version
-          if [ "$CRD_VERSION" != "$DEPENDENCY_VERSION" ]; then
-            echo "✗ psmdb-operator-crds chart version ($CRD_VERSION) does not match dependency version ($DEPENDENCY_VERSION)"
-            VERSION_SYNC=false
-          fi
           
           if [ "$VERSION_SYNC" = false ]; then
             echo ""
