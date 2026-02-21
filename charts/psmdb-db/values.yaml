@@ -61,7 +61,7 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 8.0.17-6
+  tag: 8.0.19-7
 
 imagePullPolicy: Always
 # imagePullSecrets: []
@@ -102,7 +102,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.5.0
+    tag: 3.6.0
   serverHost: monitoring-service
 #  customClusterName: ""
 #  mongodParams: ""
@@ -705,7 +705,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.11.0
+    tag: 2.12.0
   # startingDeadlineSeconds: 300
   # annotations:
   #   iam.amazonaws.com/role: role-arn
@@ -859,7 +859,7 @@ logcollector:
   enabled: true
   image:
     repository: percona/fluentbit
-    tag: 4.0.1
+    tag: 4.0.1-2
 #  configuration: |
 #    [SERVICE]
 #        Flush        1

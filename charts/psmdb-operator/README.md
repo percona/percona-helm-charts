@@ -68,8 +68,8 @@ The chart can be customized using the following configurable parameters:
 | ---------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | `image.repository`           | PSMDB Operator Container image name                                                                 | `percona/percona-server-mongodb-operator` |
 | `image.tag`                  | PSMDB Operator Container image tag                                                                  | `1.22.0`                                  |
-| `image.pullPolicy`           | PSMDB Operator Container pull policy                                                                | `Always`                                  |
-| `image.pullSecrets`          | PSMDB Operator Pod pull secret                                                                      | `[]`                                      |
+| `image.pullPolicy`           | PSMDB Operator Container pull policy                                                                | `IfNotPresent`                            |
+| `imagePullSecrets`           | PSMDB Operator Pod pull secret                                                                      | `[]`                                      |
 | `replicaCount`               | PSMDB Operator Pod quantity                                                                         | `1`                                       |
 | `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                         | ``                                        |
 | `tolerations`                | List of node taints to tolerate                                                                     | `[]`                                      |

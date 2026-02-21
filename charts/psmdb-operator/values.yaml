@@ -17,7 +17,7 @@ image:
 disableTelemetry: false
 
 # set if you want to specify a namespace to watch
-# defaults to `.Release.namespace` if left blank
+# defaults to the operator namespace (`namespaceOverride` or `.Release.Namespace`) if left blank
 # multiple namespaces can be specified and separated by comma
 # watchNamespace:
 # set if you want that watched namespaces are created by helm

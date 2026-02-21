@@ -22,14 +22,14 @@ Join Percona Squad! Get early access to new product features, invite-only ”ask
 
 Percona Server for MongoDB cluster is deployed now. Get the username and password:
 
-  ADMIN_USER=$(kubectl -n {{ .Release.Namespace }} get secrets {{ include "psmdb-database.fullname" . }}-secrets -o jsonpath="{.data.MONGODB_USER_ADMIN_USER}" | base64 --decode)
-  ADMIN_PASSWORD=$(kubectl -n {{ .Release.Namespace }} get secrets {{ include "psmdb-database.fullname" . }}-secrets -o jsonpath="{.data.MONGODB_USER_ADMIN_PASSWORD}" | base64 --decode)
+  ADMIN_USER=$(kubectl -n {{ include "psmdb-database.namespace" . }} get secrets {{ include "psmdb-database.fullname" . }}-secrets -o jsonpath="{.data.MONGODB_USER_ADMIN_USER}" | base64 --decode)
+  ADMIN_PASSWORD=$(kubectl -n {{ include "psmdb-database.namespace" . }} get secrets {{ include "psmdb-database.fullname" . }}-secrets -o jsonpath="{.data.MONGODB_USER_ADMIN_PASSWORD}" | base64 --decode)
 
 Connect to the cluster:
 {{- if .Values.sharding.enabled }}
 
   kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:8.0 --restart=Never \
-  -- mongosh "mongodb://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-mongos.{{ .Release.Namespace }}.svc.cluster.local/admin?ssl=false"
+  -- mongosh "mongodb://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-mongos.{{ include "psmdb-database.namespace" . }}.svc.cluster.local/admin?ssl=false"
 
 {{- else }}
 {{- $replsetName := "rs0" -}}
@@ -38,7 +38,7 @@ Connect to the cluster:
 {{- end -}}
 
   kubectl run -i --rm --tty percona-client --image=percona/percona-server-mongodb:8.0 --restart=Never \
-  -- mongosh "mongodb+srv://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-{{ $replsetName }}.{{ .Release.Namespace }}.svc.cluster.local/admin?replicaSet={{ $replsetName }}&ssl=false"
+  -- mongosh "mongodb+srv://${ADMIN_USER}:${ADMIN_PASSWORD}@{{ include "psmdb-database.fullname" . }}-{{ $replsetName }}.{{ include "psmdb-database.namespace" . }}.svc.cluster.local/admin?replicaSet={{ $replsetName }}&ssl=false"
 
 {{- end }}
   
