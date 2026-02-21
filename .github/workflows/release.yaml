@@ -31,6 +31,20 @@ jobs:
         with:
           version: v3.15.4
 
+      - name: Add Helm repositories
+        run: |
+          helm repo add haproxytech https://haproxytech.github.io/helm-charts/
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add victoriametrics https://victoriametrics.github.io/helm-charts/
+          helm repo add altinity https://helm.altinity.com
+          helm repo add percona https://percona.github.io/percona-helm-charts/
+          helm repo update
+
+      - name: Build chart dependencies
+        run: |
+          helm dependency build charts/pmm-ha-dependencies
+          helm dependency build charts/pmm-ha
+
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
         env:
