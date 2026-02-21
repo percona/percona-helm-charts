@@ -5,6 +5,9 @@ on:
     path-ignore:
     - 'charts/gcp-marketplace/**'
     - 'charts/everest/**'
+    - 'charts/pmm-ha/**'
+    - 'charts/pmm-ha-dependencies/**'
+
 
 jobs:
   lint-test:
@@ -16,9 +19,9 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Helm
-        uses: azure/setup-helm@v4.2.0
+        uses: azure/setup-helm@v4.3.1
         with:
-          version: v3.15.4
+          version: v3.20.0
 
       - uses: actions/setup-python@v5
         with:
@@ -36,7 +39,7 @@ jobs:
           fi
 
       - name: Run chart-testing (lint)
-        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest
+        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest,pmm-ha,pmm-ha-dependencies
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
@@ -45,11 +48,30 @@ jobs:
 
       - name: Run db-chart-testing (install)
         run: |
-          OPERATOR_INSTALL=$(ct list-changed --config .github/ct.yaml | sed 's:charts/::' | grep "\-db$" | sed 's/-db$/-operator/')
+          echo "Base branch is $GITHUB_BASE_REF"
+          excluded_charts=("everest")
+          OPERATOR_INSTALL=$(ct list-changed --config .github/ct.yaml | sed -E 's:charts/::' | awk '/(-db|-operator)$/ { sub(/-db$/, "-operator"); print }' | sort -u)
+
           if [ -n "$OPERATOR_INSTALL" ]; then
-            for operator in $OPERATOR_INSTALL; do helm install --namespace default $operator charts/$operator/.; done
+            for operator in $OPERATOR_INSTALL; do
+              HELM_ARGS=()
+              if [[ "$GITHUB_BASE_REF" == release-* ]]; then
+                IMAGE_NAME=$(yq e '.operatorImageRepository // .image.repository' "charts/$operator/values.yaml" | awk -F/ '{print $NF}')
+                HELM_ARGS=(
+                  --set "image.repository=perconalab/$IMAGE_NAME"
+                  --set "image.tag=main"
+                  --set "operatorImageRepository=perconalab/$IMAGE_NAME"
+                  --set "image=perconalab/$IMAGE_NAME:main"
+                )
+                echo "${HELM_ARGS[@]}"
+              fi
+              helm install --namespace default $operator charts/$operator/. --wait --debug "${HELM_ARGS[@]}"
+              excluded_charts+=($operator)
+            done
           fi
-          ct install --config .github/ct.yaml --excluded-charts=everest,psmdb-operator-crds
+
+          ct install --config .github/ct.yaml --excluded-charts=$(IFS=,; echo "${excluded_charts[*]}")
+
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm uninstall --namespace default $operator; done
           fi
