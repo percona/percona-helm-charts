@@ -26,6 +26,9 @@ helm repo add percona https://percona.github.io/percona-helm-charts/
 helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb --create-namespace
 ```
 
+> **Note:** Deleting CRD chart will trigger deletion of all the custom resources created using the CRDs thus deleting all clusters.
+>  Uninstalling percona/psmdb-operator-crds chart should be approached with caution.
+
 Then install the operator:
 
 ```sh

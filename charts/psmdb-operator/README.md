@@ -15,7 +15,26 @@ This chart will deploy the Operator Pod for the further Percona Server for Mongo
 
 ## Installing the chart
 
-To install the chart with the `psmdb` release name using a dedicated namespace (recommended):
+There are two ways to insall operator: using separate chart with operator Custom Resource Defenitions or using CRDs from the `crds/` directory.
+
+### Using separate chart
+
+Install CRD chart:
+
+```sh
+helm repo add percona https://percona.github.io/percona-helm-charts/
+helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb --create-namespace
+```
+> **Note:** Deleting CRD chart will trigger deletion of all the custom resources created using the CRDs thus deleting all clusters.
+>  Uninstalling percona/psmdb-operator-crds chart should be approached with caution.
+
+
+Install operator chart:
+```sh
+helm install my-operator percona/psmdb-operator --version 1.22.0 --namespace my-namespace
+```
+
+### Using the `crds/` directory.
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
