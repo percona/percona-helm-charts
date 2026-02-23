@@ -1,0 +1,23 @@
+suite: Cluster test
+templates:
+  - templates/cluster.yaml
+
+tests:
+  - it: should render correct object
+    asserts:
+      - isKind:
+          of: PerconaXtraDBCluster
+  
+  - it: should render pxc spec correctly
+    set:
+      pxc:
+        size: 3
+        image:
+          repository: percona/percona-xtradb-cluster
+          tag: some-tag
+    asserts:
+      - isSubset:
+          path: spec.pxc
+          content:
+            size: 3
+            image: percona/percona-xtradb-cluster:some-tag
