@@ -4,11 +4,6 @@ description: A Helm chart for deploying the Percona Operator for MongoDB
 name: psmdb-operator
 home: https://docs.percona.com/percona-operator-for-mongodb/
 version: 1.22.0
-dependencies:
-  - name: psmdb-operator-crds
-    version: 1.22.0
-    repository: "file://../psmdb-operator-crds"
-    condition: crds.enabled
 maintainers:
   - name: nmarukovich
     email: natalia.marukovich@percona.com
