@@ -328,6 +328,9 @@ spec:
       configuration: |
 {{ $replset.hidden.configuration | indent 8 }}
       {{- end }}
+      {{- if $replset.hidden.serviceAccountName }}
+      serviceAccountName: {{ $replset.hidden.serviceAccountName }}
+      {{- end }}
       {{- if $replset.hidden.hookScript }}
       hookScript:
         {{- if $replset.hidden.hookScript.configMapRef }}
