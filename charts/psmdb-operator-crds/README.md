@@ -76,7 +76,7 @@ helm upgrade --install psmdb-operator-crds percona/psmdb-operator-crds --namespa
 
 ## Troubleshooting
 
-### Error: "invalid ownership metadata" when enabling CRD sub-chart
+### Error: "invalid ownership metadata" when installing CRD chart
 
 If you see an error like:
 ```
