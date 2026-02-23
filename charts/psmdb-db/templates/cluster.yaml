@@ -507,7 +507,7 @@ spec:
 {{ $replset.arbiter.hookScript.script | indent 10 }}
         {{- end }}
       {{- end }}
-      {{- if $replset.affinity }}
+      {{- if $replset.arbiter.affinity }}
       affinity:
 {{ $replset.arbiter.affinity | toYaml | indent 8 }}
       {{- end }}
