@@ -50,7 +50,10 @@ jobs:
         run: |
           echo "Base branch is $GITHUB_BASE_REF"
           excluded_charts=("everest")
+          # Exclude -operator-crds; they are installed in the next step with --take-ownership
+          while IFS= read -r crd; do [[ -n "$crd" ]] && excluded_charts+=("$crd"); done <<< "$(ct list-changed --config .github/ct.yaml | sed 's:^charts/::' | grep '\-operator-crds$' || true)"
           OPERATOR_INSTALL=$(ct list-changed --config .github/ct.yaml | sed -E 's:charts/::' | awk '/(-db|-operator)$/ { sub(/-db$/, "-operator"); print }' | sort -u)
+          echo "The charts to install: $OPERATOR_INSTALL"
 
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do
@@ -65,6 +68,7 @@ jobs:
                 )
                 echo "${HELM_ARGS[@]}"
               fi
+              echo "Installing $operator with Helm args: ${HELM_ARGS[@]}"
               helm install --namespace default $operator charts/$operator/. --wait --debug "${HELM_ARGS[@]}"
               excluded_charts+=($operator)
             done
