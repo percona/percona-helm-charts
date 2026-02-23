@@ -70,7 +70,7 @@ spec:
               {{- if .Values.watchAllNamespaces }}
               value: ""
               {{- else }}
-              value: "{{ default .Release.Namespace .Values.watchNamespace }}"
+              value: "{{ default (include "psmdb-operator.namespace" .) .Values.watchNamespace }}"
               {{- end }}
             - name: POD_NAME
               valueFrom:

@@ -1,0 +1,159 @@
+{{- if .Values.victoriaMetrics.enabled -}}
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMCluster
+metadata:
+  name: {{ include "pmm.fullname" . }}-vmcluster
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: victoria-metrics-cluster
+spec:
+  # Retention period for metrics
+  retentionPeriod: {{ .Values.victoriaMetrics.vmstorage.retentionPeriod | quote }}
+  
+  # Replication factor for vmstorage (how many copies of data to store)
+  # Should be <= vmstorage.replicaCount for redundancy
+  replicationFactor: {{ .Values.victoriaMetrics.replicationFactor }}
+
+  # VMSelect component configuration (handles read queries)
+  vmselect:
+    replicaCount: {{ .Values.victoriaMetrics.vmselect.replicaCount }}
+    {{- if .Values.victoriaMetrics.vmselect.resources }}
+    resources:
+      {{- toYaml .Values.victoriaMetrics.vmselect.resources | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmselect.affinity }}
+    affinity:
+      {{- toYaml .Values.victoriaMetrics.vmselect.affinity | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmselect.tolerations }}
+    tolerations:
+      {{- toYaml .Values.victoriaMetrics.vmselect.tolerations | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmselect.nodeSelector }}
+    nodeSelector:
+      {{- toYaml .Values.victoriaMetrics.vmselect.nodeSelector | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmselect.podAnnotations }}
+    podMetadata:
+      annotations:
+        {{- toYaml .Values.victoriaMetrics.vmselect.podAnnotations | nindent 8 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmselect.extraArgs }}
+    extraArgs:
+      {{- toYaml .Values.victoriaMetrics.vmselect.extraArgs | nindent 6 }}
+    {{- end }}
+    # Service configuration for vmselect
+    serviceSpec:
+      metadata:
+        labels:
+          app: vmselect
+          {{- include "pmm.labels" . | nindent 10 }}
+      spec:
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 8481
+            targetPort: http
+
+  # VMInsert component configuration (handles write requests)
+  vminsert:
+    replicaCount: {{ .Values.victoriaMetrics.vminsert.replicaCount }}
+    {{- if .Values.victoriaMetrics.vminsert.resources }}
+    resources:
+      {{- toYaml .Values.victoriaMetrics.vminsert.resources | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vminsert.affinity }}
+    affinity:
+      {{- toYaml .Values.victoriaMetrics.vminsert.affinity | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vminsert.tolerations }}
+    tolerations:
+      {{- toYaml .Values.victoriaMetrics.vminsert.tolerations | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vminsert.nodeSelector }}
+    nodeSelector:
+      {{- toYaml .Values.victoriaMetrics.vminsert.nodeSelector | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vminsert.podAnnotations }}
+    podMetadata:
+      annotations:
+        {{- toYaml .Values.victoriaMetrics.vminsert.podAnnotations | nindent 8 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vminsert.extraArgs }}
+    extraArgs:
+      {{- toYaml .Values.victoriaMetrics.vminsert.extraArgs | nindent 6 }}
+    {{- end }}
+    # Service configuration for vminsert
+    serviceSpec:
+      metadata:
+        labels:
+          app: vminsert
+          {{- include "pmm.labels" . | nindent 10 }}
+      spec:
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 8480
+            targetPort: http
+
+  # VMStorage component configuration (stores metrics data)
+  vmstorage:
+    replicaCount: {{ .Values.victoriaMetrics.vmstorage.replicaCount }}
+    {{- if .Values.victoriaMetrics.vmstorage.resources }}
+    resources:
+      {{- toYaml .Values.victoriaMetrics.vmstorage.resources | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmstorage.affinity }}
+    affinity:
+      {{- toYaml .Values.victoriaMetrics.vmstorage.affinity | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmstorage.tolerations }}
+    tolerations:
+      {{- toYaml .Values.victoriaMetrics.vmstorage.tolerations | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmstorage.nodeSelector }}
+    nodeSelector:
+      {{- toYaml .Values.victoriaMetrics.vmstorage.nodeSelector | nindent 6 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmstorage.podAnnotations }}
+    podMetadata:
+      annotations:
+        {{- toYaml .Values.victoriaMetrics.vmstorage.podAnnotations | nindent 8 }}
+    {{- end }}
+    {{- if .Values.victoriaMetrics.vmstorage.extraArgs }}
+    extraArgs:
+      {{- toYaml .Values.victoriaMetrics.vmstorage.extraArgs | nindent 6 }}
+    {{- end }}
+    # Persistent storage configuration
+    storage:
+      volumeClaimTemplate:
+        spec:
+          {{- if .Values.victoriaMetrics.vmstorage.storageClassName }}
+          storageClassName: {{ .Values.victoriaMetrics.vmstorage.storageClassName }}
+          {{- end }}
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: {{ .Values.victoriaMetrics.vmstorage.storageSize }}
+    # Service configuration for vmstorage
+    serviceSpec:
+      metadata:
+        labels:
+          app: vmstorage
+          {{- include "pmm.labels" . | nindent 10 }}
+      spec:
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 8482
+            targetPort: http
+          - name: vminsert
+            port: 8400
+            targetPort: vminsert
+          - name: vmselect
+            port: 8401
+            targetPort: vmselect
+{{- end }}
+

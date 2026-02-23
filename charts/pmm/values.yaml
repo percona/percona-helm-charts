@@ -14,7 +14,7 @@ image:
   repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "3.5.0"
+  tag: "3.6.0"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -315,9 +315,14 @@ tolerations: []
 ##
 affinity: {}
 
-## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts
-##
-extraVolumeMounts: []
 ## @param extraVolumes Optionally specify extra list of additional volumes
 ##
-extraVolumes: []
+extraVolumes:
+  - name: pmm-config
+    emptyDir: {}
+
+## @param extraVolumeMounts Optionally specify extra list of additional volumeMounts
+##
+extraVolumeMounts:
+  - name: pmm-config
+    mountPath: /usr/local/percona/pmm/config
