@@ -881,9 +881,9 @@ spec:
 {{ .Values.backup.resources | toYaml | indent 6 }}
     {{- end }}
     storages:
-{{ .Values.backup.storages | toYaml | indent 6 }}
+{{ (default (dict) .Values.backup.storages) | toYaml | indent 6 }}
     volumeMounts:
-{{ .Values.backup.volumeMounts | toYaml | indent 6 }}
+{{ (default (list) .Values.backup.volumeMounts) | toYaml | indent 6 }}
     pitr:
     {{- if and .Values.backup.enabled .Values.backup.pitr.enabled }}
       enabled: true
@@ -907,7 +907,7 @@ spec:
 {{ .Values.backup.configuration | toYaml | indent 6 }}
     {{- end }}
     tasks:
-{{ .Values.backup.tasks | toYaml | indent 6 }}
+{{ (default (list) .Values.backup.tasks) | toYaml | indent 6 }}
   logcollector:
     enabled: {{ .Values.logcollector.enabled }}
     image: "{{ .Values.logcollector.image.repository }}:{{ .Values.logcollector.image.tag }}"
