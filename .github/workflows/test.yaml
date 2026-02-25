@@ -89,7 +89,7 @@ jobs:
       
       - name: Run crd-chart-testing (install)
         run: |
-          CRD_INSTALL=$(ct list-changed --config .github/ct.yaml | sed 's:^charts/::' | grep '\-operator-crds$')
+          CRD_INSTALL="$(ct list-changed --config .github/ct.yaml | sed 's:^charts/::' | grep '\-operator-crds$' || true)"
           if [ -n "$CRD_INSTALL" ]; then
             for crd in $CRD_INSTALL; do 
               helm install --namespace default $crd charts/$crd/. --take-ownership
