@@ -323,7 +323,7 @@ proxy:
 #    envFrom:
 #    - secretRef:
 #        name: pgbouncer-env-secret
-#    exposeSuperusers: true
+#    exposeSuperusers: false
 #    resources:
 #      limits:
 #        cpu: 200m
