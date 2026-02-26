@@ -23,6 +23,9 @@ metadata:
 spec:
   crVersion: {{ .Values.crVersion }}
   {{- include "pg-database.initContainer" .Values | indent 2 }}
+  {{- if .Values.clusterServiceDNSSuffix }}
+  clusterServiceDNSSuffix: {{ .Values.clusterServiceDNSSuffix }}
+  {{- end }}
   {{- if .Values.metadata }}
   metadata: {{ .Values.metadata | toYaml | nindent 4 }}
   {{- end }}
@@ -404,7 +407,7 @@ spec:
 
   pmm:
     enabled: {{ .Values.pmm.enabled }}
-    image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
+    image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
     {{- if .Values.pmm.imagePullPolicy }}
     imagePullPolicy: {{ .Values.pmm.imagePullPolicy | default "Always" }}
     {{- end }}
