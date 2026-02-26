@@ -33,7 +33,7 @@ spec:
   standby: {{- .Values.standby | toYaml | nindent 4 }}
   {{- if or (.Values.customTLSSecret.name) (.Values.customReplicationTLSSecret.name) }}
   secrets:
-    {{- if .Values.customRootCATLSSecret.name }}
+    {{- if ((.Values.customRootCATLSSecret).name) }}
     customRootCATLSSecret:
       name: {{ .Values.customRootCATLSSecret.name }}
       items:
