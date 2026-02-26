@@ -35,6 +35,7 @@ name: null
 
 env:
   resyncPeriod: 5s
+  reconcileInterval: 5s
   logVerbose: false
 
 # set if you want to specify a namespace to watch
