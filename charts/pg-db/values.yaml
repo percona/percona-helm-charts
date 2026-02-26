@@ -48,7 +48,7 @@ repository: docker.io/percona/percona-distribution-postgresql
 image: docker.io/percona/percona-distribution-postgresql:17.7-2
 imagePullPolicy: Always
 postgresVersion: 17
-clusterServiceDNSSuffix: cluster.local
+# clusterServiceDNSSuffix: cluster.local
 # port: 5432
 pause: false
 unmanaged: false
