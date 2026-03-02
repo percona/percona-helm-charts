@@ -48,6 +48,7 @@ repository: docker.io/percona/percona-distribution-postgresql
 image: docker.io/percona/percona-distribution-postgresql:17.7-2
 imagePullPolicy: Always
 postgresVersion: 17
+# clusterServiceDNSSuffix: cluster.local
 # port: 5432
 pause: false
 unmanaged: false
@@ -327,7 +328,7 @@ proxy:
 #    envFrom:
 #    - secretRef:
 #        name: pgbouncer-env-secret
-#    exposeSuperusers: true
+#    exposeSuperusers: false
 #    resources:
 #      limits:
 #        cpu: 200m
