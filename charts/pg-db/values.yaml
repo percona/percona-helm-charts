@@ -249,6 +249,11 @@ instances:
 #    image: mycontainer1:latest
 #    command: ["sleep", "30d"]
 #    securityContext: {}
+#    volumeMounts:
+#      - name: sidecar-secret
+#        mountPath: /tmp/secret/path
+#      - name: sidecar-config
+#        mountPath: /tmp/config/path
 #  - name: testcontainer2
 #    image: mycontainer1:latest
 #  sidecarVolumes:
@@ -413,6 +418,11 @@ proxy:
 #        image: mycontainer1:latest
 #        command: ["sleep", "30d"]
 #        securityContext: {}
+#        volumeMounts:
+#          - name: sidecar-secret
+#            mountPath: /tmp/secret/path
+#          - name: sidecar-config
+#            mountPath: /tmp/config/path
 #      sidecarVolumes:
 #      - name: sidecar-secret
 #        secret:
@@ -556,6 +566,11 @@ backups:
 #        image: mycontainer1:latest
 #        command: ["sleep", "30d"]
 #        securityContext: {}
+#        volumeMounts:
+#          - name: sidecar-secret
+#            mountPath: /tmp/secret/path
+#          - name: sidecar-config
+#            mountPath: /tmp/config/path
 #      sidecarVolumes:
 #      - name: sidecar-secret
 #        secret:
