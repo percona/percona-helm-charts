@@ -229,17 +229,15 @@ spec:
       {{- end }}
       {{- if $instance.sidecars }}
       sidecars:
-      {{- range $sidecar := $instance.sidecars }}
-      - name: {{ $sidecar.name }}
-        image: {{ $sidecar.image }}
-        {{- with $sidecar.command }}
-        command: {{ toJson . }}
-        {{- end }}
-        {{- with $sidecar.securityContext }}
-        securityContext: 
-          {{- toYaml . | nindent 10 }}
-        {{- end }}
+{{ $instance.sidecars | toYaml | indent 8 }}
       {{- end }}
+      {{- if $instance.sidecarVolumes }}
+      sidecarVolumes:
+{{ $instance.sidecarVolumes | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $instance.sidecarPVCs }}
+      sidecarPVCs:
+{{ $instance.sidecarPVCs | toYaml | indent 8 }}
       {{- end }}
       {{- if $instance.topologySpreadConstraints }}
       topologySpreadConstraints:
@@ -359,17 +357,15 @@ spec:
       {{- end }}
       {{- if .Values.proxy.pgBouncer.sidecars }}
       sidecars:
-      {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
-      - name: {{ $sidecar.name }}
-        image: {{ $sidecar.image }}
-        {{- with $sidecar.command }}
-        command: {{ toJson . }}
-        {{- end }}
-        {{- with $sidecar.securityContext }}
-        securityContext: 
-          {{- toYaml . | nindent 10 }}
-        {{- end }}
+{{ .Values.proxy.pgBouncer.sidecars | toYaml | indent 8 }}
       {{- end }}
+      {{- if .Values.proxy.pgBouncer.sidecarVolumes }}
+      sidecarVolumes:
+{{ .Values.proxy.pgBouncer.sidecarVolumes | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.sidecarPVCs }}
+      sidecarPVCs:
+{{ .Values.proxy.pgBouncer.sidecarPVCs | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.customTLSSecret }}
       customTLSSecret:
@@ -501,17 +497,15 @@ spec:
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.sidecars }}
         sidecars:
-        {{- range $sidecar := .Values.backups.pgbackrest.repoHost.sidecars }}
-        - name: {{ $sidecar.name }}
-          image: {{ $sidecar.image }}
-          {{- with $sidecar.command }}
-          command: {{ toJson . }}
-          {{- end }}
-          {{- with $sidecar.securityContext }}
-          securityContext: 
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+{{ .Values.backups.pgbackrest.repoHost.sidecars | toYaml | indent 10 }}
         {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.sidecarVolumes }}
+        sidecarVolumes:
+{{ .Values.backups.pgbackrest.repoHost.sidecarVolumes | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.sidecarPVCs }}
+        sidecarPVCs:
+{{ .Values.backups.pgbackrest.repoHost.sidecarPVCs | toYaml | indent 10 }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
         affinity:
