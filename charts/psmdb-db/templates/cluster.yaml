@@ -1,4 +1,3 @@
-# TODO: Change storageAutoscaling
 apiVersion: psmdb.percona.com/v1
 kind: PerconaServerMongoDB
 metadata:
@@ -102,25 +101,25 @@ spec:
     schedule: {{ .Values.upgradeOptions.schedule }}
     setFCV: {{ .Values.upgradeOptions.setFCV }}
   {{- end }}
-  {{- if .Values.storageAutoscaling }}
-  storageAutoscaling:
-    {{- if hasKey .Values.storageAutoscaling "enableVolumeScaling" }}
-    enableVolumeScaling: {{ .Values.storageAutoscaling.enableVolumeScaling }}
+  {{- if .Values.storageScaling }}
+  storageScaling:
+    {{- if hasKey .Values.storageScaling "enableVolumeScaling" }}
+    enableVolumeScaling: {{ .Values.storageScaling.enableVolumeScaling }}
     {{- end }}
-    {{- if hasKey .Values.storageAutoscaling "enableExternalAutoscaling" }}
-    enableExternalAutoscaling: {{ .Values.storageAutoscaling.enableExternalAutoscaling }}
+    {{- if hasKey .Values.storageScaling "enableExternalAutoscaling" }}
+    enableExternalAutoscaling: {{ .Values.storageScaling.enableExternalAutoscaling }}
     {{- end }}
-    {{- if .Values.storageAutoscaling.autoscaling }}
+    {{- if .Values.storageScaling.autoscaling }}
     autoscaling:
-      enabled: {{ .Values.storageAutoscaling.autoscaling.enabled }}
-      {{- if .Values.storageAutoscaling.autoscaling.triggerThresholdPercent }}
-      triggerThresholdPercent: {{ .Values.storageAutoscaling.autoscaling.triggerThresholdPercent }}
+      enabled: {{ .Values.storageScaling.autoscaling.enabled }}
+      {{- if .Values.storageScaling.autoscaling.triggerThresholdPercent }}
+      triggerThresholdPercent: {{ .Values.storageScaling.autoscaling.triggerThresholdPercent }}
       {{- end }}
-      {{- if .Values.storageAutoscaling.autoscaling.growthStep }}
-      growthStep: {{ .Values.storageAutoscaling.autoscaling.growthStep }}
+      {{- if .Values.storageScaling.autoscaling.growthStep }}
+      growthStep: {{ .Values.storageScaling.autoscaling.growthStep }}
       {{- end }}
-      {{- if .Values.storageAutoscaling.autoscaling.maxSize }}
-      maxSize: {{ .Values.storageAutoscaling.autoscaling.maxSize }}
+      {{- if .Values.storageScaling.autoscaling.maxSize }}
+      maxSize: {{ .Values.storageScaling.autoscaling.maxSize }}
       {{- end }}
     {{- end }}
   {{- end }}
