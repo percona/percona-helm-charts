@@ -12,9 +12,9 @@ finalizers:
 # Set this if you want that operator deletes the backups on cluster deletion
 #  - percona.com/delete-backups
 
-crVersion: 2.8.2
+crVersion: 2.9.0
 # initContainer:
-#   image: docker.io/percona/percona-postgresql-operator:2.8.2
+#   image: docker.io/percona/percona-postgresql-operator:2.9.0
 #   resources:
 #     limits:
 #       cpu: 2.0
@@ -49,6 +49,7 @@ image: docker.io/percona/percona-distribution-postgresql:17.7-2
 imagePullPolicy: Always
 imagePullSecrets: []
 postgresVersion: 17
+# clusterServiceDNSSuffix: cluster.local
 # port: 5432
 pause: false
 unmanaged: false
@@ -57,6 +58,7 @@ standby:
   # host: "<primary-ip>"
   # port: "<primary-port>"
   # repoName: repo1
+  # maxAcceptableLag: 1Gi
 
 # customRootCATLSSecret:
 #   name: cluster1-ca-cert
@@ -187,7 +189,7 @@ instances:
 - name: instance1
   replicas: 3
 #  initContainer:
-#    image: docker.io/percona/percona-postgresql-operator:2.8.2
+#    image: docker.io/percona/percona-postgresql-operator:2.9.0
 #    resources:
 #      limits:
 #        cpu: 2.0
@@ -250,8 +252,33 @@ instances:
 #    image: mycontainer1:latest
 #    command: ["sleep", "30d"]
 #    securityContext: {}
+#    volumeMounts:
+#      - name: sidecar-secret
+#        mountPath: /tmp/secret/path
+#      - name: sidecar-config
+#        mountPath: /tmp/config/path
 #  - name: testcontainer2
 #    image: mycontainer1:latest
+#  sidecarVolumes:
+#  - name: sidecar-secret
+#    secret:
+#      secretName: mysecret
+#  - name: sidecar-config
+#    configMap:
+#      name: myconfigmap
+#  - name: backup-nfs
+#    nfs:
+#      server: "nfs-service.storage.svc.cluster.local"
+#      path: "/pg-some-name"
+#  sidecarPVCs:
+#  - name: sidecar-volume-claim
+#    spec:
+#      resources:
+#        requests:
+#          storage: 1Gi
+#      volumeMode: Filesystem
+#      accessModes:
+#        - ReadWriteOnce
 #
 #  topologySpreadConstraints:
 #    - maxSkew: 1
@@ -324,7 +351,7 @@ proxy:
 #    envFrom:
 #    - secretRef:
 #        name: pgbouncer-env-secret
-#    exposeSuperusers: true
+#    exposeSuperusers: false
 #    resources:
 #      limits:
 #        cpu: 200m
@@ -394,6 +421,31 @@ proxy:
 #        image: mycontainer1:latest
 #        command: ["sleep", "30d"]
 #        securityContext: {}
+#        volumeMounts:
+#          - name: sidecar-secret
+#            mountPath: /tmp/secret/path
+#          - name: sidecar-config
+#            mountPath: /tmp/config/path
+#      sidecarVolumes:
+#      - name: sidecar-secret
+#        secret:
+#          secretName: mysecret
+#      - name: sidecar-config
+#        configMap:
+#          name: myconfigmap
+#      - name: backup-nfs
+#        nfs:
+#          server: "nfs-service.storage.svc.cluster.local"
+#          path: "/pg-some-name"
+#      sidecarPVCs:
+#      - name: sidecar-volume-claim
+#        spec:
+#          resources:
+#            requests:
+#              storage: 1Gi
+#          volumeMode: Filesystem
+#          accessModes:
+#            - ReadWriteOnce
 #
 #      customTLSSecret:
 #        name: keycloakdb-pgbouncer.tls
@@ -407,7 +459,7 @@ backups:
   trackLatestRestorableTime: true
   pgbackrest:
 #    initContainer:
-#      image: docker.io/perconalab/percona-postgresql-operator:2.8.2
+#      image: docker.io/perconalab/percona-postgresql-operator:2.9.0
 #      resources:
 #        limits:
 #          cpu: 2.0
@@ -517,6 +569,31 @@ backups:
 #        image: mycontainer1:latest
 #        command: ["sleep", "30d"]
 #        securityContext: {}
+#        volumeMounts:
+#          - name: sidecar-secret
+#            mountPath: /tmp/secret/path
+#          - name: sidecar-config
+#            mountPath: /tmp/config/path
+#      sidecarVolumes:
+#      - name: sidecar-secret
+#        secret:
+#          secretName: mysecret
+#      - name: sidecar-config
+#        configMap:
+#          name: myconfigmap
+#      - name: backup-nfs
+#        nfs:
+#          server: "nfs-service.storage.svc.cluster.local"
+#          path: "/pg-some-name"
+#      sidecarPVCs:
+#      - name: sidecar-volume-claim
+#        spec:
+#          resources:
+#            requests:
+#              storage: 1Gi
+#          volumeMode: Filesystem
+#          accessModes:
+#            - ReadWriteOnce
 #      tolerations:
 #      - effect: NoSchedule
 #        key: role
@@ -632,7 +709,7 @@ pmm:
 #   - basebackup
 
 # extensions:
-#   image: docker.io/percona/percona-postgresql-operator:2.8.2
+#   image: docker.io/percona/percona-postgresql-operator:2.9.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
