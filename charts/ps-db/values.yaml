@@ -16,10 +16,10 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 0.12.0
+crVersion: 1.0.0
 enableVolumeExpansion: false
 pause: false
-# initImage: percona/percona-server-mysql-operator:0.12.0
+# initImage: percona/percona-server-mysql-operator:1.0.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -27,7 +27,7 @@ upgradeOptions:
   apply: disabled
 
 # initContainer:
-#   image: perconalab/percona-server-mysql-operator:0.12.0
+#   image: percona/percona-server-mysql-operator:1.0.0
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -75,7 +75,7 @@ mysql:
   imagePullPolicy: Always
   imagePullSecrets: []
   # initContainer:
-  #   image: perconalab/percona-server-mysql-operator:0.12.0
+  #   image: percona/percona-server-mysql-operator:1.0.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -93,15 +93,19 @@ mysql:
   # configuration: |
   #   max_connections=250
 
-  #    env:
-  #    - name: BOOTSTRAP_READ_TIMEOUT
-  #      value: "600"
   resources:
     requests:
       memory: 2Gi
     limits:
       memory: 4Gi
 
+  # startupProbe:
+  #   initialDelaySeconds: 15
+  #   timeoutSeconds: 43200
+  #   periodSeconds: 10
+  #   failureThreshold: 1
+  #   successThreshold: 1
+      
   # readinessProbe:
   #   initialDelaySeconds: 30
   #   timeoutSeconds: 10
@@ -115,6 +119,12 @@ mysql:
   #   periodSeconds: 10
   #   failureThreshold: 3
   #   successThreshold: 1
+  # env:
+  # - name: BOOTSTRAP_READ_TIMEOUT
+  #   value: "600"
+  # envFrom:
+  # - secretRef:
+  #     name: my-env-secret
 
   affinity:
     antiAffinityTopologyKey: "kubernetes.io/hostname"
@@ -234,7 +244,7 @@ proxy:
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: perconalab/percona-server-mysql-operator:0.12.0
+    #   image: percona/percona-server-mysql-operator:1.0.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -265,6 +275,13 @@ proxy:
     # envFrom:
     # - secretRef:
     #     name: haproxy-env-secret
+
+    # startupProbe:
+    #   initialDelaySeconds: 15
+    #   timeoutSeconds: 43200
+    #   periodSeconds: 10
+    #   failureThreshold: 1
+    #   successThreshold: 1
 
     # readinessProbe:
     #   timeoutSeconds: 3
@@ -375,7 +392,7 @@ proxy:
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: perconalab/percona-server-mysql-operator:0.12.0
+    #   image: percona/percona-server-mysql-operator:1.0.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -387,6 +404,31 @@ proxy:
     #     limits:
     #       memory: 200M
     #       cpu: 200m
+    # env:
+    # - name: MY_ENV
+    #   value: "1000"
+    # envFrom:
+    # - secretRef:
+    #     name: my-env-secret
+
+    # startupProbe:
+    #   initialDelaySeconds: 15
+    #   timeoutSeconds: 43200
+    #   periodSeconds: 10
+    #   failureThreshold: 1
+    #   successThreshold: 1
+
+    # readinessProbe:
+    #   timeoutSeconds: 3
+    #   periodSeconds: 5
+    #   failureThreshold: 3
+    #   successThreshold: 1
+
+    # livenessProbe:
+    #   timeoutSeconds: 3
+    #   periodSeconds: 5
+    #   failureThreshold: 3
+    #   successThreshold: 1
 
     podDisruptionBudget:
       maxUnavailable: 1
@@ -499,7 +541,7 @@ orchestrator:
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
   # initContainer:
-  #   image: perconalab/percona-server-mysql-operator:0.12.0
+  #   image: percona/percona-server-mysql-operator:1.0.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -511,6 +553,30 @@ orchestrator:
   #     limits:
   #       memory: 200M
   #       cpu: 200m
+  # env:
+  # - name: MY_ENV
+  #   value: "1000"
+  # envFrom:
+  # - secretRef:
+  #     name: my-env-secret
+  # startupProbe:
+  #   initialDelaySeconds: 15
+  #   timeoutSeconds: 43200
+  #   periodSeconds: 10
+  #   failureThreshold: 1
+  #   successThreshold: 1
+
+  # readinessProbe:
+  #   timeoutSeconds: 3
+  #   periodSeconds: 5
+  #   failureThreshold: 3
+  #   successThreshold: 1
+
+  # livenessProbe:
+  #   timeoutSeconds: 3
+  #   periodSeconds: 5
+  #   failureThreshold: 3
+  #   successThreshold: 1
 
   podDisruptionBudget:
     maxUnavailable: 1
@@ -564,7 +630,6 @@ orchestrator:
   #   fsGroup: 1001
   #   supplementalGroups:
   #   - 1001
-  # serviceAccountName: percona-server-mysql-operator-workload
   # expose:
     # type: ClusterIP
     # annotations:
@@ -581,15 +646,15 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.4.0
+    tag: 3.4.1
   imagePullPolicy: Always
-#  readinessProbes:
+#  readinessProbe:
 #    initialDelaySeconds: 15
 #    timeoutSeconds: 15
 #    periodSeconds: 30
 #    successThreshold: 1
 #    failureThreshold: 5
-#  livenessProbes:
+#  livenessProbe:
 #    initialDelaySeconds: 300
 #    timeoutSeconds: 5
 #    periodSeconds: 10
@@ -606,7 +671,7 @@ pmm:
 backup:
   enabled: true
   # initContainer:
-  #   image: perconalab/percona-server-mysql-operator:0.12.0
+  #   image: percona/percona-server-mysql-operator:1.0.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -647,6 +712,13 @@ backup:
     #     container: CONTAINER-NAME
     #     prefix: PREFIX-NAME
     #     endpointUrl: https://accountName.blob.core.windows.net
+    #     credentialsSecret: SECRET-NAME
+    # gcp-cs:
+    #   type: gcs
+    #   gcs:
+    #     bucket: BUCKET-NAME
+    #     prefix: PREFIX-NAME
+    #     endpointUrl: https://storage.googleapis.com
     #     credentialsSecret: SECRET-NAME
     # s3-us-west:
     #   type: s3
