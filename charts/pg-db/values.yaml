@@ -606,6 +606,30 @@ pmm:
 #      memory: 200M
 #      cpu: 500m
 
+#config:
+# files:
+#   - secret:
+#       name: my-ldap-ca-cert
+#       items:
+#         - key: ca.crt
+#           path: ldap-ca.crt
+#
+#authentication:
+# rules:
+#   - connection: host
+#     method: ldap
+#     databases: []
+#     users: []
+#     options:
+#       ldapserver: ldap.example.com
+#       ldapport: "636"
+#       ldaptls: "1"
+#       ldapbasedn: dc=example,dc=com
+#       ldapbinddn: cn=admin,dc=example,dc=com
+#       ldapbindpasswd: secret
+#       ldapsearchattribute: uid
+#   - hba: "host all all 10.0.0.0/8 md5"
+
 # patroni:
 #   # Some values of the Liveness/Readiness probes of the patroni container are calulated using syncPeriodSeconds by the following formulas:
 #   # - timeoutSeconds:   syncPeriodSeconds / 2;

@@ -56,6 +56,22 @@ spec:
   openshift: {{ .Values.openshift }}
   {{- end -}}
 
+  {{- if .Values.config }}
+  config:
+    {{- if .Values.config.files }}
+    files:
+{{ .Values.config.files | toYaml | indent 4 }}
+    {{- end }}
+  {{- end }}
+
+  {{- if .Values.authentication }}
+  authentication:
+    {{- if .Values.authentication.rules }}
+    rules:
+{{ .Values.authentication.rules | toYaml | indent 4 }}
+    {{- end }}
+  {{- end }}
+
   {{ if hasKey .Values "autoCreateUserSchema" }}
   autoCreateUserSchema: {{ .Values.autoCreateUserSchema }}
   {{- end -}}
