@@ -47,6 +47,7 @@ crVersion: 2.9.0
 repository: docker.io/percona/percona-distribution-postgresql
 image: docker.io/percona/percona-distribution-postgresql:17.7-2
 imagePullPolicy: Always
+imagePullSecrets: []
 postgresVersion: 17
 # clusterServiceDNSSuffix: cluster.local
 # port: 5432
