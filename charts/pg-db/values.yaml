@@ -57,6 +57,7 @@ standby:
   # host: "<primary-ip>"
   # port: "<primary-port>"
   # repoName: repo1
+  # maxAcceptableLag: 1Gi
 
 # customRootCATLSSecret:
 #   name: cluster1-ca-cert
