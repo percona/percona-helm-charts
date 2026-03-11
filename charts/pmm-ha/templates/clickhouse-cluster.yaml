@@ -1,0 +1,129 @@
+{{- $secret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
+{{- $clickhouseUser := "clickhouse_pmm" }}
+{{- if $secret }}
+{{- $clickhouseUser = (index $secret.data "PMM_CLICKHOUSE_USER" | b64dec) }}
+{{- else if .Values.secret.clickhouse_user }}
+{{- $clickhouseUser = .Values.secret.clickhouse_user }}
+{{- end }}
+apiVersion: "clickhouse.altinity.com/v1"
+kind: ClickHouseInstallation
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  configuration:
+    # ClickHouse Keeper coordination
+    zookeeper:
+      nodes:
+        {{- include "pmm.clickhouse.keeper.nodes" . | nindent 8 }}
+      session_timeout_ms: 30000
+      operation_timeout_ms: 10000
+    
+    clusters:
+      - name: {{ .Values.clickhouse.cluster.name }}
+        templates:
+          podTemplate: clickhouse-pod-template
+          dataVolumeClaimTemplate: clickhouse-data-volume
+        layout:
+          shardsCount: {{ .Values.clickhouse.cluster.shards }}
+          replicasCount: {{ .Values.clickhouse.cluster.replicas }}
+    
+    # Prometheus metrics configuration
+    settings:
+      prometheus/port: "9363"
+      prometheus/endpoint: "/metrics"
+      prometheus/metrics: "true"
+      prometheus/events: "true"
+      prometheus/asynchronous_metrics: "true"
+    
+    # Profiles configuration
+    profiles:
+      clickhouse_operator/allow_experimental_analyzer: "0"
+      clickhouse_operator/prefer_localhost_replica: "1"
+      readonly/readonly: "2"
+    
+    # User management - password from Kubernetes secret using valueFrom
+    users:
+      # Admin user for operator management
+      clickhouse_operator/access_management: "1"
+      clickhouse_operator/named_collection_control: "1"
+      clickhouse_operator/networks/ip:
+        - 127.0.0.1
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+      clickhouse_operator/profile: clickhouse_operator
+      clickhouse_operator/quota: default
+      clickhouse_operator/show_named_collections: "1"
+      clickhouse_operator/show_named_collections_secrets: "1"
+      
+      # PMM application user - password from Kubernetes secret
+      # Using valueFrom with secretKeyRef to read password from secret
+      {{ $clickhouseUser }}/password:
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Values.secret.name }}
+            key: PMM_CLICKHOUSE_PASSWORD
+      {{ $clickhouseUser }}/networks/ip:
+        {{- range .Values.clickhouse.users.networks.ip }}
+        - {{ . }}
+        {{- end }}
+      {{ $clickhouseUser }}/profile: default
+      {{ $clickhouseUser }}/quota: default
+      {{ $clickhouseUser }}/access_management: "1"
+    
+    # Disable default user for security
+    files:
+      users.d/disable-default-user.xml: |
+        <clickhouse>
+          <users>
+            <default remove="1"/>
+          </users>
+        </clickhouse>
+
+  templates:
+    podTemplates:
+      - name: clickhouse-pod-template
+        generateName: "{{ .Release.Name }}-{cluster}-{shard}-{replica}"
+        metadata:
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9363"
+            prometheus.io/path: "/metrics"
+        spec:
+          # Pod anti-affinity to spread replicas across different nodes
+          # Using preferredDuringScheduling for soft anti-affinity (allows single-node deployments)
+          # Weight 100 (max) makes this the highest priority soft constraint
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        clickhouse.altinity.com/chi: {{ .Release.Name }}
+                        clickhouse.altinity.com/cluster: {{ .Values.clickhouse.cluster.name }}
+                    topologyKey: kubernetes.io/hostname
+          containers:
+            - name: clickhouse
+              image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
+              imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+              ports:
+                - name: metrics
+                  containerPort: 9363
+                  protocol: TCP
+              resources:
+                {{- toYaml .Values.clickhouse.resources | nindent 16 }}
+    
+    # Persistent volume configuration for ClickHouse data
+    volumeClaimTemplates:
+      - name: clickhouse-data-volume
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          {{- if .Values.clickhouse.storage.storageClassName }}
+          storageClassName: {{ .Values.clickhouse.storage.storageClassName }}
+          {{- end }}
+          resources:
+            requests:
+              storage: {{ .Values.clickhouse.storage.size }}
+
