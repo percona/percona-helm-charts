@@ -1,0 +1,134 @@
+# CI-specific values for GitHub Actions testing
+# Minimal resource requirements to fit in Kind cluster
+
+storage:
+  size: 5Gi
+
+pmmResources:
+  requests:
+    memory: "512Mi"
+    cpu: "200m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+clickhouse:
+  cluster:
+    shards: 1
+    replicas: 3
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "300m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  keeper:
+    replicas: 1
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+pg-db:
+  instances:
+    - name: instance1
+      replicas: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 1Gi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+      # Disable anti-affinity for single-node CI testing
+      affinity:
+        podAntiAffinity: null
+  proxy:
+    pgBouncer:
+      replicas: 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+      # Disable anti-affinity for single-node CI testing
+      affinity:
+        podAntiAffinity: null
+  backups:
+    enabled: false
+
+# VictoriaMetrics Configuration
+# NOTE: The VictoriaMetrics operator must be installed separately via pmm-ha-dependencies
+victoriaMetrics:
+  enabled: true
+  replicationFactor: 1
+  
+  vmselect:
+    replicaCount: 1
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"
+  
+  vminsert:
+    replicaCount: 1
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"
+  
+  vmauth:
+    enabled: true
+    replicaCount: 1
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+  
+  vmstorage:
+    replicaCount: 3
+    retentionPeriod: "1d"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    storageSize: 5Gi
+    storageClassName: ""
+
+# HAProxy with minimal resources
+haproxy:
+  replicaCount: 3
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  # Disable anti-affinity for single-node CI testing
+  affinity:
+    podAntiAffinity: null
