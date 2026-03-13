@@ -728,6 +728,9 @@ backup:
     #     #credentialsAccessKey: REPLACE-WITH-AWS-ACCESS-KEY
     #     #credentialsSecretKey: REPLACE-WITH-AWS-SECRET-KEY
     #     region: us-west-2
+    #     forcePathStyle: true
+    #     prefix: prefix
+    #     checksumAlgorithm: SHA256
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
     #     caBundle:
     #       name: s3-ca-bundle-secret-name
