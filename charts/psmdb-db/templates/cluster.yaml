@@ -162,7 +162,7 @@ spec:
     {{- end }}
     {{- if $replset.configuration }}
     configuration: |
-{{ $replset.configuration | indent 6 }}
+{{ tpl $replset.configuration $ | indent 6 }}
     {{- end }}
     {{- if $replset.hookScript }}
     hookScript:
@@ -196,7 +196,7 @@ spec:
     priorityClassName: {{ $replset.priorityClass }}
     {{- end }}
     {{- if $replset.primaryPreferTagSelector }}
-    primaryPreferTagSelector: 
+    primaryPreferTagSelector:
 {{ $replset.primaryPreferTagSelector | toYaml | indent 6 }}
     {{- end }}
     {{- if $replset.annotations }}
