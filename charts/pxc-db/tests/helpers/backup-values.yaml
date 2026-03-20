@@ -1,0 +1,13 @@
+backup:
+  allowParallel: true
+  backoffLimit: 6
+  imagePullPolicy: Always
+  pitr:
+    enabled: true
+    storageName: s3-binlogs
+    timeBetweenUploads: 120
+    timeoutSeconds: 90
+  schedule:
+    - name: daily
+      schedule: "0 0 * * *"
+      storageName: s3-main

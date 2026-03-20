@@ -1,0 +1,119 @@
+suite: pxc-operator deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the default operator deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: unit-pxc-operator
+        documentIndex: 0
+      - equal:
+          path: spec.replicas
+          value: 1
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: percona/percona-xtradb-cluster-operator:1.20.0
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: test-ns
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PXCO_FEATURE_GATES
+            value: XtrabackupSidecar=false
+        documentIndex: 0
+
+  - it: renders optional deployment and service fields
+    set:
+      image: custom-operator:9.9.9
+      watchAllNamespaces: true
+      imagePullSecrets:
+        - name: registry-secret
+      podAnnotations:
+        test: value
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+      extraEnvVars:
+        - name: EXTRA_FLAG
+          value: enabled
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.template.metadata.annotations["test"]
+          value: value
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: registry-secret
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: custom-operator:9.9.9
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: ""
+        documentIndex: 0
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_FLAG
+            value: enabled
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].name
+          value: tmpdir
+        documentIndex: 0
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: tmpdir
+        documentIndex: 0
+      - isKind:
+          of: Service
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: percona-xtradb-cluster-operator
+        documentIndex: 1
+
+  - it: renders a service when a specific watch namespace is configured
+    set:
+      watchNamespace: watch-ns
+    asserts:
+      - hasDocuments:
+          count: 2
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: watch-ns
+        documentIndex: 0
+      - isKind:
+          of: Service
+        documentIndex: 1

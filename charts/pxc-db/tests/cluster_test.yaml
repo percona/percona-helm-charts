@@ -1,0 +1,210 @@
+suite: pxc-db cluster
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the default cluster
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PerconaXtraDBCluster
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: unit-pxc-db
+        documentIndex: 0
+      - equal:
+          path: spec.crVersion
+          value: 1.20.0
+        documentIndex: 0
+      - equal:
+          path: spec.secretsName
+          value: unit-pxc-db-secrets
+        documentIndex: 0
+      - equal:
+          path: spec.sslSecretName
+          value: unit-pxc-db-ssl
+        documentIndex: 0
+      - equal:
+          path: spec.sslInternalSecretName
+          value: unit-pxc-db-ssl-internal
+        documentIndex: 0
+      - equal:
+          path: spec.pxc.image
+          value: percona/percona-xtradb-cluster:8.4.7-7.1
+        documentIndex: 0
+      - equal:
+          path: spec.pxc.volumeSpec.persistentVolumeClaim.resources.requests.storage
+          value: 8Gi
+        documentIndex: 0
+      - equal:
+          path: spec.haproxy.enabled
+          value: true
+        documentIndex: 0
+      - equal:
+          path: spec.proxysql.enabled
+          value: false
+        documentIndex: 0
+
+  - it: uses an existing cluster secret name and emptyDir when persistence is disabled
+    set:
+      pxc.clusterSecretName: existing-db-secret
+      pxc.persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.secretsName
+          value: existing-db-secret
+        documentIndex: 0
+      - exists:
+          path: spec.pxc.volumeSpec.emptyDir
+        documentIndex: 0
+
+  - it: uses provided tls secret names and password generation options
+    set:
+      secrets.tls.cluster: external-cluster-ssl
+      secrets.tls.internal: external-internal-ssl
+      passwordGenerationOptions.minLength: 16
+      passwordGenerationOptions.maxLength: 20
+      passwordGenerationOptions.symbols: "!@#"
+    asserts:
+      - equal:
+          path: spec.sslSecretName
+          value: external-cluster-ssl
+        documentIndex: 0
+      - equal:
+          path: spec.sslInternalSecretName
+          value: external-internal-ssl
+        documentIndex: 0
+      - equal:
+          path: spec.passwordGenerationOptions.minLength
+          value: 16
+        documentIndex: 0
+      - equal:
+          path: spec.passwordGenerationOptions.maxLength
+          value: 20
+        documentIndex: 0
+      - equal:
+          path: spec.passwordGenerationOptions.symbols
+          value: "!@#"
+        documentIndex: 0
+
+  - it: renders init container and hostPath persistence settings
+    set:
+      initContainer.image: custom-init-image
+      initContainer.containerSecurityContext.runAsUser: 1001
+      initContainer.resources.requests.cpu: 100m
+      initContainer.resources.requests.memory: 100M
+      pxc.persistence.hostPath: /var/lib/mysql
+    asserts:
+      - equal:
+          path: spec.initContainer.image
+          value: custom-init-image
+        documentIndex: 0
+      - equal:
+          path: spec.initContainer.containerSecurityContext.runAsUser
+          value: 1001
+        documentIndex: 0
+      - equal:
+          path: spec.initContainer.resources.requests.cpu
+          value: 100m
+        documentIndex: 0
+      - equal:
+          path: spec.initContainer.resources.requests.memory
+          value: 100M
+        documentIndex: 0
+      - equal:
+          path: spec.pxc.volumeSpec.hostPath.path
+          value: /var/lib/mysql
+        documentIndex: 0
+      - equal:
+          path: spec.pxc.volumeSpec.hostPath.type
+          value: Directory
+        documentIndex: 0
+
+  - it: switches to proxysql mode
+    set:
+      proxysql.enabled: true
+      proxysql.image: custom-proxysql-image
+    asserts:
+      - equal:
+          path: spec.haproxy.enabled
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.proxysql.enabled
+          value: true
+        documentIndex: 0
+      - equal:
+          path: spec.proxysql.image
+          value: custom-proxysql-image
+        documentIndex: 0
+
+  - it: rewrites s3 backup credentials to a generated secret reference
+    set:
+      backup.storages.backup1.type: s3
+      backup.storages.backup1.s3.bucket: operator-testing
+      backup.storages.backup1.s3.region: us-east-1
+      backup.storages.backup1.s3.credentialsAccessKey: some-access-key
+      backup.storages.backup1.s3.credentialsSecretKey: some-secret-key
+    asserts:
+      - equal:
+          path: spec.backup.storages.backup1.s3.credentialsSecret
+          value: unit-pxc-db-s3-backup1
+        documentIndex: 0
+      - notExists:
+          path: spec.backup.storages.backup1.s3.credentialsAccessKey
+        documentIndex: 0
+      - notExists:
+          path: spec.backup.storages.backup1.s3.credentialsSecretKey
+        documentIndex: 0
+
+  - it: renders configured backup and pitr options
+    values:
+      - helpers/backup-values.yaml
+    asserts:
+      - equal:
+          path: spec.backup.allowParallel
+          value: true
+        documentIndex: 0
+      - equal:
+          path: spec.backup.backoffLimit
+          value: 6
+        documentIndex: 0
+      - equal:
+          path: spec.backup.imagePullPolicy
+          value: Always
+        documentIndex: 0
+      - equal:
+          path: spec.backup.pitr.enabled
+          value: true
+        documentIndex: 0
+      - equal:
+          path: spec.backup.pitr.storageName
+          value: s3-binlogs
+        documentIndex: 0
+      - equal:
+          path: spec.backup.pitr.timeBetweenUploads
+          value: 120
+        documentIndex: 0
+      - equal:
+          path: spec.backup.pitr.timeoutSeconds
+          value: 90
+        documentIndex: 0
+      - contains:
+          path: spec.backup.schedule
+          content:
+            name: daily
+            schedule: 0 0 * * *
+            storageName: s3-main
+        documentIndex: 0
+
+  - it: omits the backup section when backups are disabled
+    set:
+      backup.enabled: false
+    asserts:
+      - notExists:
+          path: spec.backup
+        documentIndex: 0
