@@ -47,6 +47,7 @@ crVersion: 2.9.0
 repository: docker.io/percona/percona-distribution-postgresql
 image: docker.io/percona/percona-distribution-postgresql:17.7-2
 imagePullPolicy: Always
+imagePullSecrets: []
 postgresVersion: 17
 # clusterServiceDNSSuffix: cluster.local
 # port: 5432
@@ -57,6 +58,7 @@ standby:
   # host: "<primary-ip>"
   # port: "<primary-port>"
   # repoName: repo1
+  # maxAcceptableLag: 1Gi
 
 # customRootCATLSSecret:
 #   name: cluster1-ca-cert
@@ -71,6 +73,10 @@ customReplicationTLSSecret:
   name: ""
 
 # tlsOnly: false
+
+# tls:
+#   caValidityDuration: 87600h
+#   certValidityDuration: 2160h
 
 # openshift: true
 
@@ -250,8 +256,33 @@ instances:
 #    image: mycontainer1:latest
 #    command: ["sleep", "30d"]
 #    securityContext: {}
+#    volumeMounts:
+#      - name: sidecar-secret
+#        mountPath: /tmp/secret/path
+#      - name: sidecar-config
+#        mountPath: /tmp/config/path
 #  - name: testcontainer2
 #    image: mycontainer1:latest
+#  sidecarVolumes:
+#  - name: sidecar-secret
+#    secret:
+#      secretName: mysecret
+#  - name: sidecar-config
+#    configMap:
+#      name: myconfigmap
+#  - name: backup-nfs
+#    nfs:
+#      server: "nfs-service.storage.svc.cluster.local"
+#      path: "/pg-some-name"
+#  sidecarPVCs:
+#  - name: sidecar-volume-claim
+#    spec:
+#      resources:
+#        requests:
+#          storage: 1Gi
+#      volumeMode: Filesystem
+#      accessModes:
+#        - ReadWriteOnce
 #
 #  topologySpreadConstraints:
 #    - maxSkew: 1
@@ -394,6 +425,31 @@ proxy:
 #        image: mycontainer1:latest
 #        command: ["sleep", "30d"]
 #        securityContext: {}
+#        volumeMounts:
+#          - name: sidecar-secret
+#            mountPath: /tmp/secret/path
+#          - name: sidecar-config
+#            mountPath: /tmp/config/path
+#      sidecarVolumes:
+#      - name: sidecar-secret
+#        secret:
+#          secretName: mysecret
+#      - name: sidecar-config
+#        configMap:
+#          name: myconfigmap
+#      - name: backup-nfs
+#        nfs:
+#          server: "nfs-service.storage.svc.cluster.local"
+#          path: "/pg-some-name"
+#      sidecarPVCs:
+#      - name: sidecar-volume-claim
+#        spec:
+#          resources:
+#            requests:
+#              storage: 1Gi
+#          volumeMode: Filesystem
+#          accessModes:
+#            - ReadWriteOnce
 #
 #      customTLSSecret:
 #        name: keycloakdb-pgbouncer.tls
@@ -525,6 +581,31 @@ backups:
 #        image: mycontainer1:latest
 #        command: ["sleep", "30d"]
 #        securityContext: {}
+#        volumeMounts:
+#          - name: sidecar-secret
+#            mountPath: /tmp/secret/path
+#          - name: sidecar-config
+#            mountPath: /tmp/config/path
+#      sidecarVolumes:
+#      - name: sidecar-secret
+#        secret:
+#          secretName: mysecret
+#      - name: sidecar-config
+#        configMap:
+#          name: myconfigmap
+#      - name: backup-nfs
+#        nfs:
+#          server: "nfs-service.storage.svc.cluster.local"
+#          path: "/pg-some-name"
+#      sidecarPVCs:
+#      - name: sidecar-volume-claim
+#        spec:
+#          resources:
+#            requests:
+#              storage: 1Gi
+#          volumeMode: Filesystem
+#          accessModes:
+#            - ReadWriteOnce
 #      tolerations:
 #      - effect: NoSchedule
 #        key: role
