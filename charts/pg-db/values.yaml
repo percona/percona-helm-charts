@@ -75,6 +75,7 @@ customReplicationTLSSecret:
 # tls:
 #   caValidityDuration: 87600h
 #   certValidityDuration: 2160h
+#   pgBackRestCertValidityDuration: 2160h
 
 # openshift: true
 

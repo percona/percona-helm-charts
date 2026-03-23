@@ -63,6 +63,9 @@ spec:
     {{- if .Values.tls.certValidityDuration }}
     certValidityDuration: {{ .Values.tls.certValidityDuration }}
     {{- end }}
+    {{- if .Values.tls.pgBackRestCertValidityDuration }}
+    pgBackRestCertValidityDuration: {{ .Values.tls.pgBackRestCertValidityDuration }}
+    {{- end }}
   {{- end }}
 
   {{- if hasKey .Values "openshift" }}
