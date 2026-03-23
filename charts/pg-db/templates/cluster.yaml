@@ -31,6 +31,10 @@ spec:
   {{- end }}
   image: {{ .Values.image }}
   imagePullPolicy: {{ .Values.imagePullPolicy | default "Always" }}
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   port: {{ default 5432 .Values.port }}
   postgresVersion: {{ .Values.postgresVersion }}
   standby: {{- .Values.standby | toYaml | nindent 4 }}
@@ -54,6 +58,16 @@ spec:
   {{- if hasKey .Values "tlsOnly" }}
   tlsOnly: {{ .Values.tlsOnly }}
   {{- end -}}
+
+  {{- if .Values.tls }}
+  tls:
+    {{- if .Values.tls.caValidityDuration }}
+    caValidityDuration: {{ .Values.tls.caValidityDuration }}
+    {{- end }}
+    {{- if .Values.tls.certValidityDuration }}
+    certValidityDuration: {{ .Values.tls.certValidityDuration }}
+    {{- end }}
+  {{- end }}
 
   {{- if hasKey .Values "openshift" }}
   openshift: {{ .Values.openshift }}
