@@ -21694,6 +21694,9 @@ spec:
                   certValidityDuration:
                     description: Validity duration for the generated leaf TLS certificates.
                     type: string
+                  pgBackRestCertValidityDuration:
+                    description: Validity duration for the generated pgBackRest TLS certificates.
+                    type: string
                 type: object
               tlsOnly:
                 type: boolean
@@ -51257,6 +51260,9 @@ spec:
                     type: string
                   certValidityDuration:
                     description: Validity duration for the generated leaf TLS certificates.
+                    type: string
+                  pgBackRestCertValidityDuration:
+                    description: Validity duration for the generated pgBackRest TLS certificates.
                     type: string
                 type: object
               tlsOnly:
