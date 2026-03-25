@@ -726,7 +726,7 @@ pmm:
 #     secret:
 #       name: cluster1-extensions-secret
 #   builtin:
-#     pg_stat_monitor: true
+#     pg_stat_monitor: false
 #     pg_stat_statements: false
 #     pg_audit: true
 #     pgvector: false
