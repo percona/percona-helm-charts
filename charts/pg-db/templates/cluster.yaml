@@ -654,9 +654,29 @@ spec:
         name: {{ .Values.extensions.storage.secret.name }}
       {{- end }}
     {{- end }}
-    {{- if .Values.extensions.builtin }}
-    builtin:
-{{ .Values.extensions.builtin | toYaml | indent 6 }}
+    {{- if .Values.extensions.pg_stat_monitor }}
+    pg_stat_monitor:
+{{ .Values.extensions.pg_stat_monitor | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_stat_statements }}
+    pg_stat_statements:
+{{ .Values.extensions.pg_stat_statements | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_audit }}
+    pg_audit:
+{{ .Values.extensions.pg_audit | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pgvector }}
+    pgvector:
+{{ .Values.extensions.pgvector | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_repack }}
+    pg_repack:
+{{ .Values.extensions.pg_repack | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_tde }}
+    pg_tde:
+{{ .Values.extensions.pg_tde | toYaml | indent 6 }}
     {{- end }}
     {{- if .Values.extensions.custom }}
     custom:
