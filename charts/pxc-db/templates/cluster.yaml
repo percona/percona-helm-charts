@@ -387,7 +387,7 @@ spec:
     {{- end }}
     {{- if $proxysql.imagePullSecrets }}
     imagePullSecrets:
-    {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
+{{ $proxysql.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
     {{- if $proxysql.scheduler }}
     scheduler:
