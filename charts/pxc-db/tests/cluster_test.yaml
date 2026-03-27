@@ -1,0 +1,162 @@
+suite: pxc-db cluster
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the default cluster
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchSnapshot: {}
+
+  - it: uses an existing cluster secret name and emptyDir when persistence is disabled
+    set:
+      pxc.clusterSecretName: existing-db-secret
+      pxc.persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.secretsName
+          value: existing-db-secret
+        documentIndex: 0
+      - exists:
+          path: spec.pxc.volumeSpec.emptyDir
+        documentIndex: 0
+
+  - it: uses provided tls secret names
+    set:
+      secrets.tls.cluster: external-cluster-ssl
+      secrets.tls.internal: external-internal-ssl
+    asserts:
+      - isSubset:
+          path: spec
+          content:
+            sslSecretName: external-cluster-ssl
+            sslInternalSecretName: external-internal-ssl
+
+  - it: uses provided password generation options
+    set:
+      passwordGenerationOptions.minLength: 16
+      passwordGenerationOptions.maxLength: 20
+      passwordGenerationOptions.symbols: "!@#"
+    asserts:
+      - equal:
+          path: spec.passwordGenerationOptions
+          value:
+            minLength: 16
+            maxLength: 20
+            symbols: "!@#"
+        documentIndex: 0
+
+  - it: renders init container settings
+    set:
+      initContainer.image: custom-init-image
+      initContainer.containerSecurityContext.runAsUser: 1001
+      initContainer.resources.requests.cpu: 100m
+      initContainer.resources.requests.memory: 100M
+    asserts:
+      - equal:
+          path: spec.initContainer
+          value:
+            image: custom-init-image
+            containerSecurityContext:
+              runAsUser: 1001
+            resources:
+              requests:
+                cpu: 100m
+                memory: 100M
+        documentIndex: 0
+
+  - it: renders hostPath persistence settings
+    set:
+      pxc.persistence.hostPath: /var/lib/mysql
+    asserts:
+      - equal:
+          path: spec.pxc.volumeSpec.hostPath
+          value:
+            path: /var/lib/mysql
+            type: Directory
+        documentIndex: 0
+
+  - it: switches to proxysql mode
+    set:
+      proxysql.enabled: true
+      proxysql.image: custom-proxysql-image
+    asserts:
+      - equal:
+          path: spec.haproxy.enabled
+          value: false
+        documentIndex: 0
+      - equal:
+          path: spec.proxysql.enabled
+          value: true
+        documentIndex: 0
+      - equal:
+          path: spec.proxysql.image
+          value: custom-proxysql-image
+        documentIndex: 0
+
+  - it: rewrites s3 backup credentials to a generated secret reference
+    set:
+      backup.storages.backup1.type: s3
+      backup.storages.backup1.s3.bucket: operator-testing
+      backup.storages.backup1.s3.region: us-east-1
+      backup.storages.backup1.s3.credentialsAccessKey: some-access-key
+      backup.storages.backup1.s3.credentialsSecretKey: some-secret-key
+    asserts:
+      - equal:
+          path: spec.backup.storages.backup1
+          value:
+            s3:
+              bucket: operator-testing
+              credentialsSecret: unit-pxc-db-s3-backup1
+              region: us-east-1
+            type: s3
+        documentIndex: 0
+
+  - it: renders configured backup and pitr options
+    set:
+      backup:
+        allowParallel: true
+        backoffLimit: 6
+        imagePullPolicy: Always
+        pitr:
+          enabled: true
+          storageName: s3-binlogs
+          timeBetweenUploads: 120
+          timeoutSeconds: 90
+        schedule:
+          - name: daily
+            schedule: "0 0 * * *"
+            storageName: s3-main
+    asserts:
+      - equal:
+          path: spec.backup
+          value:
+            allowParallel: true
+            image: percona/percona-xtrabackup:8.4.0-5.1
+            backoffLimit: 6
+            imagePullPolicy: Always
+            pitr:
+              enabled: true
+              storageName: s3-binlogs
+              timeBetweenUploads: 120
+              timeoutSeconds: 90
+              resources:
+                requests: {}
+                limits: {}
+            storages: {}
+            schedule:
+              - name: daily
+                schedule: 0 0 * * *
+                storageName: s3-main
+        documentIndex: 0
+
+  - it: omits the backup section when backups are disabled
+    set:
+      backup.enabled: false
+    asserts:
+      - notExists:
+          path: spec.backup
+        documentIndex: 0

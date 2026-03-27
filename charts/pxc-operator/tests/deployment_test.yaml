@@ -1,0 +1,47 @@
+suite: pxc-operator deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the default operator deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+      - matchSnapshot: {}
+
+  - it: renders optional deployment and service fields
+    set:
+      image: custom-operator:9.9.9
+      watchAllNamespaces: true
+      imagePullSecrets:
+        - name: registry-secret
+      podAnnotations:
+        test: value
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+      extraEnvVars:
+        - name: EXTRA_FLAG
+          value: enabled
+    asserts:
+      - hasDocuments:
+          count: 2
+      - matchSnapshot: {}
+
+  - it: renders a service when a specific watch namespace is configured
+    set:
+      watchNamespace: watch-ns
+    asserts:
+      - hasDocuments:
+          count: 2
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: watch-ns
+        documentIndex: 0
+      - isKind:
+          of: Service
+        documentIndex: 1
