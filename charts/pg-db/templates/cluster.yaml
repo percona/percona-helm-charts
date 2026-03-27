@@ -457,6 +457,10 @@ spec:
     enabled: {{ $isBackupsEnabled }}
     {{- if $isBackupsEnabled }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
+    {{- if .Values.backups.volumeSnapshots }}
+    volumeSnapshots:
+{{ .Values.backups.volumeSnapshots | toYaml | indent 6 }}
+    {{- end }}
     pgbackrest:
       {{- if .Values.backups.pgbackrest.envFrom }}
       envFrom:
@@ -556,10 +560,6 @@ spec:
       {{- if .Values.backups.pgbackrest.manual }}
       manual:
 {{ pick .Values.backups.pgbackrest.manual "repoName" "options" "initialDelaySeconds" | toYaml | indent 8 }}
-      {{- end }}
-      {{- if .Values.backups.volumeSnapshots }}
-      volumeSnapshots:
-{{ .Values.backups.volumeSnapshots | toYaml | indent 8 }}
       {{- end }}
       repos:
       {{- range $repo := .Values.backups.pgbackrest.repos }}
