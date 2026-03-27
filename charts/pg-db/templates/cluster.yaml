@@ -457,6 +457,10 @@ spec:
     enabled: {{ $isBackupsEnabled }}
     {{- if $isBackupsEnabled }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
+    {{- if .Values.backups.volumeSnapshots }}
+    volumeSnapshots:
+{{ .Values.backups.volumeSnapshots | toYaml | indent 6 }}
+    {{- end }}
     pgbackrest:
       {{- if .Values.backups.pgbackrest.envFrom }}
       envFrom:

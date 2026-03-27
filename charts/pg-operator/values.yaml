@@ -51,3 +51,6 @@ logLevel: "INFO"
 # The TCP address that the controller should bind to for serving pprof.
 # Setting "" or "0" will disable pprof serving.
 pprofBindAddress: "0"
+
+featureGates:
+  backupSnapshots: false
