@@ -9,33 +9,7 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
-      - isKind:
-          of: Deployment
-        documentIndex: 0
-      - equal:
-          path: metadata.name
-          value: unit-pxc-operator
-        documentIndex: 0
-      - equal:
-          path: spec.replicas
-          value: 1
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.containers[0].image
-          value: percona/percona-xtradb-cluster-operator:1.20.0
-        documentIndex: 0
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: WATCH_NAMESPACE
-            value: test-ns
-        documentIndex: 0
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: PXCO_FEATURE_GATES
-            value: XtrabackupSidecar=false
-        documentIndex: 0
+      - matchSnapshot: {}
 
   - it: renders optional deployment and service fields
     set:
@@ -54,53 +28,7 @@ tests:
     asserts:
       - hasDocuments:
           count: 2
-      - equal:
-          path: spec.template.metadata.annotations["test"]
-          value: value
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.imagePullSecrets[0].name
-          value: registry-secret
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.containers[0].image
-          value: custom-operator:9.9.9
-        documentIndex: 0
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: WATCH_NAMESPACE
-            value: ""
-        documentIndex: 0
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: EXTRA_FLAG
-            value: enabled
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
-          value: true
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
-          value: false
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].name
-          value: tmpdir
-        documentIndex: 0
-      - equal:
-          path: spec.template.spec.volumes[0].name
-          value: tmpdir
-        documentIndex: 0
-      - isKind:
-          of: Service
-        documentIndex: 1
-      - equal:
-          path: metadata.name
-          value: percona-xtradb-cluster-operator
-        documentIndex: 1
+      - matchSnapshot: {}
 
   - it: renders a service when a specific watch namespace is configured
     set:

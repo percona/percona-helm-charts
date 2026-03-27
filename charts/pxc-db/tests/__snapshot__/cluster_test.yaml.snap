@@ -1,0 +1,135 @@
+renders the default cluster:
+  1: |
+    apiVersion: pxc.percona.com/v1
+    kind: PerconaXtraDBCluster
+    metadata:
+      finalizers:
+        - percona.com/delete-pxc-pods-in-order
+      labels:
+        app.kubernetes.io/instance: unit
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: pxc-db
+        app.kubernetes.io/version: 1.20.0
+        helm.sh/chart: pxc-db-1.20.0
+      name: unit-pxc-db
+      namespace: test-ns
+    spec:
+      backup:
+        image: percona/percona-xtrabackup:8.4.0-5.1
+        pitr:
+          enabled: false
+        schedule: []
+        storages: {}
+      crVersion: 1.20.0
+      enableCRValidationWebhook: false
+      enableVolumeExpansion: false
+      haproxy:
+        affinity:
+          antiAffinityTopologyKey: kubernetes.io/hostname
+        annotations: {}
+        enabled: true
+        gracePeriod: 30
+        image: percona/haproxy:2.8.17
+        labels: {}
+        livenessDelaySec: 300
+        livenessProbes:
+          failureThreshold: 4
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 5
+        nodeSelector: {}
+        podDisruptionBudget:
+          maxUnavailable: 1
+        readinessDelaySec: 15
+        readinessProbes:
+          failureThreshold: 3
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits: {}
+          requests:
+            cpu: 600m
+            memory: 1G
+        sidecarPVCs: []
+        sidecarResources:
+          limits: {}
+          requests: {}
+        sidecarVolumes: []
+        sidecars: []
+        size: 3
+        tolerations: []
+        volumeSpec:
+          emptyDir: {}
+      logCollectorSecretName: unit-pxc-db-log-collector
+      logcollector:
+        enabled: true
+        image: percona/fluentbit:4.0.1-1
+        resources:
+          limits: {}
+          requests:
+            cpu: 200m
+            memory: 100M
+      pause: false
+      pmm:
+        enabled: false
+      proxysql:
+        enabled: false
+      pxc:
+        affinity:
+          antiAffinityTopologyKey: kubernetes.io/hostname
+        annotations: {}
+        autoRecovery: true
+        gracePeriod: 600
+        image: percona/percona-xtradb-cluster:8.4.7-7.1
+        labels: {}
+        livenessDelaySec: 300
+        livenessProbes:
+          failureThreshold: 3
+          initialDelaySeconds: 300
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        nodeSelector: {}
+        podDisruptionBudget:
+          maxUnavailable: 1
+        readinessDelaySec: 15
+        readinessProbes:
+          failureThreshold: 5
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 15
+        resources:
+          limits: {}
+          requests:
+            cpu: 600m
+            memory: 1G
+        sidecarPVCs: []
+        sidecarResources:
+          limits: {}
+          requests: {}
+        sidecarVolumes: []
+        sidecars: []
+        size: 3
+        tolerations: []
+        volumeSpec:
+          persistentVolumeClaim:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 8Gi
+      secretsName: unit-pxc-db-secrets
+      sslInternalSecretName: unit-pxc-db-ssl-internal
+      sslSecretName: unit-pxc-db-ssl
+      tls:
+        enabled: true
+      updateStrategy: SmartUpdate
+      upgradeOptions:
+        apply: disabled
+        schedule: 0 4 * * *
+        versionServiceEndpoint: https://check.percona.com
+      vaultSecretName: unit-pxc-db-vault
