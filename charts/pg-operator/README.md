@@ -37,7 +37,7 @@ Chart.
 | --------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `replicaCount`              | Number of operator replicas                                                             | `1`                                                   |
 | `operatorImageRepository`   | PG Operator container image repository                                                  | `docker.io/percona/percona-postgresql-operator`       |
-| `image`                     | PG Operator container image full path override                                          | ``                                                    |
+| `image`                     | PG Operator container image full path override                                          | `""`                                                  |
 | `imagePullPolicy`           | PG Operator container pull policy                                                       | `Always`                                              |
 | `imagePullSecrets`          | Image pull secrets for the operator Pod                                                 | `[]`                                                  |
 | `nameOverride`              | Helm name override                                                                      | `""`                                                  |
@@ -57,7 +57,7 @@ Chart.
 | `watchNamespace`            | Set this variable if the target cluster namespace differs from the operator's namespace | ``                                                    |
 | `watchAllNamespaces`        | Kubernetes cluster-wide operation                                                       | `false`                                               |
 | `leaderElectionEnabled`     | Disable/enable leader election                                                          | `true`                                                |
-| `leaseName`                 | Determines the name of the resource that leader election will use for holding the lock  | ``                                                    |
+| `leaseName`                 | Determines the name of the resource that leader election will use for holding the lock  | `""`                                                  |
 | `leaseDuration`             | Duration that non-leader candidates wait to acquire leadership                          | `60s`                                                 |
 | `renewDeadline`             | Duration that the acting control plane retries refreshing leadership                    | `40s`                                                 |
 | `retryPeriod`               | Duration between leader election retries                                                | `10s`                                                 |

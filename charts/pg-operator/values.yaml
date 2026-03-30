@@ -48,7 +48,7 @@ disableTelemetry: false
 logStructured: false
 logLevel: "INFO"
 
-leaderElectionEnabled: "true"
+leaderElectionEnabled: true
 leaseName: ""
 leaseDuration: 60s
 renewDeadline: 40s
