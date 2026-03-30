@@ -32,6 +32,7 @@ The chart can be customized using the following configurable parameters:
 | `ignoreLabels`                                    | Operator will not remove following labels                                                            | `[]`                                 |
 | `pause`                                           | Stop PXC Database safely                                                                             | `false`                              |
 | `enableVolumeExpansion`                           | Enable volume resizing                                                                               | `false`                              |
+| `enableExternalAutoscaling`                       | Enable external volume autoscaling                                                                   | `false`                              |
 | `unsafeFlags.tls`                                 | Allows users to configure a cluster without TLS/SSL certificates                                     | `false`                              |
 | `unsafeFlags.pxcSize`                             | Allows users to configure a cluster with less than 3 Percona XtraDB Cluster instances                | `false`                              |
 | `unsafeFlags.proxySize`                           | Allows users to configure a cluster with less than 2 ProxySQL or HAProxy Pods                        | `false`                              |

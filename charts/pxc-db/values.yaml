@@ -22,6 +22,7 @@ operatorImageRepository: percona/percona-xtradb-cluster-operator
 crVersion: 1.20.0
 
 enableVolumeExpansion: false
+enableExternalAutoscaling: false
 
 ignoreAnnotations: []
   # - iam.amazonaws.com/role
