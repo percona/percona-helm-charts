@@ -14,6 +14,7 @@ metadata:
 spec:
   crVersion: {{ .Values.crVersion | default .Chart.AppVersion }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
+  enableExternalAutoscaling: {{ .Values.enableExternalAutoscaling }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
 {{ .Values.ignoreAnnotations | toYaml | indent 4 }}
