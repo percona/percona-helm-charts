@@ -48,6 +48,12 @@ disableTelemetry: false
 logStructured: false
 logLevel: "INFO"
 
+leaderElectionEnabled: true
+leaseName: ""
+leaseDuration: 60s
+renewDeadline: 40s
+retryPeriod: 10s
+
 # The TCP address that the controller should bind to for serving pprof.
 # Setting "" or "0" will disable pprof serving.
 pprofBindAddress: "0"

@@ -33,29 +33,34 @@ helm install my-operator percona/pg-operator --version 2.9.0 --namespace my-name
 The following shows the configurable parameters that are relevant to the Helm
 Chart.
 
-| Parameter                   | Description                                                                             | Default                                         |
-| --------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `replicaCount`              | Number of operator replicas                                                             | `1`                                             |
-| `operatorImageRepository`   | PG Operator container image repository                                                  | `docker.io/percona/percona-postgresql-operator` |
-| `image`                     | PG Operator container image full path override                                          | `""`                                            |
-| `imagePullPolicy`           | PG Operator container pull policy                                                       | `Always`                                        |
-| `imagePullSecrets`          | Image pull secrets for the operator Pod                                                 | `[]`                                            |
-| `nameOverride`              | Helm name override                                                                      | `""`                                            |
-| `fullnameOverride`          | Helm full name override                                                                 | `""`                                            |
-| `resources.requests.cpu`    | CPU resource requests for the operator Pod                                              | `100m`                                          |
-| `resources.requests.memory` | Memory resource requests for the operator Pod                                           | `20Mi`                                          |
-| `resources.limits.cpu`      | CPU resource limits for the operator Pod                                                | `200m`                                          |
-| `resources.limits.memory`   | Memory resource limits for the operator Pod                                             | `500Mi`                                         |
-| `nodeSelector`              | Labels for Pod assignment                                                               | `{}`                                            |
-| `tolerations`               | Tolerations for the operator Pod                                                        | `[]`                                            |
-| `affinity`                  | Affinity for the operator Pod                                                           | `{}`                                            |
-| `logStructured`             | Force PG operator to print JSON-wrapped log messages                                    | `false`                                         |
-| `logLevel`                  | PG Operator logging level                                                               | `INFO`                                          |
-| `disableTelemetry`          | Disable sending PG Operator telemetry data to Percona                                   | `false`                                         |
-| `podAnnotations`            | Add annotations to the Operator Pod                                                     | `{}`                                            |
-| `pprofBindAddress`          | TCP address for serving pprof (profiling). Set `""` or `"0"` to disable                 | `"0"`                                           |
-| `watchNamespace`            | Set this variable if the target cluster namespace differs from the operator's namespace | ``                                              |
-| `watchAllNamespaces`        | Kubernetes cluster-wide operation                                                       | `false`                                         |
+| Parameter                   | Description                                                                             | Default                                               |
+| --------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `replicaCount`              | Number of operator replicas                                                             | `1`                                                   |
+| `operatorImageRepository`   | PG Operator container image repository                                                  | `docker.io/percona/percona-postgresql-operator`       |
+| `image`                     | PG Operator container image full path override                                          | `""`                                                  |
+| `imagePullPolicy`           | PG Operator container pull policy                                                       | `Always`                                              |
+| `imagePullSecrets`          | Image pull secrets for the operator Pod                                                 | `[]`                                                  |
+| `nameOverride`              | Helm name override                                                                      | `""`                                                  |
+| `fullnameOverride`          | Helm full name override                                                                 | `""`                                                  |
+| `resources.requests.cpu`    | CPU resource requests for the operator Pod                                              | `100m`                                                |
+| `resources.requests.memory` | Memory resource requests for the operator Pod                                           | `20Mi`                                                |
+| `resources.limits.cpu`      | CPU resource limits for the operator Pod                                                | `200m`                                                |
+| `resources.limits.memory`   | Memory resource limits for the operator Pod                                             | `500Mi`                                               |
+| `nodeSelector`              | Labels for Pod assignment                                                               | `{}`                                                  |
+| `tolerations`               | Tolerations for the operator Pod                                                        | `[]`                                                  |
+| `affinity`                  | Affinity for the operator Pod                                                           | `{}`                                                  |
+| `logStructured`             | Force PG operator to print JSON-wrapped log messages                                    | `false`                                               |
+| `logLevel`                  | PG Operator logging level                                                               | `INFO`                                                |
+| `disableTelemetry`          | Disable sending PG Operator telemetry data to Percona                                   | `false`                                               |
+| `podAnnotations`            | Add annotations to the Operator Pod                                                     | `{}`                                                  |
+| `pprofBindAddress`          | TCP address for serving pprof (profiling). Set `""` or `"0"` to disable                 | `"0"`                                                 |
+| `watchNamespace`            | Set this variable if the target cluster namespace differs from the operator's namespace | ``                                                    |
+| `watchAllNamespaces`        | Kubernetes cluster-wide operation                                                       | `false`                                               |
+| `leaderElectionEnabled`     | Disable/enable leader election                                                          | `true`                                                |
+| `leaseName`                 | Determines the name of the resource that leader election will use for holding the lock  | `""`                                                  |
+| `leaseDuration`             | Duration that non-leader candidates wait to acquire leadership                          | `60s`                                                 |
+| `renewDeadline`             | Duration that the acting control plane retries refreshing leadership                    | `40s`                                                 |
+| `retryPeriod`               | Duration between leader election retries                                                | `10s`                                                 |
 
 ## Deploy the database
 To deploy Percona Operator for PostgreSQL cluster run the following command:
