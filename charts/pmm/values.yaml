@@ -23,7 +23,7 @@ image:
 pmmEnv:
   ## @param pmmEnv.PMM_ENABLE_UPDATES: '0' Disables a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)
   ##
-  PMM_ENABLE_UPDATES: 0
+  PMM_ENABLE_UPDATES: '0'
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: '1'
 #  GF_AUTH_GENERIC_OAUTH_SCOPES: ''
