@@ -284,6 +284,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.storages`                               | Local/remote backup storages settings                                                       | `{}`                         |
 | `backup.schedule`                               | Backup execution timetable                                                                  | `[]`                         |
 | `backup.schedule.[0].name`                      | Backup execution timetable name                                                             | `daily-backup`               |
+| `backup.schedule.[0].type`                      | Backup type (`full` or `incremental`)                                                       | `full`                       |
 | `backup.schedule.[0].schedule`                  | Backup execution timetable cron timing                                                      | `0 0 * * *`                  |
 | `backup.schedule.[0].keep`                      | Backup items to keep                                                                        | `5`                          |
 | `backup.schedule.[0].storageName`               | Backup target storage                                                                       | `fs-pvc`                     |
