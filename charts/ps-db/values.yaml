@@ -173,6 +173,8 @@ mysql:
     # loadBalancerSourceRanges:
     #   - 10.0.0.0/8
 
+  # vaultSecretName: cluster1-vault
+
   volumeSpec:
     pvc:
       resources:
