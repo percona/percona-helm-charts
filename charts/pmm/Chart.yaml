@@ -2,8 +2,8 @@ apiVersion: v2
 name: pmm
 description: A Helm chart for Percona Monitoring and Management (PMM)
 type: application
-version: 1.5.2
-appVersion: "3.6.0"
+version: 1.6.0
+appVersion: "3.7.0"
 home: https://github.com/percona/pmm
 maintainers:
   - name: tibi
