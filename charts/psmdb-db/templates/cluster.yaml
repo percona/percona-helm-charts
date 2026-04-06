@@ -326,7 +326,7 @@ spec:
       size: {{ $replset.hidden.size }}
       {{- if $replset.hidden.configuration }}
       configuration: |
-{{ $replset.hidden.configuration | indent 8 }}
+{{ tpl $replset.configuration $ | indent 8 }}
       {{- end }}
       {{- if $replset.hidden.serviceAccountName }}
       serviceAccountName: {{ $replset.hidden.serviceAccountName }}
@@ -411,7 +411,7 @@ spec:
       size: {{ $replset.nonvoting.size }}
       {{- if $replset.nonvoting.configuration }}
       configuration: |
-{{ $replset.nonvoting.configuration | indent 8 }}
+{{ tpl $replset.configuration $ | indent 8 }}
       {{- end }}
       {{- if $replset.nonvoting.hookScript }}
       hookScript:
