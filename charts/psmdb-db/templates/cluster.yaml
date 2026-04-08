@@ -556,7 +556,7 @@ spec:
       {{- end }}
       {{- if .Values.sharding.configrs.configuration }}
       configuration: |
-{{ tpl .Values.sharding.configrs.configuration  . | indent 8 }}
+{{ tpl .Values.sharding.configrs.configuration  . | trimSuffix "\n" | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.configrs.hookScript }}
       hookScript:
@@ -705,7 +705,7 @@ spec:
       {{- end }}
       {{- if .Values.sharding.mongos.configuration }}
       configuration: |
-{{ tpl .Values.sharding.mongos.configuration . | indent 8 }}
+{{ tpl .Values.sharding.mongos.configuration . | trimSuffix "\n"| indent 8 }}
       {{- end }}
       {{- if .Values.sharding.mongos.hookScript }}
       hookScript:
