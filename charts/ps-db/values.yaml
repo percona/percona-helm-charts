@@ -122,6 +122,10 @@ mysql:
   # env:
   # - name: BOOTSTRAP_READ_TIMEOUT
   #   value: "600"
+  # - name: ASYNC_SOURCE_RETRY_COUNT
+  #   value: "3"
+  # - name: ASYNC_SOURCE_CONNECT_RETRY
+  #   value: "60"
   # envFrom:
   # - secretRef:
   #     name: my-env-secret
