@@ -783,6 +783,38 @@ backup:
     #     credentialsSecret: cluster1-s3-credentials
     #     region: us-west-2
     #     prefix: ""
+  # pitr:
+  #   enabled: false
+  #   binlogServer:
+  #     image: perconalab/percona-binlog-server:0.2.1
+  #     imagePullPolicy: Always
+  #     imagePullSecrets:
+  #       - name: my-secret-1
+  #       - name: my-secret-2
+  #     serverId: 100
+  #     storage:
+  #       s3:
+  #         bucket: S3-BACKUP-BUCKET-NAME-HERE
+  #         credentialsSecret: ps-cluster1-s3-credentials
+  #         endpointUrl: https://s3.amazonaws.com
+  #         prefix: PREFIX_NAME
+  #         region: us-west-2
+  #     connectTimeout: 30
+  #     readTimeout: 30
+  #     writeTimeout: 30
+  #     idleTime: 30
+  #     checkpointInterval: 30s
+  #     checkpointSize: 16M
+  #     resources:
+  #       limits:
+  #         cpu: 200m
+  #         memory: 200M
+  #       requests:
+  #         cpu: 200m
+  #         memory: 200M
+  #     rewriteFileSize: "128M"
+  #     sslMode: "verify_identity"
+  #     verifyChecksum: true
 
 toolkit:
   image:
