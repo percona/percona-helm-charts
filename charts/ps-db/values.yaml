@@ -791,7 +791,6 @@ backup:
   #     imagePullSecrets:
   #       - name: my-secret-1
   #       - name: my-secret-2
-  #     serverId: 100
   #     storage:
   #       s3:
   #         bucket: S3-BACKUP-BUCKET-NAME-HERE
@@ -805,6 +804,7 @@ backup:
   #     idleTime: 30
   #     checkpointInterval: 30s
   #     checkpointSize: 16M
+  #     logLevel: info
   #     resources:
   #       limits:
   #         cpu: 200m
@@ -814,7 +814,6 @@ backup:
   #         memory: 200M
   #     rewriteFileSize: "128M"
   #     sslMode: "verify_identity"
-  #     verifyChecksum: true
 
 toolkit:
   image:
