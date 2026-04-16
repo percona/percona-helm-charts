@@ -66,6 +66,7 @@ upgradeOptions:
 mysql:
   clusterType: group-replication
   autoRecovery: true
+  # vaultSecretName: ps-cluster1-vault
   podDisruptionBudget:
     maxUnavailable: 1
     # minAvailable: 0
