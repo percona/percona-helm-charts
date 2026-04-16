@@ -696,10 +696,12 @@ backup:
 #      schedule: "0 0 * * 6"
 #      keep: 3
 #      storageName: s3-us-west
+#      type: full
 #    - name: "daily-backup"
 #      schedule: "0 0 * * *"
 #      keep: 5
 #      storageName: s3
+#      type: incremental
   # backoffLimit: 6
   imagePullPolicy: Always
   imagePullSecrets: []
