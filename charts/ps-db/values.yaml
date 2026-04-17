@@ -789,7 +789,7 @@ backup:
   # pitr:
   #   enabled: false
   #   binlogServer:
-  #     image: perconalab/percona-binlog-server:0.2.1
+  #     image: percona/percona-server-mysql-operator:1.1.0-binlog-server-0.2.1
   #     imagePullPolicy: Always
   #     imagePullSecrets:
   #       - name: my-secret-1
