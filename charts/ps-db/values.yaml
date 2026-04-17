@@ -16,10 +16,10 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 1.0.0
+crVersion: 1.1.0
 enableVolumeExpansion: false
 pause: false
-# initImage: percona/percona-server-mysql-operator:1.0.0
+# initImage: percona/percona-server-mysql-operator:1.1.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -27,7 +27,7 @@ upgradeOptions:
   apply: disabled
 
 # initContainer:
-#   image: percona/percona-server-mysql-operator:1.0.0
+#   image: percona/percona-server-mysql-operator:1.1.0
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -72,11 +72,11 @@ mysql:
     # minAvailable: 0
   image:
     repository: percona/percona-server
-    tag: 8.4.6-6.1
+    tag: 8.4.8-8.1
   imagePullPolicy: Always
   imagePullSecrets: []
   # initContainer:
-  #   image: percona/percona-server-mysql-operator:1.0.0
+  #   image: percona/percona-server-mysql-operator:1.1.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -245,11 +245,11 @@ proxy:
     enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.8.15
+      tag: 2.8.18-1
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: percona/percona-server-mysql-operator:1.0.0
+    #   image: percona/percona-server-mysql-operator:1.1.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -393,11 +393,11 @@ proxy:
     enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.4.6
+      tag: 8.4.8
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: percona/percona-server-mysql-operator:1.0.0
+    #   image: percona/percona-server-mysql-operator:1.1.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -541,12 +541,12 @@ orchestrator:
   enabled: false
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-18
+    tag: 3.2.6-20
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
   # initContainer:
-  #   image: percona/percona-server-mysql-operator:1.0.0
+  #   image: percona/percona-server-mysql-operator:1.1.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -651,7 +651,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.4.1
+    tag: 3.7.0
   imagePullPolicy: Always
 #  readinessProbe:
 #    initialDelaySeconds: 15
@@ -676,7 +676,7 @@ pmm:
 backup:
   enabled: true
   # initContainer:
-  #   image: percona/percona-server-mysql-operator:1.0.0
+  #   image: percona/percona-server-mysql-operator:1.1.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -691,7 +691,7 @@ backup:
 #  sourcePod: ps-cluster1-mysql-1
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.4.0-4.1
+    tag: 8.4.0-5.1
 #  schedule:
 #    - name: "sat-night-backup"
 #      schedule: "0 0 * * 6"
@@ -790,7 +790,7 @@ backup:
 toolkit:
   image:
     repository: percona/percona-toolkit
-    tag: 3.7.0-2
+    tag: 3.7.1
   imagePullPolicy: Always
   resources:
     requests: {}
