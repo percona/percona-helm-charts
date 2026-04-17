@@ -128,7 +128,7 @@ spec:
     image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
     serverHost: {{ .Values.pmm.serverHost }}
     {{- if .Values.pmm.mongodParams }}
-    mongodParams: {{ .Values.pmm.mongodParams }}
+    mongodParams: {{ tpl .Values.pmm.mongodParams $ }}
     {{- end }}
     {{- if .Values.pmm.mongosParams }}
     mongosParams: {{ .Values.pmm.mongosParams }}
