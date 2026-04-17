@@ -105,6 +105,9 @@ spec:
     {{- if $mysql.autoRecovery }}
     autoRecovery: {{ $mysql.autoRecovery }}
     {{- end }}
+    {{- if $mysql.vaultSecretName }}
+    vaultSecretName: {{ $mysql.vaultSecretName }}
+    {{- end }}
     {{- if $mysql.image }}
     image: "{{ $mysql.image.repository }}:{{ $mysql.image.tag }}"
     {{- end }}

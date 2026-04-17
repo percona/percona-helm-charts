@@ -1,0 +1,24 @@
+## @section PMM HA Dependencies
+## This chart installs the Kubernetes operators required for PMM HA deployment
+## It must be installed before deploying the pmm-ha chart
+
+## @section VictoriaMetrics Operator Configuration  
+## The victoria-metrics-operator manages VictoriaMetrics resources
+victoria-metrics-operator:
+  enabled: true
+  crds:
+    enabled: true
+  admissionWebhooks:
+    # Enable admission webhooks for validation
+    enabled: true
+
+## @section Altinity ClickHouse Operator Configuration
+## The altinity-clickhouse-operator manages ClickHouse clusters
+altinity-clickhouse-operator:
+  enabled: true
+  # fullnameOverride: clickhouse-op  # Uncomment to shorten resource names if hitting 63-char limit
+
+## @section PostgreSQL Operator Configuration
+## The pg-operator manages PostgreSQL clusters
+pg-operator:
+  enabled: true
