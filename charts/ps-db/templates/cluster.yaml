@@ -745,6 +745,10 @@ spec:
       limits:
 {{ tpl ($backup.resources.limits | toYaml) $ | indent 8 }}
     {{- end }}
+    {{- if $backup.pitr }}
+    pitr:
+{{ $backup.pitr | toYaml | indent 6 }}
+    {{- end }}
     storages:
 {{ $backup.storages | toYaml | indent 6 }}
   {{- end }}
