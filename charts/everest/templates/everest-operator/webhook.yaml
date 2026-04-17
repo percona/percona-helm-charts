@@ -34,6 +34,62 @@ webhooks:
       values:
       - "true"
 - admissionReviewVersions:
+    - v1
+  clientConfig:
+    caBundle: {{ index $tls "ca.crt" }}
+    service:
+      name: everest-operator-webhook-service
+      namespace: {{ include "everest.namespace" . }}
+      path: /validate-everest-percona-com-v1alpha1-databaseclusterbackup
+  failurePolicy: Fail
+  name: vdatabaseclusterbackup-v1alpha1.everest.percona.com
+  rules:
+    - apiGroups:
+        - everest.percona.com
+      apiVersions:
+        - v1alpha1
+      operations:
+        - CREATE
+        - UPDATE
+        - DELETE
+      resources:
+        - databaseclusterbackups
+  sideEffects: None
+  objectSelector:
+    matchExpressions:
+      - key: everest.percona.com/skip-validating-webhook
+        operator: NotIn
+        values:
+          - "true"
+- admissionReviewVersions:
+    - v1
+  clientConfig:
+    caBundle: {{ index $tls "ca.crt" }}
+    service:
+      name: everest-operator-webhook-service
+      namespace: {{ include "everest.namespace" . }}
+      path: /validate-everest-percona-com-v1alpha1-databaseclusterrestore
+  failurePolicy: Fail
+  name: vdatabaseclusterrestore-v1alpha1.everest.percona.com
+  rules:
+    - apiGroups:
+        - everest.percona.com
+      apiVersions:
+        - v1alpha1
+      operations:
+        - CREATE
+        - UPDATE
+        - DELETE
+      resources:
+        - databaseclusterrestores
+  sideEffects: None
+  objectSelector:
+    matchExpressions:
+      - key: everest.percona.com/skip-validating-webhook
+        operator: NotIn
+        values:
+          - "true"
+- admissionReviewVersions:
   - v1
   clientConfig:
     caBundle: {{ index $tls "ca.crt" }}

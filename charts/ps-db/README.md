@@ -19,7 +19,7 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 1.0.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 1.0.1 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -55,6 +55,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `mysql.clusterType`                               | MySQL Cluster type (`async` or `group-replication`)                                                                                                           | `group-replication`        |
 | `mysql.autoRecovery`                              | Enable/Disable auto recovery from full cluster crash                                                                                                          | `true`                     |
+| `mysql.vaultSecretName`                           | The Kubernetes Secret containing vault configuration for table encryption                                                                                     | ``                         |
 | `mysql.podDisruptionBudget.maxUnavailable`        | MySQL failed Pods maximum quantity                                                                                                                            | `1`                        |
 | `mysql.podDisruptionBudget.minAvailable`          | MySQL available Pods minimum quantity                                                                                                                         | ``                         |
 | `mysql.image.repository`                          | MySQL Container image repository                                                                                                                              | `percona/percona-server`   |

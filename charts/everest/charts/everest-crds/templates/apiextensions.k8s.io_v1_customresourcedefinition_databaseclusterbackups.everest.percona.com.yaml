@@ -40,6 +40,10 @@ spec:
           jsonPath: .status.created
           name: Age
           type: date
+        - description: Indicates if the backup is used by any DB cluster
+          jsonPath: .status.inUse
+          name: InUse
+          type: string
       name: v1alpha1
       schema:
         openAPIV3Schema:
@@ -93,6 +97,10 @@ spec:
                   type: string
                 gaps:
                   description: Gaps identifies if there are gaps detected in the PITR logs
+                  type: boolean
+                inUse:
+                  default: false
+                  description: InUse is a flag that indicates if this restore resource is being used to restore DB cluster from backup.
                   type: boolean
                 latestRestorableTime:
                   description: LatestRestorableTime is the latest time that can be used for PITR restore
