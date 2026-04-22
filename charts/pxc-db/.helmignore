@@ -21,3 +21,4 @@
 *.tmproj
 .vscode/
 tests/
+__snapshot__

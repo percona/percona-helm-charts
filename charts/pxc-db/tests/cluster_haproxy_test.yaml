@@ -1,0 +1,61 @@
+suite: pxc-db cluster - haproxy cmponent
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders default haproxy
+    asserts:
+      - equal:
+          path: spec.haproxy
+          value:
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            annotations: {}
+            enabled: true
+            gracePeriod: 30
+            image: percona/haproxy:2.8.17
+            labels: {}
+            livenessDelaySec: 300
+            livenessProbes:
+              failureThreshold: 4
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              successThreshold: 1
+              timeoutSeconds: 5
+            nodeSelector: {}
+            podDisruptionBudget:
+              maxUnavailable: 1
+            readinessDelaySec: 15
+            readinessProbes:
+              failureThreshold: 3
+              initialDelaySeconds: 15
+              periodSeconds: 5
+              successThreshold: 1
+              timeoutSeconds: 1
+            resources:
+              limits: {}
+              requests:
+                cpu: 600m
+                memory: 1G
+            sidecarPVCs: []
+            sidecarResources:
+              limits: {}
+              requests: {}
+            sidecarVolumes: []
+            sidecars: []
+            size: 3
+            tolerations: []
+            volumeSpec:
+              emptyDir: {}
+  
+  - it: uses defined affinity
+    set:
+      haproxy.affinity:
+        antiAffinityTopologyKey: "kubernetes.io/other"
+    asserts:
+      - equal:
+          path: spec.haproxy.affinity
+          value:
+            antiAffinityTopologyKey: "kubernetes.io/other"

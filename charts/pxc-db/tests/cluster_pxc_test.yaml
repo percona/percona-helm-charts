@@ -1,0 +1,66 @@
+suite: pxc-db cluster - pxc cmponent
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders default pxc
+    asserts:
+      - equal:
+          path: spec.pxc
+          value:
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            annotations: {}
+            autoRecovery: true
+            gracePeriod: 600
+            image: percona/percona-xtradb-cluster:8.4.7-7.1
+            labels: {}
+            livenessDelaySec: 300
+            livenessProbes:
+              failureThreshold: 3
+              initialDelaySeconds: 300
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 5
+            nodeSelector: {}
+            podDisruptionBudget:
+              maxUnavailable: 1
+            readinessDelaySec: 15
+            readinessProbes:
+              failureThreshold: 5
+              initialDelaySeconds: 15
+              periodSeconds: 30
+              successThreshold: 1
+              timeoutSeconds: 15
+            resources:
+              limits: {}
+              requests:
+                cpu: 600m
+                memory: 1G
+            sidecarPVCs: []
+            sidecarResources:
+              limits: {}
+              requests: {}
+            sidecarVolumes: []
+            sidecars: []
+            size: 3
+            tolerations: []
+            volumeSpec:
+              persistentVolumeClaim:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 8Gi
+
+  - it: uses defined affinity
+    set:
+      pxc.affinity:
+        antiAffinityTopologyKey: "kubernetes.io/other"
+    asserts:
+      - equal:
+          path: spec.pxc.affinity
+          value:
+            antiAffinityTopologyKey: "kubernetes.io/other"
