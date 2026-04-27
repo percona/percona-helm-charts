@@ -19,14 +19,14 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 1.1.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 1.2.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                             | Default                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `1.1.0`                     |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `1.2.0`                     |
 | `finalizers:percona.com/delete-mysql-pods-in-order` | Set this if you want to delete MySQL pods in order on cluster deletion                                                                                                  | `[]`                        |
 | `finalizers:percona.com/delete-ssl`                 | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion                                                                            | `[]`                        |
 | `pause`                                             | Stop PS Cluster safely                                                                                                                                                  | `false`                     |
@@ -291,7 +291,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.schedule.[0].storageName`               | Backup target storage                                                                       | `fs-pvc`                     |
 ||
 | `backup.pitr.enabled`                                          | Enable point-in-time recovery                                                    | `false`                                                            |
-| `backup.pitr.binlogServer.image`                               | Binlog server Container image                                                    | `percona/percona-server-mysql-operator:1.1.0-binlog-server-0.2.1`  |
+| `backup.pitr.binlogServer.image`                               | Binlog server Container image                                                    | `percona/percona-server-mysql-operator:1.2.0-binlog-server-0.2.1`  |
 | `backup.pitr.binlogServer.imagePullPolicy`                     | The policy used to update images                                                 | `Always`                                                           |
 | `backup.pitr.binlogServer.imagePullSecrets`                    | Binlog server Container pull secrets                                             | `[]`                                                               |
 | `backup.pitr.binlogServer.serverId`                            | MySQL server ID used by the binlog server replica                                | `100`                                                              |
