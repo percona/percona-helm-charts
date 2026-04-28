@@ -523,6 +523,10 @@ spec:
     containerSecurityContext:
 {{ tpl ($logcollector.containerSecurityContext | toYaml) $ | indent 6 }}
     {{- end }}
+    {{- if $logcollector.logRotate }}
+    logRotate:
+{{ tpl ($logcollector.logRotate | toYaml) $ | indent 6 }}
+    {{- end }}
   {{- end }}
 {{- if .Values.users }}
   users:
