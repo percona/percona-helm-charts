@@ -24,6 +24,12 @@ Useful links:
 
 You will need [Helm v3](https://github.com/helm/helm) for the installation. See detailed installation instructions in the README file of each chart.
 
+OCI artifacts of all Percona Helm charts are also available from [ghcr.io](https://github.com/orgs/percona/packages?repo_name=percona-helm-charts) and can be installed directly:
+
+```console
+helm install [RELEASE_NAME] oci://ghcr.io/percona/percona-helm-charts/[CHART_NAME]
+```
+
 # Need help?
 
 |                                                                                                         **Commercial Support**                                                                                                         |                                                       **Community Support**                                                        |
