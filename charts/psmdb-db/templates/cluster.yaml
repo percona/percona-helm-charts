@@ -235,6 +235,14 @@ spec:
     containerSecurityContext:
 {{ $replset.containerSecurityContext | toYaml | indent 6 }}
     {{- end }}
+    {{- if $replset.env }}
+    env:
+{{ $replset.env | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $replset.envFrom }}
+    envFrom:
+{{ $replset.envFrom | toYaml | indent 6 }}
+    {{- end }}
     {{- if $replset.runtimeClass }}
     runtimeClassName: {{ $replset.runtimeClass }}
     {{- end }}
@@ -367,6 +375,14 @@ spec:
       containerSecurityContext:
 {{ $replset.hidden.containerSecurityContext | toYaml | indent 8 }}
       {{- end }}
+      {{- if $replset.hidden.env }}
+      env:
+{{ $replset.hidden.env | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.envFrom }}
+      envFrom:
+{{ $replset.hidden.envFrom | toYaml | indent 8 }}
+      {{- end }}
       {{- if $replset.hidden.nodeSelector }}
       nodeSelector:
 {{ $replset.hidden.nodeSelector | toYaml | indent 8 }}
@@ -452,6 +468,14 @@ spec:
       containerSecurityContext:
 {{ $replset.nonvoting.containerSecurityContext | toYaml | indent 8 }}
       {{- end }}
+      {{- if $replset.nonvoting.env }}
+      env:
+{{ $replset.nonvoting.env | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.envFrom }}
+      envFrom:
+{{ $replset.nonvoting.envFrom | toYaml | indent 8 }}
+      {{- end }}
       {{- if $replset.nonvoting.nodeSelector }}
       nodeSelector:
 {{ $replset.nonvoting.nodeSelector | toYaml | indent 8 }}
@@ -509,6 +533,14 @@ spec:
         script: |
 {{ $replset.arbiter.hookScript.script | indent 10 }}
         {{- end }}
+      {{- end }}
+      {{- if $replset.arbiter.env }}
+      env:
+{{ $replset.arbiter.env | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.arbiter.envFrom }}
+      envFrom:
+{{ $replset.arbiter.envFrom | toYaml | indent 8 }}
       {{- end }}
       {{- if $replset.arbiter.affinity }}
       affinity:
@@ -618,6 +650,14 @@ spec:
       {{- if .Values.sharding.configrs.containerSecurityContext }}
       containerSecurityContext:
 {{ .Values.sharding.configrs.containerSecurityContext | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.env }}
+      env:
+{{ .Values.sharding.configrs.env | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.envFrom }}
+      envFrom:
+{{ .Values.sharding.configrs.envFrom | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.sharding.configrs.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.configrs.runtimeClass }}
@@ -764,6 +804,14 @@ spec:
       containerSecurityContext:
 {{ .Values.sharding.mongos.containerSecurityContext | toYaml | indent 8 }}
       {{- end }}
+      {{- if .Values.sharding.mongos.env }}
+      env:
+{{ .Values.sharding.mongos.env | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.envFrom }}
+      envFrom:
+{{ .Values.sharding.mongos.envFrom | toYaml | indent 8 }}
+      {{- end }}
       {{- if .Values.sharding.mongos.runtimeClass }}
       runtimeClassName: {{ .Values.sharding.mongos.runtimeClass }}
       {{- end }}
@@ -875,6 +923,14 @@ spec:
     containerSecurityContext:
 {{ .Values.backup.containerSecurityContext | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.backup.env }}
+    env:
+{{ .Values.backup.env | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.backup.envFrom }}
+    envFrom:
+{{ .Values.backup.envFrom | toYaml | indent 6 }}
+    {{- end }}
     image: "{{ .Values.backup.image.repository }}:{{ .Values.backup.image.tag }}"
     {{- if .Values.backup.resources }}
     resources:
@@ -913,6 +969,14 @@ spec:
     image: "{{ .Values.logcollector.image.repository }}:{{ .Values.logcollector.image.tag }}"
     {{- if .Values.logcollector.configuration }}
     configuration: {{ .Values.logcollector.configuration }}
+    {{- end }}
+    {{- if .Values.logcollector.env }}
+    env:
+{{ .Values.logcollector.env | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.envFrom }}
+    envFrom:
+{{ .Values.logcollector.envFrom | toYaml | indent 6 }}
     {{- end }}
     {{- if .Values.logcollector.resources }}
     resources:
