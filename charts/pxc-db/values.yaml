@@ -195,6 +195,8 @@ pxc:
   # request certificates from cert-manager
   certManager: false
 
+  # sstRetryCount: 3
+
   # If this is set will not create secrets from values and will instead try to use
   # a pre-existing secret of the same name.
   # clusterSecretName: cluster1-secrets
