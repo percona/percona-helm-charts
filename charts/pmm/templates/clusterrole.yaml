@@ -4,7 +4,7 @@ kind: ClusterRole
 metadata:
   name: {{ include "pmm.fullname" . }}
   labels:
-    {{- include "pmm.labels" . | nindent 2 }}
+    {{- include "pmm.labels" . | nindent 4 }}
 rules:
 # standard RBAC
 - apiGroups: [""] # "" indicates the core API group
