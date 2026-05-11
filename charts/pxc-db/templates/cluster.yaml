@@ -239,7 +239,7 @@ spec:
     livenessProbes:
 {{ tpl ($pxc.livenessProbes | toYaml) $ | indent 6 }}
     {{- if $pxc.sstRetryCount }}
-    sstRetryCount: 3
+    sstRetryCount: {{ $pxc.sstRetryCount }}
     {{- end }}
     {{- if $pxc.containerSecurityContext }}
     containerSecurityContext:
