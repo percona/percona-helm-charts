@@ -202,8 +202,16 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: PG_PASSWORD
-            - name: GF_DATABASE_URL
-              value: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432/grafana"
+            - name: GF_DATABASE_TYPE
+              value: "postgres"
+            - name: GF_DATABASE_HOST
+              value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
+            - name: GF_DATABASE_NAME
+              value: "grafana"
+            - name: GF_DATABASE_USER
+              value: "$(GF_USERNAME)"
+            - name: GF_DATABASE_PASSWORD
+              value: "$(GF_PASSWORD)"
             - name: VMAGENT_remoteWrite_basicAuth_username
               valueFrom:
                 secretKeyRef:
