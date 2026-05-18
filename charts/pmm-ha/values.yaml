@@ -697,6 +697,12 @@ kube-state-metrics:
 
 prometheus-node-exporter:
   enabled: true
+  service:
+    # Use 9101 instead of the upstream default 9100 to avoid colliding with
+    # OpenShift's platform node-exporter, which is managed by the Cluster
+    # Monitoring Operator and binds host port 9100 on every worker node.
+    port: 9101
+    targetPort: 9101
 
 
 ## @section VictoriaMetrics Configuration
