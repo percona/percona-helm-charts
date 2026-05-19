@@ -1,0 +1,40 @@
+{{- if .Values.dataImporters.perconaPGOperator.enabled }}
+apiVersion: everest.percona.com/v1alpha1
+kind: DataImporter
+metadata:
+  name: everest-percona-pg-operator
+spec:
+  displayName: "Percona PG Operator Data Importer"
+  description: |
+    Data importer for importing backups taken using the Percona PG Operator.
+  supportedEngines:
+  - postgresql
+  jobSpec:
+    image: {{ .Values.dataImporters.perconaPGOperator.image | default (printf "%s:%s" .Values.operator.image .Chart.Version) | quote }}
+    command: ["/data-importer", "pg"]
+  permissions:
+  - apiGroups:
+    - everest.percona.com
+    resources:
+    - databaseclusters
+    verbs:
+    - get
+    - update
+  - apiGroups:
+    - pgv2.percona.com
+    resources:
+    - perconapgclusters
+    verbs:
+    - get
+    - create
+    - delete
+  - apiGroups:
+    - ""
+    resources:
+    - secrets
+    verbs:
+    - get
+    - create
+    - update
+    - delete
+{{- end }}

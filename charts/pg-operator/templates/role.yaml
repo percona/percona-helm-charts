@@ -16,8 +16,9 @@ rules:
   - ""
   resources:
   - configmaps
-  - persistentvolumeclaims
+  - pods
   - secrets
+  - serviceaccounts
   - services
   verbs:
   - create
@@ -56,22 +57,14 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - pods
+  - persistentvolumeclaims
   verbs:
+  - create
   - delete
   - get
   - list
   - patch
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs:
-  - create
-  - get
-  - list
-  - patch
+  - update
   - watch
 - apiGroups:
   - apps
@@ -110,12 +103,30 @@ rules:
   - update
   - watch
 - apiGroups:
+  - cert-manager.io
+  - certmanager.k8s.io
+  resources:
+  - certificaterequests
+  - certificates
+  - issuers
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - coordination.k8s.io
   resources:
   - leases
   verbs:
   - create
+  - delete
   - get
+  - list
   - update
   - watch
 - apiGroups:
@@ -127,14 +138,19 @@ rules:
   - delete
   - get
   - list
+  - patch
   - update
   - watch
 - apiGroups:
   - pgv2.percona.com
   resources:
   - perconapgbackups/finalizers
-  - perconapgclusters/finalizers
+  - perconapgclusters/status
+  - perconapgrestores/status
+  - perconapgupgrades/finalizers
+  - perconapgupgrades/status
   verbs:
+  - patch
   - update
 - apiGroups:
   - pgv2.percona.com
@@ -159,12 +175,8 @@ rules:
 - apiGroups:
   - pgv2.percona.com
   resources:
-  - perconapgclusters/status
-  - perconapgrestores/status
-  - perconapgupgrades/finalizers
-  - perconapgupgrades/status
+  - perconapgclusters/finalizers
   verbs:
-  - patch
   - update
 - apiGroups:
   - pgv2.percona.com
@@ -174,6 +186,7 @@ rules:
   - create
   - get
   - list
+  - patch
   - watch
 - apiGroups:
   - policy
@@ -255,6 +268,18 @@ rules:
   - roles
   verbs:
   - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - snapshot.storage.k8s.io
+  resources:
+  - volumesnapshots
+  verbs:
+  - create
+  - delete
   - get
   - list
   - patch

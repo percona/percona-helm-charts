@@ -19,7 +19,7 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.16.1
+crVersion: 1.19.1
 
 enableVolumeExpansion: false
 
@@ -29,7 +29,7 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.16.1"
+#   image: "percona/percona-xtradb-cluster-operator:1.19.1"
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -54,6 +54,8 @@ upgradeOptions:
 enableCRValidationWebhook: false
 tls:
   enabled: true
+  # certValidityDuration: 2160h
+  # caValidityDuration: 26280h
   # SANs:
   #   - pxc-1.example.com
   #   - pxc-2.example.com
@@ -67,17 +69,17 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.0.39-30.1
+    tag: 8.4.7-7.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
   #   enabled: true
   #   type: LoadBalancer
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   externalTrafficPolicy: Local
   #   internalTrafficPolicy: Local
   #   loadBalancerSourceRanges:
   #   - 10.0.0.0/8
-  #   loadBalancerIP: 127.0.0.1
   #   annotations:
   #     networking.gke.io/load-balancer-type: "Internal"
   #   labels:
@@ -124,6 +126,13 @@ pxc:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # mysqlAllocator: jemalloc
+  # extraPVCs:
+  # - name: my-volume
+  #   claimName: my-existing-pvc
+  #   mountPath: /mnt/data
+  #   readOnly: false
+  #   subPath: ""
   sidecarResources:
     requests: {}
     limits: {}
@@ -214,7 +223,7 @@ pxc:
 haproxy:
   enabled: true
   size: 3
-  image: percona/haproxy:2.8.11
+  image: percona/haproxy:2.8.17
   # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -290,6 +299,12 @@ haproxy:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # extraPVCs:
+  # - name: my-volume
+  #   claimName: my-existing-pvc
+  #   mountPath: /mnt/data
+  #   readOnly: false
+  #   subPath: ""
   sidecarResources:
     requests: {}
     limits: {}
@@ -345,8 +360,8 @@ haproxy:
     successThreshold: 1
     failureThreshold: 4
   # exposePrimary:
-  #   enabled: false
   #   type: ClusterIP
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
   #   externalTrafficPolicy: Cluster
@@ -355,11 +370,11 @@ haproxy:
   #     rack: rack-22
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
-  #   loadBalancerIP: 127.0.0.1
   # exposeReplicas:
   #   enabled: true
   #   onlyReaders: false
   #   type: ClusterIP
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
   #   externalTrafficPolicy: Cluster
@@ -369,6 +384,10 @@ haproxy:
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
   #   loadBalancerIP: 127.0.0.1
+  # healthCheck:
+  #   interval: 10000
+  #   rise: 1
+  #   fall: 2
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
@@ -381,20 +400,29 @@ haproxy:
 proxysql:
   enabled: false
   size: 3
-  image: "percona/proxysql2:2.7.1"
+  image: percona/proxysql2:2.7.3-1.2
   # imagePullPolicy: Always
   imagePullSecrets: []
+#  scheduler:
+#    enabled: false
+#    writerIsAlsoReader: true
+#    checkTimeoutMilliseconds: 2000
+#    successThreshold: 1
+#    failureThreshold: 3
+#    pingTimeoutMilliseconds: 1000
+#    nodeCheckIntervalMilliseconds: 2000
+#    maxConnections: 1000
 #  configuration: |
 #    datadir="/var/lib/proxysql"
 #
 #    admin_variables =
 #    {
-#      admin_credentials="proxyadmin:admin_password"
+#      aadmin_credentials="admin:admin"
 #      mysql_ifaces="0.0.0.0:6032"
 #      refresh_interval=2000
 #
-#      cluster_username="proxyadmin"
-#      cluster_password="admin_password"
+#      cluster_username="admin"
+#      cluster_password="admin"
 #      checksum_admin_variables=false
 #      checksum_ldap_variables=false
 #      checksum_mysql_variables=false
@@ -429,11 +457,12 @@ proxysql:
 #      ping_timeout_server=200
 #      commands_stats=true
 #      sessions_sort=true
-#      have_ssl=true
-#      ssl_p2s_ca="/etc/proxysql/ssl-internal/ca.crt"
-#      ssl_p2s_cert="/etc/proxysql/ssl-internal/tls.crt"
-#      ssl_p2s_key="/etc/proxysql/ssl-internal/tls.key"
+#      have_ssl=false
+#      ssl_p2s_ca=""
+#      ssl_p2s_cert=""
+#      ssl_p2s_key=""
 #      ssl_p2s_cipher="ECDHE-RSA-AES128-GCM-SHA256"
+#      default_authentication_plugin="caching_sha2_password"
 #    }
   # - name: private-registry-credentials
   annotations: {}
@@ -444,6 +473,7 @@ proxysql:
   # expose:
   #   enabled: false
   #   type: ClusterIP
+  #   loadBalancerClass: "eks.amazonaws.com/nlb"
   #   annotations:
   #     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
   #   externalTrafficPolicy: Cluster
@@ -452,11 +482,8 @@ proxysql:
   #     rack: rack-22
   #   loadBalancerSourceRanges:
   #     - 10.0.0.0/8
-  #   loadBalancerIP: 127.0.0.1
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
-  readinessDelaySec: 15
-  livenessDelaySec: 300
   # envVarsSecret: my-env-var-secrets
   resources:
     requests:
@@ -468,6 +495,12 @@ proxysql:
   sidecars: []
   sidecarVolumes: []
   sidecarPVCs: []
+  # extraPVCs:
+  # - name: my-volume
+  #   claimName: my-existing-pvc
+  #   mountPath: /mnt/data
+  #   readOnly: false
+  #   subPath: ""
   sidecarResources:
     requests: {}
     limits: {}
@@ -533,7 +566,7 @@ proxysql:
 
 logcollector:
   enabled: true
-  image: percona/percona-xtradb-cluster-operator:1.16.1-logcollector-fluentbit3.2.2
+  image: percona/fluentbit:4.0.1-1
   # imagePullPolicy: Always
   imagePullSecrets: []
   # configuration: |
@@ -574,11 +607,23 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 2.44.0
+    tag: 3.5.0
   # imagePullPolicy: Always
   imagePullSecrets: []
+#  readinessProbes:
+#    initialDelaySeconds: 15
+#    timeoutSeconds: 15
+#    periodSeconds: 30
+#    successThreshold: 1
+#    failureThreshold: 5
+#  livenessProbes:
+#    initialDelaySeconds: 300
+#    timeoutSeconds: 5
+#    periodSeconds: 10
+#    successThreshold: 1
   serverHost: monitoring-service
   serverUser: admin
+  # customClusterName: "<string>"
   # pxcParams: "--disable-tablestats-limit=2000"
   # proxysqlParams: "--custom-labels=CUSTOM-LABELS"
   # containerSecurityContext:
@@ -593,10 +638,14 @@ backup:
   enabled: true
   # allowParallel: true
   image:
-    repository: percona/percona-xtradb-cluster-operator
-    tag: 1.16.1-pxc8.0-backup-pxb8.0.35
+    repository: percona/percona-xtrabackup
+    tag: 8.4.0-5.1
   # backoffLimit: 6
+  # ttlSecondsAfterFinished: 3600
   # activeDeadlineSeconds: 3600
+  # startingDeadlineSeconds: 300
+  # suspendedDeadlineSeconds: 1200
+  # runningDeadlineSeconds: 1200
   # serviceAccountName: percona-xtradb-cluster-operator
   # imagePullPolicy: Always
   imagePullSecrets: []
@@ -680,6 +729,9 @@ backup:
     #     #credentialsSecretKey: REPLACE-WITH-AWS-SECRET-KEY
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
     # s3-us-west-binlogs:
     #   type: s3
     #   s3:
@@ -687,6 +739,9 @@ backup:
     #     credentialsSecret: my-cluster-name-backup-s3
     #     region: us-west-2
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
     # azure-blob:
     #   type: azure
     #   azure:
@@ -694,16 +749,29 @@ backup:
     #     container: test
     #     endpointUrl: https://accountName.blob.core.windows.net
     #     storageClass: Hot
+    #     blockSize: 4194304
+    #     concurrency: 4
 
   schedule: []
-    # - name: "daily-backup"
-    #   schedule: "0 0 * * *"
-    #   keep: 5
-    #   storageName: fs-pvc
-    # - name: "sat-night-backup"
-    #   schedule: "0 0 * * 6"
-    #   keep: 3
-    #   storageName: s3-us-west
+#     - name: "daily-backup"
+#       schedule: "0 0 * * *"
+#       retention:
+#         type: "count"
+#         count: 5
+#         deleteFromStorage: true
+#       storageName: fs-pvc
+#     - name: "sat-night-backup"
+#       schedule: "0 0 * * 6"
+#       retention:
+#         type: "count"
+#         count: 3
+#         deleteFromStorage: true
+#       storageName: s3-us-west
+
+# passwordGenerationOptions:
+#   minLength: 16
+#   maxLength: 20
+#   symbols: "!#$%&()*+,-.<=>?@[]^_{}~"
 
 secrets:
   ## You should be overriding these with your own or specify name for clusterSecretName.
@@ -714,7 +782,8 @@ secrets:
   #   proxyadmin: insecure-proxyadmin-password
   #   pmmserver: insecure-pmmserver-password
   #   # If pmmserverkey is set in that case pmmserver pass will not be included
-  #   # pmmserverkey: set-pmmserver-api-key
+  #   # pmmserverkey: set-pmmserver-api-key for PMM 2.x
+  #   # pmmservertoken: set-pmmserver-api-key PMM 3.x
   #   operator: insecure-operator-password
   #   replication: insecure-replication-password
   ## If you are using `cert-manager` you can skip this next section.

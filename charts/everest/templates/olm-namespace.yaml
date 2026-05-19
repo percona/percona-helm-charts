@@ -1,0 +1,10 @@
+{{- if (and .Values.olm.install .Values.compatibility.openshift )}}
+{{- fail "olm.install must be set to 'false' when compatibility.openshift=true" }}
+{{- end }}
+---
+{{- if .Values.olm.install }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.olm.namespace }}
+{{- end }}

@@ -1,0 +1,169 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: dataimportjobs.everest.percona.com
+  labels:
+    everest.percona.com/crd: "true"
+    everest.percona.com/version: 0.0.0
+spec:
+  group: everest.percona.com
+  names:
+    kind: DataImportJob
+    listKind: DataImportJobList
+    plural: dataimportjobs
+    shortNames:
+      - dij
+    singular: dataimportjob
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.targetClusterName
+          name: TargetCluster
+          type: string
+        - jsonPath: .status.state
+          name: State
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: DataImportJob is the schema for the dataimportjobs API.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: DataImportJobSpec defines the desired state of DataImportJob.
+              properties:
+                config:
+                  description: |-
+                    Config defines the configuration for the data import job.
+                    These options are specific to the DataImporter being used and must conform to
+                    the schema defined in the DataImporter's .spec.config.openAPIV3Schema.
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                dataImporterName:
+                  description: DataImporterName is the data importer to use for the import.
+                  type: string
+                source:
+                  description: Source is the source of the data to import.
+                  properties:
+                    path:
+                      description: |-
+                        Path is the path to the directory to import the data from.
+                        This may be a path to a file or a directory, depending on the data importer.
+                        Only absolute file paths are allowed. Leading and trailing '/' are optional.
+                      type: string
+                      x-kubernetes-validations:
+                        - message: path must be an absolute file or directory path
+                          rule: self.matches('^/?([^/]+(/[^/]+)*)/?$')
+                    s3:
+                      description: S3 contains the S3 information for the data import.
+                      properties:
+                        accessKeyId:
+                          description: |-
+                            AccessKeyID allows specifying the S3 access key ID inline.
+                            It is provided as a write-only input field for convenience.
+                            When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                            and empties this field.
+                            This field is not stored in the API.
+                          type: string
+                        bucket:
+                          description: Bucket is the name of the S3 bucket.
+                          type: string
+                        credentialsSecretName:
+                          description: |-
+                            CredentialsSecreName is the reference to the secret containing the S3 credentials.
+                            The Secret must contain the keys `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+                          type: string
+                        endpointURL:
+                          description: EndpointURL is an endpoint URL of backup storage.
+                          type: string
+                          x-kubernetes-validations:
+                            - message: endpointURL must be a valid URL
+                              rule: isURL(self)
+                        forcePathStyle:
+                          default: false
+                          description: |-
+                            ForcePathStyle is set to use path-style URLs.
+                            If unspecified, the default value is false.
+                          type: boolean
+                        region:
+                          description: Region is the region of the S3 bucket.
+                          type: string
+                        secretAccessKey:
+                          description: |-
+                            SecretAccessKey allows specifying the S3 secret access key inline.
+                            It is provided as a write-only input field for convenience.
+                            When this field is set, a webhook writes this value in the Secret specified by `credentialsSecretName`
+                            and empties this field.
+                            This field is not stored in the API.
+                          type: string
+                        verifyTLS:
+                          default: true
+                          description: |-
+                            VerifyTLS is set to ensure TLS/SSL verification.
+                            If unspecified, the default value is true.
+                          type: boolean
+                      required:
+                        - bucket
+                        - credentialsSecretName
+                        - endpointURL
+                        - region
+                      type: object
+                  required:
+                    - path
+                  type: object
+                targetClusterName:
+                  description: TargetClusterName is the reference to the target cluster.
+                  type: string
+              required:
+                - dataImporterName
+                - source
+                - targetClusterName
+              type: object
+            status:
+              description: DataImportJobStatus defines the observed state of DataImportJob.
+              properties:
+                completedAt:
+                  description: CompletedAt is the time when the data import job completed successfully.
+                  format: date-time
+                  type: string
+                jobName:
+                  description: JobName is the reference to the job that is running the data import.
+                  type: string
+                lastObservedGeneration:
+                  description: LastObservedGeneration is the last observed generation of the data import job.
+                  format: int64
+                  type: integer
+                message:
+                  description: Message is the message of the data import job.
+                  type: string
+                startedAt:
+                  description: StartedAt is the time when the data import job started.
+                  format: date-time
+                  type: string
+                state:
+                  description: State is the current state of the data import job.
+                  type: string
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

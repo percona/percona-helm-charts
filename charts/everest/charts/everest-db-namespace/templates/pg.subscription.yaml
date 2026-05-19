@@ -18,7 +18,7 @@ spec:
   config:
     env:
     - name: DISABLE_TELEMETRY
-      {{- if $.Values.telemetry }}
+      {{- if not $.Values.telemetry }}
       value: "true"
       {{- else }}
       value: "false"

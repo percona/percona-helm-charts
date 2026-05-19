@@ -5,6 +5,17 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+
+{{/*
+Mutual exclusion validation
+*/}}
+{{- define "everest.validateInputs" -}}
+{{- if and .Values.pmm.enabled .Values.pmm3.enabled -}}
+{{ fail "Only one of pmm.enabled or pmm3.enabled may be true. They are mutually exclusive." }}
+{{- end }}
+{{- end }}
+
+
 {{/*
 Allows overriding the install namespace in combined charts.
 */}}
@@ -19,10 +30,10 @@ Allow overriding OLM namespace
 {{- if .Values.compatibility.openshift }}
 {{- "openshift-marketplace" }}
 {{- else }}
-{{- .Values.olm.namespace }}
+{{- .Values.olm.namespaceOverride }}
 {{- end }}
 {{- end }}
- 
+
 {{/*
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
@@ -87,31 +98,45 @@ admin:
     - login
 {{- end}}
 
-{{- define "olm.certs" }}
-{{- $tls := .Values.olm.packageserver.tls }}
-{{- $psSvcName := printf "packageserver-service" }}
-{{- $psSvcNameWithNS := ( printf "%s.%s" $psSvcName .Values.olm.namespace ) }}
-{{- $psFullName := ( printf "%s.svc" $psSvcNameWithNS ) }}
-{{- $psAltNames := list $psSvcName $psSvcNameWithNS $psFullName }}
-{{- $psCA := genCA $psSvcName 3650 }}
-{{- $psCert := genSignedCert $psFullName nil $psAltNames 3650 $psCA }}
-{{- if (and $tls.caCert $tls.tlsCert $tls.tlsKey) }}
-caCert: {{ $tls.caCert | b64enc }}
-tlsCert: {{ $tls.tlsCert | b64enc }}
-tlsKey: {{ $tls.tlsKey | b64enc }}
-{{- else }}
-caCert: {{ $psCA.Cert | b64enc }}
-tlsCert: {{ $psCert.Cert | b64enc }}
-tlsKey: {{ $psCert.Key | b64enc }}
-{{- end }}
-commonName: {{ $psSvcName }}
-altNames:
-{{- range $n := $psAltNames }}
-- {{ $n }}
-{{- end }}
-- localhost
+{{- define "everest.versionMetadataURL" }}
+{{- trimSuffix "/" (default "https://check.percona.com" .Values.versionMetadataURL) -}}
 {{- end }}
 
-{{- define "everest.versionMetadataURL" -}}
-{{- trimSuffix "/" (default "https://check.percona.com" .Values.versionMetadataURL) -}}
+{{- define "everest.tlsCerts" -}}
+{{- $svcName := printf "everest" }}
+{{- $svcNameWithNS := ( printf "%s.%s" $svcName (include "everest.namespace" .) ) }}
+{{- $fullName := ( printf "%s.svc" $svcNameWithNS ) }}
+{{- $altNames := list $svcName $svcNameWithNS $fullName }}
+{{- $ca := genCA $svcName 3650 }}
+{{- $cert := genSignedCert $fullName nil $altNames 3650 $ca }}
+{{- $tlsCerts := .Values.server.tls.secret.certs }}
+tls.key: {{ index $tlsCerts "tls.key" | default $cert.Key | b64enc }}
+tls.crt: {{ index $tlsCerts "tls.crt" | default $cert.Cert | b64enc }}
+{{- end }}
+
+{{- define "everestOperator.tlsCerts" -}}
+{{- $currentSecret := lookup "v1" "Secret" (include "everest.namespace" .) "webhook-server-cert" -}}
+{{- $tlsCerts := .Values.operator.webhook.certs }}
+
+{{- if (and (get $tlsCerts "tls.key" ) (get $tlsCerts "tls.crt") (get $tlsCerts "ca.crt") )}}
+tls.key: {{ index $tlsCerts "tls.key" }}
+tls.crt: {{ index $tlsCerts "tls.crt" }}
+ca.crt: {{ index $tlsCerts "ca.crt" }}
+
+{{- else if (and .Release.IsUpgrade .Values.operator.webhook.preserveTLSCerts $currentSecret ) }}
+tls.key: {{ index $currentSecret.data "tls.key" }}
+tls.crt: {{ index $currentSecret.data "tls.crt" }}
+ca.crt: {{ index $currentSecret.data "ca.crt" }}
+
+{{- else }}
+{{- $svcName := printf "everest-operator-webhook-service" }}
+{{- $svcNameWithNS := ( printf "%s.%s" $svcName (include "everest.namespace" .) ) }}
+{{- $fullName := ( printf "%s.svc" $svcNameWithNS ) }}
+{{- $altNames := list $svcName $svcNameWithNS $fullName }}
+{{- $ca := genCA $svcName 3650 }}
+{{- $cert := genSignedCert $fullName nil $altNames 3650 $ca }}
+tls.key: {{ $cert.Key | b64enc }}
+tls.crt: {{ $cert.Cert | b64enc }}
+ca.crt: {{ $ca.Cert | b64enc }}
+{{- end }}
 {{- end }}

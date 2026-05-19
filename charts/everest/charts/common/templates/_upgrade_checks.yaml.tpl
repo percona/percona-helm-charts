@@ -2,6 +2,7 @@
 # @param .namespace             The namespace where the operator is installed
 # @param .version               Version to upgrade to
 # @param .versionMetadataURL    The URL of the version metadata service
+# @param .image                 The image to use for running the hook Job
 #
 {{- define "everest.preUpgradeChecks" }}
 {{- $hookName := printf "everest-helm-pre-upgrade-hook" }}
@@ -98,7 +99,7 @@ spec:
   template:
     spec:
       containers:
-        - image: alpine:3.20
+        - image: {{ .image }}
           name: {{ $hookName }}
           command:
             - /bin/sh

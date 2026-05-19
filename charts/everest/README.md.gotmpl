@@ -29,7 +29,7 @@ Notes:
 * Additionally, it also deploys a new namespace called `everest` for your databases and the database operators.
 * If you prefer to manage your database namespace separately, you may set `dbNamespace.enabled=false`.
 * You may override the name of the database namespace using the `dbNamespace.namespaceOverride` parameter.
-* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
+* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.postgresql=false`, `dbNamespace.psmdb=false`].
 * We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
 ### 3. Retrieve the admin password
@@ -63,7 +63,7 @@ helm install everest \
 ```
 
 Notes:
-* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.pg=false`, `dbNamespace.psmdb=false`].
+* By default, all database operators are installed in your database namespace. You may override this by specifying one or more of the following: [`dbNamespace.pxc=false`, `dbNamespace.postgresql=false`, `dbNamespace.psmdb=false`].
 * We currently do not support installation without the use of chart hooks. I.e, the use of `--no-hooks` is not supported during installation.
 
 #### 4.1 Deploying additional operators to an existing database namespace
@@ -75,7 +75,7 @@ helm upgrade everest \
     percona/everest-db-namespace \
     --namespace [NAMESPACE]
     --pxc=true \
-    --pg=true
+    --postgresql=true
 ```
 
 The above example assumes that the MongoDB operator is already installed in the database namespace and you would like to install the Percona XtraDB Cluster and PostgreSQL operators.
@@ -111,9 +111,32 @@ kubectl delete ns everest-system
 As of Helm v3, CRDs are not automatically updated during a Helm upgrade. You must manually upgrade the CRDs.
 
 ```sh
-VERSION=<Next version> # e.g. v1.3.0
-kubectl apply -k https://github.com/percona/everest-operator/config/crd?ref=$(VERSION) --server-side
+helm repo update
+helm upgrade --install everest-crds \
+    percona/everest-crds \
+    --namespace everest-system \
+    --take-ownership
 ```
+
+> **Note:** If you're using a version of Helm older than `3.17.0`, the `--take-ownership` flag will not be available.
+> This flag is required only when upgrading from Everest 1.8.0. Without it, you may encounter the following error:
+>
+> ```sh
+> invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm";
+> annotation validation error: missing key "meta.helm.sh/release-name": must be set to "everest-crds"; 
+> annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "everest-system"
+> ```
+>
+> If you must use a Helm version older than `3.17.0`, you can manually simulate the behavior of `--take-ownership` by adding the required labels and annotations to the Everest CRDs:
+>
+> ```sh
+> CRDS=(databaseclusters.everest.percona.com databaseengines.everest.percona.com databaseclusterbackups.everest.percona.com databaseclusterrestores.everest.percona.com backupstorages.everest.percona.com monitoringconfigs.everest.percona.com)
+> kubectl label crds "${CRDS[@]}" app.kubernetes.io/managed-by=Helm --overwrite
+> kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-name=everest-crds
+> kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=everest-system
+> ```
+>
+> This ensures the CRDs are correctly recognized as managed by Helm, avoiding validation issues during the upgrade.
 
 #### 6.2 Upgrade Helm Releases
 
@@ -145,3 +168,17 @@ The following table shows the configurable parameters of the Percona Everest cha
 {{- range .Values }}
 | {{ .Key }} | {{ .Type }} | {{ .Default }} | {{ .AutoDescription }} |
 {{- end }}
+
+## Notice for developers
+In case you made any changes in `percona-helm-charts/charts/everest/charts/common` or `percona-helm-charts/charts/everest/charts/everest-db-namespace` directories,
+please make sure you perform the following actions before creating PR:
+- bump chart version in `percona-helm-charts/charts/everest/charts/common/Chart.yaml` or `percona-helm-charts/charts/everest/charts/everest-db-namespace/Chart.yaml` accordingly in `version` parameter.
+- in `percona-helm-charts/charts/everest` directory run:
+    ```bash
+    make prepare-pr
+    ```
+
+In case you need to update the Everest Custom Resource Definitions (CRDs) after the changes in `github.com/percona/everest-operator` repository, please run the following command:
+```bash
+CRD_VERSION=<branch name in percona/everest-operator repo> make prepare-pr
+```

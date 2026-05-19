@@ -1,0 +1,209 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: dataimporters.everest.percona.com
+  labels:
+    everest.percona.com/crd: "true"
+    everest.percona.com/version: 0.0.0
+spec:
+  group: everest.percona.com
+  names:
+    kind: DataImporter
+    listKind: DataImporterList
+    plural: dataimporters
+    singular: dataimporter
+  scope: Cluster
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .spec.displayName
+          name: DisplayName
+          type: string
+        - jsonPath: .spec.description
+          name: Description
+          type: string
+        - jsonPath: .spec.supportedEngines
+          name: SupportedEngines
+          type: string
+      name: v1alpha1
+      schema:
+        openAPIV3Schema:
+          description: DataImporter defines a reusable strategy for importing data into a DatabaseCluster.
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: DataImporterSpec defines the specification of a DataImporter.
+              properties:
+                clusterPermissions:
+                  description: |-
+                    ClusterPermissions defines the cluster-wide permissions required by the data importer.
+                    These permissions are used to generate a ClusterRole for the data importer job.
+                  items:
+                    description: |-
+                      PolicyRule holds information that describes a policy rule, but does not contain information
+                      about who the rule applies to or which namespace the rule applies to.
+                    properties:
+                      apiGroups:
+                        description: |-
+                          APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                          the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      nonResourceURLs:
+                        description: |-
+                          NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                          Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
+                          Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      resourceNames:
+                        description: ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      resources:
+                        description: Resources is a list of resources this rule applies to. '*' represents all resources.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      verbs:
+                        description: Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                    required:
+                      - verbs
+                    type: object
+                  type: array
+                config:
+                  description: Config contains additional configuration defined for the data importer.
+                  properties:
+                    openAPIV3Schema:
+                      description: OpenAPIV3Schema is the OpenAPI v3 schema of the data importer.
+                      x-kubernetes-preserve-unknown-fields: true
+                  type: object
+                databaseClusterConstraints:
+                  description: |-
+                    DatabaseClusterConstraints defines compatibility requirements and prerequisites that must be satisfied
+                    by a DatabaseCluster before this data importer can be used with it. This allows the data importer to
+                    express specific requirements about the database configuration needed for successful import operations,
+                    such as required database fields, specific engine configurations, or other database properties.
+                    When a DatabaseCluster references this data importer, the operator will validate the DatabaseCluster
+                    against these constraints before proceeding with the import operation.
+                  properties:
+                    requiredFields:
+                      description: |-
+                        RequiredFields contains a list of fields that must be set in the DatabaseCluster spec.
+                        Each key is a JSON path expressions that points to a field in the DatabaseCluster spec.
+                        For example, ".spec.engine.type" or ".spec.dataSource.dataImport.config.someField".
+                      items:
+                        type: string
+                      type: array
+                  type: object
+                description:
+                  description: Description is the description of the data importer.
+                  type: string
+                displayName:
+                  description: DisplayName is a human-readable name for the data importer.
+                  type: string
+                jobSpec:
+                  description: JobSpec is the specification of the data importer job.
+                  properties:
+                    command:
+                      description: Command is the command to run the data importer.
+                      items:
+                        type: string
+                      type: array
+                    image:
+                      description: Image is the image of the data importer.
+                      type: string
+                  type: object
+                permissions:
+                  description: |-
+                    Permissions defines the permissions required by the data importer.
+                    These permissions are used to generate a Role for the data importer job.
+                  items:
+                    description: |-
+                      PolicyRule holds information that describes a policy rule, but does not contain information
+                      about who the rule applies to or which namespace the rule applies to.
+                    properties:
+                      apiGroups:
+                        description: |-
+                          APIGroups is the name of the APIGroup that contains the resources.  If multiple API groups are specified, any action requested against one of
+                          the enumerated resources in any API group will be allowed. "" represents the core API group and "*" represents all API groups.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      nonResourceURLs:
+                        description: |-
+                          NonResourceURLs is a set of partial urls that a user should have access to.  *s are allowed, but only as the full, final step in the path
+                          Since non-resource URLs are not namespaced, this field is only applicable for ClusterRoles referenced from a ClusterRoleBinding.
+                          Rules can either apply to API resources (such as "pods" or "secrets") or non-resource URL paths (such as "/api"),  but not both.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      resourceNames:
+                        description: ResourceNames is an optional white list of names that the rule applies to.  An empty set means that everything is allowed.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      resources:
+                        description: Resources is a list of resources this rule applies to. '*' represents all resources.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      verbs:
+                        description: Verbs is a list of Verbs that apply to ALL the ResourceKinds contained in this rule. '*' represents all verbs.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                    required:
+                      - verbs
+                    type: object
+                  type: array
+                supportedEngines:
+                  description: SupportedEngines is the list of engines that the data importer supports.
+                  items:
+                    description: |-
+                      EngineType stands for the supported database engines. Right now it's only pxc
+                      and psmdb. However, it can be ps, pg and any other source.
+                    type: string
+                  type: array
+              type: object
+            status:
+              description: DataImporterStatus defines the status of the DataImporter.
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

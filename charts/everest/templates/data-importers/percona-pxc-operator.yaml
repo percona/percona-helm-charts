@@ -1,0 +1,44 @@
+{{- if .Values.dataImporters.perconaPXCOperator.enabled }}
+apiVersion: everest.percona.com/v1alpha1
+kind: DataImporter
+metadata:
+  name: everest-percona-pxc-operator
+spec:
+  displayName: "Percona PXC Operator Data Importer"
+  description: |
+    Data importer for importing backups taken using the Percona PXC Operator.
+  supportedEngines:
+  - pxc
+  jobSpec:
+    image: {{ .Values.dataImporters.perconaPXCOperator.image | default (printf "%s:%s" .Values.operator.image .Chart.Version) | quote }}
+    command: ["/data-importer", "pxc"]
+  databaseClusterConstraints:
+    requiredFields:
+    - .spec.engine.userSecretsName
+  permissions:
+  - apiGroups:
+    - everest.percona.com
+    resources:
+    - databaseclusters
+    verbs:
+    - get
+    - update
+  - apiGroups:
+    - pxc.percona.com
+    resources:
+    - perconaxtradbclusterrestores
+    verbs:
+    - create
+    - get
+    - update
+    - delete
+  - apiGroups:
+    - ""
+    resources:
+    - secrets
+    verbs:
+    - get
+    - create
+    - update
+    - delete
+{{- end }}
