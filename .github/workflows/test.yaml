@@ -2,7 +2,7 @@ name: Lint and Test Charts
 
 on: 
   pull_request:
-    path-ignore:
+    paths-ignore:
     - 'charts/gcp-marketplace/**'
     - 'charts/everest/**'
     - 'charts/pmm-ha/**'
@@ -49,7 +49,7 @@ jobs:
       - name: Run db-chart-testing (install)
         run: |
           echo "Base branch is $GITHUB_BASE_REF"
-          excluded_charts=("everest")
+          excluded_charts=("everest" "pmm-ha" "pmm-ha-dependencies")
           # Exclude -operator-crds; they are installed in the next step with --take-ownership
           while IFS= read -r crd; do [[ -n "$crd" ]] && excluded_charts+=("$crd"); done <<< "$(ct list-changed --config .github/ct.yaml | sed 's:^charts/::' | grep '\-operator-crds$' || true)"
           OPERATOR_INSTALL=$(ct list-changed --config .github/ct.yaml | sed -E 's:charts/::' | awk '/(-db|-operator)$/ { sub(/-db$/, "-operator"); print }' | sort -u)
