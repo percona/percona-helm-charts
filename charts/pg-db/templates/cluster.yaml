@@ -238,7 +238,7 @@ spec:
   instances:
   {{- range $instance := .Values.instances }}
     - name: {{ $instance.name }}
-      {{- if or ($instance.metadata) }}
+      {{- if and $instance.metadata (or $instance.metadata.annotations $instance.metadata.labels) }}
       metadata:
         {{- if $instance.metadata.annotations }}
         annotations:
