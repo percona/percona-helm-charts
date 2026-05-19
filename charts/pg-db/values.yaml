@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 # annotations:
-#   pgv2.percona.com/custom-patroni-version: "4"
+#    test-annotation: value
 finalizers:
 # Set this if you want that operator deletes the PVCs on cluster deletion
 #  - percona.com/delete-pvc
@@ -12,9 +12,9 @@ finalizers:
 # Set this if you want that operator deletes the backups on cluster deletion
 #  - percona.com/delete-backups
 
-crVersion: 2.7.0
+crVersion: 2.9.0
 # initContainer:
-#   image: docker.io/percona/percona-postgresql-operator:2.7.0
+#   image: docker.io/percona/percona-postgresql-operator:2.9.0
 #   resources:
 #     limits:
 #       cpu: 2.0
@@ -44,10 +44,12 @@ crVersion: 2.7.0
 #     example-annotation: value
 #   labels:
 #     example-label: value
-repository: docker.io/percona/percona-postgresql-operator
-image: docker.io/percona/percona-postgresql-operator:2.7.0-ppg17.5.2-postgres
+repository: docker.io/percona/percona-distribution-postgresql
+image: docker.io/percona/percona-distribution-postgresql:18.3-1
 imagePullPolicy: Always
-postgresVersion: 17
+imagePullSecrets: []
+postgresVersion: 18
+# clusterServiceDNSSuffix: cluster.local
 # port: 5432
 pause: false
 unmanaged: false
@@ -56,6 +58,7 @@ standby:
   # host: "<primary-ip>"
   # port: "<primary-port>"
   # repoName: repo1
+  # maxAcceptableLag: 1Gi
 
 # customRootCATLSSecret:
 #   name: cluster1-ca-cert
@@ -71,6 +74,11 @@ customReplicationTLSSecret:
 
 # tlsOnly: false
 
+# tls:
+#   caValidityDuration: 87600h
+#   certValidityDuration: 2160h
+#   pgBackRestCertValidityDuration: 2160h
+
 # openshift: true
 
 # autoCreateUserSchema: true
@@ -79,6 +87,7 @@ customReplicationTLSSecret:
 #   - name: rhino
 #     databases:
 #       - zoo
+#     grantPublicSchemaAccess: true
 #     options: "SUPERUSER"
 #     password:
 #       type: ASCII
@@ -185,7 +194,7 @@ instances:
 - name: instance1
   replicas: 3
 #  initContainer:
-#    image: docker.io/percona/percona-postgresql-operator:2.7.0
+#    image: docker.io/percona/percona-postgresql-operator:2.9.0
 #    resources:
 #      limits:
 #        cpu: 2.0
@@ -220,6 +229,12 @@ instances:
             matchLabels:
               postgres-operator.crunchydata.com/data: postgres
           topologyKey: kubernetes.io/hostname
+#  env:
+#  - name: MY_ENV
+#    value: "1000"
+#  envFrom:
+#  - secretRef:
+#      name: instance-env-secret
 #  metadata:
 #    annotations: {}
 #    labels: {}
@@ -242,8 +257,33 @@ instances:
 #    image: mycontainer1:latest
 #    command: ["sleep", "30d"]
 #    securityContext: {}
+#    volumeMounts:
+#      - name: sidecar-secret
+#        mountPath: /tmp/secret/path
+#      - name: sidecar-config
+#        mountPath: /tmp/config/path
 #  - name: testcontainer2
 #    image: mycontainer1:latest
+#  sidecarVolumes:
+#  - name: sidecar-secret
+#    secret:
+#      secretName: mysecret
+#  - name: sidecar-config
+#    configMap:
+#      name: myconfigmap
+#  - name: backup-nfs
+#    nfs:
+#      server: "nfs-service.storage.svc.cluster.local"
+#      path: "/pg-some-name"
+#  sidecarPVCs:
+#  - name: sidecar-volume-claim
+#    spec:
+#      resources:
+#        requests:
+#          storage: 1Gi
+#      volumeMode: Filesystem
+#      accessModes:
+#        - ReadWriteOnce
 #
 #  topologySpreadConstraints:
 #    - maxSkew: 1
@@ -309,8 +349,14 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: docker.io/percona/percona-pgbouncer:1.24.1
-#    exposeSuperusers: true
+    image: docker.io/percona/percona-pgbouncer:1.25.1-1
+#    env:
+#    - name: MY_ENV
+#      value: "1000"
+#    envFrom:
+#    - secretRef:
+#        name: pgbouncer-env-secret
+#    exposeSuperusers: false
 #    resources:
 #      limits:
 #        cpu: 200m
@@ -380,6 +426,31 @@ proxy:
 #        image: mycontainer1:latest
 #        command: ["sleep", "30d"]
 #        securityContext: {}
+#        volumeMounts:
+#          - name: sidecar-secret
+#            mountPath: /tmp/secret/path
+#          - name: sidecar-config
+#            mountPath: /tmp/config/path
+#      sidecarVolumes:
+#      - name: sidecar-secret
+#        secret:
+#          secretName: mysecret
+#      - name: sidecar-config
+#        configMap:
+#          name: myconfigmap
+#      - name: backup-nfs
+#        nfs:
+#          server: "nfs-service.storage.svc.cluster.local"
+#          path: "/pg-some-name"
+#      sidecarPVCs:
+#      - name: sidecar-volume-claim
+#        spec:
+#          resources:
+#            requests:
+#              storage: 1Gi
+#          volumeMode: Filesystem
+#          accessModes:
+#            - ReadWriteOnce
 #
 #      customTLSSecret:
 #        name: keycloakdb-pgbouncer.tls
@@ -391,9 +462,17 @@ proxy:
 backups:
   enabled: true
   trackLatestRestorableTime: true
+#  volumeSnapshots:
+#    mode: offline
+#    className: STORAGE-CLASS-NAME
+#    schedule: "0 0 * * 6"
+#    offlineConfig:
+#      checkpoint:
+#        enabled: true
+#        timeoutSeconds: 300
   pgbackrest:
 #    initContainer:
-#      image: docker.io/perconalab/percona-postgresql-operator:2.7.0
+#      image: docker.io/perconalab/percona-postgresql-operator:2.9.0
 #      resources:
 #        limits:
 #          cpu: 2.0
@@ -420,7 +499,13 @@ backups:
 #          level: s0:c123,c456
 #    metadata:
 #    labels:
-    image: docker.io/percona/percona-pgbackrest:2.55.0
+#    env:
+#    - name: MY_ENV
+#      value: "1000"
+#    envFrom:
+#    - secretRef:
+#        name: backup-env-secret
+    image: docker.io/percona/percona-pgbackrest:2.58.0-1
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -492,6 +577,36 @@ backups:
                   postgres-operator.crunchydata.com/data: pgbackrest
               topologyKey: kubernetes.io/hostname
 
+#      sidecars:
+#      - name: repohosttestcontainer1
+#        image: mycontainer1:latest
+#        command: ["sleep", "30d"]
+#        securityContext: {}
+#        volumeMounts:
+#          - name: sidecar-secret
+#            mountPath: /tmp/secret/path
+#          - name: sidecar-config
+#            mountPath: /tmp/config/path
+#      sidecarVolumes:
+#      - name: sidecar-secret
+#        secret:
+#          secretName: mysecret
+#      - name: sidecar-config
+#        configMap:
+#          name: myconfigmap
+#      - name: backup-nfs
+#        nfs:
+#          server: "nfs-service.storage.svc.cluster.local"
+#          path: "/pg-some-name"
+#      sidecarPVCs:
+#      - name: sidecar-volume-claim
+#        spec:
+#          resources:
+#            requests:
+#              storage: 1Gi
+#          volumeMode: Filesystem
+#          accessModes:
+#            - ReadWriteOnce
 #      tolerations:
 #      - effect: NoSchedule
 #        key: role
@@ -570,7 +685,7 @@ pmm:
   enabled: false
   image:
     repository: docker.io/percona/pmm-client
-    tag: 3.3.0
+    tag: 3.6.0
 #  imagePullPolicy: IfNotPresent
 #  secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -581,6 +696,30 @@ pmm:
 #    requests:
 #      memory: 200M
 #      cpu: 500m
+
+# config:
+#   files:
+#     - secret:
+#         name: my-ldap-ca-cert
+#         items:
+#           - key: ca.crt
+#             path: ldap-ca.crt
+
+# authentication:
+#   rules:
+#     - connection: host
+#       method: ldap
+#       databases: []
+#       users: []
+#       options:
+#         ldapserver: ldap.example.com
+#         ldapport: "636"
+#         ldaptls: "1"
+#         ldapbasedn: dc=example,dc=com
+#         ldapbinddn: cn=admin,dc=example,dc=com
+#         ldapbindpasswd: secret
+#         ldapsearchattribute: uid
+#     - hba: "host all all 10.0.0.0/8 md5"
 
 # patroni:
 #   # Some values of the Liveness/Readiness probes of the patroni container are calulated using syncPeriodSeconds by the following formulas:
@@ -607,17 +746,19 @@ pmm:
 #   - basebackup
 
 # extensions:
-#   image: docker.io/percona/percona-postgresql-operator:2.7.0
+#   image: docker.io/percona/percona-postgresql-operator:2.9.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
 #     bucket: pg-extensions
 #     region: eu-central-1
 #     endpoint: s3.eu-central-1.amazonaws.com
+#     forcePathStyle: false
+#     disableSSL: false
 #     secret:
 #       name: cluster1-extensions-secret
 #   builtin:
-#     pg_stat_monitor: true
+#     pg_stat_monitor: false
 #     pg_stat_statements: false
 #     pg_audit: true
 #     pgvector: false

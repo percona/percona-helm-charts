@@ -1,0 +1,142 @@
+name: PMM-HA PR checks
+on:
+  pull_request:
+    paths:
+      - 'charts/pmm-ha/**'
+      - 'charts/pmm-ha-dependencies/**'
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          sparse-checkout: |
+            .github/
+            charts/pmm-ha
+            charts/pmm-ha-dependencies
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4.2.0
+        with:
+          version: v3.15.4
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.6.1
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add altinity https://helm.altinity.com
+          helm repo add percona https://percona.github.io/percona-helm-charts/
+          helm repo add vm https://victoriametrics.github.io/helm-charts/
+          helm repo add haproxytech https://haproxytech.github.io/helm-charts/
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts/
+          helm repo update
+
+      - name: Run chart-testing (list-changed)
+        id: list-changed
+        run: |
+          changed=$(ct list-changed --config .github/ct.yaml)
+          if [[ -n "$changed" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run chart-testing (lint)
+        run: |
+          ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --chart-dirs=charts --charts=charts/pmm-ha,charts/pmm-ha-dependencies --check-version-increment=true
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        if: steps.list-changed.outputs.changed == 'true'
+
+      - name: Prepare PMM-HA prerequisites
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          NS="pmm-ha-$(openssl rand -hex 5)"
+          echo "NS=$NS" >> $GITHUB_ENV
+          kubectl create namespace "$NS" || true
+
+          # pmm-secret
+          cat <<'EOF' | kubectl apply -n "$NS" -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: pmm-secret
+            labels:
+              app.kubernetes.io/name: pmm
+          type: Opaque
+          data:
+            PMM_ADMIN_PASSWORD: YWRtaW4=
+            PG_PASSWORD: cG1tcGFzcw==
+            GF_PASSWORD: Z2ZwYXNz
+            VMAGENT_remoteWrite_basicAuth_username: dm11c2Vy
+            VMAGENT_remoteWrite_basicAuth_password: dm1wYXNz
+            PMM_CLICKHOUSE_USER: Y2h1c2Vy
+            PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
+          EOF
+
+      - name: Install pmm-ha-dependencies chart
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          echo "Installing pmm-ha-dependencies (operators)..."
+          # Using --skip-clean-up to keep operators running for pmm-ha installation
+          ct install --namespace "${{ env.NS }}" --config .github/ct.yaml --charts=charts/pmm-ha-dependencies --skip-clean-up
+          
+          echo "Waiting for operators to be ready..."
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=victoria-metrics-operator -n "${{ env.NS }}" --timeout=300s
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickhouse-operator -n "${{ env.NS }}" --timeout=300s
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n "${{ env.NS }}" --timeout=300s
+          
+          echo "All operators are ready!"
+
+      # - name: Setup tmate session on failure
+      #   uses: mxschmitt/action-tmate@v3
+      #   timeout-minutes: 60
+      #   with:
+      #     limit-access-to-actor: true 
+          
+      - name: Run chart-testing (install pmm-ha)
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          # Install pmm-ha chart via ct (using --skip-crds from ct.yaml)
+          ct install --namespace "${{ env.NS }}" --config .github/ct.yaml --charts=charts/pmm-ha
+
+      - name: Build chart packages
+        run: |
+          changed=$(ct list-changed --config .github/ct.yaml)
+          if [[ -n "$changed" ]]; then
+            for chart in $changed; do
+              echo "Packaging $chart..."
+              helm package "$chart"
+            done
+          else
+            echo "No charts changed, skipping package"
+          fi
+
+      - name: Upload helm charts
+        uses: actions/upload-artifact@v4
+        with:
+          path: ./*.tgz
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Cleanup test resources
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          echo "Cleaning up test namespace: ${{ env.NS }}"
+          
+          # Uninstall pmm-ha-dependencies chart (ct creates dynamic release names)
+          DEPS_RELEASE=$(helm list -n "${{ env.NS }}" --filter 'pmm-ha-dependencies-*' -q)
+          if [[ -n "$DEPS_RELEASE" ]]; then
+            echo "Uninstalling release: $DEPS_RELEASE"
+            helm uninstall "$DEPS_RELEASE" -n "${{ env.NS }}" || true
+          fi
+          
+          # Delete namespace and all remaining resources
+          kubectl delete namespace "${{ env.NS }}" --timeout=120s || true
+          
+          echo "Cleanup completed. CRDs are intentionally left for reuse by other tests."

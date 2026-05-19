@@ -1,0 +1,339 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pmm.fullname" . }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ .Values.service.name }}
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      {{- include "pmm.selectorLabels" . | nindent 6 }}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        {{- include "pmm.podAnnotations" . | nindent 8 }}
+      labels:
+        {{- include "pmm.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Init container to verify secret exists before starting main app
+      initContainers:
+        - name: wait-for-pg-secret
+          image: alpine/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for secret to be available..."
+              until kubectl get secret pg-encryption-key -n {{ .Release.Namespace }}; do
+                echo "Secret not found, retrying in 5s..."
+                sleep 5
+              done
+              echo "Secret found, proceeding..."
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+        - name: wait-for-clickhouse
+          image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
+          imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              # Check if password is available
+              if [ -z "${PMM_CLICKHOUSE_PASSWORD}" ]; then
+                echo "✗ ERROR: PMM_CLICKHOUSE_PASSWORD environment variable is not set"
+                exit 1
+              fi
+              
+              EXPECTED_REPLICAS={{ .Values.clickhouse.cluster.replicas }}
+              SERVICE_HOST="clickhouse-{{ .Release.Name }}"
+              
+              echo "=== Waiting for ClickHouse Cluster ==="
+              echo "Cluster name: ${PMM_CLICKHOUSE_CLUSTER_NAME}"
+              echo "Expected replicas: ${EXPECTED_REPLICAS}"
+              echo "Service host: ${SERVICE_HOST}"
+              echo "======================================"
+              
+              echo "Waiting for ClickHouse connectivity..."
+              while :; do
+                if clickhouse-client --host "${SERVICE_HOST}" \
+                  --user "${PMM_CLICKHOUSE_USER}" --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                  --query "SELECT version()" >/dev/null 2>&1; then
+                  echo "✓ Connected to ClickHouse successfully"
+                  break
+                fi
+
+                echo "Waiting for ClickHouse to become available..."
+                sleep 5
+              done
+              
+              echo "Waiting for cluster to form..."
+              while :; do
+                REPLICA_COUNT=$(clickhouse-client --host "${SERVICE_HOST}" \
+                  --user "${PMM_CLICKHOUSE_USER}" --password "${PMM_CLICKHOUSE_PASSWORD}" \
+                  --query "SELECT count() FROM system.clusters WHERE cluster='${PMM_CLICKHOUSE_CLUSTER_NAME}'" 2>/dev/null || echo 0)
+                
+                if [ "$REPLICA_COUNT" -eq "$EXPECTED_REPLICAS" ]; then
+                  echo "✓ ClickHouse cluster is ready with ${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas"
+                  break
+                fi
+                
+                echo "Cluster status: ${REPLICA_COUNT}/${EXPECTED_REPLICAS} replicas visible"
+                sleep 5
+              done              
+          env:
+            - name: PMM_CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_CLICKHOUSE_USER
+            - name: PMM_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_CLICKHOUSE_PASSWORD
+            - name: PMM_CLICKHOUSE_CLUSTER_NAME
+              value: "{{ .Values.clickhouse.cluster.name }}"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: {{ .Chart.Name }}
+
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.pmmResources }}
+          resources:
+            {{- toYaml .Values.pmmResources | nindent 12 }}
+          {{- end }}
+
+          # environment passed to PMM, defined in configMap
+          envFrom:
+            - configMapRef:
+                name: {{ include "pmm.fullname" . }}
+                optional: true
+            {{ if and (not .Values.secret.create) .Values.secret.name }}
+            - secretRef:
+                 name: {{ .Values.secret.name }}
+            {{ end }}
+          env:
+            - name: PMM_INSTALL_METHOD
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['app.kubernetes.io/managed-by']
+            - name: PMM_HA_ADVERTISE_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PMM_HA_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{ if .Values.secret.create }}
+            # additional secrets that could be used for Grafana iDP
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+                  optional: true
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+                  optional: true
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+                  optional: true
+            {{ end }}
+            - name: GF_USERNAME
+              value: {{ index .Values "pg-db" "grafanaUserName" | quote }}
+            - name: GF_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GF_PASSWORD
+            - name: PMM_POSTGRES_USERNAME
+              value: {{ index .Values "pg-db" "pmmUserName" | quote }}
+            - name: PMM_POSTGRES_DBPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PG_PASSWORD
+            - name: GF_DATABASE_URL
+              value: "postgres://$(GF_USERNAME):$(GF_PASSWORD)@{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432/grafana"
+            - name: VMAGENT_remoteWrite_basicAuth_username
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: VMAGENT_remoteWrite_basicAuth_username
+            - name: VMAGENT_remoteWrite_basicAuth_password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: VMAGENT_remoteWrite_basicAuth_password
+            - name: PMM_CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_CLICKHOUSE_USER
+            - name: PMM_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_CLICKHOUSE_PASSWORD
+            - name: PMM_VM_URL
+              value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
+            - name: PMM_CLICKHOUSE_ADDR
+              value: "{{ include "pmm.fullname" . }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
+            - name: PMM_CLICKHOUSE_CLUSTER_NAME
+              value: "{{ .Values.clickhouse.cluster.name }}"
+            - name: PMM_POSTGRES_ADDR
+              value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
+            - name: PMM_HA_PEERS
+              value: "{{ include "pmm.haPeers" . }}"
+            - name: PMM_CLICKHOUSE_NODES
+              value: {{ include "pmm.clickhouse.nodes" . | quote }}
+            - name: PMM_ENCRYPTION_KEY_PATH
+              value: /etc/secrets/key
+          ports:
+            - name: https
+              containerPort: 8443
+          readinessProbe:
+            httpGet:
+              path: /v1/readyz
+              port: https
+              scheme: HTTPS
+          {{- if .Values.readyProbeConf }}
+            {{- toYaml .Values.readyProbeConf | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+            - name: annotations
+              mountPath: "/var/run/pmm/annotations"
+              readOnly: true
+            - name: encryption-key
+              mountPath: /etc/secrets
+              readOnly: true
+            {{- if .Values.certs.name }}
+            - name: {{ .Values.certs.name }}
+              mountPath: /srv/nginx
+              readOnly: true
+            {{- end }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+        {{- if .Values.logStreamer.enabled }}
+        {{- range $index, $logFile := .Values.logStreamer.logFiles }}
+        # Sidecar container to stream {{ $logFile }} to stdout
+        - name: log-streamer-{{ $index }}
+          image: busybox:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for log file {{ $logFile }} to be created..."
+              while [ ! -f {{ $logFile }} ]; do
+                sleep 2
+              done
+              echo "Log file found, starting tail from beginning..."
+              tail -F -n +1 {{ $logFile }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: {{ $.Values.storage.name }}
+              mountPath: /srv
+              readOnly: true
+        {{- end }}
+        {{- end }}
+      volumes:
+        - name: annotations
+          projected:
+            sources:
+            - downwardAPI:
+                items:
+                  - path: "annotations"
+                    fieldRef:
+                      fieldPath: metadata.annotations
+        - name: encryption-key
+          secret:
+            secretName: pg-encryption-key
+      {{- if .Values.certs.name }}
+        - name: {{ .Values.certs.name }}
+          secret:
+            secretName: {{ .Values.certs.name }}
+            optional: false
+      {{- end }}
+      {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: {{ .Values.storage.name }}
+      spec:
+        {{- if .Values.storage.selector }}
+        selector:
+          {{- toYaml .Values.storage.selector | nindent 10 }}
+        {{- end }}
+        {{ if .Values.storage.storageClassName }}
+        storageClassName: {{ .Values.storage.storageClassName }}
+        {{ end }}
+        {{- if .Values.storage.dataSource }}
+        dataSource:
+          {{- toYaml .Values.storage.dataSource | nindent 10 }}
+        {{- end }}
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}
