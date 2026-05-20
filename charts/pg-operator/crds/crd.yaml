@@ -6,9 +6,9 @@ metadata:
   labels:
     app.kubernetes.io/name: pgo
     app.kubernetes.io/version: latest
-  name: crunchybridgeclusters.postgres-operator.crunchydata.com
+  name: crunchybridgeclusters.upstream.pgv2.percona.com
 spec:
-  group: postgres-operator.crunchydata.com
+  group: upstream.pgv2.percona.com
   names:
     kind: CrunchyBridgeCluster
     listKind: CrunchyBridgeClusterList
@@ -201,7 +201,7 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    pgv2.percona.com/version: v2.9.0
+    pgv2.percona.com/version: v2.10.0
   name: perconapgbackups.pgv2.percona.com
 spec:
   group: pgv2.percona.com
@@ -615,7 +615,7 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    pgv2.percona.com/version: v2.9.0
+    pgv2.percona.com/version: v2.10.0
   name: perconapgclusters.pgv2.percona.com
 spec:
   group: pgv2.percona.com
@@ -5051,10 +5051,9 @@ spec:
                       schedule:
                         minLength: 6
                         type: string
+                    required:
+                    - className
                     type: object
-                    x-kubernetes-validations:
-                    - message: className is required
-                      rule: has(self.className) && self.className != ""
                 type: object
                 x-kubernetes-validations:
                 - message: At least one repository must be configured when backups
@@ -13940,7 +13939,7 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    pgv2.percona.com/version: v2.9.0
+    pgv2.percona.com/version: v2.10.0
   name: perconapgrestores.pgv2.percona.com
 spec:
   group: pgv2.percona.com
@@ -14144,7 +14143,7 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.0
   labels:
-    pgv2.percona.com/version: v2.9.0
+    pgv2.percona.com/version: v2.10.0
   name: perconapgupgrades.pgv2.percona.com
 spec:
   group: pgv2.percona.com
@@ -15518,9 +15517,9 @@ metadata:
   labels:
     app.kubernetes.io/name: pgo
     app.kubernetes.io/version: latest
-  name: pgadmins.postgres-operator.crunchydata.com
+  name: pgadmins.upstream.pgv2.percona.com
 spec:
-  group: postgres-operator.crunchydata.com
+  group: upstream.pgv2.percona.com
   names:
     kind: PGAdmin
     listKind: PGAdminList
@@ -16499,9 +16498,9 @@ metadata:
   labels:
     app.kubernetes.io/name: pgo
     app.kubernetes.io/version: latest
-  name: pgupgrades.postgres-operator.crunchydata.com
+  name: pgupgrades.upstream.pgv2.percona.com
 spec:
-  group: postgres-operator.crunchydata.com
+  group: upstream.pgv2.percona.com
   names:
     kind: PGUpgrade
     listKind: PGUpgradeList
@@ -17862,9 +17861,9 @@ metadata:
   labels:
     app.kubernetes.io/name: pgo
     app.kubernetes.io/version: 5.4.2
-  name: postgresclusters.postgres-operator.crunchydata.com
+  name: postgresclusters.upstream.pgv2.percona.com
 spec:
-  group: postgres-operator.crunchydata.com
+  group: upstream.pgv2.percona.com
   names:
     kind: PostgresCluster
     listKind: PostgresClusterList
