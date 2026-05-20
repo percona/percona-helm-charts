@@ -67,6 +67,20 @@ spec:
               value: "{{ .Values.logLevel }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
+            - name: PPROF_BIND_ADDRESS
+              value: "{{ .Values.pprofBindAddress }}"
+            - name: PGO_CONTROLLER_LEADER_ELECTION_ENABLED
+              value: "{{ .Values.leaderElectionEnabled }}"
+            - name: PGO_CONTROLLER_LEASE_NAME
+              value: "{{ .Values.leaseName }}"
+            - name: PGO_CONTROLLER_LEASE_DURATION
+              value: "{{ .Values.leaseDuration }}"
+            - name: PGO_CONTROLLER_RENEW_DEADLINE
+              value: "{{ .Values.renewDeadline }}"
+            - name: PGO_CONTROLLER_RETRY_PERIOD
+              value: "{{ .Values.retryPeriod }}"
+            - name: PGO_FEATURE_GATES
+              value: {{ include "pg-operator.featureGates" . | quote }}
           livenessProbe:
             failureThreshold: 3
             httpGet:
