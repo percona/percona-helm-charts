@@ -238,6 +238,17 @@ spec:
   instances:
   {{- range $instance := .Values.instances }}
     - name: {{ $instance.name }}
+      {{- if and $instance.metadata (or $instance.metadata.annotations $instance.metadata.labels) }}
+      metadata:
+        {{- if $instance.metadata.annotations }}
+        annotations:
+{{ $instance.metadata.annotations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $instance.metadata.labels }}
+        labels:
+{{ $instance.metadata.labels | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
       {{- include "pg-database.initContainer" $instance | indent 6 }}
       replicas: {{ $instance.replicas }}
       {{- if $instance.affinity }}
