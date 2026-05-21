@@ -604,7 +604,7 @@ pg-db:
         - pmm-managed
       options: "CREATEDB CREATEROLE"
       password:
-        type: AlphaNumeric
+        type: ASCII
       secretName: "gfuser-credentials"
     # PMM user - name must match pmmUserName above
     - name: pmmuser
@@ -613,7 +613,7 @@ pg-db:
         - grafana
       options: "CREATEDB CREATEROLE"
       password:
-        type: AlphaNumeric
+        type: ASCII
       secretName: "pmmuser-credentials"
   databaseInitSQL:
     key: init.sql
