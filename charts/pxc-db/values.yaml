@@ -21,8 +21,14 @@ operatorImageRepository: percona/percona-xtradb-cluster-operator
 
 crVersion: 1.20.0
 
-enableVolumeExpansion: false
-enableExternalAutoscaling: false
+# storageScaling:
+#   enableVolumeScaling: false
+#   enableExternalAutoscaling: false
+#   autoscaling:
+#     enabled: false
+#     triggerThresholdPercent: 80
+#     growthStep: 2Gi
+#     maxSize: 10Gi
 
 ignoreAnnotations: []
   # - iam.amazonaws.com/role
