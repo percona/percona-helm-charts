@@ -75,3 +75,14 @@ Functions returns image URI according to parameters set
 {{- printf "%s:%s" .Values.operatorImageRepository .Chart.AppVersion }}
 {{- end }}
 {{- end -}}
+
+{{- define "pg-operator.featureGates" }}
+{{- if .Values.featureGates }}
+{{- $gates := list }}
+{{- range $key, $value := .Values.featureGates }}
+{{- $flagName := $key | title }}
+{{- $gates = append $gates (printf "%s=%v" $flagName $value) }}
+{{- end }}
+{{- join "," $gates }}
+{{- end }}
+{{- end }}

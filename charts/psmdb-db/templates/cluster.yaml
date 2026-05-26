@@ -6,7 +6,7 @@ metadata:
 {{ .Values.annotations | toYaml | indent 4 }}
   {{- end }}
   name: {{ include "psmdb-database.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "psmdb-database.namespace" . }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
   finalizers:
@@ -17,6 +17,30 @@ spec:
   unmanaged: {{ .Values.unmanaged }}
   {{- if .Values.platform }}
   platform: {{ .Values.platform }}
+  {{- end }}
+  {{- if .Values.vault }}
+  vault:
+    {{- if .Values.vault.endpointURL }}
+    endpointURL: {{ .Values.vault.endpointURL }}
+    {{- end }}
+    {{- if .Values.vault.tlsSecret }}
+    tlsSecret: {{ .Values.vault.tlsSecret }}
+    {{- end }}
+    {{- if .Values.vault.syncUsers }}
+    syncUsers:
+      {{- if .Values.vault.syncUsers.role }}
+      role: {{ .Values.vault.syncUsers.role }}
+      {{- end }}
+      {{- if .Values.vault.syncUsers.mountPath }}
+      mountPath: {{ .Values.vault.syncUsers.mountPath }}
+      {{- end }}
+      {{- if .Values.vault.syncUsers.keyPath }}
+      keyPath: {{ .Values.vault.syncUsers.keyPath }}
+      {{- end }}
+      {{- if .Values.vault.syncUsers.tokenSecret }}
+      tokenSecret: {{ .Values.vault.syncUsers.tokenSecret }}
+      {{- end }}
+    {{- end }}
   {{- end }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- if hasKey .Values "enableExternalVolumeAutoscaling" }}
@@ -77,6 +101,28 @@ spec:
     schedule: {{ .Values.upgradeOptions.schedule }}
     setFCV: {{ .Values.upgradeOptions.setFCV }}
   {{- end }}
+  {{- if .Values.storageScaling }}
+  storageScaling:
+    {{- if hasKey .Values.storageScaling "enableVolumeScaling" }}
+    enableVolumeScaling: {{ .Values.storageScaling.enableVolumeScaling }}
+    {{- end }}
+    {{- if hasKey .Values.storageScaling "enableExternalAutoscaling" }}
+    enableExternalAutoscaling: {{ .Values.storageScaling.enableExternalAutoscaling }}
+    {{- end }}
+    {{- if .Values.storageScaling.autoscaling }}
+    autoscaling:
+      enabled: {{ .Values.storageScaling.autoscaling.enabled }}
+      {{- if .Values.storageScaling.autoscaling.triggerThresholdPercent }}
+      triggerThresholdPercent: {{ .Values.storageScaling.autoscaling.triggerThresholdPercent }}
+      {{- end }}
+      {{- if .Values.storageScaling.autoscaling.growthStep }}
+      growthStep: {{ .Values.storageScaling.autoscaling.growthStep }}
+      {{- end }}
+      {{- if .Values.storageScaling.autoscaling.maxSize }}
+      maxSize: {{ .Values.storageScaling.autoscaling.maxSize }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
@@ -116,7 +162,20 @@ spec:
     {{- end }}
     {{- if $replset.configuration }}
     configuration: |
-{{ $replset.configuration | indent 6 }}
+{{ tpl $replset.configuration $ | trimSuffix "\n" | indent 6 }}
+    {{- end }}
+    {{- if $replset.hookScript }}
+    hookScript:
+      {{- if $replset.hookScript.configMapRef }}
+      configMapRef:
+        {{- if $replset.hookScript.configMapRef.name }}
+        name: {{ $replset.hookScript.configMapRef.name }}
+        {{- end }}
+      {{- end }}
+      {{- if $replset.hookScript.script }}
+      script: |
+{{ $replset.hookScript.script | indent 8 }}
+      {{- end }}
     {{- end }}
     {{- if $replset.topologySpreadConstraints }}
     topologySpreadConstraints:
@@ -137,7 +196,7 @@ spec:
     priorityClassName: {{ $replset.priorityClass }}
     {{- end }}
     {{- if $replset.primaryPreferTagSelector }}
-    primaryPreferTagSelector: 
+    primaryPreferTagSelector:
 {{ $replset.primaryPreferTagSelector | toYaml | indent 6 }}
     {{- end }}
     {{- if $replset.annotations }}
@@ -267,7 +326,23 @@ spec:
       size: {{ $replset.hidden.size }}
       {{- if $replset.hidden.configuration }}
       configuration: |
-{{ $replset.hidden.configuration | indent 8 }}
+{{ tpl $replset.hidden.configuration $ | trimSuffix "\n" | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.serviceAccountName }}
+      serviceAccountName: {{ $replset.hidden.serviceAccountName }}
+      {{- end }}
+      {{- if $replset.hidden.hookScript }}
+      hookScript:
+        {{- if $replset.hidden.hookScript.configMapRef }}
+        configMapRef:
+          {{- if $replset.hidden.hookScript.configMapRef.name }}
+          name: {{ $replset.hidden.hookScript.configMapRef.name }}
+          {{- end }}
+        {{- end }}
+        {{- if $replset.hidden.hookScript.script }}
+        script: |
+{{ $replset.hidden.hookScript.script | indent 10 }}
+        {{- end }}
       {{- end }}
       affinity:
       {{- if $replset.hidden.affinity }}
@@ -336,7 +411,20 @@ spec:
       size: {{ $replset.nonvoting.size }}
       {{- if $replset.nonvoting.configuration }}
       configuration: |
-{{ $replset.nonvoting.configuration | indent 8 }}
+{{ tpl $replset.nonvoting.configuration $ | trimSuffix "\n" | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.hookScript }}
+      hookScript:
+        {{- if $replset.nonvoting.hookScript.configMapRef }}
+        configMapRef:
+          {{- if $replset.nonvoting.hookScript.configMapRef.name }}
+          name: {{ $replset.nonvoting.hookScript.configMapRef.name }}
+          {{- end }}
+        {{- end }}
+        {{- if $replset.nonvoting.hookScript.script }}
+        script: |
+{{ $replset.nonvoting.hookScript.script | indent 10 }}
+        {{- end }}
       {{- end }}
       {{- if $replset.nonvoting.serviceAccountName }}
       serviceAccountName: {{ $replset.nonvoting.serviceAccountName }}
@@ -409,7 +497,20 @@ spec:
       {{- if $replset.arbiter.serviceAccountName }}
       serviceAccountName: {{ $replset.arbiter.serviceAccountName }}
       {{- end }}
-      {{- if $replset.affinity }}
+      {{- if $replset.arbiter.hookScript }}
+      hookScript:
+        {{- if $replset.arbiter.hookScript.configMapRef }}
+        configMapRef:
+          {{- if $replset.arbiter.hookScript.configMapRef.name }}
+          name: {{ $replset.arbiter.hookScript.configMapRef.name }}
+          {{- end }}
+        {{- end }}
+        {{- if $replset.arbiter.hookScript.script }}
+        script: |
+{{ $replset.arbiter.hookScript.script | indent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- if $replset.arbiter.affinity }}
       affinity:
 {{ $replset.arbiter.affinity | toYaml | indent 8 }}
       {{- end }}
@@ -455,7 +556,20 @@ spec:
       {{- end }}
       {{- if .Values.sharding.configrs.configuration }}
       configuration: |
-{{ .Values.sharding.configrs.configuration | indent 8 }}
+{{ tpl .Values.sharding.configrs.configuration  . | trimSuffix "\n" | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.hookScript }}
+      hookScript:
+        {{- if .Values.sharding.configrs.hookScript.configMapRef }}
+        configMapRef:
+          {{- if .Values.sharding.configrs.hookScript.configMapRef.name }}
+          name: {{ .Values.sharding.configrs.hookScript.configMapRef.name }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.sharding.configrs.hookScript.script }}
+        script: |
+{{ .Values.sharding.configrs.hookScript.script | indent 10 }}
+        {{- end }}
       {{- end }}
       {{- if .Values.sharding.configrs.topologySpreadConstraints }}
       topologySpreadConstraints:
@@ -591,7 +705,20 @@ spec:
       {{- end }}
       {{- if .Values.sharding.mongos.configuration }}
       configuration: |
-{{ .Values.sharding.mongos.configuration | indent 8 }}
+{{ tpl .Values.sharding.mongos.configuration . | trimSuffix "\n"| indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.hookScript }}
+      hookScript:
+        {{- if .Values.sharding.mongos.hookScript.configMapRef }}
+        configMapRef:
+          {{- if .Values.sharding.mongos.hookScript.configMapRef.name }}
+          name: {{ .Values.sharding.mongos.hookScript.configMapRef.name }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.sharding.mongos.hookScript.script }}
+        script: |
+{{ .Values.sharding.mongos.hookScript.script | indent 10 }}
+        {{- end }}
       {{- end }}
       {{- if .Values.sharding.mongos.topologySpreadConstraints }}
       topologySpreadConstraints:
@@ -727,6 +854,19 @@ spec:
     annotations:
 {{ .Values.backup.annotations | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.backup.hookScript }}
+    hookScript:
+      {{- if .Values.backup.hookScript.configMapRef }}
+      configMapRef:
+        {{- if .Values.backup.hookScript.configMapRef.name }}
+        name: {{ .Values.backup.hookScript.configMapRef.name }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.backup.hookScript.script }}
+      script: |
+{{ .Values.backup.hookScript.script | indent 8 }}
+      {{- end }}
+    {{- end }}
     {{- if .Values.backup.podSecurityContext }}
     podSecurityContext:
 {{ .Values.backup.podSecurityContext | toYaml | indent 6 }}
@@ -741,9 +881,9 @@ spec:
 {{ .Values.backup.resources | toYaml | indent 6 }}
     {{- end }}
     storages:
-{{ .Values.backup.storages | toYaml | indent 6 }}
+{{ (default (dict) .Values.backup.storages) | toYaml | indent 6 }}
     volumeMounts:
-{{ .Values.backup.volumeMounts | toYaml | indent 6 }}
+{{ (default (list) .Values.backup.volumeMounts) | toYaml | indent 6 }}
     pitr:
     {{- if and .Values.backup.enabled .Values.backup.pitr.enabled }}
       enabled: true
@@ -767,7 +907,7 @@ spec:
 {{ .Values.backup.configuration | toYaml | indent 6 }}
     {{- end }}
     tasks:
-{{ .Values.backup.tasks | toYaml | indent 6 }}
+{{ (default (list) .Values.backup.tasks) | toYaml | indent 6 }}
   logcollector:
     enabled: {{ .Values.logcollector.enabled }}
     image: "{{ .Values.logcollector.image.repository }}:{{ .Values.logcollector.image.tag }}"
