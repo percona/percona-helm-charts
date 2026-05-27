@@ -21,6 +21,7 @@ operatorImageRepository: percona/percona-xtradb-cluster-operator
 
 crVersion: 1.20.0
 
+enableVolumeExpansion: false
 # storageScaling:
 #   enableVolumeScaling: false
 #   enableExternalAutoscaling: false

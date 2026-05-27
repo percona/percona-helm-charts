@@ -13,17 +13,18 @@ metadata:
   {{- end }}
 spec:
   crVersion: {{ .Values.crVersion | default .Chart.AppVersion }}
+  enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- if .Values.storageScaling }}
   storageScaling:
-    {{- if .Values.storageScaling.enableVolumeScaling }}
+    {{- if hasKey .Values.storageScaling "enableVolumeScaling" }}
     enableVolumeScaling: {{ .Values.storageScaling.enableVolumeScaling }}
     {{- end }}
-    {{- if .Values.storageScaling.enableExternalAutoscaling }}
+    {{- if hasKey .Values.storageScaling "enableExternalAutoscaling" }}
     enableExternalAutoscaling: {{ .Values.storageScaling.enableExternalAutoscaling }}
     {{- end }}
     {{- if .Values.storageScaling.autoscaling }}
     autoscaling:
-      {{- if .Values.storageScaling.autoscaling.enabled }}
+      {{- if hasKey .Values.storageScaling.autoscaling "enabled" }}
       enabled: {{ .Values.storageScaling.autoscaling.enabled }}
       {{- end }}
       {{- if .Values.storageScaling.autoscaling.triggerThresholdPercent }}
