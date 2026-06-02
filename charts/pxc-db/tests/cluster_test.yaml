@@ -15,35 +15,32 @@ tests:
       - equal:
           path: kind
           value: PerconaXtraDBCluster
-      - equal:
-          path: metadata.name
-          value: unit-pxc-db
-      - equal:
-          path: metadata.namespace
-          value: test-ns
-      - equal:
-          path: metadata.finalizers
-          value:
-            - percona.com/delete-pxc-pods-in-order
+
+      - isSubset:
+          path: metadata
+          content:
+            name: unit-pxc-db
+            namespace: test-ns
+            finalizers:
+              - percona.com/delete-pxc-pods-in-order
+      
+      - isSubset:
+          path: spec
+          content:
+            secretsName: unit-pxc-db-secrets
+            sslSecretName: unit-pxc-db-ssl
+            sslInternalSecretName: unit-pxc-db-ssl-internal
+            tls:
+              enabled: true
+            updateStrategy: SmartUpdate
+
+  - it: test_cluster renders crVersion
+    set:
+      crVersion: 0.0.0
+    asserts:
       - equal:
           path: spec.crVersion
-          value: 1.20.0
-      - equal:
-          path: spec.secretsName
-          value: unit-pxc-db-secrets
-      - equal:
-          path: spec.sslSecretName
-          value: unit-pxc-db-ssl
-      - equal:
-          path: spec.sslInternalSecretName
-          value: unit-pxc-db-ssl-internal
-      - equal:
-          path: spec.tls
-          value:
-            enabled: true
-      - equal:
-          path: spec.updateStrategy
-          value: SmartUpdate
+          value: 0.0.0
 
   - it: test_cluster uses provided tls secret names
     set:

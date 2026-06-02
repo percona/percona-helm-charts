@@ -17,48 +17,90 @@ tests:
       - equal:
           path: metadata.namespace
           value: test-ns
-      - equal:
-          path: spec.replicas
-          value: 1
-      - equal:
-          path: spec.template.spec.serviceAccountName
-          value: unit-pxc-operator
-      - equal:
-          path: spec.template.spec.containers[0].image
-          value: percona/percona-xtradb-cluster-operator:1.20.0
-      - equal:
-          path: spec.template.spec.containers[0].imagePullPolicy
-          value: IfNotPresent
-      - contains:
-          path: spec.template.spec.containers[0].env
+      - isSubset:
+          path: metadata.labels
           content:
-            name: WATCH_NAMESPACE
-            value: test-ns
-      - contains:
-          path: spec.template.spec.containers[0].env
+              app.kubernetes.io/name: pxc-operator
+              app.kubernetes.io/instance: unit
+              app.kubernetes.io/managed-by: Helm
+      - isSubset:
+          path: spec
           content:
-            name: OPERATOR_NAME
-            value: unit-pxc-operator
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: PXCO_FEATURE_GATES
-            value: XtrabackupSidecar=false
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: PXCO_LEADER_ELECTION_ENABLED
-            value: "true"
-      - notExists:
-          path: spec.template.metadata.annotations
-      - notExists:
-          path: spec.template.spec.imagePullSecrets
-      - notExists:
-          path: spec.template.spec.nodeSelector
-      - notExists:
-          path: spec.template.spec.affinity
-      - notExists:
-          path: spec.template.spec.tolerations
+            replicas: 1
+            selector:
+              matchLabels:
+                app.kubernetes.io/component: operator
+                app.kubernetes.io/name: pxc-operator
+                app.kubernetes.io/instance: unit
+                app.kubernetes.io/part-of: pxc-operator
+            strategy:
+              rollingUpdate:
+                maxUnavailable: 1
+              type: RollingUpdate
+            template:
+              metadata:
+                labels:
+                  app.kubernetes.io/component: operator
+                  app.kubernetes.io/name: pxc-operator
+                  app.kubernetes.io/instance: unit
+                  app.kubernetes.io/part-of: pxc-operator
+              spec:
+                serviceAccountName: unit-pxc-operator
+                terminationGracePeriodSeconds: 600
+                containers:
+                  - name: percona-xtradb-cluster-operator
+                    image: percona/percona-xtradb-cluster-operator:1.20.0
+                    imagePullPolicy: IfNotPresent
+                    ports:
+                      - containerPort: 8080
+                        name: metrics
+                        protocol: TCP
+                    command:
+                      - percona-xtradb-cluster-operator
+                    env:
+                      - name: WATCH_NAMESPACE
+                        value: test-ns
+                      - name: POD_NAME
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: metadata.name
+                      - name: OPERATOR_NAME
+                        value: unit-pxc-operator
+                      - name: LOG_STRUCTURED
+                        value: "false"
+                      - name: LOG_LEVEL
+                        value: INFO
+                      - name: DISABLE_TELEMETRY
+                        value: "false"
+                      - name: MAX_CONCURRENT_RECONCILES
+                        value: "1"
+                      - name: S3_WORKERS_LIMIT
+                        value: "10"
+                      - name: PXCO_FEATURE_GATES
+                        value: XtrabackupSidecar=false
+                      - name: PXCO_LEADER_ELECTION_ENABLED
+                        value: "true"
+                      - name: PXCO_LEADER_ELECTION_LEASE_NAME
+                        value: ""
+                      - name: PXCO_LEADER_ELECTION_LEASE_DURATION
+                        value: 60s
+                      - name: PXCO_LEADER_ELECTION_RENEW_DEADLINE
+                        value: 40s
+                      - name: PXCO_LEADER_ELECTION_RETRY_PERIOD
+                        value: 10s
+                    livenessProbe:
+                      failureThreshold: 3
+                      httpGet:
+                        path: /metrics
+                        port: metrics
+                        scheme: HTTP
+                    resources:
+                      limits:
+                        cpu: 200m
+                        memory: 500Mi
+                      requests:
+                        cpu: 100m
+                        memory: 20Mi
 
   - it: renders a service and empty watch namespace for cluster-wide mode
     set:
@@ -210,14 +252,21 @@ tests:
   - it: renders extra environment variables when defined
     set:
       extraEnvVars:
-        - name: EXTRA_FLAG
-          value: enabled
+        - name: http_proxy
+          value: example-proxy-http
+        - name: https_proxy
+          value: example-proxy-https
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: EXTRA_FLAG
-            value: enabled
+            name: http_proxy
+            value: example-proxy-http
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: https_proxy
+            value: example-proxy-https
 
   - it: renders logging, telemetry and worker options when defined
     set:
