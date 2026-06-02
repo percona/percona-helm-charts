@@ -318,6 +318,26 @@ The chart can be customized using the following configurable parameters:
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
 
+## Unit Tests
+
+Helm unit tests for database charts use the `helm-unittest` plugin.
+
+Install the plugin from the repository root:
+
+```bash
+make helm-unittest
+```
+
+Unit tests should live under `charts/ps-db/tests/` and validate rendered manifests from the chart templates. Prefer focused tests: start with the default rendered structure, then add one test per optional or conditional value to verify that setting the value in `values.yaml` renders the expected field in the Custom Resource.
+
+Run this chart's unit tests with:
+
+```bash
+helm unittest charts/ps-db
+```
+
+When this chart is added to the repository Makefile, it can also be wired as a dedicated `make test-ps-db` target and included in `make test`.
+
 ## Examples
 
 ### Deploy a database cluster with specific storage size

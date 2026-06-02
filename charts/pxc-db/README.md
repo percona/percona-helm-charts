@@ -356,6 +356,34 @@ The chart can be customized using the following configurable parameters:
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 
+## Unit Tests
+
+Helm unit tests for database charts use the `helm-unittest` plugin.
+
+Install the plugin from the repository root:
+
+```sh
+make helm-unittest
+```
+
+Unit tests for this chart live under `charts/pxc-db/tests/` and validate the
+rendered PerconaXtraDBCluster, Secret, and related manifests. Prefer focused
+tests: start with the default rendered structure for each component, then add
+one test per optional or conditional value to verify that setting the value in
+`values.yaml` renders the expected field.
+
+Run this chart's unit tests with:
+
+```sh
+make test-pxc-db
+```
+
+The `HELM` variable can be overridden when a different Helm binary is needed:
+
+```sh
+make HELM=/path/to/helm test-pxc-db
+```
+
 ## Examples
 
 ### Deploy a Cluster without a MySQL Proxy, no backups, no persistent disks
