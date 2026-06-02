@@ -1,0 +1,2 @@
+# Default values for psmdb-operator-crds.
+# This chart contains CRDs only and does not require any configuration values.

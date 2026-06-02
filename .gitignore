@@ -2,3 +2,4 @@
 .idea/
 *.tgz
 *__snapshot__*
+.DS_Store
