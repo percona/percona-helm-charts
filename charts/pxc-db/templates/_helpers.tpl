@@ -49,12 +49,13 @@ This filters the backup.storages hash for S3 credentials. If we detect them, the
 */}}
 {{- define "pxc-database.storages" -}}
 {{- $storages := dict -}}
-{{- range $key, $value := .Values.backup.storages -}}
+{{- $fullname := .fullname -}}
+{{- range $key, $value := .root.Values.backup.storages -}}
 {{- if and (hasKey $value "type") (eq $value.type "s3") (hasKey $value "s3") (hasKey (index $value "s3") "credentialsAccessKey") (hasKey (index $value "s3") "credentialsSecretKey") }}
 {{- if hasKey (index $value "s3") "credentialsSecret" -}}
 {{- fail "credentialsSecret and credentialsAccessKey/credentialsSecretKey isn't supported!" -}}
 {{- end -}}
-{{- $secretName := printf "%s-s3-%s" (include "pxc-database.fullname" $) $key -}}
+{{- $secretName := printf "%s-s3-%s" $fullname $key -}}
 {{- $s3 := set (omit (index $value "s3") "credentialsAccessKey" "credentialsSecretKey") "credentialsSecret" $secretName -}}
 {{- $_value := set (omit $value "s3") "s3" $s3 -}}
 {{- $_ := set $storages $key $_value -}}

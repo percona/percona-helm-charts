@@ -387,7 +387,7 @@ spec:
     {{- end }}
     {{- if $proxysql.imagePullSecrets }}
     imagePullSecrets:
-    {{- $proxysql.imagePullSecrets | toYaml | indent 6 }}
+{{ $proxysql.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
     {{- if $proxysql.scheduler }}
     scheduler:
@@ -617,7 +617,7 @@ spec:
 {{ tpl ($backup.pitr.resources.limits | toYaml) $ | indent 10 }}
     {{- end }}
     storages:
-{{ include "pxc-database.storages" . | indent 6 }}
+{{ include "pxc-database.storages" (dict "root" . "fullname" (include "pxc-database.fullname" .)) | indent 6 }}
     schedule:
 {{ $backup.schedule | toYaml | indent 6 }}
 {{- end }}

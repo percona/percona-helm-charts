@@ -5,37 +5,59 @@ release:
   name: unit
   namespace: test-ns
 tests:
-  - it: renders the default cluster
+  - it: test_cluster renders default structure
     asserts:
       - hasDocuments:
           count: 1
-      - matchSnapshot: {}
-
-  - it: uses an existing cluster secret name and emptyDir when persistence is disabled
-    set:
-      pxc.clusterSecretName: existing-db-secret
-      pxc.persistence.enabled: false
-    asserts:
+      - equal:
+          path: apiVersion
+          value: pxc.percona.com/v1
+      - equal:
+          path: kind
+          value: PerconaXtraDBCluster
+      - equal:
+          path: metadata.name
+          value: unit-pxc-db
+      - equal:
+          path: metadata.namespace
+          value: test-ns
+      - equal:
+          path: metadata.finalizers
+          value:
+            - percona.com/delete-pxc-pods-in-order
+      - equal:
+          path: spec.crVersion
+          value: 1.20.0
       - equal:
           path: spec.secretsName
-          value: existing-db-secret
-        documentIndex: 0
-      - exists:
-          path: spec.pxc.volumeSpec.emptyDir
-        documentIndex: 0
+          value: unit-pxc-db-secrets
+      - equal:
+          path: spec.sslSecretName
+          value: unit-pxc-db-ssl
+      - equal:
+          path: spec.sslInternalSecretName
+          value: unit-pxc-db-ssl-internal
+      - equal:
+          path: spec.tls
+          value:
+            enabled: true
+      - equal:
+          path: spec.updateStrategy
+          value: SmartUpdate
 
-  - it: uses provided tls secret names
+  - it: test_cluster uses provided tls secret names
     set:
       secrets.tls.cluster: external-cluster-ssl
       secrets.tls.internal: external-internal-ssl
     asserts:
-      - isSubset:
-          path: spec
-          content:
-            sslSecretName: external-cluster-ssl
-            sslInternalSecretName: external-internal-ssl
+      - equal:
+          path: spec.sslSecretName
+          value: external-cluster-ssl
+      - equal:
+          path: spec.sslInternalSecretName
+          value: external-internal-ssl
 
-  - it: uses provided password generation options
+  - it: test_cluster uses provided password generation options
     set:
       passwordGenerationOptions.minLength: 16
       passwordGenerationOptions.maxLength: 20
@@ -47,9 +69,8 @@ tests:
             minLength: 16
             maxLength: 20
             symbols: "!@#"
-        documentIndex: 0
 
-  - it: renders init container settings
+  - it: test_cluster renders init container settings
     set:
       initContainer.image: custom-init-image
       initContainer.containerSecurityContext.runAsUser: 1001
@@ -66,97 +87,170 @@ tests:
               requests:
                 cpu: 100m
                 memory: 100M
-        documentIndex: 0
 
-  - it: renders hostPath persistence settings
+  - it: test_cluster renders custom finalizers when defined
     set:
-      pxc.persistence.hostPath: /var/lib/mysql
+      finalizers:
+        - percona.com/delete-pxc-pods-in-order
+        - percona.com/delete-proxysql-pvc
+        - percona.com/delete-pxc-pvc
+        - percona.com/delete-ssl
     asserts:
       - equal:
-          path: spec.pxc.volumeSpec.hostPath
+          path: metadata.finalizers
           value:
-            path: /var/lib/mysql
-            type: Directory
-        documentIndex: 0
+            - percona.com/delete-pxc-pods-in-order
+            - percona.com/delete-proxysql-pvc
+            - percona.com/delete-pxc-pvc
+            - percona.com/delete-ssl
 
-  - it: switches to proxysql mode
+  - it: test_cluster renders annotations when defined
     set:
-      proxysql.enabled: true
-      proxysql.image: custom-proxysql-image
+      annotations.team: database
     asserts:
       - equal:
-          path: spec.haproxy.enabled
-          value: false
-        documentIndex: 0
+          path: metadata.annotations.team
+          value: database
+
+  - it: test_cluster renders volume expansion when defined
+    set:
+      enableVolumeExpansion: true
+    asserts:
       - equal:
-          path: spec.proxysql.enabled
+          path: spec.enableVolumeExpansion
           value: true
-        documentIndex: 0
-      - equal:
-          path: spec.proxysql.image
-          value: custom-proxysql-image
-        documentIndex: 0
 
-  - it: rewrites s3 backup credentials to a generated secret reference
+  - it: test_cluster renders ignore annotations when defined
     set:
-      backup.storages.backup1.type: s3
-      backup.storages.backup1.s3.bucket: operator-testing
-      backup.storages.backup1.s3.region: us-east-1
-      backup.storages.backup1.s3.credentialsAccessKey: some-access-key
-      backup.storages.backup1.s3.credentialsSecretKey: some-secret-key
+      ignoreAnnotations:
+        - iam.amazonaws.com/role
     asserts:
       - equal:
-          path: spec.backup.storages.backup1
+          path: spec.ignoreAnnotations
           value:
-            s3:
-              bucket: operator-testing
-              credentialsSecret: unit-pxc-db-s3-backup1
-              region: us-east-1
-            type: s3
-        documentIndex: 0
+            - iam.amazonaws.com/role
 
-  - it: renders configured backup and pitr options
+  - it: test_cluster renders ignore labels when defined
     set:
-      backup:
-        allowParallel: true
-        backoffLimit: 6
-        imagePullPolicy: Always
-        pitr:
-          enabled: true
-          storageName: s3-binlogs
-          timeBetweenUploads: 120
-          timeoutSeconds: 90
-        schedule:
-          - name: daily
-            schedule: "0 0 * * *"
-            storageName: s3-main
+      ignoreLabels:
+        - rack
     asserts:
       - equal:
-          path: spec.backup
+          path: spec.ignoreLabels
           value:
-            allowParallel: true
-            image: percona/percona-xtrabackup:8.4.0-5.1
-            backoffLimit: 6
-            imagePullPolicy: Always
-            pitr:
-              enabled: true
-              storageName: s3-binlogs
-              timeBetweenUploads: 120
-              timeoutSeconds: 90
-              resources:
-                requests: {}
-                limits: {}
-            storages: {}
-            schedule:
-              - name: daily
-                schedule: 0 0 * * *
-                storageName: s3-main
-        documentIndex: 0
+            - rack
 
-  - it: omits the backup section when backups are disabled
+  - it: test_cluster renders pause when defined
     set:
-      backup.enabled: false
+      pause: true
     asserts:
-      - notExists:
-          path: spec.backup
-        documentIndex: 0
+      - equal:
+          path: spec.pause
+          value: true
+
+  - it: test_cluster renders unsafe flags when defined
+    set:
+      unsafeFlags:
+        tls: false
+        pxcSize: true
+        proxySize: true
+        backupIfUnhealthy: true
+    asserts:
+      - equal:
+          path: spec.unsafeFlags
+          value:
+            tls: false
+            pxcSize: true
+            proxySize: true
+            backupIfUnhealthy: true
+
+  - it: test_cluster renders webhook option when defined
+    set:
+      enableCRValidationWebhook: true
+    asserts:
+      - equal:
+          path: spec.enableCRValidationWebhook
+          value: true
+
+  - it: test_cluster renders upgrade apply option when defined
+    set:
+      upgradeOptions.apply: recommended
+    asserts:
+      - equal:
+          path: spec.upgradeOptions.apply
+          value: recommended
+
+  - it: test_cluster renders tls optional fields when defined
+    set:
+      tls.certValidityDuration: 2160h
+      tls.caValidityDuration: 26280h
+      tls.SANs:
+        - pxc-1.example.com
+        - pxc-2.example.com
+      tls.issuerConf:
+        name: special-selfsigned-issuer
+        kind: ClusterIssuer
+        group: cert-manager.io
+    asserts:
+      - isSubset:
+          path: spec.tls
+          content:
+            certValidityDuration: 2160h
+            caValidityDuration: 26280h
+            SANs:
+              - pxc-1.example.com
+              - pxc-2.example.com
+            issuerConf:
+              name: special-selfsigned-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+
+  - it: test_cluster renders custom secret names when defined
+    set:
+      secrets.vault: external-vault
+      secrets.logCollector: external-log-collector
+    asserts:
+      - equal:
+          path: spec.vaultSecretName
+          value: external-vault
+      - equal:
+          path: spec.logCollectorSecretName
+          value: external-log-collector
+
+  - it: test_cluster renders users when defined
+    set:
+      users:
+        - name: my-user
+          dbs:
+            - db1
+            - db2
+          hosts:
+            - localhost
+          grants:
+            - SELECT
+            - DELETE
+            - INSERT
+          withGrantOption: true
+          passwordSecretRef:
+            name: my-user-pwd
+            key: my-user-pwd-key
+        - name: my-user-two
+    asserts:
+      - equal:
+          path: spec.users
+          value:
+            - name: my-user
+              dbs:
+                - db1
+                - db2
+              hosts:
+                - localhost
+              grants:
+                - SELECT
+                - DELETE
+                - INSERT
+              withGrantOption: true
+              passwordSecretRef:
+                name: my-user-pwd
+                key: my-user-pwd-key
+            - name: my-user-two

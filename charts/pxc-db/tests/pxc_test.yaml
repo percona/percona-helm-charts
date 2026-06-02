@@ -1,0 +1,463 @@
+suite: pxc-db pxc
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: test_pxc renders default structure
+    asserts:
+      - equal:
+          path: spec.pxc
+          value:
+            size: 3
+            image: percona/percona-xtradb-cluster:8.4.7-7.1
+            autoRecovery: true
+            readinessDelaySec: 15
+            livenessDelaySec: 300
+            annotations: {}
+            labels: {}
+            resources:
+              requests:
+                cpu: 600m
+                memory: 1G
+              limits: {}
+            sidecars: []
+            sidecarVolumes: []
+            sidecarPVCs: []
+            sidecarResources:
+              requests: {}
+              limits: {}
+            nodeSelector: {}
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            tolerations: []
+            podDisruptionBudget:
+              maxUnavailable: 1
+            volumeSpec:
+              persistentVolumeClaim:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 8Gi
+            gracePeriod: 600
+            readinessProbes:
+              failureThreshold: 5
+              initialDelaySeconds: 15
+              periodSeconds: 30
+              successThreshold: 1
+              timeoutSeconds: 15
+            livenessProbes:
+              failureThreshold: 3
+              initialDelaySeconds: 300
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 5
+
+  - it: test_pxc uses an existing cluster secret name and emptyDir when persistence is disabled
+    set:
+      pxc.clusterSecretName: existing-db-secret
+      pxc.persistence.enabled: false
+    asserts:
+      - equal:
+          path: spec.secretsName
+          value: existing-db-secret
+      - exists:
+          path: spec.pxc.volumeSpec.emptyDir
+
+  - it: test_pxc renders hostPath persistence settings
+    set:
+      pxc.persistence.hostPath: /var/lib/mysql
+    asserts:
+      - equal:
+          path: spec.pxc.volumeSpec.hostPath
+          value:
+            path: /var/lib/mysql
+            type: Directory
+
+  - it: test_pxc renders image pull settings when defined
+    set:
+      pxc.imagePullPolicy: Always
+      pxc.imagePullSecrets:
+        - name: private-registry-credentials
+    asserts:
+      - isSubset:
+          path: spec.pxc
+          content:
+            imagePullPolicy: Always
+            imagePullSecrets:
+              - name: private-registry-credentials
+
+  - it: test_pxc renders expose settings when defined
+    set:
+      pxc.expose:
+        enabled: true
+        type: LoadBalancer
+        loadBalancerClass: eks.amazonaws.com/nlb
+        externalTrafficPolicy: Local
+        internalTrafficPolicy: Local
+        loadBalancerSourceRanges:
+          - 10.0.0.0/8
+        annotations:
+          networking.gke.io/load-balancer-type: Internal
+        labels:
+          rack: rack-22
+    asserts:
+      - equal:
+          path: spec.pxc.expose
+          value:
+            enabled: true
+            type: LoadBalancer
+            loadBalancerClass: eks.amazonaws.com/nlb
+            externalTrafficPolicy: Local
+            internalTrafficPolicy: Local
+            loadBalancerSourceRanges:
+              - 10.0.0.0/8
+            annotations:
+              networking.gke.io/load-balancer-type: Internal
+            labels:
+              rack: rack-22
+
+  - it: test_pxc renders replication channels when defined
+    set:
+      pxc.replicationChannels:
+        - name: pxc1_to_pxc2
+          isSource: true
+        - name: pxc2_to_pxc1
+          isSource: false
+          configuration:
+            sourceRetryCount: 3
+            sourceConnectRetry: 60
+            ssl: false
+            sslSkipVerify: true
+            ca: /etc/mysql/ssl/ca.crt
+          sourcesList:
+            - host: 10.95.251.101
+              port: 3306
+              weight: 100
+    asserts:
+      - equal:
+          path: spec.pxc.replicationChannels
+          value:
+            - name: pxc1_to_pxc2
+              isSource: true
+            - name: pxc2_to_pxc1
+              isSource: false
+              configuration:
+                sourceRetryCount: 3
+                sourceConnectRetry: 60
+                ssl: false
+                sslSkipVerify: true
+                ca: /etc/mysql/ssl/ca.crt
+              sourcesList:
+                - host: 10.95.251.101
+                  port: 3306
+                  weight: 100
+
+  - it: test_pxc renders scheduling and metadata settings when defined
+    set:
+      pxc.schedulerName: mycustom-scheduler
+      pxc.annotations:
+        iam.amazonaws.com/role: role-arn
+      pxc.labels:
+        rack: rack-22
+      pxc.priorityClassName: high-priority
+      pxc.runtimeClassName: image-rc
+      pxc.nodeSelector:
+        disktype: ssd
+      pxc.topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+      pxc.tolerations:
+        - key: node.alpha.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 6000
+      pxc.serviceAccountName: percona-xtradb-cluster-operator-workload
+    asserts:
+      - isSubset:
+          path: spec.pxc
+          content:
+            schedulerName: mycustom-scheduler
+            annotations:
+              iam.amazonaws.com/role: role-arn
+            labels:
+              rack: rack-22
+            priorityClassName: high-priority
+            runtimeClassName: image-rc
+            nodeSelector:
+              disktype: ssd
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+            tolerations:
+              - key: node.alpha.kubernetes.io/unreachable
+                operator: Exists
+                effect: NoExecute
+                tolerationSeconds: 6000
+            serviceAccountName: percona-xtradb-cluster-operator-workload
+
+  - it: test_pxc renders configuration and env secret when defined
+    set:
+      pxc.configuration: |
+        [mysqld]
+        wsrep_debug=ON
+      pxc.envVarsSecret: my-env-var-secrets
+    asserts:
+      - equal:
+          path: spec.pxc.configuration
+          value: |
+            [mysqld]
+            wsrep_debug=ON
+      - equal:
+          path: spec.pxc.envVarsSecret
+          value: my-env-var-secrets
+
+  - it: test_pxc renders resource limits when defined
+    set:
+      pxc.resources.limits:
+        memory: 2G
+        cpu: 1
+    asserts:
+      - equal:
+          path: spec.pxc.resources.limits
+          value:
+            memory: 2G
+            cpu: 1
+
+  - it: test_pxc renders mysql allocator when defined
+    set:
+      pxc.mysqlAllocator: jemalloc
+    asserts:
+      - equal:
+          path: spec.pxc.mysqlAllocator
+          value: jemalloc
+
+  - it: test_pxc renders extra PVCs when defined
+    set:
+      pxc.extraPVCs:
+        - name: my-volume
+          claimName: my-existing-pvc
+          mountPath: /mnt/data
+          readOnly: false
+          subPath: ""
+    asserts:
+      - equal:
+          path: spec.pxc.extraPVCs
+          value:
+            - name: my-volume
+              claimName: my-existing-pvc
+              mountPath: /mnt/data
+              readOnly: false
+              subPath: ""
+
+  - it: test_pxc renders lifecycle hooks when defined
+    set:
+      pxc.lifecycle:
+        preStop:
+          exec:
+            command:
+              - /bin/true
+        postStart:
+          exec:
+            command:
+              - /bin/true
+    asserts:
+      - equal:
+          path: spec.pxc.lifecycle
+          value:
+            preStop:
+              exec:
+                command:
+                  - /bin/true
+            postStart:
+              exec:
+                command:
+                  - /bin/true
+
+  - it: test_pxc renders persistence storage class and data source when defined
+    set:
+      pxc.persistence.storageClass: fast-sc
+      pxc.persistence.dataSource:
+        name: new-snapshot-test
+        kind: VolumeSnapshot
+        apiGroup: snapshot.storage.k8s.io
+    asserts:
+      - isSubset:
+          path: spec.pxc.volumeSpec.persistentVolumeClaim
+          content:
+            storageClassName: fast-sc
+            dataSource:
+              name: new-snapshot-test
+              kind: VolumeSnapshot
+              apiGroup: snapshot.storage.k8s.io
+
+  - it: test_pxc renders security contexts when defined
+    set:
+      pxc.containerSecurityContext:
+        privileged: false
+      pxc.podSecurityContext:
+        fsGroup: 1001
+        supplementalGroups:
+          - 1001
+    asserts:
+      - isSubset:
+          path: spec.pxc
+          content:
+            containerSecurityContext:
+              privileged: false
+            podSecurityContext:
+              fsGroup: 1001
+              supplementalGroups:
+                - 1001
+
+  - it: test_pxc renders sidecars when defined
+    set:
+      pxc.sidecars:
+        - image: busybox
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - while true; do sleep 30; done;
+          name: my-sidecar-1
+    asserts:
+      - equal:
+          path: spec.pxc.sidecars
+          value:
+            - image: busybox
+              command:
+                - /bin/sh
+              args:
+                - -c
+                - while true; do sleep 30; done;
+              name: my-sidecar-1
+
+  - it: test_pxc renders sidecar volumes when defined
+    set:
+      pxc.sidecarVolumes:
+        - name: sidecar-volume
+          emptyDir: {}
+    asserts:
+      - equal:
+          path: spec.pxc.sidecarVolumes
+          value:
+            - name: sidecar-volume
+              emptyDir: {}
+
+  - it: test_pxc renders sidecar PVCs when defined
+    set:
+      pxc.sidecarPVCs:
+        - name: sidecar-pvc
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    asserts:
+      - equal:
+          path: spec.pxc.sidecarPVCs
+          value:
+            - name: sidecar-pvc
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 1Gi
+
+  - it: test_pxc renders sidecar resources when defined
+    set:
+      pxc.sidecarResources:
+        requests:
+          memory: 100M
+          cpu: 100m
+        limits:
+          memory: 200M
+          cpu: 200m
+    asserts:
+      - equal:
+          path: spec.pxc.sidecarResources
+          value:
+            requests:
+              memory: 100M
+              cpu: 100m
+            limits:
+              memory: 200M
+              cpu: 200m
+
+  - it: test_pxc renders readiness probes when defined
+    set:
+      pxc.readinessProbes:
+        initialDelaySeconds: 20
+        timeoutSeconds: 10
+        periodSeconds: 15
+        successThreshold: 1
+        failureThreshold: 4
+    asserts:
+      - equal:
+          path: spec.pxc.readinessProbes
+          value:
+            initialDelaySeconds: 20
+            timeoutSeconds: 10
+            periodSeconds: 15
+            successThreshold: 1
+            failureThreshold: 4
+
+  - it: test_pxc renders liveness probes when defined
+    set:
+      pxc.livenessProbes:
+        initialDelaySeconds: 200
+        timeoutSeconds: 6
+        periodSeconds: 20
+        successThreshold: 1
+        failureThreshold: 4
+    asserts:
+      - equal:
+          path: spec.pxc.livenessProbes
+          value:
+            initialDelaySeconds: 200
+            timeoutSeconds: 6
+            periodSeconds: 20
+            successThreshold: 1
+            failureThreshold: 4
+
+  - it: test_pxc renders pod disruption budget minAvailable when defined
+    set:
+      pxc.podDisruptionBudget:
+        minAvailable: 1
+    asserts:
+      - isSubset:
+          path: spec.pxc.podDisruptionBudget
+          content:
+            minAvailable: 1
+
+  - it: test_pxc renders advanced affinity when defined
+    set:
+      pxc.affinity:
+        advanced:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/e2e-az-name
+                      operator: In
+                      values:
+                        - e2e-az1
+                        - e2e-az2
+    asserts:
+      - isSubset:
+          path: spec.pxc.affinity
+          content:
+            advanced:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/e2e-az-name
+                          operator: In
+                          values:
+                            - e2e-az1
+                            - e2e-az2
