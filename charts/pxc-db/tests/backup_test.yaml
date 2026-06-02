@@ -5,7 +5,16 @@ release:
   name: unit
   namespace: test-ns
 tests:
-  - it: test_backup renders default structure
+  - it: test_backup omits the backup section when disabled
+    set:
+      backup.enabled: false
+    asserts:
+      - notExists:
+          path: spec.backup
+
+  - it: test_backup renders default settings when enabled
+    set:
+      backup.enabled: true
     asserts:
       - equal:
           path: spec.backup
@@ -15,13 +24,28 @@ tests:
               enabled: false
             storages: {}
             schedule: []
-  
-  - it: test_backup omits the backup section when backups are disabled
-    set:
-      backup.enabled: false
+
+  - it: test_backup renders changed default values
+    values:
+      - values/backup-changed-defaults.yaml
     asserts:
-      - notExists:
-          path: spec.backup
+      - equal:
+          path: spec.backup.image
+          value: backup:test
+      - equal:
+          path: spec.backup.pitr
+          value:
+            enabled: true
+            storageName: binlogs
+            timeBetweenUploads: 10
+            timeoutSeconds: 20
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
 
   - it: test_backup rewrites s3 credentials to a generated secret reference
     set:

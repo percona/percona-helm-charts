@@ -11,6 +11,73 @@ tests:
           path: spec.proxysql.enabled
           value: false
 
+  - it: test_proxysql renders changed default values
+    values:
+      - values/proxysql-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.proxysql
+          value:
+            enabled: true
+            size: 5
+            image: proxysql:test
+            annotations:
+              test: annotation
+            labels:
+              test: label
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+            sidecars:
+              - image: busybox
+                name: sidecar
+            sidecarVolumes:
+              - name: sidecar-volume
+                emptyDir: {}
+            sidecarPVCs:
+              - name: sidecar-pvc
+                persistentVolumeClaim:
+                  claimName: sidecar-claim
+            sidecarResources:
+              requests:
+                cpu: 3m
+                memory: 3Mi
+              limits:
+                cpu: 4m
+                memory: 4Mi
+            nodeSelector:
+              disktype: ssd
+            affinity:
+              advanced:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: zone
+                            operator: In
+                            values:
+                              - a
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            tolerations:
+              - key: test
+                operator: Exists
+                effect: NoExecute
+                tolerationSeconds: 60
+            volumeSpec:
+              persistentVolumeClaim:
+                accessModes:
+                  - ReadWriteMany
+                resources:
+                  requests:
+                    storage: 9Gi
+            podDisruptionBudget:
+              maxUnavailable: 2
+            gracePeriod: 60
+
   - it: test_proxysql switches to proxysql mode
     set:
       proxysql.enabled: true

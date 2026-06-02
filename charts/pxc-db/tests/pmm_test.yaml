@@ -11,28 +11,36 @@ tests:
           path: spec.pmm.enabled
           value: false
 
-  - it: test_pmm renders enabled settings
-    set:
-      pmm.enabled: true
-      pmm.image.repository: custom-pmm-client
-      pmm.image.tag: 9.9.9
-      pmm.serverHost: pmm.example.com
-      pmm.serverUser: monitor
+  - it: test_pmm renders changed default values
+    values:
+      - values/pmm-changed-defaults.yaml
     asserts:
       - equal:
           path: spec.pmm
           value:
             enabled: true
-            image: custom-pmm-client:9.9.9
-            serverHost: pmm.example.com
-            serverUser: monitor
-            readinessProbes: null
-            livenessProbes: null
+            image: pmm:test
+            serverHost: pmm
+            serverUser: admin
+            livenessProbes:
+              failureThreshold: 7
+              initialDelaySeconds: 25
+              periodSeconds: 15
+              successThreshold: 1
+              timeoutSeconds: 8
+            readinessProbes:
+              failureThreshold: 5
+              initialDelaySeconds: 20
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 5
             resources:
               requests:
-                cpu: 300m
-                memory: 150M
-              limits: {}
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
 
   - it: test_pmm renders image pull settings when defined
     set:

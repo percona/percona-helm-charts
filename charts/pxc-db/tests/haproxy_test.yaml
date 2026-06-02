@@ -7,9 +7,9 @@ release:
 tests:
   - it: test_haproxy renders default structure
     asserts:
-      - equal:
+      - isSubset:
           path: spec.haproxy
-          value:
+          content:
             enabled: true
             size: 3
             image: percona/haproxy:2.8.17
@@ -49,6 +49,151 @@ tests:
               periodSeconds: 30
               successThreshold: 1
               timeoutSeconds: 5
+
+  - it: test_haproxy renders changed default values
+    values:
+      - values/haproxy-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.haproxy
+          value:
+            enabled: true
+            size: 5
+            image: haproxy:test
+            imagePullPolicy: Always
+            imagePullSecrets:
+              - name: pull-secret
+            schedulerName: scheduler
+            configuration: |
+
+              global
+                maxconn 1
+              
+            priorityClassName: priority
+            exposePrimary:
+              annotations:
+                test: primary
+              externalTrafficPolicy: Cluster
+              internalTrafficPolicy: Cluster
+              labels:
+                test: primary
+              loadBalancerClass: lb-class
+              loadBalancerSourceRanges:
+              - 10.0.0.0/24
+              type: ClusterIP
+            exposeReplicas:
+              annotations:
+                test: replicas
+              enabled: true
+              externalTrafficPolicy: Cluster
+              internalTrafficPolicy: Cluster
+              labels:
+                test: replicas
+              loadBalancerClass: lb-class
+              loadBalancerIP: 127.0.0.1
+              loadBalancerSourceRanges:
+              - 10.0.0.0/24
+              onlyReaders: false
+              type: ClusterIP
+            annotations:
+              test: annotation
+            labels:
+              test: label
+            runtimeClassName: image-rc
+            envVarsSecret: env-secret
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+            sidecars:
+              - image: busybox
+                name: sidecar
+            sidecarVolumes:
+              - emptyDir: {}
+                name: sidecar-volume
+            sidecarPVCs:
+              - name: sidecar-pvc
+                persistentVolumeClaim:
+                  claimName: sidecar-claim
+            extraPVCs:
+              - claimName: extra-claim
+                mountPath: /mnt/data
+                name: extra-volume
+                readOnly: false
+                subPath: data
+            sidecarResources:
+              requests:
+                cpu: 3m
+                memory: 3Mi
+              limits:
+                cpu: 4m
+                memory: 4Mi
+            serviceAccountName: workload
+            nodeSelector:
+              disktype: ssd
+            topologySpreadConstraints:
+              - labelSelector:
+                  matchLabels:
+                    app: pxc
+                maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+            affinity:
+              advanced:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: zone
+                        operator: In
+                        values:
+                        - a
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            tolerations:
+              - effect: NoExecute
+                key: test
+                operator: Exists
+                tolerationSeconds: 60
+            podDisruptionBudget:
+              maxUnavailable: 2
+            volumeSpec:
+              emptyDir: {}
+            gracePeriod: 60
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                  - /bin/true
+              postStart:
+                exec:
+                  command:
+                  - /bin/true
+            readinessDelaySec: 20
+            livenessDelaySec: 400
+            readinessProbes:
+              failureThreshold: 5
+              initialDelaySeconds: 20
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 2
+            livenessProbes:
+              failureThreshold: 6
+              initialDelaySeconds: 80
+              periodSeconds: 40
+              successThreshold: 1
+              timeoutSeconds: 6
+            healthCheck:
+              interval: 10
+              rise: 1
+              fall: 2
+            containerSecurityContext:
+              privileged: false
+            podSecurityContext:
+              runAsGroup: 1001
+              runAsUser: 1001
 
   - it: test_haproxy can be disabled
     set:

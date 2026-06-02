@@ -102,6 +102,75 @@ tests:
                         cpu: 100m
                         memory: 20Mi
 
+  - it: renders changed default deployment values
+    values:
+      - values/deployment-changed-defaults.yaml
+    asserts:
+    - equal:
+        path: spec.template.spec.containers[0]
+        value:
+          name: percona-xtradb-cluster-operator
+          image: operator:dummy
+          imagePullPolicy: Always
+          command:
+            - percona-xtradb-cluster-operator
+          ports:
+            - containerPort: 8080
+              name: metrics
+              protocol: TCP
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /metrics
+              port: metrics
+              scheme: HTTP
+          resources:
+            limits:
+              cpu: 2m
+              memory: 2Mi
+            requests:
+              cpu: 1m
+              memory: 1Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmpdir
+          env:
+            - name: WATCH_NAMESPACE
+              value: test-ns
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: unit-pxc-operator
+            - name: LOG_STRUCTURED
+              value: "true"
+            - name: LOG_LEVEL
+              value: DEBUG
+            - name: DISABLE_TELEMETRY
+              value: "true"
+            - name: MAX_CONCURRENT_RECONCILES
+              value: "2"
+            - name: S3_WORKERS_LIMIT
+              value: "3"
+            - name: PXCO_FEATURE_GATES
+              value: XtrabackupSidecar=true
+            - name: PXCO_LEADER_ELECTION_ENABLED
+              value: "false"
+            - name: PXCO_LEADER_ELECTION_LEASE_NAME
+              value: lease
+            - name: PXCO_LEADER_ELECTION_LEASE_DURATION
+              value: 10s
+            - name: PXCO_LEADER_ELECTION_RENEW_DEADLINE
+              value: 5s
+            - name: PXCO_LEADER_ELECTION_RETRY_PERIOD
+              value: 2s
+            - name: HTTP_PROXY
+              value: proxy
+
   - it: renders a service and empty watch namespace for cluster-wide mode
     set:
       watchAllNamespaces: true

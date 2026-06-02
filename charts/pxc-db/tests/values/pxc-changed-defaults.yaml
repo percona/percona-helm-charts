@@ -1,0 +1,71 @@
+pxc:
+  size: 5
+  image:
+    repository: pxc
+    tag: test
+  autoRecovery: false
+  readinessDelaySec: 20
+  livenessDelaySec: 40
+  annotations:
+    test: annotation
+  labels:
+    test: label
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+    limits:
+      cpu: 2m
+      memory: 2Mi
+  sidecars:
+    - image: busybox
+      name: sidecar
+  sidecarVolumes:
+    - name: sidecar-volume
+      emptyDir: {}
+  sidecarPVCs:
+    - name: sidecar-pvc
+      persistentVolumeClaim:
+        claimName: sidecar-claim
+  sidecarResources:
+    requests:
+      cpu: 3m
+      memory: 3Mi
+    limits:
+      cpu: 4m
+      memory: 4Mi
+  nodeSelector:
+    disktype: ssd
+  affinity:
+    advanced:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: zone
+                  operator: In
+                  values:
+                    - a
+  tolerations:
+    - key: test
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 60
+  podDisruptionBudget:
+    maxUnavailable: 2
+  persistence:
+    accessMode: ReadWriteMany
+    size: 9Gi
+  gracePeriod: 60
+  readinessProbes:
+    failureThreshold: 6
+    initialDelaySeconds: 16
+    periodSeconds: 31
+    successThreshold: 1
+    timeoutSeconds: 16
+  livenessProbes:
+    failureThreshold: 4
+    initialDelaySeconds: 301
+    periodSeconds: 11
+    successThreshold: 1
+    timeoutSeconds: 6

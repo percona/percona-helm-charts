@@ -1,0 +1,48 @@
+replicaCount: 2
+operatorImageRepository: operator
+image: operator:dummy
+imagePullPolicy: Always
+imagePullSecrets:
+  - name: pull-secret
+resources:
+  requests:
+    cpu: 1m
+    memory: 1Mi
+  limits:
+    cpu: 2m
+    memory: 2Mi
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+nodeSelector:
+  disktype: ssd
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: zone
+              operator: In
+              values:
+                - a
+tolerations:
+  - key: test
+    operator: Exists
+    effect: NoSchedule
+podAnnotations:
+  test: annotation
+logStructured: true
+logLevel: DEBUG
+disableTelemetry: true
+maxConcurrentReconciles: 2
+s3WorkersLimit: 3
+extraEnvVars:
+  - name: HTTP_PROXY
+    value: proxy
+featureGates:
+  xtrabackupSidecar: true
+leaderElectionEnabled: false
+leaseName: lease
+leaseDuration: 10s
+renewDeadline: 5s
+retryPeriod: 2s

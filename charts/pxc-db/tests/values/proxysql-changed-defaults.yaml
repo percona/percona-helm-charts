@@ -1,0 +1,55 @@
+proxysql:
+  enabled: true
+  size: 5
+  image: proxysql:test
+  annotations:
+    test: annotation
+  labels:
+    test: label
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+    limits:
+      cpu: 2m
+      memory: 2Mi
+  sidecars:
+    - image: busybox
+      name: sidecar
+  sidecarVolumes:
+    - name: sidecar-volume
+      emptyDir: {}
+  sidecarPVCs:
+    - name: sidecar-pvc
+      persistentVolumeClaim:
+        claimName: sidecar-claim
+  sidecarResources:
+    requests:
+      cpu: 3m
+      memory: 3Mi
+    limits:
+      cpu: 4m
+      memory: 4Mi
+  nodeSelector:
+    disktype: ssd
+  affinity:
+    advanced:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: zone
+                  operator: In
+                  values:
+                    - a
+  tolerations:
+    - key: test
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 60
+  persistence:
+    accessMode: ReadWriteMany
+    size: 9Gi
+  podDisruptionBudget:
+    maxUnavailable: 2
+  gracePeriod: 60

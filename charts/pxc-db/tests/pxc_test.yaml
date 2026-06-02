@@ -55,6 +55,87 @@ tests:
               successThreshold: 1
               timeoutSeconds: 5
 
+  - it: test_pxc renders changed default values
+    values:
+      - values/pxc-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.pxc
+          value:
+            size: 5
+            image: pxc:test
+            autoRecovery: false
+            readinessDelaySec: 20
+            livenessDelaySec: 40
+            annotations:
+              test: annotation
+            labels:
+              test: label
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+            sidecars:
+              - image: busybox
+                name: sidecar
+            sidecarVolumes:
+              - name: sidecar-volume
+                emptyDir: {}
+            sidecarPVCs:
+              - name: sidecar-pvc
+                persistentVolumeClaim:
+                  claimName: sidecar-claim
+            sidecarResources:
+              requests:
+                cpu: 3m
+                memory: 3Mi
+              limits:
+                cpu: 4m
+                memory: 4Mi
+            nodeSelector:
+              disktype: ssd
+            affinity:
+              advanced:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: zone
+                            operator: In
+                            values:
+                              - a
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            tolerations:
+              - key: test
+                operator: Exists
+                effect: NoExecute
+                tolerationSeconds: 60
+            podDisruptionBudget:
+              maxUnavailable: 2
+            volumeSpec:
+              persistentVolumeClaim:
+                accessModes:
+                  - ReadWriteMany
+                resources:
+                  requests:
+                    storage: 9Gi
+            gracePeriod: 60
+            readinessProbes:
+              failureThreshold: 6
+              initialDelaySeconds: 16
+              periodSeconds: 31
+              successThreshold: 1
+              timeoutSeconds: 16
+            livenessProbes:
+              failureThreshold: 4
+              initialDelaySeconds: 301
+              periodSeconds: 11
+              successThreshold: 1
+              timeoutSeconds: 6
+
   - it: test_pxc uses an existing cluster secret name and emptyDir when persistence is disabled
     set:
       pxc.clusterSecretName: existing-db-secret

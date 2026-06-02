@@ -18,6 +18,23 @@ tests:
                 memory: 100M
               limits: {}
 
+  - it: test_logcollector renders changed default values
+    values:
+      - values/logcollector-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.logcollector
+          value:
+            enabled: true
+            image: custom-fluentbit:9.9.9
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+
   - it: test_logcollector can be disabled
     set:
       logcollector.enabled: false

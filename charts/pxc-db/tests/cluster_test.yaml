@@ -15,7 +15,6 @@ tests:
       - equal:
           path: kind
           value: PerconaXtraDBCluster
-
       - isSubset:
           path: metadata
           content:
@@ -23,7 +22,6 @@ tests:
             namespace: test-ns
             finalizers:
               - percona.com/delete-pxc-pods-in-order
-      
       - isSubset:
           path: spec
           content:
@@ -34,13 +32,23 @@ tests:
               enabled: true
             updateStrategy: SmartUpdate
 
-  - it: test_cluster renders crVersion
-    set:
-      crVersion: 0.0.0
+  - it: test_cluster renders changed default values
+    values:
+      - values/cluster-changed-defaults.yaml
     asserts:
-      - equal:
-          path: spec.crVersion
-          value: 0.0.0
+      - isSubset:
+          path: spec
+          content:
+            crVersion: 9.9.9
+            enableVolumeExpansion: true
+            secretsName: secret
+            updateStrategy: RollingUpdate
+            upgradeOptions:
+              versionServiceEndpoint: https://versions.test
+              apply: recommended
+              schedule: "0 1 * * *"
+            tls:
+              enabled: false
 
   - it: test_cluster uses provided tls secret names
     set:
