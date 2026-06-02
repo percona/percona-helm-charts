@@ -617,7 +617,7 @@ spec:
 {{ tpl ($backup.pitr.resources.limits | toYaml) $ | indent 10 }}
     {{- end }}
     storages:
-{{ include "pxc-database.storages" (dict "root" . "fullname" (include "pxc-database.fullname" .)) | indent 6 }}
+{{ $backup.storages | toYaml | indent 6 }}
     schedule:
 {{ $backup.schedule | toYaml | indent 6 }}
 {{- end }}
