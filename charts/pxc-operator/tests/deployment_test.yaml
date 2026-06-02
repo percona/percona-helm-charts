@@ -9,26 +9,81 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
-      - matchSnapshot: {}
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: unit-pxc-operator
+      - equal:
+          path: metadata.namespace
+          value: test-ns
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: unit-pxc-operator
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: percona/percona-xtradb-cluster-operator:1.20.0
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: test-ns
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPERATOR_NAME
+            value: unit-pxc-operator
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PXCO_FEATURE_GATES
+            value: XtrabackupSidecar=false
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PXCO_LEADER_ELECTION_ENABLED
+            value: "true"
+      - notExists:
+          path: spec.template.metadata.annotations
+      - notExists:
+          path: spec.template.spec.imagePullSecrets
+      - notExists:
+          path: spec.template.spec.nodeSelector
+      - notExists:
+          path: spec.template.spec.affinity
+      - notExists:
+          path: spec.template.spec.tolerations
 
-  - it: renders optional deployment and service fields
+  - it: renders a service and empty watch namespace for cluster-wide mode
     set:
-      image: custom-operator:9.9.9
       watchAllNamespaces: true
-      imagePullSecrets:
-        - name: registry-secret
-      podAnnotations:
-        test: value
-      containerSecurityContext:
-        readOnlyRootFilesystem: true
-        allowPrivilegeEscalation: false
-      extraEnvVars:
-        - name: EXTRA_FLAG
-          value: enabled
     asserts:
       - hasDocuments:
           count: 2
-      - matchSnapshot: {}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: ""
+        documentIndex: 0
+      - isKind:
+          of: Service
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: percona-xtradb-cluster-operator
+        documentIndex: 1
+      - equal:
+          path: spec.selector
+          value:
+            app.kubernetes.io/name: pxc-operator
+        documentIndex: 1
 
   - it: renders a service when a specific watch namespace is configured
     set:
@@ -45,3 +100,200 @@ tests:
       - isKind:
           of: Service
         documentIndex: 1
+
+  - it: renders a custom operator image when defined
+    set:
+      image: custom-operator:9.9.9
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: custom-operator:9.9.9
+
+  - it: renders image pull secrets when defined
+    set:
+      imagePullSecrets:
+        - name: registry-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: registry-secret
+
+  - it: renders pod annotations when defined
+    set:
+      podAnnotations:
+        test: value
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations
+          value:
+            test: value
+
+  - it: renders container security context and tmp volume when read-only root filesystem is enabled
+    set:
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value:
+            - name: tmpdir
+              mountPath: /tmp
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: tmpdir
+              emptyDir: {}
+
+  - it: renders custom resources when defined
+    set:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources
+          value:
+            requests:
+              cpu: 200m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+
+  - it: renders scheduling options when defined
+    set:
+      nodeSelector:
+        disktype: ssd
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: operators
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            disktype: ssd
+      - equal:
+          path: spec.template.spec.affinity
+          value:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 1
+                  podAffinityTerm:
+                    topologyKey: kubernetes.io/hostname
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: dedicated
+              operator: Equal
+              value: operators
+              effect: NoSchedule
+
+  - it: renders extra environment variables when defined
+    set:
+      extraEnvVars:
+        - name: EXTRA_FLAG
+          value: enabled
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: EXTRA_FLAG
+            value: enabled
+
+  - it: renders logging, telemetry and worker options when defined
+    set:
+      logStructured: true
+      logLevel: DEBUG
+      disableTelemetry: true
+      maxConcurrentReconciles: 3
+      s3WorkersLimit: 20
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_STRUCTURED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: DEBUG
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DISABLE_TELEMETRY
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MAX_CONCURRENT_RECONCILES
+            value: "3"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: S3_WORKERS_LIMIT
+            value: "20"
+
+  - it: renders feature gates when defined
+    set:
+      featureGates:
+        xtrabackupSidecar: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PXCO_FEATURE_GATES
+            value: XtrabackupSidecar=true
+
+  - it: renders leader election options when defined
+    set:
+      leaderElectionEnabled: false
+      leaseName: custom-lease
+      leaseDuration: 90s
+      renewDeadline: 60s
+      retryPeriod: 20s
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PXCO_LEADER_ELECTION_ENABLED
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PXCO_LEADER_ELECTION_LEASE_NAME
+            value: custom-lease
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PXCO_LEADER_ELECTION_LEASE_DURATION
+            value: 90s
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PXCO_LEADER_ELECTION_RENEW_DEADLINE
+            value: 60s
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PXCO_LEADER_ELECTION_RETRY_PERIOD
+            value: 20s

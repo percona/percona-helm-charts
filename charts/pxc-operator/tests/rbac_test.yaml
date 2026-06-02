@@ -92,3 +92,39 @@ tests:
       - hasDocuments:
           count: 0
         template: templates/role-binding.yaml
+
+  - it: does not render namespaces by default
+    templates:
+      - templates/namespace.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders watched namespaces when namespace creation is enabled
+    templates:
+      - templates/namespace.yaml
+    set:
+      watchNamespace: ns-one,ns-two
+      createNamespace: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: Namespace
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: ns-one
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations
+          value:
+            helm.sh/resource-policy: keep
+        documentIndex: 0
+      - isKind:
+          of: Namespace
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: ns-two
+        documentIndex: 1

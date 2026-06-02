@@ -61,6 +61,33 @@ Alternatively a YAML file that specifies the values for the parameters can be pr
 helm install pxc-operator -f values.yaml percona/pxc-operator
 ```
 
+## Unit Tests
+
+Helm unit tests for operator charts use the `helm-unittest` plugin.
+
+Install the plugin from the repository root:
+
+```sh
+make helm-unittest
+```
+
+Unit tests for this chart live under `charts/pxc-operator/tests/` and validate
+the rendered operator manifests. Prefer focused tests: start with the default
+rendered structure, then add one test per optional or conditional value to
+verify that setting the value in `values.yaml` renders the expected field.
+
+Run this chart's unit tests with:
+
+```sh
+make test-pxc-operator
+```
+
+The `HELM` variable can be overridden when a different Helm binary is needed:
+
+```sh
+make HELM=/path/to/helm test-pxc-operator
+```
+
 ## Deploy the database
 
 To deploy Percona XtraDB Cluster run the following command:
