@@ -47,19 +47,36 @@ tests:
                 cpu: 2m
                 memory: 2Mi
 
-  - it: test_backup rewrites s3 credentials to a generated secret reference
+  - it: test_backup uses provided storage access keys
     set:
       backup.storages.backup1.type: s3
       backup.storages.backup1.s3.bucket: operator-testing
       backup.storages.backup1.s3.region: us-east-1
-      backup.storages.backup1.s3.credentialsSecret: some-secret-key
+      backup.storages.backup1.s3.credentialsAccessKey: test1
+      backup.storages.backup1.s3.credentialsSecretKey: test2
     asserts:
       - equal:
           path: spec.backup.storages.backup1
           value:
             s3:
               bucket: operator-testing
-              credentialsSecret: some-secret-key
+              credentialsSecret: unit-pxc-db-s3-backup1
+              region: us-east-1
+            type: s3
+
+  - it: test_backup uses provided storage secret name
+    set:
+      backup.storages.backup1.type: s3
+      backup.storages.backup1.s3.bucket: operator-testing
+      backup.storages.backup1.s3.region: us-east-1
+      backup.storages.backup1.s3.credentialsSecret: my-secret
+    asserts:
+      - equal:
+          path: spec.backup.storages.backup1
+          value:
+            s3:
+              bucket: operator-testing
+              credentialsSecret: my-secret
               region: us-east-1
             type: s3
 
