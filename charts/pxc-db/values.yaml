@@ -603,6 +603,7 @@ logcollector:
   #       notifempty
   #       compress
   #       delaycompress
+  #     }
   #   extraConfig:
   #     name: my-logrotate-config
 
