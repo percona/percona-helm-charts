@@ -105,6 +105,9 @@ spec:
     {{- if $mysql.autoRecovery }}
     autoRecovery: {{ $mysql.autoRecovery }}
     {{- end }}
+    {{- if $mysql.vaultSecretName }}
+    vaultSecretName: {{ $mysql.vaultSecretName }}
+    {{- end }}
     {{- if $mysql.image }}
     image: "{{ $mysql.image.repository }}:{{ $mysql.image.tag }}"
     {{- end }}
@@ -741,6 +744,10 @@ spec:
 {{ tpl ($backup.resources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($backup.resources.limits | toYaml) $ | indent 8 }}
+    {{- end }}
+    {{- if $backup.pitr }}
+    pitr:
+{{ $backup.pitr | toYaml | indent 6 }}
     {{- end }}
     storages:
 {{ $backup.storages | toYaml | indent 6 }}
