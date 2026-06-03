@@ -22,6 +22,14 @@ operatorImageRepository: percona/percona-xtradb-cluster-operator
 crVersion: 1.20.0
 
 enableVolumeExpansion: false
+# storageScaling:
+#   enableVolumeScaling: false
+#   enableExternalAutoscaling: false
+#   autoscaling:
+#     enabled: false
+#     triggerThresholdPercent: 80
+#     growthStep: 2Gi
+#     maxSize: 10Gi
 
 ignoreAnnotations: []
   # - iam.amazonaws.com/role
@@ -585,6 +593,19 @@ logcollector:
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
+  # logRotate:
+  #   schedule: "*/5 * * * *"
+  #   configuration: |
+  #     /var/lib/mysql/GRA_*.log {
+  #       daily
+  #       rotate 7
+  #       missingok
+  #       notifempty
+  #       compress
+  #       delaycompress
+  #     }
+  #   extraConfig:
+  #     name: my-logrotate-config
 
 # users:
 # - name: my-user
