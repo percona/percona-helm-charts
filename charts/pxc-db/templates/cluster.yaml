@@ -549,7 +549,17 @@ spec:
     {{- end }}
     {{- if $logcollector.logRotate }}
     logRotate:
-{{ tpl ($logcollector.logRotate | toYaml) $ | indent 6 }}
+      {{- if $logcollector.logRotate.schedule }}
+      schedule: {{ $logcollector.logRotate.schedule | quote }}
+      {{- end }}
+      {{- if $logcollector.logRotate.configuration }}
+      configuration: |
+{{ tpl $logcollector.logRotate.configuration $ | indent 8 }}
+      {{- end }}
+      {{- if $logcollector.logRotate.extraConfig }}
+      extraConfig:
+{{ tpl ($logcollector.logRotate.extraConfig | toYaml) $ | indent 8 }}
+      {{- end }}
     {{- end }}
   {{- end }}
 {{- if .Values.users }}
