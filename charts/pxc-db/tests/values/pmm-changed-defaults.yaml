@@ -1,8 +1,8 @@
 pmm:
   enabled: true
   image:
-    repository: pmm
-    tag: test
+    repository: changed-image
+    tag: changed-tag
   serverHost: pmm
   serverUser: admin
   livenessProbes:

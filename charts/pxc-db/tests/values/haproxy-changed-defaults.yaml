@@ -1,6 +1,6 @@
 haproxy:
   size: 5
-  image: haproxy:test
+  image: changed-image
   imagePullPolicy: Always
   imagePullSecrets:
     - name: pull-secret
@@ -48,7 +48,7 @@ haproxy:
       cpu: 2m
       memory: 2Mi
   sidecars:
-    - image: busybox
+    - image: changed-image
       name: sidecar
   sidecarVolumes:
     - name: sidecar-volume

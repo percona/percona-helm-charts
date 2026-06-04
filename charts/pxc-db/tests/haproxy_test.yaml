@@ -6,13 +6,15 @@ release:
   namespace: test-ns
 tests:
   - it: test_haproxy renders default structure
+    set:
+      haproxy.image: default-image
     asserts:
       - isSubset:
           path: spec.haproxy
           content:
             enabled: true
             size: 3
-            image: percona/haproxy:2.8.17
+            image: default-image
             annotations: {}
             labels: {}
             resources:
@@ -59,16 +61,14 @@ tests:
           value:
             enabled: true
             size: 5
-            image: haproxy:test
+            image: changed-image
             imagePullPolicy: Always
             imagePullSecrets:
               - name: pull-secret
             schedulerName: scheduler
             configuration: |
-
               global
                 maxconn 1
-              
             priorityClassName: priority
             exposePrimary:
               annotations:
@@ -109,7 +109,7 @@ tests:
                 cpu: 2m
                 memory: 2Mi
             sidecars:
-              - image: busybox
+              - image: changed-image
                 name: sidecar
             sidecarVolumes:
               - emptyDir: {}
@@ -213,11 +213,11 @@ tests:
 
   - it: test_haproxy renders image when defined
     set:
-      haproxy.image: custom-haproxy-image
+      haproxy.image: dummy-image
     asserts:
       - equal:
           path: spec.haproxy.image
-          value: custom-haproxy-image
+          value: dummy-image
 
   - it: test_haproxy renders image pull settings when defined
     set:
@@ -443,7 +443,7 @@ tests:
   - it: test_haproxy renders sidecars when defined
     set:
       haproxy.sidecars:
-        - image: busybox
+        - image: dummy-image
           command:
             - /bin/sh
           args:
@@ -454,7 +454,7 @@ tests:
       - equal:
           path: spec.haproxy.sidecars
           value:
-            - image: busybox
+            - image: dummy-image
               command:
                 - /bin/sh
               args:

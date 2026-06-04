@@ -1,8 +1,8 @@
 pxc:
   size: 5
   image:
-    repository: pxc
-    tag: test
+    repository: changed-image
+    tag: changed-tag
   autoRecovery: false
   readinessDelaySec: 20
   livenessDelaySec: 40
@@ -18,7 +18,7 @@ pxc:
       cpu: 2m
       memory: 2Mi
   sidecars:
-    - image: busybox
+    - image: changed-image
       name: sidecar
   sidecarVolumes:
     - name: sidecar-volume

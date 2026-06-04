@@ -1,7 +1,7 @@
 proxysql:
   enabled: true
   size: 5
-  image: proxysql:test
+  image: changed-image
   annotations:
     test: annotation
   labels:
@@ -14,7 +14,7 @@ proxysql:
       cpu: 2m
       memory: 2Mi
   sidecars:
-    - image: busybox
+    - image: changed-image
       name: sidecar
   sidecarVolumes:
     - name: sidecar-volume

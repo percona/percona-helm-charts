@@ -77,7 +77,7 @@ tests:
 
   - it: test_cluster renders init container settings
     set:
-      initContainer.image: custom-init-image
+      initContainer.image: dummy-image
       initContainer.containerSecurityContext.runAsUser: 1001
       initContainer.resources.requests.cpu: 100m
       initContainer.resources.requests.memory: 100M
@@ -85,7 +85,7 @@ tests:
       - equal:
           path: spec.initContainer
           value:
-            image: custom-init-image
+            image: dummy-image
             containerSecurityContext:
               runAsUser: 1001
             resources:
@@ -124,6 +124,28 @@ tests:
       - equal:
           path: spec.enableVolumeExpansion
           value: true
+
+  - it: test_cluster renders storage scaling when defined
+    set:
+      storageScaling:
+        enableVolumeScaling: true
+        enableExternalAutoscaling: false
+        autoscaling:
+          enabled: true
+          triggerThresholdPercent: 75
+          growthStep: 2Gi
+          maxSize: 20Gi
+    asserts:
+      - equal:
+          path: spec.storageScaling
+          value:
+            enableVolumeScaling: true
+            enableExternalAutoscaling: false
+            autoscaling:
+              enabled: true
+              triggerThresholdPercent: 75
+              growthStep: 2Gi
+              maxSize: 20Gi
 
   - it: test_cluster renders ignore annotations when defined
     set:

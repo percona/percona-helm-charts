@@ -19,7 +19,7 @@ tests:
           path: spec.pmm
           value:
             enabled: true
-            image: pmm:test
+            image: changed-image:changed-tag
             serverHost: pmm
             serverUser: admin
             livenessProbes:

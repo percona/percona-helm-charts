@@ -1,8 +1,8 @@
 backup:
   enabled: true
   image:
-    repository: backup
-    tag: test
+    repository: changed-image
+    tag: changed-tag
   pitr:
     enabled: true
     storageName: binlogs

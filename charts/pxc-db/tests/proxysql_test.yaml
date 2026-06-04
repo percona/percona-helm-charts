@@ -20,7 +20,7 @@ tests:
           value:
             enabled: true
             size: 5
-            image: proxysql:test
+            image: changed-image
             annotations:
               test: annotation
             labels:
@@ -33,7 +33,7 @@ tests:
                 cpu: 2m
                 memory: 2Mi
             sidecars:
-              - image: busybox
+              - image: changed-image
                 name: sidecar
             sidecarVolumes:
               - name: sidecar-volume
@@ -81,7 +81,7 @@ tests:
   - it: test_proxysql switches to proxysql mode
     set:
       proxysql.enabled: true
-      proxysql.image: custom-proxysql-image
+      proxysql.image: dummy-image
     asserts:
       - equal:
           path: spec.haproxy.enabled
@@ -94,7 +94,7 @@ tests:
           value: 3
       - equal:
           path: spec.proxysql.image
-          value: custom-proxysql-image
+          value: dummy-image
       - exists:
           path: spec.proxysql.volumeSpec.persistentVolumeClaim
 
@@ -425,7 +425,7 @@ tests:
     set:
       proxysql.enabled: true
       proxysql.sidecars:
-        - image: busybox
+        - image: dummy-image
           command:
             - /bin/sh
           args:
@@ -436,7 +436,7 @@ tests:
       - equal:
           path: spec.proxysql.sidecars
           value:
-            - image: busybox
+            - image: dummy-image
               command:
                 - /bin/sh
               args:

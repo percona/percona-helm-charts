@@ -6,12 +6,15 @@ release:
   namespace: test-ns
 tests:
   - it: test_pxc renders default structure
+    set:
+      pxc.image.repository: default-image
+      pxc.image.tag: default-tag
     asserts:
       - equal:
           path: spec.pxc
           value:
             size: 3
-            image: percona/percona-xtradb-cluster:8.4.7-7.1
+            image: default-image:default-tag
             autoRecovery: true
             readinessDelaySec: 15
             livenessDelaySec: 300
@@ -63,7 +66,7 @@ tests:
           path: spec.pxc
           value:
             size: 5
-            image: pxc:test
+            image: changed-image:changed-tag
             autoRecovery: false
             readinessDelaySec: 20
             livenessDelaySec: 40
@@ -79,7 +82,7 @@ tests:
                 cpu: 2m
                 memory: 2Mi
             sidecars:
-              - image: busybox
+              - image: changed-image
                 name: sidecar
             sidecarVolumes:
               - name: sidecar-volume
@@ -235,6 +238,14 @@ tests:
                 - host: 10.95.251.101
                   port: 3306
                   weight: 100
+
+  - it: test_pxc renders sst retry count when defined
+    set:
+      pxc.sstRetryCount: 3
+    asserts:
+      - equal:
+          path: spec.pxc.sstRetryCount
+          value: 3
 
   - it: test_pxc renders scheduling and metadata settings when defined
     set:
@@ -398,7 +409,7 @@ tests:
   - it: test_pxc renders sidecars when defined
     set:
       pxc.sidecars:
-        - image: busybox
+        - image: dummy-image
           command:
             - /bin/sh
           args:
@@ -409,7 +420,7 @@ tests:
       - equal:
           path: spec.pxc.sidecars
           value:
-            - image: busybox
+            - image: dummy-image
               command:
                 - /bin/sh
               args:

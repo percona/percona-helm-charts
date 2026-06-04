@@ -1,6 +1,6 @@
 logcollector:
   enabled: true
-  image: custom-fluentbit:9.9.9
+  image: changed-image
   resources:
     requests:
       cpu: 1m

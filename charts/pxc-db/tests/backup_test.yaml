@@ -15,11 +15,13 @@ tests:
   - it: test_backup renders default settings when enabled
     set:
       backup.enabled: true
+      backup.image.repository: default-image
+      backup.image.tag: default-tag
     asserts:
       - equal:
           path: spec.backup
           value:
-            image: percona/percona-xtrabackup:8.4.0-5.1
+            image: default-image:default-tag
             pitr:
               enabled: false
             storages: {}
@@ -31,7 +33,7 @@ tests:
     asserts:
       - equal:
           path: spec.backup.image
-          value: backup:test
+          value: changed-image:changed-tag
       - equal:
           path: spec.backup.pitr
           value:
