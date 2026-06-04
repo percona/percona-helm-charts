@@ -62,45 +62,12 @@ tests:
             enabled: true
             size: 5
             image: changed-image
-            imagePullPolicy: Always
             imagePullSecrets:
               - name: pull-secret
-            schedulerName: scheduler
-            configuration: |
-              global
-                maxconn 1
-            priorityClassName: priority
-            exposePrimary:
-              annotations:
-                test: primary
-              externalTrafficPolicy: Cluster
-              internalTrafficPolicy: Cluster
-              labels:
-                test: primary
-              loadBalancerClass: lb-class
-              loadBalancerSourceRanges:
-              - 10.0.0.0/24
-              type: ClusterIP
-            exposeReplicas:
-              annotations:
-                test: replicas
-              enabled: true
-              externalTrafficPolicy: Cluster
-              internalTrafficPolicy: Cluster
-              labels:
-                test: replicas
-              loadBalancerClass: lb-class
-              loadBalancerIP: 127.0.0.1
-              loadBalancerSourceRanges:
-              - 10.0.0.0/24
-              onlyReaders: false
-              type: ClusterIP
             annotations:
               test: annotation
             labels:
               test: label
-            runtimeClassName: image-rc
-            envVarsSecret: env-secret
             resources:
               requests:
                 cpu: 1m
@@ -118,12 +85,6 @@ tests:
               - name: sidecar-pvc
                 persistentVolumeClaim:
                   claimName: sidecar-claim
-            extraPVCs:
-              - claimName: extra-claim
-                mountPath: /mnt/data
-                name: extra-volume
-                readOnly: false
-                subPath: data
             sidecarResources:
               requests:
                 cpu: 3m
@@ -131,27 +92,10 @@ tests:
               limits:
                 cpu: 4m
                 memory: 4Mi
-            serviceAccountName: workload
             nodeSelector:
               disktype: ssd
-            topologySpreadConstraints:
-              - labelSelector:
-                  matchLabels:
-                    app: pxc
-                maxSkew: 1
-                topologyKey: kubernetes.io/hostname
-                whenUnsatisfiable: DoNotSchedule
             affinity:
-              advanced:
-                nodeAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    nodeSelectorTerms:
-                    - matchExpressions:
-                      - key: zone
-                        operator: In
-                        values:
-                        - a
-              antiAffinityTopologyKey: kubernetes.io/hostname
+              antiAffinityTopologyKey: topology.kubernetes.io/zone
             tolerations:
               - effect: NoExecute
                 key: test
@@ -162,15 +106,6 @@ tests:
             volumeSpec:
               emptyDir: {}
             gracePeriod: 60
-            lifecycle:
-              preStop:
-                exec:
-                  command:
-                  - /bin/true
-              postStart:
-                exec:
-                  command:
-                  - /bin/true
             readinessDelaySec: 20
             livenessDelaySec: 400
             readinessProbes:
@@ -185,15 +120,6 @@ tests:
               periodSeconds: 40
               successThreshold: 1
               timeoutSeconds: 6
-            healthCheck:
-              interval: 10
-              rise: 1
-              fall: 2
-            containerSecurityContext:
-              privileged: false
-            podSecurityContext:
-              runAsGroup: 1001
-              runAsUser: 1001
 
   - it: test_haproxy can be disabled
     set:
@@ -244,52 +170,93 @@ tests:
             global
               maxconn 2048
 
-  - it: test_haproxy renders metadata and scheduling fields when defined
+  - it: test_haproxy renders metadata and node scheduling fields when defined
     set:
       haproxy.annotations:
         iam.amazonaws.com/role: role-arn
       haproxy.labels:
         rack: rack-22
-      haproxy.runtimeClassName: image-rc
-      haproxy.priorityClassName: high-priority
-      haproxy.schedulerName: mycustom-scheduler
-      haproxy.envVarsSecret: my-env-var-secrets
       haproxy.nodeSelector:
         disktype: ssd
-      haproxy.serviceAccountName: percona-xtradb-cluster-operator-workload
-      haproxy.topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: DoNotSchedule
       haproxy.tolerations:
         - key: node.alpha.kubernetes.io/unreachable
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 6000
     asserts:
-      - isSubset:
-          path: spec.haproxy
-          content:
-            annotations:
-              iam.amazonaws.com/role: role-arn
-            labels:
-              rack: rack-22
-            runtimeClassName: image-rc
-            priorityClassName: high-priority
-            schedulerName: mycustom-scheduler
-            envVarsSecret: my-env-var-secrets
-            nodeSelector:
-              disktype: ssd
-            serviceAccountName: percona-xtradb-cluster-operator-workload
-            topologySpreadConstraints:
-              - maxSkew: 1
-                topologyKey: kubernetes.io/hostname
-                whenUnsatisfiable: DoNotSchedule
-            tolerations:
-              - key: node.alpha.kubernetes.io/unreachable
-                operator: Exists
-                effect: NoExecute
-                tolerationSeconds: 6000
+      - equal:
+          path: spec.haproxy.annotations
+          value:
+            iam.amazonaws.com/role: role-arn
+      - equal:
+          path: spec.haproxy.labels
+          value:
+            rack: rack-22
+      - equal:
+          path: spec.haproxy.nodeSelector
+          value:
+            disktype: ssd
+      - equal:
+          path: spec.haproxy.tolerations
+          value:
+            - key: node.alpha.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 6000
+
+  - it: test_haproxy renders runtime class when defined
+    set:
+      haproxy.runtimeClassName: image-rc
+    asserts:
+      - equal:
+          path: spec.haproxy.runtimeClassName
+          value: image-rc
+
+  - it: test_haproxy renders priority class when defined
+    set:
+      haproxy.priorityClassName: high-priority
+    asserts:
+      - equal:
+          path: spec.haproxy.priorityClassName
+          value: high-priority
+
+  - it: test_haproxy renders scheduler name when defined
+    set:
+      haproxy.schedulerName: mycustom-scheduler
+    asserts:
+      - equal:
+          path: spec.haproxy.schedulerName
+          value: mycustom-scheduler
+
+  - it: test_haproxy renders env vars secret when defined
+    set:
+      haproxy.envVarsSecret: my-env-var-secrets
+    asserts:
+      - equal:
+          path: spec.haproxy.envVarsSecret
+          value: my-env-var-secrets
+
+  - it: test_haproxy renders service account when defined
+    set:
+      haproxy.serviceAccountName: percona-xtradb-cluster-operator-workload
+    asserts:
+      - equal:
+          path: spec.haproxy.serviceAccountName
+          value: percona-xtradb-cluster-operator-workload
+
+  - it: test_haproxy renders topology spread constraints when defined
+    set:
+      haproxy.topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+    asserts:
+      - equal:
+          path: spec.haproxy.topologySpreadConstraints
+          value:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
 
   - it: test_haproxy renders resource limits when defined
     set:

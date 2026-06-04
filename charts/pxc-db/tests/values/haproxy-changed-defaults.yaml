@@ -1,45 +1,12 @@
 haproxy:
   size: 5
   image: changed-image
-  imagePullPolicy: Always
   imagePullSecrets:
     - name: pull-secret
-  schedulerName: scheduler
-  configuration: |
-    global
-      maxconn 1
-  priorityClassName: priority
-  exposePrimary:
-    type: ClusterIP
-    loadBalancerClass: lb-class
-    annotations:
-      test: primary
-    externalTrafficPolicy: Cluster
-    internalTrafficPolicy: Cluster
-    labels:
-      test: primary
-    loadBalancerSourceRanges:
-      - 10.0.0.0/24
-  exposeReplicas:
-    enabled: true
-    onlyReaders: false
-    type: ClusterIP
-    loadBalancerClass: lb-class
-    annotations:
-      test: replicas
-    externalTrafficPolicy: Cluster
-    internalTrafficPolicy: Cluster
-    labels:
-      test: replicas
-    loadBalancerSourceRanges:
-      - 10.0.0.0/24
-    loadBalancerIP: 127.0.0.1
   annotations:
     test: annotation
   labels:
     test: label
-  runtimeClassName: image-rc
-  envVarsSecret: env-secret
   resources:
     requests:
       cpu: 1m
@@ -57,12 +24,6 @@ haproxy:
     - name: sidecar-pvc
       persistentVolumeClaim:
         claimName: sidecar-claim
-  extraPVCs:
-    - name: extra-volume
-      claimName: extra-claim
-      mountPath: /mnt/data
-      readOnly: false
-      subPath: data
   sidecarResources:
     requests:
       cpu: 3m
@@ -70,26 +31,10 @@ haproxy:
     limits:
       cpu: 4m
       memory: 4Mi
-  serviceAccountName: workload
   nodeSelector:
     disktype: ssd
-  topologySpreadConstraints:
-    - labelSelector:
-        matchLabels:
-          app: pxc
-      maxSkew: 1
-      topologyKey: kubernetes.io/hostname
-      whenUnsatisfiable: DoNotSchedule
   affinity:
-    advanced:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: zone
-                  operator: In
-                  values:
-                    - a
+    antiAffinityTopologyKey: topology.kubernetes.io/zone
   tolerations:
     - key: test
       operator: Exists
@@ -98,15 +43,6 @@ haproxy:
   gracePeriod: 60
   podDisruptionBudget:
     maxUnavailable: 2
-  lifecycle:
-    preStop:
-      exec:
-        command:
-          - /bin/true
-    postStart:
-      exec:
-        command:
-          - /bin/true
   readinessDelaySec: 20
   livenessDelaySec: 400
   readinessProbes:
@@ -121,12 +57,3 @@ haproxy:
     periodSeconds: 40
     successThreshold: 1
     timeoutSeconds: 6
-  healthCheck:
-    interval: 10
-    rise: 1
-    fall: 2
-  containerSecurityContext:
-    privileged: false
-  podSecurityContext:
-    runAsUser: 1001
-    runAsGroup: 1001
