@@ -27,7 +27,7 @@ The chart can be customized using the following configurable parameters:
 | Parameter                       | Description                                                                                    | Default                                          |
 | ------------------------------- | -----------------------------------------------------------------------------------------------| -------------------------------------------------|
 | `image`                         | PXC Operator Container image full path                                                         | `percona/percona-xtradb-cluster-operator:1.20.0` |
-| `imagePullPolicy`               | PXC Operator Container pull policy                                                             | `Always`                                         |
+| `imagePullPolicy`               | PXC Operator Container pull policy                                                             | `IfNotPresent`                                   |
 | `containerSecurityContext`      | PXC Operator Container securityContext                                                         | `{}`                                             |
 | `imagePullSecrets`              | PXC Operator Pod pull secret                                                                   | `[]`                                             |
 | `replicaCount`                  | PXC Operator Pod quantity                                                                      | `1`                                              |
