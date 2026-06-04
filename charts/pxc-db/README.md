@@ -20,36 +20,42 @@ To install the chart with the `pxc` release name using a dedicated namespace (re
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/pxc-db --version 1.19.1 --namespace my-namespace
+helm install my-db percona/pxc-db --version 1.20.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
-| Parameter                                         | Description                                                                                          | Default                              |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `crVersion`                                       | Version of the Operator the Custom Resource belongs to                                               | `1.19.1`                             |
-| `ignoreAnnotations`                               | Operator will not remove following annotations                                                       | `[]`                                 |
-| `ignoreLabels`                                    | Operator will not remove following labels                                                            | `[]`                                 |
-| `pause`                                           | Stop PXC Database safely                                                                             | `false`                              |
-| `enableVolumeExpansion`                           | Enable volume resizing                                                                               | `false`                              |
-| `unsafeFlags.tls`                                 | Allows users to configure a cluster without TLS/SSL certificates                                     | `false`                              |
-| `unsafeFlags.pxcSize`                             | Allows users to configure a cluster with less than 3 Percona XtraDB Cluster instances                | `false`                              |
-| `unsafeFlags.proxySize`                           | Allows users to configure a cluster with less than 2 ProxySQL or HAProxy Pods                        | `false`                              |
-| `unsafeFlags.backupIfUnhealthy`                   | Allows running a backup even if the cluster status is not `ready`                                    | `false`                              |
-| `enableCRValidationWebhook`                       | Enables or disables schema validation before applying custom resource                                | `false`                              |
-| `initContainer.image`                             | An alternative image for the initial Operator installation                                           | `""`                                 |
-| `initContainer.containerSecurityContext`          | A custom Kubernetes Security Context for a Container to be used instead of the default               | `{}`                                 |
-| `initContainer.resources.requests`                | Init container resource requests                                                                     | `{}`                                 |
-| `initContainer.resources.limits`                  | Init container resource limits                                                                       | `{}`                                 |
-| `updateStrategy`                                  | Regulates the way how PXC Cluster Pods will be updated after setting a new image                     | `SmartUpdate`                        |
-| `upgradeOptions.versionServiceEndpoint`           | Endpoint for actual PXC Versions provider                                                            | `https://check.percona.com/versions` |
-| `upgradeOptions.apply`                            | PXC image to apply from version service - `recommended`, `latest`, actual version like `8.0.19-10.1` | `disabled`                           |
-| `upgradeOptions.schedule`                         | Cron formatted time to execute the update                                                            | `"0 4 * * *"`                        |
-| `finalizers:percona.com/delete-pxc-pods-in-order` | Set this if you want to delete PXC pods in order on cluster deletion                                 | []                                   |
-| `finalizers:percona.com/delete-proxysql-pvc`      | Set this if you want to delete proxysql persistent volumes on cluster deletion                       | []                                   |
-| `finalizers:percona.com/delete-pxc-pvc`           | Set this if you want to delete database persistent volumes on cluster deletion                       | []                                   |
-| `finalizers:percona.com/delete-ssl`               | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion         | []                                   |
-| `annotations`                                     | PerconaXtraDBCluster custom resource annotations                                                     | {}                                   |
+| Parameter                                            | Description                                                                                                                                            | Default                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| `crVersion`                                          | Version of the Operator the Custom Resource belongs to                                                                                                 | `1.20.0`                             |
+| `ignoreAnnotations`                                  | Operator will not remove following annotations                                                                                                         | `[]`                                 |
+| `ignoreLabels`                                       | Operator will not remove following labels                                                                                                              | `[]`                                 |
+| `pause`                                              | Stop PXC Database safely                                                                                                                               | `false`                              |
+| ~~`enableVolumeExpansion`~~                          | **Deprecated.** Use `storageScaling.enableVolumeScaling` instead. Allows to resize `PersistentVolumeClaim`s by changing `.pxc.persistence.size` field. | `false`                              |
+| `storageScaling.enableVolumeScaling`                 | Enable volume resizing                                                                                                                                 | `false`                              |
+| `storageScaling.enableExternalAutoscaling`           | Enable external volume autoscaling                                                                                                                     | `false`                              |
+| `storageScaling.autoscaling.enabled`                 | Enable volume autoscaling                                                                                                                              | `false`                              |
+| `storageScaling.autoscaling.triggerThresholdPercent` | Percentage of disk usage that triggers automatic storage expansion                                                                                     | `80`                                 |
+| `storageScaling.autoscaling.growthStep`              | Amount to add to storage when the threshold is exceeded                                                                                                | `2Gi`                                |
+| `storageScaling.autoscaling.maxSize`                 | Maximum size for PVCs. If set, autoscaling will not increase storage beyond this limit                                                                 | ``                                   |
+| `unsafeFlags.tls`                                    | Allows users to configure a cluster without TLS/SSL certificates                                                                                       | `false`                              |
+| `unsafeFlags.pxcSize`                                | Allows users to configure a cluster with less than 3 Percona XtraDB Cluster instances                                                                  | `false`                              |
+| `unsafeFlags.proxySize`                              | Allows users to configure a cluster with less than 2 ProxySQL or HAProxy Pods                                                                          | `false`                              |
+| `unsafeFlags.backupIfUnhealthy`                      | Allows running a backup even if the cluster status is not `ready`                                                                                      | `false`                              |
+| `enableCRValidationWebhook`                          | Enables or disables schema validation before applying custom resource                                                                                  | `false`                              |
+| `initContainer.image`                                | An alternative image for the initial Operator installation                                                                                             | `""`                                 |
+| `initContainer.containerSecurityContext`             | A custom Kubernetes Security Context for a Container to be used instead of the default                                                                 | `{}`                                 |
+| `initContainer.resources.requests`                   | Init container resource requests                                                                                                                       | `{}`                                 |
+| `initContainer.resources.limits`                     | Init container resource limits                                                                                                                         | `{}`                                 |
+| `updateStrategy`                                     | Regulates the way how PXC Cluster Pods will be updated after setting a new image                                                                       | `SmartUpdate`                        |
+| `upgradeOptions.versionServiceEndpoint`              | Endpoint for actual PXC Versions provider                                                                                                              | `https://check.percona.com/versions` |
+| `upgradeOptions.apply`                               | PXC image to apply from version service - `recommended`, `latest`, actual version like `8.0.19-10.1`                                                   | `disabled`                           |
+| `upgradeOptions.schedule`                            | Cron formatted time to execute the update                                                                                                              | `"0 4 * * *"`                        |
+| `finalizers:percona.com/delete-pxc-pods-in-order`    | Set this if you want to delete PXC pods in order on cluster deletion                                                                                   | []                                   |
+| `finalizers:percona.com/delete-proxysql-pvc`         | Set this if you want to delete proxysql persistent volumes on cluster deletion                                                                         | []                                   |
+| `finalizers:percona.com/delete-pxc-pvc`              | Set this if you want to delete database persistent volumes on cluster deletion                                                                         | []                                   |
+| `finalizers:percona.com/delete-ssl`                  | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion                                                           | []                                   |
+| `annotations`                                        | PerconaXtraDBCluster custom resource annotations                                                                                                       | {}                                   |
 | |
 | `tls.enabled`             | Enable PXC Pod communication with TLS                                                                      | `true`  |
 | `tls.certValidityDuration`| Defines how long certificates will remain valid from the moment it is issued by cert-manager               | `""`    | 
@@ -259,14 +265,19 @@ The chart can be customized using the following configurable parameters:
 | `proxysql.containerSecurityContext`                | A custom Kubernetes Security Context for a Container to be used instead of the default one                                                                                                                                                                                                              | `{}`                              |
 | `proxysql.podSecurityContext`                      | A custom Kubernetes Security Context for a Pod to be used instead of the default one                                                                                                                                                                                                                    | `{}`                              |
 | |
-| `logcollector.enabled`                  | Enable log collector container                                                             | `true`                                                        |
-| `logcollector.image`                    | Log collector image repository                                                             | `percona/fluentbit:4.0.1-1`                                   |
-| `logcollector.imagePullSecrets`         | Log collector pull secret                                                                  | `[]`                                                          |
-| `logcollector.imagePullPolicy`          | The policy used to update images                                                           | ``                                                            |
-| `logcollector.configuration`            | User defined configuration for logcollector                                                | ``                                                            |
-| `logcollector.resources.requests`       | Log collector resource requests                                                            | `{"memory": "100M", "cpu": "200m"}`                           |
-| `logcollector.resources.limits`         | Log collector resource limits                                                              | `{}`                                                          |
-| `logcollector.containerSecurityContext` | A custom Kubernetes Security Context for a Container to be used instead of the default one | `{}`                                                          |
+| `logcollector.enabled`                    | Enable log collector container                                                             | `true`                                                        |
+| `logcollector.image`                      | Log collector image repository                                                             | `percona/fluentbit:4.0.1-1`                                   |
+| `logcollector.imagePullSecrets`           | Log collector pull secret                                                                  | `[]`                                                          |
+| `logcollector.imagePullPolicy`            | The policy used to update images                                                           | ``                                                            |
+| `logcollector.configuration`              | User defined configuration for logcollector                                                | ``                                                            |
+| `logcollector.resources.requests`         | Log collector resource requests                                                            | `{"memory": "100M", "cpu": "200m"}`                           |
+| `logcollector.resources.limits`           | Log collector resource limits                                                              | `{}`                                                          |
+| `logcollector.containerSecurityContext`   | A custom Kubernetes Security Context for a Container to be used instead of the default one | `{}`                                                          |
+| `logcollector.logRotate`                  | Logrotate configuration for PXC log files                                                  | `{}`                                                          |
+| `logcollector.logRotate.schedule`         | Cron schedule for running logrotate                                                        | ``                                                            |
+| `logcollector.logRotate.configuration`    | User defined logrotate configuration                                                       | ``                                                            |
+| `logcollector.logRotate.extraConfig`      | Reference to an additional ConfigMap with logrotate configuration files                    | `{}`                                                          |
+| `logcollector.logRotate.extraConfig.name` | Name of the additional ConfigMap with logrotate configuration files                        | ``                                                            |
 | |
 | `pmm.enabled`                            | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/doc/kubernetes-operator-for-pxc/monitoring.html)                                                       | `false`                             |
 | `pmm.image.repository`                   | PMM Container image repository                                                                                                                                                                      | `percona/pmm-client`                | 

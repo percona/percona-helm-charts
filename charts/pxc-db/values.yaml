@@ -19,9 +19,17 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.19.1
+crVersion: 1.20.0
 
 enableVolumeExpansion: false
+# storageScaling:
+#   enableVolumeScaling: false
+#   enableExternalAutoscaling: false
+#   autoscaling:
+#     enabled: false
+#     triggerThresholdPercent: 80
+#     growthStep: 2Gi
+#     maxSize: 10Gi
 
 ignoreAnnotations: []
   # - iam.amazonaws.com/role
@@ -29,7 +37,7 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.19.1"
+#   image: "percona/percona-xtradb-cluster-operator:1.20.0"
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -587,6 +595,19 @@ logcollector:
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
+  # logRotate:
+  #   schedule: "*/5 * * * *"
+  #   configuration: |
+  #     /var/lib/mysql/GRA_*.log {
+  #       daily
+  #       rotate 7
+  #       missingok
+  #       notifempty
+  #       compress
+  #       delaycompress
+  #     }
+  #   extraConfig:
+  #     name: my-logrotate-config
 
 # users:
 # - name: my-user
@@ -730,6 +751,9 @@ backup:
     #     #credentialsAccessKey: REPLACE-WITH-AWS-ACCESS-KEY
     #     #credentialsSecretKey: REPLACE-WITH-AWS-SECRET-KEY
     #     region: us-west-2
+    #     forcePathStyle: true
+    #     prefix: prefix
+    #     checksumAlgorithm: SHA256
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
     #     caBundle:
     #       name: s3-ca-bundle-secret-name
