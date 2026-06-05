@@ -24,6 +24,28 @@ Useful links:
 
 You will need [Helm v3](https://github.com/helm/helm) for the installation. See detailed installation instructions in the README file of each chart.
 
+## Testing Charts
+
+This repository uses the [helm-unittest](https://github.com/helm-unittest/helm-unittest) plugin for chart unit tests.
+
+Install the plugin:
+
+```sh
+make helm-unittest
+```
+
+Run all unit tests configured in the Makefile:
+
+```sh
+make test
+```
+
+Run a specific chart test target:
+
+```sh
+make test-<chart-name>
+```
+
 # Need help?
 
 |                                                                                                         **Commercial Support**                                                                                                         |                                                       **Community Support**                                                        |
