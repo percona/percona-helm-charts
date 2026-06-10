@@ -1,0 +1,556 @@
+suite: pxc-db haproxy
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: test_haproxy renders default structure
+    set:
+      haproxy.image: default-image
+    asserts:
+      - isSubset:
+          path: spec.haproxy
+          content:
+            enabled: true
+            size: 3
+            image: default-image
+            annotations: {}
+            labels: {}
+            resources:
+              requests:
+                cpu: 600m
+                memory: 1G
+              limits: {}
+            sidecars: []
+            sidecarVolumes: []
+            sidecarPVCs: []
+            sidecarResources:
+              requests: {}
+              limits: {}
+            nodeSelector: {}
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            tolerations: []
+            podDisruptionBudget:
+              maxUnavailable: 1
+            volumeSpec:
+              emptyDir: {}
+            gracePeriod: 30
+            readinessDelaySec: 15
+            livenessDelaySec: 300
+            readinessProbes:
+              failureThreshold: 3
+              initialDelaySeconds: 15
+              periodSeconds: 5
+              successThreshold: 1
+              timeoutSeconds: 1
+            livenessProbes:
+              failureThreshold: 4
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              successThreshold: 1
+              timeoutSeconds: 5
+
+  - it: test_haproxy renders changed default values
+    values:
+      - values/haproxy-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.haproxy
+          value:
+            enabled: true
+            size: 5
+            image: changed-image
+            imagePullSecrets:
+              - name: pull-secret
+            annotations:
+              test: annotation
+            labels:
+              test: label
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+            sidecars:
+              - image: changed-image
+                name: sidecar
+            sidecarVolumes:
+              - emptyDir: {}
+                name: sidecar-volume
+            sidecarPVCs:
+              - name: sidecar-pvc
+                persistentVolumeClaim:
+                  claimName: sidecar-claim
+            sidecarResources:
+              requests:
+                cpu: 3m
+                memory: 3Mi
+              limits:
+                cpu: 4m
+                memory: 4Mi
+            nodeSelector:
+              disktype: ssd
+            affinity:
+              antiAffinityTopologyKey: topology.kubernetes.io/zone
+            tolerations:
+              - effect: NoExecute
+                key: test
+                operator: Exists
+                tolerationSeconds: 60
+            podDisruptionBudget:
+              maxUnavailable: 2
+            volumeSpec:
+              emptyDir: {}
+            gracePeriod: 60
+            readinessDelaySec: 20
+            livenessDelaySec: 400
+            readinessProbes:
+              failureThreshold: 5
+              initialDelaySeconds: 20
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 2
+            livenessProbes:
+              failureThreshold: 6
+              initialDelaySeconds: 80
+              periodSeconds: 40
+              successThreshold: 1
+              timeoutSeconds: 6
+
+  - it: test_haproxy can be disabled
+    set:
+      haproxy.enabled: false
+    asserts:
+      - equal:
+          path: spec.haproxy.enabled
+          value: false
+
+  - it: test_haproxy renders size when defined
+    set:
+      haproxy.size: 2
+    asserts:
+      - equal:
+          path: spec.haproxy.size
+          value: 2
+
+  - it: test_haproxy renders image when defined
+    set:
+      haproxy.image: dummy-image
+    asserts:
+      - equal:
+          path: spec.haproxy.image
+          value: dummy-image
+
+  - it: test_haproxy renders image pull settings when defined
+    set:
+      haproxy.imagePullPolicy: Always
+      haproxy.imagePullSecrets:
+        - name: private-registry-credentials
+    asserts:
+      - isSubset:
+          path: spec.haproxy
+          content:
+            imagePullPolicy: Always
+            imagePullSecrets:
+              - name: private-registry-credentials
+
+  - it: test_haproxy renders configuration when defined
+    set:
+      haproxy.configuration: |
+        global
+          maxconn 2048
+    asserts:
+      - equal:
+          path: spec.haproxy.configuration
+          value: |
+            global
+              maxconn 2048
+
+  - it: test_haproxy renders metadata and node scheduling fields when defined
+    set:
+      haproxy.annotations:
+        iam.amazonaws.com/role: role-arn
+      haproxy.labels:
+        rack: rack-22
+      haproxy.nodeSelector:
+        disktype: ssd
+      haproxy.tolerations:
+        - key: node.alpha.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 6000
+    asserts:
+      - equal:
+          path: spec.haproxy.annotations
+          value:
+            iam.amazonaws.com/role: role-arn
+      - equal:
+          path: spec.haproxy.labels
+          value:
+            rack: rack-22
+      - equal:
+          path: spec.haproxy.nodeSelector
+          value:
+            disktype: ssd
+      - equal:
+          path: spec.haproxy.tolerations
+          value:
+            - key: node.alpha.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 6000
+
+  - it: test_haproxy renders runtime class when defined
+    set:
+      haproxy.runtimeClassName: image-rc
+    asserts:
+      - equal:
+          path: spec.haproxy.runtimeClassName
+          value: image-rc
+
+  - it: test_haproxy renders priority class when defined
+    set:
+      haproxy.priorityClassName: high-priority
+    asserts:
+      - equal:
+          path: spec.haproxy.priorityClassName
+          value: high-priority
+
+  - it: test_haproxy renders scheduler name when defined
+    set:
+      haproxy.schedulerName: mycustom-scheduler
+    asserts:
+      - equal:
+          path: spec.haproxy.schedulerName
+          value: mycustom-scheduler
+
+  - it: test_haproxy renders env vars secret when defined
+    set:
+      haproxy.envVarsSecret: my-env-var-secrets
+    asserts:
+      - equal:
+          path: spec.haproxy.envVarsSecret
+          value: my-env-var-secrets
+
+  - it: test_haproxy renders service account when defined
+    set:
+      haproxy.serviceAccountName: percona-xtradb-cluster-operator-workload
+    asserts:
+      - equal:
+          path: spec.haproxy.serviceAccountName
+          value: percona-xtradb-cluster-operator-workload
+
+  - it: test_haproxy renders topology spread constraints when defined
+    set:
+      haproxy.topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+    asserts:
+      - equal:
+          path: spec.haproxy.topologySpreadConstraints
+          value:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+
+  - it: test_haproxy renders resource limits when defined
+    set:
+      haproxy.resources.limits:
+        memory: 2G
+        cpu: 1
+    asserts:
+      - equal:
+          path: spec.haproxy.resources.limits
+          value:
+            memory: 2G
+            cpu: 1
+
+  - it: test_haproxy renders extra PVCs when defined
+    set:
+      haproxy.extraPVCs:
+        - name: my-volume
+          claimName: my-existing-pvc
+          mountPath: /mnt/data
+          readOnly: false
+          subPath: ""
+    asserts:
+      - equal:
+          path: spec.haproxy.extraPVCs
+          value:
+            - name: my-volume
+              claimName: my-existing-pvc
+              mountPath: /mnt/data
+              readOnly: false
+              subPath: ""
+
+  - it: test_haproxy renders lifecycle hooks when defined
+    set:
+      haproxy.lifecycle:
+        preStop:
+          exec:
+            command:
+              - /bin/true
+        postStart:
+          exec:
+            command:
+              - /bin/true
+    asserts:
+      - equal:
+          path: spec.haproxy.lifecycle
+          value:
+            preStop:
+              exec:
+                command:
+                  - /bin/true
+            postStart:
+              exec:
+                command:
+                  - /bin/true
+
+  - it: test_haproxy renders expose primary settings when defined
+    set:
+      haproxy.exposePrimary:
+        type: ClusterIP
+        loadBalancerClass: eks.amazonaws.com/nlb
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+        externalTrafficPolicy: Cluster
+        internalTrafficPolicy: Cluster
+        labels:
+          rack: rack-22
+        loadBalancerSourceRanges:
+          - 10.0.0.0/8
+    asserts:
+      - equal:
+          path: spec.haproxy.exposePrimary
+          value:
+            type: ClusterIP
+            loadBalancerClass: eks.amazonaws.com/nlb
+            annotations:
+              service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+            externalTrafficPolicy: Cluster
+            internalTrafficPolicy: Cluster
+            labels:
+              rack: rack-22
+            loadBalancerSourceRanges:
+              - 10.0.0.0/8
+
+  - it: test_haproxy renders expose replicas settings when defined
+    set:
+      haproxy.exposeReplicas:
+        enabled: true
+        onlyReaders: false
+        type: ClusterIP
+        loadBalancerClass: eks.amazonaws.com/nlb
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+        externalTrafficPolicy: Cluster
+        internalTrafficPolicy: Cluster
+        labels:
+          rack: rack-22
+        loadBalancerSourceRanges:
+          - 10.0.0.0/8
+        loadBalancerIP: 127.0.0.1
+    asserts:
+      - equal:
+          path: spec.haproxy.exposeReplicas
+          value:
+            enabled: true
+            onlyReaders: false
+            type: ClusterIP
+            loadBalancerClass: eks.amazonaws.com/nlb
+            annotations:
+              service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+            externalTrafficPolicy: Cluster
+            internalTrafficPolicy: Cluster
+            labels:
+              rack: rack-22
+            loadBalancerSourceRanges:
+              - 10.0.0.0/8
+            loadBalancerIP: 127.0.0.1
+
+  - it: test_haproxy renders health check when defined
+    set:
+      haproxy.healthCheck:
+        interval: 10000
+        rise: 1
+        fall: 2
+    asserts:
+      - equal:
+          path: spec.haproxy.healthCheck
+          value:
+            interval: 10000
+            rise: 1
+            fall: 2
+
+  - it: test_haproxy renders security contexts when defined
+    set:
+      haproxy.containerSecurityContext:
+        privileged: false
+      haproxy.podSecurityContext:
+        fsGroup: 1001
+        supplementalGroups:
+          - 1001
+    asserts:
+      - isSubset:
+          path: spec.haproxy
+          content:
+            containerSecurityContext:
+              privileged: false
+            podSecurityContext:
+              fsGroup: 1001
+              supplementalGroups:
+                - 1001
+
+  - it: test_haproxy renders sidecars when defined
+    set:
+      haproxy.sidecars:
+        - image: dummy-image
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - while true; do sleep 30; done;
+          name: my-sidecar-1
+    asserts:
+      - equal:
+          path: spec.haproxy.sidecars
+          value:
+            - image: dummy-image
+              command:
+                - /bin/sh
+              args:
+                - -c
+                - while true; do sleep 30; done;
+              name: my-sidecar-1
+
+  - it: test_haproxy renders sidecar volumes when defined
+    set:
+      haproxy.sidecarVolumes:
+        - name: sidecar-volume
+          emptyDir: {}
+    asserts:
+      - equal:
+          path: spec.haproxy.sidecarVolumes
+          value:
+            - name: sidecar-volume
+              emptyDir: {}
+
+  - it: test_haproxy renders sidecar PVCs when defined
+    set:
+      haproxy.sidecarPVCs:
+        - name: sidecar-pvc
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    asserts:
+      - equal:
+          path: spec.haproxy.sidecarPVCs
+          value:
+            - name: sidecar-pvc
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 1Gi
+
+  - it: test_haproxy renders sidecar resources when defined
+    set:
+      haproxy.sidecarResources:
+        requests:
+          memory: 100M
+          cpu: 100m
+        limits:
+          memory: 200M
+          cpu: 200m
+    asserts:
+      - equal:
+          path: spec.haproxy.sidecarResources
+          value:
+            requests:
+              memory: 100M
+              cpu: 100m
+            limits:
+              memory: 200M
+              cpu: 200m
+
+  - it: test_haproxy renders readiness probes when defined
+    set:
+      haproxy.readinessProbes:
+        initialDelaySeconds: 20
+        timeoutSeconds: 2
+        periodSeconds: 10
+        successThreshold: 1
+        failureThreshold: 4
+    asserts:
+      - equal:
+          path: spec.haproxy.readinessProbes
+          value:
+            initialDelaySeconds: 20
+            timeoutSeconds: 2
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 4
+
+  - it: test_haproxy renders liveness probes when defined
+    set:
+      haproxy.livenessProbes:
+        initialDelaySeconds: 80
+        timeoutSeconds: 6
+        periodSeconds: 20
+        successThreshold: 1
+        failureThreshold: 5
+    asserts:
+      - equal:
+          path: spec.haproxy.livenessProbes
+          value:
+            initialDelaySeconds: 80
+            timeoutSeconds: 6
+            periodSeconds: 20
+            successThreshold: 1
+            failureThreshold: 5
+
+  - it: test_haproxy renders pod disruption budget minAvailable when defined
+    set:
+      haproxy.podDisruptionBudget:
+        minAvailable: 1
+    asserts:
+      - isSubset:
+          path: spec.haproxy.podDisruptionBudget
+          content:
+            minAvailable: 1
+
+  - it: test_haproxy renders advanced affinity when defined
+    set:
+      haproxy.affinity:
+        advanced:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/e2e-az-name
+                      operator: In
+                      values:
+                        - e2e-az1
+                        - e2e-az2
+    asserts:
+      - isSubset:
+          path: spec.haproxy.affinity
+          content:
+            advanced:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/e2e-az-name
+                          operator: In
+                          values:
+                            - e2e-az1
+                            - e2e-az2
