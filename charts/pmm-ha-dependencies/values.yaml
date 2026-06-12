@@ -16,9 +16,26 @@ victoria-metrics-operator:
 ## The altinity-clickhouse-operator manages ClickHouse clusters
 altinity-clickhouse-operator:
   enabled: true
+  # The operator's RBAC is already cluster-wide (rbac.namespaceScoped defaults to false),
+  # but it only watches its own namespace unless told otherwise — so ClickHouseInstallations
+  # in other namespaces (e.g. a DR restore target) are never reconciled. Make it watch all
+  # namespaces. NOTE: an empty watch list ("all namespaces" per the docs) did NOT take
+  # effect in 0.25.4 during testing (the operator stayed on its own namespace), so use a
+  # regexp that matches every namespace. Validate after deploy; alternatively set this to a
+  # comma-separated list/regexp of specific DR target namespaces.  [PMM-15151]
+  operator:
+    env:
+      - name: WATCH_NAMESPACES
+        value: ".*"
   # fullnameOverride: clickhouse-op  # Uncomment to shorten resource names if hitting 63-char limit
 
 ## @section PostgreSQL Operator Configuration
 ## The pg-operator manages PostgreSQL clusters
 pg-operator:
   enabled: true
+  # Watch ALL namespaces so PostgreSQL clusters created in other namespaces — e.g. a
+  # cross-namespace DR restore target — are reconciled. This also switches the operator
+  # RBAC from a namespaced Role/RoleBinding to a ClusterRole/ClusterRoleBinding. Matches
+  # the VictoriaMetrics operator, which is already cluster-scoped. (Subchart default is
+  # false = the operator watches only its own namespace.)  [PMM-15151]
+  watchAllNamespaces: true
