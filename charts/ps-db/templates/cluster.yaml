@@ -691,6 +691,10 @@ spec:
   {{- if $backup.sourcePod }}
     sourcePod: {{ $backup.sourcePod }}
   {{- end }}
+  {{- if $backup.encryptionKeySecret }}
+    encryptionKeySecret:
+{{ $backup.encryptionKeySecret | toYaml | indent 6 }}
+  {{- end }}
   {{- if not $backup.enabled }}
     enabled: false
   {{- else }}

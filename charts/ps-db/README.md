@@ -270,6 +270,8 @@ The chart can be customized using the following configurable parameters:
 ||
 | `backup.enabled`                                | Enable backups                                                                              | `true`                       |
 | `backup.sourcePod`                              | Specify backup source pod                                                                   | ``                           |
+| `backup.encryptionKeySecret.name`               | Name of the Kubernetes Secret with the backup encryption key                                | ``                           |
+| `backup.encryptionKeySecret.key`                | Key in the Secret that contains the backup encryption key                                   | `encryptionKey`              |
 | `backup.image.repository`                       | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
 | `backup.image.tag`                              | Backup Container image tag                                                                  | `8.4.0-5.1`                  |
 | `backup.backoffLimit`                           | The number of retries to make a backup                                                      | ``                           |
