@@ -2,3 +2,9 @@
 .idea/
 *.tgz
 .DS_Store
+
+# Local-only Helm value overrides with real env/account/bucket details — never commit
+values-dev.yaml
+values-*.local.yaml
+**/values-dev.yaml
+**/values-*.local.yaml
