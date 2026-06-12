@@ -125,6 +125,38 @@ The command deploys PMM HA on the Kubernetes cluster with the default high avail
 
 > **Important**: For production deployments, you must create the `pmm-secret` manually before installation since `secret.create` is set to `false` by default. See the [Creating PMM Secret Manually](#creating-pmm-secret-manually) section for detailed examples.
 
+### Installing into multiple namespaces
+
+The operators (PostgreSQL, ClickHouse, VictoriaMetrics) installed by `pmm-ha-dependencies`
+are **cluster-wide**, so they reconcile PMM-HA in any namespace. You can therefore run more
+than one PMM-HA instance on the same cluster (e.g. a disaster-recovery / restore target, or
+an isolated test instance) — install the operators **once**, then install the chart into each
+namespace, with two adjustments for the additional instances:
+
+1. **Use a distinct Helm release name.** The chart's `ClusterRole`/`ClusterRoleBinding` are
+   cluster-scoped and named after the release, so a unique release name avoids name clashes.
+2. **Disable the cluster-wide monitoring sub-charts.** `kube-state-metrics` and
+   `prometheus-node-exporter` are per-*cluster* agents (node-exporter uses host networking on
+   port 9100, so two cannot run on the same node). Install them with the *first* instance only;
+   disable them on the rest — they'll reuse the existing set:
+
+```bash
+# First instance (full stack, in namespace "pmm"):
+helm install pmm-ha percona/pmm-ha -n pmm
+
+# Additional instance (e.g. a restore/DR target in namespace "pmm-dr"):
+#   - distinct release name (pmm-dr)
+#   - cluster-wide monitoring agents off (reuse the first instance's)
+helm install pmm-dr percona/pmm-ha -n pmm-dr \
+  --set kube-state-metrics.enabled=false \
+  --set prometheus-node-exporter.enabled=false
+```
+
+Per-namespace resources (PMM server, PostgreSQL, ClickHouse, VictoriaMetrics, HAProxy) are
+namespaced and do not collide across namespaces. Remember the usual prerequisites in **each**
+namespace: create the `pmm-secret` (see [Creating PMM Secret Manually](#creating-pmm-secret-manually))
+before installing, and ensure the namespace has access to whatever backup storage you use.
+
 ## Uninstalling the Chart
 
 **IMPORTANT**: You must uninstall PMM HA first, then the operators. Uninstalling in the wrong order may leave orphaned resources.

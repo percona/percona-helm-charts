@@ -228,6 +228,7 @@ spec:
           target_label: service
         - target_label: __metrics_path__
           replacement: /metrics
+    {{- if (index .Values "kube-state-metrics" "enabled") }}
     # Scrape kube-state-metrics for Kubernetes object state
     - job_name: 'kube-state-metrics'
       kubernetes_sd_configs:
@@ -246,7 +247,8 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
-    {{- if eq (include "pmm.nodeExporter.mode" .) "internal" }}
+    {{- end }}
+    {{- if and (eq (include "pmm.nodeExporter.mode" .) "internal") (eq (include "pmm.nodeExporter.bundledEnabled" .) "true") }}
     # Scrape node-exporter for node-level metrics (bundled prometheus-node-exporter DaemonSet)
     - job_name: 'node-exporter'
       kubernetes_sd_configs:
