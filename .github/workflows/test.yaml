@@ -4,7 +4,6 @@ on:
   pull_request:
     paths-ignore:
     - 'charts/gcp-marketplace/**'
-    - 'charts/everest/**'
     - 'charts/pmm-ha/**'
     - 'charts/pmm-ha-dependencies/**'
 
@@ -63,7 +62,7 @@ jobs:
           fi
 
       - name: Run chart-testing (lint)
-        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=everest,pmm-ha,pmm-ha-dependencies
+        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=pmm-ha,pmm-ha-dependencies
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.14.0
@@ -73,7 +72,7 @@ jobs:
       - name: Run db-chart-testing (install)
         run: |
           echo "Base branch is $GITHUB_BASE_REF"
-          excluded_charts=("everest" "pmm-ha" "pmm-ha-dependencies")
+          excluded_charts=("pmm-ha" "pmm-ha-dependencies")
           # Exclude -operator-crds; they are installed in the next step with --take-ownership
           while IFS= read -r crd; do [[ -n "$crd" ]] && excluded_charts+=("$crd"); done <<< "$(ct list-changed --config .github/ct.yaml | sed 's:^charts/::' | grep '\-operator-crds$' || true)"
           OPERATOR_INSTALL=$(ct list-changed --config .github/ct.yaml | sed -E 's:charts/::' | awk '/(-db|-operator)$/ { sub(/-db$/, "-operator"); print }' | sort -u)
