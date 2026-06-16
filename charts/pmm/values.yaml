@@ -329,3 +329,13 @@ extraVolumeMounts:
 ## @param initContainers Optionally specify extra list of init containers
 ##
 initContainers: []
+
+## @param extraEnvFrom Optionally specify a list of additional envFrom sources (ConfigMaps/Secrets) appended to the PMM container's envFrom
+##
+extraEnvFrom: []
+#  - secretRef:
+#      name: my-extra-pmm-secret
+#      optional: true
+#  - configMapRef:
+#      name: my-extra-pmm-config
+#      prefix: EXTRA_
