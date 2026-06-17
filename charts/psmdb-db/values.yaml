@@ -869,3 +869,72 @@ logcollector:
     requests:
       memory: 100M
       cpu: 200m
+
+# Percona ClusterSync for MongoDB (PCSM): one-shot live replication from a
+# source MongoDB into this operator-managed cluster. The chart creates a
+# PerconaServerMongoDBClusterSync CR; the operator reconciles a PCSM
+# Deployment from it. CR existence is the lifecycle signal — disabling the
+# block removes the CR and the operator tears the job down.
+clusterSync:
+  enabled: false
+  # Defaults to "<release-fullname>-sync"
+  # name: ""
+  # Defaults to the PerconaServerMongoDB created by this chart (<release-fullname>)
+  # clusterName: ""
+  image: percona/percona-clustersync-mongodb:0.9.0
+  # imagePullPolicy: IfNotPresent
+  # imagePullSecrets:
+  #   - name: my-pull-secret
+
+  # Lifecycle intent. One of: running, paused, finalized.
+  #   running   - start/resume replication (default)
+  #   paused    - pause an active replication
+  #   finalized - stop replication and tear down owned resources
+  mode: running
+
+  source:
+    # Source MongoDB connection string WITHOUT credentials (mongos or mongod).
+    # Credentials from credentialsSecret are injected at runtime.
+    uri: ""
+    # Same-namespace Secret with `username`/`password` keys.
+    # Defaults to "<sync-name>-source" when credentials below are set.
+    credentialsSecret: ""
+    # If username/password are set the chart creates the credentialsSecret
+    # automatically. Leave empty and pre-create the Secret yourself in prod.
+    credentials: {}
+    #   username: source
+    #   password: mys3cretpAss
+
+  # MongoDB namespaces (db or db.collection) to skip during sync.
+  # excludeNamespaces:
+  #   - admin
+  #   - local
+
+  # PCSM tuning. logLevel maps to --log-level; logJSON maps to --log-json.
+  pcsmConfig: {}
+  #   logLevel: info       # debug | info | warn | error
+  #   logJSON: true
+
+  # Extra env vars passed to the PCSM container (PCSM_* knobs go here).
+  env: []
+  #   - name: PCSM_SOMETHING
+  #     value: "1"
+
+  resources: {}
+  #   requests:
+  #     cpu: 500m
+  #     memory: 512Mi
+  #   limits:
+  #     cpu: "2"
+  #     memory: 2Gi
+
+  annotations: {}
+  labels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # runtimeClassName: ""
+  containerSecurityContext: {}
+  podSecurityContext: {}
+  livenessProbe: {}
+  readinessProbe: {}
