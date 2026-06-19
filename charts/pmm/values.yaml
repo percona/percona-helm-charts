@@ -105,6 +105,62 @@ secret:
   # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET optional secret to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
   # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
 
+## @section External Secrets Integration
+## Configuration for External Secrets Operator (ESO)
+## Supports any secret backend (Vault, AWS Secrets Manager, Azure Key Vault, GCP Secret Manager, etc.)
+##
+externalSecrets:
+  ## @param externalSecrets.enabled Enable External Secrets Operator integration
+  ## When false, use standard Kubernetes secrets (default behavior)
+  enabled: false
+
+  ## @param externalSecrets.oauth OAuth/OIDC credentials for Grafana authentication
+  ## Supports any OAuth provider (Okta, Google, Azure AD, GitHub, GitLab, generic OAuth)
+  oauth:
+    ## @param externalSecrets.oauth.enabled Enable ExternalSecret for OAuth credentials
+    enabled: false
+
+    ## @param externalSecrets.oauth.name Name of the ExternalSecret resource
+    ## If empty, defaults to: <fullname>-oauth-external-secret
+    name: ""
+
+    ## @param externalSecrets.oauth.secretStoreRef Reference to SecretStore or ClusterSecretStore
+    secretStoreRef:
+      ## @param externalSecrets.oauth.secretStoreRef.name Name of the SecretStore/ClusterSecretStore
+      ## Example: "vault-backend", "aws-secretsmanager", "azure-keyvault"
+      name: ""
+      ## @param externalSecrets.oauth.secretStoreRef.kind Kind of secret store
+      ## Options: "SecretStore" (namespace-scoped) or "ClusterSecretStore" (cluster-wide)
+      kind: "SecretStore"
+
+    ## @param externalSecrets.oauth.refreshInterval How often to sync secrets from backend
+    ## Examples: "5m", "1h", "24h"
+    refreshInterval: "5m"
+
+    ## @param externalSecrets.oauth.targetSecretName Target Kubernetes Secret name
+    ## If empty, defaults to: <fullname>-oauth
+    targetSecretName: ""
+
+    ## @param externalSecrets.oauth.data Remote secret configuration
+    ## Maps Kubernetes secret keys to remote secret paths
+    ## Each entry must define secretKey and remoteRef with key and optional property
+    data: []
+    ## Examples:
+    ## - secretKey: "GF_AUTH_GENERIC_OAUTH_CLIENT_ID"
+    ##   remoteRef:
+    ##     key: "secret/data/prod/pmm/oauth"  # Vault KV v2 path
+    ##     property: "client_id"               # Property within the secret
+    ## - secretKey: "GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET"
+    ##   remoteRef:
+    ##     key: "secret/data/prod/pmm/oauth"
+    ##     property: "client_secret"
+
+    ## @param externalSecrets.oauth.annotations Additional annotations for the ExternalSecret resource
+    annotations: {}
+
+    ## @param externalSecrets.oauth.labels Additional labels for the ExternalSecret resource
+    labels: {}
+
 ## @param certs Optional certificates, if not provided PMM would use generated self-signed certificates,
 ##   please provide your own signed ssl certificates like this in base 64 format:
 ## certs:
