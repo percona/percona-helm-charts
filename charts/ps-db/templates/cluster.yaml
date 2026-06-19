@@ -325,7 +325,7 @@ spec:
         {{ $name }}:
           {{- if $resources.claims }}
           claims:
-{{ tpl ($resources.claims | toYaml) $ | indent 10 }}
+{{ tpl ($resources.claims | toYaml) $ | indent 12 }}
           {{- end }}
           {{- if $resources.limits }}
           limits:
