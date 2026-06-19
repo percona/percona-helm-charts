@@ -12,13 +12,17 @@ This repository contains Helm charts for the following Percona products.
 - [Percona Operator for PostgreSQL](charts/pg-operator/)
 - [Percona Distribution for PostgreSQL](charts/pg-db/)
 - [Percona Monitoring and Management (PMM)](charts/pmm/)
-- [Percona Everest](charts/everest/)
+
+> **Note:** The Percona Everest chart that used to live in this repository has
+> been moved. The project has been renamed to OpenEverest and its Helm charts
+> are now maintained at
+> [openeverest/helm-charts](https://github.com/openeverest/helm-charts/).
 
 Useful links:
 
 - [About Percona Kubernetes Operators](https://www.percona.com/software/percona-kubernetes-operators)
 - [About Percona Monitoring and Management](https://www.percona.com/software/database-tools/percona-monitoring-and-management)
-- [About Percona Everest](https://docs.percona.com/everest/index.html)
+- [About OpenEverest](https://openeverest.io)
 
 ## Installing Charts from this Repository
 
@@ -67,6 +71,5 @@ If you find a bug related to one of these Helm charts, please submit a report to
 - [Percona Operator for MongoDB](https://jira.percona.com/projects/K8SPSMDB)
 - [Percona Operator for PostgreSQL](https://jira.percona.com/projects/K8SPG)
 - [Percona Monitoring and Management](https://jira.percona.com/projects/PMM)
-- [Percona Everest](https://docs.percona.com/everest/contribute.html#submit-a-bug-report-or-feature-request)
 
 Learn more about submitting bugs, new feature ideas, and improvements in the [Contribution Guide](CONTRIBUTING.md).
