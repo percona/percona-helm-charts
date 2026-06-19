@@ -3,6 +3,17 @@ Percona Monitoring and Management (PMM)
 
 An open source database monitoring, observability and management tool
 Check more info here: https://docs.percona.com/percona-monitoring-and-management/index.html
+{{- if and (not (index .Values "prometheus-node-exporter" "enabled")) .Values.nodeExporterScrape.scrape (not .Values.nodeExporterScrape.namespaces) (eq .Values.nodeExporterScrape.serviceNameRegex ".*prometheus-node-exporter") }}
+
+WARNING: prometheus-node-exporter.enabled is false, so no node-exporter was installed,
+but nodeExporterScrape still targets the bundled exporter in namespace "{{ .Release.Namespace }}".
+The VMAgent node-exporter job will find no targets and node-level metrics
+(CPU/memory/disk/network) will be missing.
+
+To reuse an existing node-exporter, set nodeExporterScrape.namespaces and
+nodeExporterScrape.serviceNameRegex to match it. To collect node metrics another way,
+set nodeExporterScrape.scrape=false to silence this warning and drop the job.
+{{- end }}
 
 Get the application URL:
 {{- if .Values.ingress.enabled }}

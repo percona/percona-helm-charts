@@ -246,19 +246,28 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
-    # Scrape node-exporter for node-level metrics
+    {{- if .Values.nodeExporterScrape.scrape }}
+    # Scrape node-exporter for node-level metrics. By default this discovers the
+    # bundled prometheus-node-exporter in the release namespace; override
+    # nodeExporterScrape.* to reuse a node-exporter that already exists in the cluster.
     - job_name: 'node-exporter'
       kubernetes_sd_configs:
         - role: endpoints
           namespaces:
             names:
+            {{- if .Values.nodeExporterScrape.namespaces }}
+              {{- range .Values.nodeExporterScrape.namespaces }}
+              - {{ . | quote }}
+              {{- end }}
+            {{- else }}
               - {{ .Release.Namespace }}
+            {{- end }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: '.*prometheus-node-exporter'
+          regex: {{ .Values.nodeExporterScrape.serviceNameRegex | quote }}
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
-          regex: 'metrics|http-metrics'
+          regex: {{ .Values.nodeExporterScrape.portNameRegex | quote }}
           action: keep
         - source_labels: [__meta_kubernetes_pod_node_name]
           target_label: node
@@ -266,6 +275,7 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
+    {{- end }}
     # Scrape kubelet metrics via the apiserver proxy
     - job_name: 'kubelet'
       scheme: https

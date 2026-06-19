@@ -517,6 +517,44 @@ prometheus-node-exporter:
   enabled: false
 ```
 
+> **Disabling `prometheus-node-exporter` stops node metrics unless you reconfigure scraping.**
+> The VMAgent node-exporter job defaults to discovering the *bundled* exporter in the
+> release namespace, so once it is gone the job finds no targets and node-level metrics
+> (CPU/memory/disk/network) go silent. Either point the job at an existing exporter (see
+> below) or set `nodeExporterScrape.scrape: false` to drop the job deliberately.
+
+#### Reusing a node-exporter that already exists
+
+Some clusters already run a node-exporter on every node — for example OpenShift's
+platform node-exporter (managed by the Cluster Monitoring Operator, binding host
+port `9100`), or one shipped by `kube-prometheus-stack`. Installing the bundled
+exporter on top of it wastes resources and, when it tries to bind the same host
+port, conflicts.
+
+Instead of installing a second exporter, disable the bundled one and point the
+built-in VMAgent at the existing one. This works the same on any distribution
+(vanilla Kubernetes, EKS/GKE/AKS, OpenShift):
+
+```yaml
+# Don't install our own node-exporter
+prometheus-node-exporter:
+  enabled: false
+
+# Tell the built-in VMAgent where the existing node-exporter lives
+nodeExporterScrape:
+  scrape: true
+  namespaces:
+    - monitoring                       # namespace(s) the exporter runs in
+  serviceNameRegex: ".*node-exporter"  # service name of the existing exporter
+  portNameRegex: "metrics|http-metrics"
+```
+
+The target exporter must be reachable by VMAgent (network policy / RBAC). On
+OpenShift the platform exporter is protected behind `kube-rbac-proxy`, so rather
+than scraping it directly you typically federate node metrics from the cluster
+monitoring stack. Set `nodeExporterScrape.scrape: false` to drop the node-exporter
+job entirely if you collect node metrics by other means.
+
 **Note on label cardinality**: Container metrics from cAdvisor may have many labels (especially in EKS/GKE with cloud provider labels). The default VMInsert limit is 50 labels per timeseries. If you see "ignoring series... increase -maxLabelsPerTimeseries" warnings, increase the limit:
 
 ```yaml

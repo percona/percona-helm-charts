@@ -695,14 +695,40 @@ pg-db:
 kube-state-metrics:
   enabled: true
 
+## Bundled node-exporter. Set enabled=false to avoid installing a second
+## node-exporter on clusters that already run one (e.g. OpenShift's platform
+## node-exporter managed by the Cluster Monitoring Operator, or one shipped by
+## kube-prometheus-stack). When disabled, point the VMAgent scrape job at the
+## existing exporter via the `nodeExporterScrape` settings below instead.
 prometheus-node-exporter:
   enabled: true
-  service:
-    # Use 9101 instead of the upstream default 9100 to avoid colliding with
-    # OpenShift's platform node-exporter, which is managed by the Cluster
-    # Monitoring Operator and binds host port 9100 on every worker node.
-    port: 9101
-    targetPort: 9101
+
+## @section Node-exporter scrape configuration (built-in VMAgent)
+## The built-in VMAgent scrapes node-exporter for node-level metrics. By default
+## it discovers the bundled prometheus-node-exporter (above) in the release
+## namespace, so a fresh install works with no extra configuration.
+##
+## To REUSE a node-exporter that is already running in the cluster instead of
+## installing another one, set `prometheus-node-exporter.enabled=false` and point
+## the scrape job at the existing exporter with the settings below. This is
+## distribution-agnostic: it works the same on vanilla Kubernetes, EKS/GKE/AKS
+## and OpenShift. The target exporter must be reachable by VMAgent (network
+## policy / RBAC); for OpenShift's protected platform exporter you typically
+## federate from the cluster monitoring stack rather than scrape it directly.
+##
+## NOTE: this only controls SCRAPING. Disabling the bundled exporter
+## (prometheus-node-exporter.enabled=false) without updating namespaces/
+## serviceNameRegex here leaves the job pointing at an exporter that no longer
+## exists, and node-level metrics go silent.
+nodeExporterScrape:
+  ## @param nodeExporterScrape.scrape Enable the built-in VMAgent node-exporter scrape job
+  scrape: true
+  ## @param nodeExporterScrape.namespaces Namespaces to discover node-exporter endpoints in. Empty list = release namespace.
+  namespaces: []
+  ## @param nodeExporterScrape.serviceNameRegex Regex matched against the Kubernetes service name to select node-exporter endpoints
+  serviceNameRegex: ".*prometheus-node-exporter"
+  ## @param nodeExporterScrape.portNameRegex Regex matched against the endpoint port name
+  portNameRegex: "metrics|http-metrics"
 
 
 ## @section VictoriaMetrics Configuration
