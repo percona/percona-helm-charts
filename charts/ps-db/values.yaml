@@ -273,6 +273,15 @@ proxy:
         cpu: 600m
       limits: {}
 
+    # sidecarResources:
+    #   mysql-monit:
+    #     limits:
+    #       cpu: 100m
+    #       memory: 128Mi
+    #     requests:
+    #       cpu: 50m
+    #       memory: 64Mi
+
     # env:
     # - name: HA_CONNECTION_TIMEOUT
     #   value: "1000"
