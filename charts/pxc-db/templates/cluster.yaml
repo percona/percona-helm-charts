@@ -14,6 +14,30 @@ metadata:
 spec:
   crVersion: {{ .Values.crVersion | default .Chart.AppVersion }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
+  {{- if .Values.storageScaling }}
+  storageScaling:
+    {{- if hasKey .Values.storageScaling "enableVolumeScaling" }}
+    enableVolumeScaling: {{ .Values.storageScaling.enableVolumeScaling }}
+    {{- end }}
+    {{- if hasKey .Values.storageScaling "enableExternalAutoscaling" }}
+    enableExternalAutoscaling: {{ .Values.storageScaling.enableExternalAutoscaling }}
+    {{- end }}
+    {{- if .Values.storageScaling.autoscaling }}
+    autoscaling:
+      {{- if hasKey .Values.storageScaling.autoscaling "enabled" }}
+      enabled: {{ .Values.storageScaling.autoscaling.enabled }}
+      {{- end }}
+      {{- if .Values.storageScaling.autoscaling.triggerThresholdPercent }}
+      triggerThresholdPercent: {{ .Values.storageScaling.autoscaling.triggerThresholdPercent }}
+      {{- end }}
+      {{- if .Values.storageScaling.autoscaling.growthStep }}
+      growthStep: {{ .Values.storageScaling.autoscaling.growthStep }}
+      {{- end }}
+      {{- if .Values.storageScaling.autoscaling.maxSize }}
+      maxSize: {{ .Values.storageScaling.autoscaling.maxSize }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
   {{- if .Values.ignoreAnnotations }}
   ignoreAnnotations:
 {{ .Values.ignoreAnnotations | toYaml | indent 4 }}
@@ -238,6 +262,9 @@ spec:
 {{ tpl ($pxc.readinessProbes | toYaml) $ | indent 6 }}
     livenessProbes:
 {{ tpl ($pxc.livenessProbes | toYaml) $ | indent 6 }}
+    {{- if $pxc.sstRetryCount }}
+    sstRetryCount: {{ $pxc.sstRetryCount }}
+    {{- end }}
     {{- if $pxc.containerSecurityContext }}
     containerSecurityContext:
 {{ tpl ($pxc.containerSecurityContext | toYaml) $ | indent 6 }}
@@ -523,6 +550,20 @@ spec:
     containerSecurityContext:
 {{ tpl ($logcollector.containerSecurityContext | toYaml) $ | indent 6 }}
     {{- end }}
+    {{- if $logcollector.logRotate }}
+    logRotate:
+      {{- if $logcollector.logRotate.schedule }}
+      schedule: {{ $logcollector.logRotate.schedule | quote }}
+      {{- end }}
+      {{- if $logcollector.logRotate.configuration }}
+      configuration: |
+{{ tpl $logcollector.logRotate.configuration $ | indent 8 }}
+      {{- end }}
+      {{- if $logcollector.logRotate.extraConfig }}
+      extraConfig:
+{{ tpl ($logcollector.logRotate.extraConfig | toYaml) $ | indent 8 }}
+      {{- end }}
+    {{- end }}
   {{- end }}
 {{- if .Values.users }}
   users:
@@ -617,7 +658,7 @@ spec:
 {{ tpl ($backup.pitr.resources.limits | toYaml) $ | indent 10 }}
     {{- end }}
     storages:
-{{ include "pxc-database.storages" . | indent 6 }}
+{{ include "pxc-database.storages" (dict "storages" $backup.storages "fullname" (include "pxc-database.fullname" .)) | indent 6 }}
     schedule:
 {{ $backup.schedule | toYaml | indent 6 }}
 {{- end }}
