@@ -656,6 +656,23 @@ spec:
     createReplicaMethods:
 {{ .Values.patroni.createReplicaMethods | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.patroni.dcs }}
+    dcs:
+      {{- if .Values.patroni.dcs.type }}
+      type: {{ .Values.patroni.dcs.type }}
+      {{- end }}
+      {{- if .Values.patroni.dcs.etcd }}
+      etcd:
+        endpoints:
+{{ .Values.patroni.dcs.etcd.endpoints | toYaml | indent 8 }}
+        {{- if .Values.patroni.dcs.etcd.authSecret }}
+        authSecret: {{ .Values.patroni.dcs.etcd.authSecret }}
+        {{- end }}
+        {{- if .Values.patroni.dcs.etcd.tlsSecret }}
+        tlsSecret: {{ .Values.patroni.dcs.etcd.tlsSecret }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
 {{- end }}
 
 {{- if .Values.extensions }}
