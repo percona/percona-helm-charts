@@ -366,6 +366,33 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.image.tag`                           | Image tag for the log collector                                               | `4.0.1-2`                        |
 | `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
 | `logcollector.configuration`                       | Custom configuration (optional, if not commented out)                         | `""`                             |
+| |
+| `clusterSync.enabled`                              | Create a `PerconaServerMongoDBClusterSync` CR to replicate data from a source MongoDB into this cluster | `false`                                       |
+| `clusterSync.name`                                 | Override the generated CR name (defaults to `<fullname>-sync`)                                          | `""`                                          |
+| `clusterSync.clusterName`                          | Target `PerconaServerMongoDB` cluster name (defaults to this chart's cluster)                           | `""`                                          |
+| `clusterSync.image`                                | Percona ClusterSync for MongoDB (PCSM) container image                                                  | `percona/percona-clustersync-mongodb:0.9.0`   |
+| `clusterSync.imagePullPolicy`                      | Pull policy for the PCSM image                                                                          | `""`                                          |
+| `clusterSync.imagePullSecrets`                     | Image pull secrets for the PCSM container                                                               | `[]`                                          |
+| `clusterSync.mode`                                 | Lifecycle intent: `running`, `paused`, or `finalized`                                                   | `running`                                     |
+| `clusterSync.source.uri`                           | Source MongoDB connection string without credentials (mongos or mongod)                                 | `""`                                          |
+| `clusterSync.source.credentialsSecret`             | Same-namespace Secret with `username`/`password` keys (defaults to `<sync-name>-source`)                | `""`                                          |
+| `clusterSync.source.credentials.username`          | Inline source username (chart creates the Secret automatically when set)                                | `""`                                          |
+| `clusterSync.source.credentials.password`          | Inline source password (chart creates the Secret automatically when set)                                | `""`                                          |
+| `clusterSync.excludeNamespaces`                    | MongoDB namespaces (db or db.collection) to skip during sync                                            | `[]`                                          |
+| `clusterSync.pcsmConfig.logLevel`                  | PCSM log level: `debug`, `info`, `warn`, `error`                                                        | `""`                                          |
+| `clusterSync.pcsmConfig.logJSON`                   | Toggle PCSM structured (JSON) logging                                                                   | `""`                                          |
+| `clusterSync.env`                                  | Extra environment variables passed to the PCSM container (`PCSM_*` knobs)                               | `[]`                                          |
+| `clusterSync.resources`                            | Resource requests and limits for the PCSM container                                                     | `{}`                                          |
+| `clusterSync.annotations`                          | Annotations applied to the CR                                                                           | `{}`                                          |
+| `clusterSync.labels`                               | Labels applied to the PCSM Pod                                                                          | `{}`                                          |
+| `clusterSync.nodeSelector`                         | Node selector for the PCSM Pod                                                                          | `{}`                                          |
+| `clusterSync.tolerations`                          | Tolerations for the PCSM Pod                                                                            | `[]`                                          |
+| `clusterSync.affinity`                             | Affinity rules for the PCSM Pod                                                                         | `{}`                                          |
+| `clusterSync.runtimeClassName`                     | RuntimeClass for the PCSM Pod                                                                           | `""`                                          |
+| `clusterSync.containerSecurityContext`             | Security context for the PCSM container                                                                 | `{}`                                          |
+| `clusterSync.podSecurityContext`                   | Pod security context for the PCSM Pod                                                                   | `{}`                                          |
+| `clusterSync.livenessProbe`                        | Liveness probe override                                                                                 | `{}`                                          |
+| `clusterSync.readinessProbe`                       | Readiness probe override                                                                                | `{}`                                          |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
@@ -381,6 +408,22 @@ $ helm install dev  --namespace psmdb . \
     --set runUid=1001 --set "replsets.rs0.volumeSpec.pvc.resources.requests.storage=20Gi" \
     --set backup.enabled=false --set sharding.enabled=false
 ```
+
+### Migrate data from an external MongoDB into this cluster (ClusterSync)
+
+Percona ClusterSync for MongoDB (PCSM) is a one-shot live replication tool. Enable it on the **target** chart release; the operator deploys a PCSM Pod that connects to the source MongoDB you point it at. The chart creates the `PerconaServerMongoDBClusterSync` custom resource — its existence is the lifecycle signal, deleting it tears the job down.
+
+```bash
+$ helm install my-target percona/psmdb-db --namespace psmdb \
+    --set clusterSync.enabled=true \
+    --set clusterSync.source.uri='mongodb://source-mongos.source-ns.svc.cluster.local:27017' \
+    --set clusterSync.source.credentials.username=source \
+    --set clusterSync.source.credentials.password='mys3cretpAss'
+```
+
+To use a pre-created Secret instead of inlining credentials, set `clusterSync.source.credentialsSecret` and leave `clusterSync.source.credentials` empty.
+
+Use `clusterSync.mode` to pause (`paused`) or finalize (`finalized`) the replication without deleting the CR; flip it back to `running` to resume. See the [PCSM documentation](https://docs.percona.com/percona-clustersync-for-mongodb/intro.html) for details on lifecycle, lag reporting, and the `pcsmConfig`/`env` knobs.
 
 # Need help?
 
