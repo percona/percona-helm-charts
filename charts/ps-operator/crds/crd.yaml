@@ -5811,6 +5811,8 @@ spec:
                     type: array
                   expose:
                     properties:
+                      allocateLoadBalancerNodePorts:
+                        type: boolean
                       annotations:
                         additionalProperties:
                           type: string
@@ -5834,6 +5836,8 @@ spec:
                     type: object
                   exposePrimary:
                     properties:
+                      allocateLoadBalancerNodePorts:
+                        type: boolean
                       annotations:
                         additionalProperties:
                           type: string
@@ -8819,6 +8823,8 @@ spec:
                     type: array
                   expose:
                     properties:
+                      allocateLoadBalancerNodePorts:
+                        type: boolean
                       annotations:
                         additionalProperties:
                           type: string
@@ -10356,6 +10362,8 @@ spec:
                         type: array
                       expose:
                         properties:
+                          allocateLoadBalancerNodePorts:
+                            type: boolean
                           annotations:
                             additionalProperties:
                               type: string
@@ -11605,6 +11613,8 @@ spec:
                         type: array
                       expose:
                         properties:
+                          allocateLoadBalancerNodePorts:
+                            type: boolean
                           annotations:
                             additionalProperties:
                               type: string
