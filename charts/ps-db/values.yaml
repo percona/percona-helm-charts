@@ -689,6 +689,9 @@ backup:
   #       memory: 200M
   #       cpu: 200m
 #  sourcePod: ps-cluster1-mysql-1
+#  encryptionKeySecret:
+#    key: encryptionKey
+#    name: my-encryption-key-secret
   image:
     repository: percona/percona-xtrabackup
     tag: 8.4.0-5.1
@@ -715,6 +718,9 @@ backup:
   storages: {}
     # azure-blob:
     #   type: azure
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-azure-encryption-key-secret
     #   azure:
     #     container: CONTAINER-NAME
     #     prefix: PREFIX-NAME
@@ -722,6 +728,9 @@ backup:
     #     credentialsSecret: SECRET-NAME
     # gcp-cs:
     #   type: gcs
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-gcs-encryption-key-secret
     #   gcs:
     #     bucket: BUCKET-NAME
     #     prefix: PREFIX-NAME
@@ -729,6 +738,9 @@ backup:
     #     credentialsSecret: SECRET-NAME
     # s3-us-west:
     #   type: s3
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-s3-encryption-key-secret
     #   verifyTLS: true
     #   nodeSelector:
     #     storage: tape
