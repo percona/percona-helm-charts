@@ -153,8 +153,9 @@ mysql:
   #   whenUnsatisfiable: DoNotSchedule
 
   # expose:
-  #   enabled: true
-  #   type: ClusterIP
+    # allocateLoadBalancerNodePorts: false
+    # enabled: true
+    # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
@@ -166,6 +167,7 @@ mysql:
     #   - 10.0.0.0/8
 
   exposePrimary:
+    # allocateLoadBalancerNodePorts: false
     enabled: true
     # type: ClusterIP
     # annotations:
@@ -387,6 +389,7 @@ proxy:
     #   - 1001
     # serviceAccountName: percona-server-mysql-operator-workload
     # expose:
+      # allocateLoadBalancerNodePorts: false
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -535,6 +538,7 @@ proxy:
     #   - 1001
     # serviceAccountName: percona-server-mysql-operator-workload
     # expose:
+      # allocateLoadBalancerNodePorts: false
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -645,6 +649,7 @@ orchestrator:
   #   supplementalGroups:
   #   - 1001
   # expose:
+    # allocateLoadBalancerNodePorts: false
     # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
