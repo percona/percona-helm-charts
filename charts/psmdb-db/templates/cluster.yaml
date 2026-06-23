@@ -46,6 +46,15 @@ spec:
   {{- if hasKey .Values "enableExternalVolumeAutoscaling" }}
   enableExternalVolumeAutoscaling: {{ .Values.enableExternalVolumeAutoscaling }}
   {{- end }}
+  {{- if .Values.defaultRWConcern }}
+  defaultRWConcern:
+    {{- if .Values.defaultRWConcern.readConcern }}
+    readConcern: {{ .Values.defaultRWConcern.readConcern }}
+    {{- end }}
+    {{- if .Values.defaultRWConcern.writeConcern }}
+    writeConcern: {{ .Values.defaultRWConcern.writeConcern | quote }}
+    {{- end }}
+  {{- end }}
   {{- if .Values.clusterServiceDNSSuffix }}
   clusterServiceDNSSuffix: {{ .Values.clusterServiceDNSSuffix }}
   {{- end }}
