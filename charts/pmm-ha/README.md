@@ -147,16 +147,23 @@ namespace, with two adjustments for the additional instances:
 
 ```bash
 # First instance (full stack, in namespace "pmm"):
+kubectl create namespace pmm
+# create the pmm-secret in this namespace first — see "Creating PMM Secret Manually"
 helm install pmm-ha percona/pmm-ha -n pmm
 
 # Additional instance (e.g. a restore/DR target in namespace "pmm-dr"):
 #   - distinct release name (pmm-dr)
 #   - cluster-wide monitoring agents off (only one set runs per node; this instance
 #     won't collect kube-state-metrics / node-exporter metrics)
+kubectl create namespace pmm-dr
+# create the pmm-secret in pmm-dr too — see "Creating PMM Secret Manually"
 helm install pmm-dr percona/pmm-ha -n pmm-dr \
   --set kube-state-metrics.enabled=false \
   --set prometheus-node-exporter.enabled=false
 ```
+
+> **Note**: `helm install -n <namespace>` does not create the namespace. Create it first
+> (as shown) so the `pmm-secret` can be created there before installing.
 
 Per-namespace resources (PMM server, PostgreSQL, ClickHouse, VictoriaMetrics, HAProxy) are
 namespaced and do not collide across namespaces. Remember the usual prerequisites in **each**
