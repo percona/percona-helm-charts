@@ -137,8 +137,13 @@ namespace, with two adjustments for the additional instances:
    cluster-scoped and named after the release, so a unique release name avoids name clashes.
 2. **Disable the cluster-wide monitoring sub-charts.** `kube-state-metrics` and
    `prometheus-node-exporter` are per-*cluster* agents (node-exporter uses host networking on
-   port 9100, so two cannot run on the same node). Install them with the *first* instance only;
-   disable them on the rest — they'll reuse the existing set:
+   port 9100, so only one set can run per node). Install them with the *first* instance only and
+   disable them on the rest to avoid the port clash. Each instance's vmagent scrapes only its own
+   namespace, so a secondary instance does **not** reuse the first's agents — it collects no
+   kube-state-metrics (object state) or node-exporter (host) metrics; those live only in the first
+   instance's VictoriaMetrics. (Basic node/container metrics from the `kubelet` and `cadvisor`
+   scrape jobs are still collected, since those discover nodes cluster-wide.) For a DR / restore
+   target this is usually fine, since cluster-level metrics aren't part of the restored data.
 
 ```bash
 # First instance (full stack, in namespace "pmm"):
@@ -146,7 +151,8 @@ helm install pmm-ha percona/pmm-ha -n pmm
 
 # Additional instance (e.g. a restore/DR target in namespace "pmm-dr"):
 #   - distinct release name (pmm-dr)
-#   - cluster-wide monitoring agents off (reuse the first instance's)
+#   - cluster-wide monitoring agents off (only one set runs per node; this instance
+#     won't collect kube-state-metrics / node-exporter metrics)
 helm install pmm-dr percona/pmm-ha -n pmm-dr \
   --set kube-state-metrics.enabled=false \
   --set prometheus-node-exporter.enabled=false
