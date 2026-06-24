@@ -13,7 +13,7 @@ metadata:
 
 spec:
   {{- if .Values.metadata }}
-  metadata: 
+  metadata:
     {{- if .Values.metadata.labels }}
     labels:
 {{ .Values.metadata.labels | toYaml | indent 6 }}
@@ -210,7 +210,7 @@ spec:
       persistentVolumeClaim:
 {{ $mysql.volumeSpec.pvc | toYaml | indent 8 }}
       {{- else }}
-      emptyDir: {}
+      emptyDir: { }
       {{- end }}
     {{- end }}
     {{- if $mysql.gracePeriod }}
@@ -356,7 +356,7 @@ spec:
         persistentVolumeClaim:
 {{ $haproxy.volumeSpec.pvc | toYaml | indent 10 }}
         {{- else }}
-        emptyDir: {}
+        emptyDir: { }
         {{- end }}
       {{- end }}
       {{- if $haproxy.schedulerName }}
@@ -398,7 +398,7 @@ spec:
       imagePullPolicy: {{ $router.imagePullPolicy }}
       {{- end }}
       {{- if $router.ports }}
-      ports: 
+      ports:
 {{ $router.ports | toYaml | indent 8 }}
       {{- end }}
       {{- if $router.imagePullSecrets }}
@@ -486,7 +486,7 @@ spec:
         persistentVolumeClaim:
 {{ $router.volumeSpec.pvc | toYaml | indent 10 }}
         {{- else }}
-        emptyDir: {}
+        emptyDir: { }
         {{- end }}
       {{- end }}
       {{- if $router.schedulerName }}
@@ -616,7 +616,7 @@ spec:
       persistentVolumeClaim:
 {{ $orc.volumeSpec.pvc | toYaml | indent 8 }}
       {{- else }}
-      emptyDir: {}
+      emptyDir: { }
       {{- end }}
     {{- end }}
     {{- if $orc.schedulerName }}
@@ -647,6 +647,9 @@ spec:
   {{- else }}
   {{- if $pmm.mysqlParams }}
     mysqlParams: {{ $pmm.mysqlParams }}
+  {{- end }}
+  {{- if $pmm.customClusterName }}
+      customClusterName: {{ $pmm.customClusterName }}
   {{- end }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}

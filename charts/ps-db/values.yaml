@@ -666,6 +666,7 @@ pmm:
 #    successThreshold: 1
 #    failureThreshold: 3
   serverHost: monitoring-service
+  # customClusterName: "<string>"
   # mysqlParams: "--disable-tablestats-limit=2000"
   resources:
     requests:
