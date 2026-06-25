@@ -14,7 +14,7 @@ image:
   repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "3.7.0"
+  tag: "3.8.1"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -125,7 +125,7 @@ upgrade:
   ## Options: "rolling" (default), "recreate"
   ## Use "recreate" if you encounter StatefulSet upgrade conflicts
   strategy: "rolling"
-  
+
   ## @param upgrade.force Force upgrade by recreating StatefulSet if needed
   ## This will cause a brief downtime but ensures upgrade compatibility
   ## Set to true only if you encounter StatefulSet field conflicts
@@ -326,3 +326,6 @@ extraVolumes:
 extraVolumeMounts:
   - name: pmm-config
     mountPath: /usr/local/percona/pmm/config
+## @param initContainers Optionally specify extra list of init containers
+##
+initContainers: []
