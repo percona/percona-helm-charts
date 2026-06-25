@@ -19,14 +19,14 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 1.1.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 1.2.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                             | Default                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `1.1.0`                     |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `1.2.0`                     |
 | `finalizers:percona.com/delete-mysql-pods-in-order` | Set this if you want to delete MySQL pods in order on cluster deletion                                                                                                  | `[]`                        |
 | `finalizers:percona.com/delete-ssl`                 | Deletes objects created for SSL (Secret, certificate, and issuer) after the cluster deletion                                                                            | `[]`                        |
 | `pause`                                             | Stop PS Cluster safely                                                                                                                                                  | `false`                     |
@@ -91,6 +91,7 @@ The chart can be customized using the following configurable parameters:
 | `mysql.expose.internalTrafficPolicy`              | Network service internalTrafficPolicy                                                                                                                         | ``                         |
 | `mysql.expose.labels`                             | Network service labels                                                                                                                                        | `{}`                       |
 | `mysql.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                       |
+| `mysql.expose.allocateLoadBalancerNodePorts`      | Defines if NodePorts will be automatically allocated for services with type LoadBalancer                                                                      | `true`                     |
 | `mysql.exposePrimary.enabled`                     | Allow access to MySQL primary from outside of Kubernetes                                                                                                      | `false`                    |
 | `mysql.exposePrimary.type`                        | Network service access point type                                                                                                                             | `ClusterIP`                |
 | `mysql.exposePrimary.annotations`                 | Network service annotations                                                                                                                                   | `{}`                       |
@@ -98,6 +99,7 @@ The chart can be customized using the following configurable parameters:
 | `mysql.exposePrimary.internalTrafficPolicy`       | Network service internalTrafficPolicy                                                                                                                         | ``                         |
 | `mysql.exposePrimary.labels`                      | Network service labels                                                                                                                                        | `{}`                       |
 | `mysql.exposePrimary.loadBalancerSourceRanges`    | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                       |
+| `mysql.exposePrimary.allocateLoadBalancerNodePorts` | Defines if NodePorts will be automatically allocated for services with type LoadBalancer                                                                    | `true`                     |
 | `mysql.volumeSpec`                                | MySQL Pods storage resources                                                                                                                                  | `{}`                       |
 | `mysql.volumeSpec.pvc`                            | MySQL Pods PVC request parameters                                                                                                                             |                            |
 | `mysql.volumeSpec.pvc.storageClassName`           | MySQL Pods PVC target storageClass                                                                                                                            | `""`                       |
@@ -141,6 +143,9 @@ The chart can be customized using the following configurable parameters:
 | `proxy.haproxy.tolerations`                            | List of node taints to tolerate for HAProxy Pods                                                                                                              | `[]`                       |
 | `proxy.haproxy.resources.requests`                     | HAProxy Pods resource requests                                                                                                                                | `memory: 1G cpu: 600m`     |
 | `proxy.haproxy.resources.limits`                       | HAProxy Pods resource limits                                                                                                                                  | `{}`                       |
+| `proxy.haproxy.sidecarResources`                       | HAProxy sidecar container resources by container name, for example `mysql-monit`                                                                              | `{}`                       |
+| `proxy.haproxy.sidecarResources.<name>.limits`         | HAProxy sidecar container resource limits                                                                                                                     | `{}`                       |
+| `proxy.haproxy.sidecarResources.<name>.requests`       | HAProxy sidecar container resource requests                                                                                                                   | `{}`                       |
 | `proxy.haproxy.env`                                    | HAProxy Pods set env variable                                                                                                                                 | `[]`                       |
 | `proxy.haproxy.envFrom`                                | HAProxy Pods set env variable from secret                                                                                                                     | `[]`                       |
 | `proxy.haproxy.startupProbe`                           | HAProxy Pods livenessProbe structure                                                                                                                          | `{}`                       |
@@ -156,6 +161,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.haproxy.expose.internalTrafficPolicy`           | Network service internalTrafficPolicy                                                                                                                         | ``                         |
 | `proxy.haproxy.expose.labels`                          | Network service labels                                                                                                                                        | `{}`                       |
 | `proxy.haproxy.expose.loadBalancerSourceRanges`        | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                       |
+| `proxy.haproxy.expose.allocateLoadBalancerNodePorts`   | Defines if NodePorts will be automatically allocated for services with type LoadBalancer                                                                      | `true`                     |
 ||
 | `proxy.router.enabled`                                | Enable/Disable Router pods in group replication                                                                                                               | `false`                        |
 | `proxy.router.image.repository`                       | Router Container image repository                                                                                                                             | `percona/percona-mysql-router` |
@@ -197,6 +203,7 @@ The chart can be customized using the following configurable parameters:
 | `proxy.router.expose.internalTrafficPolicy`           | Network service internalTrafficPolicy                                                                                                                         | ``                             |
 | `proxy.router.expose.labels`                          | Network service labels                                                                                                                                        | `{}`                           |
 | `proxy.router.expose.loadBalancerSourceRanges`        | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
+| `proxy.router.expose.allocateLoadBalancerNodePorts`   | Defines if NodePorts will be automatically allocated for services with type LoadBalancer                                                                      | `true`                         |
 ||
 | `orchestrator.enabled`                                   | Enable/Disable orchestrator pods in async replication                                                                                                         | `true`                         |
 | `orchestrator.image.repository`                          | Orchestrator Container image repository                                                                                                                       | `percona/percona-orchestrator` |
@@ -244,7 +251,9 @@ The chart can be customized using the following configurable parameters:
 | `orchestrator.expose.internalTrafficPolicy`              | Network service internalTrafficPolicy                                                                                                                         | ``                             |
 | `orchestrator.expose.labels`                             | Network service labels                                                                                                                                        | `{}`                           |
 | `orchestrator.expose.loadBalancerSourceRanges`           | The range of client IP addresses from which the load balancer should be reachable                                                                             | `[]`                           |
+| `orchestrator.expose.allocateLoadBalancerNodePorts`      | Defines if NodePorts will be automatically allocated for services with type LoadBalancer                                                                      | `true`                             |
 ||
+| `pmm.enabled`                             | Enable integration with [Percona Monitoring and Management software](https://docs.percona.com/pmm/)                                                                                                   | `false`                             |
 | `pmm.image.repository`                    | PMM Container image repository                                                                                                                                                                        | `percona/pmm-client`                |
 | `pmm.image.tag`                           | PMM Container image tag                                                                                                                                                                               | `3.7.0`                             |
 | `pmm.imagePullPolicy`                     | The policy used to update images                                                                                                                                                                      | ``                                  |
@@ -271,6 +280,8 @@ The chart can be customized using the following configurable parameters:
 ||
 | `backup.enabled`                                | Enable backups                                                                              | `true`                       |
 | `backup.sourcePod`                              | Specify backup source pod                                                                   | ``                           |
+| `backup.encryptionKeySecret.name`               | Name of the Kubernetes Secret with the backup encryption key                                | ``                           |
+| `backup.encryptionKeySecret.key`                | Key in the Secret that contains the backup encryption key                                   | `encryptionKey`              |
 | `backup.image.repository`                       | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
 | `backup.image.tag`                              | Backup Container image tag                                                                  | `8.4.0-5.1`                  |
 | `backup.backoffLimit`                           | The number of retries to make a backup                                                      | ``                           |
@@ -292,7 +303,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.schedule.[0].storageName`               | Backup target storage                                                                       | `fs-pvc`                     |
 ||
 | `backup.pitr.enabled`                                          | Enable point-in-time recovery                                                    | `false`                                                            |
-| `backup.pitr.binlogServer.image`                               | Binlog server Container image                                                    | `percona/percona-server-mysql-operator:1.1.0-binlog-server-0.2.1`  |
+| `backup.pitr.binlogServer.image`                               | Binlog server Container image                                                    | `percona/percona-server-mysql-operator:1.2.0-binlog-server-0.2.1`  |
 | `backup.pitr.binlogServer.imagePullPolicy`                     | The policy used to update images                                                 | `Always`                                                           |
 | `backup.pitr.binlogServer.imagePullSecrets`                    | Binlog server Container pull secrets                                             | `[]`                                                               |
 | `backup.pitr.binlogServer.serverId`                            | MySQL server ID used by the binlog server replica                                | `100`                                                              |
