@@ -37,6 +37,8 @@ spec:
               value: {{ default "percona-server-mongodb-operator" .Values.operatorName }}
             - name: RESYNC_PERIOD
               value: "{{ .Values.env.resyncPeriod }}"
+            - name: RECONCILE_INTERVAL
+              value: "{{ .Values.env.reconcileInterval }}"
             - name: LOG_VERBOSE
               value: "{{ .Values.env.logVerbose }}"
           # livenessProbe:
