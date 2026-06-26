@@ -27,6 +27,10 @@ spec:
   {{- if .Values.enableVolumeExpansion }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- end }}
+  {{- if .Values.storageScaling }}
+  storageScaling:
+{{ .Values.storageScaling | toYaml | indent 4 }}
+  {{- end }}
   {{- if .Values.unsafeFlags }}
   unsafeFlags:
 {{ .Values.unsafeFlags | toYaml | indent 4 }}
