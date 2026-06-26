@@ -19,24 +19,13 @@ finalizers:
 crVersion: 1.2.0
 # enableVolumeExpansion is deprecated, use storageScaling.enableVolumeScaling instead.
 enableVolumeExpansion: false
-# storageScaling controls PVC volume expansion and automatic storage scaling based on disk usage.
 # storageScaling:
-#   # enableVolumeScaling allows the operator to resize/expand PVCs when the storage
-#   # request changes in the spec. Replaces the deprecated enableVolumeExpansion flag.
 #   enableVolumeScaling: false
-#   # enableExternalAutoscaling lets an external controller manage storage autoscaling.
-#   # When true, the operator's built-in autoscaler is skipped.
 #   enableExternalAutoscaling: false
-#   # autoscaling configures automatic storage expansion based on disk usage.
-#   # Requires enableVolumeScaling to be true.
 #   autoscaling:
-#     # enabled turns on automatic storage expansion.
 #     enabled: false
-#     # triggerThresholdPercent is the disk usage percentage that triggers expansion (50-95).
 #     triggerThresholdPercent: 80
-#     # growthStep is the amount added to storage each time the threshold is exceeded.
 #     growthStep: 2Gi
-#     # maxSize is the maximum PVC size autoscaling will not grow beyond (must be at least 1Gi).
 #     maxSize: 100Gi
 pause: false
 # initImage: percona/percona-server-mysql-operator:1.2.0
