@@ -213,8 +213,10 @@ spec:
     topologySpreadConstraints:
 {{ $pxc.topologySpreadConstraints | toYaml | indent 6 }}
     {{- end }}
+    {{- with $pxc.affinity }}
     affinity:
-{{ $pxc.affinity | toYaml | indent 6 }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
     tolerations:
 {{ $pxc.tolerations | toYaml | indent 6 }}
     podDisruptionBudget:
@@ -349,8 +351,10 @@ spec:
     topologySpreadConstraints:
 {{ $haproxy.topologySpreadConstraints | toYaml | indent 6 }}
     {{- end }}
+    {{- with $haproxy.affinity }}
     affinity:
-{{ $haproxy.affinity | toYaml | indent 6 }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
     tolerations:
 {{ $haproxy.tolerations | toYaml | indent 6 }}
     podDisruptionBudget:
@@ -473,8 +477,10 @@ spec:
     topologySpreadConstraints:
 {{ $proxysql.topologySpreadConstraints | toYaml | indent 6 }}
     {{- end }}
+    {{- with $proxysql.affinity }}
     affinity:
-{{ $proxysql.affinity | toYaml | indent 6 }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
     tolerations:
 {{ $proxysql.tolerations | toYaml | indent 6 }}
     podDisruptionBudget:
