@@ -319,6 +319,24 @@ spec:
 {{ tpl ($haproxy.resources.requests | toYaml) $ | indent 10 }}
         limits:
 {{ tpl ($haproxy.resources.limits | toYaml) $ | indent 10 }}
+      {{- if $haproxy.sidecarResources }}
+      sidecarResources:
+        {{- range $name, $resources := $haproxy.sidecarResources }}
+        {{ $name }}:
+          {{- if $resources.claims }}
+          claims:
+{{ tpl ($resources.claims | toYaml) $ | indent 12 }}
+          {{- end }}
+          {{- if $resources.limits }}
+          limits:
+{{ tpl ($resources.limits | toYaml) $ | indent 12 }}
+          {{- end }}
+          {{- if $resources.requests }}
+          requests:
+{{ tpl ($resources.requests | toYaml) $ | indent 12 }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
       {{- if $haproxy.env }}
       env:
 {{ $haproxy.env | toYaml | indent 8 }}
@@ -690,6 +708,10 @@ spec:
     image: {{ $backup.image.repository }}:{{ $backup.image.tag }}
   {{- if $backup.sourcePod }}
     sourcePod: {{ $backup.sourcePod }}
+  {{- end }}
+  {{- if $backup.encryptionKeySecret }}
+    encryptionKeySecret:
+{{ $backup.encryptionKeySecret | toYaml | indent 6 }}
   {{- end }}
   {{- if not $backup.enabled }}
     enabled: false

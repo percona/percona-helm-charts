@@ -153,8 +153,9 @@ mysql:
   #   whenUnsatisfiable: DoNotSchedule
 
   # expose:
-  #   enabled: true
-  #   type: ClusterIP
+    # allocateLoadBalancerNodePorts: false
+    # enabled: true
+    # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
@@ -166,6 +167,7 @@ mysql:
     #   - 10.0.0.0/8
 
   exposePrimary:
+    # allocateLoadBalancerNodePorts: false
     enabled: true
     # type: ClusterIP
     # annotations:
@@ -273,6 +275,15 @@ proxy:
         cpu: 600m
       limits: {}
 
+    # sidecarResources:
+    #   mysql-monit:
+    #     limits:
+    #       cpu: 100m
+    #       memory: 128Mi
+    #     requests:
+    #       cpu: 50m
+    #       memory: 64Mi
+
     # env:
     # - name: HA_CONNECTION_TIMEOUT
     #   value: "1000"
@@ -378,6 +389,7 @@ proxy:
     #   - 1001
     # serviceAccountName: percona-server-mysql-operator-workload
     # expose:
+      # allocateLoadBalancerNodePorts: false
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -526,6 +538,7 @@ proxy:
     #   - 1001
     # serviceAccountName: percona-server-mysql-operator-workload
     # expose:
+      # allocateLoadBalancerNodePorts: false
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -636,6 +649,7 @@ orchestrator:
   #   supplementalGroups:
   #   - 1001
   # expose:
+    # allocateLoadBalancerNodePorts: false
     # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -689,6 +703,9 @@ backup:
   #       memory: 200M
   #       cpu: 200m
 #  sourcePod: ps-cluster1-mysql-1
+#  encryptionKeySecret:
+#    key: encryptionKey
+#    name: my-encryption-key-secret
   image:
     repository: percona/percona-xtrabackup
     tag: 8.4.0-5.1
@@ -715,6 +732,9 @@ backup:
   storages: {}
     # azure-blob:
     #   type: azure
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-azure-encryption-key-secret
     #   azure:
     #     container: CONTAINER-NAME
     #     prefix: PREFIX-NAME
@@ -722,6 +742,9 @@ backup:
     #     credentialsSecret: SECRET-NAME
     # gcp-cs:
     #   type: gcs
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-gcs-encryption-key-secret
     #   gcs:
     #     bucket: BUCKET-NAME
     #     prefix: PREFIX-NAME
@@ -729,6 +752,9 @@ backup:
     #     credentialsSecret: SECRET-NAME
     # s3-us-west:
     #   type: s3
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-s3-encryption-key-secret
     #   verifyTLS: true
     #   nodeSelector:
     #     storage: tape
