@@ -1,0 +1,540 @@
+suite: pxc-db proxysql
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: test_proxysql renders default structure
+    asserts:
+      - equal:
+          path: spec.proxysql.enabled
+          value: false
+
+  - it: test_proxysql renders changed default values
+    values:
+      - values/proxysql-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.proxysql
+          value:
+            enabled: true
+            size: 5
+            image: changed-image
+            annotations:
+              test: annotation
+            labels:
+              test: label
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+            sidecars:
+              - image: changed-image
+                name: sidecar
+            sidecarVolumes:
+              - name: sidecar-volume
+                emptyDir: {}
+            sidecarPVCs:
+              - name: sidecar-pvc
+                persistentVolumeClaim:
+                  claimName: sidecar-claim
+            sidecarResources:
+              requests:
+                cpu: 3m
+                memory: 3Mi
+              limits:
+                cpu: 4m
+                memory: 4Mi
+            nodeSelector:
+              disktype: ssd
+            affinity:
+              advanced:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: zone
+                            operator: In
+                            values:
+                              - a
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            tolerations:
+              - key: test
+                operator: Exists
+                effect: NoExecute
+                tolerationSeconds: 60
+            volumeSpec:
+              persistentVolumeClaim:
+                accessModes:
+                  - ReadWriteMany
+                resources:
+                  requests:
+                    storage: 9Gi
+            podDisruptionBudget:
+              maxUnavailable: 2
+            gracePeriod: 60
+
+  - it: test_proxysql switches to proxysql mode
+    set:
+      proxysql.enabled: true
+      proxysql.image: dummy-image
+    asserts:
+      - equal:
+          path: spec.haproxy.enabled
+          value: false
+      - equal:
+          path: spec.proxysql.enabled
+          value: true
+      - equal:
+          path: spec.proxysql.size
+          value: 3
+      - equal:
+          path: spec.proxysql.image
+          value: dummy-image
+      - exists:
+          path: spec.proxysql.volumeSpec.persistentVolumeClaim
+
+  - it: test_proxysql uses emptyDir when persistence is disabled
+    set:
+      proxysql.enabled: true
+      proxysql.persistence.enabled: false
+    asserts:
+      - exists:
+          path: spec.proxysql.volumeSpec.emptyDir
+
+  - it: test_proxysql renders hostPath persistence when defined
+    set:
+      proxysql.enabled: true
+      proxysql.persistence.hostPath: /var/lib/proxysql
+    asserts:
+      - equal:
+          path: spec.proxysql.volumeSpec.hostPath
+          value:
+            path: /var/lib/proxysql
+            type: Directory
+
+  - it: test_proxysql renders image pull policy when defined
+    set:
+      proxysql.enabled: true
+      proxysql.imagePullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.proxysql.imagePullPolicy
+          value: Always
+
+  - it: test_proxysql renders image pull secrets when defined
+    set:
+      proxysql.enabled: true
+      proxysql.imagePullSecrets:
+        - name: private-registry-credentials
+    asserts:
+      - equal:
+          path: spec.proxysql.imagePullSecrets
+          value:
+            - name: private-registry-credentials
+
+  - it: test_proxysql renders scheduler when defined
+    set:
+      proxysql.enabled: true
+      proxysql.scheduler:
+        enabled: false
+        writerIsAlsoReader: true
+        checkTimeoutMilliseconds: 2000
+        successThreshold: 1
+        failureThreshold: 3
+        pingTimeoutMilliseconds: 1000
+        nodeCheckIntervalMilliseconds: 2000
+        maxConnections: 1000
+    asserts:
+      - equal:
+          path: spec.proxysql.scheduler
+          value:
+            enabled: false
+            writerIsAlsoReader: true
+            checkTimeoutMilliseconds: 2000
+            successThreshold: 1
+            failureThreshold: 3
+            pingTimeoutMilliseconds: 1000
+            nodeCheckIntervalMilliseconds: 2000
+            maxConnections: 1000
+
+  - it: test_proxysql renders configuration when defined
+    set:
+      proxysql.enabled: true
+      proxysql.configuration: |
+        datadir="/var/lib/proxysql"
+    asserts:
+      - equal:
+          path: spec.proxysql.configuration
+          value: |
+            datadir="/var/lib/proxysql"
+
+  - it: test_proxysql renders annotations when defined
+    set:
+      proxysql.enabled: true
+      proxysql.annotations:
+        iam.amazonaws.com/role: role-arn
+    asserts:
+      - equal:
+          path: spec.proxysql.annotations
+          value:
+            iam.amazonaws.com/role: role-arn
+
+  - it: test_proxysql renders labels when defined
+    set:
+      proxysql.enabled: true
+      proxysql.labels:
+        rack: rack-22
+    asserts:
+      - equal:
+          path: spec.proxysql.labels
+          value:
+            rack: rack-22
+
+  - it: test_proxysql renders runtime class when defined
+    set:
+      proxysql.enabled: true
+      proxysql.runtimeClassName: image-rc
+    asserts:
+      - equal:
+          path: spec.proxysql.runtimeClassName
+          value: image-rc
+
+  - it: test_proxysql renders expose when defined
+    set:
+      proxysql.enabled: true
+      proxysql.expose:
+        enabled: true
+        type: ClusterIP
+        loadBalancerClass: eks.amazonaws.com/nlb
+    asserts:
+      - equal:
+          path: spec.proxysql.expose
+          value:
+            enabled: true
+            type: ClusterIP
+            loadBalancerClass: eks.amazonaws.com/nlb
+
+  - it: test_proxysql renders expose details when defined
+    set:
+      proxysql.enabled: true
+      proxysql.expose:
+        enabled: true
+        type: ClusterIP
+        loadBalancerClass: eks.amazonaws.com/nlb
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+        externalTrafficPolicy: Cluster
+        internalTrafficPolicy: Cluster
+        labels:
+          rack: rack-22
+        loadBalancerSourceRanges:
+          - 10.0.0.0/8
+    asserts:
+      - equal:
+          path: spec.proxysql.expose
+          value:
+            enabled: true
+            type: ClusterIP
+            loadBalancerClass: eks.amazonaws.com/nlb
+            annotations:
+              service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+            externalTrafficPolicy: Cluster
+            internalTrafficPolicy: Cluster
+            labels:
+              rack: rack-22
+            loadBalancerSourceRanges:
+              - 10.0.0.0/8
+
+  - it: test_proxysql renders priority class when defined
+    set:
+      proxysql.enabled: true
+      proxysql.priorityClassName: high-priority
+    asserts:
+      - equal:
+          path: spec.proxysql.priorityClassName
+          value: high-priority
+
+  - it: test_proxysql renders scheduler name when defined
+    set:
+      proxysql.enabled: true
+      proxysql.schedulerName: mycustom-scheduler
+    asserts:
+      - equal:
+          path: spec.proxysql.schedulerName
+          value: mycustom-scheduler
+
+  - it: test_proxysql renders env vars secret when defined
+    set:
+      proxysql.enabled: true
+      proxysql.envVarsSecret: my-env-var-secrets
+    asserts:
+      - equal:
+          path: spec.proxysql.envVarsSecret
+          value: my-env-var-secrets
+
+  - it: test_proxysql renders resource limits when defined
+    set:
+      proxysql.enabled: true
+      proxysql.resources.limits:
+        memory: 2G
+        cpu: 1
+    asserts:
+      - equal:
+          path: spec.proxysql.resources.limits
+          value:
+            memory: 2G
+            cpu: 1
+
+  - it: test_proxysql renders extra PVCs when defined
+    set:
+      proxysql.enabled: true
+      proxysql.extraPVCs:
+        - name: my-volume
+          claimName: my-existing-pvc
+          mountPath: /mnt/data
+          readOnly: false
+          subPath: ""
+    asserts:
+      - equal:
+          path: spec.proxysql.extraPVCs
+          value:
+            - name: my-volume
+              claimName: my-existing-pvc
+              mountPath: /mnt/data
+              readOnly: false
+              subPath: ""
+
+  - it: test_proxysql renders node selector when defined
+    set:
+      proxysql.enabled: true
+      proxysql.nodeSelector:
+        disktype: ssd
+    asserts:
+      - equal:
+          path: spec.proxysql.nodeSelector
+          value:
+            disktype: ssd
+
+  - it: test_proxysql renders topology spread constraints when defined
+    set:
+      proxysql.enabled: true
+      proxysql.topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+    asserts:
+      - equal:
+          path: spec.proxysql.topologySpreadConstraints
+          value:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+
+  - it: test_proxysql renders tolerations when defined
+    set:
+      proxysql.enabled: true
+      proxysql.tolerations:
+        - key: node.alpha.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 6000
+    asserts:
+      - equal:
+          path: spec.proxysql.tolerations
+          value:
+            - key: node.alpha.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 6000
+
+  - it: test_proxysql renders service account when defined
+    set:
+      proxysql.enabled: true
+      proxysql.serviceAccountName: percona-xtradb-cluster-operator-workload
+    asserts:
+      - equal:
+          path: spec.proxysql.serviceAccountName
+          value: percona-xtradb-cluster-operator-workload
+
+  - it: test_proxysql renders lifecycle hooks when defined
+    set:
+      proxysql.enabled: true
+      proxysql.lifecycle:
+        preStop:
+          exec:
+            command:
+              - /bin/true
+        postStart:
+          exec:
+            command:
+              - /bin/true
+    asserts:
+      - equal:
+          path: spec.proxysql.lifecycle
+          value:
+            preStop:
+              exec:
+                command:
+                  - /bin/true
+            postStart:
+              exec:
+                command:
+                  - /bin/true
+
+  - it: test_proxysql renders persistence storage class when defined
+    set:
+      proxysql.enabled: true
+      proxysql.persistence.storageClass: fast-sc
+    asserts:
+      - equal:
+          path: spec.proxysql.volumeSpec.persistentVolumeClaim.storageClassName
+          value: fast-sc
+
+  - it: test_proxysql renders container security context when defined
+    set:
+      proxysql.enabled: true
+      proxysql.containerSecurityContext:
+        privileged: false
+    asserts:
+      - equal:
+          path: spec.proxysql.containerSecurityContext
+          value:
+            privileged: false
+
+  - it: test_proxysql renders pod security context when defined
+    set:
+      proxysql.enabled: true
+      proxysql.podSecurityContext:
+        fsGroup: 1001
+        supplementalGroups:
+          - 1001
+    asserts:
+      - equal:
+          path: spec.proxysql.podSecurityContext
+          value:
+            fsGroup: 1001
+            supplementalGroups:
+              - 1001
+
+  - it: test_proxysql renders sidecars when defined
+    set:
+      proxysql.enabled: true
+      proxysql.sidecars:
+        - image: dummy-image
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - while true; do sleep 30; done;
+          name: my-sidecar-1
+    asserts:
+      - equal:
+          path: spec.proxysql.sidecars
+          value:
+            - image: dummy-image
+              command:
+                - /bin/sh
+              args:
+                - -c
+                - while true; do sleep 30; done;
+              name: my-sidecar-1
+
+  - it: test_proxysql renders sidecar volumes when defined
+    set:
+      proxysql.enabled: true
+      proxysql.sidecarVolumes:
+        - name: sidecar-volume
+          emptyDir: {}
+    asserts:
+      - equal:
+          path: spec.proxysql.sidecarVolumes
+          value:
+            - name: sidecar-volume
+              emptyDir: {}
+
+  - it: test_proxysql renders sidecar PVCs when defined
+    set:
+      proxysql.enabled: true
+      proxysql.sidecarPVCs:
+        - name: sidecar-pvc
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    asserts:
+      - equal:
+          path: spec.proxysql.sidecarPVCs
+          value:
+            - name: sidecar-pvc
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 1Gi
+
+  - it: test_proxysql renders sidecar resources when defined
+    set:
+      proxysql.enabled: true
+      proxysql.sidecarResources:
+        requests:
+          memory: 100M
+          cpu: 100m
+        limits:
+          memory: 200M
+          cpu: 200m
+    asserts:
+      - equal:
+          path: spec.proxysql.sidecarResources
+          value:
+            requests:
+              memory: 100M
+              cpu: 100m
+            limits:
+              memory: 200M
+              cpu: 200m
+
+  - it: test_proxysql renders pod disruption budget minAvailable when defined
+    set:
+      proxysql.enabled: true
+      proxysql.podDisruptionBudget:
+        minAvailable: 1
+    asserts:
+      - isSubset:
+          path: spec.proxysql.podDisruptionBudget
+          content:
+            minAvailable: 1
+
+  - it: test_proxysql renders advanced affinity when defined
+    set:
+      proxysql.enabled: true
+      proxysql.affinity:
+        advanced:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/e2e-az-name
+                      operator: In
+                      values:
+                        - e2e-az1
+                        - e2e-az2
+    asserts:
+      - isSubset:
+          path: spec.proxysql.affinity
+          content:
+            advanced:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/e2e-az-name
+                          operator: In
+                          values:
+                            - e2e-az1
+                            - e2e-az2
