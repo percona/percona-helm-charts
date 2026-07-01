@@ -97,6 +97,15 @@ tolerations: []
 
 affinity: {}
 
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: health
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: health
+
 logStructured: false
 logLevel: "INFO"
 
