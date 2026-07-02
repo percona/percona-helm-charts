@@ -39,6 +39,8 @@ spec:
           {{- end }}
         - name: DISABLE_TELEMETRY
           value: "{{ .Values.disableTelemetry }}"
+        - name: MAX_CONCURRENT_RECONCILES
+          value: "{{ .Values.env.maxConcurrentReconciles | default 1 }}"
         - name: POD_NAME
           valueFrom:
             fieldRef:
