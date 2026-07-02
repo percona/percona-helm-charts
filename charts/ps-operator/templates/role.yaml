@@ -197,6 +197,20 @@ rules:
   - patch
   - update
   - watch
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+{{- end }}
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
