@@ -272,7 +272,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.limits`                    | PMM Container resource limits                                                                                                                                                                         | `{}`                                |
 ||
 | `toolkit.image.repository`   | Percona Toolkit Container image repository | `percona/percona-toolkit` |
-| `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.7.1-3`                 |
+| `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.7.1-4`                 |
 | `toolkit.imagePullPolicy`    | The policy used to update images           | ``                        |
 | `toolkit.resources.requests` | Toolkit Container resource requests        | `{}`                      |
 | `toolkit.resources.limits`   | Toolkit Container resource limits          | `{}`                      |
