@@ -81,7 +81,7 @@ mysql:
     # minAvailable: 0
   image:
     repository: percona/percona-server
-    tag: 8.4.8-8.1
+    tag: 8.4.10-10.1
   imagePullPolicy: Always
   imagePullSecrets: []
   # initContainer:
@@ -162,8 +162,9 @@ mysql:
   #   whenUnsatisfiable: DoNotSchedule
 
   # expose:
-  #   enabled: true
-  #   type: ClusterIP
+    # allocateLoadBalancerNodePorts: false
+    # enabled: true
+    # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
@@ -175,6 +176,7 @@ mysql:
     #   - 10.0.0.0/8
 
   exposePrimary:
+    # allocateLoadBalancerNodePorts: false
     enabled: true
     # type: ClusterIP
     # annotations:
@@ -282,6 +284,15 @@ proxy:
         cpu: 600m
       limits: {}
 
+    # sidecarResources:
+    #   mysql-monit:
+    #     limits:
+    #       cpu: 100m
+    #       memory: 128Mi
+    #     requests:
+    #       cpu: 50m
+    #       memory: 64Mi
+
     # env:
     # - name: HA_CONNECTION_TIMEOUT
     #   value: "1000"
@@ -387,6 +398,7 @@ proxy:
     #   - 1001
     # serviceAccountName: percona-server-mysql-operator-workload
     # expose:
+      # allocateLoadBalancerNodePorts: false
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -402,7 +414,7 @@ proxy:
     enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.4.8
+      tag: 8.4.10
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
@@ -535,6 +547,7 @@ proxy:
     #   - 1001
     # serviceAccountName: percona-server-mysql-operator-workload
     # expose:
+      # allocateLoadBalancerNodePorts: false
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -550,7 +563,7 @@ orchestrator:
   enabled: false
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-20
+    tag: 3.2.6-22
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
@@ -645,6 +658,7 @@ orchestrator:
   #   supplementalGroups:
   #   - 1001
   # expose:
+    # allocateLoadBalancerNodePorts: false
     # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -660,7 +674,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.7.0
+    tag: 3.8.1
   imagePullPolicy: Always
 #  readinessProbe:
 #    initialDelaySeconds: 15
@@ -698,9 +712,12 @@ backup:
   #       memory: 200M
   #       cpu: 200m
 #  sourcePod: ps-cluster1-mysql-1
+#  encryptionKeySecret:
+#    key: encryptionKey
+#    name: my-encryption-key-secret
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.4.0-5.1
+    tag: 8.4.0-6.1
 #  schedule:
 #    - name: "sat-night-backup"
 #      schedule: "0 0 * * 6"
@@ -724,6 +741,9 @@ backup:
   storages: {}
     # azure-blob:
     #   type: azure
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-azure-encryption-key-secret
     #   azure:
     #     container: CONTAINER-NAME
     #     prefix: PREFIX-NAME
@@ -731,6 +751,9 @@ backup:
     #     credentialsSecret: SECRET-NAME
     # gcp-cs:
     #   type: gcs
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-gcs-encryption-key-secret
     #   gcs:
     #     bucket: BUCKET-NAME
     #     prefix: PREFIX-NAME
@@ -738,6 +761,9 @@ backup:
     #     credentialsSecret: SECRET-NAME
     # s3-us-west:
     #   type: s3
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-s3-encryption-key-secret
     #   verifyTLS: true
     #   nodeSelector:
     #     storage: tape
@@ -798,7 +824,7 @@ backup:
   # pitr:
   #   enabled: false
   #   binlogServer:
-  #     image: percona/percona-server-mysql-operator:1.2.0-binlog-server-0.2.1
+  #     image: perconalab/percona-binlog-server:0.3.1
   #     imagePullPolicy: Always
   #     imagePullSecrets:
   #       - name: my-secret-1
@@ -830,7 +856,7 @@ backup:
 toolkit:
   image:
     repository: percona/percona-toolkit
-    tag: 3.7.1
+    tag: 3.7.1-4
   imagePullPolicy: Always
   resources:
     requests: {}
