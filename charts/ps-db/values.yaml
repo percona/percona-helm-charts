@@ -633,6 +633,11 @@ orchestrator:
 
   gracePeriod: 30
 
+  # configuration: |
+  #   {
+  #     "FailMasterPromotionOnLagMinutes": 10
+  #   }
+
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
