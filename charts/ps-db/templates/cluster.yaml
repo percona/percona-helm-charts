@@ -697,7 +697,7 @@ spec:
     mysqlParams: {{ $pmm.mysqlParams }}
   {{- end }}
   {{- if $pmm.customClusterName }}
-      customClusterName: {{ $pmm.customClusterName }}
+    customClusterName: {{ $pmm.customClusterName }}
   {{- end }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
