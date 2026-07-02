@@ -27,6 +27,32 @@ spec:
   {{- if .Values.enableVolumeExpansion }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- end }}
+  {{- if .Values.storageScaling }}
+  {{- $storageScaling := .Values.storageScaling }}
+  storageScaling:
+    {{- if $storageScaling.enableVolumeScaling }}
+    enableVolumeScaling: {{ $storageScaling.enableVolumeScaling }}
+    {{- end }}
+    {{- if $storageScaling.enableExternalAutoscaling }}
+    enableExternalAutoscaling: {{ $storageScaling.enableExternalAutoscaling }}
+    {{- end }}
+    {{- if $storageScaling.autoscaling }}
+    {{- $autoscaling := $storageScaling.autoscaling }}
+    autoscaling:
+      {{- if $autoscaling.enabled }}
+      enabled: {{ $autoscaling.enabled }}
+      {{- end }}
+      {{- if $autoscaling.triggerThresholdPercent }}
+      triggerThresholdPercent: {{ $autoscaling.triggerThresholdPercent }}
+      {{- end }}
+      {{- if $autoscaling.growthStep }}
+      growthStep: {{ $autoscaling.growthStep }}
+      {{- end }}
+      {{- if $autoscaling.maxSize }}
+      maxSize: {{ $autoscaling.maxSize }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
   {{- if .Values.unsafeFlags }}
   unsafeFlags:
 {{ .Values.unsafeFlags | toYaml | indent 4 }}

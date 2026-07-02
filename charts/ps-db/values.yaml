@@ -17,7 +17,14 @@ finalizers:
 #    proxy: false
 #    proxySize: false
 crVersion: 1.2.0
-enableVolumeExpansion: false
+# storageScaling:
+#   enableVolumeScaling: false
+#   enableExternalAutoscaling: false
+#   autoscaling:
+#     enabled: false
+#     triggerThresholdPercent: 80
+#     growthStep: 2Gi
+#     maxSize: 100Gi
 pause: false
 # initImage: percona/percona-server-mysql-operator:1.2.0
 
