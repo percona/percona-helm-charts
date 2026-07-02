@@ -17,8 +17,6 @@ finalizers:
 #    proxy: false
 #    proxySize: false
 crVersion: 1.2.0
-# enableVolumeExpansion is deprecated, use storageScaling.enableVolumeScaling instead.
-enableVolumeExpansion: false
 # storageScaling:
 #   enableVolumeScaling: false
 #   enableExternalAutoscaling: false
