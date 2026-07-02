@@ -39,6 +39,18 @@ spec:
           {{- end }}
         - name: DISABLE_TELEMETRY
           value: "{{ .Values.disableTelemetry }}"
+        - name: MAX_CONCURRENT_RECONCILES
+          value: "{{ .Values.env.maxConcurrentReconciles | default 1 }}"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         imagePullPolicy: Always
         livenessProbe:
