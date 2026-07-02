@@ -38,6 +38,7 @@ The chart can be customized using the following configurable parameters:
 | `serviceAccount.create` | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually | `true`                                  |
 | `env.logStructured`     | Enable JSON format for logs                                                                    | `false`                                 |
 | `env.logLevel`          | Set appropriate log level (INFO, DEBUG, ERROR)                                                 | `INFO`                                  |
+| `env.maxConcurrentReconciles` | Limits the number of parallel cluster reconciles                                         | `1`                                     |
 | `disableTelemetry`      | Disable sending PS Operator telemetry data to Percona                                          | `false`                                 |
 | `watchNamespace`        | Set this variable if the target cluster namespace differs from operator's namespace            | `.Release.Namespace`                    |
 | `watchAllNamespaces`    | Set if operator should be deployed in cluster-wide mode                                        | `false`                                 |

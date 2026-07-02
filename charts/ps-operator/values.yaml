@@ -33,6 +33,7 @@ serviceAccount:
 env:
   logStructured: false
   logLevel: "INFO"
+  maxConcurrentReconciles: 1
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
