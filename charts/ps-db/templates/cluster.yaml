@@ -608,6 +608,10 @@ spec:
     {{- if $orc.gracePeriod }}
     gracePeriod: {{ $orc.gracePeriod }}
     {{- end }}
+    {{- if $orc.configuration }}
+    configuration: |
+{{- tpl $orc.configuration $ | nindent 6 }}
+    {{- end }}
     {{- if $orc.priorityClassName }}
     priorityClassName: {{ $orc.priorityClassName }}
     {{- end }}
