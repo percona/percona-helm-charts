@@ -144,6 +144,14 @@ spec:
     {{- if .Values.pmm.customClusterName }}
     customClusterName: {{ .Values.pmm.customClusterName }}
     {{- end }}
+    {{- if .Values.pmm.livenessProbe }}
+    livenessProbe:
+{{ .Values.pmm.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.pmm.readinessProbe }}
+    readinessProbe:
+{{ .Values.pmm.readinessProbe | toYaml | indent 6 }}
+    {{- end }}
 
   replsets:
   {{- range $k,$replset := .Values.replsets }}
@@ -879,6 +887,14 @@ spec:
     {{- if .Values.backup.resources }}
     resources:
 {{ .Values.backup.resources | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.backup.livenessProbe }}
+    livenessProbe:
+{{ .Values.backup.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.backup.readinessProbe }}
+    readinessProbe:
+{{ .Values.backup.readinessProbe | toYaml | indent 6 }}
     {{- end }}
     storages:
 {{ (default (dict) .Values.backup.storages) | toYaml | indent 6 }}

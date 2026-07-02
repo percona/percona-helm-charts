@@ -109,6 +109,24 @@ pmm:
 #  mongosParams: ""
 #  resources: {}
 #  containerSecurityContext: {}
+#  # Override the built-in liveness probe of the pmm-client container.
+#  # When not set, the Operator uses HTTP GET :7777/local/Status.
+#  livenessProbe:
+#    httpGet:
+#      path: /local/Status
+#      port: 7777
+#    initialDelaySeconds: 60
+#    timeoutSeconds: 5
+#    periodSeconds: 10
+#    failureThreshold: 5
+#  # Add a readiness probe for the pmm-client container.
+#  # When not set, the container has no readiness probe.
+#  readinessProbe:
+#    tcpSocket:
+#      port: 7777
+#    initialDelaySeconds: 5
+#    periodSeconds: 10
+#    failureThreshold: 3
 
 replsets:
   rs0:
@@ -724,6 +742,20 @@ backup:
   #   requests:
   #     cpu: "300m"
   #     memory: "1Gi"
+  # livenessProbe:
+  #   exec:
+  #     command:
+  #       - /bin/true
+  #   initialDelaySeconds: 30
+  #   periodSeconds: 15
+  #   failureThreshold: 5
+  # readinessProbe:
+  #   exec:
+  #     command:
+  #       - /bin/true
+  #   initialDelaySeconds: 5
+  #   periodSeconds: 10
+  #   failureThreshold: 3
   storages:
     # s3-us-west:
     #   main: true

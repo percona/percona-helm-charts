@@ -101,6 +101,8 @@ The chart can be customized using the following configurable parameters:
 | `pmm.mongodParams`             | PMM mongod params                                                                                                                                                                        | `""`                 |
 | `pmm.mongosParams`             | PMM mongos params                                                                                                                                                                        | `""`                 |
 | `pmm.customClusterName`        | PMM cluster name. If not set Operator uses cr.Name for PMM cluster name                                                                                                                  | `""`                 |
+| `pmm.livenessProbe`            | Override the built-in liveness probe of the pmm-client container. When not set, the Operator uses HTTP GET :7777/local/Status                                                            | `{}`                 |
+| `pmm.readinessProbe`           | Set a readiness probe for the pmm-client container. When not set, the container has no readiness probe                                                                                   | `{}`                 |
 | |
 | `replsets.rs0.name`                                                | ReplicaSet name                                                                                                                                                                                                                                              | `rs0`                    |
 | `replsets.rs0.size`                                                | ReplicaSet size (pod quantity)                                                                                                                                                                                                                               | `3`                      |
@@ -340,6 +342,8 @@ The chart can be customized using the following configurable parameters:
 | `backup.restartOnFailure`                          | Backup Pods restart policy                                                    | `true`                           |
 | `backup.image.repository`                          | PBM Container image repository                                                | `percona/percona-backup-mongodb` |
 | `backup.image.tag`                                 | PBM Container image tag                                                       | `2.12.0`                         |
+| `backup.livenessProbe`                             | Override the default liveness probe of the backup-agent container. When not set, the backup-agent container has no liveness probe | `{}` |
+| `backup.readinessProbe`                            | Set a readiness probe for the backup-agent container. When not set, the container has no readiness probe                          | `{}` |
 | `backup.storages`                                  | Local/remote backup storages settings                                         | `{}`                             |
 | `backup.volumeMounts`                              | Name of the remote backup storage                                             | `""`                             |
 | `backup.pitr.enabled`                              | Enable point in time recovery for backup                                      | `false`                          |
