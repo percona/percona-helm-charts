@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mysql-operator
-  tag: 1.2.0
+  tag: 1.3.0
   pullPolicy: Always
 
 # set if you want to specify a namespace to watch
