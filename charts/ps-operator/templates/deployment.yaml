@@ -52,7 +52,7 @@ spec:
               apiVersion: v1
               fieldPath: metadata.namespace
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
         livenessProbe:
           httpGet:
             path: /healthz
