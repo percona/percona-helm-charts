@@ -23,7 +23,7 @@ spec:
 {{ .Values.metadata.annotations | toYaml | indent 6 }}
     {{- end }}
   {{- end }}
-  crVersion: {{ .Chart.AppVersion }}
+  crVersion: {{ .Values.crVersion | default .Chart.AppVersion }}
   {{- if .Values.enableVolumeExpansion }}
   enableVolumeExpansion: {{ .Values.enableVolumeExpansion }}
   {{- end }}
