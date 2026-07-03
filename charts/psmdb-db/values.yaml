@@ -869,3 +869,4 @@ logcollector:
     requests:
       memory: 100M
       cpu: 200m
+  containerSecurityContext: {}

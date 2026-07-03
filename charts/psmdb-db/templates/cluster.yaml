@@ -918,3 +918,8 @@ spec:
     resources:
 {{ .Values.logcollector.resources | toYaml | indent 6 }}
     {{- end }}
+    {{- if .Values.logcollector.containerSecurityContext }}
+    containerSecurityContext:
+{{- .Values.logcollector.containerSecurityContext | toYaml | nindent 6 }}
+    {{- end }}
+
