@@ -12404,6 +12404,7 @@ spec:
                       type: object
                   required:
                   - size
+                  - volumeSpec
                   type: object
                 type: array
               roles:
@@ -23233,6 +23234,7 @@ spec:
                         type: object
                     required:
                     - size
+                    - volumeSpec
                     type: object
                   enabled:
                     type: boolean

@@ -1,0 +1,37 @@
+pg:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'charts/pg-db/**'
+          - 'charts/pg-operator/**'
+
+ps:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'charts/ps-db/**'
+          - 'charts/ps-operator/**'
+
+psmdb:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'charts/psmdb-db/**'
+          - 'charts/psmdb-operator/**'
+          - 'charts/psmdb-operator-crds/**'
+
+pxc:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'charts/pxc-db/**'
+          - 'charts/pxc-operator/**'
+
+operators:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'charts/pg-db/**'
+          - 'charts/pg-operator/**'
+          - 'charts/ps-db/**'
+          - 'charts/ps-operator/**'
+          - 'charts/psmdb-db/**'
+          - 'charts/psmdb-operator/**'
+          - 'charts/psmdb-operator-crds/**'
+          - 'charts/pxc-db/**'
+          - 'charts/pxc-operator/**'
