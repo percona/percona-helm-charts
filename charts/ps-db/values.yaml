@@ -16,10 +16,17 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 1.0.0
-enableVolumeExpansion: false
+crVersion: 1.2.0
+# storageScaling:
+#   enableVolumeScaling: false
+#   enableExternalAutoscaling: false
+#   autoscaling:
+#     enabled: false
+#     triggerThresholdPercent: 80
+#     growthStep: 2Gi
+#     maxSize: 100Gi
 pause: false
-# initImage: percona/percona-server-mysql-operator:1.0.0
+# initImage: percona/percona-server-mysql-operator:1.2.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -27,7 +34,7 @@ upgradeOptions:
   apply: disabled
 
 # initContainer:
-#   image: percona/percona-server-mysql-operator:1.0.0
+#   image: percona/percona-server-mysql-operator:1.2.0
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -66,16 +73,17 @@ upgradeOptions:
 mysql:
   clusterType: group-replication
   autoRecovery: true
+  # vaultSecretName: ps-cluster1-vault
   podDisruptionBudget:
     maxUnavailable: 1
     # minAvailable: 0
   image:
     repository: percona/percona-server
-    tag: 8.4.6-6.1
+    tag: 8.4.10-10.1
   imagePullPolicy: Always
   imagePullSecrets: []
   # initContainer:
-  #   image: percona/percona-server-mysql-operator:1.0.0
+  #   image: percona/percona-server-mysql-operator:1.2.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -122,6 +130,10 @@ mysql:
   # env:
   # - name: BOOTSTRAP_READ_TIMEOUT
   #   value: "600"
+  # - name: ASYNC_SOURCE_RETRY_COUNT
+  #   value: "3"
+  # - name: ASYNC_SOURCE_CONNECT_RETRY
+  #   value: "60"
   # envFrom:
   # - secretRef:
   #     name: my-env-secret
@@ -148,8 +160,9 @@ mysql:
   #   whenUnsatisfiable: DoNotSchedule
 
   # expose:
-  #   enabled: true
-  #   type: ClusterIP
+    # allocateLoadBalancerNodePorts: false
+    # enabled: true
+    # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
     #   service.beta.kubernetes.io/aws-load-balancer-type: nlb
@@ -161,6 +174,7 @@ mysql:
     #   - 10.0.0.0/8
 
   exposePrimary:
+    # allocateLoadBalancerNodePorts: false
     enabled: true
     # type: ClusterIP
     # annotations:
@@ -240,11 +254,11 @@ proxy:
     enabled: true
     image:
       repository: percona/haproxy
-      tag: 2.8.15
+      tag: 2.8.18-1
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: percona/percona-server-mysql-operator:1.0.0
+    #   image: percona/percona-server-mysql-operator:1.2.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -267,6 +281,15 @@ proxy:
         memory: 1Gi
         cpu: 600m
       limits: {}
+
+    # sidecarResources:
+    #   mysql-monit:
+    #     limits:
+    #       cpu: 100m
+    #       memory: 128Mi
+    #     requests:
+    #       cpu: 50m
+    #       memory: 64Mi
 
     # env:
     # - name: HA_CONNECTION_TIMEOUT
@@ -373,6 +396,7 @@ proxy:
     #   - 1001
     # serviceAccountName: percona-server-mysql-operator-workload
     # expose:
+      # allocateLoadBalancerNodePorts: false
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -388,11 +412,11 @@ proxy:
     enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.4.6
+      tag: 8.4.10
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: percona/percona-server-mysql-operator:1.0.0
+    #   image: percona/percona-server-mysql-operator:1.2.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -521,6 +545,7 @@ proxy:
     #   - 1001
     # serviceAccountName: percona-server-mysql-operator-workload
     # expose:
+      # allocateLoadBalancerNodePorts: false
       # type: ClusterIP
       # annotations:
       #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -536,12 +561,12 @@ orchestrator:
   enabled: false
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-18
+    tag: 3.2.6-22
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
   # initContainer:
-  #   image: percona/percona-server-mysql-operator:1.0.0
+  #   image: percona/percona-server-mysql-operator:1.2.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -608,6 +633,11 @@ orchestrator:
 
   gracePeriod: 30
 
+  # configuration: |
+  #   {
+  #     "FailMasterPromotionOnLagMinutes": 10
+  #   }
+
   # runtimeClassName: image-rc
   # priorityClassName: high-priority
   # schedulerName: mycustom-scheduler
@@ -631,6 +661,7 @@ orchestrator:
   #   supplementalGroups:
   #   - 1001
   # expose:
+    # allocateLoadBalancerNodePorts: false
     # type: ClusterIP
     # annotations:
     #   service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
@@ -646,7 +677,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.4.1
+    tag: 3.8.1
   imagePullPolicy: Always
 #  readinessProbe:
 #    initialDelaySeconds: 15
@@ -662,6 +693,7 @@ pmm:
 #    failureThreshold: 3
   serverHost: monitoring-service
   # mysqlParams: "--disable-tablestats-limit=2000"
+  # customClusterName: "cluster1-custom"
   resources:
     requests:
       memory: 150M
@@ -671,7 +703,7 @@ pmm:
 backup:
   enabled: true
   # initContainer:
-  #   image: percona/percona-server-mysql-operator:1.0.0
+  #   image: percona/percona-server-mysql-operator:1.2.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -684,18 +716,23 @@ backup:
   #       memory: 200M
   #       cpu: 200m
 #  sourcePod: ps-cluster1-mysql-1
+#  encryptionKeySecret:
+#    key: encryptionKey
+#    name: my-encryption-key-secret
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.4.0-4.1
+    tag: 8.4.0-6.1
 #  schedule:
 #    - name: "sat-night-backup"
 #      schedule: "0 0 * * 6"
 #      keep: 3
 #      storageName: s3-us-west
+#      type: full
 #    - name: "daily-backup"
 #      schedule: "0 0 * * *"
 #      keep: 5
 #      storageName: s3
+#      type: incremental
   # backoffLimit: 6
   imagePullPolicy: Always
   imagePullSecrets: []
@@ -708,6 +745,9 @@ backup:
   storages: {}
     # azure-blob:
     #   type: azure
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-azure-encryption-key-secret
     #   azure:
     #     container: CONTAINER-NAME
     #     prefix: PREFIX-NAME
@@ -715,6 +755,9 @@ backup:
     #     credentialsSecret: SECRET-NAME
     # gcp-cs:
     #   type: gcs
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-gcs-encryption-key-secret
     #   gcs:
     #     bucket: BUCKET-NAME
     #     prefix: PREFIX-NAME
@@ -722,6 +765,9 @@ backup:
     #     credentialsSecret: SECRET-NAME
     # s3-us-west:
     #   type: s3
+    #   encryptionKeySecret:
+    #     key: encryptionKey
+    #     name: my-s3-encryption-key-secret
     #   verifyTLS: true
     #   nodeSelector:
     #     storage: tape
@@ -779,11 +825,42 @@ backup:
     #     credentialsSecret: cluster1-s3-credentials
     #     region: us-west-2
     #     prefix: ""
+  # pitr:
+  #   enabled: false
+  #   binlogServer:
+  #     image: perconalab/percona-binlog-server:0.3.1
+  #     imagePullPolicy: Always
+  #     imagePullSecrets:
+  #       - name: my-secret-1
+  #       - name: my-secret-2
+  #     storage:
+  #       s3:
+  #         bucket: S3-BACKUP-BUCKET-NAME-HERE
+  #         credentialsSecret: ps-cluster1-s3-credentials
+  #         endpointUrl: https://s3.amazonaws.com
+  #         prefix: PREFIX_NAME
+  #         region: us-west-2
+  #     connectTimeout: 30
+  #     readTimeout: 30
+  #     writeTimeout: 30
+  #     idleTime: 30
+  #     checkpointInterval: 30s
+  #     checkpointSize: 16M
+  #     logLevel: info
+  #     resources:
+  #       limits:
+  #         cpu: 200m
+  #         memory: 200M
+  #       requests:
+  #         cpu: 200m
+  #         memory: 200M
+  #     rewriteFileSize: "128M"
+  #     sslMode: "verify_identity"
 
 toolkit:
   image:
     repository: percona/percona-toolkit
-    tag: 3.7.0-2
+    tag: 3.7.1-4
   imagePullPolicy: Always
   resources:
     requests: {}
@@ -796,7 +873,7 @@ toolkit:
 #   root: insecure_root_password
 #   xtrabackup: insecure_backup_password
 #   monitor: insecure_monitor_password
-#   pmmserverkey: my_pmm_server_key
+#   pmmservertoken: my_pmm_server_token
 #   operator: insecure_operator_password
 #   replication: insecure_replication_password
 #   orchestrator: insecure_orchestrator_password

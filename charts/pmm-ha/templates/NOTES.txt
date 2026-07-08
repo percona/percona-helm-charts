@@ -1,0 +1,54 @@
+
+Percona Monitoring and Management (PMM)
+
+An open source database monitoring, observability and management tool
+Check more info here: https://docs.percona.com/percona-monitoring-and-management/index.html
+
+Get the application URL:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ . }}
+  {{- end }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ .Values.service.name }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo https://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch the status of by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ .Values.service.name }}'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ .Values.service.name }} -o jsonpath="{.status.loadBalancer.ingress[0].ip}")
+  echo https://$SERVICE_IP:{{ .Values.service.port }}
+{{- else if contains "ClusterIP" .Values.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "pmm.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit https://127.0.0.1:8443 to use your application"
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8443:$CONTAINER_PORT
+{{- end }}
+
+Get password for the "admin" user:
+  export ADMIN_PASS=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode)
+  echo $ADMIN_PASS
+
+Get ClickHouse credentials:
+  export CH_USER=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' | base64 --decode)
+  export CH_PASS=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' | base64 --decode)
+  echo "ClickHouse User: $CH_USER"
+  echo "ClickHouse Password: $CH_PASS"
+
+Get PostgreSQL credentials:
+  export PG_USER="{{ index .Values "pg-db" "pmmUserName" }}"
+  export PG_PASS=$(kubectl get secret {{ .Values.secret.name }} --namespace {{ .Release.Namespace }} -o jsonpath='{.data.PG_PASSWORD}' | base64 --decode)
+  export GF_USER="{{ index .Values "pg-db" "grafanaUserName" }}"
+  export GF_PASS=$(kubectl get secret {{ .Values.secret.name }} --namespace {{ .Release.Namespace }} -o jsonpath='{.data.GF_PASSWORD}' | base64 --decode)
+  echo "PostgreSQL PMM User: $PG_USER"
+  echo "PostgreSQL PMM Password: $PG_PASS"
+  echo "PostgreSQL Grafana User: $GF_USER"
+  echo "PostgreSQL Grafana Password: $GF_PASS"
+  
+Get VictoriaMetrics credentials:
+  export VM_USER=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode)
+  export VM_PASS=$(kubectl get secret pmm-secret --namespace {{ .Release.Namespace }} -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode)
+  echo "VictoriaMetrics User: $VM_USER"
+  echo "VictoriaMetrics Password: $VM_PASS"

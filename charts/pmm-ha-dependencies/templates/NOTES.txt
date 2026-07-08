@@ -1,0 +1,37 @@
+PMM HA Dependencies have been installed successfully!
+
+The following operators have been deployed:
+{{- if index .Values "victoria-metrics-operator" "enabled" }}
+  ✓ VictoriaMetrics Operator
+{{- end }}
+{{- if index .Values "altinity-clickhouse-operator" "enabled" }}
+  ✓ Altinity ClickHouse Operator
+{{- end }}
+{{- if index .Values "pg-operator" "enabled" }}
+  ✓ PostgreSQL Operator (Percona Distribution)
+{{- end }}
+
+⏳ IMPORTANT: Wait for all operators to be ready before installing pmm-ha
+
+Check operator status:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=victoria-metrics-operator
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=altinity-clickhouse-operator
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name=pg-operator
+
+Or wait for all to be ready:
+
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=victoria-metrics-operator -n {{ .Release.Namespace }} --timeout=300s
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickhouse-operator -n {{ .Release.Namespace }} --timeout=300s
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n {{ .Release.Namespace }} --timeout=300s
+
+📦 NEXT STEP: Install PMM HA
+
+Once all operators are ready, install the pmm-ha chart:
+
+  helm install pmm percona/pmm-ha --namespace {{ .Release.Namespace }}
+
+📚 Documentation: https://docs.percona.com/percona-monitoring-and-management/
+
+⚠️  UNINSTALL ORDER: When uninstalling, remove pmm-ha FIRST, then pmm-ha-dependencies
+
