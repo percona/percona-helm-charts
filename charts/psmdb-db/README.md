@@ -72,6 +72,7 @@ The chart can be customized using the following configurable parameters:
 | `tls.mode`                     | Control usage of TLS (allowTLS, preferTLS, requireTLS, disabled)                | `preferTLS` |
 | `tls.certValidityDuration`     | The validity duration of the external certificate for cert manager              | `""`        |
 | `tls.allowInvalidCertificates` | If enabled the mongo shell will not attempt to validate the server certificates | `true`      |
+| `tls.certManagementPolicy`     | Certificate management policy (auto or userProvidedOnly)                        | `auto`      |
 | `tls.issuerConf.name`          | A cert-manager issuer name                                                      | `""`        |
 | `tls.issuerConf.kind`          | A cert-manager issuer kind                                                      | `""`        |
 | `tls.issuerConf.group`         | A cert-manager issuer group                                                     | `""`        |

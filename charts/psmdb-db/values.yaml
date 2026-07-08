@@ -74,6 +74,7 @@ imagePullPolicy: Always
 #   # 90 days in hours
 #   certValidityDuration: 2160h
 #   allowInvalidCertificates: true
+#   certManagementPolicy: auto
 #   issuerConf:
 #     name: special-selfsigned-issuer
 #     kind: ClusterIssuer
