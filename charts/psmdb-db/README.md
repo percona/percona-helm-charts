@@ -158,6 +158,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets.rs0.volumeSpec.pvc.accessModes`                          | ReplicaSet Pods PVC access policy                                                                                                                                                                                                                            | `[]`                     |
 | `replsets.rs0.volumeSpec.pvc.resources.requests.storage`           | ReplicaSet Pods PVC storage size                                                                                                                                                                                                                             | `3Gi`                    |
 | `replsets.rs0.hostAliases`                                         | The IP address for Kubernetes host aliases                                                                                                                                                                                                                   | `[]`                     |
+| `replsets.rs0.search`                                              | Per-replset override of the cluster-wide `search` settings (mongot). Each field fully replaces the cluster-wide value for this replset/shard. Overridable fields: `size`, `storage`, `resources`, `jvmFlags`, `affinity`, `nodeSelector`, `tolerations`, `annotations`, `labels`, `podSecurityContext`, `containerSecurityContext` | `{}`                     |
 | `replsets.rs0.nonvoting.enabled`                                   | Add MongoDB nonvoting Pods                                                                                                                                                                                                                                   | `false`                  |
 | `replsets.rs0.nonvoting.podSecurityContext`                        | Set the security context for a Pod                                                                                                                                                                                                                           | `{}`                     |
 | `replsets.rs0.nonvoting.containerSecurityContext`                  | Set the security context for a Container                                                                                                                                                                                                                     | `{}`                     |
@@ -366,6 +367,24 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.image.tag`                           | Image tag for the log collector                                               | `4.0.1-2`                        |
 | `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
 | `logcollector.configuration`                       | Custom configuration (optional, if not commented out)                         | `""`                             |
+| `search.enabled`                                   | Enable MongoDB Vector Search (deploys a mongot StatefulSet per replset/shard) | `false`                          |
+| `search.image.repository`                          | mongot (search) container image repository                                    | `perconalab/percona-server-mongodb-mongot` |
+| `search.image.tag`                                 | mongot (search) container image tag                                           | `"0.51.0"`                             |
+| `search.imagePullPolicy`                           | mongot image pull policy                                                       | `""`                             |
+| `search.size`                                      | Number of mongot Pods per replset/shard (only `1` is supported)               | `1`                              |
+| `search.configuration`                             | Raw mongot YAML merged on top of the operator-generated `mongot.conf`         | `""`                             |
+| `search.storage`                                   | PVC spec for mongot data (`persistentVolumeClaim`)                            | `{}`                             |
+| `search.resources`                                 | mongot Pods resource requests and limits                                      | `{}`                             |
+| `search.jvmFlags`                                  | Extra JVM flags for mongot                                                     | `[]`                             |
+| `search.affinity.antiAffinityTopologyKey`          | mongot Pod anti-affinity topology key                                         | `kubernetes.io/hostname`         |
+| `search.nodeSelector`                              | mongot Pod nodeSelector labels                                                 | `{}`                             |
+| `search.tolerations`                               | mongot Pod tolerations                                                         | `[]`                             |
+| `search.annotations`                               | mongot Pod annotations                                                         | `{}`                             |
+| `search.labels`                                    | mongot Pod labels                                                             | `{}`                             |
+| `search.podSecurityContext`                        | Set the security context for a mongot Pod                                      | `{}`                             |
+| `search.containerSecurityContext`                  | Set the security context for a mongot Container                                | `{}`                             |
+| `search.livenessProbe`                             | mongot container livenessProbe overrides                                       | `{}`                             |
+| `search.readinessProbe`                            | mongot container readinessProbe overrides                                      | `{}`                             |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.

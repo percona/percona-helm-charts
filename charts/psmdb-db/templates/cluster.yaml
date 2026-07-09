@@ -319,6 +319,10 @@ spec:
     hostAliases:
 {{ $replset.hostAliases | toYaml | indent 6 }}
     {{- end }}
+    {{- if $replset.search }}
+    search:
+{{ $replset.search | toYaml | indent 6 }}
+    {{- end }}
 
 {{- if $replset.hidden }}
     hidden:
@@ -918,3 +922,68 @@ spec:
     resources:
 {{ .Values.logcollector.resources | toYaml | indent 6 }}
     {{- end }}
+  {{- if .Values.search }}
+  search:
+    enabled: {{ .Values.search.enabled }}
+    {{- if .Values.search.image }}
+    image: "{{ .Values.search.image.repository }}:{{ .Values.search.image.tag }}"
+    {{- end }}
+    {{- if .Values.search.imagePullPolicy }}
+    imagePullPolicy: {{ .Values.search.imagePullPolicy }}
+    {{- end }}
+    {{- if .Values.search.size }}
+    size: {{ .Values.search.size }}
+    {{- end }}
+    {{- if .Values.search.configuration }}
+    configuration: |
+{{ .Values.search.configuration | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.storage }}
+    storage:
+{{ .Values.search.storage | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.resources }}
+    resources:
+{{ .Values.search.resources | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.jvmFlags }}
+    jvmFlags:
+{{ .Values.search.jvmFlags | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.affinity }}
+    affinity:
+{{ .Values.search.affinity | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.nodeSelector }}
+    nodeSelector:
+{{ .Values.search.nodeSelector | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.tolerations }}
+    tolerations:
+{{ .Values.search.tolerations | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.annotations }}
+    annotations:
+{{ .Values.search.annotations | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.labels }}
+    labels:
+{{ .Values.search.labels | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.podSecurityContext }}
+    podSecurityContext:
+{{ .Values.search.podSecurityContext | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.containerSecurityContext }}
+    containerSecurityContext:
+{{ .Values.search.containerSecurityContext | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.livenessProbe }}
+    livenessProbe:
+{{ .Values.search.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.search.readinessProbe }}
+    readinessProbe:
+{{ .Values.search.readinessProbe | toYaml | indent 6 }}
+    {{- end }}
+  {{- end }}

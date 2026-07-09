@@ -292,6 +292,29 @@ replsets:
     #   hostnames:
     #   - "host1"
     #   - "host2"
+    # search:
+    #   # Per-replset override of the cluster-wide spec.search settings below.
+    #   # Only the fields listed here may be overridden per replset/shard and
+    #   # each field fully replaces (does not merge with) the cluster-wide value.
+    #   size: 1
+    #   resources:
+    #     requests:
+    #       cpu: "8"
+    #       memory: 32Gi
+    #   storage:
+    #     persistentVolumeClaim:
+    #       resources:
+    #         requests:
+    #           storage: 200Gi
+    #   affinity:
+    #     antiAffinityTopologyKey: "kubernetes.io/hostname"
+    #   # jvmFlags: []
+    #   # nodeSelector: {}
+    #   # tolerations: []
+    #   # annotations: {}
+    #   # labels: {}
+    #   # podSecurityContext: {}
+    #   # containerSecurityContext: {}
 
     hidden:
       enabled: false
@@ -869,3 +892,49 @@ logcollector:
     requests:
       memory: 100M
       cpu: 200m
+
+# MongoDB Vector Search (mongot). When enabled the operator deploys one
+# mongot StatefulSet per replset (non-sharded) or per shard (sharded),
+# wires mongod/mongos to it and provisions the searchCoordinator user.
+# These are the cluster-wide defaults; per-replset overrides can be set
+# under replsets.<name>.search.
+# search:
+#   enabled: true
+#   image:
+#     repository: perconalab/percona-server-mongodb-mongot
+#     tag: 0.51.0
+#   # imagePullPolicy: Always
+#   size: 1
+#   # configuration is raw mongot YAML merged on top of the operator-generated mongot.conf
+#   # configuration: |
+#   #   syncSource:
+#   #     replicaSet:
+#   #       hostAndPort: ""
+#   storage:
+#     persistentVolumeClaim:
+#       resources:
+#         requests:
+#           storage: 10Gi
+#   resources:
+#     requests:
+#       cpu: "2"
+#       memory: 2Gi
+#   # jvmFlags: []
+#   affinity:
+#     antiAffinityTopologyKey: "kubernetes.io/hostname"
+#   # nodeSelector: {}
+#   # tolerations: []
+#   # annotations: {}
+#   # labels: {}
+#   # podSecurityContext: {}
+#   # containerSecurityContext: {}
+#   livenessProbe:
+#     initialDelaySeconds: 60
+#     periodSeconds: 30
+#     timeoutSeconds: 5
+#     failureThreshold: 4
+#   readinessProbe:
+#     initialDelaySeconds: 10
+#     periodSeconds: 10
+#     timeoutSeconds: 2
+#     failureThreshold: 3
