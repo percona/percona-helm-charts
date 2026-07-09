@@ -777,6 +777,25 @@ backup:
     #       prefix: PREFIX-NAME
     #       endpointUrl: https://accountName.blob.core.windows.net
     #       credentialsSecret: SECRET-NAME
+    # oci:
+    #   type: oci
+    #   oci:
+    #     bucket: OCI-BACKUP-BUCKET-NAME-HERE
+    #     namespace: OCI-OBJECT-STORAGE-NAMESPACE-HERE
+    #     region: us-ashburn-1
+    #     prefix: ""
+    #     credentials:
+    #       type: userPrincipal
+    #       secretName: my-cluster-name-backup-oci
+    #     serverSideEncryption:
+    #       kmsKeyID: OCI-KMS-KEY-OCID-HERE
+    #       secretName: my-cluster-name-backup-oci-sse
+    #     retryer:
+    #       maxAttempts: 3
+    #       maxBackoff: 5m
+    #     uploadPartSize: 10485760
+    #     maxObjSizeGB: 10
+    #     uploadConcurrency: 1
     #  backup-nfs:
     #    type: filesystem
     #    filesystem:
