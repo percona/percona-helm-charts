@@ -7,7 +7,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.22.0
+  tag: 1.23.0
   pullPolicy: IfNotPresent
 
 # disableTelemetry: according to
@@ -78,6 +78,7 @@ fullnameOverride: ""
 
 env:
   resyncPeriod: 5s
+  reconcileInterval: 5s
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious

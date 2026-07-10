@@ -22,7 +22,7 @@ namespaceOverride: ""
 fullnameOverride: ""
 
 
-crVersion: 1.22.0
+crVersion: 1.23.0
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -67,7 +67,7 @@ imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.22.0
+#   tag: 1.23.0
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -869,3 +869,40 @@ logcollector:
     requests:
       memory: 100M
       cpu: 200m
+# Add a liveness/readiness probe for the logs (fluent-bit) container.
+# When not set, the container has no probes.
+# NOTE: a tcpSocket/httpGet probe on port 2020 requires the fluent-bit
+# HTTP server to be enabled via `configuration` ([HTTP_SERVER] On).
+#  livenessProbe:
+#    tcpSocket:
+#      port: 2020
+#    initialDelaySeconds: 30
+#    periodSeconds: 15
+#  readinessProbe:
+#    tcpSocket:
+#      port: 2020
+#    initialDelaySeconds: 5
+#    periodSeconds: 10
+#  logrotate:
+#    configuration: |
+#      /data/db/logs/mongod.full.log {
+#          hourly
+#          rotate 24
+#      }
+#    extraConfig:
+#      name: logrotate-config
+#    schedule: "0 0 * * *"
+#    # Add a liveness/readiness probe for the logrotate container.
+#    # When not set, the container has no probes.
+#    livenessProbe:
+#      exec:
+#        command:
+#          - /bin/true
+#      initialDelaySeconds: 30
+#      periodSeconds: 15
+#    readinessProbe:
+#      exec:
+#        command:
+#          - /bin/true
+#      initialDelaySeconds: 5
+#      periodSeconds: 10

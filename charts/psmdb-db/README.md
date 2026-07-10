@@ -23,14 +23,14 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.22.2 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.23.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                                | Description                                                                                                                                                                                   | Default                               |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `crVersion`                                              | CR Cluster Manifest version                                                                                                                                                                   | `1.22.0`                              |
+| `crVersion`                                              | CR Cluster Manifest version                                                                                                                                                                   | `1.23.0`                              |
 | `pause`                                                  | Stop PSMDB Database safely                                                                                                                                                                    | `false`                               |
 | `unmanaged`                                              | Start cluster and don't manage it (cross cluster replication)                                                                                                                                 | `false`                               |
 | `enableVolumeExpansion`                                  | **Deprecated.** Use `storageScaling.enableVolumeScaling` instead. Allows to resize `PersistentVolumeClaim`s by changing `.volumeSpec.persistentVolumeClaim.resources` field               | `false`                               |
@@ -366,6 +366,13 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.image.tag`                           | Image tag for the log collector                                               | `4.0.1-2`                        |
 | `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
 | `logcollector.configuration`                       | Custom configuration (optional, if not commented out)                         | `""`                             |
+| `logcollector.livenessProbe`                       | Liveness probe for the logs (fluent-bit) container                            | `{}`                             |
+| `logcollector.readinessProbe`                      | Readiness probe for the logs (fluent-bit) container                           | `{}`                             |
+| `logcollector.logrotate.configuration`             | Custom logrotate configuration                                                | `""`                             |
+| `logcollector.logrotate.extraConfig.name`          | Name of a ConfigMap with extra logrotate configuration                        | `""`                             |
+| `logcollector.logrotate.schedule`                  | Cron schedule for logrotate                                                   | `"0 0 * * *"`                    |
+| `logcollector.logrotate.livenessProbe`             | Liveness probe for the logrotate container                                    | `{}`                             |
+| `logcollector.logrotate.readinessProbe`            | Readiness probe for the logrotate container                                   | `{}`                             |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
