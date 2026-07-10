@@ -75,10 +75,13 @@ jobs:
       - name: Check CRD content sync
         run: |
           set -e
+          # Strip the optional Helm-templated resource-policy annotation (see
+          # values.yaml: preserveCrds) from the template side so the underlying
+          # CRD content is still validated against the operator's crd.yaml.
           diff -u \
             --label "templates (psmdb-operator-crds)" \
             --label "crd.yaml (psmdb-operator)" \
-            <(sed '/^---$/d' charts/psmdb-operator-crds/templates/*.yaml) \
+            <(sed -e '/^---$/d' -e '/{{/d' -e '/helm.sh\/resource-policy:/d' charts/psmdb-operator-crds/templates/*.yaml) \
             <(sed '/^---$/d' charts/psmdb-operator/crds/crd.yaml)
 
           echo "✓ CRDs are in sync"

@@ -35,6 +35,28 @@ Then install the operator:
 helm install psmdb-operator percona/psmdb-operator --namespace psmdb
 ```
 
+## Protecting CRDs from Deletion
+
+Deleting these CRDs deletes every custom resource stored under them, i.e. all your
+MongoDB clusters. A GitOps tool (Flux, Argo CD, etc.) can trigger this accidentally
+by pruning or reinstalling the chart.
+
+To guard against that, set `preserveCrds: true` to add the
+[`helm.sh/resource-policy: keep`](https://helm.sh/docs/howto/charts_tips_and_tricks/#tell-helm-not-to-uninstall-a-resource)
+annotation to the CRDs. Helm then leaves the CRDs in place on `helm uninstall`
+instead of deleting them:
+
+```sh
+helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb --create-namespace --set preserveCrds=true
+```
+
+| Value          | Default | Description                                                                 |
+| -------------- | ------- | --------------------------------------------------------------------------- |
+| `preserveCrds` | `false` | Add `helm.sh/resource-policy: keep` to the CRDs so they survive `helm uninstall`. |
+
+> **Note:** With `preserveCrds: true` the CRDs are intentionally left behind on uninstall
+> and must be removed manually (`kubectl delete crd ...`) if you truly want them gone.
+
 ## Upgrading CRDs
 
 When upgrading to a new version of the operator, upgrade the CRDs first:
