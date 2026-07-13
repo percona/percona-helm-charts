@@ -1,7 +1,7 @@
 {{- if .Values.gateway.enabled -}}
 {{- $serviceName := .Values.service.name -}}
 {{- $grpcPort := (index $.Values.service.ports 0).port -}}
-{{- $servicePort := (index $.Values.service.ports 0).port -}}
+{{- $servicePort := (index $.Values.service.ports 1).port -}}
 {{- $pathType := .Values.gateway.pathType -}}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -44,7 +44,7 @@ spec:
             type: {{ $pathType }}
             value: {{ . | quote }}
       backendRefs:
-        - name: {{ $serviceName }}-grpc
+        - name: {{ $serviceName }}
           port: {{ $servicePort }}
     # gRPC paths — configure protocol-level gRPC handling via gateway.annotations
     - matches:
