@@ -144,6 +144,9 @@ spec:
     {{- if .Values.pmm.customClusterName }}
     customClusterName: {{ .Values.pmm.customClusterName }}
     {{- end }}
+    {{- if .Values.pmm.authenticationMechanism }}
+    authenticationMechanism: {{ .Values.pmm.authenticationMechanism }}
+    {{- end }}
 
   replsets:
   {{- range $k,$replset := .Values.replsets }}

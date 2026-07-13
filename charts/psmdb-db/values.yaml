@@ -109,6 +109,7 @@ pmm:
 #  mongosParams: ""
 #  resources: {}
 #  containerSecurityContext: {}
+#  authenticationMechanism: SCRAM-SHA-256
 
 replsets:
   rs0:
