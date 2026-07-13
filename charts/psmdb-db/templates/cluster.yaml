@@ -51,8 +51,14 @@ spec:
     {{- if .Values.defaultRWConcern.readConcern }}
     readConcern: {{ .Values.defaultRWConcern.readConcern }}
     {{- end }}
-    {{- if .Values.defaultRWConcern.writeConcern }}
-    writeConcern: {{ .Values.defaultRWConcern.writeConcern | quote }}
+    {{- with .Values.defaultRWConcern.writeConcern }}
+    writeConcern:
+      {{- if .w }}
+      w: {{ .w | quote }}
+      {{- end }}
+      {{- if hasKey . "wtimeout" }}
+      wtimeout: {{ .wtimeout }}
+      {{- end }}
     {{- end }}
   {{- end }}
   {{- if .Values.clusterServiceDNSSuffix }}

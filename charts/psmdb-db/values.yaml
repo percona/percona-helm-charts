@@ -37,7 +37,9 @@ enableVolumeExpansion: false
 
 # defaultRWConcern:
 #   readConcern: majority
-#   writeConcern: majority
+#   writeConcern:
+#     w: majority
+#     wtimeout: 0
 
 annotations: {}
 
