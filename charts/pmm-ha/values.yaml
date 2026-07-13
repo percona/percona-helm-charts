@@ -270,6 +270,34 @@ ingress:
   ##    hosts:
   ##      - chart-example.local
 
+## Gateway API configuration
+## Requires Gateway API CRDs to be installed in the cluster.
+## ref: https://gateway-api.sigs.k8s.io/
+##
+gateway:
+  ## @param gateway.enabled -- Enable Gateway API HTTPRoute resource
+  enabled: false
+  ## @param gateway.annotations -- Annotations on the HTTPRoute resource
+  annotations: {}
+  ## @param gateway.parentRefs -- References to Gateways this HTTPRoute should attach to
+  parentRefs:
+    ## @param gateway.parentRefs[0].name -- Name of the Gateway
+    - name: ""
+    ## @param gateway.parentRefs[0].namespace -- Namespace of the Gateway (omit to use same namespace)
+      namespace: ""
+    ## @param gateway.parentRefs[0].sectionName -- Listener section name on the Gateway (omit to match all listeners)
+      sectionName: ""
+
+  ## Hostnames and path mappings
+  hosts:
+    ## @param gateway.hosts[0].host -- Hostname to match
+    - host: chart-example.local
+    ## @param gateway.hosts[0].paths -- Path prefixes to route
+      paths: []
+
+  ## @param gateway.pathType -- Path match type: PathPrefix, Exact, or RegularExpression
+  pathType: PathPrefix
+
 ## @section PMM storage configuration
 ## Claiming storage for PMM using Persistent Volume Claims (PVC)
 ## ref: https://kubernetes.io/docs/user-guide/persistent-volumes/
