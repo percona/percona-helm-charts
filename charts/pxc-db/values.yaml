@@ -19,9 +19,17 @@ annotations: {}
 
 operatorImageRepository: percona/percona-xtradb-cluster-operator
 
-crVersion: 1.19.1
+crVersion: 1.20.0
 
 enableVolumeExpansion: false
+# storageScaling:
+#   enableVolumeScaling: false
+#   enableExternalAutoscaling: false
+#   autoscaling:
+#     enabled: false
+#     triggerThresholdPercent: 80
+#     growthStep: 2Gi
+#     maxSize: 10Gi
 
 ignoreAnnotations: []
   # - iam.amazonaws.com/role
@@ -29,7 +37,7 @@ ignoreLabels: []
   # - rack
 pause: false
 # initContainer:
-#   image: "percona/percona-xtradb-cluster-operator:1.19.1"
+#   image: "percona/percona-xtradb-cluster-operator:1.20.0"
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -69,7 +77,7 @@ pxc:
   size: 3
   image:
     repository: percona/percona-xtradb-cluster
-    tag: 8.4.7-7.1
+    tag: 8.4.8-8.1
   # imagePullPolicy: Always
   autoRecovery: true
   # expose:
@@ -195,6 +203,8 @@ pxc:
   # request certificates from cert-manager
   certManager: false
 
+  # sstRetryCount: 3
+
   # If this is set will not create secrets from values and will instead try to use
   # a pre-existing secret of the same name.
   # clusterSecretName: cluster1-secrets
@@ -223,7 +233,7 @@ pxc:
 haproxy:
   enabled: true
   size: 3
-  image: percona/haproxy:2.8.17
+  image: percona/haproxy:2.8.18-1
   # imagePullPolicy: Always
   imagePullSecrets: []
   # - name: private-registry-credentials
@@ -400,7 +410,7 @@ haproxy:
 proxysql:
   enabled: false
   size: 3
-  image: percona/proxysql2:2.7.3-1.2
+  image: percona/proxysql2:2.7.3-1.3
   # imagePullPolicy: Always
   imagePullSecrets: []
 #  scheduler:
@@ -566,7 +576,7 @@ proxysql:
 
 logcollector:
   enabled: true
-  image: percona/fluentbit:4.0.1-1
+  image: percona/fluentbit:5.0.6-1
   # imagePullPolicy: Always
   imagePullSecrets: []
   # configuration: |
@@ -585,6 +595,19 @@ logcollector:
   # A custom Kubernetes Security Context for a Container to be used instead of the default one
   # containerSecurityContext:
   #   privileged: false
+  # logRotate:
+  #   schedule: "*/5 * * * *"
+  #   configuration: |
+  #     /var/lib/mysql/GRA_*.log {
+  #       daily
+  #       rotate 7
+  #       missingok
+  #       notifempty
+  #       compress
+  #       delaycompress
+  #     }
+  #   extraConfig:
+  #     name: my-logrotate-config
 
 # users:
 # - name: my-user
@@ -607,7 +630,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.5.0
+    tag: 3.8.0
   # imagePullPolicy: Always
   imagePullSecrets: []
 #  readinessProbes:
@@ -728,6 +751,9 @@ backup:
     #     #credentialsAccessKey: REPLACE-WITH-AWS-ACCESS-KEY
     #     #credentialsSecretKey: REPLACE-WITH-AWS-SECRET-KEY
     #     region: us-west-2
+    #     forcePathStyle: true
+    #     prefix: prefix
+    #     checksumAlgorithm: SHA256
     #     endpointUrl: https://sfo2.digitaloceanspaces.com
     #     caBundle:
     #       name: s3-ca-bundle-secret-name
