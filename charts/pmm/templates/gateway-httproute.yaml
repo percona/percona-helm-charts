@@ -15,8 +15,14 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
+  {{- if empty .Values.gateway.parentRefs }}
+  {{- fail "gateway.parentRefs must be set when gateway.enabled=true" }}
+  {{- end }}
   parentRefs:
   {{- range .Values.gateway.parentRefs }}
+    {{- if empty .name }}
+    {{- fail "gateway.parentRefs[*].name must be set when gateway.enabled=true" }}
+    {{- end }}
     - name: {{ .name | quote }}
       {{- if .namespace }}
       namespace: {{ .namespace | quote }}
