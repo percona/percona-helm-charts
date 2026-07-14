@@ -144,6 +144,9 @@ spec:
     {{- if .Values.pmm.customClusterName }}
     customClusterName: {{ .Values.pmm.customClusterName }}
     {{- end }}
+    {{- if .Values.pmm.authenticationMechanism }}
+    authenticationMechanism: {{ .Values.pmm.authenticationMechanism }}
+    {{- end }}
 
   replsets:
   {{- range $k,$replset := .Values.replsets }}
@@ -917,4 +920,34 @@ spec:
     {{- if .Values.logcollector.resources }}
     resources:
 {{ .Values.logcollector.resources | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.livenessProbe }}
+    livenessProbe:
+{{ .Values.logcollector.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.readinessProbe }}
+    readinessProbe:
+{{ .Values.logcollector.readinessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.logrotate }}
+    logrotate:
+      {{- if .Values.logcollector.logrotate.configuration }}
+      configuration: |
+{{ .Values.logcollector.logrotate.configuration | indent 8 }}
+      {{- end }}
+      {{- if .Values.logcollector.logrotate.extraConfig }}
+      extraConfig:
+{{ .Values.logcollector.logrotate.extraConfig | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.logcollector.logrotate.schedule }}
+      schedule: {{ .Values.logcollector.logrotate.schedule | quote }}
+      {{- end }}
+      {{- if .Values.logcollector.logrotate.livenessProbe }}
+      livenessProbe:
+{{ .Values.logcollector.logrotate.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.logcollector.logrotate.readinessProbe }}
+      readinessProbe:
+{{ .Values.logcollector.logrotate.readinessProbe | toYaml | indent 8 }}
+      {{- end }}
     {{- end }}

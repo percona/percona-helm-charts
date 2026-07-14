@@ -101,6 +101,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.mongodParams`             | PMM mongod params                                                                                                                                                                        | `""`                 |
 | `pmm.mongosParams`             | PMM mongos params                                                                                                                                                                        | `""`                 |
 | `pmm.customClusterName`        | PMM cluster name. If not set Operator uses cr.Name for PMM cluster name                                                                                                                  | `""`                 |
+| `pmm.authenticationMechanism`  | SASL mechanism the PMM client uses to authenticate against mongod/mongos. One of `SCRAM-SHA-256` or `SCRAM-SHA-1`                                                                         | `""`                 |
 | |
 | `replsets.rs0.name`                                                | ReplicaSet name                                                                                                                                                                                                                                              | `rs0`                    |
 | `replsets.rs0.size`                                                | ReplicaSet size (pod quantity)                                                                                                                                                                                                                               | `3`                      |
@@ -366,6 +367,13 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.image.tag`                           | Image tag for the log collector                                               | `4.0.1-2`                        |
 | `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
 | `logcollector.configuration`                       | Custom configuration (optional, if not commented out)                         | `""`                             |
+| `logcollector.livenessProbe`                       | Liveness probe for the logs (fluent-bit) container                            | `{}`                             |
+| `logcollector.readinessProbe`                      | Readiness probe for the logs (fluent-bit) container                           | `{}`                             |
+| `logcollector.logrotate.configuration`             | Custom logrotate configuration                                                | `""`                             |
+| `logcollector.logrotate.extraConfig.name`          | Name of a ConfigMap with extra logrotate configuration                        | `""`                             |
+| `logcollector.logrotate.schedule`                  | Cron schedule for logrotate                                                   | `"0 0 * * *"`                    |
+| `logcollector.logrotate.livenessProbe`             | Liveness probe for the logrotate container                                    | `{}`                             |
+| `logcollector.logrotate.readinessProbe`            | Readiness probe for the logrotate container                                   | `{}`                             |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
