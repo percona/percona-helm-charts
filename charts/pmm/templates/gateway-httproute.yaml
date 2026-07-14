@@ -37,6 +37,13 @@ spec:
     - {{ .host | quote }}
   {{- end }}
   {{- end }}
+  {{- $allPaths := list -}}
+  {{- range .Values.gateway.hosts }}
+  {{- $allPaths = concat $allPaths (default (list) .paths) -}}
+  {{- end }}
+  {{- if empty $allPaths }}
+  {{- fail "gateway.hosts[*].paths must contain at least one path when gateway.enabled=true" }}
+  {{- end }}
   rules:
   {{- range .Values.gateway.hosts }}
   {{- range .paths }}
