@@ -82,8 +82,11 @@ spec:
                 enum:
                 - logical
                 - physical
+                - external
                 - incremental
                 - incremental-base
+                type: string
+              volumeSnapshotClass:
                 type: string
             type: object
           status:
@@ -142,7 +145,6 @@ spec:
                     type: object
                 required:
                 - bucket
-                - credentialsSecret
                 type: object
               lastTransition:
                 format: date-time
@@ -249,6 +251,53 @@ spec:
                 - namespace
                 - region
                 type: object
+              oss:
+                properties:
+                  bucket:
+                    type: string
+                  connectTimeout:
+                    type: string
+                  credentialsSecret:
+                    type: string
+                  endpointUrl:
+                    type: string
+                  maxUploadParts:
+                    format: int32
+                    type: integer
+                  prefix:
+                    type: string
+                  region:
+                    type: string
+                  retryer:
+                    properties:
+                      baseDelay:
+                        type: string
+                      maxAttempts:
+                        type: integer
+                      maxBackoff:
+                        type: string
+                    required:
+                    - baseDelay
+                    - maxAttempts
+                    - maxBackoff
+                    type: object
+                  serverSideEncryption:
+                    properties:
+                      encryptionAlgorithm:
+                        type: string
+                      encryptionKeyId:
+                        type: string
+                      encryptionMethod:
+                        type: string
+                      secretName:
+                        type: string
+                    type: object
+                  uploadPartSize:
+                    format: int64
+                    type: integer
+                required:
+                - credentialsSecret
+                type: object
               pbmName:
                 type: string
               pbmPod:
@@ -311,6 +360,15 @@ spec:
                 type: object
               size:
                 type: string
+              snapshots:
+                items:
+                  properties:
+                    replsetName:
+                      type: string
+                    snapshotName:
+                      type: string
+                  type: object
+                type: array
               start:
                 format: date-time
                 type: string
