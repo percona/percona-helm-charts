@@ -50,7 +50,7 @@ upgradeOptions:
   schedule: "0 2 * * *"
   setFCV: false
 
-# storageAutoscaling:
+# storageScaling:
 #  enableVolumeScaling: false
 #  enableExternalAutoscaling: false
 #  autoscaling:
@@ -109,6 +109,7 @@ pmm:
 #  mongosParams: ""
 #  resources: {}
 #  containerSecurityContext: {}
+#  authenticationMechanism: SCRAM-SHA-256
 
 replsets:
   rs0:
@@ -780,6 +781,26 @@ backup:
     #       backoffInitial: 1
     #       backoffMax: 30
     #       backoffMultiplier: 2
+    # oss-native:
+    #   type: oss
+    #   oss:
+    #     bucket: OSS-BACKUP-BUCKET-NAME-HERE
+    #     prefix: ""
+    #     credentialsSecret: my-cluster-name-backup-oss
+    #     endpointUrl: https://oss-eu-central-1.aliyuncs.com
+    #     region: eu-central-1
+    #     connectTimeout: 10s
+    #     uploadPartSize: 10485760
+    #     maxUploadParts: 10000
+    #     retryer:
+    #       maxAttempts: 3
+    #       maxBackoff: 5m
+    #       baseDelay: 1s
+    #     serverSideEncryption:
+    #       secretName: my-cluster-name-backup-oss-sse
+    #       encryptionMethod: sse
+    #       encryptionAlgorithm: KMS
+    #       encryptionKeyId: OSS-KMS-KEY-ID-HERE
     # minio:
     #   type: minio
     #   minio:
@@ -892,6 +913,43 @@ logcollector:
     requests:
       memory: 100M
       cpu: 200m
+# Add a liveness/readiness probe for the logs (fluent-bit) container.
+# When not set, the container has no probes.
+# NOTE: a tcpSocket/httpGet probe on port 2020 requires the fluent-bit
+# HTTP server to be enabled via `configuration` ([HTTP_SERVER] On).
+#  livenessProbe:
+#    tcpSocket:
+#      port: 2020
+#    initialDelaySeconds: 30
+#    periodSeconds: 15
+#  readinessProbe:
+#    tcpSocket:
+#      port: 2020
+#    initialDelaySeconds: 5
+#    periodSeconds: 10
+#  logrotate:
+#    configuration: |
+#      /data/db/logs/mongod.full.log {
+#          hourly
+#          rotate 24
+#      }
+#    extraConfig:
+#      name: logrotate-config
+#    schedule: "0 0 * * *"
+#    # Add a liveness/readiness probe for the logrotate container.
+#    # When not set, the container has no probes.
+#    livenessProbe:
+#      exec:
+#        command:
+#          - /bin/true
+#      initialDelaySeconds: 30
+#      periodSeconds: 15
+#    readinessProbe:
+#      exec:
+#        command:
+#          - /bin/true
+#      initialDelaySeconds: 5
+#      periodSeconds: 10
 
 # MongoDB Vector Search (mongot). When enabled the operator deploys one
 # mongot StatefulSet per replset (non-sharded) or per shard (sharded),

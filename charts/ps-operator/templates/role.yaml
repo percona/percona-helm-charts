@@ -77,17 +77,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - events
-  - serviceaccounts
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - pods
   - pods/exec
   verbs:
@@ -98,6 +87,28 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - patch
   - watch
 - apiGroups:
   - apps
@@ -140,14 +151,16 @@ rules:
   - update
   - watch
 - apiGroups:
-  - events.k8s.io
+  - coordination.k8s.io
   resources:
-  - events
+  - leases
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - policy
@@ -167,6 +180,9 @@ rules:
   - perconaservermysqlbackups
   - perconaservermysqlbackups/finalizers
   - perconaservermysqlbackups/status
+  - perconaservermysqlclustersets
+  - perconaservermysqlclustersets/finalizers
+  - perconaservermysqlclustersets/status
   - perconaservermysqlrestores
   - perconaservermysqlrestores/finalizers
   - perconaservermysqlrestores/status
@@ -181,6 +197,20 @@ rules:
   - patch
   - update
   - watch
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - validatingwebhookconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+{{- end }}
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -191,5 +221,6 @@ rules:
   - get
   - list
   - patch
+  - update
   - watch
 {{- end }}
