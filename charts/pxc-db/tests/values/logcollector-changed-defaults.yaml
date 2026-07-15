@@ -1,0 +1,10 @@
+logcollector:
+  enabled: true
+  image: changed-image
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+    limits:
+      cpu: 2m
+      memory: 2Mi
