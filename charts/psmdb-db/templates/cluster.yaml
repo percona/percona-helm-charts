@@ -46,6 +46,21 @@ spec:
   {{- if hasKey .Values "enableExternalVolumeAutoscaling" }}
   enableExternalVolumeAutoscaling: {{ .Values.enableExternalVolumeAutoscaling }}
   {{- end }}
+  {{- if .Values.defaultRWConcern }}
+  defaultRWConcern:
+    {{- if .Values.defaultRWConcern.readConcern }}
+    readConcern: {{ .Values.defaultRWConcern.readConcern }}
+    {{- end }}
+    {{- with .Values.defaultRWConcern.writeConcern }}
+    writeConcern:
+      {{- if .w }}
+      w: {{ .w | quote }}
+      {{- end }}
+      {{- if hasKey . "wtimeout" }}
+      wtimeout: {{ .wtimeout }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
   {{- if .Values.clusterServiceDNSSuffix }}
   clusterServiceDNSSuffix: {{ .Values.clusterServiceDNSSuffix }}
   {{- end }}
