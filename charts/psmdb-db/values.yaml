@@ -34,6 +34,13 @@ unsafeFlags:
 
 enableVolumeExpansion: false
 # enableExternalVolumeAutoscaling: false
+
+# defaultRWConcern:
+#   readConcern: majority
+#   writeConcern:
+#     w: majority
+#     wtimeout: 0
+
 annotations: {}
 
 # ignoreAnnotations:
