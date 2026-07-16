@@ -6,13 +6,9 @@ metadata:
   namespace: {{ include "psmdb-database.namespace" . }}
   labels:
 {{ include "psmdb-database.labels" . | indent 4 }}
-  {{- with .Values.clusterSync.annotations }}
-  annotations:
-{{ toYaml . | indent 4 }}
-  {{- end }}
 spec:
   clusterName: {{ default (include "psmdb-database.fullname" .) .Values.clusterSync.clusterName }}
-  image: {{ .Values.clusterSync.image }}
+  image: {{ .Values.clusterSync.image | quote }}
   {{- with .Values.clusterSync.imagePullPolicy }}
   imagePullPolicy: {{ . }}
   {{- end }}
@@ -54,6 +50,10 @@ spec:
   {{- end }}
   {{- with .Values.clusterSync.labels }}
   labels:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+  {{- with .Values.clusterSync.annotations }}
+  annotations:
 {{ toYaml . | indent 4 }}
   {{- end }}
   {{- with .Values.clusterSync.runtimeClassName }}

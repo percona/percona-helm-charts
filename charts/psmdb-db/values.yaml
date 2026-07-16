@@ -1044,7 +1044,7 @@ clusterSync:
     # Credentials from credentialsSecret are injected at runtime.
     uri: ""
     # Same-namespace Secret with `username`/`password` keys.
-    # Defaults to "<sync-name>-source" when credentials below are set.
+    # Defaults to "<sync-name>-source" when left empty.
     credentialsSecret: ""
     # If username/password are set the chart creates the credentialsSecret
     # automatically. Leave empty and pre-create the Secret yourself in prod.
@@ -1075,6 +1075,8 @@ clusterSync:
   #     cpu: "2"
   #     memory: 2Gi
 
+  # Annotations and labels propagated by the operator to resources it creates
+  # for the ClusterSync (mapped to spec.annotations / spec.labels on the CR).
   annotations: {}
   labels: {}
   nodeSelector: {}
