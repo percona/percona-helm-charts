@@ -57,7 +57,7 @@ upgradeOptions:
   schedule: "0 2 * * *"
   setFCV: false
 
-# storageAutoscaling:
+# storageScaling:
 #  enableVolumeScaling: false
 #  enableExternalAutoscaling: false
 #  autoscaling:
@@ -81,6 +81,7 @@ imagePullPolicy: Always
 #   # 90 days in hours
 #   certValidityDuration: 2160h
 #   allowInvalidCertificates: true
+#   certManagementPolicy: auto
 #   issuerConf:
 #     name: special-selfsigned-issuer
 #     kind: ClusterIssuer
@@ -116,6 +117,7 @@ pmm:
 #  mongosParams: ""
 #  resources: {}
 #  containerSecurityContext: {}
+#  authenticationMechanism: SCRAM-SHA-256
 
 replsets:
   rs0:
@@ -299,6 +301,29 @@ replsets:
     #   hostnames:
     #   - "host1"
     #   - "host2"
+    # search:
+    #   # Per-replset override of the cluster-wide spec.search settings below.
+    #   # Only the fields listed here may be overridden per replset/shard and
+    #   # each field fully replaces (does not merge with) the cluster-wide value.
+    #   size: 1
+    #   resources:
+    #     requests:
+    #       cpu: "8"
+    #       memory: 32Gi
+    #   storage:
+    #     persistentVolumeClaim:
+    #       resources:
+    #         requests:
+    #           storage: 200Gi
+    #   affinity:
+    #     antiAffinityTopologyKey: "kubernetes.io/hostname"
+    #   # jvmFlags: []
+    #   # nodeSelector: {}
+    #   # tolerations: []
+    #   # annotations: {}
+    #   # labels: {}
+    #   # podSecurityContext: {}
+    #   # containerSecurityContext: {}
 
     hidden:
       enabled: false
@@ -764,6 +789,26 @@ backup:
     #       backoffInitial: 1
     #       backoffMax: 30
     #       backoffMultiplier: 2
+    # oss-native:
+    #   type: oss
+    #   oss:
+    #     bucket: OSS-BACKUP-BUCKET-NAME-HERE
+    #     prefix: ""
+    #     credentialsSecret: my-cluster-name-backup-oss
+    #     endpointUrl: https://oss-eu-central-1.aliyuncs.com
+    #     region: eu-central-1
+    #     connectTimeout: 10s
+    #     uploadPartSize: 10485760
+    #     maxUploadParts: 10000
+    #     retryer:
+    #       maxAttempts: 3
+    #       maxBackoff: 5m
+    #       baseDelay: 1s
+    #     serverSideEncryption:
+    #       secretName: my-cluster-name-backup-oss-sse
+    #       encryptionMethod: sse
+    #       encryptionAlgorithm: KMS
+    #       encryptionKeyId: OSS-KMS-KEY-ID-HERE
     # minio:
     #   type: minio
     #   minio:
@@ -784,6 +829,25 @@ backup:
     #       prefix: PREFIX-NAME
     #       endpointUrl: https://accountName.blob.core.windows.net
     #       credentialsSecret: SECRET-NAME
+    # oci:
+    #   type: oci
+    #   oci:
+    #     bucket: OCI-BACKUP-BUCKET-NAME-HERE
+    #     namespace: OCI-OBJECT-STORAGE-NAMESPACE-HERE
+    #     region: us-ashburn-1
+    #     prefix: ""
+    #     credentials:
+    #       type: userPrincipal
+    #       secretName: my-cluster-name-backup-oci
+    #     serverSideEncryption:
+    #       kmsKeyID: OCI-KMS-KEY-OCID-HERE
+    #       secretName: my-cluster-name-backup-oci-sse
+    #     retryer:
+    #       maxAttempts: 3
+    #       maxBackoff: 5m
+    #     uploadPartSize: 10485760
+    #     maxObjSizeGB: 10
+    #     uploadConcurrency: 1
     #  backup-nfs:
     #    type: filesystem
     #    filesystem:
@@ -876,3 +940,86 @@ logcollector:
     requests:
       memory: 100M
       cpu: 200m
+# Add a liveness/readiness probe for the logs (fluent-bit) container.
+# When not set, the container has no probes.
+# NOTE: a tcpSocket/httpGet probe on port 2020 requires the fluent-bit
+# HTTP server to be enabled via `configuration` ([HTTP_SERVER] On).
+#  livenessProbe:
+#    tcpSocket:
+#      port: 2020
+#    initialDelaySeconds: 30
+#    periodSeconds: 15
+#  readinessProbe:
+#    tcpSocket:
+#      port: 2020
+#    initialDelaySeconds: 5
+#    periodSeconds: 10
+#  logrotate:
+#    configuration: |
+#      /data/db/logs/mongod.full.log {
+#          hourly
+#          rotate 24
+#      }
+#    extraConfig:
+#      name: logrotate-config
+#    schedule: "0 0 * * *"
+#    # Add a liveness/readiness probe for the logrotate container.
+#    # When not set, the container has no probes.
+#    livenessProbe:
+#      exec:
+#        command:
+#          - /bin/true
+#      initialDelaySeconds: 30
+#      periodSeconds: 15
+#    readinessProbe:
+#      exec:
+#        command:
+#          - /bin/true
+#      initialDelaySeconds: 5
+#      periodSeconds: 10
+
+# MongoDB Vector Search (mongot). When enabled the operator deploys one
+# mongot StatefulSet per replset (non-sharded) or per shard (sharded),
+# wires mongod/mongos to it and provisions the searchCoordinator user.
+# These are the cluster-wide defaults; per-replset overrides can be set
+# under replsets.<name>.search.
+# search:
+#   enabled: true
+#   image:
+#     repository: perconalab/percona-server-mongodb-mongot
+#     tag: 0.51.0
+#   # imagePullPolicy: Always
+#   size: 1
+#   # configuration is raw mongot YAML merged on top of the operator-generated mongot.conf
+#   # configuration: |
+#   #   syncSource:
+#   #     replicaSet:
+#   #       hostAndPort: ""
+#   storage:
+#     persistentVolumeClaim:
+#       resources:
+#         requests:
+#           storage: 10Gi
+#   resources:
+#     requests:
+#       cpu: "2"
+#       memory: 2Gi
+#   # jvmFlags: []
+#   affinity:
+#     antiAffinityTopologyKey: "kubernetes.io/hostname"
+#   # nodeSelector: {}
+#   # tolerations: []
+#   # annotations: {}
+#   # labels: {}
+#   # podSecurityContext: {}
+#   # containerSecurityContext: {}
+#   livenessProbe:
+#     initialDelaySeconds: 60
+#     periodSeconds: 30
+#     timeoutSeconds: 5
+#     failureThreshold: 4
+#   readinessProbe:
+#     initialDelaySeconds: 10
+#     periodSeconds: 10
+#     timeoutSeconds: 2
+#     failureThreshold: 3
