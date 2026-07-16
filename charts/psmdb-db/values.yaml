@@ -34,6 +34,13 @@ unsafeFlags:
 
 enableVolumeExpansion: false
 # enableExternalVolumeAutoscaling: false
+
+# defaultRWConcern:
+#   readConcern: majority
+#   writeConcern:
+#     w: majority
+#     wtimeout: 0
+
 annotations: {}
 
 # ignoreAnnotations:
@@ -111,6 +118,24 @@ pmm:
 #  resources: {}
 #  containerSecurityContext: {}
 #  authenticationMechanism: SCRAM-SHA-256
+#  # Override the built-in liveness probe of the pmm-client container.
+#  # When not set, the Operator uses HTTP GET :7777/local/Status.
+#  livenessProbe:
+#    httpGet:
+#      path: /local/Status
+#      port: 7777
+#    initialDelaySeconds: 60
+#    timeoutSeconds: 5
+#    periodSeconds: 10
+#    failureThreshold: 5
+#  # Add a readiness probe for the pmm-client container.
+#  # When not set, the container has no readiness probe.
+#  readinessProbe:
+#    tcpSocket:
+#      port: 7777
+#    initialDelaySeconds: 5
+#    periodSeconds: 10
+#    failureThreshold: 3
 
 replsets:
   rs0:
@@ -172,6 +197,19 @@ replsets:
     # labels: {}
     # podSecurityContext: {}
     # containerSecurityContext: {}
+    # env:
+    # - name: MY_ENV_VAR
+    #   value: "my-value"
+    # - name: MY_SECRET_VAR
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: my-secret
+    #       key: secret-key
+    # envFrom:
+    # - configMapRef:
+    #     name: my-configmap
+    # - secretRef:
+    #     name: my-secret
     # nodeSelector: {}
     # livenessProbe:
     #   failureThreshold: 4
@@ -322,6 +360,19 @@ replsets:
       enabled: false
 #      podSecurityContext: {}
 #      containerSecurityContext: {}
+#      env:
+#      - name: MY_ENV_VAR
+#        value: "my-value"
+#      - name: MY_SECRET_VAR
+#        valueFrom:
+#          secretKeyRef:
+#            name: my-secret
+#            key: secret-key
+#      envFrom:
+#      - configMapRef:
+#          name: my-configmap
+#      - secretRef:
+#          name: my-secret
       size: 2
 #      # for more configuration fields refer to https://docs.mongodb.com/manual/reference/configuration-options/
 #      configuration: |
@@ -389,6 +440,19 @@ replsets:
       enabled: false
       # podSecurityContext: {}
       # containerSecurityContext: {}
+      # env:
+      # - name: MY_ENV_VAR
+      #   value: "my-value"
+      # - name: MY_SECRET_VAR
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: my-secret
+      #       key: secret-key
+      # envFrom:
+      # - configMapRef:
+      #     name: my-configmap
+      # - secretRef:
+      #     name: my-secret
       size: 3
       # configuration: |
       #   operationProfiling:
@@ -446,6 +510,19 @@ replsets:
     arbiter:
       enabled: false
       size: 1
+      # env:
+      # - name: MY_ENV_VAR
+      #   value: "my-value"
+      # - name: MY_SECRET_VAR
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: my-secret
+      #       key: secret-key
+      # envFrom:
+      # - configMapRef:
+      #     name: my-configmap
+      # - secretRef:
+      #     name: my-secret
       # serviceAccountName: percona-server-mongodb-operator
       # hookScript:
       #   configMapRef:
@@ -524,6 +601,19 @@ sharding:
     # labels: {}
     # podSecurityContext: {}
     # containerSecurityContext: {}
+    # env:
+    # - name: MY_ENV_VAR
+    #   value: "my-value"
+    # - name: MY_SECRET_VAR
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: my-secret
+    #       key: secret-key
+    # envFrom:
+    # - configMapRef:
+    #     name: my-configmap
+    # - secretRef:
+    #     name: my-secret
     # nodeSelector: {}
     # livenessProbe: {}
     # readinessProbe: {}
@@ -625,6 +715,19 @@ sharding:
     # labels: {}
     # podSecurityContext: {}
     # containerSecurityContext: {}
+    # env:
+    # - name: MY_ENV_VAR
+    #   value: "my-value"
+    # - name: MY_SECRET_VAR
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: my-secret
+    #       key: secret-key
+    # envFrom:
+    # - configMapRef:
+    #     name: my-configmap
+    # - secretRef:
+    #     name: my-secret
     # nodeSelector: {}
     # livenessProbe: {}
     # readinessProbe: {}
@@ -742,6 +845,19 @@ backup:
   #     #!/usr/bin/env bash
   #     echo "Hookscript started"
   # containerSecurityContext: {}
+  # env:
+  # - name: MY_ENV_VAR
+  #   value: "my-value"
+  # - name: MY_SECRET_VAR
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: my-secret
+  #       key: secret-key
+  # envFrom:
+  # - configMapRef:
+  #     name: my-configmap
+  # - secretRef:
+  #     name: my-secret
   # resources:
   #   limits:
   #     cpu: "300m"
@@ -749,6 +865,20 @@ backup:
   #   requests:
   #     cpu: "300m"
   #     memory: "1Gi"
+  # livenessProbe:
+  #   exec:
+  #     command:
+  #       - /bin/true
+  #   initialDelaySeconds: 30
+  #   periodSeconds: 15
+  #   failureThreshold: 5
+  # readinessProbe:
+  #   exec:
+  #     command:
+  #       - /bin/true
+  #   initialDelaySeconds: 5
+  #   periodSeconds: 10
+  #   failureThreshold: 3
   storages:
     # s3-us-west:
     #   main: true
@@ -929,6 +1059,19 @@ logcollector:
 #        Flush        1
 #        Log_Level    error
 #        Daemon       off
+#  env:
+#  - name: MY_ENV_VAR
+#    value: "my-value"
+#  - name: MY_SECRET_VAR
+#    valueFrom:
+#      secretKeyRef:
+#        name: my-secret
+#        key: secret-key
+#  envFrom:
+#  - configMapRef:
+#      name: my-configmap
+#  - secretRef:
+#      name: my-secret
   resources:
     requests:
       memory: 100M
