@@ -68,7 +68,7 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 8.0.19-7
+  tag: 8.0.26-11
 
 imagePullPolicy: Always
 # imagePullSecrets: []
@@ -110,7 +110,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.6.0
+    tag: 3.8.1
   serverHost: monitoring-service
 #  customClusterName: ""
 #  mongodParams: ""
@@ -833,7 +833,7 @@ backup:
   enabled: true
   image:
     repository: percona/percona-backup-mongodb
-    tag: 2.12.0
+    tag: 2.15.0
   # startingDeadlineSeconds: 300
   # annotations:
   #   iam.amazonaws.com/role: role-arn
@@ -1053,7 +1053,7 @@ logcollector:
   enabled: true
   image:
     repository: percona/fluentbit
-    tag: 4.0.1-2
+    tag: 5.0.9-1
 #  configuration: |
 #    [SERVICE]
 #        Flush        1
@@ -1123,7 +1123,7 @@ logcollector:
 #   enabled: true
 #   image:
 #     repository: perconalab/percona-server-mongodb-mongot
-#     tag: 0.51.0
+#     tag: 0.70.1
 #   # imagePullPolicy: Always
 #   size: 1
 #   # configuration is raw mongot YAML merged on top of the operator-generated mongot.conf
