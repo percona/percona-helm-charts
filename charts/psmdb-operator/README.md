@@ -63,7 +63,7 @@ helm upgrade --install psmdb-operator-crds percona/psmdb-operator-crds --namespa
 For Helm versions older than 3.17.0, manually add ownership labels and annotations before running the upgrade:
 
 ```sh
-CRDS=(perconaservermongodbs.psmdb.percona.com perconaservermongodbbackups.psmdb.percona.com perconaservermongodbrestores.psmdb.percona.com)
+CRDS=(perconaservermongodbs.psmdb.percona.com perconaservermongodbbackups.psmdb.percona.com perconaservermongodbclustersyncs.psmdb.percona.com perconaservermongodbrestores.psmdb.percona.com)
 kubectl label crds "${CRDS[@]}" app.kubernetes.io/managed-by=Helm --overwrite
 kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-name=psmdb-operator-crds --overwrite
 kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=my-namespace --overwrite

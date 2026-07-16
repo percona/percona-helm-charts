@@ -7,6 +7,7 @@ A Helm chart for Percona Server for MongoDB Operator Custom Resource Definitions
 This chart contains the CRDs required by the Percona Operator for MongoDB:
 - `PerconaServerMongoDB` - defines a MongoDB cluster managed by the operator
 - `PerconaServerMongoDBBackup` - defines a backup for a MongoDB cluster
+- `PerconaServerMongoDBClusterSync` - defines a Percona ClusterSync for MongoDB (PCSM) replication job for migrating data into an operator-managed cluster
 - `PerconaServerMongoDBRestore` - defines a restore operation for a MongoDB cluster
 
 ## Why a Separate CRD Chart?
@@ -65,7 +66,7 @@ If you have CRDs that were previously installed via the `crds/` directory and wa
 If you want to take ownership of existing CRDs to manage them with this chart:
 
 ```sh
-CRDS=(perconaservermongodbs.psmdb.percona.com perconaservermongodbbackups.psmdb.percona.com perconaservermongodbrestores.psmdb.percona.com)
+CRDS=(perconaservermongodbs.psmdb.percona.com perconaservermongodbbackups.psmdb.percona.com perconaservermongodbclustersyncs.psmdb.percona.com perconaservermongodbrestores.psmdb.percona.com)
 kubectl label crds "${CRDS[@]}" app.kubernetes.io/managed-by=Helm --overwrite
 kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-name=psmdb-operator-crds
 kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=psmdb
