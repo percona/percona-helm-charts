@@ -197,6 +197,19 @@ replsets:
     # labels: {}
     # podSecurityContext: {}
     # containerSecurityContext: {}
+    # env:
+    # - name: MY_ENV_VAR
+    #   value: "my-value"
+    # - name: MY_SECRET_VAR
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: my-secret
+    #       key: secret-key
+    # envFrom:
+    # - configMapRef:
+    #     name: my-configmap
+    # - secretRef:
+    #     name: my-secret
     # nodeSelector: {}
     # livenessProbe:
     #   failureThreshold: 4
@@ -347,6 +360,19 @@ replsets:
       enabled: false
 #      podSecurityContext: {}
 #      containerSecurityContext: {}
+#      env:
+#      - name: MY_ENV_VAR
+#        value: "my-value"
+#      - name: MY_SECRET_VAR
+#        valueFrom:
+#          secretKeyRef:
+#            name: my-secret
+#            key: secret-key
+#      envFrom:
+#      - configMapRef:
+#          name: my-configmap
+#      - secretRef:
+#          name: my-secret
       size: 2
 #      # for more configuration fields refer to https://docs.mongodb.com/manual/reference/configuration-options/
 #      configuration: |
@@ -414,6 +440,19 @@ replsets:
       enabled: false
       # podSecurityContext: {}
       # containerSecurityContext: {}
+      # env:
+      # - name: MY_ENV_VAR
+      #   value: "my-value"
+      # - name: MY_SECRET_VAR
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: my-secret
+      #       key: secret-key
+      # envFrom:
+      # - configMapRef:
+      #     name: my-configmap
+      # - secretRef:
+      #     name: my-secret
       size: 3
       # configuration: |
       #   operationProfiling:
@@ -471,6 +510,19 @@ replsets:
     arbiter:
       enabled: false
       size: 1
+      # env:
+      # - name: MY_ENV_VAR
+      #   value: "my-value"
+      # - name: MY_SECRET_VAR
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: my-secret
+      #       key: secret-key
+      # envFrom:
+      # - configMapRef:
+      #     name: my-configmap
+      # - secretRef:
+      #     name: my-secret
       # serviceAccountName: percona-server-mongodb-operator
       # hookScript:
       #   configMapRef:
@@ -549,6 +601,19 @@ sharding:
     # labels: {}
     # podSecurityContext: {}
     # containerSecurityContext: {}
+    # env:
+    # - name: MY_ENV_VAR
+    #   value: "my-value"
+    # - name: MY_SECRET_VAR
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: my-secret
+    #       key: secret-key
+    # envFrom:
+    # - configMapRef:
+    #     name: my-configmap
+    # - secretRef:
+    #     name: my-secret
     # nodeSelector: {}
     # livenessProbe: {}
     # readinessProbe: {}
@@ -650,6 +715,19 @@ sharding:
     # labels: {}
     # podSecurityContext: {}
     # containerSecurityContext: {}
+    # env:
+    # - name: MY_ENV_VAR
+    #   value: "my-value"
+    # - name: MY_SECRET_VAR
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: my-secret
+    #       key: secret-key
+    # envFrom:
+    # - configMapRef:
+    #     name: my-configmap
+    # - secretRef:
+    #     name: my-secret
     # nodeSelector: {}
     # livenessProbe: {}
     # readinessProbe: {}
@@ -767,6 +845,19 @@ backup:
   #     #!/usr/bin/env bash
   #     echo "Hookscript started"
   # containerSecurityContext: {}
+  # env:
+  # - name: MY_ENV_VAR
+  #   value: "my-value"
+  # - name: MY_SECRET_VAR
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: my-secret
+  #       key: secret-key
+  # envFrom:
+  # - configMapRef:
+  #     name: my-configmap
+  # - secretRef:
+  #     name: my-secret
   # resources:
   #   limits:
   #     cpu: "300m"
@@ -968,6 +1059,19 @@ logcollector:
 #        Flush        1
 #        Log_Level    error
 #        Daemon       off
+#  env:
+#  - name: MY_ENV_VAR
+#    value: "my-value"
+#  - name: MY_SECRET_VAR
+#    valueFrom:
+#      secretKeyRef:
+#        name: my-secret
+#        key: secret-key
+#  envFrom:
+#  - configMapRef:
+#      name: my-configmap
+#  - secretRef:
+#      name: my-secret
   resources:
     requests:
       memory: 100M
