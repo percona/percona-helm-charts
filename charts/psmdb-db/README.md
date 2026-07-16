@@ -72,6 +72,7 @@ The chart can be customized using the following configurable parameters:
 | `tls.mode`                     | Control usage of TLS (allowTLS, preferTLS, requireTLS, disabled)                | `preferTLS` |
 | `tls.certValidityDuration`     | The validity duration of the external certificate for cert manager              | `""`        |
 | `tls.allowInvalidCertificates` | If enabled the mongo shell will not attempt to validate the server certificates | `true`      |
+| `tls.certManagementPolicy`     | Certificate management policy (auto or userProvidedOnly)                        | `auto`      |
 | `tls.issuerConf.name`          | A cert-manager issuer name                                                      | `""`        |
 | `tls.issuerConf.kind`          | A cert-manager issuer kind                                                      | `""`        |
 | `tls.issuerConf.group`         | A cert-manager issuer group                                                     | `""`        |
@@ -101,6 +102,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.mongodParams`             | PMM mongod params                                                                                                                                                                        | `""`                 |
 | `pmm.mongosParams`             | PMM mongos params                                                                                                                                                                        | `""`                 |
 | `pmm.customClusterName`        | PMM cluster name. If not set Operator uses cr.Name for PMM cluster name                                                                                                                  | `""`                 |
+| `pmm.authenticationMechanism`  | SASL mechanism the PMM client uses to authenticate against mongod/mongos. One of `SCRAM-SHA-256` or `SCRAM-SHA-1`                                                                         | `""`                 |
 | `pmm.livenessProbe`            | Override the built-in liveness probe of the pmm-client container. When not set, the Operator uses HTTP GET :7777/local/Status                                                            | `{}`                 |
 | `pmm.readinessProbe`           | Set a readiness probe for the pmm-client container. When not set, the container has no readiness probe                                                                                   | `{}`                 |
 | |
@@ -160,6 +162,7 @@ The chart can be customized using the following configurable parameters:
 | `replsets.rs0.volumeSpec.pvc.accessModes`                          | ReplicaSet Pods PVC access policy                                                                                                                                                                                                                            | `[]`                     |
 | `replsets.rs0.volumeSpec.pvc.resources.requests.storage`           | ReplicaSet Pods PVC storage size                                                                                                                                                                                                                             | `3Gi`                    |
 | `replsets.rs0.hostAliases`                                         | The IP address for Kubernetes host aliases                                                                                                                                                                                                                   | `[]`                     |
+| `replsets.rs0.search`                                              | Per-replset override of the cluster-wide `search` settings (mongot). Each field fully replaces the cluster-wide value for this replset/shard. Overridable fields: `size`, `storage`, `resources`, `jvmFlags`, `affinity`, `nodeSelector`, `tolerations`, `annotations`, `labels`, `podSecurityContext`, `containerSecurityContext` | `{}`                     |
 | `replsets.rs0.nonvoting.enabled`                                   | Add MongoDB nonvoting Pods                                                                                                                                                                                                                                   | `false`                  |
 | `replsets.rs0.nonvoting.podSecurityContext`                        | Set the security context for a Pod                                                                                                                                                                                                                           | `{}`                     |
 | `replsets.rs0.nonvoting.containerSecurityContext`                  | Set the security context for a Container                                                                                                                                                                                                                     | `{}`                     |
@@ -370,6 +373,31 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.image.tag`                           | Image tag for the log collector                                               | `4.0.1-2`                        |
 | `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
 | `logcollector.configuration`                       | Custom configuration (optional, if not commented out)                         | `""`                             |
+| `logcollector.livenessProbe`                       | Liveness probe for the logs (fluent-bit) container                            | `{}`                             |
+| `logcollector.readinessProbe`                      | Readiness probe for the logs (fluent-bit) container                           | `{}`                             |
+| `logcollector.logrotate.configuration`             | Custom logrotate configuration                                                | `""`                             |
+| `logcollector.logrotate.extraConfig.name`          | Name of a ConfigMap with extra logrotate configuration                        | `""`                             |
+| `logcollector.logrotate.schedule`                  | Cron schedule for logrotate                                                   | `"0 0 * * *"`                    |
+| `logcollector.logrotate.livenessProbe`             | Liveness probe for the logrotate container                                    | `{}`                             |
+| `logcollector.logrotate.readinessProbe`            | Readiness probe for the logrotate container                                   | `{}`                             |
+| `search.enabled`                                   | Enable MongoDB Vector Search (deploys a mongot StatefulSet per replset/shard) | `false`                          |
+| `search.image.repository`                          | mongot (search) container image repository                                    | `perconalab/percona-server-mongodb-mongot` |
+| `search.image.tag`                                 | mongot (search) container image tag                                           | `"0.51.0"`                             |
+| `search.imagePullPolicy`                           | mongot image pull policy                                                       | `""`                             |
+| `search.size`                                      | Number of mongot Pods per replset/shard (only `1` is supported)               | `1`                              |
+| `search.configuration`                             | Raw mongot YAML merged on top of the operator-generated `mongot.conf`         | `""`                             |
+| `search.storage`                                   | PVC spec for mongot data (`persistentVolumeClaim`)                            | `{}`                             |
+| `search.resources`                                 | mongot Pods resource requests and limits                                      | `{}`                             |
+| `search.jvmFlags`                                  | Extra JVM flags for mongot                                                     | `[]`                             |
+| `search.affinity.antiAffinityTopologyKey`          | mongot Pod anti-affinity topology key                                         | `kubernetes.io/hostname`         |
+| `search.nodeSelector`                              | mongot Pod nodeSelector labels                                                 | `{}`                             |
+| `search.tolerations`                               | mongot Pod tolerations                                                         | `[]`                             |
+| `search.annotations`                               | mongot Pod annotations                                                         | `{}`                             |
+| `search.labels`                                    | mongot Pod labels                                                             | `{}`                             |
+| `search.podSecurityContext`                        | Set the security context for a mongot Pod                                      | `{}`                             |
+| `search.containerSecurityContext`                  | Set the security context for a mongot Container                                | `{}`                             |
+| `search.livenessProbe`                             | mongot container livenessProbe overrides                                       | `{}`                             |
+| `search.readinessProbe`                            | mongot container readinessProbe overrides                                      | `{}`                             |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
