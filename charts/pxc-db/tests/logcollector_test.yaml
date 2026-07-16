@@ -1,0 +1,119 @@
+suite: pxc-db logcollector
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: test_logcollector renders default structure
+    set:
+      logcollector.image: default-image
+    asserts:
+      - equal:
+          path: spec.logcollector
+          value:
+            enabled: true
+            image: default-image
+            resources:
+              requests:
+                cpu: 200m
+                memory: 100M
+              limits: {}
+
+  - it: test_logcollector renders changed default values
+    values:
+      - values/logcollector-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.logcollector
+          value:
+            enabled: true
+            image: changed-image
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+
+  - it: test_logcollector can be disabled
+    set:
+      logcollector.enabled: false
+    asserts:
+      - equal:
+          path: spec.logcollector.enabled
+          value: false
+      - notExists:
+          path: spec.logcollector.image
+
+  - it: test_logcollector renders image pull settings when defined
+    set:
+      logcollector.imagePullPolicy: Always
+      logcollector.imagePullSecrets:
+        - name: private-registry-credentials
+    asserts:
+      - isSubset:
+          path: spec.logcollector
+          content:
+            imagePullPolicy: Always
+            imagePullSecrets:
+              - name: private-registry-credentials
+
+  - it: test_logcollector renders configuration when defined
+    set:
+      logcollector.configuration: |
+        [OUTPUT]
+              Name  es
+    asserts:
+      - equal:
+          path: spec.logcollector.configuration
+          value: |
+            [OUTPUT]
+                  Name  es
+
+  - it: test_logcollector renders logrotate when defined
+    set:
+      logcollector.logRotate:
+        schedule: "*/5 * * * *"
+        configuration: |
+          /var/lib/mysql/GRA_*.log {
+            daily
+            rotate 7
+          }
+        extraConfig:
+          name: my-logrotate-config
+    asserts:
+      - equal:
+          path: spec.logcollector.logRotate
+          value:
+            schedule: "*/5 * * * *"
+            configuration: |
+              /var/lib/mysql/GRA_*.log {
+                daily
+                rotate 7
+              }
+            extraConfig:
+              name: my-logrotate-config
+
+  - it: test_logcollector renders resource limits when defined
+    set:
+      logcollector.resources.limits:
+        memory: 200M
+        cpu: 400m
+    asserts:
+      - equal:
+          path: spec.logcollector.resources.limits
+          value:
+            memory: 200M
+            cpu: 400m
+
+  - it: test_logcollector renders container security context when defined
+    set:
+      logcollector.containerSecurityContext:
+        privileged: false
+    asserts:
+      - equal:
+          path: spec.logcollector.containerSecurityContext
+          value:
+            privileged: false
