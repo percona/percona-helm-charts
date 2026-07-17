@@ -47,14 +47,13 @@ spec:
   {{- fail "gateway.hosts[*].paths must contain at least one path when gateway.enabled=true" }}
   {{- end }}
   rules:
-  {{- range .Values.gateway.hosts }}
-  {{- range .paths }}
+  {{- range $allPaths }}
     - matches:
         - path:
             type: {{ $pathType }}
             value: {{ . | quote }}
       backendRefs:
-        - name: {{ $serviceName }}
+        - name: {{ $serviceName }}-grpc
           port: {{ $servicePort }}
     # gRPC paths — configure protocol-level gRPC handling via gateway.annotations
     - matches:
@@ -85,6 +84,5 @@ spec:
       backendRefs:
         - name: {{ $serviceName }}-grpc
           port: {{ $grpcPort }}
-  {{- end }}
   {{- end }}
 {{- end }}
