@@ -288,11 +288,11 @@ gateway:
     ## @param gateway.parentRefs[0].sectionName -- Listener section name on the Gateway (omit to match all listeners)
       sectionName: ""
 
-  ## Hostnames and path mappings
+  ## Hostnames and path lists (paths are aggregated and applied route-wide)
   hosts:
     ## @param gateway.hosts[0].host -- Hostname to match
     - host: chart-example.local
-    ## @param gateway.hosts[0].paths -- Path prefixes to route
+    ## @param gateway.hosts[0].paths -- Path prefixes to route (aggregated across hosts and applied route-wide)
       paths: []
 
   ## @param gateway.pathType -- Path match type: PathPrefix, Exact, or RegularExpression

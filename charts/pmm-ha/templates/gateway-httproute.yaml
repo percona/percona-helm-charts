@@ -39,6 +39,7 @@ spec:
     - {{ .host | quote }}
   {{- end }}
   {{- end }}
+  {{/* HTTPRoute hostnames are route-level, so host paths are aggregated once and applied across listed hostnames. */}}
   {{- $allPaths := list -}}
   {{- range .Values.gateway.hosts }}
   {{- $allPaths = concat $allPaths (default (list) .paths) -}}

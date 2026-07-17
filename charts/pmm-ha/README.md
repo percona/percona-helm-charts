@@ -280,6 +280,23 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `ingress.pathType`                | -- How ingress paths should be treated.                                                                                                        | `Prefix`              |
 | `ingress.tls`                     | -- Ingress TLS configuration                                                                                                                   | `[]`                  |
 
+### PMM Gateway API configuration
+
+| Name                                 | Description                                                                                                                                              | Value                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `gateway.enabled`                    | -- Enable Gateway API HTTPRoute resource                                                                                                                | `false`                                         |
+| `gateway.annotations`                | -- Annotations on the HTTPRoute resource                                                                                                                | `{}`                                            |
+| `gateway.parentRefs`                 | -- References to Gateways this HTTPRoute should attach to                                                                                               | `[{'name':'','namespace':'','sectionName':''}]` |
+| `gateway.parentRefs[0].name`         | -- Name of the Gateway. Required when `gateway.enabled=true`                                                                                            | `""`                                            |
+| `gateway.parentRefs[0].namespace`    | -- Namespace of the Gateway (omit to use same namespace)                                                                                                | `""`                                            |
+| `gateway.parentRefs[0].sectionName`  | -- Listener section name on the Gateway (omit to match all listeners)                                                                                  | `""`                                            |
+| `gateway.hosts`                      | -- Hostnames with path lists. Paths are aggregated and applied route-wide across all listed hostnames                                                   | `[{'host':'chart-example.local','paths':[]}]`   |
+| `gateway.hosts[0].host`              | -- Hostname to match                                                                                                                                     | `chart-example.local`                           |
+| `gateway.hosts[0].paths`             | -- Path prefixes to route. Must contain at least one path when `gateway.enabled=true`                                                                  | `[]`                                            |
+| `gateway.pathType`                   | -- Path match type applied to all generated rules: `PathPrefix`, `Exact`, or `RegularExpression`                                                      | `PathPrefix`                                    |
+
+> **Gateway behavior**: when `gateway.enabled=true`, Helm fails fast unless `gateway.parentRefs[*].name` and at least one entry in `gateway.hosts[*].paths` are provided. Paths from `gateway.hosts[*].paths` are aggregated and applied route-wide to all listed hostnames. HTTPRoute backends use the regular `service.name-grpc` service for compatibility with Gateway API implementations; gRPC-prefixed paths (`/agent.`, `/inventory.`, `/management.`, `/server.`) also route to `service.name-grpc`. PMM-HA defaults this backend to HTTPS port 8443. HTTPRoute does not configure gateway-to-backend TLS by itself; depending on your Gateway implementation, you may need `BackendTLSPolicy` (or equivalent implementation-specific settings) to enable upstream TLS, otherwise some gateways may attempt plain HTTP to 8443 and routing can fail.
+
 
 ### HAProxy external access configuration
 
