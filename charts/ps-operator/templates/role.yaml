@@ -77,17 +77,6 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - events
-  - serviceaccounts
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - pods
   - pods/exec
   verbs:
@@ -98,6 +87,28 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - patch
   - watch
 - apiGroups:
   - apps
@@ -148,17 +159,8 @@ rules:
   - delete
   - get
   - list
-  - update
-  - watch
-- apiGroups:
-  - events.k8s.io
-  resources:
-  - events
-  verbs:
-  - create
-  - get
-  - list
   - patch
+  - update
   - watch
 - apiGroups:
   - policy
@@ -178,6 +180,9 @@ rules:
   - perconaservermysqlbackups
   - perconaservermysqlbackups/finalizers
   - perconaservermysqlbackups/status
+  - perconaservermysqlclustersets
+  - perconaservermysqlclustersets/finalizers
+  - perconaservermysqlclustersets/status
   - perconaservermysqlrestores
   - perconaservermysqlrestores/finalizers
   - perconaservermysqlrestores/status
@@ -192,17 +197,7 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - rolebindings
-  - roles
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - watch
+{{- if or .Values.watchNamespace .Values.watchAllNamespaces }}
 - apiGroups:
   - admissionregistration.k8s.io
   resources:
@@ -215,4 +210,17 @@ rules:
   - update
   - patch
   - delete
+{{- end }}
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
 {{- end }}
