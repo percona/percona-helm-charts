@@ -920,6 +920,6 @@ spec:
     {{- end }}
     {{- if .Values.logcollector.containerSecurityContext }}
     containerSecurityContext:
-{{- .Values.logcollector.containerSecurityContext | toYaml | nindent 6 }}
+{{ .Values.logcollector.containerSecurityContext | toYaml | nindent 6 }}
     {{- end }}
 

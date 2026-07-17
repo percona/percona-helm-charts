@@ -860,13 +860,13 @@ logcollector:
   image:
     repository: percona/fluentbit
     tag: 4.0.1-2
-#  configuration: |
-#    [SERVICE]
-#        Flush        1
-#        Log_Level    error
-#        Daemon       off
+  #  configuration: |
+  #    [SERVICE]
+  #        Flush        1
+  #        Log_Level    error
+  #        Daemon       off
   resources:
     requests:
       memory: 100M
       cpu: 200m
-  containerSecurityContext: {}
+  # containerSecurityContext: {}

@@ -366,6 +366,7 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.image.tag`                           | Image tag for the log collector                                               | `4.0.1-2`                        |
 | `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
 | `logcollector.configuration`                       | Custom configuration (optional, if not commented out)                         | `""`                             |
+| `logcollector.containerSecurityContext`            | Set the security context for the logcollector container |  `{}`                            |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
