@@ -149,6 +149,9 @@ replsets:
     #   votes: 0
     #   priority: 0
     # - host: 34.124.76.92
+    #   votes: 1
+    #   priority: 0
+    #   arbiterOnly: true
     # configuration: |
     #   operationProfiling:
     #     mode: slowOp
@@ -570,6 +573,9 @@ sharding:
     #   votes: 0
     #   priority: 0
     # - host: 34.124.76.92
+    #   votes: 1
+    #   priority: 0
+    #   arbiterOnly: true
     # configuration: |
     #   operationProfiling:
     #     mode: slowOp
