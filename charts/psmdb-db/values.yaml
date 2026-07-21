@@ -1128,8 +1128,8 @@ logcollector:
 # search:
 #   enabled: true
 #   image:
-#     repository: perconalab/percona-server-mongodb-mongot
-#     tag: 0.70.1
+#     repository: perconalab/percona-search-mongodb
+#     tag: 1.70.1-1
 #   # imagePullPolicy: Always
 #   size: 1
 #   # configuration is raw mongot YAML merged on top of the operator-generated mongot.conf
