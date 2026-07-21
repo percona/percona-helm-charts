@@ -1060,28 +1060,29 @@ logcollector:
   image:
     repository: percona/fluentbit
     tag: 5.0.9-1
-#  configuration: |
-#    [SERVICE]
-#        Flush        1
-#        Log_Level    error
-#        Daemon       off
-#  env:
-#  - name: MY_ENV_VAR
-#    value: "my-value"
-#  - name: MY_SECRET_VAR
-#    valueFrom:
-#      secretKeyRef:
-#        name: my-secret
-#        key: secret-key
-#  envFrom:
-#  - configMapRef:
-#      name: my-configmap
-#  - secretRef:
-#      name: my-secret
+  #  configuration: |
+  #    [SERVICE]
+  #        Flush        1
+  #        Log_Level    error
+  #        Daemon       off
+  #  env:
+  #  - name: MY_ENV_VAR
+  #    value: "my-value"
+  #  - name: MY_SECRET_VAR
+  #    valueFrom:
+  #      secretKeyRef:
+  #        name: my-secret
+  #        key: secret-key
+  #  envFrom:
+  #  - configMapRef:
+  #      name: my-configmap
+  #  - secretRef:
+  #      name: my-secret
   resources:
     requests:
       memory: 100M
       cpu: 200m
+  # containerSecurityContext: {}
 # Add a liveness/readiness probe for the logs (fluent-bit) container.
 # When not set, the container has no probes.
 # NOTE: a tcpSocket/httpGet probe on port 2020 requires the fluent-bit

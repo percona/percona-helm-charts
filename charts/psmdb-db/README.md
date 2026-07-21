@@ -395,6 +395,7 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.envFrom`                             | Custom environment variable sources (ConfigMaps/Secrets) for Log Collector    | `[]`                             |
 | `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
 | `logcollector.configuration`                       | Custom configuration (optional, if not commented out)                         | `""`                             |
+| `logcollector.containerSecurityContext`            | Set the security context for the logcollector container                       |  `{}`                            |
 | `logcollector.livenessProbe`                       | Liveness probe for the logs (fluent-bit) container                            | `{}`                             |
 | `logcollector.readinessProbe`                      | Readiness probe for the logs (fluent-bit) container                           | `{}`                             |
 | `logcollector.logrotate.configuration`             | Custom logrotate configuration                                                | `""`                             |
