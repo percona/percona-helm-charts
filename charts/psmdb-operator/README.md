@@ -15,7 +15,7 @@ This chart will deploy the Operator Pod for the further Percona Server for Mongo
 
 ## Installing the chart
 
-There are two ways to insall operator: using separate chart with operator Custom Resource Defenitions or using CRDs from the `crds/` directory.
+There are two ways to install operator: using separate chart with operator Custom Resource Definitions or using CRDs from the `crds/` directory.
 
 ### Using separate chart
 
@@ -31,14 +31,14 @@ helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb -
 
 Install operator chart:
 ```sh
-helm install my-operator percona/psmdb-operator --version 1.22.0 --namespace my-namespace
+helm install my-operator percona/psmdb-operator --version 1.23.0 --namespace my-namespace
 ```
 
 ### Using the `crds/` directory.
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/psmdb-operator --version 1.22.0 --namespace my-namespace
+helm install my-operator percona/psmdb-operator --version 1.23.0 --namespace my-namespace
 ```
 
 ## Upgrading CRDs
@@ -63,7 +63,7 @@ helm upgrade --install psmdb-operator-crds percona/psmdb-operator-crds --namespa
 For Helm versions older than 3.17.0, manually add ownership labels and annotations before running the upgrade:
 
 ```sh
-CRDS=(perconaservermongodbs.psmdb.percona.com perconaservermongodbbackups.psmdb.percona.com perconaservermongodbrestores.psmdb.percona.com)
+CRDS=(perconaservermongodbs.psmdb.percona.com perconaservermongodbbackups.psmdb.percona.com perconaservermongodbclustersyncs.psmdb.percona.com perconaservermongodbrestores.psmdb.percona.com)
 kubectl label crds "${CRDS[@]}" app.kubernetes.io/managed-by=Helm --overwrite
 kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-name=psmdb-operator-crds --overwrite
 kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=my-namespace --overwrite
@@ -71,37 +71,42 @@ kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=my-namespace -
 
 ### Option 2: Use kubectl to upgrade the CRDs
 
-kubectl apply --server-side -f https://raw.githubusercontent.com/percona/percona-server-mongodb-operator/v1.22.0/deploy/crd.yaml -n my-namespace
+```
+kubectl apply --server-side -f https://raw.githubusercontent.com/percona/percona-server-mongodb-operator/v1.23.0/deploy/crd.yaml -n my-namespace
+```
 
 
 The chart can be customized using the following configurable parameters:
 
-| Parameter                    | Description                                                                                                  | Default                                   |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| `image.repository`           | PSMDB Operator Container image name                                                                          | `percona/percona-server-mongodb-operator` |
-| `image.tag`                  | PSMDB Operator Container image tag                                                                           | `1.22.0`                                  |
-| `image.pullPolicy`           | PSMDB Operator Container pull policy                                                                         | `IfNotPresent`                            |
-| `imagePullSecrets`           | PSMDB Operator Pod pull secret                                                                               | `[]`                                      |
-| `replicaCount`               | PSMDB Operator Pod quantity                                                                                  | `1`                                       |
-| `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                                  | ``                                        |
-| `tolerations`                | List of node taints to tolerate                                                                              | `[]`                                      |
-| `annotations`                | PSMDB Operator Deployment annotations                                                                        | `{}`                                      |
-| `podAnnotations`             | PSMDB Operator Pod annotations                                                                               | `{}`                                      |
-| `labels`                     | PSMDB Operator Deployment labels                                                                             | `{}`                                      |
-| `podLabels`                  | PSMDB Operator Pod labels                                                                                    | `{}`                                      |
-| `resources`                  | Resource requests and limits                                                                                 | `{}`                                      |
-| `nodeSelector`               | Labels for Pod assignment                                                                                    | `{}`                                      |
-| `podSecurityContext`         | Pod Security Context                                                                                         | `{}`                                      |
-| `watchNamespace`             | Set when a different from default namespace is needed to watch (comma separated if multiple needed)          | `""`                                      |
-| `createNamespace`            | Set if you want to create watched namespaces with helm                                                       | `false`                                   |
-| `rbac.create`                | If false RBAC will not be created. RBAC resources will need to be created manually                           | `true`                                    |
-| `securityContext`            | Container Security Context                                                                                   | `{}`                                      |
-| `serviceAccount.create`      | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually               | `true`                                    |
-| `serviceAccount.annotations` | PSMDB Operator ServiceAccount annotations                                                                    | `{}`                                      |
-| `logStructured`              | Force PSMDB operator to print JSON-wrapped log messages                                                      | `false`                                   |
-| `logLevel`                   | PSMDB Operator logging level                                                                                 | `INFO`                                    |
-| `disableTelemetry`           | Disable sending PSMDB Operator telemetry data to Percona                                                     | `false`                                   |
-| `maxConcurrentReconciles`    | Number of concurrent workers that can reconcile resources in Percona Server for MongoDB clusters in parallel | `1`                                       |
+| Parameter                    | Description                                                                                                  | Default                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `image.repository`           | PSMDB Operator Container image name                                                                          | `percona/percona-server-mongodb-operator`   |
+| `image.tag`                  | PSMDB Operator Container image tag                                                                           | `1.23.0`                                    |
+| `image.pullPolicy`           | PSMDB Operator Container pull policy                                                                         | `IfNotPresent`                              |
+| `imagePullSecrets`           | PSMDB Operator Pod pull secret                                                                               | `[]`                                        |
+| `replicaCount`               | PSMDB Operator Pod quantity                                                                                  | `1`                                         |
+| `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                                  | ``                                          |
+| `tolerations`                | List of node taints to tolerate                                                                              | `[]`                                        |
+| `annotations`                | PSMDB Operator Deployment annotations                                                                        | `{}`                                        |
+| `podAnnotations`             | PSMDB Operator Pod annotations                                                                               | `{}`                                        |
+| `labels`                     | PSMDB Operator Deployment labels                                                                             | `{}`                                        |
+| `podLabels`                  | PSMDB Operator Pod labels                                                                                    | `{}`                                        |
+| `resources`                  | Resource requests and limits                                                                                 | `{}`                                        |
+| `nodeSelector`               | Labels for Pod assignment                                                                                    | `{}`                                        |
+| `podSecurityContext`         | Pod Security Context                                                                                         | `{}`                                        |
+| `watchNamespace`             | Set when a different from default namespace is needed to watch (comma separated if multiple needed)          | `""`                                        |
+| `createNamespace`            | Set if you want to create watched namespaces with helm                                                       | `false`                                     |
+| `rbac.create`                | If false RBAC will not be created. RBAC resources will need to be created manually                           | `true`                                      |
+| `securityContext`            | Container Security Context                                                                                   | `{}`                                        |
+| `serviceAccount.create`      | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually               | `true`                                      |
+| `serviceAccount.annotations` | PSMDB Operator ServiceAccount annotations                                                                    | `{}`                                        |
+| `logStructured`              | Force PSMDB operator to print JSON-wrapped log messages                                                      | `false`                                     |
+| `logLevel`                   | PSMDB Operator logging level                                                                                 | `INFO`                                      |
+| `disableTelemetry`           | Disable sending PSMDB Operator telemetry data to Percona                                                     | `false`                                     |
+| `maxConcurrentReconciles`    | Number of concurrent workers that can reconcile resources in Percona Server for MongoDB clusters in parallel | `1`                                         |
+| `livenessProbe`              | Liveness probe for the operator container (served on the `health` port). Set to `null` to disable            | `{httpGet: {path: /healthz, port: health}}` |
+| `readinessProbe`             | Readiness probe for the operator container (served on the `health` port). Set to `null` to disable           | `{httpGet: {path: /readyz, port: health}}`  |
+| `env.reconcileInterval`      | PSMDB Operator reconciliation interval                                                                       | `5s`                                        |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 
