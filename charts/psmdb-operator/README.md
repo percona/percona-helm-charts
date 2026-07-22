@@ -85,7 +85,7 @@ The chart can be customized using the following configurable parameters:
 | `image.pullPolicy`           | PSMDB Operator Container pull policy                                                                         | `IfNotPresent`                              |
 | `imagePullSecrets`           | PSMDB Operator Pod pull secret                                                                               | `[]`                                        |
 | `replicaCount`               | PSMDB Operator Pod quantity                                                                                  | `1`                                         |
-| `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                                  | ``                                          |
+| `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                                  | `10`                                        |
 | `tolerations`                | List of node taints to tolerate                                                                              | `[]`                                        |
 | `annotations`                | PSMDB Operator Deployment annotations                                                                        | `{}`                                        |
 | `podAnnotations`             | PSMDB Operator Pod annotations                                                                               | `{}`                                        |
@@ -95,6 +95,7 @@ The chart can be customized using the following configurable parameters:
 | `nodeSelector`               | Labels for Pod assignment                                                                                    | `{}`                                        |
 | `podSecurityContext`         | Pod Security Context                                                                                         | `{}`                                        |
 | `watchNamespace`             | Set when a different from default namespace is needed to watch (comma separated if multiple needed)          | `""`                                        |
+| `certManagerNamespace`       | Namespace where cert-manager is installed (used only in namespaced/non-cluster-wide mode)                    | `cert-manager`                              |
 | `createNamespace`            | Set if you want to create watched namespaces with helm                                                       | `false`                                     |
 | `rbac.create`                | If false RBAC will not be created. RBAC resources will need to be created manually                           | `true`                                      |
 | `securityContext`            | Container Security Context                                                                                   | `{}`                                        |

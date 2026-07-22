@@ -88,6 +88,10 @@ spec:
             - name: MAX_CONCURRENT_RECONCILES
               value: "{{ .Values.maxConcurrentReconciles }}"
             {{- end }}
+            {{- if not .Values.watchAllNamespaces }}
+            - name: CERTMANAGER_NAMESPACE
+              value: "{{ .Values.certManagerNamespace }}"
+            {{- end }}
           {{- with .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}

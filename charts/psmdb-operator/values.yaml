@@ -26,6 +26,9 @@ disableTelemetry: false
 # set if operator should be deployed in cluster wide mode. defaults to false
 watchAllNamespaces: false
 
+# namespace where cert-manager is installed (used only in namespaced/non-cluster-wide mode)
+certManagerNamespace: cert-manager
+
 # rbac: settings for deployer RBAC creation
 rbac:
   # rbac.create: if false RBAC resources should be in place
@@ -99,13 +102,17 @@ tolerations: []
 affinity: {}
 
 livenessProbe:
+  failureThreshold: 3
   httpGet:
     path: /healthz
     port: health
+    scheme: HTTP
 readinessProbe:
+  failureThreshold: 3
   httpGet:
     path: /readyz
     port: health
+    scheme: HTTP
 
 logStructured: false
 logLevel: "INFO"
