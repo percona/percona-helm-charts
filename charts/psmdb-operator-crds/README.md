@@ -27,7 +27,8 @@ helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb -
 ```
 
 > **Note:** Deleting CRD chart will trigger deletion of all the custom resources created using the CRDs thus deleting all clusters.
->  Uninstalling percona/psmdb-operator-crds chart should be approached with caution.
+>  Uninstalling percona/psmdb-operator-crds chart should be approached with caution. By default the chart protects against this
+>  (`preserveCrds: true`, see [Protecting CRDs from Deletion](#protecting-crds-from-deletion)).
 
 Then install the operator:
 
@@ -41,21 +42,24 @@ Deleting these CRDs deletes every custom resource stored under them, i.e. all yo
 MongoDB clusters. A GitOps tool (Flux, Argo CD, etc.) can trigger this accidentally
 by pruning or reinstalling the chart.
 
-To guard against that, set `preserveCrds: true` to add the
+To guard against that, the chart sets `preserveCrds: true` by default, which adds the
 [`helm.sh/resource-policy: keep`](https://helm.sh/docs/howto/charts_tips_and_tricks/#tell-helm-not-to-uninstall-a-resource)
 annotation to the CRDs. Helm then leaves the CRDs in place on `helm uninstall`
-instead of deleting them:
+instead of deleting them.
+
+If you deliberately want `helm uninstall` to remove the CRDs (for example, in an
+ephemeral test cluster), opt out with `preserveCrds: false`:
 
 ```sh
-helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb --create-namespace --set preserveCrds=true
+helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb --create-namespace --set preserveCrds=false
 ```
 
 | Value          | Default | Description                                                                 |
 | -------------- | ------- | --------------------------------------------------------------------------- |
-| `preserveCrds` | `false` | Add `helm.sh/resource-policy: keep` to the CRDs so they survive `helm uninstall`. |
+| `preserveCrds` | `true`  | Add `helm.sh/resource-policy: keep` to the CRDs so they survive `helm uninstall`. Set to `false` to let uninstall remove them. |
 
-> **Note:** With `preserveCrds: true` the CRDs are intentionally left behind on uninstall
-> and must be removed manually (`kubectl delete crd ...`) if you truly want them gone.
+> **Note:** With the default `preserveCrds: true` the CRDs are intentionally left behind on
+> uninstall and must be removed manually (`kubectl delete crd ...`) if you truly want them gone.
 
 ## Upgrading CRDs
 
