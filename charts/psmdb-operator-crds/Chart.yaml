@@ -2,7 +2,7 @@ apiVersion: v2
 name: psmdb-operator-crds
 description: A Helm chart for Percona Server for MongoDB Operator Custom Resource Definitions (CRDs).
 type: application
-version: 1.22.0
+version: 1.22.1
 appVersion: "1.22.0"
 home: https://docs.percona.com/percona-operator-for-mongodb/
 maintainers:
