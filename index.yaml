@@ -6438,6 +6438,28 @@ entries:
     version: 0.2.0
   psmdb-db:
   - apiVersion: v2
+    appVersion: 1.23.0
+    created: "2026-07-23T20:00:37.151695996Z"
+    description: A Helm chart for installing Percona Server MongoDB Cluster Databases
+      using the PSMDB Operator.
+    digest: 790a19c8376813e38e7bc198feae16bd8ba26f342f2b30f4cc0a54459451ebce
+    home: https://www.percona.com/doc/kubernetes-operator-for-psmongodb/index.html
+    maintainers:
+    - email: slava.sarzhan@percona.com
+      name: hors
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    - email: valmira.nogueira@percona.com
+      name: valmiranogueira
+    - email: dhruthi.komarlu@percona.com
+      name: DhruthiKV
+    name: psmdb-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-db-1.23.0/psmdb-db-1.23.0.tgz
+    version: 1.23.0
+  - apiVersion: v2
     appVersion: 1.22.0
     created: "2026-04-15T07:59:30.308247308Z"
     description: A Helm chart for installing Percona Server MongoDB Cluster Databases
@@ -7201,6 +7223,27 @@ entries:
     version: 0.1.0
   psmdb-operator:
   - apiVersion: v2
+    appVersion: 1.23.0
+    created: "2026-07-23T20:00:37.305558775Z"
+    description: A Helm chart for deploying the Percona Operator for MongoDB
+    digest: 1b3c74e100e80a17d7333bada040116c8dfca9c7340548c3f3d6925d7574b81e
+    home: https://docs.percona.com/percona-operator-for-mongodb/
+    maintainers:
+    - email: slava.sarzhan@percona.com
+      name: hors
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    - email: valmira.nogueira@percona.com
+      name: valmiranogueira
+    - email: dhruthi.komarlu@percona.com
+      name: DhruthiKV
+    name: psmdb-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-1.23.0/psmdb-operator-1.23.0.tgz
+    version: 1.23.0
+  - apiVersion: v2
     appVersion: 1.22.0
     created: "2026-02-25T15:50:18.697300346Z"
     description: A Helm chart for deploying the Percona Operator for MongoDB
@@ -7852,6 +7895,27 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-0.1.0/psmdb-operator-0.1.0.tgz
     version: 0.1.0
   psmdb-operator-crds:
+  - apiVersion: v2
+    appVersion: 1.23.0
+    created: "2026-07-23T20:00:37.465537665Z"
+    description: A Helm chart for Percona Server for MongoDB Operator Custom Resource
+      Definitions (CRDs).
+    digest: c83347339fd456ba5cfe255b5a459ffa60771eb790d74dfc566c1ca2c15fb306
+    home: https://docs.percona.com/percona-operator-for-mongodb/
+    maintainers:
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    - email: valmira.nogueira@percona.com
+      name: valmiranogueira
+    name: psmdb-operator-crds
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-crds-1.23.0/psmdb-operator-crds-1.23.0.tgz
+    version: 1.23.0
   - apiVersion: v2
     appVersion: 1.22.0
     created: "2026-07-23T17:18:55.506669028Z"
@@ -9575,4 +9639,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2026-07-23T17:18:55.507386188Z"
+generated: "2026-07-23T20:00:37.46644817Z"
