@@ -7854,6 +7854,27 @@ entries:
   psmdb-operator-crds:
   - apiVersion: v2
     appVersion: 1.22.0
+    created: "2026-07-23T17:18:55.506669028Z"
+    description: A Helm chart for Percona Server for MongoDB Operator Custom Resource
+      Definitions (CRDs).
+    digest: df53478f50bc09c2d61f322adf8a7d96e035e673d71de506612e9eff01b68ba0
+    home: https://docs.percona.com/percona-operator-for-mongodb/
+    maintainers:
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    - email: valmira.nogueira@percona.com
+      name: valmiranogueira
+    name: psmdb-operator-crds
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/psmdb-operator-crds-1.22.1/psmdb-operator-crds-1.22.1.tgz
+    version: 1.22.1
+  - apiVersion: v2
+    appVersion: 1.22.0
     created: "2026-02-25T15:50:18.916439695Z"
     description: A Helm chart for Percona Server for MongoDB Operator Custom Resource
       Definitions (CRDs).
@@ -9554,4 +9575,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2026-07-17T11:14:03.356871292Z"
+generated: "2026-07-23T17:18:55.507386188Z"
