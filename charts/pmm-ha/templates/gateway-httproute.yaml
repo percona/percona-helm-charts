@@ -1,0 +1,89 @@
+{{- if .Values.gateway.enabled -}}
+{{- $serviceName := .Values.service.name -}}
+{{- $grpcPort := (index $.Values.service.ports 0).port -}}
+{{- $servicePort := (index $.Values.service.ports 0).port -}}
+{{- if gt (len $.Values.service.ports) 1 -}}
+{{- $servicePort = (index $.Values.service.ports 1).port -}}
+{{- end -}}
+{{- $pathType := .Values.gateway.pathType -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "pmm.fullname" . }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+  {{- with .Values.gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if empty .Values.gateway.parentRefs }}
+  {{- fail "gateway.parentRefs must be set when gateway.enabled=true" }}
+  {{- end }}
+  parentRefs:
+  {{- range .Values.gateway.parentRefs }}
+    {{- if empty .name }}
+    {{- fail "gateway.parentRefs[*].name must be set when gateway.enabled=true" }}
+    {{- end }}
+    - name: {{ .name | quote }}
+      {{- if .namespace }}
+      namespace: {{ .namespace | quote }}
+      {{- end }}
+      {{- if .sectionName }}
+      sectionName: {{ .sectionName | quote }}
+      {{- end }}
+  {{- end }}
+  {{- if .Values.gateway.hosts }}
+  hostnames:
+  {{- range .Values.gateway.hosts }}
+    - {{ .host | quote }}
+  {{- end }}
+  {{- end }}
+  {{/* HTTPRoute hostnames are route-level, so host paths are aggregated once and applied across listed hostnames. */}}
+  {{- $allPaths := list -}}
+  {{- range .Values.gateway.hosts }}
+  {{- $allPaths = concat $allPaths (default (list) .paths) -}}
+  {{- end }}
+  {{- if empty $allPaths }}
+  {{- fail "gateway.hosts[*].paths must contain at least one path when gateway.enabled=true" }}
+  {{- end }}
+  rules:
+  {{- range $allPaths }}
+    - matches:
+        - path:
+            type: {{ $pathType }}
+            value: {{ . | quote }}
+      backendRefs:
+        - name: {{ $serviceName }}-grpc
+          port: {{ $servicePort }}
+    # gRPC paths — configure protocol-level gRPC handling via gateway.annotations
+    - matches:
+        - path:
+            type: {{ $pathType }}
+            value: {{ printf "%s/agent." . | replace "//" "/" | quote }}
+      backendRefs:
+        - name: {{ $serviceName }}-grpc
+          port: {{ $grpcPort }}
+    - matches:
+        - path:
+            type: {{ $pathType }}
+            value: {{ printf "%s/inventory." . | replace "//" "/" | quote }}
+      backendRefs:
+        - name: {{ $serviceName }}-grpc
+          port: {{ $grpcPort }}
+    - matches:
+        - path:
+            type: {{ $pathType }}
+            value: {{ printf "%s/management." . | replace "//" "/" | quote }}
+      backendRefs:
+        - name: {{ $serviceName }}-grpc
+          port: {{ $grpcPort }}
+    - matches:
+        - path:
+            type: {{ $pathType }}
+            value: {{ printf "%s/server." . | replace "//" "/" | quote }}
+      backendRefs:
+        - name: {{ $serviceName }}-grpc
+          port: {{ $grpcPort }}
+  {{- end }}
+{{- end }}

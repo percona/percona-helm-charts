@@ -24,10 +24,10 @@ spec:
   {{- end }}
   selector:
     {{- include "pmm.selectorLabels" . | nindent 4 }}
-{{- if .Values.ingress.enabled }}
+{{- if or .Values.ingress.enabled .Values.gateway.enabled }}
 ---
-# Regular ClusterIP service for ingress routing
-# Note: Both HTTP and gRPC traffic use this service when ingress is enabled
+# Regular ClusterIP service for ingress / gateway routing
+# Note: Both HTTP and gRPC traffic use this service when ingress or gateway is enabled
 apiVersion: v1
 kind: Service
 metadata:

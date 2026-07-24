@@ -89,6 +89,23 @@ It removes all of the resources associated with the last release of the chart as
 | `ingress.pathType`                | -- How ingress paths should be treated.                                                                                                        | `Prefix`              |
 | `ingress.tls`                     | -- Ingress TLS configuration                                                                                                                   | `[]`                  |
 
+### PMM Gateway API configuration
+
+| Name                                 | Description                                                                                                                                              | Value                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `gateway.enabled`                    | -- Enable Gateway API HTTPRoute resource                                                                                                                | `false`                                         |
+| `gateway.annotations`                | -- Annotations on the HTTPRoute resource                                                                                                                | `{}`                                            |
+| `gateway.parentRefs`                 | -- References to Gateways this HTTPRoute should attach to                                                                                               | `[{'name':'','namespace':'','sectionName':''}]` |
+| `gateway.parentRefs[0].name`         | -- Name of the Gateway. Required when `gateway.enabled=true`                                                                                            | `""`                                            |
+| `gateway.parentRefs[0].namespace`    | -- Namespace of the Gateway (omit to use same namespace)                                                                                                | `""`                                            |
+| `gateway.parentRefs[0].sectionName`  | -- Listener section name on the Gateway (omit to match all listeners)                                                                                  | `""`                                            |
+| `gateway.hosts`                      | -- Hostnames with path lists. Paths are aggregated and applied route-wide across all listed hostnames                                                   | `[{'host':'chart-example.local','paths':[]}]`   |
+| `gateway.hosts[0].host`              | -- Hostname to match                                                                                                                                     | `chart-example.local`                           |
+| `gateway.hosts[0].paths`             | -- Path prefixes to route. Must contain at least one path when `gateway.enabled=true`                                                                  | `[]`                                            |
+| `gateway.pathType`                   | -- Path match type applied to all generated rules: `PathPrefix`, `Exact`, or `RegularExpression`                                                      | `PathPrefix`                                    |
+
+> **Gateway behavior**: when `gateway.enabled=true`, Helm fails fast unless `gateway.parentRefs[*].name` and at least one entry in `gateway.hosts[*].paths` are provided. Paths from `gateway.hosts[*].paths` are aggregated and applied route-wide to all listed hostnames. HTTP paths route to `service.name`, while gRPC-prefixed paths (`/agent.`, `/inventory.`, `/management.`, `/server.`) route to `service.name-grpc`. HTTPRoute does not configure gateway-to-backend TLS by itself; depending on your Gateway implementation, you may need `BackendTLSPolicy` (or equivalent implementation-specific settings) to enable TLS to PMM HTTPS/GRPCS backend ports.
+
 
 ### PMM storage configuration
 
