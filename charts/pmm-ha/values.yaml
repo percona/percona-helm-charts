@@ -43,7 +43,8 @@ pmmEnv:
   PMM_HA_GOSSIP_PORT: "9096"
   PMM_HA_RAFT_PORT: "9097"
   PMM_HA_GRAFANA_GOSSIP_PORT: "9094"
-  # PMM_HA_PEERS: "{{ include "pmm.haPeers" . }}"
+  # PMM_HA_PEERS - set in statefulset.yaml
+  # PMM_INTERNAL_NODE_NAME_PREFIXES - set in statefulset.yaml
   GF_ANALYTICS_CHECK_FOR_UPDATES: "0"
   GF_ANALYTICS_ENABLE: "0"
   GF_ANALYTICS_REPORTING_ENABLE: "0"
