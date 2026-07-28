@@ -125,9 +125,10 @@ pmmClient:
   forceRegistration: false
   ## @param pmmClient.storage.size Size of the volume holding the Agent identity and metrics buffer
   ## @param pmmClient.storage.storageClassName Storage class of that volume, cluster default if empty
-  ## The volume keeps the pmm-agent configuration, so a restarted pod keeps its Node and the Services
-  ## configured on it, and it holds the 1Gi on-disk queue vmagent fills while PMM Server is
-  ## unreachable. Keep the size above that queue.
+  ## The volume backs the canonical pmm-agent directories /usr/local/percona/pmm/config and
+  ## /usr/local/percona/pmm/tmp. The former keeps the pmm-agent configuration, so a restarted pod
+  ## keeps its Node and the Services configured on it; the latter keeps the 1Gi on-disk queue vmagent
+  ## fills while PMM Server is unreachable. Keep the size above that queue.
   ##
   storage:
     size: 2Gi

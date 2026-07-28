@@ -194,8 +194,18 @@ stays valid across failovers.
 {{- end -}}
 
 {{/*
+Base directory of the PMM Client installation inside the image. It holds the exporters and tools, so
+only the subdirectories which have to survive a restart are backed by a volume: "config" keeps the
+Agent identity, "tmp" keeps the on-disk queue vmagent fills while PMM Server is unreachable.
+*/}}
+{{- define "pmm.client.baseDir" -}}
+/usr/local/percona/pmm
+{{- end -}}
+
+{{/*
 Environment shared by the PMM Client container and the init container which registers it.
 Credentials are deliberately not part of it, see pmm-client-statefulset.yaml.
+The temporary directory is left at its default, which is "tmp" under the base directory.
 */}}
 {{- define "pmm.client.env" -}}
 - name: POD_NAME
@@ -211,11 +221,7 @@ Credentials are deliberately not part of it, see pmm-client-statefulset.yaml.
     fieldRef:
       fieldPath: status.podIP
 - name: PMM_AGENT_CONFIG_FILE
-  value: {{ include "pmm.client.dataDir" . }}/pmm-agent.yaml
-# Keeps the on-disk queue vmagent fills while PMM Server is unreachable on the volume, so that a
-# restart does not discard the buffered metrics.
-- name: PMM_AGENT_PATHS_TEMPDIR
-  value: {{ include "pmm.client.dataDir" . }}/tmp
+  value: {{ include "pmm.client.baseDir" . }}/config/pmm-agent.yaml
 - name: PMM_AGENT_SERVER_ADDRESS
   value: {{ include "pmm.client.serverAddress" . }}
 - name: PMM_AGENT_SERVER_INSECURE_TLS
@@ -235,8 +241,13 @@ Credentials are deliberately not part of it, see pmm-client-statefulset.yaml.
 {{- end -}}
 
 {{/*
-Directory on the PMM Client volume holding the Agent identity and the metrics buffer
+Volume mounts backing the PMM Client directories which have to survive a restart
 */}}
-{{- define "pmm.client.dataDir" -}}
-/srv/pmm-agent
+{{- define "pmm.client.volumeMounts" -}}
+- name: pmm-agent
+  mountPath: {{ include "pmm.client.baseDir" . }}/config
+  subPath: config
+- name: pmm-agent
+  mountPath: {{ include "pmm.client.baseDir" . }}/tmp
+  subPath: tmp
 {{- end -}}
