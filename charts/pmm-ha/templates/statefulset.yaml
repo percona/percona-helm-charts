@@ -241,7 +241,7 @@ spec:
             {{- if index .Values "pg-db" "pmm" "enabled" }}
             # Let PMM know of dedicated nodes that must not be used for monitoring other services.
             - name: PMM_INTERNAL_NODE_NAME_PREFIXES
-              value: "{{ .Release.Namespace }}-{{ .Release.Name }}-pg-db-"
+              value: "{{ .Release.Namespace }}-{{ include "pg-database.fullname" . }}-"
             {{- end }}
             - name: PMM_CLICKHOUSE_NODES
               value: {{ include "pmm.clickhouse.nodes" . | quote }}

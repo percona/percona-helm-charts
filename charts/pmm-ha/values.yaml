@@ -100,6 +100,56 @@ logStreamer:
     - /srv/logs/pmm-managed.log
     - /srv/logs/qan-api2.log
 
+## @section PMM Client
+## Pre-provisions PMM Client pods to carry the monitoring the PMM Server pods should stay free of,
+## such as remote databases, RDS and Azure instances. Each pod registers itself as a Node and can be
+## picked in the "Nodes" dropdown when adding a service.
+## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-client/index.html
+##
+pmmClient:
+  ## @param pmmClient.replicas Number of PMM Client pods. Nothing is created while this is 0.
+  ##
+  replicas: 0
+  ## @param pmmClient.image.repository PMM Client image repository
+  ## @param pmmClient.image.pullPolicy PMM Client image pull policy
+  ## @param pmmClient.image.tag PMM Client image tag, defaults to the chart appVersion
+  ##
+  image:
+    repository: percona/pmm-client
+    pullPolicy: IfNotPresent
+    tag: ""
+  ## @param pmmClient.forceRegistration Register the Node even when one with the same name exists
+  ## Recovers a pod whose volume was lost while its Node is still registered in PMM. PMM Server then
+  ## removes that Node with every Service configured on it, so keep this disabled otherwise.
+  ##
+  forceRegistration: false
+  ## @param pmmClient.storage.size Size of the volume holding the Agent identity and metrics buffer
+  ## @param pmmClient.storage.storageClassName Storage class of that volume, cluster default if empty
+  ## The volume keeps the pmm-agent configuration, so a restarted pod keeps its Node and the Services
+  ## configured on it, and it holds the 1Gi on-disk queue vmagent fills while PMM Server is
+  ## unreachable. Keep the size above that queue.
+  ##
+  storage:
+    size: 2Gi
+    storageClassName: ""
+  ## @param pmmClient.resources Resources requested for the PMM Client container
+  ## An idle Client only runs node_exporter; raise the limits as monitoring is delegated to it.
+  ##
+  resources:
+    requests:
+      memory: 200Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  ## @param pmmClient.nodeSelector Node labels for the PMM Client pods
+  ## @param pmmClient.tolerations Tolerations for the PMM Client pods
+  ## @param pmmClient.affinity Affinity rules for the PMM Client pods
+  ##
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
 ## @section PMM secrets
 ##
 secret:

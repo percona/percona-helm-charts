@@ -153,3 +153,90 @@ Example output for 3 replicas:
   port: 2181
 {{- end -}}
 {{- end -}}
+
+{{/*
+Name of the PMM Client StatefulSet
+*/}}
+{{- define "pmm.client.fullname" -}}
+{{- printf "%s-client" (include "pmm.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Selector labels of the PMM Client pods. They must differ from the PMM Server ones, otherwise the
+Client pods would be picked up by the PMM Server service and join the HA peer discovery.
+*/}}
+{{- define "pmm.client.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "pmm.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: pmm-client
+app.kubernetes.io/part-of: percona-platform
+{{- end -}}
+
+{{/*
+Common labels of the PMM Client resources
+*/}}
+{{- define "pmm.client.labels" -}}
+helm.sh/chart: {{ include "pmm.chart" . }}
+{{ include "pmm.client.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{/*
+PMM Server address reachable from inside the cluster. HAProxy routes to the current leader, so this
+stays valid across failovers.
+*/}}
+{{- define "pmm.client.serverAddress" -}}
+{{- $haproxy := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
+{{- printf "%s.%s.svc.cluster.local:443" $haproxy .Release.Namespace -}}
+{{- end -}}
+
+{{/*
+Environment shared by the PMM Client container and the init container which registers it.
+Credentials are deliberately not part of it, see pmm-client-statefulset.yaml.
+*/}}
+{{- define "pmm.client.env" -}}
+- name: POD_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: POD_NAMESPACE
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.namespace
+- name: POD_IP
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
+- name: PMM_AGENT_CONFIG_FILE
+  value: {{ include "pmm.client.dataDir" . }}/pmm-agent.yaml
+# Keeps the on-disk queue vmagent fills while PMM Server is unreachable on the volume, so that a
+# restart does not discard the buffered metrics.
+- name: PMM_AGENT_PATHS_TEMPDIR
+  value: {{ include "pmm.client.dataDir" . }}/tmp
+- name: PMM_AGENT_SERVER_ADDRESS
+  value: {{ include "pmm.client.serverAddress" . }}
+- name: PMM_AGENT_SERVER_INSECURE_TLS
+  value: "1"
+- name: PMM_AGENT_LISTEN_ADDRESS
+  value: 0.0.0.0
+- name: PMM_AGENT_LISTEN_PORT
+  value: "7777"
+- name: PMM_AGENT_SETUP_NODE_TYPE
+  value: container
+- name: PMM_AGENT_SETUP_NODE_NAME
+  value: $(POD_NAMESPACE)-$(POD_NAME)
+- name: PMM_AGENT_SETUP_NODE_ADDRESS
+  value: $(POD_IP)
+- name: PMM_AGENT_SETUP_METRICS_MODE
+  value: push
+{{- end -}}
+
+{{/*
+Directory on the PMM Client volume holding the Agent identity and the metrics buffer
+*/}}
+{{- define "pmm.client.dataDir" -}}
+/srv/pmm-agent
+{{- end -}}
