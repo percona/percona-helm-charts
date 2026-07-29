@@ -167,7 +167,7 @@ Called from statefulset.yaml, which always renders.
 {{- if eq $mode "openshift" -}}
 {{- $sub := index .Values "prometheus-node-exporter" -}}
 {{- if and $sub $sub.enabled -}}
-{{- fail "nodeExporter.mode=openshift requires prometheus-node-exporter.enabled=false: the bundled DaemonSet uses host networking and binds port 9100, which OpenShift's node-exporter already holds, so it would crash-loop on \"address already in use\"." -}}
+{{- fail "nodeExporter.mode=openshift requires prometheus-node-exporter.enabled=false: the bundled DaemonSet would collide with OpenShift's node-exporter on host port 9100." -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
