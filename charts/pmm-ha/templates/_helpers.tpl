@@ -153,3 +153,58 @@ Example output for 3 replicas:
   port: 2181
 {{- end -}}
 {{- end -}}
+
+
+{{/*
+Fail-fast validation for the internal/openshift node-exporter toggle.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.nodeExporter.validate" -}}
+{{- $mode := .Values.nodeExporter.mode -}}
+{{- if not (or (eq $mode "internal") (eq $mode "openshift")) -}}
+{{- fail (printf "nodeExporter.mode must be \"internal\" or \"openshift\", got %q" $mode) -}}
+{{- end -}}
+{{- if eq $mode "openshift" -}}
+{{- $sub := index .Values "prometheus-node-exporter" -}}
+{{- if and $sub $sub.enabled -}}
+{{- fail "nodeExporter.mode=openshift requires prometheus-node-exporter.enabled=false: the bundled DaemonSet uses host networking and binds port 9100, which OpenShift's node-exporter already holds, so it would crash-loop on \"address already in use\"." -}}
+{{- end -}}
+{{- if not .Values.serviceAccount.create -}}
+{{- fail "nodeExporter.mode=openshift requires serviceAccount.create=true: the scrape is authorized by the chart's ClusterRole, which is only created alongside the ServiceAccount." -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+OpenShift node-exporter scrape job for the VMAgent inlineScrapeConfig.
+Emits an unindented job (callers nindent it under inlineScrapeConfig). Only used
+when nodeExporter.mode == "openshift".
+*/}}
+{{- define "pmm.nodeExporter.openshiftScrapeJob" -}}
+# OpenShift platform node-exporter, scraped via its kube-rbac-proxy (SA-token auth).
+# insecure_skip_verify: the proxy serves a per-node service-serving cert that no single CA file
+# can verify when scraping the pod IP.
+- job_name: 'openshift-node-exporter'
+  scheme: https
+  bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+  tls_config:
+    insecure_skip_verify: true
+  kubernetes_sd_configs:
+    - role: endpoints
+      namespaces:
+        names:
+          - openshift-monitoring
+  relabel_configs:
+    - source_labels: [__meta_kubernetes_service_name]
+      regex: node-exporter
+      action: keep
+    - source_labels: [__meta_kubernetes_endpoint_port_name]
+      regex: https
+      action: keep
+    - source_labels: [__meta_kubernetes_pod_node_name]
+      target_label: node
+    - source_labels: [__meta_kubernetes_namespace]
+      target_label: namespace
+    - source_labels: [__meta_kubernetes_pod_name]
+      target_label: pod
+{{- end -}}

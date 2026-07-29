@@ -24,7 +24,9 @@ rules:
   - watch
   - list
   - delete
-# Access to metrics endpoints for scraping
+# Access to metrics endpoints for scraping. In nodeExporter.mode=openshift this is also what
+# authorizes the scrape: OpenShift's kube-rbac-proxy falls back to a SubjectAccessReview for a
+# non-resource "get" on /metrics for any ServiceAccount outside its static allow-list.
 - nonResourceURLs:
   - /metrics
   - /metrics/resources

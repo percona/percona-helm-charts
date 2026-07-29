@@ -10,6 +10,12 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: vmagent
 spec:
+  {{- if eq .Values.nodeExporter.mode "openshift" }}
+  # Run as the chart's ServiceAccount rather than the operator-generated one, so the agent inherits
+  # the ClusterRole in clusterrole.yaml. That role's "get" on the /metrics non-resource URL is what
+  # authorizes scraping OpenShift's node-exporter kube-rbac-proxy.
+  serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+  {{- end }}
   # Number of VMAgent replicas
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
   
@@ -246,7 +252,8 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
-    # Scrape node-exporter for node-level metrics
+    {{- if eq .Values.nodeExporter.mode "internal" }}
+    # Scrape node-exporter for node-level metrics (bundled prometheus-node-exporter DaemonSet)
     - job_name: 'node-exporter'
       kubernetes_sd_configs:
         - role: endpoints
@@ -266,6 +273,9 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
+    {{- else }}
+    {{- include "pmm.nodeExporter.openshiftScrapeJob" . | nindent 4 }}
+    {{- end }}
     # Scrape kubelet metrics via the apiserver proxy
     - job_name: 'kubelet'
       scheme: https
