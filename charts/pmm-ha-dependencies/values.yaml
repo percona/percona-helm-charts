@@ -17,13 +17,30 @@ victoria-metrics-operator:
 altinity-clickhouse-operator:
   enabled: true
   # The operator's RBAC is already cluster-wide (rbac.namespaceScoped defaults to false),
-  # but it only watches its own namespace unless told otherwise — so ClickHouseInstallations
-  # in other namespaces (e.g. a DR restore target) are never reconciled. Make it watch all
-  # namespaces. NOTE: an empty watch list ("all namespaces" per the docs) did NOT take
-  # effect in 0.25.4 during testing (the operator stayed on its own namespace), so use a
-  # regexp that matches every namespace. Validate after deploy; alternatively set this to a
-  # comma-separated list/regexp of specific DR target namespaces.  [PMM-15151]
+  # but by default it watches only its own namespace, so ClickHouseInstallations in other
+  # namespaces of the cluster are never reconciled. WATCH_NAMESPACES=".*" makes it watch
+  # every namespace.
+  #
+  # Why a regexp and not an empty list: leaving the watch list empty does NOT mean "all
+  # namespaces" here. Per applyDefaultWatchNamespace() upstream, the operator only infers
+  # "all" when it runs in kube-system; installed anywhere else it pins the watch list to its
+  # own namespace. GetInformerNamespace() returns NamespaceAll unless the include list holds
+  # exactly one entry matching the DNS-label regexp — ".*" fails that check, so the informers
+  # stay cluster-wide and reconciliation is then narrowed by the regexp filter.
+  #
+  # Do NOT swap ".*" for a plain namespace list to "scope" it: a single plain name (len == 1,
+  # matches the label regexp) scopes the operator to that namespace ONLY — it stops watching
+  # its own namespace and the primary install breaks. If you must restrict it, use two or more
+  # entries AND include the operator's own namespace (this still needs cluster-wide list/watch
+  # RBAC).
   operator:
+    env:
+      - name: WATCH_NAMESPACES
+        value: ".*"
+  # The metrics-exporter sidecar reads its own env, not the operator's, and uses the same
+  # GetInformerNamespace() logic — so mirror the setting here, or a ClickHouseInstallation in a
+  # non-operator namespace stays unmonitored until the next reconcile pushes it to the exporter.
+  metrics:
     env:
       - name: WATCH_NAMESPACES
         value: ".*"
@@ -33,9 +50,9 @@ altinity-clickhouse-operator:
 ## The pg-operator manages PostgreSQL clusters
 pg-operator:
   enabled: true
-  # Watch ALL namespaces so PostgreSQL clusters created in other namespaces — e.g. a
-  # cross-namespace DR restore target — are reconciled. This also switches the operator
+  # Watch ALL namespaces so PostgreSQL clusters created in other namespaces of the
+  # cluster are reconciled. This also switches the operator
   # RBAC from a namespaced Role/RoleBinding to a ClusterRole/ClusterRoleBinding. Matches
   # the VictoriaMetrics operator, which is already cluster-scoped. (Subchart default is
-  # false = the operator watches only its own namespace.)  [PMM-15151]
+  # false = the operator watches only its own namespace.)
   watchAllNamespaces: true
