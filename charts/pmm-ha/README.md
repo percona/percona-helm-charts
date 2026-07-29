@@ -546,9 +546,6 @@ prometheus-node-exporter:
   enabled: false
 ```
 
-This mode requires `serviceAccount.create: true`: the scrape is authorized by the chart's ClusterRole,
-and in this mode the VMAgent runs as the chart's ServiceAccount to inherit it.
-
 Limitations:
 
 - Unlike the bundled exporter, OpenShift's disables the `cpufreq` collector by default. Enable it via
