@@ -176,6 +176,24 @@ Called from statefulset.yaml, which always renders.
 {{- end -}}
 
 {{/*
+Target labels shared by both node-exporter scrape jobs. PMM's OS dashboards filter on node_name
+and node_type ("generic" is PMM's type for a bare host), so without these the node is invisible there.
+Emitted unindented; callers nindent it to their relabel_configs item level.
+*/}}
+{{- define "pmm.nodeExporter.pmmRelabelConfigs" -}}
+- source_labels: [__meta_kubernetes_pod_node_name]
+  target_label: node
+- source_labels: [__meta_kubernetes_pod_node_name]
+  target_label: node_name
+- target_label: node_type
+  replacement: generic
+- source_labels: [__meta_kubernetes_namespace]
+  target_label: namespace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: pod
+{{- end -}}
+
+{{/*
 OpenShift node-exporter scrape job for the VMAgent inlineScrapeConfig.
 Emits an unindented job (callers nindent it under inlineScrapeConfig). Only used
 when nodeExporter.mode == "openshift".
@@ -201,10 +219,5 @@ when nodeExporter.mode == "openshift".
     - source_labels: [__meta_kubernetes_endpoint_port_name]
       regex: https
       action: keep
-    - source_labels: [__meta_kubernetes_pod_node_name]
-      target_label: node
-    - source_labels: [__meta_kubernetes_namespace]
-      target_label: namespace
-    - source_labels: [__meta_kubernetes_pod_name]
-      target_label: pod
+    {{- include "pmm.nodeExporter.pmmRelabelConfigs" . | nindent 4 }}
 {{- end -}}

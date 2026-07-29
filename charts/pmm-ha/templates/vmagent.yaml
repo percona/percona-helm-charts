@@ -267,12 +267,7 @@ spec:
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'metrics|http-metrics'
           action: keep
-        - source_labels: [__meta_kubernetes_pod_node_name]
-          target_label: node
-        - source_labels: [__meta_kubernetes_namespace]
-          target_label: namespace
-        - source_labels: [__meta_kubernetes_pod_name]
-          target_label: pod
+        {{- include "pmm.nodeExporter.pmmRelabelConfigs" . | nindent 8 }}
     {{- else }}
     {{- include "pmm.nodeExporter.openshiftScrapeJob" . | nindent 4 }}
     {{- end }}
