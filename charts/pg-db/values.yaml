@@ -345,6 +345,20 @@ instances:
 #        resources:
 #          requests:
 #            storage: 1Gi
+#
+#  extraVolumes:
+#    - name: fts-dicts
+#      volumeSource:
+#        configMap:
+#          name: my-dicts
+#      mounts:
+#        - mountPath: /pgdata/dicts
+#          readOnly: true
+#    - name: scratch
+#      volumeSource:
+#        emptyDir: {}
+#      mounts:
+#        - mountPath: /scratch
 
 proxy:
   pgBouncer:
