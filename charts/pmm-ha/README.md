@@ -317,6 +317,13 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `affinity`                   | Affinity for pod assignment                                                                                         | `{}`                  |
 
 
+### Node exporter source parameters
+
+| Name                                                          | Description                                                                                        | Value                                                 |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `nodeExporter.mode`                                           | Node metrics source: `internal` (deploy + scrape prometheus-node-exporter) or `openshift`            | `internal`                                            |
+
+
 Specify each parameter using the `--set key=value[,key=value]` or `--set-string key=value[,key=value]` arguments to `helm install`. For example,
 
 ```sh
@@ -525,6 +532,36 @@ victoriaMetrics:
     extraArgs:
       maxLabelsPerTimeseries: "60"
 ```
+
+### Using OpenShift's node exporter
+
+By default (`nodeExporter.mode: internal`) the chart deploys its own `prometheus-node-exporter`
+DaemonSet. On OpenShift, whose platform monitoring already runs one, set `nodeExporter.mode: openshift`
+to scrape that instead. The bundled DaemonSet must be disabled:
+
+```yaml
+nodeExporter:
+  mode: openshift
+prometheus-node-exporter:
+  enabled: false
+```
+
+This mode requires `serviceAccount.create: true`: the scrape is authorized by the chart's ClusterRole,
+and in this mode the VMAgent runs as the chart's ServiceAccount to inherit it.
+
+Limitations:
+
+- Unlike the bundled exporter, OpenShift's disables the `cpufreq` collector by default. Enable it via
+  `cluster-monitoring-config` if you need CPU frequency metrics (it can raise CPU usage on nodes with
+  many cores):
+
+  ```yaml
+  data:
+    config.yaml: |
+      nodeExporter:
+        collectors:
+          cpufreq: { enabled: true }
+  ```
 
 ### External access to PMM HA
 
