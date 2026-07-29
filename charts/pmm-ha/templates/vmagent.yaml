@@ -10,12 +10,6 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: vmagent
 spec:
-  {{- if eq .Values.nodeExporter.mode "openshift" }}
-  # Run as the chart's ServiceAccount rather than the operator-generated one, so the agent inherits
-  # the ClusterRole in clusterrole.yaml. That role's "get" on the /metrics non-resource URL is what
-  # authorizes scraping OpenShift's node-exporter kube-rbac-proxy.
-  serviceAccountName: {{ include "pmm.serviceAccountName" . }}
-  {{- end }}
   # Number of VMAgent replicas
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
   

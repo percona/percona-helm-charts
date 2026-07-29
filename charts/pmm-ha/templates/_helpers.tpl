@@ -169,9 +169,6 @@ Called from statefulset.yaml, which always renders.
 {{- if and $sub $sub.enabled -}}
 {{- fail "nodeExporter.mode=openshift requires prometheus-node-exporter.enabled=false: the bundled DaemonSet uses host networking and binds port 9100, which OpenShift's node-exporter already holds, so it would crash-loop on \"address already in use\"." -}}
 {{- end -}}
-{{- if not .Values.serviceAccount.create -}}
-{{- fail "nodeExporter.mode=openshift requires serviceAccount.create=true: the scrape is authorized by the chart's ClusterRole, which is only created alongside the ServiceAccount." -}}
-{{- end -}}
 {{- end -}}
 {{- end -}}
 
