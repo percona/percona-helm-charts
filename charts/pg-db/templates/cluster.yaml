@@ -136,9 +136,11 @@ spec:
     postgresCluster:
       clusterName: {{ $postgresCluster.clusterName }}
       repoName: {{ $postgresCluster.repoName }}
+      {{- if $postgresCluster.options }}
       options:
       {{- range $option := $postgresCluster.options }}
       - {{ $option }}
+      {{- end }}
       {{- end }}
       {{- if $postgresCluster.tolerations }}
       tolerations:
@@ -148,13 +150,19 @@ spec:
     {{- if $pgbackrest := $dataSource.pgbackrest }}
     pgbackrest:
       stanza: {{ $pgbackrest.stanza }}
+      {{- if $pgbackrest.configuration }}
       configuration:
 {{ $pgbackrest.configuration | toYaml | indent 6 }}
+      {{- end }}
+      {{- if $pgbackrest.global }}
       global:
 {{ $pgbackrest.global | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $pgbackrest.options }}
       options:
       {{- range $option := $pgbackrest.options }}
       - {{ $option }}
+      {{- end }}
       {{- end }}
       {{- if $pgbackrest.tolerations }}
       tolerations:
