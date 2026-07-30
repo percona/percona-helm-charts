@@ -197,13 +197,13 @@ when nodeExporter.mode == "openshift".
 */}}
 {{- define "pmm.nodeExporter.openshiftScrapeJob" -}}
 # OpenShift platform node-exporter, scraped via its kube-rbac-proxy (SA-token auth).
-# insecure_skip_verify: the proxy serves a per-node service-serving cert that no single CA file
-# can verify when scraping the pod IP.
+# server_name: the proxy's cert covers the service DNS name, not the node IP endpoints SD targets.
 - job_name: 'openshift-node-exporter'
   scheme: https
   bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
   tls_config:
-    insecure_skip_verify: true
+    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+    server_name: node-exporter.openshift-monitoring.svc
   kubernetes_sd_configs:
     - role: endpoints
       namespaces:
