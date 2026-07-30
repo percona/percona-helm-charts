@@ -469,6 +469,72 @@ spec:
     {{- end }}
     {{- include "pg-database.resources" .Values.pmm | indent 4 }}
 
+  {{- if .Values.logcollector }}
+  logcollector:
+    enabled: {{ .Values.logcollector.enabled | default false }}
+    {{- if .Values.logcollector.image }}
+    image: {{ .Values.logcollector.image }}
+    {{- end }}
+    {{- if .Values.logcollector.imagePullPolicy }}
+    imagePullPolicy: {{ .Values.logcollector.imagePullPolicy }}
+    {{- end }}
+    {{- if .Values.logcollector.configuration }}
+    configuration: |
+{{ .Values.logcollector.configuration | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.env }}
+    env:
+{{ .Values.logcollector.env | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.envFrom }}
+    envFrom:
+{{ .Values.logcollector.envFrom | toYaml | indent 6 }}
+    {{- end }}
+    {{- include "pg-database.resources" .Values.logcollector | indent 4 }}
+    {{- if .Values.logcollector.containerSecurityContext }}
+    containerSecurityContext:
+{{ .Values.logcollector.containerSecurityContext | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.livenessProbe }}
+    livenessProbe:
+{{ .Values.logcollector.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.readinessProbe }}
+    readinessProbe:
+{{ .Values.logcollector.readinessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.volumeMounts }}
+    volumeMounts:
+{{ .Values.logcollector.volumeMounts | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.volumes }}
+    volumes:
+{{ .Values.logcollector.volumes | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.logRotate }}
+    logRotate:
+      {{- if .Values.logcollector.logRotate.configuration }}
+      configuration: |
+{{ .Values.logcollector.logRotate.configuration | indent 8 }}
+      {{- end }}
+      {{- if .Values.logcollector.logRotate.extraConfig }}
+      extraConfig:
+        name: {{ .Values.logcollector.logRotate.extraConfig.name }}
+      {{- end }}
+      {{- if .Values.logcollector.logRotate.schedule }}
+      schedule: {{ .Values.logcollector.logRotate.schedule | quote }}
+      {{- end }}
+      {{- if .Values.logcollector.logRotate.livenessProbe }}
+      livenessProbe:
+{{ .Values.logcollector.logRotate.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.logcollector.logRotate.readinessProbe }}
+      readinessProbe:
+{{ .Values.logcollector.logRotate.readinessProbe | toYaml | indent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
   backups:
     {{- $isBackupsEnabled := (hasKey .Values.backups "enabled") | ternary .Values.backups.enabled true }}
     enabled: {{ $isBackupsEnabled }}
