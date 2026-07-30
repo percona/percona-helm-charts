@@ -155,12 +155,16 @@ Example output for 3 replicas:
 {{- end -}}
 
 
+{{- define "pmm.nodeExporter.mode" -}}
+{{- (.Values.nodeExporter).mode | default "internal" -}}
+{{- end -}}
+
 {{/*
 Fail-fast validation for the internal/openshift node-exporter toggle.
 Called from statefulset.yaml, which always renders.
 */}}
 {{- define "pmm.nodeExporter.validate" -}}
-{{- $mode := .Values.nodeExporter.mode -}}
+{{- $mode := include "pmm.nodeExporter.mode" . -}}
 {{- if not (or (eq $mode "internal") (eq $mode "openshift")) -}}
 {{- fail (printf "nodeExporter.mode must be \"internal\" or \"openshift\", got %q" $mode) -}}
 {{- end -}}

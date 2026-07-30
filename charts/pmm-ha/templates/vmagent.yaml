@@ -246,7 +246,7 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
-    {{- if eq .Values.nodeExporter.mode "internal" }}
+    {{- if eq (include "pmm.nodeExporter.mode" .) "internal" }}
     # Scrape node-exporter for node-level metrics (bundled prometheus-node-exporter DaemonSet)
     - job_name: 'node-exporter'
       kubernetes_sd_configs:
