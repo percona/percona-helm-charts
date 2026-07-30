@@ -7,7 +7,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.22.0
+  tag: 1.23.0
   pullPolicy: IfNotPresent
 
 # disableTelemetry: according to
@@ -25,6 +25,9 @@ disableTelemetry: false
 
 # set if operator should be deployed in cluster wide mode. defaults to false
 watchAllNamespaces: false
+
+# namespace where cert-manager is installed (used only in namespaced/non-cluster-wide mode)
+certManagerNamespace: cert-manager
 
 # rbac: settings for deployer RBAC creation
 rbac:
@@ -78,6 +81,7 @@ fullnameOverride: ""
 
 env:
   resyncPeriod: 5s
+  reconcileInterval: 5s
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -96,6 +100,19 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+livenessProbe:
+  failureThreshold: 3
+  httpGet:
+    path: /healthz
+    port: health
+    scheme: HTTP
+readinessProbe:
+  failureThreshold: 3
+  httpGet:
+    path: /readyz
+    port: health
+    scheme: HTTP
 
 logStructured: false
 logLevel: "INFO"
