@@ -223,10 +223,10 @@ when nodeExporter.mode == "openshift".
           - openshift-monitoring
   relabel_configs:
     - source_labels: [__meta_kubernetes_service_name]
-      regex: node-exporter
+      regex: 'node-exporter'
       action: keep
     - source_labels: [__meta_kubernetes_endpoint_port_name]
-      regex: https
+      regex: 'https'
       action: keep
     {{- include "pmm.nodeExporter.pmmRelabelConfigs" . | nindent 4 }}
 {{- end -}}
