@@ -37,6 +37,34 @@ jobs:
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts/
           helm repo update
 
+      # Renders only - no cluster needed. All three cases hit the fail in
+      # pmm.nodeExporter.validate before the lookup in pg-user-credentials-secrets.yaml.
+      - name: Check node-exporter mode validation
+        run: |
+          set -euo pipefail
+          helm dependency build charts/pmm-ha
+
+          assert_fails() {  # $1 = expected substring, rest = helm args
+            local want="$1"; shift
+            local out
+            if out=$(helm template smoke charts/pmm-ha "$@" 2>&1); then
+              echo "::error::expected render to fail: $*"
+              exit 1
+            fi
+            if ! grep -qF "$want" <<<"$out"; then
+              echo "::error::wrong failure for: $*"
+              echo "$out"
+              exit 1
+            fi
+          }
+
+          collision="would collide with OpenShift's node-exporter on host port 9100"
+          assert_fails "$collision" --set nodeExporter.mode=openshift
+          # Nulling the subchart key must not disable the check: Helm treats the dependency
+          # condition as unresolved and renders the DaemonSet anyway.
+          assert_fails "$collision" --set nodeExporter.mode=openshift --set prometheus-node-exporter=null
+          assert_fails 'nodeExporter.mode must be "internal" or "openshift"' --set nodeExporter.mode=bogus
+
       - name: Run chart-testing (list-changed)
         id: list-changed
         run: |
@@ -99,6 +127,20 @@ jobs:
       #   with:
       #     limit-access-to-actor: true 
           
+      # --dry-run=server (not helm template) because pg-user-credentials-secrets.yaml looks up
+      # pmm-secret. Runs after the operators so their CRDs are registered: a server dry run still
+      # maps every manifest through the API, so VMAgent/ClickHouseInstallation must be known.
+      - name: Check openshift node-exporter scrape job renders
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          helm install smoke charts/pmm-ha -n "${{ env.NS }}" --dry-run=server \
+            --set nodeExporter.mode=openshift \
+            --set prometheus-node-exporter.enabled=false > /tmp/smoke.yaml
+          grep -q "job_name: 'openshift-node-exporter'" /tmp/smoke.yaml
+          # The point of openshift mode: the bundled DaemonSet must not be deployed.
+          ! grep -q 'kind: DaemonSet' /tmp/smoke.yaml
+
       - name: Run chart-testing (install pmm-ha)
         if: steps.list-changed.outputs.changed == 'true'
         run: |
