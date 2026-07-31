@@ -21,19 +21,15 @@ image:
 ## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/env_var.html
 ##
 pmmEnv:
-  ## @param pmmEnv.PMM_ENABLE_UPDATES needs to be disabled in k8s environment as updates are rolled out via helm/container update
-  ##
-  PMM_ENABLE_UPDATES: "0"
-  PMM_DEBUG: "0"
   PMM_DISABLE_BUILTIN_CLICKHOUSE: "1"
   PMM_DISABLE_BUILTIN_POSTGRES: "1"
   # PMM_CLICKHOUSE_ADDR: "{{ .Release.Name }}-clickhouse.{{ .Release.Namespace }}.svc.cluster.local:9000"
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
-  # PMM_CLICKHOUSE_CLUSTER_NAME is set directly in statefulset.yaml
+  # PMM_CLICKHOUSE_CLUSTER_NAME is set in statefulset.yaml
   # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
-  # PMM_POSTGRES_ADDR: "pmmhak8s-pg-db-ha.pmmhak8s.svc.cluster.local:5432"
+  # PMM_POSTGRES_ADDR: "pmm-ha-pg-db-ha.pmm-ha.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
   GF_DATABASE_SSL_MODE: "require"
   # PMM_VM_URL: "http://:@:8427/"
@@ -52,7 +48,6 @@ pmmEnv:
   GF_NEWS_NEWS_FEED_ENABLE: "0"
   GF_SECURITY_DISABLE_GRAVATAR: "1"
   GF_LOG_LEVEL: "info"
-  PMM_ENABLE_TELEMETRY: "0"
   PMM_ENABLE_BACKUP_MANAGEMENT: "1"
   PMM_ENABLE_ALERTING: "1"
   PMM_ENABLE_ACCESS_CONTROL: "1"
