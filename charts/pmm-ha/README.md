@@ -546,18 +546,30 @@ prometheus-node-exporter:
   enabled: false
 ```
 
-Limitations:
+Prerequisites and limitations:
 
-- Unlike the bundled exporter, OpenShift's disables the `cpufreq` collector by default. Enable it via
-  `cluster-monitoring-config` if you need CPU frequency metrics (it can raise CPU usage on nodes with
-  many cores):
+- `mode: openshift` is only valid on OpenShift with platform monitoring enabled. On any other
+  cluster the scrape job still renders, but every scrape fails with `cannot read ca_file` because
+  the service-CA bundle it verifies against does not exist.
+
+- Unlike the bundled exporter, OpenShift's disables the `cpufreq` collector by default, so the CPU
+  frequency panels in PMM's OS dashboards are empty. This was the only gap observed in testing:
+  CPU, memory, disk and network panels all report data. To enable the collector, add it to the
+  `cluster-monitoring-config` ConfigMap in the `openshift-monitoring` namespace - the ConfigMap is
+  not created by default, so you may need to create it:
 
   ```yaml
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: cluster-monitoring-config
+    namespace: openshift-monitoring
   data:
     config.yaml: |
       nodeExporter:
         collectors:
-          cpufreq: { enabled: true }
+          cpufreq:
+            enabled: true
   ```
 
 ### External access to PMM HA
