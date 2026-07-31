@@ -160,6 +160,15 @@ Example output for 3 replicas:
 {{- end -}}
 
 {{/*
+Whether the bundled prometheus-node-exporter DaemonSet will render ("true"/"false"); defaults to
+true to match Chart.yaml's `condition: prometheus-node-exporter.enabled`, which Helm treats as
+enabled when the key is missing.
+*/}}
+{{- define "pmm.nodeExporter.bundledEnabled" -}}
+{{- dig "enabled" true (default dict (index .Values "prometheus-node-exporter")) -}}
+{{- end -}}
+
+{{/*
 Fail-fast validation for the internal/openshift node-exporter toggle.
 Called from statefulset.yaml, which always renders.
 */}}
@@ -169,8 +178,7 @@ Called from statefulset.yaml, which always renders.
 {{- fail (printf "nodeExporter.mode must be \"internal\" or \"openshift\", got %q" $mode) -}}
 {{- end -}}
 {{- if eq $mode "openshift" -}}
-{{- $sub := index .Values "prometheus-node-exporter" -}}
-{{- if and $sub $sub.enabled -}}
+{{- if eq (include "pmm.nodeExporter.bundledEnabled" .) "true" -}}
 {{- fail "nodeExporter.mode=openshift requires prometheus-node-exporter.enabled=false: the bundled DaemonSet would collide with OpenShift's node-exporter on host port 9100." -}}
 {{- end -}}
 {{- end -}}

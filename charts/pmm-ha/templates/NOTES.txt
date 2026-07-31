@@ -56,6 +56,6 @@ Get VictoriaMetrics credentials:
 Node exporter source: {{ include "pmm.nodeExporter.mode" . }}
 {{- if eq (include "pmm.nodeExporter.mode" .) "openshift" }}
   Scraping OpenShift's node-exporter in openshift-monitoring.
-{{- else if not (index .Values "prometheus-node-exporter" "enabled") }}
+{{- else if ne (include "pmm.nodeExporter.bundledEnabled" .) "true" }}
   WARNING: nodeExporter.mode=internal but prometheus-node-exporter.enabled=false - no node metrics will be collected.
 {{- end }}
