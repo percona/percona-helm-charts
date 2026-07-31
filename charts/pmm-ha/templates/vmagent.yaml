@@ -262,7 +262,7 @@ spec:
           regex: 'metrics|http-metrics'
           action: keep
         {{- include "pmm.nodeExporter.pmmRelabelConfigs" . | nindent 8 }}
-    {{- else }}
+    {{- else if eq (include "pmm.nodeExporter.mode" .) "openshift" }}
     {{- include "pmm.nodeExporter.openshiftScrapeJob" . | nindent 4 }}
     {{- end }}
     # Scrape kubelet metrics via the apiserver proxy
