@@ -160,12 +160,12 @@ Example output for 3 replicas:
 {{- end -}}
 
 {{/*
-Whether the bundled prometheus-node-exporter DaemonSet will render ("true"/"false"); defaults to
-true to match Chart.yaml's `condition: prometheus-node-exporter.enabled`, which Helm treats as
-enabled when the key is missing.
+Whether the bundled prometheus-node-exporter DaemonSet will render ("true"/"false").
+Like Helm's `condition:`, only a boolean false disables the subchart.
 */}}
 {{- define "pmm.nodeExporter.bundledEnabled" -}}
-{{- dig "enabled" true (default dict (index .Values "prometheus-node-exporter")) -}}
+{{- $v := dig "enabled" true (default dict (index .Values "prometheus-node-exporter")) -}}
+{{- if and (kindIs "bool" $v) (not $v) }}false{{ else }}true{{ end }}
 {{- end -}}
 
 {{/*
