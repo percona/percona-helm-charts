@@ -319,9 +319,9 @@ To create additional service tokens manually, see the [PMM documentation on serv
 
 ### Node exporter source parameters
 
-| Name                                                          | Description                                                                                        | Value                                                 |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `nodeExporter.mode`                                           | Node metrics source: `internal` (deploy + scrape prometheus-node-exporter) or `openshift`            | `internal`                                            |
+| Name                | Description                                                                               | Value      |
+| ------------------- | ----------------------------------------------------------------------------------------- | ---------- |
+| `nodeExporter.mode` | Node metrics source: `internal` (deploy + scrape prometheus-node-exporter) or `openshift` | `internal` |
 
 
 Specify each parameter using the `--set key=value[,key=value]` or `--set-string key=value[,key=value]` arguments to `helm install`. For example,

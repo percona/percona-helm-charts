@@ -693,7 +693,8 @@ kube-state-metrics:
 prometheus-node-exporter:
   enabled: true
 
-## @section Node exporter source (bundled DaemonSet vs OpenShift's)
+## @section Node exporter source
+## Bundled DaemonSet vs OpenShift's platform node-exporter.
 ## "internal" deploys and scrapes the bundled prometheus-node-exporter. "openshift" scrapes the
 ## node-exporter OpenShift's platform monitoring already runs, and requires
 ## `prometheus-node-exporter.enabled: false`.
