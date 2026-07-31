@@ -37,7 +37,7 @@ jobs:
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts/
           helm repo update
 
-      # Renders only - no cluster needed. All three cases hit the fail in
+      # Renders only - no cluster needed. Every case hits the fail in
       # pmm.nodeExporter.validate before the lookup in pg-user-credentials-secrets.yaml.
       - name: Check node-exporter mode validation
         run: |
@@ -63,6 +63,11 @@ jobs:
           # Nulling the subchart key must not disable the check: Helm treats the dependency
           # condition as unresolved and renders the DaemonSet anyway.
           assert_fails "$collision" --set nodeExporter.mode=openshift --set prometheus-node-exporter=null
+          # Non-bool `enabled` values: Helm leaves the subchart enabled and renders the
+          # DaemonSet, so the check must not treat them as disabled.
+          assert_fails "$collision" --set nodeExporter.mode=openshift --set prometheus-node-exporter.enabled=null
+          assert_fails "$collision" --set nodeExporter.mode=openshift --set prometheus-node-exporter.enabled=0
+          assert_fails "$collision" --set nodeExporter.mode=openshift --set-string prometheus-node-exporter.enabled=false
           assert_fails 'nodeExporter.mode must be "internal" or "openshift"' --set nodeExporter.mode=bogus
 
       - name: Run chart-testing (list-changed)
