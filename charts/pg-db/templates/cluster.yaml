@@ -369,6 +369,10 @@ spec:
                 storage: {{ $volume.dataVolumeClaimSpec.resources.requests.storage }}
       {{- end }}
       {{- end }}
+      {{- if $instance.extraVolumes }}
+      extraVolumes:
+{{- toYaml $instance.extraVolumes | nindent 8 }}
+      {{- end }}
   {{- end }}
 
   proxy:
