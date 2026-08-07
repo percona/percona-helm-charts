@@ -9,6 +9,9 @@ set -eu
 # - PostgreSQL: pg_dump (logical, portable custom-format dump per database)
 # - ClickHouse: clickhouse-backup (Altinity tool)
 # - VictoriaMetrics: vmbackup (VictoriaMetrics utility)
+#
+# Shell: uses `local` and other common extensions beyond strict POSIX sh. Supported
+# shells: BusyBox ash (the backup-tools image), dash, and bash — all implement these.
 ################################################################################
 
 # Show help function

@@ -17,6 +17,9 @@ set -eu
 # Discovery uses the per-run manifest.json (PG dump databases, CH backup name,
 # component status) — never a local consolidated directory. Run from the
 # backup-tools pod (or any host with kubectl access + the central mount for shared).
+#
+# Shell: uses `local` and other common extensions beyond strict POSIX sh. Supported
+# shells: BusyBox ash (the backup-tools image), dash, and bash — all implement these.
 ################################################################################
 
 # ---- Default configuration --------------------------------------------------

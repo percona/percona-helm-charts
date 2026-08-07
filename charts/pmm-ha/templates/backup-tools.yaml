@@ -173,7 +173,10 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: backup-tools
 rules:
-  # Pod operations (backup + restore: exec, delete for VM pod restart on restore)
+  # Pod operations. create/delete on pods is required (not just pods/exec): the restore
+  # spawns short-lived mounter pods (restore-s3-client, vm-restore-<ordinal>,
+  # pmm-srv-restore-<ordinal>) to write the RWO data PVCs while their owner pods are
+  # scaled down, and deletes them when done.
   - apiGroups: [""]
     resources: ["pods", "pods/log", "pods/exec"]
     verbs: ["get", "list", "create", "delete", "watch"]

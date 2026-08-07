@@ -566,6 +566,9 @@ centralBackupStorage:
       secretKey: "secret-key"
     ## IAM role ARN annotated onto the backup ServiceAccounts (IRSA, AWS EKS only). Set per
     ## install (e.g. arn:aws:iam::<ACCOUNT_ID>:role/pmm-ha-backup-s3). Empty = no IRSA annotation.
+    ## S3-mode credentials come from ONE of: irsaRoleArn (IRSA), existingSecret (static keys),
+    ## or ambient AWS credentials on the node (instance profile / kube2iam). With none of the
+    ## three, the backup sidecars deploy but every S3 operation fails with auth errors.
     irsaRoleArn: ""
     ## Dedicated IRSA-annotated SA used by operator-managed pods (vmstorage, clickhouse, pgbackrest)
     ## so their backup tools get S3 creds via the credential chain. Must be annotated with irsaRoleArn.
