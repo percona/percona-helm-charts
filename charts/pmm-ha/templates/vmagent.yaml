@@ -64,9 +64,12 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # Keep only ClickHouse pods from this release
+        # Keep only ClickHouse pods from this release. The label carries the
+        # ClickHouseInstallation name, which clickhouse-cluster.yaml sets from Release.Name
+        # (NOT pmm.fullname) - they differ whenever the release name does not already
+        # contain the chart name, e.g. release "pmm-2" -> CHI "pmm-2", fullname "pmm-2-pmm-ha".
         - source_labels: [__meta_kubernetes_pod_label_clickhouse_altinity_com_chi]
-          regex: '{{ include "pmm.fullname" . }}'
+          regex: '{{ .Release.Name }}'
           action: keep
         # Target the metrics port (9363)
         - source_labels: [__meta_kubernetes_pod_container_port_number]
@@ -96,9 +99,10 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # Keep only ClickHouse Keeper pods from this release
+        # Keep only ClickHouse Keeper pods from this release. As above, the label carries the
+        # ClickHouseKeeperInstallation name, which clickhouse-keeper.yaml sets from Release.Name.
         - source_labels: [__meta_kubernetes_pod_label_clickhouse_keeper_altinity_com_chk]
-          regex: '{{ include "pmm.fullname" . }}-keeper'
+          regex: '{{ .Release.Name }}-keeper'
           action: keep
         # Target the metrics port (7000)
         - source_labels: [__meta_kubernetes_pod_container_port_number]
