@@ -419,7 +419,7 @@ spec:
       {{- end }}
       {{- if .Values.proxy.pgBouncer.additionalTrustedCAs }}
       additionalTrustedCAs:
-{{ .Values.proxy.pgBouncer.additionalTrustedCAs | toYaml | indent 6 }}
+{{ .Values.proxy.pgBouncer.additionalTrustedCAs | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.config }}
       config:
