@@ -145,6 +145,11 @@ namespace, with two adjustments for the additional instances:
    scrape jobs are still collected, since those discover nodes cluster-wide.) For a DR / restore
    target this is usually fine, since cluster-level metrics aren't part of the restored data.
 
+> **OpenShift**: with `nodeExporter.mode: openshift` (see [Using OpenShift's node exporter](#using-openshifts-node-exporter))
+> the node-exporter scrape job targets the platform exporter in the `openshift-monitoring`
+> namespace rather than the release namespace, so **every** instance still collects node metrics.
+> Set that mode on each instance; only kube-state-metrics remains first-instance-only.
+
 ```bash
 # First instance (full stack, in namespace "pmm"):
 kubectl create namespace pmm
