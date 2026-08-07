@@ -317,6 +317,13 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `affinity`                   | Affinity for pod assignment                                                                                         | `{}`                  |
 
 
+### Node exporter source parameters
+
+| Name                | Description                                                                               | Value      |
+| ------------------- | ----------------------------------------------------------------------------------------- | ---------- |
+| `nodeExporter.mode` | Node metrics source: `internal` (deploy + scrape prometheus-node-exporter) or `openshift` | `internal` |
+
+
 Specify each parameter using the `--set key=value[,key=value]` or `--set-string key=value[,key=value]` arguments to `helm install`. For example,
 
 ```sh
@@ -525,6 +532,45 @@ victoriaMetrics:
     extraArgs:
       maxLabelsPerTimeseries: "60"
 ```
+
+### Using OpenShift's node exporter
+
+By default (`nodeExporter.mode: internal`) the chart deploys its own `prometheus-node-exporter`
+DaemonSet. On OpenShift, whose platform monitoring already runs one, set `nodeExporter.mode: openshift`
+to scrape that instead. The bundled DaemonSet must be disabled:
+
+```yaml
+nodeExporter:
+  mode: openshift
+prometheus-node-exporter:
+  enabled: false
+```
+
+Prerequisites and limitations:
+
+- `mode: openshift` is only valid on OpenShift with platform monitoring enabled. On any other
+  cluster the scrape job still renders, but every scrape fails with `cannot read ca_file` because
+  the service-CA bundle it verifies against does not exist.
+
+- Unlike the bundled exporter, OpenShift's disables the `cpufreq` collector by default, so the CPU
+  frequency panels in PMM's OS dashboards are empty. This was the only gap observed in testing:
+  CPU, memory, disk and network panels all report data. To enable the collector, add it to the
+  `cluster-monitoring-config` ConfigMap in the `openshift-monitoring` namespace - the ConfigMap is
+  not created by default, so you may need to create it:
+
+  ```yaml
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: cluster-monitoring-config
+    namespace: openshift-monitoring
+  data:
+    config.yaml: |
+      nodeExporter:
+        collectors:
+          cpufreq:
+            enabled: true
+  ```
 
 ### External access to PMM HA
 
