@@ -88,12 +88,23 @@ pg-operator:
   watchAllNamespaces: true
 ```
 
-> **Privileges:** with these defaults both operators reconcile custom resources cluster-wide,
-> so the install requires cluster-scoped RBAC (ClusterRole/ClusterRoleBinding and cluster-wide
-> list/watch). See [Permission issues](#permission-issues). This is required for the
-> multi-namespace support below; single-namespace users who want least privilege can override
-> these values, but note the ClickHouse operator does **not** support scoping to a single extra
-> namespace — see the inline notes in `values.yaml`.
+> **Privileges — applies to every install, not just multi-namespace ones.** With these
+> defaults both operators reconcile custom resources cluster-wide, so installing this chart
+> requires permission to create cluster-scoped RBAC (ClusterRole/ClusterRoleBinding) and
+> cluster-wide list/watch. On clusters where you cannot create cluster-scoped RBAC (common on
+> restricted OpenShift projects) the install will fail. See [Permission issues](#permission-issues).
+>
+> **Single-namespace users who want least privilege** can scope the PostgreSQL operator back
+> down — this keeps its RBAC as a namespaced `Role`/`RoleBinding`:
+>
+> ```yaml
+> pg-operator:
+>   watchAllNamespaces: false
+> ```
+>
+> The ClickHouse operator does **not** support scoping to a single extra namespace — a
+> one-entry watch list scopes it to that namespace *only* and breaks the primary install.
+> See the inline notes in `values.yaml`.
 
 ## Multi-namespace support
 
@@ -108,6 +119,28 @@ helm install pmm-ha percona/pmm-ha --namespace pmm
 # Second instance in another namespace, different release name
 helm install pmm-2 percona/pmm-ha --namespace pmm-2 --create-namespace
 ```
+
+### Existing installations: upgrade the operators first
+
+The cluster-wide watch is a **values default**, so an operator release installed before this
+version is still namespace-scoped. Upgrade it before installing into a second namespace:
+
+```bash
+helm upgrade pmm-operators percona/pmm-ha-dependencies --namespace pmm
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n pmm --timeout=180s
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickhouse-operator -n pmm --timeout=180s
+```
+
+Do **not** reinstall this chart into the new namespace — the VictoriaMetrics operator CRDs are
+owned by the first release, and a second install fails with
+`invalid ownership metadata ... release-namespace must equal "<new-namespace>"`.
+
+> **⚠️ Order matters — this one is not recoverable by retrying.** If you install `pmm-ha` into
+> the second namespace while the operators are still namespace-scoped, the PostgreSQL cluster
+> and the ClickHouseInstallation are never reconciled. PMM then boots with no PostgreSQL, and
+> Grafana initializes with the **default `admin` password** — `PMM_ADMIN_PASSWORD` from
+> `pmm-secret` is only applied at first initialization, so it stays that way and the
+> `pmm-token-init` job loops on 401. Upgrade the operators first.
 
 ## Requirements
 
