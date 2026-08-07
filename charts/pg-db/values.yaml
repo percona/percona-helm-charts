@@ -76,6 +76,7 @@ customReplicationTLSSecret:
 
 # tls:
 #   caValidityDuration: 87600h
+#   certManagementPolicy: auto
 #   certValidityDuration: 2160h
 #   pgBackRestCertValidityDuration: 2160h
 
@@ -345,6 +346,20 @@ instances:
 #        resources:
 #          requests:
 #            storage: 1Gi
+#
+#  extraVolumes:
+#    - name: fts-dicts
+#      volumeSource:
+#        configMap:
+#          name: my-dicts
+#      mounts:
+#        - mountPath: /pgdata/dicts
+#          readOnly: true
+#    - name: scratch
+#      volumeSource:
+#        emptyDir: {}
+#      mounts:
+#        - mountPath: /scratch
 
 proxy:
   pgBouncer:
@@ -357,6 +372,8 @@ proxy:
 #    - secretRef:
 #        name: pgbouncer-env-secret
 #    exposeSuperusers: false
+#    usersSecret:
+#      name: pgbouncer-users
 #    resources:
 #      limits:
 #        cpu: 200m
