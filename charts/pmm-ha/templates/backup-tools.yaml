@@ -1,0 +1,230 @@
+{{- if .Values.centralBackupStorage.enabled }}
+---
+# backup-tools: the pod the backup/restore orchestrators run in. A Deployment (not a bare
+# Pod) so it survives eviction / node loss / manual deletion; replicas=1 + Recreate
+# because the logs/metrics volume is typically RWO (a rolling update would deadlock on
+# the volume attachment).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-backup-tools
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-tools
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: backup-tools
+  template:
+    metadata:
+      labels:
+        {{- include "pmm.labels" . | nindent 8 }}
+        app.kubernetes.io/component: backup-tools
+      annotations:
+        # Roll the pod when the shipped scripts change (subPath mounts don't live-update).
+        checksum/backup-scripts: {{ include (print $.Template.BasePath "/backup-scripts-configmap.yaml") . | sha256sum }}
+        # A disrupted pod kills any backup/restore running inside it. Opt out of
+        # consolidation-driven disruption (Karpenter / EKS Auto Mode; harmless elsewhere).
+        karpenter.sh/do-not-disrupt: "true"
+    spec:
+      serviceAccountName: {{ .Release.Name }}-backup-sa
+      containers:
+      - name: backup-tools
+        image: "{{ .Values.centralBackupStorage.tools.image.registry }}/{{ .Values.centralBackupStorage.tools.image.repository }}:{{ .Values.centralBackupStorage.tools.image.tag }}"
+        command:
+          - sh
+          - -c
+          - |
+            # nc ships with BusyBox on alpine-based images, but don't rely on it: the
+            # metrics listeners below need it, so install a fallback if it's missing.
+            command -v nc >/dev/null 2>&1 || apk add --no-cache netcat-openbsd >/dev/null 2>&1 || true
+            METRICS_PATH="{{ .Values.centralBackupStorage.mountPath }}/.metrics"
+            mkdir -p "${METRICS_PATH}"
+            for comp in postgresql clickhouse victoriametrics; do
+              [ -f "${METRICS_PATH}/${comp}_metrics.prom" ] || echo '# Waiting for first backup run' > "${METRICS_PATH}/${comp}_metrics.prom"
+            done
+            [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by restore-orchestrator)' > "${METRICS_PATH}/restore_metrics.prom"
+            serve_metrics() {
+              while true; do
+                { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; cat "${METRICS_PATH}/$1" 2>/dev/null || echo '# not found'; } | nc -l -p "$2" -w 5 >/dev/null 2>&1
+              done
+            }
+            serve_metrics postgresql_metrics.prom 9091 &
+            serve_metrics clickhouse_metrics.prom 9092 &
+            serve_metrics victoriametrics_metrics.prom 9093 &
+            serve_metrics restore_metrics.prom 9094 &
+            sleep infinity
+        ports:
+          - name: metrics-pg
+            containerPort: 9091
+            protocol: TCP
+          - name: metrics-ch
+            containerPort: 9092
+            protocol: TCP
+          - name: metrics-vm
+            containerPort: 9093
+            protocol: TCP
+          - name: metrics-restore
+            containerPort: 9094
+            protocol: TCP
+        env:
+          - name: NAMESPACE
+            value: {{ .Release.Namespace }}
+          - name: BACKUP_DIR
+            value: {{ .Values.centralBackupStorage.mountPath }}
+          - name: CENTRAL_BACKUP_PATH
+            value: {{ .Values.centralBackupStorage.mountPath }}
+          - name: METRICS_DIR
+            value: {{ .Values.centralBackupStorage.mountPath }}/.metrics
+          # Backup target + S3 settings the chart already knows, projected as env so
+          # restore-orchestrator.sh (and manual backup-orchestrator.sh runs) default to THIS
+          # install rather than requiring every --target/--s3-* flag to be re-typed — a
+          # forgotten --s3-secret otherwise makes a static-key restore schedule temp pods
+          # under a non-existent SA and fail at admission mid-restore. Flags still override.
+          - name: BACKUP_TARGET
+            value: {{ .Values.centralBackupStorage.mode | quote }}
+          {{- if eq .Values.centralBackupStorage.mode "shared" }}
+          - name: SHARED_MOUNT_PATH
+            value: {{ .Values.centralBackupStorage.sharedMountPath | quote }}
+          {{- else }}
+          - name: S3_BUCKET
+            value: {{ .Values.centralBackupStorage.s3.bucket | quote }}
+          - name: S3_REGION
+            value: {{ .Values.centralBackupStorage.s3.region | quote }}
+          - name: S3_PREFIX
+            value: {{ .Values.centralBackupStorage.s3.prefix | quote }}
+          - name: S3_PROVIDER
+            value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
+          {{- with .Values.centralBackupStorage.s3.endpoint }}
+          - name: S3_ENDPOINT
+            value: {{ . | quote }}
+          {{- end }}
+          {{- with .Values.centralBackupStorage.s3.existingSecret }}
+          - name: S3_SECRET_NAME
+            value: {{ . | quote }}
+          - name: S3_SECRET_ACCESS_KEY_KEY
+            value: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "access") | quote }}
+          - name: S3_SECRET_SECRET_KEY_KEY
+            value: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "secret") | quote }}
+          {{- end }}
+          {{- with .Values.centralBackupStorage.s3.serviceAccountName }}
+          - name: S3_SERVICE_ACCOUNT
+            value: {{ . | quote }}
+          {{- end }}
+          {{- end }}
+        volumeMounts:
+          - name: central-backup-storage
+            mountPath: {{ .Values.centralBackupStorage.mountPath }}
+          # Chart-shipped orchestrator scripts (subPath keeps /usr/local/bin intact, so
+          # `kubectl exec ... -- backup-orchestrator.sh` works via PATH as before).
+          - name: backup-scripts
+            mountPath: /usr/local/bin/backup-orchestrator.sh
+            subPath: backup-orchestrator.sh
+          - name: backup-scripts
+            mountPath: /usr/local/bin/restore-orchestrator.sh
+            subPath: restore-orchestrator.sh
+          - name: backup-scripts
+            mountPath: /usr/local/bin/cron-backup.sh
+            subPath: cron-backup.sh
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      volumes:
+        - name: backup-scripts
+          configMap:
+            name: {{ .Release.Name }}-backup-scripts
+            defaultMode: 0555
+        - name: central-backup-storage
+        {{- if .Values.centralBackupStorage.nfs.enabled }}
+          nfs:
+            server: {{ .Values.centralBackupStorage.nfs.server }}
+            path: {{ .Values.centralBackupStorage.nfs.path }}
+        {{- else }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.centralBackupStorage.existingClaim | default (printf "%s-central-backup" .Release.Name) }}
+        {{- end }}
+---
+# ServiceAccount for backup operations
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-backup-sa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-tools
+---
+# Role for backup operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-backup-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-tools
+rules:
+  # Pod operations (backup + restore: exec, delete for VM pod restart on restore)
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/exec"]
+    verbs: ["get", "list", "create", "delete", "watch"]
+  # Secret operations (backup: get/list; restore: apply encryption key)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch"]
+  # PVC operations
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list"]
+  # Service operations
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  # Namespace operations (preflight connectivity check)
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+  # Restore: VMCluster (scale vminsert, patch)
+  - apiGroups: ["operator.victoriametrics.com"]
+    resources: ["vmclusters"]
+    verbs: ["get", "list", "patch"]
+  # Restore: StatefulSet (scale PMM down/up)
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets/scale"]
+    verbs: ["get", "patch"]
+  # Scheduled backups: the CronJob execs `kubectl exec deploy/<release>-backup-tools`,
+  # which resolves the Deployment to a pod (read-only).
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+# RoleBinding for backup operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-backup-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-tools
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-backup-sa
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-backup-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

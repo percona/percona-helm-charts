@@ -1,0 +1,32 @@
+{{- if and .Values.centralBackupStorage.enabled (not .Values.centralBackupStorage.nfs.enabled) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.centralBackupStorage.existingClaim | default (printf "%s-central-backup" .Release.Name) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: central-backup-storage
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    {{- /* Default by mode: shared needs RWX (many component pods mount it); s3 needs only a
+           small RWO logs/metrics volume on the always-on backup-tools pod. An explicit
+           accessMode value overrides. Defaulting to RWX on the common RWO-only default
+           storage class would otherwise leave this PVC Pending and block the backup. */}}
+    {{- $accessMode := .Values.centralBackupStorage.accessMode }}
+    {{- if not $accessMode }}{{- $accessMode = ternary "ReadWriteMany" "ReadWriteOnce" (eq .Values.centralBackupStorage.mode "shared") }}{{- end }}
+    - {{ $accessMode }}
+  {{- if .Values.centralBackupStorage.volumeName }}
+  # Bind a pre-created static PV (e.g. an EFS sub-path PV) — disables dynamic provisioning.
+  volumeName: {{ .Values.centralBackupStorage.volumeName }}
+  storageClassName: ""
+  {{- else if .Values.centralBackupStorage.storageClassName }}
+  storageClassName: {{ .Values.centralBackupStorage.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.centralBackupStorage.storageSize }}
+{{- end }}

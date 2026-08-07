@@ -125,6 +125,109 @@ The command deploys PMM HA on the Kubernetes cluster with the default high avail
 
 > **Important**: For production deployments, you must create the `pmm-secret` manually before installation since `secret.create` is set to `false` by default. See the [Creating PMM Secret Manually](#creating-pmm-secret-manually) section for detailed examples.
 
+### Installing into multiple namespaces
+
+The operators (PostgreSQL, ClickHouse, VictoriaMetrics) installed by `pmm-ha-dependencies`
+are **cluster-wide**, so they reconcile PMM-HA in any namespace. You can therefore run more
+than one PMM-HA instance on the same cluster (e.g. a disaster-recovery / restore target, or
+an isolated test instance) — install the operators **once**, then install the chart into each
+namespace, with two adjustments for the additional instances:
+
+1. **Use a distinct Helm release name.** The chart's `ClusterRole`/`ClusterRoleBinding` are
+   cluster-scoped and named after the release, so a unique release name avoids name clashes.
+2. **Disable the cluster-wide monitoring sub-charts.** `kube-state-metrics` and
+   `prometheus-node-exporter` are per-*cluster* agents (node-exporter uses host networking on
+   port 9100, so only one set can run per node). Install them with the *first* instance only and
+   disable them on the rest to avoid the port clash. Each instance's vmagent scrapes only its own
+   namespace, so a secondary instance does **not** reuse the first's agents — it collects no
+   kube-state-metrics (object state) or node-exporter (host) metrics; those live only in the first
+   instance's VictoriaMetrics. (Basic node/container metrics from the `kubelet` and `cadvisor`
+   scrape jobs are still collected, since those discover nodes cluster-wide.) For a DR / restore
+   target this is usually fine, since cluster-level metrics aren't part of the restored data.
+
+```bash
+# First instance (full stack, in namespace "pmm"):
+kubectl create namespace pmm
+# create the pmm-secret in this namespace first — see "Creating PMM Secret Manually"
+helm install pmm-ha percona/pmm-ha -n pmm
+
+# Additional instance (e.g. a restore/DR target in namespace "pmm-dr"):
+#   - distinct release name (pmm-dr)
+#   - cluster-wide monitoring agents off (only one set runs per node; this instance
+#     won't collect kube-state-metrics / node-exporter metrics)
+kubectl create namespace pmm-dr
+# create the pmm-secret in pmm-dr too — see "Creating PMM Secret Manually"
+helm install pmm-dr percona/pmm-ha -n pmm-dr \
+  --set kube-state-metrics.enabled=false \
+  --set prometheus-node-exporter.enabled=false
+```
+
+> **Note**: `helm install -n <namespace>` does not create the namespace. Create it first
+> (as shown) so the `pmm-secret` can be created there before installing.
+
+Per-namespace resources (PMM server, PostgreSQL, ClickHouse, VictoriaMetrics, HAProxy) are
+namespaced and do not collide across namespaces. Remember the usual prerequisites in **each**
+namespace: create the `pmm-secret` (see [Creating PMM Secret Manually](#creating-pmm-secret-manually))
+before installing, and ensure the namespace has access to whatever backup storage you use.
+
+## Backup and Restore
+
+The chart ships a complete backup/restore solution for the whole PMM-HA installation
+(PostgreSQL, ClickHouse, VictoriaMetrics, PMM `/srv`, and the PMM encryption key). The
+orchestrator scripts are installed with the chart (mounted into the `backup-tools`
+Deployment — no manual copying) and support two targets, selected via
+`centralBackupStorage.mode`:
+
+- **`s3`** (default): every component uploads directly to any S3-compatible object storage
+  (AWS S3, MinIO, Ceph RGW, ...), authenticated with either static access keys (a
+  Kubernetes Secret — works everywhere) or IRSA (AWS EKS only, keyless).
+- **`shared`**: every component writes to a user-provided volume — any PVC, NFS export,
+  or pre-created PV the cluster can mount (must be RWX on multi-node clusters). The chart
+  never provisions cloud storage itself; AWS/EFS prerequisites are documented as manual
+  steps.
+
+Quick start (after configuring `centralBackupStorage` in values). Inside the backup-tools
+pod the chart already exports the target and all S3 settings from your values, so no
+`--target`/`--s3-*` flags are needed — pass them only to override for an ad-hoc run:
+
+```bash
+# Full backup
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- backup-orchestrator.sh
+
+# List backups
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- restore-orchestrator.sh list
+
+# Restore the latest backup (DESTRUCTIVE — scales PMM/VM down; see docs/restore-orchestrator.md)
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- restore-orchestrator.sh --backup-id latest --force
+```
+
+Scheduled backups (Kubernetes CronJob, disabled by default — enable once the target is
+configured; restore stays manual):
+
+```yaml
+centralBackupStorage:
+  schedule:
+    enabled: true
+    cron: "0 2 * * *"     # daily at 02:00
+    retentionDays: 7
+    # components: ["--skip-victoriametrics"]   # empty = all four
+```
+
+`concurrencyPolicy: Forbid` plus the orchestrator's per-component locks prevent overlapping
+runs. The CronJob `kubectl exec`s into the backup-tools pod (reusing its ServiceAccount,
+scripts, volume and env) rather than mounting the central volume itself, and starts the
+backup detached so it survives the trigger being disrupted — see the *Scheduled Backups*
+section of [docs/backup-orchestrator.md](docs/backup-orchestrator.md).
+
+Full documentation:
+
+- [docs/backup-orchestrator.md](docs/backup-orchestrator.md) — architecture, per-component
+  backup methods, chart integration, IRSA setup, scheduling, metrics, CLI reference,
+  operations guide, and known limitations.
+- [docs/restore-orchestrator.md](docs/restore-orchestrator.md) — restore flow,
+  cross-namespace / disaster-recovery restore, what to expect during a run, and
+  post-restore steps.
+
 ## Uninstalling the Chart
 
 **IMPORTANT**: You must uninstall PMM HA first, then the operators. Uninstalling in the wrong order may leave orphaned resources.

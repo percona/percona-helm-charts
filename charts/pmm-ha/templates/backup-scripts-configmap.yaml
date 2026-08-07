@@ -1,0 +1,20 @@
+{{- if .Values.centralBackupStorage.enabled }}
+---
+# Backup / restore orchestrator scripts, shipped by the chart (files/*.sh) and mounted
+# into the backup-tools Deployment — the pod never needs a manual `kubectl cp`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-backup-scripts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-tools
+data:
+  backup-orchestrator.sh: |
+{{ .Files.Get "files/backup-orchestrator.sh" | indent 4 }}
+  restore-orchestrator.sh: |
+{{ .Files.Get "files/restore-orchestrator.sh" | indent 4 }}
+  cron-backup.sh: |
+{{ .Files.Get "files/cron-backup.sh" | indent 4 }}
+{{- end }}

@@ -228,6 +228,7 @@ spec:
           target_label: service
         - target_label: __metrics_path__
           replacement: /metrics
+    {{- if (index .Values "kube-state-metrics" "enabled") }}
     # Scrape kube-state-metrics for Kubernetes object state
     - job_name: 'kube-state-metrics'
       kubernetes_sd_configs:
@@ -246,6 +247,7 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
+    {{- end }}
     {{- if eq (include "pmm.nodeExporter.mode" .) "internal" }}
     # Scrape node-exporter for node-level metrics (bundled prometheus-node-exporter DaemonSet)
     - job_name: 'node-exporter'
@@ -317,6 +319,88 @@ spec:
     {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
     # User-provided scrape configs (appended)
     {{- toYaml .Values.victoriaMetrics.vmagent.scrapeConfigs | nindent 4 }}
+    {{- end }}
+
+    {{- if .Values.centralBackupStorage.enabled }}
+    # Scrape PostgreSQL backup metrics (port 9091)
+    - job_name: 'backup-postgresql'
+      scrape_interval: 60s
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          regex: 'backup-tools'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '9091'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+
+    # Scrape ClickHouse backup metrics (port 9092)
+    - job_name: 'backup-clickhouse'
+      scrape_interval: 60s
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          regex: 'backup-tools'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '9092'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+
+    # Scrape VictoriaMetrics backup metrics (port 9093)
+    - job_name: 'backup-victoriametrics'
+      scrape_interval: 60s
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          regex: 'backup-tools'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '9093'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+
+    # Scrape restore metrics (port 9094)
+    - job_name: 'backup-restore'
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          regex: 'backup-tools'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '9094'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
     {{- end }}
 
   {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}

@@ -93,8 +93,15 @@ Generate PMM HA peer list dynamically based on replicas count
 {{- $peers := list }}
 {{- $serviceName := .Values.service.name | default "monitoring-service" }}
 {{- $replicas := int .Values.replicas }}
+{{- $fullname := include "pmm.fullname" . }}
 {{- range $i := until $replicas }}
-  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $.Release.Name $i $serviceName $.Release.Namespace }}
+  {{- /* Peers must use the StatefulSet name (pmm.fullname), not Release.Name: the pods are
+         <fullname>-<ordinal>. pmm.fullname equals Release.Name only when the release name
+         already contains the chart name (e.g. "pmm-ha" or "pmm-ha-2"); otherwise it is
+         "<release>-pmm-ha" (e.g. release "pmm-2" -> pods "pmm-2-pmm-ha-0"). Using
+         Release.Name for those releases yields peers that don't resolve and the HA
+         memberlist panics on startup. */}}
+  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $fullname $i $serviceName $.Release.Namespace }}
   {{- $peers = append $peers $peer }}
 {{- end }}
 {{- join "," $peers }}
@@ -153,7 +160,6 @@ Example output for 3 replicas:
   port: 2181
 {{- end -}}
 {{- end -}}
-
 
 {{- define "pmm.nodeExporter.mode" -}}
 {{- (.Values.nodeExporter).mode | default "internal" -}}
@@ -229,4 +235,39 @@ when nodeExporter.mode == "openshift".
       regex: 'https'
       action: keep
     {{- include "pmm.nodeExporter.pmmRelabelConfigs" . | nindent 4 }}
+{{- end -}}
+
+{{/*
+Central backup RWX/NFS volume (shared mode). Renders a single pod-spec volume entry named
+"central-backup-storage" referencing the same NFS/PVC as the backup-tools pod. Mounted at
+.Values.centralBackupStorage.sharedMountPath inside the component pods so each tool writes its
+backup straight to the shared volume. Call with the root context: {{- include "pmm.centralBackupVolume" . }}
+*/}}
+{{- define "pmm.centralBackupVolume" -}}
+- name: central-backup-storage
+{{- if .Values.centralBackupStorage.nfs.enabled }}
+  nfs:
+    server: {{ .Values.centralBackupStorage.nfs.server }}
+    path: {{ .Values.centralBackupStorage.nfs.path }}
+{{- else }}
+  persistentVolumeClaim:
+    claimName: {{ .Values.centralBackupStorage.existingClaim | default (printf "%s-central-backup" .Release.Name) }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Name of the key inside an S3 credentials Secret. Collapses the
+`(<s3>.existingSecretKeys | default dict).accessKey | default "access-key"` idiom that the
+pmm-backup, vmbackup and clickhouse-backup sidecars each hand-copy. Call with the keys dict
+(may be nil) and which credential is wanted:
+  {{ include "pmm.s3SecretKeyName" (dict "keys" $s3.existingSecretKeys "which" "access") }}
+  {{ include "pmm.s3SecretKeyName" (dict "keys" $s3.existingSecretKeys "which" "secret") }}
+*/}}
+{{- define "pmm.s3SecretKeyName" -}}
+{{- $keys := .keys | default dict -}}
+{{- if eq .which "access" -}}
+{{- $keys.accessKey | default "access-key" -}}
+{{- else -}}
+{{- $keys.secretKey | default "secret-key" -}}
+{{- end -}}
 {{- end -}}

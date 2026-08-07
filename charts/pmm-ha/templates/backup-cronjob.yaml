@@ -1,0 +1,87 @@
+{{- if and .Values.centralBackupStorage.enabled .Values.centralBackupStorage.schedule.enabled }}
+{{- $cbs := .Values.centralBackupStorage }}
+{{- $s := $cbs.schedule }}
+{{- /* Build the backup-orchestrator argument list from values. */}}
+{{- $args := list "--namespace" .Release.Namespace "--target" $cbs.mode "--retention" (printf "%d" (int $s.retentionDays)) }}
+{{- if eq $cbs.mode "s3" }}
+  {{- /* Fail at render time rather than let every nightly Job fail on `--s3-bucket ""`. */}}
+  {{- $_ := required "centralBackupStorage.schedule is enabled in s3 mode but centralBackupStorage.s3.bucket is empty — set centralBackupStorage.s3.bucket so scheduled backups can run." $cbs.s3.bucket }}
+  {{- $args = concat $args (list "--s3-bucket" $cbs.s3.bucket "--s3-region" $cbs.s3.region "--s3-prefix" $cbs.s3.prefix) }}
+  {{- with $cbs.s3.endpoint }}{{- $args = concat $args (list "--s3-endpoint" .) }}{{- end }}
+{{- else }}
+  {{- $args = concat $args (list "--shared-mount-path" $cbs.sharedMountPath) }}
+{{- end }}
+{{- /* components/extraArgs default to list so a null override (e.g. `components:`) doesn't nil-panic concat. */}}
+{{- $args = concat $args ($s.components | default list) ($s.extraArgs | default list) }}
+---
+# Scheduled full backup. Rather than mounting the central volume itself (which would
+# Multi-Attach against the RWO logs/metrics PVC held by the always-on backup-tools
+# Deployment), this job execs INSIDE that Deployment's pod — so the run reuses the pod's
+# volume, scripts and env, and its metrics land where vmagent scrapes them. It runs
+# cron-backup.sh, which starts backup-orchestrator.sh DETACHED and polls for completion:
+# the actual backup survives this trigger's exec stream dying, and a Job retry re-execs
+# cron-backup.sh with the same --run-id (the Job name) to RE-ATTACH to the in-flight run
+# instead of colliding with the orchestrator's still-held per-component locks.
+# concurrencyPolicy Forbid + those locks prevent overlap across schedules.
+# Restore is never scheduled — it stays a deliberate manual action.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-cronjob
+spec:
+  schedule: {{ $s.cron | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ $s.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ $s.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $s.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      # Retries now re-attach to the in-flight detached backup (see cron-backup.sh) rather
+      # than restarting it, so a few extra attempts just give the poll stream more chances
+      # to reconnect after a transient disruption.
+      backoffLimit: 3
+      # Hard upper bound on a single scheduled run so a trigger can never poll forever
+      # (cron-backup.sh self-detects a stalled/crashed detached run first; this is the
+      # last-resort backstop). Raise for very large installs whose backup exceeds it.
+      activeDeadlineSeconds: {{ $s.activeDeadlineSeconds | default 3600 }}
+      template:
+        metadata:
+          labels:
+            {{- include "pmm.labels" . | nindent 12 }}
+            app.kubernetes.io/component: backup-cronjob
+          annotations:
+            # The backup itself is detached inside the backup-tools pod and survives this
+            # trigger being disrupted, but opting out of consolidation still avoids needless
+            # reconnect churn mid-run.
+            karpenter.sh/do-not-disrupt: "true"
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ .Release.Name }}-backup-sa
+          containers:
+          - name: backup-trigger
+            image: "{{ $cbs.tools.image.registry }}/{{ $cbs.tools.image.repository }}:{{ $cbs.tools.image.tag }}"
+            env:
+              # The Job name is stable across a scheduled run's retries; cron-backup.sh uses
+              # it as --run-id so a retry re-attaches to the same detached backup.
+              - name: JOB_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.labels['job-name']
+            command:
+              - /bin/sh
+              - -c
+              - |
+                exec kubectl exec -n {{ .Release.Namespace }} deploy/{{ .Release.Name }}-backup-tools -- \
+                  cron-backup.sh --run-id "${JOB_NAME}"{{ range $args }} {{ . | quote }}{{ end }}
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 128Mi
+{{- end }}

@@ -1,0 +1,52 @@
+# Example: PostgreSQL Backup - Local + S3
+# Hybrid configuration with fast local backups + offsite S3 backups
+
+pg-db:
+  backups:
+    enabled: true
+    trackLatestRestorableTime: true
+    
+    pgbackrest:
+      manual:
+        repoName: repo1  # Default to local for manual backups
+        options:
+        - --type=incr
+        - --repo1-retention-full=7      # Local: Keep 7 full backups
+        - --repo1-retention-archive=7   # Local: Keep 7 WAL sets
+        - --repo2-retention-full=30     # S3: Keep 30 full backups (30 days)
+      
+      repos:
+      # Repository 1: Local storage (fast recovery, frequent backups)
+      - name: repo1
+        schedules:
+          full: "0 2 * * 0"           # Sunday 2 AM
+          incremental: "0 */6 * * *"  # Every 6 hours
+        volume:
+          volumeClaimSpec:
+            storageClassName: "gp3"
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 100Gi
+      
+      # Repository 2: S3 storage (disaster recovery, long-term)
+      - name: repo2
+        s3:
+          bucket: "pmm-postgresql-backups"
+          region: "us-east-1"
+          endpoint: ""  # Leave empty for AWS S3
+        schedules:
+          full: "0 3 * * 0"  # Sunday 3 AM - Weekly offsite backup
+
+# IMPORTANT: Create S3 credentials secret before deploying:
+#
+# kubectl create secret generic pg-db-backrest-repo-config \
+#   --from-literal=aws-s3-key="YOUR_AWS_ACCESS_KEY" \
+#   --from-literal=aws-s3-key-secret="YOUR_AWS_SECRET_KEY" \
+#   -n demo
+#
+# Usage:
+# helm upgrade --install pmm-ha charts/pmm-ha \
+#   -n demo \
+#   -f examples/pg-backup-local-s3.yaml

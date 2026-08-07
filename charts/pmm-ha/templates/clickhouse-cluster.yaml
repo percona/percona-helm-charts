@@ -40,6 +40,12 @@ spec:
       clickhouse_operator/allow_experimental_analyzer: "0"
       clickhouse_operator/prefer_localhost_replica: "1"
       readonly/readonly: "2"
+      # Allow restoring schema into the Replicated `pmm` database. clickhouse-backup
+      # captures DDL via SHOW CREATE TABLE, which expands ReplicatedMergeTree() to an
+      # explicit (zookeeper_path, replica_name). Replaying that explicit form into a
+      # Replicated-engine database is rejected (error 36) unless this is enabled. PMM
+      # itself creates tables with the implicit form, so this only affects restore.
+      default/database_replicated_allow_replicated_engine_arguments: "1"
     
     # User management - password from Kubernetes secret using valueFrom
     users:
@@ -79,6 +85,10 @@ spec:
             <default remove="1"/>
           </users>
         </clickhouse>
+{{- if .Values.clickhouse.backup.enabled }}
+      # Note: ClickHouse backups use FREEZE (hardlinks) by default
+      # Hardlinks take ~0 space and are copied to central storage by orchestrator
+{{- end }}
 
   templates:
     podTemplates:
@@ -90,6 +100,10 @@ spec:
             prometheus.io/port: "9363"
             prometheus.io/path: "/metrics"
         spec:
+          {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn }}
+          # IRSA-annotated SA so clickhouse-backup gets S3 creds via the credential chain
+          serviceAccountName: {{ .Values.centralBackupStorage.s3.serviceAccountName | default "pmm-ha-backup-s3" }}
+          {{- end }}
           # Pod anti-affinity to spread replicas across different nodes
           # Using preferredDuringScheduling for soft anti-affinity (allows single-node deployments)
           # Weight 100 (max) makes this the highest priority soft constraint
@@ -113,7 +127,110 @@ spec:
                   protocol: TCP
               resources:
                 {{- toYaml .Values.clickhouse.resources | nindent 16 }}
-    
+            {{- if .Values.clickhouse.backup.enabled }}
+            # clickhouse-backup sidecar for API-driven backups
+            - name: clickhouse-backup
+              image: {{ .Values.clickhouse.backup.image }}
+              imagePullPolicy: IfNotPresent
+              command:
+                - clickhouse-backup
+                - server
+              env:
+                - name: LOG_LEVEL
+                  value: "info"
+                - name: ALLOW_EMPTY_BACKUPS
+                  value: "true"
+                - name: API_LISTEN
+                  value: "0.0.0.0:7171"
+                - name: API_CREATE_INTEGRATION_TABLES
+                  value: "true"
+                - name: BACKUPS_TO_KEEP_LOCAL
+                  value: "{{ .Values.clickhouse.backup.keepLocal }}"
+                - name: BACKUPS_TO_KEEP_REMOTE
+                  value: "{{ .Values.clickhouse.backup.keepRemote }}"
+                # Using default FREEZE method (hardlinks)
+                # Backups take ~0 space and are copied to central storage by orchestrator
+                - name: CLICKHOUSE_HOST
+                  value: "localhost"
+                - name: CLICKHOUSE_PORT
+                  value: "9000"
+                - name: CLICKHOUSE_USERNAME
+                  value: "{{ $clickhouseUser }}"
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.secret.name }}
+                      key: PMM_CLICKHOUSE_PASSWORD
+                {{- if .Values.clickhouse.backup.s3.enabled }}
+                - name: REMOTE_STORAGE
+                  value: "s3"
+                - name: S3_BUCKET
+                  value: "{{ .Values.clickhouse.backup.s3.bucket }}"
+                - name: S3_REGION
+                  value: "{{ .Values.clickhouse.backup.s3.region | default .Values.centralBackupStorage.s3.region }}"
+                - name: S3_PATH
+                  {{- /* Default to <centralBackupStorage.s3.prefix>/clickhouse so a second
+                         instance (different prefix) doesn't upload into the first instance's
+                         path — shared paths would cross incremental chains and let the two
+                         instances' retention clean up each other's backups. */}}
+                  value: "{{ .Values.clickhouse.backup.s3.path | default (printf "%s/clickhouse" .Values.centralBackupStorage.s3.prefix) }}"
+                {{- /* Endpoint (like the credentials below) falls back to the central S3
+                       endpoint, so a MinIO/Ceph user who sets centralBackupStorage.s3.endpoint
+                       once doesn't have to repeat it here — otherwise clickhouse-backup would
+                       silently target AWS. Bucket/path stay per-component. */}}
+                {{- $chEndpoint := .Values.clickhouse.backup.s3.endpoint | default .Values.centralBackupStorage.s3.endpoint }}
+                {{- if $chEndpoint }}
+                - name: S3_ENDPOINT
+                  value: "{{ $chEndpoint }}"
+                {{- end }}
+                {{- /* Credentials default to the central S3 secret (when neither an own
+                       existingSecret nor inline keys are set) so a MinIO/Ceph user who sets
+                       centralBackupStorage.s3.existingSecret once also authenticates
+                       clickhouse-backup, instead of silently failing CH uploads every run. */}}
+                {{- $chS3 := .Values.clickhouse.backup.s3 }}
+                {{- $chSecret := $chS3.existingSecret }}
+                {{- $chKeys := $chS3.existingSecretKeys }}
+                {{- if and (not $chSecret) (not $chS3.accessKey) }}{{- $chSecret = .Values.centralBackupStorage.s3.existingSecret }}{{- $chKeys = .Values.centralBackupStorage.s3.existingSecretKeys }}{{- end }}
+                {{- if $chSecret }}
+                - name: S3_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $chSecret }}
+                      key: {{ include "pmm.s3SecretKeyName" (dict "keys" $chKeys "which" "access") }}
+                - name: S3_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $chSecret }}
+                      key: {{ include "pmm.s3SecretKeyName" (dict "keys" $chKeys "which" "secret") }}
+                {{- else if $chS3.accessKey }}
+                - name: S3_ACCESS_KEY
+                  value: "{{ $chS3.accessKey }}"
+                - name: S3_SECRET_KEY
+                  value: "{{ $chS3.secretKey }}"
+                {{- end }}
+                {{- end }}
+              ports:
+                - name: backup-api
+                  containerPort: 7171
+                  protocol: TCP
+              resources:
+                {{- toYaml .Values.clickhouse.backup.resources | nindent 16 }}
+              volumeMounts:
+                # Mount database volume (contains hardlinked backups)
+                - name: clickhouse-data-volume
+                  mountPath: /var/lib/clickhouse
+                {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+                # shared mode: orchestrator tars the FREEZE backup here ->
+                #   <sharedMountPath>/backup_<id>/clickhouse/<name>.tar.gz  (clickhouse-backup has no fs remote)
+                - name: central-backup-storage
+                  mountPath: {{ .Values.centralBackupStorage.sharedMountPath }}
+                {{- end }}
+            {{- end }}
+          {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+          volumes:
+            {{- include "pmm.centralBackupVolume" . | nindent 12 }}
+          {{- end }}
+
     # Persistent volume configuration for ClickHouse data
     volumeClaimTemplates:
       - name: clickhouse-data-volume
@@ -126,4 +243,6 @@ spec:
           resources:
             requests:
               storage: {{ .Values.clickhouse.storage.size }}
+      # ClickHouse backups use hardlinks (~0 space) on database volume
+      # Orchestrator script copies them to central backup storage
 

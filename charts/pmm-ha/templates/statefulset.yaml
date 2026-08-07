@@ -168,6 +168,25 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            # Grafana admin password from the secret — set UNCONDITIONALLY (not only when
+            # secret.create). With a user-created secret (secret.create: false, the
+            # production path) envFrom loads PMM_ADMIN_PASSWORD, but Grafana reads
+            # GF_SECURITY_ADMIN_PASSWORD; without this mapping PMM boots with the default
+            # admin password and the pmm-token-init job fails auth (401). optional: true
+            # keeps it harmless if the key is absent. Guarded on secret.name so an empty
+            # name doesn't emit an invalid secretKeyRef.
+            # NOTE: PMM_ADMIN_PASSWORD is authoritative for the Grafana admin. This explicit
+            # env takes precedence over envFrom, so a GF_SECURITY_ADMIN_PASSWORD key also
+            # placed in the secret is intentionally overridden — keep the two in sync (or
+            # equal) if you set both.
+            {{ if .Values.secret.name }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+                  optional: true
+            {{ end }}
             {{ if .Values.secret.create }}
             # additional secrets that could be used for Grafana iDP
             - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
@@ -181,12 +200,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-                  optional: true
-            - name: GF_SECURITY_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: PMM_ADMIN_PASSWORD
                   optional: true
             {{ end }}
             - name: PMM_POSTGRES_USERNAME
@@ -268,6 +281,11 @@ spec:
               mountPath: /srv/nginx
               readOnly: true
             {{- end }}
+            {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+            # shared mode: orchestrator runs an in-pod `tar -czf <sharedMountPath>/backup_<id>/pmm-server/<pod>/srv.tar.gz`
+            - name: central-backup-storage
+              mountPath: {{ .Values.centralBackupStorage.sharedMountPath }}
+            {{- end }}
             {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
             {{- end }}
@@ -299,6 +317,48 @@ spec:
               readOnly: true
         {{- end }}
         {{- end }}
+        {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "s3") }}
+        # Backup sidecar: archives /srv and streams it to S3 via rclone.
+        # Passive agent (sleeps); the backup orchestrator execs into it to run the upload.
+        - name: pmm-backup
+          image: "{{ .Values.centralBackupStorage.client.image.registry }}/{{ .Values.centralBackupStorage.client.image.repository }}:{{ .Values.centralBackupStorage.client.image.tag }}"
+          command: ["sleep", "infinity"]
+          env:
+            - { name: RCLONE_CONFIG_S3_TYPE, value: "s3" }
+            - { name: RCLONE_CONFIG_S3_PROVIDER, value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }} }
+            - { name: RCLONE_CONFIG_S3_ENV_AUTH, value: "true" }
+            - { name: RCLONE_CONFIG_S3_REGION, value: {{ .Values.centralBackupStorage.s3.region | quote }} }
+            # IAM policy has no CreateBucket; bucket already exists -> don't check/create it
+            - { name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET, value: "true" }
+            {{- with .Values.centralBackupStorage.s3.endpoint }}
+            - { name: RCLONE_CONFIG_S3_ENDPOINT, value: {{ . | quote }} }
+            {{- end }}
+            {{- if .Values.centralBackupStorage.s3.existingSecret }}
+            # Static credentials (any S3-compatible storage). On AWS with IRSA, leave
+            # existingSecret empty — the SDK credential chain uses the web-identity token.
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.centralBackupStorage.s3.existingSecret }}
+                  key: {{ include "pmm.s3SecretKeyName" (dict "keys" .Values.centralBackupStorage.s3.existingSecretKeys "which" "access") }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.centralBackupStorage.s3.existingSecret }}
+                  key: {{ include "pmm.s3SecretKeyName" (dict "keys" .Values.centralBackupStorage.s3.existingSecretKeys "which" "secret") }}
+            {{- end }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+              readOnly: true
+        {{- end }}
       volumes:
         - name: annotations
           projected:
@@ -316,6 +376,9 @@ spec:
           secret:
             secretName: {{ .Values.certs.name }}
             optional: false
+      {{- end }}
+      {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+        {{- include "pmm.centralBackupVolume" . | nindent 8 }}
       {{- end }}
       {{- if .Values.extraVolumes }}
         {{- toYaml .Values.extraVolumes | nindent 8 }}

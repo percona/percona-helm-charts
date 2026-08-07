@@ -64,6 +64,18 @@ victoria-metrics-operator:
 ```yaml
 altinity-clickhouse-operator:
   enabled: true
+  # Watch every namespace so ClickHouseInstallations created outside the operator's own
+  # namespace are reconciled. See the note below on why a regexp is used instead of an
+  # empty or single-namespace watch list.
+  operator:
+    env:
+      - name: WATCH_NAMESPACES
+        value: ".*"
+  # Mirror the setting on the metrics-exporter sidecar (it reads its own env).
+  metrics:
+    env:
+      - name: WATCH_NAMESPACES
+        value: ".*"
 ```
 
 ### PostgreSQL Operator
@@ -71,6 +83,30 @@ altinity-clickhouse-operator:
 ```yaml
 pg-operator:
   enabled: true
+  # Watch every namespace. This also switches the operator's RBAC from a namespaced
+  # Role/RoleBinding to a cluster-scoped ClusterRole/ClusterRoleBinding.
+  watchAllNamespaces: true
+```
+
+> **Privileges:** with these defaults both operators reconcile custom resources cluster-wide,
+> so the install requires cluster-scoped RBAC (ClusterRole/ClusterRoleBinding and cluster-wide
+> list/watch). See [Permission issues](#permission-issues). This is required for the
+> multi-namespace support below; single-namespace users who want least privilege can override
+> these values, but note the ClickHouse operator does **not** support scoping to a single extra
+> namespace — see the inline notes in `values.yaml`.
+
+## Multi-namespace support
+
+Both the ClickHouse and PostgreSQL operators default to watching **all** namespaces (VictoriaMetrics is already cluster-scoped), so `pmm-ha` custom resources are reconciled no matter which namespace they live in. You install this dependencies chart **once** per cluster; the operators then serve every namespace, and you can run more than one `pmm-ha` instance in separate namespaces of the same cluster.
+
+**A second `pmm-ha` install must use a different Helm release name.** The `pmm-ha` chart creates cluster-scoped objects — its `ClusterRole` and `ClusterRoleBinding` are named after `pmm.fullname` (derived from the release name). A second install with the same release name collides with the first on those two objects, even when the two installs are in different namespaces. Use a distinct release name (which also flows into the correct pod/peer DNS), for example:
+
+```bash
+# First instance
+helm install pmm-ha percona/pmm-ha --namespace pmm
+
+# Second instance in another namespace, different release name
+helm install pmm-2 percona/pmm-ha --namespace pmm-2 --create-namespace
 ```
 
 ## Requirements
