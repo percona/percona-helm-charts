@@ -127,28 +127,35 @@ The command deploys PMM HA on the Kubernetes cluster with the default high avail
 
 ### Installing into multiple namespaces
 
-The operators (PostgreSQL, ClickHouse, VictoriaMetrics) installed by `pmm-ha-dependencies`
-are **cluster-wide**, so they reconcile PMM-HA in any namespace. You can therefore run more
-than one PMM-HA instance on the same cluster (e.g. a disaster-recovery / restore target, or
-an isolated test instance) — install the operators **once**, then install the chart into each
-namespace, with two adjustments for the additional instances:
+You can run more than one PMM-HA instance on the same cluster (e.g. a disaster-recovery /
+restore target, or an isolated test instance). Install the operators **once** and give each
+instance a distinct Helm release name — see
+[Multi-namespace support](../pmm-ha-dependencies/README.md#multi-namespace-support) in the
+`pmm-ha-dependencies` chart for the operator side and the release-name requirement.
 
-1. **Use a distinct Helm release name.** The chart's `ClusterRole`/`ClusterRoleBinding` are
-   cluster-scoped and named after the release, so a unique release name avoids name clashes.
-2. **Disable the cluster-wide monitoring sub-charts.** `kube-state-metrics` and
-   `prometheus-node-exporter` are per-*cluster* agents (node-exporter uses host networking on
-   port 9100, so only one set can run per node). Install them with the *first* instance only and
-   disable them on the rest to avoid the port clash. Each instance's vmagent scrapes only its own
-   namespace, so a secondary instance does **not** reuse the first's agents — it collects no
-   kube-state-metrics (object state) or node-exporter (host) metrics; those live only in the first
-   instance's VictoriaMetrics. (Basic node/container metrics from the `kubelet` and `cadvisor`
-   scrape jobs are still collected, since those discover nodes cluster-wide.) For a DR / restore
-   target this is usually fine, since cluster-level metrics aren't part of the restored data.
+This section covers the per-instance settings that are specific to the `pmm-ha` chart.
+
+**Monitoring sub-charts.** `kube-state-metrics` and `prometheus-node-exporter` behave
+differently here, so they need separate decisions:
+
+1. **`prometheus-node-exporter` — disable on additional instances.** It uses host networking
+   on port 9100, so only one set can run per node; a second DaemonSet's pods fail to start.
+   Install it with the *first* instance only.
+2. **`kube-state-metrics` — optional.** Its resources are named after the release, so a second
+   instance can run its own copy without colliding. Keep it if you want object-state metrics in
+   the secondary instance, or disable it to save a small Deployment.
+
+Whatever you disable is simply not collected by that instance: each instance's vmagent scrapes
+only its own namespace, so a secondary instance does **not** reuse the first's agents — those
+metrics live only in the first instance's VictoriaMetrics. (Basic node/container metrics from
+the `kubelet` and `cadvisor` scrape jobs are still collected either way, since those discover
+nodes cluster-wide.) For a DR / restore target this is usually fine, since cluster-level metrics
+aren't part of the restored data.
 
 > **OpenShift**: with `nodeExporter.mode: openshift` (see [Using OpenShift's node exporter](#using-openshifts-node-exporter))
 > the node-exporter scrape job targets the platform exporter in the `openshift-monitoring`
 > namespace rather than the release namespace, so **every** instance still collects node metrics.
-> Set that mode on each instance; only kube-state-metrics remains first-instance-only.
+> Set that mode on each instance; the kube-state-metrics choice above is then the only one left.
 
 ```bash
 # First instance (full stack, in namespace "pmm"):
@@ -158,13 +165,14 @@ helm install pmm-ha percona/pmm-ha -n pmm
 
 # Additional instance (e.g. a restore/DR target in namespace "pmm-dr"):
 #   - distinct release name (pmm-dr)
-#   - cluster-wide monitoring agents off (only one set runs per node; this instance
-#     won't collect kube-state-metrics / node-exporter metrics)
+#   - node-exporter off (required: only one set can run per node)
+#   - kube-state-metrics off (optional: drop this flag to keep object-state
+#     metrics in this instance)
 kubectl create namespace pmm-dr
 # create the pmm-secret in pmm-dr too — see "Creating PMM Secret Manually"
 helm install pmm-dr percona/pmm-ha -n pmm-dr \
-  --set kube-state-metrics.enabled=false \
-  --set prometheus-node-exporter.enabled=false
+  --set prometheus-node-exporter.enabled=false \
+  --set kube-state-metrics.enabled=false
 ```
 
 > **Note**: `helm install -n <namespace>` does not create the namespace. Create it first
