@@ -228,7 +228,7 @@ spec:
           target_label: service
         - target_label: __metrics_path__
           replacement: /metrics
-    {{- if (index .Values "kube-state-metrics" "enabled") }}
+    {{- if eq (include "pmm.kubeStateMetrics.bundledEnabled" .) "true" }}
     # Scrape kube-state-metrics for Kubernetes object state
     - job_name: 'kube-state-metrics'
       kubernetes_sd_configs:
