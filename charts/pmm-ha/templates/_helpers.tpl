@@ -160,3 +160,80 @@ Example output for 3 replicas:
   port: 2181
 {{- end -}}
 {{- end -}}
+
+
+{{- define "pmm.nodeExporter.mode" -}}
+{{- (.Values.nodeExporter).mode | default "internal" -}}
+{{- end -}}
+
+{{/*
+Whether the bundled prometheus-node-exporter DaemonSet will render ("true"/"false").
+Like Helm's `condition:`, only a boolean false disables the subchart.
+*/}}
+{{- define "pmm.nodeExporter.bundledEnabled" -}}
+{{- $v := dig "enabled" true (default dict (index .Values "prometheus-node-exporter")) -}}
+{{- if and (kindIs "bool" $v) (not $v) }}false{{ else }}true{{ end }}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the internal/openshift node-exporter toggle.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.nodeExporter.validate" -}}
+{{- $mode := include "pmm.nodeExporter.mode" . -}}
+{{- if not (or (eq $mode "internal") (eq $mode "openshift")) -}}
+{{- fail (printf "nodeExporter.mode must be \"internal\" or \"openshift\", got %q" $mode) -}}
+{{- end -}}
+{{- if eq $mode "openshift" -}}
+{{- if eq (include "pmm.nodeExporter.bundledEnabled" .) "true" -}}
+{{- fail "nodeExporter.mode=openshift requires prometheus-node-exporter.enabled=false: the bundled DaemonSet would collide with OpenShift's node-exporter on host port 9100." -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Target labels shared by both node-exporter scrape jobs. PMM's OS dashboards filter on node_name
+and node_type ("generic" is PMM's type for a bare host), so without these the node is invisible there.
+Emitted unindented; callers nindent it to their relabel_configs item level.
+*/}}
+{{- define "pmm.nodeExporter.pmmRelabelConfigs" -}}
+- source_labels: [__meta_kubernetes_pod_node_name]
+  target_label: node
+- source_labels: [__meta_kubernetes_pod_node_name]
+  target_label: node_name
+- target_label: node_type
+  replacement: generic
+- source_labels: [__meta_kubernetes_namespace]
+  target_label: namespace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: pod
+{{- end -}}
+
+{{/*
+OpenShift node-exporter scrape job for the VMAgent inlineScrapeConfig.
+Emits an unindented job (callers nindent it under inlineScrapeConfig). Only used
+when nodeExporter.mode == "openshift".
+*/}}
+{{- define "pmm.nodeExporter.openshiftScrapeJob" -}}
+# OpenShift platform node-exporter, scraped via its kube-rbac-proxy (SA-token auth).
+# server_name: the proxy's cert covers the service DNS name, not the node IP endpoints SD targets.
+- job_name: 'openshift-node-exporter'
+  scheme: https
+  bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+  tls_config:
+    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+    server_name: node-exporter.openshift-monitoring.svc
+  kubernetes_sd_configs:
+    - role: endpoints
+      namespaces:
+        names:
+          - openshift-monitoring
+  relabel_configs:
+    - source_labels: [__meta_kubernetes_service_name]
+      regex: 'node-exporter'
+      action: keep
+    - source_labels: [__meta_kubernetes_endpoint_port_name]
+      regex: 'https'
+      action: keep
+    {{- include "pmm.nodeExporter.pmmRelabelConfigs" . | nindent 4 }}
+{{- end -}}
