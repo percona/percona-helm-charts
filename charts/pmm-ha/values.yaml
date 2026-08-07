@@ -471,6 +471,7 @@ clickhouse:
     ## @param clickhouse.backup.enabled Enable clickhouse-backup sidecar container
     ## When enabled, adds a sidecar container that runs clickhouse-backup in server mode
     ## Creates system.backup_actions and system.backup_list tables for backup management
+    ## Only takes effect when centralBackupStorage.enabled is true (the backup master switch).
     enabled: true
     
     ## @param clickhouse.backup.image clickhouse-backup image
@@ -1275,6 +1276,7 @@ victoriaMetrics:
     ##
     backup:
       ## @param victoriaMetrics.vmstorage.backup.enabled Enable vmbackup sidecar container
+      ## Only takes effect when centralBackupStorage.enabled is true (the backup master switch).
       enabled: true
       
       ## @param victoriaMetrics.vmstorage.backup.image vmbackup image

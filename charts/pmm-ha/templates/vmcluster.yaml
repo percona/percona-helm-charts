@@ -131,7 +131,10 @@ spec:
     extraArgs:
       {{- toYaml .Values.victoriaMetrics.vmstorage.extraArgs | nindent 6 }}
     {{- end }}
-    {{- if .Values.victoriaMetrics.vmstorage.backup.enabled }}
+    {{- /* Gated on the centralBackupStorage master switch: without the backup infrastructure
+           the vmbackup/vmrestore sidecars are idle sleep-infinity containers (100m CPU
+           request each per vmstorage pod) plus a dead emptyDir. */}}
+    {{- if and .Values.centralBackupStorage.enabled .Values.victoriaMetrics.vmstorage.backup.enabled }}
     # vmbackup sidecar for backups
     # vmbackup is a one-shot tool, so we keep the container alive and trigger backups manually
     containers:
@@ -215,7 +218,10 @@ spec:
           resources:
             requests:
               storage: {{ .Values.victoriaMetrics.vmstorage.storageSize }}
-    {{- if .Values.victoriaMetrics.vmstorage.backup.enabled }}
+    {{- /* Gated on the centralBackupStorage master switch: without the backup infrastructure
+           the vmbackup/vmrestore sidecars are idle sleep-infinity containers (100m CPU
+           request each per vmstorage pod) plus a dead emptyDir. */}}
+    {{- if and .Values.centralBackupStorage.enabled .Values.victoriaMetrics.vmstorage.backup.enabled }}
     # Additional volumes for backup storage
     # Using emptyDir because VictoriaMetrics operator doesn't support multiple PVCs per pod
     # For persistent backups, use S3 configuration below

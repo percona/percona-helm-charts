@@ -127,7 +127,10 @@ spec:
                   protocol: TCP
               resources:
                 {{- toYaml .Values.clickhouse.resources | nindent 16 }}
-            {{- if .Values.clickhouse.backup.enabled }}
+            {{- /* Gated on the centralBackupStorage master switch: without the backup
+                   infrastructure the sidecar is dead weight (100m CPU request per CH pod)
+                   and its API is never called by anything. */}}
+            {{- if and .Values.centralBackupStorage.enabled .Values.clickhouse.backup.enabled }}
             # clickhouse-backup sidecar for API-driven backups
             - name: clickhouse-backup
               image: {{ .Values.clickhouse.backup.image }}
