@@ -125,6 +125,13 @@ checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sh
 {{- end }}
 
 {{/*
+Name of the secret holding a copy of the PMM encryption key.
+*/}}
+{{- define "pmm.encryptionKeySecretName" -}}
+{{- default (printf "%s-encryption-key" (include "pmm.fullname" .)) .Values.encryptionKey.secretName }}
+{{- end }}
+
+{{/*
 Create password if it does not exist or reuse existing one.
 */}}
 {{- define "pmm.password" -}}

@@ -102,6 +102,32 @@ secret:
   # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET optional secret to integrate Grafana with internal iDP, requires other env defined as well under pmmEnv
   # GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
 
+## PMM encrypts the credentials of monitored services with a key stored at
+## /srv/pmm-encryption.key, which lives on the PMM data volume. When enabled, the chart also
+## keeps a copy of that key in a Kubernetes secret, so the credentials remain readable if the
+## data volume is lost and PMM is pointed at an external PostgreSQL that survived.
+## An existing key is never replaced: the key on the volume wins, and the secret is only used to
+## restore it when the volume has none.
+## ref: https://docs.percona.com/percona-monitoring-and-management/3/admin/security/data_encryption.html
+##
+encryptionKey:
+  ## @param encryptionKey.backupToSecret Keep a copy of the PMM encryption key in a Kubernetes secret.
+  ## The chart grants the PMM pod's service account get and create on secrets in the release
+  ## namespace. Because `serviceAccount.create` is false by default, that is the namespace's
+  ## `default` service account; set `serviceAccount.create` to true to scope the grant to a
+  ## service account used only by PMM. Set this to false to keep the key on the data volume only.
+  ##
+  backupToSecret: true
+  ## @param encryptionKey.secretName Name of the secret holding the copy of the encryption key. Defaults to `<fullname>-encryption-key`.
+  ##
+  secretName: ""
+  ## @param encryptionKey.image.repository Repository for the image used to reconcile the key secret
+  ## @param encryptionKey.image.tag Tag for the image used to reconcile the key secret
+  ##
+  image:
+    repository: alpine/kubectl
+    tag: "1.34.1"
+
 ## @param certs Optional certificates, if not provided PMM would use generated self-signed certificates,
 ##   please provide your own signed ssl certificates like this in base 64 format:
 ## certs:

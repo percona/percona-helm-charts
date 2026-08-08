@@ -57,9 +57,94 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.initContainers }}
+      {{- if or .Values.encryptionKey.backupToSecret .Values.initContainers }}
       initContainers:
+        {{- if .Values.encryptionKey.backupToSecret }}
+        # Generates a key only when the data volume has none. Which key is actually installed is
+        # decided by the next init container, which can also see the secret.
+        - name: encryption-key-generate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              if [ -s /srv/pmm-encryption.key ]; then
+                echo "Encryption key already present on the data volume."
+                exit 0
+              fi
+
+              echo "Generating a candidate encryption key..."
+              /usr/sbin/pmm-encryption-rotation --generate-key > /shared/generated-key
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+            - name: encryption-key-workdir
+              mountPath: /shared
+        # Keeps the key on the data volume and the copy in the secret in sync. An existing key is
+        # never replaced: whichever of the two already exists wins, so restarts, upgrades and
+        # reinstalls over retained data keep decrypting the credentials already stored.
+        - name: encryption-key-reconcile
+          image: "{{ .Values.encryptionKey.image.repository }}:{{ .Values.encryptionKey.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              SECRET={{ include "pmm.encryptionKeySecretName" . }}
+              NAMESPACE={{ include "pmm.namespace" . }}
+              KEY_FILE=/srv/pmm-encryption.key
+
+              # A failure to reach the API server must stop the pod. Continuing would let PMM
+              # generate its own key without re-encrypting anything, leaving credentials that
+              # were stored under the previous key unreadable.
+              if kubectl get secret "$SECRET" --namespace="$NAMESPACE" >/dev/null 2>&1; then
+                SECRET_EXISTS=yes
+              else
+                SECRET_EXISTS=no
+              fi
+
+              if [ -s "$KEY_FILE" ]; then
+                if [ "$SECRET_EXISTS" = "no" ]; then
+                  echo "Backing up the encryption key from the data volume into secret $SECRET..."
+                  kubectl create secret generic "$SECRET" --namespace="$NAMESPACE" \
+                    --from-file=key="$KEY_FILE"
+                else
+                  echo "Encryption key present on the data volume and already backed up."
+                fi
+                exit 0
+              fi
+
+              if [ "$SECRET_EXISTS" = "yes" ]; then
+                echo "Restoring the encryption key from secret $SECRET onto the data volume..."
+                kubectl get secret "$SECRET" --namespace="$NAMESPACE" \
+                  -o jsonpath='{.data.key}' | base64 -d > "$KEY_FILE"
+                if [ ! -s "$KEY_FILE" ]; then
+                  echo "Error: secret $SECRET holds no key" >&2
+                  exit 1
+                fi
+                chmod 644 "$KEY_FILE"
+                exit 0
+              fi
+
+              echo "No encryption key found, installing the generated one..."
+              cp /shared/generated-key "$KEY_FILE"
+              chmod 644 "$KEY_FILE"
+              kubectl create secret generic "$SECRET" --namespace="$NAMESPACE" \
+                --from-file=key="$KEY_FILE"
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+            - name: encryption-key-workdir
+              mountPath: /shared
+        {{- end }}
+        {{- with .Values.initContainers }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
@@ -145,6 +230,10 @@ spec:
                   - path: "annotations"
                     fieldRef:
                       fieldPath: metadata.annotations
+      {{- if .Values.encryptionKey.backupToSecret }}
+        - name: encryption-key-workdir
+          emptyDir: {}
+      {{- end }}
       {{- if .Values.certs.name }}
         - name: {{ .Values.certs.name }}
           secret:
