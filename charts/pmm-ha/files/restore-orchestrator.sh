@@ -51,8 +51,12 @@ S3_SECRET_NAME="${S3_SECRET_NAME:-}"
 S3_SECRET_ACCESS_KEY_KEY="${S3_SECRET_ACCESS_KEY_KEY:-access-key}"
 S3_SECRET_SECRET_KEY_KEY="${S3_SECRET_SECRET_KEY_KEY:-secret-key}"
 RCLONE_REMOTE="${RCLONE_REMOTE:-s3}"
-# SA the s3 vmrestore temp-pod runs as, so vmrestore gets S3 creds via IRSA.
-S3_SERVICE_ACCOUNT="${S3_SERVICE_ACCOUNT:-pmm-ha-backup-s3}"
+# SA the s3 temp pods run as, so their tools get S3 creds via IRSA. Empty by default: the chart
+# projects S3_SERVICE_ACCOUNT only when it actually creates that SA (IRSA configured). With no
+# IRSA (ambient node creds / static keys) this stays empty and temp pods use the namespace default
+# SA — hardcoding "pmm-ha-backup-s3" here would point them at a non-existent SA. Override with
+# --s3-service-account for manual runs.
+S3_SERVICE_ACCOUNT="${S3_SERVICE_ACCOUNT:-}"
 # Whether --s3-service-account was passed explicitly (vs. the default above). An explicitly
 # requested SA is honored even alongside static keys (e.g. an SA carrying imagePullSecrets);
 # the default name is only assumed on the IRSA path, where the chart actually creates it.
@@ -353,10 +357,19 @@ cmd_list() {
 ################################################################################
 wait_for_pods_gone() {
     # $4 (optional) "soft": timeout is tolerated by the caller — log WARN, not ERROR.
-    local ns="$1" selector="$2" max_wait="${3:-${KUBECTL_EXEC_TIMEOUT}}" severity="${4:-}" elapsed=0 count
+    local ns="$1" selector="$2" max_wait="${3:-${KUBECTL_EXEC_TIMEOUT}}" severity="${4:-}" elapsed=0 count out krc
     while [ $elapsed -lt $max_wait ]; do
-        count=$(kubectl get pods -n "${ns}" -l "${selector}" --no-headers 2>/dev/null | wc -l | tr -d ' ')
-        if [ "${count}" -eq 0 ] 2>/dev/null; then log "INFO" "All pods gone (selector: ${selector})"; return 0; fi
+        # Separate kubectl's exit status from its output. Piping straight into `wc -l` means a
+        # failed `kubectl get` (transient apiserver 5xx / network blip) yields 0 lines and would
+        # be read as "all pods gone" — letting the restore write DBs while PMM is still Running,
+        # or tear down vmstorage prematurely. Only a SUCCESSFUL empty listing counts as gone.
+        out=$(kubectl get pods -n "${ns}" -l "${selector}" --no-headers 2>/dev/null); krc=$?
+        if [ ${krc} -ne 0 ]; then
+            [ "${VERBOSE}" = "true" ] && log "INFO" "kubectl get pods failed (rc=${krc}, ${selector}); not assuming gone, retrying..."
+            sleep 5; elapsed=$((elapsed + 5)); continue
+        fi
+        count=$(printf '%s\n' "${out}" | grep -c '[^[:space:]]')
+        if [ "${count}" -eq 0 ]; then log "INFO" "All pods gone (selector: ${selector})"; return 0; fi
         [ "${VERBOSE}" = "true" ] && log "INFO" "Waiting for ${count} pod(s) to terminate (${selector}, ${elapsed}/${max_wait}s)..."
         sleep 5; elapsed=$((elapsed + 5))
     done
@@ -674,6 +687,14 @@ release_restore_locks() {
 # EXIT/INT/TERM handler: tear down the temp S3 client pod, then release owned locks.
 restore_cleanup() {
     delete_s3_client_pod
+    # Sweep any temp mounter pods a signal (INT/TERM) may have interrupted mid-run. On normal
+    # completion the per-ordinal loops already delete these, so this finds nothing; on an
+    # interrupted run it prevents a leaked pod from holding an RWO data PVC (vmstorage-db /
+    # pmm-storage), which would otherwise wedge the real pod on Multi-Attach at scale-up.
+    local _c
+    for _c in vm-restore-temp pmm-srv-restore-temp; do
+        kubectl delete pod -n "${NAMESPACE}" -l "app.kubernetes.io/component=${_c}" --ignore-not-found=true --wait=false >/dev/null 2>&1 || true
+    done
     release_restore_locks
     return 0
 }
@@ -932,6 +953,18 @@ vm_src_subdir_for_ord() {
     fi
 }
 
+# Count vmstorage ordinals present in the backup (source). Used to fail fast on a shard-count
+# mismatch with the target before anything is scaled down: restoring an N-shard backup into a
+# different number of target pods either silently drops the extra source shards (source > target)
+# or runs the whole restore then fails on a missing ordinal (target > source).
+vm_src_ordinal_count() {
+    if [ "${S3_ENABLED}" = "true" ]; then
+        s3_rclone lsf --dirs-only "${S3_BASE}/${BACKUP_NAME}/victoriametrics/" 2>/dev/null | grep -c '/$'
+    else
+        ls -1 "${BACKUP_DIR}/${BACKUP_NAME}/victoriametrics/" 2>/dev/null | grep -c '[^[:space:]]'
+    fi
+}
+
 vm_src_for_pod() {
     local pod="$1" name="vm_backup_${BACKUP_NAME#backup_}" ord sub
     ord="${pod##*-}"                        # trailing ordinal of the target vmstorage pod
@@ -953,6 +986,19 @@ restore_victoriametrics() {
     if [ -z "${vmstorage_pods}" ]; then log "ERROR" "[VictoriaMetrics] No vmstorage pods found"; return 1; fi
     vmcluster_name=$(kubectl get vmcluster -n "${NAMESPACE}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -z "${vmcluster_name}" ]; then log "ERROR" "[VictoriaMetrics] No VMCluster found; cannot scale safely"; return 1; fi
+
+    # Fail fast on a shard-count mismatch, BEFORE scaling anything down (VM restore is
+    # ordinal-mapped: each target vmstorage pod restores from the backup dir with the matching
+    # ordinal). A mismatch would either drop source shards (source>target) or waste a full run
+    # and then fail (target>source). An empty src count = listing unavailable; the per-ordinal
+    # loop still hard-fails, so don't block on it here.
+    local vm_target_count vm_src_count
+    vm_target_count=$(echo "${vmstorage_pods}" | wc -w | tr -d ' ')
+    vm_src_count=$(vm_src_ordinal_count)
+    if [ -n "${vm_src_count}" ] && [ "${vm_src_count}" -gt 0 ] 2>/dev/null && [ "${vm_src_count}" != "${vm_target_count}" ]; then
+        log "ERROR" "[VictoriaMetrics] Shard-count mismatch: backup has ${vm_src_count} vmstorage ordinal(s), target has ${vm_target_count}. Restore would drop or miss shards. Set the target vmstorage replicaCount to ${vm_src_count} to match the backup, then retry. Aborting before any scale-down."
+        return 1
+    fi
     original_vminsert=$(kubectl get vmcluster "${vmcluster_name}" -n "${NAMESPACE}" -o jsonpath='{.spec.vminsert.replicaCount}' 2>/dev/null || echo "1")
     original_vmstorage=$(kubectl get vmcluster "${vmcluster_name}" -n "${NAMESPACE}" -o jsonpath='{.spec.vmstorage.replicaCount}' 2>/dev/null || echo "1")
     # spec.replicaCount may be UNSET (operator default): kubectl then exits 0 with empty
@@ -1020,8 +1066,12 @@ restore_victoriametrics() {
     done
 
     log "INFO" "[VictoriaMetrics] Scaling vmstorage->${original_vmstorage}, vminsert->${original_vminsert}..."
+    # Track scale-back health: masking it (WARN + || true) let a run report success with the VM
+    # tier left at 0 replicas after a transient patch/readiness failure. vmstorage NOT coming back
+    # is a component failure, checked at the final gate below.
+    local vm_scaleback_ok=true
     kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge -p '{"spec":{"vmstorage":{"replicaCount":'${original_vmstorage}'}}}' 2>&1 | append_to_log || true
-    wait_for_pods_ready "${NAMESPACE}" "${LABEL_VM_STORAGE}" "${original_vmstorage}" 300 || log "WARN" "[VictoriaMetrics] vmstorage not ready in time"
+    wait_for_pods_ready "${NAMESPACE}" "${LABEL_VM_STORAGE}" "${original_vmstorage}" 300 || { log "ERROR" "[VictoriaMetrics] vmstorage did not return to ${original_vmstorage} ready replica(s) after restore"; vm_scaleback_ok=false; }
     kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge -p '{"spec":{"vminsert":{"replicaCount":'${original_vminsert}'}}}' 2>&1 | append_to_log || true
 
     # vmstorage came back with NEW pod IPs; vmselect holds persistent connections to the OLD IPs
@@ -1040,6 +1090,10 @@ restore_victoriametrics() {
     # vmstorage tier serves mixed-vintage data that automation must not read as success.
     if [ ${restored} -lt ${planned} ]; then
         log "ERROR" "[VictoriaMetrics] Partial restore: ${restored}/${planned} pods — treating as FAILED"
+        return 1
+    fi
+    if [ "${vm_scaleback_ok}" != "true" ]; then
+        log "ERROR" "[VictoriaMetrics] Data restored to ${restored}/${planned} pods, but the vmstorage tier did not come back to ${original_vmstorage} ready replica(s) — treating as FAILED (check vmstorage / scale it back up manually)."
         return 1
     fi
     log "INFO" "[VictoriaMetrics] Restore complete (${restored}/${planned} pods)"
@@ -1259,7 +1313,9 @@ main() {
     if [ "${DRY_RUN}" != "true" ] && [ "${FORCE}" != "true" ]; then
         if [ -t 0 ]; then
             log "INFO" "Restore will scale PMM down, restore data, then scale PMM back up only if all succeed."
-            printf 'Press Enter to continue or Ctrl+C to abort... '; read -r _ || true
+            printf 'Press Enter to continue or Ctrl+C to abort... '
+            # EOF (Ctrl+D) must ABORT a destructive restore, not be read as consent.
+            read -r _ || { echo; log "INFO" "Aborted (EOF at confirmation prompt)."; exit 1; }
         else
             log "ERROR" "Refusing a destructive restore non-interactively. Re-run with --force."; exit 1
         fi

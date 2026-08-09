@@ -1086,9 +1086,12 @@ backup_clickhouse() {
 
     # Credentials are never logged. ch_query() centralizes the exec + client + creds + timeout
     # boilerplate; it reads ch_pod/ch_user/ch_pass from this function's scope (sh dynamic scoping).
+    # The password is fed through STDIN into CLICKHOUSE_PASSWORD inside the pod — never on the
+    # clickhouse-client argv — so it can't leak via `ps` in the CH pod or the apiserver's exec
+    # audit log (ch_query runs dozens of times per backup). The query text is not secret.
     ch_query() {
-        timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse -- \
-            clickhouse-client "--user=${ch_user}" "--password=${ch_pass}" --query="$1"
+        printf '%s' "${ch_pass}" | timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "${ch_pod}" -c clickhouse -- \
+            sh -c 'CLICKHOUSE_PASSWORD=$(cat); export CLICKHOUSE_PASSWORD; exec clickhouse-client --user="$1" --query="$2"' sh "${ch_user}" "$1"
     }
 
     # Check if system.backup_actions table exists (indicates clickhouse-backup sidecar is running)
@@ -1163,14 +1166,24 @@ backup_clickhouse() {
         fi
     fi
     log "INFO" "[ClickHouse] Creating backup: ${backup_name} (type: ${CH_BACKUP_TYPE})"
-    ch_query "INSERT INTO system.backup_actions(command) VALUES('${ch_create_cmd}')" >> "${LOG_FILE}" 2>&1
+    # Record the newest existing action time for THIS exact command before enqueuing, so the poll
+    # below only reads the row this run creates. Without it, a rerun with the same --backup-id
+    # (identical command string) matches a stale 'success' row from a prior attempt and reports
+    # success without creating/uploading anything. Empty table → 0.
+    local ch_create_since
+    ch_create_since=$(ch_query "SELECT ifNull(toUnixTimestamp(max(start)),0) FROM system.backup_actions WHERE command='${ch_create_cmd}' FORMAT TabSeparatedRaw" 2>/dev/null | tr -dc '0-9')
+    [ -n "${ch_create_since}" ] || ch_create_since=0
+    if ! ch_query "INSERT INTO system.backup_actions(command) VALUES('${ch_create_cmd}')" >> "${LOG_FILE}" 2>&1; then
+        log "ERROR" "[ClickHouse] Failed to enqueue backup create action (clickhouse-client exec failed)"
+        return 1
+    fi
 
     # Step 2: Wait for backup creation to complete
     log "INFO" "[ClickHouse] Waiting for backup creation to complete..."
     local max_wait=${CH_CREATE_TIMEOUT}  # configurable via CH_CREATE_TIMEOUT
     local elapsed=0
     while [ $elapsed -lt $max_wait ]; do
-        local status=$(ch_query "SELECT status FROM system.backup_actions WHERE command='${ch_create_cmd}' ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
+        local status=$(ch_query "SELECT status FROM system.backup_actions WHERE command='${ch_create_cmd}' AND toUnixTimestamp(start) > ${ch_create_since} ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
 
         if [ "${VERBOSE}" = "true" ]; then
             log "INFO" "[ClickHouse] Backup creation status: ${status}"
@@ -1188,7 +1201,7 @@ backup_clickhouse() {
             log "INFO" "[ClickHouse]   Location: ${ch_pod}:/var/lib/clickhouse/backup/${backup_name} (hardlinks)"
             break
         elif [ "${status}" = "error" ]; then
-            local error=$(ch_query "SELECT error FROM system.backup_actions WHERE command='${ch_create_cmd}' ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
+            local error=$(ch_query "SELECT error FROM system.backup_actions WHERE command='${ch_create_cmd}' AND toUnixTimestamp(start) > ${ch_create_since} ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
             log "ERROR" "[ClickHouse] Backup creation failed: ${error}"
             return 1
         fi
@@ -1205,14 +1218,20 @@ backup_clickhouse() {
     # Step 3: Upload to S3 if enabled
     if [ "${S3_ENABLED}" = "true" ]; then
         log "INFO" "[ClickHouse] Uploading backup to S3..."
-        ch_query "INSERT INTO system.backup_actions(command) VALUES('${ch_upload_cmd}')" >> "${LOG_FILE}" 2>&1
+        local ch_upload_since
+        ch_upload_since=$(ch_query "SELECT ifNull(toUnixTimestamp(max(start)),0) FROM system.backup_actions WHERE command='${ch_upload_cmd}' FORMAT TabSeparatedRaw" 2>/dev/null | tr -dc '0-9')
+        [ -n "${ch_upload_since}" ] || ch_upload_since=0
+        if ! ch_query "INSERT INTO system.backup_actions(command) VALUES('${ch_upload_cmd}')" >> "${LOG_FILE}" 2>&1; then
+            log "ERROR" "[ClickHouse] Failed to enqueue backup upload action (clickhouse-client exec failed)"
+            return 1
+        fi
 
         # Wait for upload to complete
         log "INFO" "[ClickHouse] Waiting for S3 upload to complete..."
         elapsed=0
         max_wait=${CH_UPLOAD_TIMEOUT}  # configurable via CH_UPLOAD_TIMEOUT
         while [ $elapsed -lt $max_wait ]; do
-            local upload_status=$(ch_query "SELECT status FROM system.backup_actions WHERE command='${ch_upload_cmd}' ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
+            local upload_status=$(ch_query "SELECT status FROM system.backup_actions WHERE command='${ch_upload_cmd}' AND toUnixTimestamp(start) > ${ch_upload_since} ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
 
             if [ "${VERBOSE}" = "true" ]; then
                 log "INFO" "[ClickHouse] Upload status: ${upload_status}"
@@ -1222,7 +1241,7 @@ backup_clickhouse() {
                 log "INFO" "[ClickHouse] S3 upload completed successfully"
                 break
             elif [ "${upload_status}" = "error" ]; then
-                local upload_error=$(ch_query "SELECT error FROM system.backup_actions WHERE command='${ch_upload_cmd}' ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
+                local upload_error=$(ch_query "SELECT error FROM system.backup_actions WHERE command='${ch_upload_cmd}' AND toUnixTimestamp(start) > ${ch_upload_since} ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
                 log "ERROR" "[ClickHouse] S3 upload failed: ${upload_error}"
                 return 1
             fi
@@ -1795,8 +1814,15 @@ main() {
 
         mkdir -p "${BACKUP_DIR}/logs" 2>/dev/null || true
 
-        # Acquire per-component locks (allows concurrent runs of different components)
-        trap release_locks EXIT INT TERM
+        # Acquire per-component locks (allows concurrent runs of different components).
+        # EXIT just releases; INT/TERM must also EXIT — a bare `trap release_locks INT TERM`
+        # releases the locks in ash/dash and then RESUMES the script (now running unlocked and
+        # effectively unkillable by SIGTERM), so a new run could grab the freed locks and run the
+        # same components concurrently. release_component_lock is ownership-checked, so the EXIT
+        # trap re-running it after the signal handler's exit is harmless.
+        trap release_locks EXIT
+        trap 'release_locks; exit 130' INT
+        trap 'release_locks; exit 143' TERM
         acquire_locks
     else
         # Dry-run also appends tool stderr to ${LOG_FILE}, and in POSIX sh a failed
@@ -1929,11 +1955,23 @@ main() {
     # Write the per-run manifest + 'latest' pointer: the single index that ties together the
     # component locations (PMM/VM under backups/<id>/, CH/PG in their own native layouts). This
     # 'latest' pointer is what `list` reads, in both s3 and shared mode.
-    write_manifest "$([ "${all_success}" = "true" ] && echo complete || echo partial)" "${encryption_status}" || true
+    if ! write_manifest "$([ "${all_success}" = "true" ] && echo complete || echo partial)" "${encryption_status}"; then
+        # The manifest is the restore index; without it this backup is undiscoverable/unrestorable.
+        # Don't let a failed upload (|| true) be reported as a successful backup.
+        all_success=false
+        log "ERROR" "[Manifest] Failed to write manifest.json / update 'latest' — this backup is NOT restorable; marking the run failed."
+    fi
     log "INFO" ""
 
-    # Cleanup old backups
-    cleanup_old_backups
+    # Prune old backups ONLY when this run fully succeeded. Running the age-based sweep after a
+    # failed run (e.g. a component down for longer than the retention window) would keep deleting
+    # older-than-N-days backups while producing no new good one — eroding retention toward zero
+    # restorable backups. Skipping on failure preserves the last known-good backups.
+    if [ "${all_success}" = "true" ]; then
+        cleanup_old_backups
+    else
+        log "INFO" "=== Skipping retention cleanup: backup did not fully succeed (preserving existing backups) ==="
+    fi
     log "INFO" ""
     
     # Write per-component metrics for vmagent scraping

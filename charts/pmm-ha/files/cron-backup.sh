@@ -38,8 +38,17 @@ if [ "${1:-}" = "__run" ]; then
     shift 2
     _log="${LOGDIR}/cron-${_rid}.log"
     _status="${LOGDIR}/cron-${_rid}.status"
+    : > "${_log}"   # fresh log for this (re)start
+    # Heartbeat: advance the log mtime every 60s so the parent's stall watchdog (which reads log
+    # mtime) never mistakes a legitimately QUIET phase — a large ClickHouse/VM/​/srv upload can
+    # print nothing for many minutes — for a dead writer and falsely restart the run (which would
+    # truncate this live log and lock-collide). If the pod dies, this subshell dies with it and
+    # mtime stops advancing, so a genuine crash is still detected. Stops when .status appears.
+    ( while [ ! -f "${_status}" ]; do sleep 60; touch "${_log}" 2>/dev/null || true; done ) &
+    _hb=$!
     # Capture the exit code without letting `set -e` abort before we record it.
-    backup-orchestrator.sh "$@" >"${_log}" 2>&1 && _rc=0 || _rc=$?
+    backup-orchestrator.sh "$@" >>"${_log}" 2>&1 && _rc=0 || _rc=$?
+    kill "${_hb}" 2>/dev/null || true
     # Publish atomically: write the fully-formed file, then rename into place, so a polling
     # reader never sees a 0-byte .status mid-write (which would read back as an empty, then
     # non-numeric, exit code).
