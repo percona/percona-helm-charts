@@ -104,6 +104,13 @@ spec:
             value: {{ .Values.centralBackupStorage.s3.prefix | quote }}
           - name: S3_PROVIDER
             value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
+          # Image for the temp rclone client pod the restore spawns (restore-orchestrator.sh reads
+          # S3_CLIENT_IMAGE). Projected from the same centralBackupStorage.client.image values the
+          # PMM sidecar uses, so a mirror / air-gapped registry override is honored on restore
+          # instead of falling back to the hardcoded docker.io/rclone/rclone default (which would
+          # ImagePullBackOff before the restore can even read the manifest).
+          - name: S3_CLIENT_IMAGE
+            value: "{{ .Values.centralBackupStorage.client.image.registry }}/{{ .Values.centralBackupStorage.client.image.repository }}:{{ .Values.centralBackupStorage.client.image.tag }}"
           {{- with .Values.centralBackupStorage.s3.endpoint }}
           - name: S3_ENDPOINT
             value: {{ . | quote }}
