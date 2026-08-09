@@ -475,7 +475,9 @@ clickhouse:
     enabled: true
     
     ## @param clickhouse.backup.image clickhouse-backup image
-    image: altinity/clickhouse-backup:latest
+    ## Pinned (not :latest) so every CH replica runs the same version — a mixed backup/restore
+    ## version pair can be incompatible. Bump deliberately.
+    image: altinity/clickhouse-backup:2.8.0
     
     ## @param clickhouse.backup.resources Resource requests and limits for backup sidecar
     resources:
@@ -573,7 +575,9 @@ centralBackupStorage:
     irsaRoleArn: ""
     ## Dedicated IRSA-annotated SA used by operator-managed pods (vmstorage, clickhouse, pgbackrest)
     ## so their backup tools get S3 creds via the credential chain. Must be annotated with irsaRoleArn.
-    serviceAccountName: "pmm-ha-backup-s3"
+    ## Empty (default) → release-scoped "<release>-backup-s3" so two releases in one namespace
+    ## don't collide on a single fixed SA. Set to pin a specific name.
+    serviceAccountName: ""
     ## Extra annotations for the chart-created backup S3 ServiceAccount (created when
     ## irsaRoleArn is set), e.g. eks.amazonaws.com/sts-regional-endpoints: "false".
     serviceAccountAnnotations: {}
@@ -638,13 +642,8 @@ centralBackupStorage:
   ## This is where all component backups will be consolidated
   mountPath: /backups
   
-  ## @param centralBackupStorage.retention Retention settings for different backup types
-  retention:
-    postgresql: 7        # Days to keep PostgreSQL backups
-    clickhouse: 7        # Days to keep ClickHouse backups
-    victoriametrics: 7   # Days to keep VictoriaMetrics backups
-    encryption: 30       # Days to keep encryption key backups
-    logs: 14             # Days to keep backup logs
+  ## NOTE: backup retention is controlled by centralBackupStorage.schedule.retentionDays
+  ## (passed to backup-orchestrator.sh --retention). There is no per-component retention here.
 
   ## @param centralBackupStorage.schedule Scheduled full backups via a Kubernetes CronJob.
   ## The CronJob triggers a backup by `kubectl exec` into the always-on backup-tools Deployment
@@ -668,9 +667,12 @@ centralBackupStorage:
     ## @param centralBackupStorage.schedule.startingDeadlineSeconds Skip a run if it can't start within N seconds
     startingDeadlineSeconds: 600
     ## @param centralBackupStorage.schedule.activeDeadlineSeconds Hard cap (seconds) on one scheduled run
-    ## before Kubernetes fails the Job — a backstop against a wedged trigger. Raise for very large
-    ## installs whose backup legitimately runs longer than this.
-    activeDeadlineSeconds: 3600
+    ## before Kubernetes fails the trigger Job — a backstop against a wedged trigger. This MUST
+    ## exceed the real backup duration: the trigger polls the detached backup to completion, so a
+    ## too-low value fails the Job (false alert) even though the backup itself keeps running, and
+    ## with concurrencyPolicy: Forbid it can also block the next scheduled run. Default 6h; raise
+    ## for very large installs (multi-TB VM data) whose backup legitimately runs longer.
+    activeDeadlineSeconds: 21600
     ## @param centralBackupStorage.schedule.successfulJobsHistoryLimit Kept succeeded jobs
     successfulJobsHistoryLimit: 3
     ## @param centralBackupStorage.schedule.failedJobsHistoryLimit Kept failed jobs
@@ -895,9 +897,9 @@ pg-db:
     ## This secret is automatically created by the pmm-token-init Job
     ## The secret must contain a key named PMM_SERVER_TOKEN with the service account token
     secret: pg-pmm-secret
-  ## @param pg-db.pmm.serverHost PMM server hostname (via HAProxy for HA setup)
-  ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
-  serverHost: pmm-ha-haproxy
+    ## @param pg-db.pmm.serverHost PMM server hostname (via HAProxy for HA setup)
+    ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
+    serverHost: pmm-ha-haproxy
   ## @param pg-db.pmm.resources Resource requests and limits for PMM client sidecar
   # resources:
   #   requests:
@@ -981,12 +983,13 @@ pg-db:
             resources:
               requests:
                 ## @param pg-db.backups.pgbackrest.repos[0].volume.volumeClaimSpec.resources.requests.storage Backup storage size
-                ## Recommended: 2-3x your database size for full backups + incrementals
-                ## Example sizing:
-                ## - 10GB database → 30GB backup storage
-                ## - 100GB database → 300GB backup storage
-                ## Storage will persist even after helm uninstall
-                storage: 50Gi
+                ## repo1 is LOCAL-only: WAL archive + one retained full for replica bootstrap/HA
+                ## (retention is capped at 1 full via manual.options below). The actual off-cluster
+                ## backups are logical pg_dumps taken by backup-orchestrator.sh, NOT pgBackRest, so
+                ## repo1 stays small. 1Gi matches the operator default — raising it forces a PVC
+                ## expansion on upgrade (fails on storage classes without allowVolumeExpansion).
+                ## Storage persists even after helm uninstall.
+                storage: 1Gi
       
       ## NOTE: backup-orchestrator.sh backs up PostgreSQL with pg_dump (logical), it does
       ## NOT use a pgBackRest offsite repo. repo1 (local) is required by the operator for
@@ -1280,10 +1283,12 @@ victoriaMetrics:
       enabled: true
       
       ## @param victoriaMetrics.vmstorage.backup.image vmbackup image
-      image: victoriametrics/vmbackup:latest
-      
+      ## Pinned (not :latest) for reproducibility; keep in step with the vmstorage version.
+      image: victoriametrics/vmbackup:v1.149.0
+
       ## @param victoriaMetrics.vmstorage.backup.restoreImage vmrestore image (for restore from central backup)
-      restoreImage: victoriametrics/vmrestore:latest
+      ## Keep the same version as backup.image.
+      restoreImage: victoriametrics/vmrestore:v1.149.0
       
       ## @param victoriaMetrics.vmstorage.backup.resources Resource requests and limits for vmbackup sidecar
       resources:
@@ -1294,16 +1299,13 @@ victoriaMetrics:
           cpu: 500m
           memory: 512Mi
       
-      ## @param victoriaMetrics.vmstorage.backup.retention Number of backups to keep
-      keepLocal: 3   # Local backups to keep (on PVC)
-      
       ## @param victoriaMetrics.vmstorage.backup.s3 S3 configuration for remote backups
       s3:
         ## Enables the vmbackup sidecar's AWS env (AWS_REGION). With existingSecret empty,
         ## vmbackup uses the IRSA credential chain (no static keys). The bucket/key come
-        ## from the -dst the orchestrator passes, not from here.
-        enabled: false        # set true per install (with region) to enable vmbackup S3 env
-        bucket: ""
+        ## from the -dst the orchestrator passes, not from here. In s3 mode this env is
+        ## wired automatically (see vmcluster.yaml); set true only to force it independently.
+        enabled: false
         ## Empty (default) inherits centralBackupStorage.s3.region; set to override for VM only.
         region: ""
         endpoint: ""  # Leave empty for AWS S3

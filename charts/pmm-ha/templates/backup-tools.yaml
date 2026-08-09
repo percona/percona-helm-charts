@@ -32,6 +32,10 @@ spec:
         # consolidation-driven disruption (Karpenter / EKS Auto Mode; harmless elsewhere).
         karpenter.sh/do-not-disrupt: "true"
     spec:
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ .Release.Name }}-backup-sa
       containers:
       - name: backup-tools
@@ -112,9 +116,14 @@ spec:
           - name: S3_SECRET_SECRET_KEY_KEY
             value: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "secret") | quote }}
           {{- end }}
-          {{- with .Values.centralBackupStorage.s3.serviceAccountName }}
+          {{- /* Only project the SA name when the chart actually CREATES that SA (i.e. IRSA is
+                 configured — see backup-s3-serviceaccount.yaml, same condition). Otherwise the
+                 restore temp pods would set serviceAccountName to a non-existent SA and be rejected
+                 at admission mid-restore (with PMM/VM already scaled to 0). Ambient-credential
+                 installs leave this empty and the temp pods use the namespace default SA. */}}
+          {{- if .Values.centralBackupStorage.s3.irsaRoleArn }}
           - name: S3_SERVICE_ACCOUNT
-            value: {{ . | quote }}
+            value: {{ include "pmm.backupS3SaName" . | quote }}
           {{- end }}
           {{- end }}
         volumeMounts:

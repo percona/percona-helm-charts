@@ -1,9 +1,17 @@
-{{- if and .Values.centralBackupStorage.enabled (not .Values.centralBackupStorage.nfs.enabled) }}
+{{- /* Only CREATE a PVC when the user has NOT supplied an existingClaim. existingClaim means
+       "consume this pre-created PVC" (standard Helm semantics) — the consumers reference it by
+       name; the chart must not try to own/create a PVC of that name (that fails on ownership
+       metadata for a genuinely pre-existing claim). When empty, the chart creates and owns
+       <release>-central-backup. NOTE: accessModes below default by mode (s3=RWO, shared=RWX);
+       switching centralBackupStorage.mode on an EXISTING chart-created PVC will fail `helm upgrade`
+       (accessModes are immutable) — delete/recreate the PVC (data is disposable in s3 mode; in
+       shared mode migrate the volume) or set an explicit accessMode that doesn't change. */}}
+{{- if and .Values.centralBackupStorage.enabled (not .Values.centralBackupStorage.nfs.enabled) (not .Values.centralBackupStorage.existingClaim) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Values.centralBackupStorage.existingClaim | default (printf "%s-central-backup" .Release.Name) }}
+  name: {{ printf "%s-central-backup" .Release.Name }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}

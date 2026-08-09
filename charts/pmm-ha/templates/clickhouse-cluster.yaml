@@ -40,12 +40,16 @@ spec:
       clickhouse_operator/allow_experimental_analyzer: "0"
       clickhouse_operator/prefer_localhost_replica: "1"
       readonly/readonly: "2"
+      {{- if .Values.centralBackupStorage.enabled }}
       # Allow restoring schema into the Replicated `pmm` database. clickhouse-backup
       # captures DDL via SHOW CREATE TABLE, which expands ReplicatedMergeTree() to an
       # explicit (zookeeper_path, replica_name). Replaying that explicit form into a
       # Replicated-engine database is rejected (error 36) unless this is enabled. PMM
       # itself creates tables with the implicit form, so this only affects restore.
+      # Gated on the backup master switch so non-backup installs don't take a CHI reconcile
+      # (settings change) on upgrade for a setting they'll never use.
       default/database_replicated_allow_replicated_engine_arguments: "1"
+      {{- end }}
     
     # User management - password from Kubernetes secret using valueFrom
     users:
@@ -102,7 +106,7 @@ spec:
         spec:
           {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn }}
           # IRSA-annotated SA so clickhouse-backup gets S3 creds via the credential chain
-          serviceAccountName: {{ .Values.centralBackupStorage.s3.serviceAccountName | default "pmm-ha-backup-s3" }}
+          serviceAccountName: {{ include "pmm.backupS3SaName" . }}
           {{- end }}
           # Pod anti-affinity to spread replicas across different nodes
           # Using preferredDuringScheduling for soft anti-affinity (allows single-node deployments)
@@ -164,11 +168,18 @@ spec:
                     secretKeyRef:
                       name: {{ .Values.secret.name }}
                       key: PMM_CLICKHOUSE_PASSWORD
-                {{- if .Values.clickhouse.backup.s3.enabled }}
+                {{- /* Wire S3 env whenever the install is in s3 mode (the sidecar only exists
+                       when centralBackupStorage.enabled). The per-component s3.enabled flag is a
+                       manual escape hatch; without this `or`, a plain `mode: s3` install left the
+                       sidecar with no REMOTE_STORAGE and every upload failed. */}}
+                {{- if or (eq .Values.centralBackupStorage.mode "s3") .Values.clickhouse.backup.s3.enabled }}
                 - name: REMOTE_STORAGE
                   value: "s3"
                 - name: S3_BUCKET
-                  value: "{{ .Values.clickhouse.backup.s3.bucket }}"
+                  {{- /* Bucket falls back to the central bucket like every other S3 setting here;
+                         otherwise the documented "set centralBackupStorage.s3 once" flow renders
+                         an empty S3_BUCKET and every CH upload fails. */}}
+                  value: "{{ .Values.clickhouse.backup.s3.bucket | default .Values.centralBackupStorage.s3.bucket }}"
                 - name: S3_REGION
                   value: "{{ .Values.clickhouse.backup.s3.region | default .Values.centralBackupStorage.s3.region }}"
                 - name: S3_PATH

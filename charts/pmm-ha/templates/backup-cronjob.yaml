@@ -27,7 +27,9 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .Release.Name }}-backup
+  # CronJob names are capped at 52 chars (K8s appends a timestamp suffix to the Jobs it spawns);
+  # truncate so a long release name doesn't fail apply with a validation error.
+  name: {{ printf "%s-backup" .Release.Name | trunc 52 | trimSuffix "-" }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
@@ -60,6 +62,10 @@ spec:
             karpenter.sh/do-not-disrupt: "true"
         spec:
           restartPolicy: Never
+          {{- with .Values.image.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           serviceAccountName: {{ .Release.Name }}-backup-sa
           containers:
           - name: backup-trigger

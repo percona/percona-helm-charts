@@ -271,3 +271,13 @@ pmm-backup, vmbackup and clickhouse-backup sidecars each hand-copy. Call with th
 {{- $keys.secretKey | default "secret-key" -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Name of the backup S3 ServiceAccount (used by vmstorage/ClickHouse for the IRSA credential chain
+and referenced by the restore temp pods). Release-scoped by default so two releases in the same
+namespace don't collide on one fixed SA (Helm ownership conflict on install, and uninstall of one
+release deleting the SA the other still uses). Override via centralBackupStorage.s3.serviceAccountName.
+*/}}
+{{- define "pmm.backupS3SaName" -}}
+{{- .Values.centralBackupStorage.s3.serviceAccountName | default (printf "%s-backup-s3" .Release.Name) -}}
+{{- end -}}
