@@ -864,8 +864,10 @@ cat /backups/.metrics/postgresql_metrics.prom
 # Via HTTP (netcat server)
 wget -qO- http://localhost:9091/
 
-# From another pod in the cluster
-wget -qO- http://<release>-backup-tools.<namespace>:9091/
+# From another pod in the cluster — backup-tools has NO Service, so target the pod IP directly
+# (VMAgent scrapes these the same way, via pod discovery, not a Service DNS name):
+POD_IP=$(kubectl get pod -n <namespace> -l app.kubernetes.io/component=backup-tools -o jsonpath='{.items[0].status.podIP}')
+wget -qO- "http://${POD_IP}:9091/"
 ```
 
 ### Troubleshooting

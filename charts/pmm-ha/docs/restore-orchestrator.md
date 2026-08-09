@@ -259,8 +259,10 @@ data transfer:
     "$(kubectl get secret pmm-secret -n <ns> -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 -d)"
   ```
 - **PG monitoring token**: the target's `pg-pmm-secret` service token was minted in the
-  (now overwritten) Grafana DB — re-run the token-init job if PG-side monitoring shows
-  401s:
+  (now overwritten) Grafana DB — re-run the token-init **Job** if PG-side monitoring shows
+  401s. It is a regular Job, not a bare pod, so deleting its pods does nothing (a completed
+  Job never recreates pods). Delete the Job and let Helm recreate it:
   ```bash
-  kubectl delete pod -n <ns> -l job-name=<release>-pmm-token-init
+  kubectl delete job -n <ns> <release>-pmm-token-init --ignore-not-found
+  helm upgrade <release> charts/pmm-ha -n <ns> --reuse-values --no-hooks
   ```

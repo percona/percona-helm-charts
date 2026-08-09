@@ -15,6 +15,13 @@ pg-db:
         - --repo1-retention-archive=7   # Local: Keep 7 WAL sets
         - --repo2-retention-full=30     # S3: Keep 30 full backups (30 days)
       
+      # S3 credentials for repo2 (Percona PG Operator v2): reference a Secret that holds a
+      # pgBackRest config file, NOT loose aws-s3-key literals (that is the v1 format and is
+      # silently ignored by v2 — the repo deploys and then fails auth on every backup).
+      configuration:
+      - secret:
+          name: pmm-pgbackrest-s3
+
       repos:
       # Repository 1: Local storage (fast recovery, frequent backups)
       - name: repo1
@@ -39,12 +46,19 @@ pg-db:
         schedules:
           full: "0 3 * * 0"  # Sunday 3 AM - Weekly offsite backup
 
-# IMPORTANT: Create S3 credentials secret before deploying:
+# IMPORTANT: Create the pgBackRest S3 credentials secret before deploying. For the Percona PG
+# Operator v2 this is a Secret containing a pgBackRest CONFIG FILE (INI), referenced above via
+# backups.pgbackrest.configuration — the repoN-s3-key names must match the S3 repo (repo2 here):
 #
-# kubectl create secret generic pg-db-backrest-repo-config \
-#   --from-literal=aws-s3-key="YOUR_AWS_ACCESS_KEY" \
-#   --from-literal=aws-s3-key-secret="YOUR_AWS_SECRET_KEY" \
-#   -n demo
+#   cat > /tmp/s3.conf <<'EOF'
+#   [global]
+#   repo2-s3-key=YOUR_AWS_ACCESS_KEY
+#   repo2-s3-key-secret=YOUR_AWS_SECRET_KEY
+#   EOF
+#   kubectl create secret generic pmm-pgbackrest-s3 --from-file=s3.conf=/tmp/s3.conf -n demo
+#
+# (On AWS EKS you can instead omit keys and use IRSA by adding --repo2-s3-key-type=web-id to the
+#  pgbackrest global options and annotating the instance ServiceAccount with the role ARN.)
 #
 # Usage:
 # helm upgrade --install pmm-ha charts/pmm-ha \
