@@ -169,7 +169,9 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: PMM_HA_NAMESPACE
-              value: {{ .Release.Namespace | quote }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             {{ if .Values.secret.create }}
             # additional secrets that could be used for Grafana iDP
             - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
