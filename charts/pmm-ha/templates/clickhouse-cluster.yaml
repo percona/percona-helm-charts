@@ -5,6 +5,9 @@
 {{- else if .Values.secret.clickhouse_user }}
 {{- $clickhouseUser = .Values.secret.clickhouse_user }}
 {{- end }}
+{{- $datasourceUser := include "pmm.clickhouse.datasourceUser" . }}
+{{- $datasourcePassword := include "pmm.clickhouse.datasourcePassword" . }}
+{{- $clickhouseDatabase := .Values.pmmEnv.PMM_CLICKHOUSE_DATABASE | default "pmm" }}
 apiVersion: "clickhouse.altinity.com/v1"
 kind: ClickHouseInstallation
 metadata:
@@ -78,6 +81,56 @@ spec:
           <users>
             <default remove="1"/>
           </users>
+        </clickhouse>
+
+      # Read-only user for the Grafana ClickHouse data source.
+      #
+      # Grafana runs data source queries on behalf of every signed-in user, including Viewers, so
+      # this user must not be able to do more than read Query Analytics data. The grants section
+      # is what enforces that: it replaces ClickHouse's implicit "all privileges" with an
+      # allowlist, and withholding the SOURCES privileges keeps table functions such as url(),
+      # file(), s3() and remote() out of reach, which would otherwise allow SSRF against cloud
+      # instance metadata endpoints.
+      #
+      # Declared as a drop-in rather than through the operator's users map because that map has
+      # no way to express grants.
+      users.d/pmm-datasource-user.xml: |
+        <clickhouse>
+          <profiles>
+            <pmm_datasource>
+              <readonly>1</readonly>
+              <constraints>
+                <max_execution_time>
+                  <changeable_in_readonly/>
+                </max_execution_time>
+              </constraints>
+            </pmm_datasource>
+          </profiles>
+          <users>
+            <{{ $datasourceUser }}>
+              <password_sha256_hex>{{ $datasourcePassword | sha256sum }}</password_sha256_hex>
+              <networks>
+                {{- range .Values.clickhouse.users.networks.ip }}
+                <ip>{{ . }}</ip>
+                {{- end }}
+              </networks>
+              <profile>pmm_datasource</profile>
+              <quota>default</quota>
+              <grants>
+                <query>GRANT SELECT ON {{ $clickhouseDatabase }}.*</query>
+              </grants>
+            </{{ $datasourceUser }}>
+          </users>
+        </clickhouse>
+
+      # readonly=1 blocks every setting change, but the Grafana ClickHouse plugin sets
+      # max_execution_time on each query to enforce its timeout. Marking that one setting
+      # changeable needs this flag, without which ClickHouse rejects the constraint outright.
+      config.d/pmm-settings-constraints.xml: |
+        <clickhouse>
+          <access_control_improvements>
+            <settings_constraints_replace_previous>true</settings_constraints_replace_previous>
+          </access_control_improvements>
         </clickhouse>
 
   templates:

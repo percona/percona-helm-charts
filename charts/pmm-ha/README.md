@@ -380,6 +380,21 @@ kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | 
 
 Since `secret.create` is set to `false` by default, you need to create the `pmm-secret` manually before installing the chart. Here are examples of how to create it:
 
+#### ClickHouse data source credentials
+
+`PMM_CLICKHOUSE_DATASOURCE_USER` and `PMM_CLICKHOUSE_DATASOURCE_PASSWORD` are a **read-only**
+ClickHouse account, kept separate from `PMM_CLICKHOUSE_USER`. Grafana runs data source queries on
+behalf of every signed-in user, including Viewers, so the account behind the ClickHouse data source
+must not be the one PMM writes Query Analytics data with.
+
+The chart creates this user in the ClickHouse cluster through a `users.d` drop-in, granting it
+`SELECT` on the Query Analytics database and nothing else. Withholding the `SOURCES` privileges is
+what keeps table functions such as `url()` and `file()` out of reach.
+
+When upgrading an existing deployment with `secret.create: false`, add both keys to `pmm-secret`
+before upgrading. The chart fails with an explicit message if they are missing, rather than leaving
+the data source unable to authenticate.
+
 #### Option 1: Create Secret with kubectl
 
 ```sh
@@ -388,6 +403,8 @@ kubectl create secret generic pmm-secret \
   --from-literal=PMM_ADMIN_PASSWORD="your-secure-password" \
   --from-literal=PMM_CLICKHOUSE_USER="clickhouse_pmm" \
   --from-literal=PMM_CLICKHOUSE_PASSWORD="your-clickhouse-password" \
+  --from-literal=PMM_CLICKHOUSE_DATASOURCE_USER="clickhouse_pmm_readonly" \
+  --from-literal=PMM_CLICKHOUSE_DATASOURCE_PASSWORD="your-clickhouse-readonly-password" \
   --from-literal=VMAGENT_remoteWrite_basicAuth_username="victoriametrics_pmm" \
   --from-literal=VMAGENT_remoteWrite_basicAuth_password="your-victoriametrics-password" \
   --from-literal=PG_PASSWORD="your-pmm-postgres-password" \
@@ -410,6 +427,8 @@ stringData:
   PMM_ADMIN_PASSWORD: "your-secure-password"
   PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   PMM_CLICKHOUSE_PASSWORD: "your-clickhouse-password"
+  PMM_CLICKHOUSE_DATASOURCE_USER: "clickhouse_pmm_readonly"
+  PMM_CLICKHOUSE_DATASOURCE_PASSWORD: "your-clickhouse-readonly-password"
   VMAGENT_remoteWrite_basicAuth_username: "victoriametrics_pmm"
   VMAGENT_remoteWrite_basicAuth_password: "your-victoriametrics-password"
   PG_PASSWORD: "your-pmm-postgres-password"
@@ -435,6 +454,8 @@ kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | 
 # Get ClickHouse credentials
 kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' | base64 --decode && echo
 kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_USER}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode && echo
 
 # Get VictoriaMetrics credentials
 kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode && echo

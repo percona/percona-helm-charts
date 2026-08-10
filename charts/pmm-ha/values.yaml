@@ -136,6 +136,29 @@ secret:
   ##
   clickhouse_password: ""
   ##
+  ## @param secret.clickhouse_datasource_user Read-only ClickHouse user for the Grafana data source. If not set, defaults to "clickhouse_pmm_readonly"
+  ## Grafana runs data source queries on behalf of every signed-in user, including Viewers, so this
+  ## must stay separate from secret.clickhouse_user, which PMM writes Query Analytics data with.
+  ## The chart creates this user in ClickHouse with SELECT on the QAN database and nothing else.
+  ##
+  ## To get username after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_USER}' | base64 --decode
+  ## E.g.
+  ## clickhouse_datasource_user: clickhouse_pmm_readonly
+  ##
+  clickhouse_datasource_user: ""
+  ##
+  ## @param secret.clickhouse_datasource_password Read-only ClickHouse data source password. If not set, it will be auto-generated
+  ## When secret.create: true and this is empty, a random 32-character password is generated.
+  ## If creating the secret manually (secret.create: false), this field is ignored.
+  ##
+  ## To get password after install:
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode
+  ## E.g.
+  ## clickhouse_datasource_password: my_secure_password
+  ##
+  clickhouse_datasource_password: ""
+  ##
   ## @param secret.victoriametrics_user VictoriaMetrics user. If not set, defaults to "victoriametrics_pmm"
   ## When secret.create: true and this is empty, "victoriametrics_pmm" is used.
   ## If creating the secret manually (secret.create: false), this field is ignored.

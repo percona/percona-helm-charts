@@ -230,3 +230,42 @@ when nodeExporter.mode == "openshift".
       action: keep
     {{- include "pmm.nodeExporter.pmmRelabelConfigs" . | nindent 4 }}
 {{- end -}}
+
+{{/*
+Username of the read-only ClickHouse user backing the Grafana data source.
+
+Grafana runs data source queries on behalf of every signed-in user, including Viewers, so this
+must not be the user PMM writes Query Analytics data with. A username already stored in the
+secret wins, so that upgrades keep using the account that exists in ClickHouse.
+*/}}
+{{- define "pmm.clickhouse.datasourceUser" -}}
+{{- $existing := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) -}}
+{{- if and $existing (index $existing.data "PMM_CLICKHOUSE_DATASOURCE_USER") -}}
+{{- index $existing.data "PMM_CLICKHOUSE_DATASOURCE_USER" | b64dec -}}
+{{- else -}}
+{{- .Values.secret.clickhouse_datasource_user | default "clickhouse_pmm_readonly" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Password of the read-only ClickHouse data source user.
+
+The secret hands the plaintext to PMM while the ClickHouse drop-in needs its SHA-256, so both
+have to agree. A generated password is therefore memoised on .Values: randAlphaNum would
+otherwise return a different value to each caller and leave Grafana unable to authenticate.
+*/}}
+{{- define "pmm.clickhouse.datasourcePassword" -}}
+{{- $existing := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) -}}
+{{- if and $existing (index $existing.data "PMM_CLICKHOUSE_DATASOURCE_PASSWORD") -}}
+{{- index $existing.data "PMM_CLICKHOUSE_DATASOURCE_PASSWORD" | b64dec -}}
+{{- else if .Values.secret.clickhouse_datasource_password -}}
+{{- .Values.secret.clickhouse_datasource_password -}}
+{{- else if and $existing (not .Values.secret.create) -}}
+{{- fail (printf "Secret '%s' is missing required key 'PMM_CLICKHOUSE_DATASOURCE_PASSWORD'. The Grafana ClickHouse data source now connects as a read-only user, separate from PMM_CLICKHOUSE_USER. Add PMM_CLICKHOUSE_DATASOURCE_USER and PMM_CLICKHOUSE_DATASOURCE_PASSWORD to the secret, or set secret.clickhouse_datasource_password." .Values.secret.name) -}}
+{{- else -}}
+{{- if not (hasKey .Values "generatedClickhouseDatasourcePassword") -}}
+{{- $_ := set .Values "generatedClickhouseDatasourcePassword" (randAlphaNum 32) -}}
+{{- end -}}
+{{- get .Values "generatedClickhouseDatasourcePassword" -}}
+{{- end -}}
+{{- end -}}
