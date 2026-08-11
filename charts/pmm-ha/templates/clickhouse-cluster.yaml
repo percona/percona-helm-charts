@@ -128,14 +128,29 @@ spec:
           </users>
         </clickhouse>
 
-      # readonly=1 blocks every setting change, but the Grafana ClickHouse plugin sets
-      # max_execution_time on each query to enforce its timeout. Marking that one setting
-      # changeable needs this flag, without which ClickHouse rejects the constraint outright.
-      config.d/pmm-settings-constraints.xml: |
+      # Server-side hardening, matching what PMM Server ships for its built-in ClickHouse.
+      #
+      # settings_constraints_replace_previous: readonly=1 blocks every setting change, but the
+      # Grafana ClickHouse plugin sets max_execution_time on each query to enforce its timeout.
+      # Marking that one setting changeable needs this flag, without which ClickHouse rejects the
+      # constraint outright.
+      #
+      # select_from_system_db_requires_grant: without it ClickHouse lets every user read the whole
+      # system database regardless of its grants, so the data source user could read system.query_log
+      # and with it the SQL text of every query any user has run. The metadata the plugin needs
+      # (system.tables, columns, databases, one) stays readable either way.
+      #
+      # remote_url_allow_hosts: an empty allowlist means no host may be reached through URL-based
+      # engines and table functions - url(), remote(), mysql() and S3 over HTTP - for every user,
+      # not just the data source one. Query Analytics does not use them: replication runs over the
+      # interserver protocol and Keeper, and schema changes go through ON CLUSTER DDL.
+      config.d/pmm-hardening.xml: |
         <clickhouse>
           <access_control_improvements>
             <settings_constraints_replace_previous>true</settings_constraints_replace_previous>
+            <select_from_system_db_requires_grant>true</select_from_system_db_requires_grant>
           </access_control_improvements>
+          <remote_url_allow_hosts></remote_url_allow_hosts>
         </clickhouse>
 
   templates:
