@@ -7,6 +7,7 @@ A Helm chart for Percona Server for MongoDB Operator Custom Resource Definitions
 This chart contains the CRDs required by the Percona Operator for MongoDB:
 - `PerconaServerMongoDB` - defines a MongoDB cluster managed by the operator
 - `PerconaServerMongoDBBackup` - defines a backup for a MongoDB cluster
+- `PerconaServerMongoDBClusterSync` - defines a Percona ClusterSync for MongoDB (PCSM) replication job for migrating data into an operator-managed cluster
 - `PerconaServerMongoDBRestore` - defines a restore operation for a MongoDB cluster
 
 ## Why a Separate CRD Chart?
@@ -23,11 +24,12 @@ Install the CRD chart first:
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb --create-namespace
+helm install psmdb-operator-crds percona/psmdb-operator-crds --version 1.23.0 --namespace psmdb --create-namespace
 ```
 
 > **Note:** Deleting CRD chart will trigger deletion of all the custom resources created using the CRDs thus deleting all clusters.
->  Uninstalling percona/psmdb-operator-crds chart should be approached with caution.
+>  Uninstalling percona/psmdb-operator-crds chart should be approached with caution. By default the chart protects against this
+>  (`preserveCrds: true`, see [Protecting CRDs from Deletion](#protecting-crds-from-deletion)).
 
 Then install the operator:
 
@@ -35,13 +37,38 @@ Then install the operator:
 helm install psmdb-operator percona/psmdb-operator --namespace psmdb
 ```
 
+## Protecting CRDs from Deletion
+
+Deleting these CRDs deletes every custom resource stored under them, i.e. all your
+MongoDB clusters. A GitOps tool (Flux, Argo CD, etc.) can trigger this accidentally
+by pruning or reinstalling the chart.
+
+To guard against that, the chart sets `preserveCrds: true` by default, which adds the
+[`helm.sh/resource-policy: keep`](https://helm.sh/docs/howto/charts_tips_and_tricks/#tell-helm-not-to-uninstall-a-resource)
+annotation to the CRDs. Helm then leaves the CRDs in place on `helm uninstall`
+instead of deleting them.
+
+If you deliberately want `helm uninstall` to remove the CRDs (for example, in an
+ephemeral test cluster), opt out with `preserveCrds: false`:
+
+```sh
+helm install psmdb-operator-crds percona/psmdb-operator-crds --version 1.23.0 --namespace psmdb --create-namespace --set preserveCrds=false
+```
+
+| Value          | Default | Description                                                                                                                    |
+| -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------|
+| `preserveCrds` | `true`  | Add `helm.sh/resource-policy: keep` to the CRDs so they survive `helm uninstall`. Set to `false` to let uninstall remove them. |
+
+> **Note:** With the default `preserveCrds: true` the CRDs are intentionally left behind on
+> uninstall and must be removed manually (`kubectl delete crd ...`) if you truly want them gone.
+
 ## Upgrading CRDs
 
 When upgrading to a new version of the operator, upgrade the CRDs first:
 
 ```sh
 helm repo update
-helm upgrade psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb
+helm upgrade psmdb-operator-crds percona/psmdb-operator-crds --version 1.23.0 --namespace psmdb
 ```
 
 > **Note:** If you're using Helm 3.17.0 or later, you can use the `--take-ownership` flag when upgrading CRDs that were initially installed via the `crds/` directory:
@@ -53,7 +80,7 @@ helm upgrade psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb
 Then upgrade the operator:
 
 ```sh
-helm upgrade psmdb-operator percona/psmdb-operator --namespace psmdb
+helm upgrade psmdb-operator percona/psmdb-operator --version 1.23.0 --namespace psmdb
 ```
 
 ## Taking Ownership of Existing CRDs
@@ -65,7 +92,7 @@ If you have CRDs that were previously installed via the `crds/` directory and wa
 If you want to take ownership of existing CRDs to manage them with this chart:
 
 ```sh
-CRDS=(perconaservermongodbs.psmdb.percona.com perconaservermongodbbackups.psmdb.percona.com perconaservermongodbrestores.psmdb.percona.com)
+CRDS=(perconaservermongodbs.psmdb.percona.com perconaservermongodbbackups.psmdb.percona.com perconaservermongodbclustersyncs.psmdb.percona.com perconaservermongodbrestores.psmdb.percona.com)
 kubectl label crds "${CRDS[@]}" app.kubernetes.io/managed-by=Helm --overwrite
 kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-name=psmdb-operator-crds
 kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=psmdb
@@ -74,7 +101,7 @@ kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=psmdb
 Or use Helm 3.17.0+ with `--take-ownership`:
 
 ```sh
-helm upgrade --install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb --take-ownership
+helm upgrade --install psmdb-operator-crds percona/psmdb-operator-crds --version 1.23.0 --namespace psmdb --take-ownership
 ```
 
 ## Troubleshooting
