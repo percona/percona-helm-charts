@@ -388,7 +388,8 @@ including Viewers, so that account must not be the one PMM writes Query Analytic
 
 Nothing needs to be added to `pmm-secret` for this. The chart creates the ClickHouse user itself,
 through a `users.d` drop-in that grants it `SELECT` on the Query Analytics database and nothing
-else, and stores its credentials in its own secret, `<release>-pmm-clickhouse-datasource`. The
+else, and stores its credentials in its own secret, named after the chart fullname and suffixed
+`-clickhouse-datasource` — `pmm-ha-clickhouse-datasource` for the documented release name. The
 password is generated on first install and preserved across upgrades. Withholding the `SOURCES`
 privileges is what keeps table functions such as `url()` and `file()` out of reach.
 
@@ -396,7 +397,7 @@ To read the credentials, or to pin them with `clickhouse.datasource.user` and
 `clickhouse.datasource.password`:
 
 ```sh
-kubectl get secret <release>-pmm-clickhouse-datasource -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode && echo
+kubectl get secret pmm-ha-clickhouse-datasource -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode && echo
 ```
 
 #### Option 1: Create Secret with kubectl

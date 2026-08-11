@@ -73,6 +73,12 @@ Pod annotation
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ include "pmm.chart" . }}
 checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+{{/*
+Roll the pods when the data source credentials change. They arrive through secretKeyRef, and
+Kubernetes does not refresh environment variables in a running pod, so without this Grafana would
+keep the old password after ClickHouse has already switched to the new one.
+*/}}
+checksum/clickhouse-datasource: {{ include (print $.Template.BasePath "/clickhouse-datasource-secret.yaml") . | sha256sum }}
 {{- if .Values.podAnnotations }}
 {{ toYaml .Values.podAnnotations }}
 {{- end }}
@@ -271,5 +277,18 @@ Once generated it is read back from the chart-managed secret, so upgrades keep t
 {{- $_ := set .Values "generatedClickhouseDatasourcePassword" (randAlphaNum 32) -}}
 {{- end -}}
 {{- get .Values "generatedClickhouseDatasourcePassword" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Reject a ClickHouse identifier that would not survive being written into the users.d drop-in.
+
+The data source username becomes an XML element name and the database name goes into a GRANT
+statement, so neither may start with a digit nor carry characters outside the safe set. Takes a
+dict with "name" and "value".
+*/}}
+{{- define "pmm.clickhouse.validateIdentifier" -}}
+{{- if not (regexMatch "^[A-Za-z_][A-Za-z0-9_-]*$" .value) -}}
+{{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
 {{- end -}}
 {{- end -}}

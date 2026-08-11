@@ -8,6 +8,11 @@
 {{- $datasourceUser := include "pmm.clickhouse.datasourceUser" . }}
 {{- $datasourcePassword := include "pmm.clickhouse.datasourcePassword" . }}
 {{- $clickhouseDatabase := .Values.pmmEnv.PMM_CLICKHOUSE_DATABASE | default "pmm" }}
+{{- include "pmm.clickhouse.validateIdentifier" (dict "name" "clickhouse.datasource.user" "value" $datasourceUser) }}
+{{- include "pmm.clickhouse.validateIdentifier" (dict "name" "pmmEnv.PMM_CLICKHOUSE_DATABASE" "value" $clickhouseDatabase) }}
+{{- if or (eq $datasourceUser $clickhouseUser) (eq $datasourceUser "clickhouse_operator") }}
+{{- fail (printf "clickhouse.datasource.user must differ from the PMM ClickHouse user and from clickhouse_operator, otherwise the drop-in merges into that account and strips its privileges, got %s" $datasourceUser) }}
+{{- end }}
 apiVersion: "clickhouse.altinity.com/v1"
 kind: ClickHouseInstallation
 metadata:
@@ -117,7 +122,7 @@ spec:
               <profile>pmm_datasource</profile>
               <quota>default</quota>
               <grants>
-                <query>GRANT SELECT ON {{ $clickhouseDatabase }}.*</query>
+                <query>GRANT SELECT ON `{{ $clickhouseDatabase }}`.*</query>
               </grants>
             </{{ $datasourceUser }}>
           </users>
