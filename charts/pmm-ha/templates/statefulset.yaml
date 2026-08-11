@@ -234,12 +234,12 @@ spec:
             - name: PMM_CLICKHOUSE_DATASOURCE_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secret.name }}
+                  name: {{ include "pmm.clickhouse.datasourceSecretName" . }}
                   key: PMM_CLICKHOUSE_DATASOURCE_USER
             - name: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secret.name }}
+                  name: {{ include "pmm.clickhouse.datasourceSecretName" . }}
                   key: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
             - name: PMM_VM_URL
               value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"

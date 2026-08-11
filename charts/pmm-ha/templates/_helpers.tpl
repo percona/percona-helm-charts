@@ -232,19 +232,24 @@ when nodeExporter.mode == "openshift".
 {{- end -}}
 
 {{/*
+Name of the chart-managed secret holding the read-only ClickHouse data source credentials.
+
+Kept apart from .Values.secret.name because that secret is user-managed by default, and these
+credentials are internal: the chart creates the ClickHouse user itself, so nobody has to supply
+them.
+*/}}
+{{- define "pmm.clickhouse.datasourceSecretName" -}}
+{{- printf "%s-clickhouse-datasource" (include "pmm.fullname" .) -}}
+{{- end -}}
+
+{{/*
 Username of the read-only ClickHouse user backing the Grafana data source.
 
 Grafana runs data source queries on behalf of every signed-in user, including Viewers, so this
-must not be the user PMM writes Query Analytics data with. A username already stored in the
-secret wins, so that upgrades keep using the account that exists in ClickHouse.
+must not be the user PMM writes Query Analytics data with.
 */}}
 {{- define "pmm.clickhouse.datasourceUser" -}}
-{{- $existing := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) -}}
-{{- if and $existing (index $existing.data "PMM_CLICKHOUSE_DATASOURCE_USER") -}}
-{{- index $existing.data "PMM_CLICKHOUSE_DATASOURCE_USER" | b64dec -}}
-{{- else -}}
-{{- .Values.secret.clickhouse_datasource_user | default "clickhouse_pmm_readonly" -}}
-{{- end -}}
+{{- .Values.clickhouse.datasource.user | default "clickhouse_pmm_readonly" -}}
 {{- end -}}
 
 {{/*
@@ -253,15 +258,14 @@ Password of the read-only ClickHouse data source user.
 The secret hands the plaintext to PMM while the ClickHouse drop-in needs its SHA-256, so both
 have to agree. A generated password is therefore memoised on .Values: randAlphaNum would
 otherwise return a different value to each caller and leave Grafana unable to authenticate.
+Once generated it is read back from the chart-managed secret, so upgrades keep the same value.
 */}}
 {{- define "pmm.clickhouse.datasourcePassword" -}}
-{{- $existing := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) -}}
-{{- if and $existing (index $existing.data "PMM_CLICKHOUSE_DATASOURCE_PASSWORD") -}}
+{{- $existing := (lookup "v1" "Secret" .Release.Namespace (include "pmm.clickhouse.datasourceSecretName" .)) -}}
+{{- if .Values.clickhouse.datasource.password -}}
+{{- .Values.clickhouse.datasource.password -}}
+{{- else if and $existing (index $existing.data "PMM_CLICKHOUSE_DATASOURCE_PASSWORD") -}}
 {{- index $existing.data "PMM_CLICKHOUSE_DATASOURCE_PASSWORD" | b64dec -}}
-{{- else if .Values.secret.clickhouse_datasource_password -}}
-{{- .Values.secret.clickhouse_datasource_password -}}
-{{- else if and $existing (not .Values.secret.create) -}}
-{{- fail (printf "Secret '%s' is missing required key 'PMM_CLICKHOUSE_DATASOURCE_PASSWORD'. The Grafana ClickHouse data source now connects as a read-only user, separate from PMM_CLICKHOUSE_USER. Add PMM_CLICKHOUSE_DATASOURCE_USER and PMM_CLICKHOUSE_DATASOURCE_PASSWORD to the secret, or set secret.clickhouse_datasource_password." .Values.secret.name) -}}
 {{- else -}}
 {{- if not (hasKey .Values "generatedClickhouseDatasourcePassword") -}}
 {{- $_ := set .Values "generatedClickhouseDatasourcePassword" (randAlphaNum 32) -}}
