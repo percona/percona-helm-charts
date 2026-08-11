@@ -365,6 +365,7 @@ proxy:
   pgBouncer:
     replicas: 3
     image: docker.io/percona/percona-pgbouncer:1.25.2-1
+#    pause: true
 #    env:
 #    - name: MY_ENV
 #      value: "1000"
