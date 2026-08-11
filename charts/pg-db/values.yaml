@@ -79,6 +79,10 @@ customReplicationTLSSecret:
 #   certManagementPolicy: auto
 #   certValidityDuration: 2160h
 #   pgBackRestCertValidityDuration: 2160h
+#   issuerConf:
+#     name: my-issuer
+#     kind: ClusterIssuer
+#     group: cert-manager.io
 
 # openshift: true
 
