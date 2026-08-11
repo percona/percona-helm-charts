@@ -154,6 +154,20 @@ s3_rclone() {
     timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${pod}" -c pmm-backup -- rclone "$@"
 }
 
+# True when an S3 object exists AND is non-empty. Proving this before streaming matters
+# because every consumer downstream (pg_restore, tar, vmrestore) reports a missing object
+# as an empty-input error indistinguishable from a genuine data problem.
+#
+# NB: `rclone size` on a MISSING path exits 0 and prints {"count":0,"bytes":0}. A non-empty
+# result string is therefore NOT proof of existence — the byte count itself must be tested,
+# which is why this is a predicate rather than a bytes-returning helper.
+s3_object_present() {
+    local bytes
+    bytes=$(s3_rclone size --s3-no-check-bucket --json "$1" 2>/dev/null \
+        | sed -n 's/.*"bytes":[ ]*\([0-9][0-9]*\).*/\1/p')
+    [ "${bytes:-0}" -gt 0 ] 2>/dev/null
+}
+
 # Dedicated rclone client pod for s3 restores. The pmm-backup sidecar rides on the PMM
 # pods, which this orchestrator scales to 0 BEFORE restoring components — so ordinal
 # mapping (VM/PMM source lookup) and PG dump streaming would lose their S3 client exactly
@@ -605,6 +619,248 @@ preflight_checks() {
     ensure_jq || { log "ERROR" "jq is required (manifest parsing) but not available (Alpine: apk add jq; Debian: apt-get install jq)"; ok=false; }
     [ "${ok}" = "true" ] || return 1
     log "INFO" "Pre-flight checks passed"
+    return 0
+}
+
+################################################################################
+# Pre-restore validation gate
+#
+# Everything a SELECTED component needs must be proven here, while the cluster is
+# still whole. scale_down_pmm() is the point of no return: past it, a missing
+# ClickHouse remote, an absent /srv tarball, a shard-count mismatch or a
+# ServiceAccount that does not exist all surface half-way through a restore, with
+# PMM already at 0 replicas and no automatic way back.
+#
+# Fails CLOSED — any selected component that cannot be validated aborts the run and
+# names the --skip-<component> flag that would drop it deliberately. Checks are NOT
+# short-circuited: every component is validated so one run reports every problem,
+# rather than making the operator re-run to discover them one at a time.
+################################################################################
+validate_restore_targets() {
+    local fail=0 s3_readable=true
+
+    log "INFO" "Validating restore targets for ${BACKUP_NAME} (nothing has been changed yet)..."
+
+    # In s3 mode the dedicated client pod is only created for real runs, so a --dry-run
+    # against a scaled-down PMM has no rclone anywhere. Degrade to "checks skipped" with a
+    # loud warning rather than reporting phantom failures.
+    if [ "${S3_ENABLED}" = "true" ] && ! pick_s3_client_pod >/dev/null 2>&1; then
+        s3_readable=false
+        log "WARN" "[Preflight] No S3 client pod available; object-existence checks were SKIPPED (dry-run against a scaled-down PMM?)"
+    fi
+
+    # ---- Cross-cutting: temp-pod credentials -------------------------------------
+    # vmrestore, /srv restore and the s3 client pod are all rendered with
+    # TEMP_POD_SA_LINE + TEMP_POD_S3_KEYS_ENV. A missing Secret or ServiceAccount is
+    # rejected at ADMISSION — i.e. after PMM is already down (see parse_args()).
+    if [ "${S3_ENABLED}" = "true" ]; then
+        if [ -n "${S3_SECRET_NAME}" ]; then
+            if ! kubectl get secret "${S3_SECRET_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; then
+                log "ERROR" "[Preflight] S3 secret '${S3_SECRET_NAME}' not found in ${NAMESPACE}; every temp restore pod would be rejected at admission"
+                fail=1
+            else
+                local _key
+                for _key in "${S3_SECRET_ACCESS_KEY_KEY}" "${S3_SECRET_SECRET_KEY_KEY}"; do
+                    if ! kubectl get secret "${S3_SECRET_NAME}" -n "${NAMESPACE}" \
+                        -o "jsonpath={.data.${_key}}" 2>/dev/null | grep -q .; then
+                        log "ERROR" "[Preflight] S3 secret '${S3_SECRET_NAME}' has no key '${_key}'"
+                        fail=1
+                    fi
+                done
+            fi
+        fi
+        if [ -n "${TEMP_POD_SA_LINE}" ] \
+            && ! kubectl get serviceaccount "${S3_SERVICE_ACCOUNT}" -n "${NAMESPACE}" >/dev/null 2>&1; then
+            log "ERROR" "[Preflight] ServiceAccount '${S3_SERVICE_ACCOUNT}' not found in ${NAMESPACE}; every temp restore pod would be rejected at admission"
+            fail=1
+        fi
+    fi
+
+    # ---- Encryption key ----------------------------------------------------------
+    if [ "${RESTORE_ENCRYPTION_KEY}" = "true" ] && [ "${MF_ENC_STATUS}" = "success" ]; then
+        if [ "${S3_ENABLED}" = "true" ]; then
+            if [ "${s3_readable}" = "true" ] \
+                && ! s3_object_present "${S3_BASE}/${BACKUP_NAME}/encryption/pg-encryption-key.yaml"; then
+                log "ERROR" "[Preflight] encryption: key object missing or empty in S3 (--skip-encryption-key to proceed without it)"
+                fail=1
+            fi
+        elif [ ! -s "${BACKUP_DIR}/${BACKUP_NAME}/encryption/pg-encryption-key.yaml" ]; then
+            log "ERROR" "[Preflight] encryption: ${BACKUP_DIR}/${BACKUP_NAME}/encryption/pg-encryption-key.yaml missing or empty (--skip-encryption-key to proceed without it)"
+            fail=1
+        fi
+    fi
+
+    # ---- PostgreSQL --------------------------------------------------------------
+    if [ "${RESTORE_POSTGRESQL}" = "true" ] && [ "${MF_PG_STATUS}" = "success" ]; then
+        local _pgpod="" _db
+        _pgpod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PG_PRIMARY}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+        if [ -z "${_pgpod}" ]; then
+            log "ERROR" "[Preflight] postgresql: no primary pod matching '${LABEL_PG_PRIMARY}' (--skip-postgresql to drop it)"
+            fail=1
+        fi
+        if [ -z "${MF_PG_DBS}" ]; then
+            log "ERROR" "[Preflight] postgresql: manifest records no databases"
+            fail=1
+        else
+            for _db in ${MF_PG_DBS}; do
+                if [ "${S3_ENABLED}" = "true" ]; then
+                    if [ "${s3_readable}" = "true" ] \
+                        && ! s3_object_present "${S3_BASE}/${BACKUP_NAME}/postgresql/${_db}.dump"; then
+                        log "ERROR" "[Preflight] postgresql: dump missing or empty in S3: ${_db}.dump"
+                        fail=1
+                    fi
+                elif [ ! -s "${BACKUP_DIR}/${BACKUP_NAME}/postgresql/${_db}.dump" ]; then
+                    log "ERROR" "[Preflight] postgresql: dump missing or empty: ${BACKUP_DIR}/${BACKUP_NAME}/postgresql/${_db}.dump"
+                    fail=1
+                fi
+            done
+        fi
+    fi
+
+    # ---- ClickHouse --------------------------------------------------------------
+    if [ "${RESTORE_CLICKHOUSE}" = "true" ] && [ "${MF_CH_STATUS}" = "success" ]; then
+        local _chpod=""
+        _chpod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_CH_POD}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+        if [ -z "${_chpod}" ]; then
+            log "ERROR" "[Preflight] clickhouse: no pod matching '${LABEL_CH_POD}' (--skip-clickhouse to drop it)"
+            fail=1
+        elif [ -z "${MF_CH_NAME}" ]; then
+            log "ERROR" "[Preflight] clickhouse: manifest records no backup name"
+            fail=1
+        elif [ "${S3_ENABLED}" = "true" ]; then
+            # Mirror restore_clickhouse()'s --env overrides exactly: the sidecar's baked-in
+            # S3_BUCKET/S3_PATH point at THIS instance's prefix, which is the wrong place to
+            # look during a cross-namespace/DR restore from another instance's backup.
+            #
+            # The listing's exit status is captured SEPARATELY from the name match: piping
+            # straight into grep would report an unreachable sidecar, a missing container or
+            # an S3 timeout as "backup not found", blocking a restore whose data is fine.
+            # This gate fails closed, so conflating "could not check" with "absent" turns
+            # every transient error into a refused restore.
+            local _ch_list="" _ch_rc=0
+            _ch_list=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_chpod}" -c clickhouse-backup -- \
+                clickhouse-backup list remote \
+                --env "S3_BUCKET=${S3_BUCKET}" --env "S3_PATH=${S3_PREFIX}/clickhouse" 2>/dev/null) || _ch_rc=$?
+            if [ "${_ch_rc}" -ne 0 ]; then
+                log "ERROR" "[Preflight] clickhouse: could not list remote backups (exit ${_ch_rc}); is the 'clickhouse-backup' sidecar running in ${_chpod}?"
+                log "ERROR" "[Preflight]   Not treating this as 'backup absent' — the check itself failed. Fix the sidecar, or pass --skip-clickhouse."
+                fail=1
+            elif ! echo "${_ch_list}" | awk '{print $1}' | grep -Fxq "${MF_CH_NAME}"; then
+                log "ERROR" "[Preflight] clickhouse: remote backup '${MF_CH_NAME}' not found under s3://${S3_BUCKET}/${S3_PREFIX}/clickhouse"
+                log "ERROR" "[Preflight]   ClickHouse retention prunes independently of the central backups, so an older backup can outlive its ClickHouse half."
+                log "ERROR" "[Preflight]   Restore a newer backup, or pass --skip-clickhouse to restore everything else without QAN data."
+                fail=1
+            fi
+        elif [ ! -s "${BACKUP_DIR}/${BACKUP_NAME}/clickhouse/${MF_CH_NAME}.tar.gz" ]; then
+            log "ERROR" "[Preflight] clickhouse: ${BACKUP_DIR}/${BACKUP_NAME}/clickhouse/${MF_CH_NAME}.tar.gz missing or empty (--skip-clickhouse to drop it)"
+            fail=1
+        fi
+    fi
+
+    # ---- VictoriaMetrics ---------------------------------------------------------
+    if [ "${RESTORE_VICTORIAMETRICS}" = "true" ] && [ "${MF_VM_STATUS}" = "success" ]; then
+        local _vmpods="" _vmcluster="" _vmtarget="" _vmsrc="" _p _ord="" _sub="" _vmname=""
+        _vmpods=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+        _vmcluster=$(kubectl get vmcluster -n "${NAMESPACE}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+        if [ -z "${_vmpods}" ]; then
+            log "ERROR" "[Preflight] victoriametrics: no vmstorage pods matching '${LABEL_VM_STORAGE}' (--skip-victoriametrics to drop it)"
+            fail=1
+        fi
+        if [ -z "${_vmcluster}" ]; then
+            log "ERROR" "[Preflight] victoriametrics: no VMCluster resource; the restore could not scale it safely"
+            fail=1
+        fi
+        # Shard-count mismatch was already checked inside restore_victoriametrics(), but that
+        # runs with PMM ALREADY DOWN. Hoisted here so it aborts while the cluster is intact.
+        if [ -n "${_vmpods}" ] && { [ "${S3_ENABLED}" != "true" ] || [ "${s3_readable}" = "true" ]; }; then
+            _vmtarget=$(echo "${_vmpods}" | wc -w | tr -d ' ')
+            _vmsrc=$(vm_src_ordinal_count 2>/dev/null || echo "")
+            if [ -n "${_vmsrc}" ] && [ "${_vmsrc}" -gt 0 ] 2>/dev/null && [ "${_vmsrc}" != "${_vmtarget}" ]; then
+                log "ERROR" "[Preflight] victoriametrics: shard-count mismatch — backup has ${_vmsrc} vmstorage ordinal(s), target has ${_vmtarget}. Set vmstorage replicaCount to ${_vmsrc} and retry."
+                fail=1
+            else
+                # vm_src_subdir_for_ord() is what vm_src_for_pod() resolves internally; calling
+                # it directly gives the subdir needed to also inspect the directory's CONTENTS.
+                _vmname="vm_backup_${BACKUP_NAME#backup_}"
+                for _p in ${_vmpods}; do
+                    _ord="${_p##*-}"
+                    _sub=$(vm_src_subdir_for_ord "${_ord}" 2>/dev/null || echo "")
+                    if [ -z "${_sub}" ]; then
+                        log "ERROR" "[Preflight] victoriametrics: backup has no source directory for ordinal '${_ord}' (pod ${_p})"
+                        fail=1
+                        continue
+                    fi
+                    # A directory being LISTED is not the same as it holding data. vmrestore
+                    # against an empty or truncated vm_backup_<id>/ fails only once PMM is
+                    # already down — the exact failure this gate exists to prevent — so spend
+                    # one listing per ordinal to prove there is something to restore.
+                    if [ "${S3_ENABLED}" = "true" ]; then
+                        if ! s3_rclone lsf "${S3_BASE}/${BACKUP_NAME}/victoriametrics/${_sub}/${_vmname}/" 2>/dev/null | grep -q .; then
+                            log "ERROR" "[Preflight] victoriametrics: source for ordinal '${_ord}' is empty (${_sub}/${_vmname})"
+                            fail=1
+                        fi
+                    elif ! ls -A "${BACKUP_DIR}/${BACKUP_NAME}/victoriametrics/${_sub}/${_vmname}" 2>/dev/null | grep -q .; then
+                        log "ERROR" "[Preflight] victoriametrics: source for ordinal '${_ord}' is empty (${_sub}/${_vmname})"
+                        fail=1
+                    fi
+                done
+            fi
+        fi
+    fi
+
+    # ---- PMM server /srv ---------------------------------------------------------
+    if [ "${RESTORE_PMM_SERVER}" = "true" ] && [ "${MF_PMM_STATUS}" = "success" ]; then
+        local _sts="" _replicas="" _i=0 _sub=""
+        _sts=$(kubectl get statefulset -n "${NAMESPACE}" -l "${LABEL_PMM_SERVER}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+        if [ -z "${_sts}" ]; then
+            log "ERROR" "[Preflight] pmm-server: no StatefulSet matching '${LABEL_PMM_SERVER}' (--skip-pmm-server to drop it)"
+            fail=1
+        elif [ "${S3_ENABLED}" != "true" ] || [ "${s3_readable}" = "true" ]; then
+            # Mirror restore_pmm_server()'s replica resolution so the ordinals checked here are
+            # the ordinals it will actually iterate.
+            _replicas=$(kubectl get statefulset "${_sts}" -n "${NAMESPACE}" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "")
+            if [ -z "${_replicas}" ] || [ "${_replicas}" = "0" ]; then
+                _replicas=$(kubectl get statefulset "${_sts}" -n "${NAMESPACE}" \
+                    -o jsonpath="{.metadata.annotations['restore.pmm.percona.com/original-replicas']}" 2>/dev/null || echo "")
+            fi
+            [ -n "${_replicas}" ] && [ "${_replicas}" != "0" ] || _replicas="${PMM_SERVER_REPLICAS:-3}"
+            # A non-numeric count (a hand-edited original-replicas annotation, say) would make
+            # the `-lt` below exit 2, the loop body never run, and this gate report SUCCESS
+            # without having validated a single ordinal. A silent skip is worse than no gate,
+            # so refuse explicitly instead of inheriting shell semantics.
+            case "${_replicas}" in
+                ''|*[!0-9]*)
+                    log "ERROR" "[Preflight] pmm-server: replica count '${_replicas}' is not a number; cannot determine which ordinals to validate"
+                    fail=1
+                    _replicas=0
+                    ;;
+            esac
+            while [ "${_i}" -lt "${_replicas}" ]; do
+                _sub=$(pmm_src_subdir_for_ord "${_i}" 2>/dev/null || echo "")
+                if [ -z "${_sub}" ]; then
+                    # restore_pmm_server() only WARNs and skips here, so without this gate a
+                    # PMM replica silently keeps its pre-restore /srv while the run reports success.
+                    log "ERROR" "[Preflight] pmm-server: backup has no /srv directory for ordinal ${_i} (${_replicas} replica(s) expected)"
+                    fail=1
+                elif [ "${S3_ENABLED}" = "true" ]; then
+                    if ! s3_object_present "${S3_BASE}/${BACKUP_NAME}/pmm-server/${_sub}/srv.tar.gz"; then
+                        log "ERROR" "[Preflight] pmm-server: srv.tar.gz missing or empty for ordinal ${_i} (${_sub})"
+                        fail=1
+                    fi
+                elif [ ! -s "${BACKUP_DIR}/${BACKUP_NAME}/pmm-server/${_sub}/srv.tar.gz" ]; then
+                    log "ERROR" "[Preflight] pmm-server: ${BACKUP_DIR}/${BACKUP_NAME}/pmm-server/${_sub}/srv.tar.gz missing or empty"
+                    fail=1
+                fi
+                _i=$((_i + 1))
+            done
+        fi
+    fi
+
+    if [ "${fail}" -ne 0 ]; then
+        log "ERROR" "Pre-restore validation FAILED. Nothing was changed; PMM is still running."
+        return 1
+    fi
+    log "INFO" "Pre-restore validation passed — every selected component's source and target are present"
     return 0
 }
 
@@ -1304,6 +1560,11 @@ main() {
             exit 1
         fi
     fi
+
+    # Prove every selected component can actually be restored BEFORE the confirmation
+    # prompt — asking an operator to approve a destructive run that is already doomed
+    # wastes the one chance to abort cheaply.
+    if ! validate_restore_targets; then exit 1; fi
 
     if [ "${DRY_RUN}" = "true" ]; then
         log "INFO" "[DRY RUN] Showing commands only; nothing will change."
