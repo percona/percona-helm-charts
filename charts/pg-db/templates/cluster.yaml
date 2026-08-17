@@ -73,6 +73,16 @@ spec:
     {{- if .Values.tls.pgBackRestCertValidityDuration }}
     pgBackRestCertValidityDuration: {{ .Values.tls.pgBackRestCertValidityDuration }}
     {{- end }}
+    {{- if .Values.tls.issuerConf }}
+    issuerConf:
+      name: {{ .Values.tls.issuerConf.name }}
+      {{- if .Values.tls.issuerConf.kind }}
+      kind: {{ .Values.tls.issuerConf.kind }}
+      {{- end }}
+      {{- if .Values.tls.issuerConf.group }}
+      group: {{ .Values.tls.issuerConf.group }}
+      {{- end }}
+    {{- end }}
   {{- end }}
 
   {{- if hasKey .Values "openshift" }}
