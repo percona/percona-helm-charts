@@ -380,7 +380,7 @@ spec:
       image: {{ .Values.proxy.pgBouncer.image }}
       replicas: {{ .Values.proxy.pgBouncer.replicas }}
       exposeSuperusers: {{ .Values.proxy.pgBouncer.exposeSuperusers | default false }}
-      pause: {{ .Values.proxy.pgBouncer.pause | default false }}
+      paused: {{ .Values.proxy.pgBouncer.paused | default false }}
       {{- if .Values.proxy.pgBouncer.usersSecret }}
       usersSecret:
 {{ .Values.proxy.pgBouncer.usersSecret | toYaml | indent 8 }}
