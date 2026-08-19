@@ -83,6 +83,9 @@ spec:
             - secretRef:
                  name: {{ .Values.secret.name }}
             {{ end }}
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           env:
             - name: PMM_INSTALL_METHOD
               valueFrom:
