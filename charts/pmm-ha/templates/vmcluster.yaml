@@ -8,9 +8,9 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: victoria-metrics-cluster
 spec:
-  # Retention period for metrics
-  retentionPeriod: {{ .Values.victoriaMetrics.vmstorage.retentionPeriod | quote }}
-  
+  # retentionPeriod is deliberately not declared here. PMM sets it from its own data
+  # retention setting, so declaring it would revert the user's choice on every upgrade.
+
   # Replication factor for vmstorage (how many copies of data to store)
   # Should be <= vmstorage.replicaCount for redundancy
   replicationFactor: {{ .Values.victoriaMetrics.replicationFactor }}

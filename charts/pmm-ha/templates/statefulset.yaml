@@ -255,6 +255,20 @@ spec:
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
             - name: PMM_ENCRYPTION_KEY_PATH
               value: /etc/secrets/key
+            # Identifies the resource whose retentionPeriod PMM keeps in sync with its data
+            # retention setting. Requires the Role this chart creates.
+            - name: PMM_VM_CLUSTER_NAME
+              value: {{ include "pmm.fullname" . }}-vmcluster
+            - name: PMM_VM_CLUSTER_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- with (include "pmm.dataRetention.pmm" .) }}
+            # Only rendered when dataRetentionDays pins retention. Declared here rather than
+            # in pmmEnv so it always wins over the ConfigMap.
+            - name: PMM_DATA_RETENTION
+              value: {{ . | quote }}
+            {{- end }}
           ports:
             - name: https
               containerPort: 8443

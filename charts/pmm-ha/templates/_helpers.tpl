@@ -292,3 +292,51 @@ dict with "name" and "value".
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Data retention.
+
+PMM owns retention. It applies whatever is set in the UI to Query Analytics directly, and
+to metrics by updating VMCluster.spec.retentionPeriod, which is why this chart neither
+declares that field nor sets PMM_DATA_RETENTION by default. Declaring either one would
+make every `helm upgrade` revert what the user set in the UI.
+
+`dataRetentionDays` is the opt-out: setting it pins retention declaratively by rendering
+PMM_DATA_RETENTION, which PMM treats as authoritative and which makes the UI field
+read-only. PMM requires that value to be a whole multiple of 24h and refuses to start
+otherwise, which is why this chart takes whole days and does the conversion itself rather
+than accepting a free-form duration.
+
+Example: dataRetentionDays: 90 -> PMM_DATA_RETENTION "2160h", and PMM sets the VMCluster
+retentionPeriod to "90d".
+*/}}
+{{- define "pmm.dataRetention.validate" -}}
+{{- with .Values.victoriaMetrics }}
+  {{- with .vmstorage }}
+    {{- if hasKey . "retentionPeriod" }}
+      {{- fail "victoriaMetrics.vmstorage.retentionPeriod is no longer used: PMM sets the VMCluster retention period from its own data retention setting, so a value declared here would be reverted on every `helm upgrade`. Change data retention in the PMM UI, or pin it with the top-level `dataRetentionDays` (whole days)." }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- with .Values.pmmEnv }}
+  {{- if hasKey . "PMM_DATA_RETENTION" }}
+    {{- fail "pmmEnv.PMM_DATA_RETENTION is managed by this chart. Set the top-level `dataRetentionDays` (whole days) instead, or leave it unset to manage retention from the PMM UI." }}
+  {{- end }}
+{{- end }}
+{{- if not (kindIs "invalid" .Values.dataRetentionDays) }}
+  {{- if or (lt (int .Values.dataRetentionDays) 1) (ne (float64 .Values.dataRetentionDays) (float64 (int .Values.dataRetentionDays))) }}
+    {{- fail (printf "dataRetentionDays must be a whole number of days greater than or equal to 1, got %v" .Values.dataRetentionDays) }}
+  {{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Retention period for the PMM_DATA_RETENTION environment variable, as a Go duration.
+Empty when retention is not pinned, in which case the caller omits the variable.
+*/}}
+{{- define "pmm.dataRetention.pmm" -}}
+{{- include "pmm.dataRetention.validate" . -}}
+{{- if not (kindIs "invalid" .Values.dataRetentionDays) -}}
+{{- printf "%dh" (mul (int .Values.dataRetentionDays) 24) -}}
+{{- end -}}
+{{- end -}}
