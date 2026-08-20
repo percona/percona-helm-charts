@@ -62,17 +62,9 @@ pmmEnv:
 
 ## How long PMM keeps monitoring data, in whole days.
 ##
-## Leave this unset, the default, to manage retention from the PMM UI under
-## Configuration -> Settings -> Advanced settings. PMM then applies whatever is set there
-## to both stores: to Query Analytics directly, and to metrics by updating the
-## retentionPeriod of the VMCluster resource, which requires the RBAC role this chart
-## creates. Changing it restarts vmstorage.
+## Leave this unset, the default, to manage retention from the PMM UI.
+## Set it to pin retention declaratively instead.
 ##
-## Set it to pin retention declaratively instead, for example under GitOps. That renders
-## PMM_DATA_RETENTION, which makes the Data retention field in the UI read-only.
-##
-## Note that VictoriaMetrics deletes metrics one whole month partition at a time, so
-## values below roughly one month do not remove data from the current month.
 ## @param dataRetentionDays Pin data retention to a number of whole days; unset means the PMM UI controls it
 ##
 dataRetentionDays: ~

@@ -518,68 +518,15 @@ This will check updates in the repo and upgrade deployment if the updates are av
 
 ### Data retention
 
-Retention is managed from the PMM UI, under *Configuration -> Settings -> Advanced settings*. PMM applies whatever is set there to both places that store data:
+Retention is managed from the PMM UI, under *Configuration -> Settings -> Advanced settings*.
 
-| Store | How PMM applies it |
-| ----- | ------------------ |
-| Metrics (VictoriaMetrics) | Updates `retentionPeriod` on the `VMCluster` resource, which makes the operator restart vmstorage |
-| Query Analytics (ClickHouse) | Drops day partitions older than the retention period |
-
-Updating the `VMCluster` resource requires the namespaced `Role` this chart creates, granting `get` and `patch` on that one resource. It is created only when `serviceAccount.create` and `victoriaMetrics.enabled` are both true. Without it, PMM logs a permission error every reconcile and metrics retention stays unchanged.
-
-The chart deliberately does **not** declare `VMCluster.spec.retentionPeriod`. If it did, every `helm upgrade` would revert what the user set in the UI. Before chart 1.6.1 it did declare it, which is why retention set in the UI never applied to metrics.
-
-### Pinning retention declaratively
-
-Set `dataRetentionDays` to manage retention from `values.yaml` instead, for example under GitOps:
+To manage retention declaratively instead, set `dataRetentionDays`:
 
 ```yaml
 dataRetentionDays: 30
 ```
 
-This renders `PMM_DATA_RETENTION`, which PMM treats as authoritative, so the **Data retention** field in the UI becomes read-only and rejects changes with `Data retention for queries is set via PMM_DATA_RETENTION environment variable.` PMM still applies the value to the `VMCluster` resource, so both stores stay in step.
-
-Setting `victoriaMetrics.vmstorage.retentionPeriod` or `pmmEnv.PMM_DATA_RETENTION` directly is rejected with a message pointing at `dataRetentionDays`.
-
-### Retention granularity
-
-- VictoriaMetrics deletes metrics one whole month partition at a time, so a retention shorter than roughly one month does not remove data from the current month. Disk usage is bounded by the retention period plus one month.
-- Query Analytics retention is enforced by dropping whole day partitions in ClickHouse, so it takes effect at day granularity.
-
-### GitOps
-
-PMM writes `spec.retentionPeriod` on the `VMCluster` resource, so a GitOps controller that also manages that field will fight PMM over it. Because retention is a vmstorage start-up flag, each round of that fight restarts vmstorage, so this is worth configuring rather than tolerating.
-
-Either pin retention with `dataRetentionDays`, which makes the PMM UI read-only and leaves your Git repository authoritative, or tell your controller to ignore the field.
-
-Argo CD:
-
-```yaml
-spec:
-  ignoreDifferences:
-    - group: operator.victoriametrics.com
-      kind: VMCluster
-      jsonPointers:
-        - /spec/retentionPeriod
-```
-
-Flux:
-
-```yaml
-spec:
-  patches:
-    - target:
-        kind: VMCluster
-      patch: |
-        - op: remove
-          path: /spec/retentionPeriod
-```
-
-PMM identifies its writes with the `pmm-managed` field manager, so you can confirm ownership with:
-
-```sh
-kubectl get vmcluster <release>-vmcluster -o yaml --show-managed-fields
-```
+This renders `PMM_DATA_RETENTION`, which PMM treats as authoritative, so the UI field becomes read-only. PMM still writes the value to the `VMCluster` resource, so both stores stay in step.
 
 ### [PMM environment variables](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables)
 
