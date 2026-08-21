@@ -385,6 +385,13 @@ esac
 case "${BACKUP_RETENTION}" in
     ''|*[!0-9]*) echo "Error: Invalid --retention: '${BACKUP_RETENTION}' (must be a non-negative integer)"; exit 1 ;;
 esac
+# Digit-only was sufficient while this value was only ever a string (find -mtime +N,
+# clickhouse-backup --keep-local-older-than Nd). The S3 sweep does arithmetic with it, where
+# a leading zero is an octal literal: "010" silently means 8 days (purging the 9th and 10th
+# day the operator asked to keep) and "08" is not valid octal at all — busybox aborts the
+# whole run with "arithmetic syntax error" after the backup already succeeded. Normalise
+# rather than reject, so existing values keep working.
+BACKUP_RETENTION=$(echo "${BACKUP_RETENTION}" | sed 's/^0*\([0-9]\)/\1/')
 
 # Validate backup target + derive per-tool S3 flag
 case "${BACKUP_TARGET}" in
@@ -552,6 +559,82 @@ s3_rclone_rcat() {
     _pod=$(pick_s3_client_pod) || return 1
     timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "${_pod}" -c pmm-backup -- \
         rclone rcat --s3-no-check-bucket "$1"
+}
+
+# DESTRUCTIVE: recursively delete an S3 prefix. Deliberately a separate helper from
+# s3_rclone(), which is documented read-only — retention is the only caller, and widening
+# the read-only helper to cover deletes would make every future call site a potential
+# data-loss path. Uses KUBECTL_EXEC_TIMEOUT: purging a backup means deleting thousands of
+# VictoriaMetrics objects, which does not fit the status budget.
+#
+# Expect a benign, alarming-looking line in the log on every purge:
+#   ERROR : ... Failed to read versioning status, assuming unversioned: ... AccessDenied
+#           ... not authorized to perform: s3:GetBucketVersioning
+# rclone probes bucket versioning to choose a delete strategy; the backup credentials
+# intentionally do not grant that (they hold only List/Get/Put/DeleteObject), so the probe
+# 403s, rclone falls back to unversioned deletes, and the purge succeeds. Callers send both
+# streams to the log file, so this never reaches the operator's console — do not "fix" it by
+# widening the IAM policy.
+s3_rclone_purge() {
+    _pod=$(pick_s3_client_pod) || return 1
+    if timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_pod}" -c pmm-backup -- \
+        rclone purge --s3-no-check-bucket "$1"; then
+        return 0
+    fi
+    # pick_s3_client_pod caches the pod name for the process lifetime and never revalidates
+    # it. The sweep is the first caller to make many sequential execs over many minutes, so
+    # it is the first that can outlive its client pod — Karpenter consolidation on this
+    # cluster replaces PMM pods routinely. A stale cache would fail every remaining purge
+    # with "pod not found" and retention would silently never advance while the run still
+    # reported success. Drop the cache and retry once against a freshly resolved pod.
+    S3_CLIENT_POD=""
+    _pod=$(pick_s3_client_pod) || return 1
+    timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_pod}" -c pmm-backup -- \
+        rclone purge --s3-no-check-bucket "$1"
+}
+
+# Which namespace produced a backup, read from its own manifest, or empty when that cannot
+# be established. Every manifest records `namespace` (see write_manifest), so ownership is a
+# fact recorded in the data rather than something the sweep has to infer from configuration.
+#
+# This exists because S3_PREFIX defaults to the same literal ("pmm-ha") for every install,
+# while the chart documents running several instances against one bucket and pointing a DR
+# target at production's bucket on purpose. Age-based pruning cannot tell whose backup an id
+# is, so on a shared prefix one install would delete another's — irreversibly, on a bucket
+# with no versioning. Documenting "make the prefix unique" does not protect an operator who
+# never reads values.yaml; refusing to delete another namespace's backup does.
+backup_id_owner() {
+    _bio_json=$(s3_rclone cat "${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}/backups/$1/manifest.json" 2>/dev/null) || return 1
+    [ -n "${_bio_json}" ] || return 1
+    printf '%s' "${_bio_json}" | jq -r '.namespace // empty' 2>/dev/null
+}
+
+# Epoch seconds for the timestamp embedded in a backup id (backup_YYYYMMDD-HHMMSS), or
+# empty when it cannot be parsed. Parsing the NAME rather than reading S3 object mtimes is
+# deliberate: the name is the backup's identity and never changes, while mtimes shift on
+# any re-upload or copy — and it makes retention testable without waiting days, since a
+# backdated id can simply be created.
+#
+# Two implementations because both shells are supported: busybox date takes an explicit
+# input format via -D, GNU date has no -D but accepts an ISO-ish string. An id that
+# neither can parse yields empty, and callers must then SKIP it rather than guess.
+#
+# The shape is anchored FIRST, before either date call, for two reasons. busybox
+# `date -D "%Y%m%d-%H%M%S"` happily parses "20260821-103000-preupgrade" (trailing garbage is
+# ignored) while GNU date rejects it — so without this the same bucket gets opposite
+# retention decisions depending on which image runs the sweep, and on busybox a
+# deliberately-named id like backup_<ts>-preupgrade would be DELETED despite the documented
+# promise that unparseable ids are only ever skipped. --backup-id permits any
+# [A-Za-z0-9_-] string, so suffixed ids are a realistic bucket resident, not a hypothetical.
+backup_id_epoch() {
+    _bid_ts="${1#backup_}"
+    case "${_bid_ts}" in
+        [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+        *) return 1 ;;
+    esac
+    date -D "%Y%m%d-%H%M%S" -d "${_bid_ts}" +%s 2>/dev/null && return 0
+    _bid_iso=$(echo "${_bid_ts}" | sed 's/^\(....\)\(..\)\(..\)-\(..\)\(..\)\(..\)$/\1-\2-\3 \4:\5:\6/')
+    date -d "${_bid_iso}" +%s 2>/dev/null
 }
 
 # Build the per-run manifest and write it (+ a 'latest' pointer) next to the PMM/VM data.
@@ -1693,12 +1776,236 @@ backup_encryption_key() {
 # Cleanup Old Backups
 ################################################################################
 
+################################################################################
+# S3 retention — delete backups/<id>/ prefixes older than BACKUP_RETENTION days.
+#
+# Age comes from the id's own timestamp (see backup_id_epoch), not from object mtimes.
+#
+# SCOPE: this sweep covers `<prefix>/backups/<id>/` only — PostgreSQL dumps, /srv archives,
+# VictoriaMetrics data, the encryption key and the manifest. ClickHouse remote backups live
+# at `<prefix>/clickhouse/`, a sibling prefix owned by clickhouse-backup, and are NOT touched
+# here; they still need their own age-based pruning. Note the ordering hazard that creates:
+# purging backups/<id>/ removes the manifest that records that run's CH backup name, so
+# ClickHouse pruning must identify its own backups from their embedded pmm_backup_<ts>
+# timestamp rather than from manifests, or it will be unable to name what it should delete.
+#
+# Guardrails, because a bug here destroys backups irreversibly (this bucket has no
+# versioning, so there is no undo):
+#   * retention 0 refuses THIS sweep — note the local find sweeps in cleanup_old_backups
+#     still run with -mtime +0, so retention 0 remains destructive in shared mode; the
+#     refusal here is not a global safety net
+#   * the 'latest' pointer object is never deleted, and neither is the id it names, even
+#     if that id is past the cutoff: a stale pointer is recoverable, a dangling one is not
+#   * ids whose timestamp cannot be parsed are skipped and logged, never deleted — the
+#     tool must not remove what it cannot identify
+#   * a sweep that would delete EVERY backup is refused; that is a bug, not an intent
+#   * deletions per sweep are capped, so a parsing regression can only ever destroy a
+#     bounded amount before someone notices
+################################################################################
+S3_PRUNE_MAX_PER_RUN="${S3_PRUNE_MAX_PER_RUN:-50}"
+# Same reasoning as BACKUP_RETENTION: this drives destruction, so it must be a usable
+# number. `[ 3 -ge abc ]` returns 2 (not false), so a non-numeric value does not merely
+# misbehave — it silently disables the cap entirely and the sweep purges everything it
+# classified. Fall back to the default rather than aborting a run that already succeeded.
+case "${S3_PRUNE_MAX_PER_RUN}" in
+    ''|*[!0-9]*) S3_PRUNE_MAX_PER_RUN=50 ;;
+    *) S3_PRUNE_MAX_PER_RUN=$(echo "${S3_PRUNE_MAX_PER_RUN}" | sed 's/^0*\([0-9]\)/\1/') ;;
+esac
+# Whole-sweep wall clock. Retention runs after a successful backup, inside main()'s lock
+# window, and the CronJob trigger has its own activeDeadlineSeconds — so an unbounded sweep
+# (50 purges x KUBECTL_EXEC_TIMEOUT would be hours) gets the Job killed, reports the whole
+# run failed, and leaves the next run blocked on locks this one still holds.
+S3_PRUNE_MAX_SECONDS="${S3_PRUNE_MAX_SECONDS:-900}"
+case "${S3_PRUNE_MAX_SECONDS}" in
+    ''|*[!0-9]*) S3_PRUNE_MAX_SECONDS=900 ;;
+esac
+
+s3_prune_expired_backups() {
+    local base ids cutoff now latest_id kept=0 expired=0 purged=0 attempted=0 skipped=0 id ts _owner=""
+    local list_rc=0 raw="" started
+    base="${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}/backups"
+
+    if [ "${BACKUP_RETENTION}" -lt 1 ]; then
+        log "WARN" "[Retention] --retention ${BACKUP_RETENTION} would expire every backup including this run; refusing to prune S3"
+        return 0
+    fi
+
+    # The sweep cannot tell whose backup an id is — it deletes by age under THIS prefix. Two
+    # installs sharing a prefix would delete each other's backups, so say the prefix out loud
+    # on every run: it is the one line that makes a misconfigured shared prefix visible in the
+    # log before the deletes start.
+    log "INFO" "[Retention] Scope: prefix '${S3_PREFIX}' in bucket '${S3_BUCKET}' (must be unique per install)"
+    now=$(date +%s); started="${now}"
+    # +1 day so one --retention N means the same window as the `find -mtime +N` sweeps in this
+    # same function: -mtime truncates to whole days and matches age > N, i.e. it deletes at
+    # N+1 days. Without this, "retain 1 day" purged yesterday's backup (and its manifest and
+    # encryption key) at 25 hours while the local markers survived to 48.
+    cutoff=$((now - (BACKUP_RETENTION + 1) * 86400))
+    log "INFO" "[Retention] Pruning S3 backups older than ${BACKUP_RETENTION}d (before $(date -d "@${cutoff}" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "epoch ${cutoff}")) under ${base}/"
+
+    # rclone's status is captured BEFORE any pipe. Assigning `$(rclone ... | sed ...)` would
+    # take the pipeline's status from sed, which always succeeds — so a failed listing (no
+    # sidecar, exec timeout, 403) would read as "no backups", the sweep would no-op silently
+    # run after run, and the log would tell the operator the bucket is empty.
+    raw=$(s3_rclone lsf --dirs-only "${base}/" 2>/dev/null) || list_rc=$?
+    if [ "${list_rc}" -ne 0 ]; then
+        log "WARN" "[Retention] Could not list ${base}/ (rc ${list_rc}) — skipping the S3 sweep this run; NOT treating it as 'nothing to keep'"
+        return 0
+    fi
+    # Sorted so the per-run cap truncates oldest-first: for backup_YYYYMMDD-HHMMSS,
+    # lexicographic order IS chronological. Without it the cap deletes an arbitrary subset
+    # and the surviving window varies between runs and rclone versions.
+    ids=$(printf '%s\n' "${raw}" | sed 's:/$::' | grep -v '^$' | sort || true)
+    if [ -z "${ids}" ]; then
+        log "INFO" "[Retention] No backups under ${base}/"
+        return 0
+    fi
+
+    # Never orphan the pointer: read it BEFORE deleting anything, and treat a FAILED read as
+    # fail-closed. Piping into tr would hide rclone's status the same way the listing did,
+    # and an unreadable pointer that looks like "no pointer" disables the protection exactly
+    # when it is needed — producing the dangling 'latest' this function exists to avoid.
+    local latest_rc=0 latest_raw=""
+    latest_raw=$(s3_rclone cat "${base}/latest" 2>/dev/null) || latest_rc=$?
+    if [ "${latest_rc}" -ne 0 ]; then
+        # rclone also exits non-zero when the object simply is not there. Distinguish by
+        # asking whether it is listed at all — capturing the probe's OWN status, because
+        # `lsf ... | grep -q .` would take the pipeline's status from grep and a failed probe
+        # would look identical to "no pointer", silently disabling the protection this block
+        # exists to provide. (That is the same defect the listing above documents; it is easy
+        # to reintroduce, so both are written the same deliberate way.)
+        local probe_rc=0 probe_out=""
+        probe_out=$(s3_rclone lsf "${base}/latest" 2>/dev/null) || probe_rc=$?
+        if [ "${probe_rc}" -ne 0 ]; then
+            log "WARN" "[Retention] Could not read 'latest' (rc ${latest_rc}) and could not probe whether it exists (rc ${probe_rc}); refusing to prune rather than risk orphaning it"
+            return 0
+        fi
+        if [ -n "${probe_out}" ]; then
+            log "WARN" "[Retention] 'latest' exists but could not be read (rc ${latest_rc}); refusing to prune rather than risk orphaning it"
+            return 0
+        fi
+        log "INFO" "[Retention] No 'latest' pointer under ${base}/"
+    fi
+    latest_id=$(printf '%s' "${latest_raw}" | tr -d '[:space:]')
+    [ -n "${latest_id}" ] && log "INFO" "[Retention] 'latest' -> ${latest_id} (protected)"
+
+    # First pass: classify only. Nothing is deleted until the whole set is understood, so
+    # "this would delete everything" can be caught before the first destructive call.
+    # `set -f` for the classification and purge loops: ids come from whatever is in the
+    # bucket, not from the validated --backup-id charset, and S3 keys may contain * ? and [.
+    # Unquoted expansion would glob those against the pod's CWD, injecting names that were
+    # never in the bucket into the loop — and inflating the `skipped` counter that the
+    # all-expired guard relies on.
+    set -f
+    local expired_ids="" kept_parseable=0
+    for id in ${ids}; do
+        case "${id}" in
+            backup_*) ;;
+            *) log "INFO" "[Retention] Skipping '${id}' (not a backup_* directory)"; skipped=$((skipped + 1)); continue ;;
+        esac
+        ts=$(backup_id_epoch "${id}" || true)
+        # Emptiness is not enough: a `date` implementation that prints a diagnostic to stdout
+        # yields a non-empty, non-numeric ts, and `[ "text" -ge N ]` exits 2 — which the `if`
+        # below reads as false, classifying the backup EXPIRED and purging it. That directly
+        # violates the documented promise that unparseable ids are only ever skipped, so the
+        # shape is checked before it is ever compared.
+        case "${ts}" in
+            ''|*[!0-9]*)
+                log "WARN" "[Retention] Skipping '${id}': cannot parse a usable timestamp from the id"
+                skipped=$((skipped + 1)); continue ;;
+        esac
+        if [ "${ts}" -ge "${cutoff}" ]; then
+            kept=$((kept + 1)); kept_parseable=$((kept_parseable + 1)); continue
+        fi
+        if [ -n "${latest_id}" ] && [ "${id}" = "${latest_id}" ]; then
+            log "WARN" "[Retention] '${id}' is past the cutoff but is what 'latest' points at — keeping it"
+            kept=$((kept + 1)); kept_parseable=$((kept_parseable + 1)); continue
+        fi
+        # Ownership is checked only for deletion candidates, so the extra read is bounded by
+        # what is about to be destroyed rather than by the size of the bucket. Fail CLOSED:
+        # an unreadable or owner-less manifest means ownership cannot be established, and a
+        # backup we cannot prove is ours is not ours to delete.
+        _owner=$(backup_id_owner "${id}" || true)
+        if [ -z "${_owner}" ]; then
+            log "WARN" "[Retention] Skipping '${id}': cannot establish which namespace owns it (no readable manifest); refusing to delete a backup that cannot be proven ours"
+            skipped=$((skipped + 1)); continue
+        fi
+        if [ "${_owner}" != "${NAMESPACE}" ]; then
+            log "ERROR" "[Retention] Skipping '${id}': it belongs to namespace '${_owner}', not '${NAMESPACE}'."
+            log "ERROR" "[Retention]   Prefix '${S3_PREFIX}' is shared with another PMM-HA install. Give each install its own centralBackupStorage.s3.prefix — a shared prefix means each install's retention would delete the others' backups."
+            skipped=$((skipped + 1)); continue
+        fi
+        expired_ids="${expired_ids} ${id}"
+        expired=$((expired + 1))
+    done
+
+    if [ "${expired}" -eq 0 ]; then
+        set +f
+        log "INFO" "[Retention] Nothing expired (${kept} kept, ${skipped} skipped)"
+        return 0
+    fi
+    # The survivor test counts only KEPT PARSEABLE backups. `skipped` cannot stand in for a
+    # survivor: it lumps together a stray non-backup prefix, an aborted backup_<junk> holding
+    # nothing restorable, and a genuine backup with an odd id — so counting it meant one piece
+    # of junk under backups/ disarmed the guard entirely, and a mass-expiry condition (clock
+    # jump, retention mis-set, a backup_id_epoch regression) could purge every real backup
+    # except the one 'latest' names.
+    if [ "${kept_parseable}" -eq 0 ]; then
+        set +f
+        log "ERROR" "[Retention] Refusing to prune: all ${expired} parseable backup(s) are past the cutoff, leaving no known-good backup (${skipped} unparseable entr(y|ies) do not count). Check --retention (${BACKUP_RETENTION}d) and the system clock."
+        return 0
+    fi
+
+    for id in ${expired_ids}; do
+        # Cap ATTEMPTS, not successes. Counting only successes meant a systematic partial
+        # failure (rclone exits non-zero having deleted many objects) let the loop issue
+        # unlimited destructive calls while the counter never advanced — the opposite of a
+        # bound on destruction.
+        # The cap bounds destruction, so it does not apply to a dry run — truncating the
+        # preview would defeat its purpose as the review gate: the reviewer is supposed to see
+        # the WHOLE delete list, and a preview that stops at 50 of 400 shows 12% of it.
+        if [ "${DRY_RUN}" != "true" ] && [ "${attempted}" -ge "${S3_PRUNE_MAX_PER_RUN}" ]; then
+            log "WARN" "[Retention] Hit the per-run cap of ${S3_PRUNE_MAX_PER_RUN}; $((expired - attempted)) expired backup(s) left for the next run"
+            break
+        fi
+        if [ "${DRY_RUN}" != "true" ] && [ $(( $(date +%s) - started )) -ge "${S3_PRUNE_MAX_SECONDS}" ]; then
+            log "WARN" "[Retention] Sweep budget of ${S3_PRUNE_MAX_SECONDS}s reached; $((expired - attempted)) expired backup(s) left for the next run"
+            break
+        fi
+        attempted=$((attempted + 1))
+        if [ "${DRY_RUN}" = "true" ]; then
+            log "INFO" "[Retention] [DRY RUN] would purge ${base}/${id}"
+            purged=$((purged + 1))
+            continue
+        fi
+        log "INFO" "[Retention] Purging ${id} ..."
+        if s3_rclone_purge "${base}/${id}" >> "${LOG_FILE}" 2>&1; then
+            purged=$((purged + 1))
+        else
+            log "WARN" "[Retention] Failed to purge ${id} (left in place; will retry next run)"
+        fi
+    done
+
+    set +f
+    if [ "${DRY_RUN}" = "true" ]; then
+        log "INFO" "[Retention] [DRY RUN] S3 sweep would purge ${purged}, keep ${kept}, skip ${skipped} (real runs also stop at ${S3_PRUNE_MAX_PER_RUN} deletions or ${S3_PRUNE_MAX_SECONDS}s)"
+    else
+        log "INFO" "[Retention] S3 sweep: ${purged} purged (${attempted} attempted), ${kept} kept, ${skipped} skipped"
+    fi
+    return 0
+}
+
 cleanup_old_backups() {
     log "INFO" "=== Cleaning Up Old Backups ==="
     log "INFO" "Retention: ${BACKUP_RETENTION} days"
 
     if [ ! -d "${BACKUP_DIR}" ]; then
         log "WARN" "Backup directory ${BACKUP_DIR} does not exist"
+        # The S3 sweep needs nothing from BACKUP_DIR, so it must not be gated on it: a
+        # reviewer previewing the delete list from a laptop or an ad-hoc pod (where /backups
+        # is absent) would otherwise see only this warning and conclude there is nothing to
+        # purge — the review gate silently answering "nothing".
+        [ "${S3_ENABLED}" = "true" ] && s3_prune_expired_backups
         return 0
     fi
 
@@ -1712,6 +2019,10 @@ cleanup_old_backups() {
         if [ -n "${CENTRAL_BACKUP_PATH:-}" ] && [ -d "${CENTRAL_BACKUP_PATH}" ]; then
             log "INFO" "[DRY RUN]   \$ find ${CENTRAL_BACKUP_PATH} -maxdepth 1 -type d -name 'backup_*' -mtime +${BACKUP_RETENTION} -exec rm -rf {} \\;"
         fi
+        # The S3 sweep prints the EXACT prefixes it would purge, not just the command shape.
+        # This is the review gate for retention: a reviewer has to be able to see the real
+        # delete list against a real bucket before any of it runs for the first time.
+        [ "${S3_ENABLED}" = "true" ] && s3_prune_expired_backups
         log "INFO" "Cleanup completed (dry run)"
         return 0
     fi
@@ -1727,8 +2038,15 @@ cleanup_old_backups() {
     find "${BACKUP_DIR}/logs" -maxdepth 1 -type f -name "backup_*.log" -mtime +${BACKUP_RETENTION} \
         -delete >> "${LOG_FILE}" 2>&1 || true
     
+    # s3 mode: the find sweeps above only touched BACKUP_DIR, which in s3 mode holds just
+    # manifests/markers — the actual backups are in the bucket and nothing was pruning them.
+    # This used to be delegated to "an S3 lifecycle policy", which is not something the
+    # chart can create (the backup credentials deliberately have no PutLifecycleConfiguration)
+    # and which nobody was told to configure, so buckets grew without bound.
+    [ "${S3_ENABLED}" = "true" ] && s3_prune_expired_backups
+
     # PostgreSQL: pg_dump files live under backups/<id>/postgresql/, reaped with the
-    # per-run retention sweep above (s3: by lifecycle policy on the bucket).
+    # per-run retention sweep above (s3: by the S3 sweep in s3_prune_expired_backups).
     log "INFO" "[PostgreSQL] pg_dump files pruned with the per-run retention sweep"
 
     # ClickHouse cleanup
@@ -1753,11 +2071,11 @@ cleanup_old_backups() {
     fi
     
     # VictoriaMetrics writes straight to its target (no local leftover to prune):
-    #   s3     -> retention handled by S3 lifecycle policies
+    #   s3     -> under backups/<id>/victoriametrics/, so the S3 sweep above reaps it
     #   shared -> old runs reaped from the central RWX by the BACKUP_DIR sweep above
     if [ "${BACKUP_VICTORIAMETRICS}" = "true" ]; then
         if [ "${S3_ENABLED}" = "true" ]; then
-            log "INFO" "[VictoriaMetrics] S3 backups: managed by S3 lifecycle policies"
+            log "INFO" "[VictoriaMetrics] S3 backups: pruned with the per-run S3 retention sweep"
         else
             log "INFO" "[VictoriaMetrics] Shared backups: pruned by the central RWX retention sweep"
         fi
