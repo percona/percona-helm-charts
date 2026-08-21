@@ -259,10 +259,10 @@ spec:
             # Identifies the resource whose retentionPeriod PMM keeps in sync with its data
             # retention setting. Left unset when no VMCluster is deployed, which is how PMM
             # is told not to reconcile at all rather than to retry a missing resource every
-            # minute. Applying it also needs the Role in role.yaml, which this chart creates
-            # only when it manages the service account too.
+            # minute. Applying it also needs the Role in role-vmcluster.yaml, which this chart
+            # creates only when it manages the service account too.
             - name: PMM_VM_CLUSTER_NAME
-              value: {{ include "pmm.fullname" . }}-vmcluster
+              value: {{ printf "%s-vmcluster" (include "pmm.fullname" .) | quote }}
             - name: PMM_VM_CLUSTER_NAMESPACE
               valueFrom:
                 fieldRef:

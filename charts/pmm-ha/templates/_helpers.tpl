@@ -311,8 +311,8 @@ Example: dataRetentionDays: 90 -> PMM_DATA_RETENTION "2160h", and PMM sets the V
 retentionPeriod to "90d".
 */}}
 {{- define "pmm.dataRetention.validate" -}}
-{{- with .Values.victoriaMetrics }}
-  {{- with .vmstorage }}
+{{- if .Values.victoriaMetrics.enabled }}
+  {{- with .Values.victoriaMetrics.vmstorage }}
     {{- if hasKey . "retentionPeriod" }}
       {{- fail "victoriaMetrics.vmstorage.retentionPeriod is no longer used: PMM sets the VMCluster retention period from its own data retention setting, so a value declared here would be reverted on every `helm upgrade`. Change data retention in the PMM UI, or pin it with the top-level `dataRetentionDays` (whole days)." }}
     {{- end }}
@@ -324,6 +324,9 @@ retentionPeriod to "90d".
   {{- end }}
 {{- end }}
 {{- if not (kindIs "invalid" .Values.dataRetentionDays) }}
+  {{- if kindIs "bool" .Values.dataRetentionDays }}
+    {{- fail (printf "dataRetentionDays must be a whole number of days, got the boolean %v" .Values.dataRetentionDays) }}
+  {{- end }}
   {{- if or (lt (int .Values.dataRetentionDays) 1) (ne (float64 .Values.dataRetentionDays) (float64 (int .Values.dataRetentionDays))) }}
     {{- fail (printf "dataRetentionDays must be a whole number of days greater than or equal to 1, got %v" .Values.dataRetentionDays) }}
   {{- end }}
