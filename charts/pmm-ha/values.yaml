@@ -558,7 +558,23 @@ centralBackupStorage:
     ## rclone S3 provider profile for the PMM sidecar / backup-tools client:
     ## "AWS" (default), "Minio", "Ceph", or "Other" for anything else S3-compatible.
     provider: "AWS"
-    ## Key namespace under the bucket: s3://<bucket>/<prefix>/backups/<id>/...
+    ## Key prefix under the bucket. The full root is s3://<bucket>/<namespace>/<prefix>/, with
+    ## backups at <namespace>/<prefix>/backups/<id>/ and ClickHouse at
+    ## <namespace>/<prefix>/clickhouse/ — the release NAMESPACE is prepended automatically.
+    ##
+    ## Why that matters: retention deletes by AGE under an install's own root and cannot tell
+    ## whose backup an id is, so two installs sharing a root delete each other's backups —
+    ## irreversibly on a bucket without versioning. Because the namespace leads the path, two
+    ## instances in different namespaces of the same cluster are safe even if both leave this
+    ## at the default.
+    ##
+    ## SET A DISTINCT VALUE PER CLUSTER if several CLUSTERS share one bucket: Kubernetes
+    ## namespaces are cluster-scoped, so a `demo` namespace on two clusters would otherwise
+    ## resolve to the same root (e.g. "prod-eu" / "dr-us"). Nothing in the chart can detect
+    ## this for you — cluster identity is not readable through its namespaced RBAC.
+    ##
+    ## A DR/restore target keeps its OWN root here and names the source only at restore time:
+    ##   restore-orchestrator.sh --s3-prefix <source-namespace>/<source-prefix>
     prefix: "pmm-ha"
     ## Static credentials for the PMM rclone sidecar (pg_dump//srv/encryption-key/manifest
     ## uploads) and the restore temp pods. Required on non-AWS S3-compatible storage;

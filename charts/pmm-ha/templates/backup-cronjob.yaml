@@ -6,7 +6,10 @@
 {{- if eq $cbs.mode "s3" }}
   {{- /* Fail at render time rather than let every nightly Job fail on `--s3-bucket ""`. */}}
   {{- $_ := required "centralBackupStorage.schedule is enabled in s3 mode but centralBackupStorage.s3.bucket is empty — set centralBackupStorage.s3.bucket so scheduled backups can run." $cbs.s3.bucket }}
-  {{- $args = concat $args (list "--s3-bucket" $cbs.s3.bucket "--s3-region" $cbs.s3.region "--s3-prefix" $cbs.s3.prefix) }}
+  {{- /* --s3-prefix carries the composed <namespace>/<prefix> root, matching the S3_PREFIX
+         the backup-tools Deployment projects, so a scheduled run and a manual one write to
+         the same place. See the "pmm.backupS3Root" helper. */}}
+  {{- $args = concat $args (list "--s3-bucket" $cbs.s3.bucket "--s3-region" $cbs.s3.region "--s3-prefix" (include "pmm.backupS3Root" $)) }}
   {{- with $cbs.s3.endpoint }}{{- $args = concat $args (list "--s3-endpoint" .) }}{{- end }}
 {{- else }}
   {{- $args = concat $args (list "--shared-mount-path" $cbs.sharedMountPath) }}

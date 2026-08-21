@@ -183,11 +183,12 @@ spec:
                 - name: S3_REGION
                   value: "{{ .Values.clickhouse.backup.s3.region | default .Values.centralBackupStorage.s3.region }}"
                 - name: S3_PATH
-                  {{- /* Default to <centralBackupStorage.s3.prefix>/clickhouse so a second
-                         instance (different prefix) doesn't upload into the first instance's
-                         path — shared paths would cross incremental chains and let the two
-                         instances' retention clean up each other's backups. */}}
-                  value: "{{ .Values.clickhouse.backup.s3.path | default (printf "%s/clickhouse" .Values.centralBackupStorage.s3.prefix) }}"
+                  {{- /* Default to <namespace>/<prefix>/clickhouse so a second instance does
+                         not upload into the first instance's path — shared paths would cross
+                         incremental chains and let the two instances' retention clean up each
+                         other's backups. The namespace leads for the same reason it does in
+                         the backup root; see the "pmm.backupS3Root" helper. */}}
+                  value: "{{ .Values.clickhouse.backup.s3.path | default (printf "%s/clickhouse" (include "pmm.backupS3Root" .)) }}"
                 {{- /* Endpoint (like the credentials below) falls back to the central S3
                        endpoint, so a MinIO/Ceph user who sets centralBackupStorage.s3.endpoint
                        once doesn't have to repeat it here — otherwise clickhouse-backup would

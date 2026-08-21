@@ -281,3 +281,28 @@ release deleting the SA the other still uses). Override via centralBackupStorage
 {{- define "pmm.backupS3SaName" -}}
 {{- .Values.centralBackupStorage.s3.serviceAccountName | default (printf "%s-backup-s3" .Release.Name) -}}
 {{- end -}}
+
+{{/*
+S3 key root for THIS install: <namespace>/<prefix>.
+
+Every S3 path the backup and restore tooling builds hangs off this — backups/<id>/... and
+clickhouse/... — so it is the one place that decides which keys an install owns.
+
+Why the namespace leads the path: retention deletes by AGE under the root it is given and
+cannot tell whose backup an id is, so two installs sharing a root delete each other's
+backups (irreversibly, on a bucket without versioning). The prefix alone does not prevent
+that, because it defaults to the same literal "pmm-ha" for every install — so two namespaces
+on one cluster collide unless the operator intervenes. Leading with .Release.Namespace makes
+that case safe automatically, while keeping the prefix configurable for the case the
+namespace cannot solve: the same namespace name on two DIFFERENT clusters sharing one bucket
+(namespaces are cluster-scoped, and no cluster identity is readable from the chart's
+namespaced RBAC). Set a distinct prefix per cluster for that topology.
+
+Namespace first also keeps the bucket human-navigable and DR-discoverable: the path names the
+install, so a restore can be pointed at a source (--s3-prefix <ns>/<prefix>) without querying
+the source cluster, which in a real disaster may be gone.
+*/}}
+{{- define "pmm.backupS3Root" -}}
+{{- $prefix := .Values.centralBackupStorage.s3.prefix | default "pmm-ha" | trimPrefix "/" | trimSuffix "/" -}}
+{{- printf "%s/%s" .Release.Namespace $prefix -}}
+{{- end -}}

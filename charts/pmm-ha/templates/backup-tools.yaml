@@ -100,8 +100,11 @@ spec:
             value: {{ .Values.centralBackupStorage.s3.bucket | quote }}
           - name: S3_REGION
             value: {{ .Values.centralBackupStorage.s3.region | quote }}
+          {{- /* <namespace>/<prefix> — see the "pmm.backupS3Root" helper for why the
+                 namespace leads. The scripts treat S3_PREFIX as an opaque key prefix, so a
+                 multi-segment value needs no change on their side. */}}
           - name: S3_PREFIX
-            value: {{ .Values.centralBackupStorage.s3.prefix | quote }}
+            value: {{ include "pmm.backupS3Root" . | quote }}
           - name: S3_PROVIDER
             value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
           # Image for the temp rclone client pod the restore spawns (restore-orchestrator.sh reads
