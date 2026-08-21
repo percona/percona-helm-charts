@@ -126,7 +126,7 @@ The cluster-wide watch is a **values default**, so an operator release installed
 version is still namespace-scoped. Upgrade it before installing into a second namespace:
 
 ```bash
-helm upgrade pmm-operators percona/pmm-ha-dependencies --namespace pmm
+helm upgrade pmm-ha-operators percona/pmm-ha-dependencies --namespace pmm
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n pmm --timeout=180s
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickhouse-operator -n pmm --timeout=180s
 ```
