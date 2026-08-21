@@ -212,6 +212,14 @@ rules:
   - apiGroups: [""]
     resources: ["namespaces"]
     verbs: ["get"]
+  # ServiceAccount read (restore pre-flight). The temp mounter pods above are rendered with
+  # serviceAccountName on the IRSA path; if that SA is missing they are rejected at
+  # ADMISSION, i.e. after PMM has already been scaled to 0. validate_restore_targets()
+  # proves it exists beforehand, which needs read access here — without this rule the check
+  # gets 403 and (failing closed) would refuse every IRSA restore.
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get"]
   # Restore: VMCluster (scale vminsert, patch)
   - apiGroups: ["operator.victoriametrics.com"]
     resources: ["vmclusters"]
