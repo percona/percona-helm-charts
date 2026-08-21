@@ -297,9 +297,9 @@ dict with "name" and "value".
 Data retention.
 
 PMM owns retention. It applies whatever is set in the UI to Query Analytics directly, and
-to metrics by updating VMCluster.spec.retentionPeriod, which is why this chart neither
-declares that field nor sets PMM_DATA_RETENTION by default. Declaring either one would
-make every `helm upgrade` revert what the user set in the UI.
+to metrics by updating VMCluster.spec.retentionPeriod, which is why this chart leaves that
+field undeclared unless dataRetentionDays pins it. Declaring it otherwise would have each
+`helm upgrade` and PMM overwrite each other, rolling vmstorage each round.
 
 `dataRetentionDays` is the opt-out: setting it pins retention declaratively by rendering
 PMM_DATA_RETENTION, which PMM treats as authoritative and which makes the UI field
@@ -314,7 +314,7 @@ retentionPeriod to "90d".
 {{- if .Values.victoriaMetrics.enabled }}
   {{- with .Values.victoriaMetrics.vmstorage }}
     {{- if hasKey . "retentionPeriod" }}
-      {{- fail "victoriaMetrics.vmstorage.retentionPeriod is no longer used: PMM sets the VMCluster retention period from its own data retention setting, so a value declared here would be reverted on every `helm upgrade`. Change data retention in the PMM UI, or pin it with the top-level `dataRetentionDays` (whole days)." }}
+      {{- fail "victoriaMetrics.vmstorage.retentionPeriod is no longer used: PMM sets the VMCluster retention period from its own data retention setting, so a value declared here would fight PMM's, rolling vmstorage each round. Change data retention in the PMM UI, or pin it with the top-level `dataRetentionDays` (whole days)." }}
     {{- end }}
   {{- end }}
 {{- end }}

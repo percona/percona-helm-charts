@@ -892,8 +892,8 @@ victoriaMetrics:
   vmstorage:
     ## @param victoriaMetrics.vmstorage.replicaCount Number of vmstorage replicas
     replicaCount: 3
-    # retentionPeriod is derived from the top-level dataRetentionDays; setting it here
-    # would let metrics retention drift away from the retention PMM reports and applies
+    # retentionPeriod comes from dataRetentionDays when pinned, and from PMM otherwise.
+    # Setting it here would let metrics retention drift from what PMM reports and applies
     # to Query Analytics, so the chart rejects it.
     ## @param victoriaMetrics.vmstorage.resources Resource requests and limits for vmstorage
     resources:
