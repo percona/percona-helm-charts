@@ -559,8 +559,8 @@ centralBackupStorage:
     ## "AWS" (default), "Minio", "Ceph", or "Other" for anything else S3-compatible.
     provider: "AWS"
     ## Key prefix under the bucket. The full root is s3://<bucket>/<namespace>/<prefix>/, with
-    ## backups at <namespace>/<prefix>/backups/<id>/ and ClickHouse at
-    ## <namespace>/<prefix>/clickhouse/ — the release NAMESPACE is prepended automatically.
+    ## every component at <namespace>/<prefix>/<component>/<id>/, the index at
+    ## <namespace>/<prefix>/manifests/<id>.json — the release NAMESPACE is prepended automatically.
     ##
     ## Why that matters: retention deletes by AGE under an install's own root and cannot tell
     ## whose backup an id is, so two installs sharing a root delete each other's backups —

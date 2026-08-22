@@ -31,12 +31,12 @@ Kubernetes API server.
 one per-run prefix; only clickhouse-backup keeps its own native remote layout:
 
 ```
-s3://<bucket>/<prefix>/backups/<id>/postgresql/<db>.dump                     (pg_dump, custom format)
-s3://<bucket>/<prefix>/backups/<id>/pmm-server/<pod>/srv.tar.gz
-s3://<bucket>/<prefix>/backups/<id>/victoriametrics/<pod>/vm_backup_<id>/…  (+ backup_complete.ignore)
-s3://<bucket>/<prefix>/backups/<id>/encryption/pg-encryption-key.yaml
-s3://<bucket>/<prefix>/backups/<id>/manifest.json                           (per-run index)
-s3://<bucket>/<prefix>/clickhouse/pmm_backup_<id>/…                          (clickhouse-backup layout)
+s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump                     (pg_dump, custom format)
+s3://<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz
+s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>/…  (+ backup_complete.ignore)
+s3://<bucket>/<prefix>/encryption/<id>/pg-encryption-key.yaml
+s3://<bucket>/<prefix>/manifests/<id>.json                           (per-run index)
+s3://<bucket>/<prefix>/clickhouse/backup_<id>/…                          (clickhouse-backup layout)
 ```
 
 A run only marks itself complete when **every selected component fully succeeds**
@@ -94,7 +94,7 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
   application databases (everything except templates and the empty `postgres` db), and run
   `pg_dump -Fc` per database via local peer auth as the `postgres` superuser.
 - **Where stored**: one custom-format file per database under the per-run prefix —
-  `s3://<bucket>/<prefix>/backups/<id>/postgresql/<db>.dump` (s3, streamed `pg_dump | rclone
+  `s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump` (s3, streamed `pg_dump | rclone
   rcat` via the `pmm-backup` sidecar) or `<central>/backup_<id>/postgresql/<db>.dump`
   (shared, `pg_dump` streamed onto the mounted volume). For PMM that's typically
   `pmm-managed` + `grafana`.
@@ -107,7 +107,7 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
 
 - **Tool**: clickhouse-backup (Altinity sidecar)
 - **How**: `kubectl exec` into the ClickHouse pod, issues SQL commands against the `system.backup_actions` table to trigger `clickhouse-backup create`
-- **Where stored** (s3): `clickhouse-backup create` makes near-zero-space hardlinks on the pod, then `upload` pushes them to S3 (`REMOTE_STORAGE=s3`, `S3_PATH=<prefix>/clickhouse`, configured credentials — static keys or IRSA), then `delete local`. Objects land at `s3://<bucket>/<prefix>/clickhouse/pmm_backup_<id>/…`.
+- **Where stored** (s3): `clickhouse-backup create` makes near-zero-space hardlinks on the pod, then `upload` pushes them to S3 (`REMOTE_STORAGE=s3`, `S3_PATH=<prefix>/clickhouse`, configured credentials — static keys or IRSA), then `delete local`. Objects land at `s3://<bucket>/<prefix>/clickhouse/backup_<id>/…`.
 - **Incremental** (`--ch-backup-type incremental`): the local `create` is always a full
   hardlink snapshot; the diff happens at **upload** time — `upload
   --diff-from-remote=<previous-remote-backup> <name>` (flags before the positional name).
@@ -121,14 +121,14 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
 
 - **Tool**: vmbackup (sidecar in vmstorage pods)
 - **How**: For each vmstorage pod, `kubectl exec` into the `vmbackup` sidecar, creates a snapshot and runs `vmbackup-prod -dst=<target>`
-- **Where stored** (s3): `vmbackup -dst=s3://<bucket>/<prefix>/backups/<id>/victoriametrics/<pod>/vm_backup_<id>` uploads the snapshot **directly to S3** (configured credentials, `AWS_REGION` from the pod env; custom endpoints via `-customS3Endpoint`). vmbackup writes `backup_complete.ignore` at the destination as its **final** step, so the completion marker that `vmrestore` requires is always present.
+- **Where stored** (s3): `vmbackup -dst=s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>` uploads the snapshot **directly to S3** (configured credentials, `AWS_REGION` from the pod env; custom endpoints via `-customS3Endpoint`). vmbackup writes `backup_complete.ignore` at the destination as its **final** step, so the completion marker that `vmrestore` requires is always present.
 - **Note**: per-pod backups; the run is only marked complete if **every** vmstorage pod succeeds.
 
 ### PMM Server `/srv`
 
 - **Tool**: `tar` + `rclone` in the `pmm-backup` sidecar
-- **How**: PMM pods are discovered by label (`app.kubernetes.io/component=pmm-server`); for each, `kubectl exec` into the `pmm-backup` sidecar and run `tar -czf - -C / srv | rclone rcat --s3-no-check-bucket s3:<bucket>/<prefix>/backups/<id>/pmm-server/<pod>/srv.tar.gz`. The exec carries only the command; the tarball streams sidecar→S3.
-- **Where stored** (s3): `s3://<bucket>/<prefix>/backups/<id>/pmm-server/<pod>/srv.tar.gz`. After upload the script verifies the object exists (`rclone size`) and treats an empty/missing result as a failure.
+- **How**: PMM pods are discovered by label (`app.kubernetes.io/component=pmm-server`); for each, `kubectl exec` into the `pmm-backup` sidecar and run `tar -czf - -C / srv | rclone rcat --s3-no-check-bucket s3:<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz`. The exec carries only the command; the tarball streams sidecar→S3.
+- **Where stored** (s3): `s3://<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz`. After upload the script verifies the object exists (`rclone size`) and treats an empty/missing result as a failure.
 - **Prerequisite**: the `pmm-backup` rclone sidecar (added by the chart in `s3` mode) running in the PMM pods.
 
 ### Encryption Key
@@ -136,7 +136,7 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
 - **Tool**: `kubectl get secret` + rclone
 - **How**: Exports the `pg-encryption-key` Kubernetes Secret to clean YAML
 - **Tied to**: Only backed up when `--postgresql` is selected (it's a PostgreSQL encryption key)
-- **Where stored** (s3): uploaded to `s3://<bucket>/<prefix>/backups/<id>/encryption/pg-encryption-key.yaml` (SHA256 recorded). Note: the key is stored in the **same bucket** as the data — tighten with a separate prefix/restricted IAM if required.
+- **Where stored** (s3): uploaded to `s3://<bucket>/<prefix>/encryption/<id>/pg-encryption-key.yaml` (SHA256 recorded). Note: the key is stored in the **same bucket** as the data — tighten with a separate prefix/restricted IAM if required.
 
 ---
 
@@ -451,14 +451,14 @@ backup-orchestrator.sh --victoriametrics --backup-id "$BACKUP_ID" &
 wait
 ```
 
-Without `--backup-id`, each process auto-generates its own timestamp, resulting in separate directories. With `--backup-id`, all three write to the same directory (e.g., `/backups/backup_20260223-150001/`) with subdirectories `postgresql/`, `clickhouse/`, and `victoriametrics/`. This makes it clear which backups belong together for a coordinated restore.
+Without `--backup-id`, each process auto-generates its own timestamp, resulting in separate directories. With `--backup-id`, all three write under the same backup id (e.g. `/backups/postgresql/backup_20260223-150001/`, `/backups/clickhouse/backup_20260223-150001/`, …), and one shared `manifests/backup_20260223-150001.json` records the set. This makes it clear which backups belong together for a coordinated restore.
 
 In concurrent mode (single component with `--backup-id`), each process writes its own
 per-component log file (`logs/backup_<id>_postgresql.log`) to avoid conflicts; run status
 is consolidated in the shared `manifest.json` via the merge below.
 
 **Manifest merging**: each finishing process performs a read-merge-write of
-`backups/<id>/manifest.json` (serialized by a local mkdir-lock on the shared backup-tools
+`manifests/<id>.json` (serialized by a local mkdir-lock on the shared backup-tools
 pod): it fetches the manifest written so far, carries over the component entries it does
 not own, and recomputes the overall status from the merged set. The last finisher therefore
 produces a manifest listing ALL components of the group — no last-writer-wins clobbering.
@@ -744,7 +744,7 @@ backup-tools — same volume) contains, **all under one per-run dir**:
       pmm-managed.dump                # pg_dump custom format, one file per database
       grafana.dump
     clickhouse/
-      pmm_backup_20260223-150001.tar.gz   # in-pod tar of the clickhouse-backup FREEZE
+      backup_20260223-150001.tar.gz   # in-pod tar of the clickhouse-backup FREEZE
     victoriametrics/
       vmstorage-...-0/vm_backup_<id>/ # vmbackup fs:// output, per pod (+ backup_complete.ignore)
       vmstorage-...-1/vm_backup_<id>/
@@ -763,22 +763,22 @@ backup-tools — same volume) contains, **all under one per-run dir**:
 
 Most of a backup now lives under one per-run prefix; only ClickHouse keeps its own native
 remote layout (its remote path is fixed at deploy time and it names the folder by backup
-name, so it can't nest under `backups/<id>/`):
+name, so it is uploaded by clickhouse-backup itself, so its directory contents are tool-managed):
 
 | Component | Object location |
 |-----------|-----------------|
-| PostgreSQL | `s3://<bucket>/<prefix>/backups/<id>/postgresql/<db>.dump` *(pg_dump per database)* |
-| PMM `/srv` | `s3://<bucket>/<prefix>/backups/<id>/pmm-server/<pod>/srv.tar.gz` |
-| VictoriaMetrics | `s3://<bucket>/<prefix>/backups/<id>/victoriametrics/<pod>/vm_backup_<id>/` |
-| Encryption key | `s3://<bucket>/<prefix>/backups/<id>/encryption/pg-encryption-key.yaml` |
-| ClickHouse | `s3://<bucket>/<prefix>/clickhouse/pmm_backup_<id>/` *(clickhouse-backup's own layout)* |
+| PostgreSQL | `s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump` *(pg_dump per database)* |
+| PMM `/srv` | `s3://<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz` |
+| VictoriaMetrics | `s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>/` |
+| Encryption key | `s3://<bucket>/<prefix>/encryption/<id>/pg-encryption-key.yaml` |
+| ClickHouse | `s3://<bucket>/<prefix>/clickhouse/backup_<id>/` *(clickhouse-backup's own layout)* |
 
 To tie them together (and to record where ClickHouse landed), **every run writes one
 index**:
 
 ```
-s3://<bucket>/<prefix>/backups/<id>/manifest.json   # per component: status + how to locate/restore it
-s3://<bucket>/<prefix>/backups/latest               # text pointer -> newest backup id
+s3://<bucket>/<prefix>/manifests/<id>.json   # per component: status + how to locate/restore it
+s3://<bucket>/<prefix>/latest               # text pointer -> newest backup id
 ```
 
 **List with the orchestrator** (reads the manifests via the `pmm-backup` sidecar's rclone):
@@ -792,33 +792,33 @@ s3://<bucket>/<prefix>/backups/latest               # text pointer -> newest bac
 #   backup_20260609-120000         partial   postgresql,clickhouse,victoriametrics,pmm-server,encryption
 #   * latest -> backup_20260610-120000
 
-# Everything belonging to ONE backup: prints its manifest.json + the objects under backups/<id>/
+# Everything belonging to ONE backup: prints its manifest.json + the objects under <component>/<id>/
 ./backup-orchestrator.sh list backup_20260610-120000 --namespace demo --s3-bucket my-bucket
 ```
 
 The single-backup view prints a per-component table (status + location + a ready-to-run
-`restore` hint, PostgreSQL and ClickHouse inline) and a size listing of `backups/<id>/`.
+`restore` hint, PostgreSQL and ClickHouse inline) and a size listing of `<component>/<id>/`.
 Only ClickHouse lives outside that prefix; the manifest records its name
 (`components.clickhouse.name` → `clickhouse-backup restore_remote <name>`). PostgreSQL is
-under `backups/<id>/postgresql/` and restores with `pg_restore`.
+under `postgresql/<id>/` and restores with `pg_restore`.
 
 **List with raw AWS CLI / rclone** (e.g. from a workstation, no sidecar needed):
 
 ```bash
 # All backup ids + the latest pointer
-aws s3 ls s3://my-bucket/pmm-ha/backups/
-aws s3 cp s3://my-bucket/pmm-ha/backups/latest -   # prints the newest id
+aws s3 ls s3://my-bucket/<namespace>/pmm-ha/manifests/
+aws s3 cp s3://my-bucket/<namespace>/pmm-ha/latest -   # prints the newest id
 
 # One backup: read the manifest, then list its objects
-aws s3 cp s3://my-bucket/pmm-ha/backups/backup_20260610-120000/manifest.json -
-aws s3 ls --recursive s3://my-bucket/pmm-ha/backups/backup_20260610-120000/
+aws s3 cp s3://my-bucket/<namespace>/pmm-ha/manifests/backup_20260610-120000.json -
+aws s3 ls --recursive s3://my-bucket/<namespace>/pmm-ha/postgresql/backup_20260610-120000/
 
 # ClickHouse keeps its own layout outside the per-run prefix:
-aws s3 ls --recursive s3://my-bucket/pmm-ha/clickhouse/pmm_backup_20260610-120000/
+aws s3 ls --recursive s3://my-bucket/<namespace>/pmm-ha/clickhouse/backup_20260610-120000/
 
 # rclone equivalents (remote 's3' configured for the bucket)
-rclone cat   s3:my-bucket/pmm-ha/backups/backup_20260610-120000/manifest.json
-rclone lsl   s3:my-bucket/pmm-ha/backups/backup_20260610-120000/
+rclone cat   s3:my-bucket/<namespace>/pmm-ha/manifests/backup_20260610-120000.json
+rclone lsl   s3:my-bucket/<namespace>/pmm-ha/postgresql/backup_20260610-120000/
 ```
 
 > The manifest is the source of truth for *what belongs to a backup*. Restore should be

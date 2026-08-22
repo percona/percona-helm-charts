@@ -33,11 +33,11 @@ PostgreSQL is backed up with `pg_dump` (one custom-format file per database), so
 # shared: the dump is on the central volume (backup-tools mount)
 kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- \
   pg_restore --clean --if-exists --no-owner -U postgres -d <db> \
-  < /backups/backup_<id>/postgresql/<db>.dump
+  < /backups/postgresql/backup_<id>/<db>.dump
 
 # s3: stream it from the bucket through the pmm-backup sidecar's rclone
 kubectl exec -n <namespace> <pmm-pod> -c pmm-backup -- \
-  rclone cat --s3-no-check-bucket s3:<bucket>/<prefix>/backups/<id>/postgresql/<db>.dump \
+  rclone cat --s3-no-check-bucket s3:<bucket>/<prefix>/postgresql/<id>/<db>.dump \
   | kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- \
     pg_restore --clean --if-exists --no-owner -U postgres -d <db>
 ```
@@ -63,7 +63,7 @@ kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
 
 # shared: untar the archive into the backup dir, then restore
 kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- sh -c \
-  "tar -xzf /central/backup_<id>/clickhouse/<backup-name>.tar.gz -C /var/lib/clickhouse/backup \
+  "tar -xzf /central/clickhouse/backup_<id>/<backup-name>.tar.gz -C /var/lib/clickhouse/backup \
    && clickhouse-backup restore --rm <backup-name>"
 ```
 
@@ -75,9 +75,9 @@ own location:
 
 ```bash
 # in a temp pod that mounts vmstorage-db-<pod> at /vmstorage-data:
-vmrestore -src=s3://<bucket>/<prefix>/backups/<id>/victoriametrics/<pod>/vm_backup_<id> \
+vmrestore -src=s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id> \
   -storageDataPath=/vmstorage-data          # s3
-vmrestore -src=fs:///central/backup_<id>/victoriametrics/<pod>/vm_backup_<id> \
+vmrestore -src=fs:///central/victoriametrics/backup_<id>/<pod>/vm_backup_<id> \
   -storageDataPath=/vmstorage-data          # shared
 ```
 
@@ -89,7 +89,7 @@ The encryption key is a Kubernetes Secret exported to YAML:
 
 ```bash
 # Restore the encryption key secret
-kubectl apply -f /backups/backup_<timestamp>/encryption/pg-encryption-key.yaml
+kubectl apply -f /backups/encryption/backup_<timestamp>/pg-encryption-key.yaml
 
 # Verify
 kubectl get secret pg-encryption-key -n <namespace>

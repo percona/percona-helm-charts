@@ -81,8 +81,6 @@ spec:
             value: {{ .Release.Namespace }}
           - name: BACKUP_DIR
             value: {{ .Values.centralBackupStorage.mountPath }}
-          - name: CENTRAL_BACKUP_PATH
-            value: {{ .Values.centralBackupStorage.mountPath }}
           - name: METRICS_DIR
             value: {{ .Values.centralBackupStorage.mountPath }}/.metrics
           # Backup target + S3 settings the chart already knows, projected as env so
@@ -141,6 +139,10 @@ spec:
             mountPath: {{ .Values.centralBackupStorage.mountPath }}
           # Chart-shipped orchestrator scripts (subPath keeps /usr/local/bin intact, so
           # `kubectl exec ... -- backup-orchestrator.sh` works via PATH as before).
+          # Sourced by both orchestrators (same directory, resolved from $0).
+          - name: backup-scripts
+            mountPath: /usr/local/bin/backup-layout.sh
+            subPath: backup-layout.sh
           - name: backup-scripts
             mountPath: /usr/local/bin/backup-orchestrator.sh
             subPath: backup-orchestrator.sh

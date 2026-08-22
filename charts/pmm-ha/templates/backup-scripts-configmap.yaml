@@ -11,6 +11,10 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: backup-tools
 data:
+  # Sourced by both orchestrators — one definition of the backup layout and of how to read
+  # and write it. Two copies drifted apart before this existed.
+  backup-layout.sh: |
+{{ required "files/backup-layout.sh is missing from the chart — both orchestrators source it, and .Files.Get would silently render an empty key" (.Files.Get "files/backup-layout.sh") | indent 4 }}
   backup-orchestrator.sh: |
 {{ .Files.Get "files/backup-orchestrator.sh" | indent 4 }}
   restore-orchestrator.sh: |

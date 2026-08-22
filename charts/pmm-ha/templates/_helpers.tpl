@@ -285,7 +285,7 @@ release deleting the SA the other still uses). Override via centralBackupStorage
 {{/*
 S3 key root for THIS install: <namespace>/<prefix>.
 
-Every S3 path the backup and restore tooling builds hangs off this — backups/<id>/... and
+Every S3 path the backup and restore tooling builds hangs off this — <component>/<id>/ and
 clickhouse/... — so it is the one place that decides which keys an install owns.
 
 Why the namespace leads the path: retention deletes by AGE under the root it is given and

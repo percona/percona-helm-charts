@@ -102,19 +102,14 @@ LABEL_PMM_SERVER="app.kubernetes.io/component=pmm-server"
 LABEL_BACKUP_TOOLS="app.kubernetes.io/component=backup-tools"
 
 # Derived / state
-S3_BASE=""                 # ${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}/backups
-BACKUP_NAME=""             # backup_<timestamp>
-MANIFEST_FILE=""           # local temp copy of manifest.json
-MF_STATUS="" ; MF_TARGET="" ; MF_CREATED=""
-MF_PG_STATUS="" ; MF_PG_DBS=""
-MF_CH_STATUS="" ; MF_CH_NAME=""
-MF_VM_STATUS="" ; MF_PMM_STATUS="" ; MF_ENC_STATUS=""
-PMM_SAVED_REPLICAS="" ; PMM_STATEFULSET_NAME=""
-RESTORE_START_TIME=0
-ENCRYPTION_KEY_OK=false ; POSTGRESQL_OK=false ; CLICKHOUSE_OK=false
-VICTORIAMETRICS_OK=false ; PMM_SERVER_OK=false
-S3_CLIENT_POD=""
-LOG_FILE=""
+
+################################################################################
+# Backup layout + storage access — one definition, shared with the other orchestrator.
+# Sourced from the directory this script runs from: the chart mounts both scripts and
+# backup-layout.sh into /usr/local/bin, and $0 is the PATH-resolved absolute path. There is
+# deliberately NO fallback — a missing layout file must fail loudly here rather than let every
+# path builder resolve to nothing.
+################################################################################
 
 ################################################################################
 # Logging
@@ -137,7 +132,31 @@ log() {
 # Stream stdin (command output) to the log + stderr.
 append_to_log() { tee -a "${LOG_FILE}" >&2 2>/dev/null || cat >&2; }
 
-################################################################################
+
+# Runtime state initialised up front: the script runs under `set -u`, so anything read
+# before its first assignment aborts the run.
+BACKUP_NAME=""             # backup_<timestamp>
+MANIFEST_FILE=""           # local temp copy of manifest.json
+MF_STATUS="" ; MF_TARGET="" ; MF_CREATED=""
+MF_PG_STATUS="" ; MF_PG_DBS=""
+MF_CH_STATUS="" ; MF_CH_NAME=""
+MF_VM_STATUS="" ; MF_PMM_STATUS="" ; MF_ENC_STATUS=""
+PMM_SAVED_REPLICAS="" ; PMM_STATEFULSET_NAME=""
+RESTORE_START_TIME=0
+ENCRYPTION_KEY_OK=false ; POSTGRESQL_OK=false ; CLICKHOUSE_OK=false
+VICTORIAMETRICS_OK=false ; PMM_SERVER_OK=false
+S3_CLIENT_POD=""
+LOG_FILE=""
+
+backup_id_default() { echo "${BACKUP_NAME:-}"; }
+_layout_dir=$(dirname "$0")
+if [ -r "${_layout_dir}/backup-layout.sh" ]; then
+    . "${_layout_dir}/backup-layout.sh"
+else
+    echo "Error: backup-layout.sh not found next to $0 — the chart mounts it into the same directory." >&2
+    exit 1
+fi
+
 # S3 client (borrows the pmm-backup rclone sidecar — rclone + IRSA live there)
 ################################################################################
 pick_s3_client_pod() {
@@ -171,10 +190,9 @@ s3_rclone() {
 # {"count":0,"bytes":0}, so rc alone cannot tell absence from success — rc>0 is unambiguously
 # a check failure, and only then is the byte count meaningful.
 s3_object_state() {
-    local out rc=0 bytes
-    out=$(s3_rclone size --s3-no-check-bucket --json "$1" 2>/dev/null) || rc=$?
+    local bytes rc=0
+    bytes=$(store_bytes "$1" 2>/dev/null) || rc=$?
     [ "${rc}" -ne 0 ] && return 2
-    bytes=$(printf '%s' "${out}" | sed -n 's/.*"bytes":[ ]*\([0-9][0-9]*\).*/\1/p')
     [ "${bytes:-0}" -gt 0 ] 2>/dev/null
 }
 
@@ -198,12 +216,7 @@ k8s_object_state() {
 # so callers probe once here and skip their per-ordinal loop rather than reporting N lies.
 # Covers both targets: s3 lists through the client pod, shared stats the mounted path.
 backup_subdir_listable() {
-    local component="$1"
-    if [ "${S3_ENABLED}" = "true" ]; then
-        s3_rclone lsf --dirs-only "${S3_BASE}/${BACKUP_NAME}/${component}/" >/dev/null 2>&1
-    else
-        [ -d "${BACKUP_DIR}/${BACKUP_NAME}/${component}" ]
-    fi
+    store_list_dirs "$(comp_path "$1")" >/dev/null 2>&1
 }
 
 # Report a tri-state result against a component, returning non-zero when the caller should
@@ -313,26 +326,18 @@ load_manifest() {
     fi
     local id="${BACKUP_ID}"
     if [ "${id}" = "latest" ]; then
-        if [ "${S3_ENABLED}" = "true" ]; then
-            id=$(s3_rclone cat "${S3_BASE}/latest" 2>/dev/null | tr -d '[:space:]' || true)
-        else
-            id=$(cat "${BACKUP_DIR}/latest" 2>/dev/null | tr -d '[:space:]' || true)
-        fi
+        id=$(catalog_latest || true)
         if [ -z "${id}" ]; then log "ERROR" "Could not resolve 'latest' pointer (target=${BACKUP_TARGET})"; return 1; fi
         log "INFO" "Resolved 'latest' -> ${id}"
     fi
     case "${id}" in backup_*) BACKUP_NAME="${id}" ;; *) BACKUP_NAME="backup_${id}" ;; esac
 
     MANIFEST_FILE=$(mktemp /tmp/restore_manifest.XXXXXX 2>/dev/null || echo "/tmp/restore_manifest.$$")
-    if [ "${S3_ENABLED}" = "true" ]; then
-        s3_rclone cat "${S3_BASE}/${BACKUP_NAME}/manifest.json" > "${MANIFEST_FILE}" 2>/dev/null || true
-    else
-        cat "${BACKUP_DIR}/${BACKUP_NAME}/manifest.json" > "${MANIFEST_FILE}" 2>/dev/null || true
-    fi
+    store_read "$(manifest_path)" > "${MANIFEST_FILE}" 2>/dev/null || true
     if [ ! -s "${MANIFEST_FILE}" ]; then
         log "ERROR" "No manifest for ${BACKUP_NAME} (target=${BACKUP_TARGET})."
-        [ "${S3_ENABLED}" = "true" ] && log "ERROR" "  Looked at ${S3_BASE}/${BACKUP_NAME}/manifest.json (need a reachable pmm-backup sidecar + --s3-bucket)"
-        [ "${S3_ENABLED}" = "true" ] || log "ERROR" "  Looked at ${BACKUP_DIR}/${BACKUP_NAME}/manifest.json"
+        [ "${S3_ENABLED}" = "true" ] && log "ERROR" "  Looked at $(manifest_display) (need a reachable pmm-backup sidecar + --s3-bucket)"
+        [ "${S3_ENABLED}" = "true" ] || log "ERROR" "  Looked at $(manifest_path)"
         return 1
     fi
 
@@ -357,33 +362,28 @@ load_manifest() {
     return 0
 }
 
+
+# One implementation for both targets — it used to be two, and they had drifted (s3 showed
+# status, shared showed sizes and reversed the order).
 list_backups() {
-    local base
-    if [ "${S3_ENABLED}" = "true" ]; then
-        base="${S3_BASE}"
-        log "INFO" "Backups in s3://${S3_BUCKET}/${S3_PREFIX}/backups/:"
-        local latest ids id st
-        latest=$(s3_rclone cat "${base}/latest" 2>/dev/null | tr -d '[:space:]' || true)
-        ids=$(s3_rclone lsf --dirs-only "${base}/" 2>/dev/null | sed 's:/$::' | sort || true)
-        if [ -z "${ids}" ]; then log "INFO" "  (none found — empty bucket/prefix or sidecar unreachable)"; return 0; fi
-        for id in ${ids}; do
-            MANIFEST_FILE=$(mktemp /tmp/lm.XXXXXX 2>/dev/null || echo "/tmp/lm.$$")
-            s3_rclone cat "${base}/${id}/manifest.json" > "${MANIFEST_FILE}" 2>/dev/null || true
-            st=$([ -s "${MANIFEST_FILE}" ] && manifest_top status || echo "no-manifest")
-            rm -f "${MANIFEST_FILE}"
-            log "INFO" "  ${id}  [${st:-?}]$([ "${id}" = "${latest}" ] && echo '  *latest')"
-        done
-    else
-        log "INFO" "Backups in ${BACKUP_DIR}/:"
-        local d id st
-        for d in $(find "${BACKUP_DIR}" -maxdepth 1 -type d -name "backup_*" 2>/dev/null | sort -r); do
-            id=$(basename "${d}")
-            MANIFEST_FILE="${d}/manifest.json"
-            st=$([ -s "${MANIFEST_FILE}" ] && manifest_top status || echo "no-manifest")
-            log "INFO" "  ${id}  [${st:-?}]  $(du -sh "${d}" 2>/dev/null | cut -f1)"
-        done
-        [ -f "${BACKUP_DIR}/latest" ] && log "INFO" "  latest -> $(cat "${BACKUP_DIR}/latest" 2>/dev/null)"
+    local latest ids id st rc=0
+    log "INFO" "Backups in $(backup_root_display)/:"
+    # || true: see backup-orchestrator — an unguarded read aborts under set -eu.
+    latest=$(catalog_latest || true)
+    ids=$(catalog_ids) || rc=$?
+    if [ "${rc}" -ne 0 ]; then
+        log "WARN" "  (could not read the catalog at $(manifests_dir)/ — not the same as 'none')"
+        return 0
     fi
+    if [ -z "${ids}" ]; then log "INFO" "  (none found)"; return 0; fi
+    for id in ${ids}; do
+        MANIFEST_FILE=$(mktemp /tmp/lm.XXXXXX 2>/dev/null || echo "/tmp/lm.$$")
+        catalog_manifest "${id}" > "${MANIFEST_FILE}" 2>/dev/null || true
+        st=$([ -s "${MANIFEST_FILE}" ] && manifest_top status || echo "no-manifest")
+        rm -f "${MANIFEST_FILE}"
+        log "INFO" "  ${id}  [${st:-?}]$([ "${id}" = "${latest}" ] && echo '  *latest')"
+    done
+    log "INFO" "  latest -> ${latest:-<unset>}"
 }
 
 # `list` subcommand: no id -> list all backups; with an id -> inspect that backup's manifest
@@ -394,11 +394,7 @@ cmd_list() {
     if [ -z "${want}" ]; then list_backups; return 0; fi
     case "${want}" in backup_*) name="${want}" ;; *) name="backup_${want}" ;; esac
     MANIFEST_FILE=$(mktemp /tmp/lm.XXXXXX 2>/dev/null || echo "/tmp/lm.$$")
-    if [ "${S3_ENABLED}" = "true" ]; then
-        s3_rclone cat "${S3_BASE}/${name}/manifest.json" > "${MANIFEST_FILE}" 2>/dev/null || true
-    else
-        cat "${BACKUP_DIR}/${name}/manifest.json" > "${MANIFEST_FILE}" 2>/dev/null || true
-    fi
+    catalog_manifest "${name}" > "${MANIFEST_FILE}" 2>/dev/null || true
     if [ ! -s "${MANIFEST_FILE}" ]; then log "ERROR" "No manifest for ${name} (target=${BACKUP_TARGET})"; rm -f "${MANIFEST_FILE}"; return 1; fi
     printf '=== %s  (status: %s, target: %s, %s) ===\n' "${name}" "$(manifest_top status)" "$(manifest_top target)" "$(manifest_top created)"
     printf '  %-16s %-9s %s\n' "COMPONENT" "STATUS" "DETAIL"
@@ -407,14 +403,17 @@ cmd_list() {
     printf '  %-16s %-9s %s\n' "victoriametrics" "$(mf_field victoriametrics status)" ""
     printf '  %-16s %-9s %s\n' "pmm-server"      "$(mf_field pmm-server status)"      ""
     printf '  %-16s %-9s %s\n' "encryption"      "$(mf_field encryption status)"      ""
-    if [ "${S3_ENABLED}" = "true" ]; then
-        printf '\n  Objects under s3://%s/%s/backups/%s/:\n' "${S3_BUCKET}" "${S3_PREFIX}" "${name}"
-        objs=$(s3_rclone lsf "${S3_BASE}/${name}/" 2>/dev/null || true)
-        if [ -n "${objs}" ]; then echo "${objs}" | sed 's/^/    /'; else echo "    (none)"; fi
-    else
-        printf '\n  Contents of %s/%s/ (sizes):\n' "${BACKUP_DIR}" "${name}"
-        du -sh "${BACKUP_DIR}/${name}"/* 2>/dev/null | sed 's|^|    |' || echo "    (none)"
-    fi
+    # Per component, because there is no single <id>/ directory any more — this used to probe
+    # <root>/<id>/ and so always printed "(none)" after the layout change.
+    printf '\n  Component paths under %s/ for %s:\n' "$(backup_root_display)" "${name}"
+    for _c in ${BACKUP_COMPONENTS}; do
+        objs=$(store_list "$(comp_path "${_c}" "${name}")" 2>/dev/null || true)
+        if [ -n "${objs}" ]; then
+            printf '    %-16s %s\n' "${_c}/" "$(printf '%s' "${objs}" | tr '\n' ' ')"
+        else
+            printf '    %-16s %s\n' "${_c}/" "(absent)"
+        fi
+    done
     rm -f "${MANIFEST_FILE}"
     return 0
 }
@@ -609,7 +608,7 @@ parse_args() {
     done
 
     case "${BACKUP_TARGET}" in
-        s3) S3_ENABLED=true; S3_BASE="${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}/backups" ;;
+        s3) S3_ENABLED=true ;;
         shared) S3_ENABLED=false ;;
         *) echo "Error: invalid --target '${BACKUP_TARGET}' (must be s3 or shared)" >&2; exit 1 ;;
     esac
@@ -763,17 +762,12 @@ validate_restore_targets() {
     # from all_ok, the run would then print "Restore completed successfully" over data
     # that cannot be decrypted. --skip-encryption-key is the explicit, narrow override.
     if [ "${RESTORE_ENCRYPTION_KEY}" = "true" ] && [ "${MF_ENC_STATUS}" = "success" ]; then
-        local _enc_path
-        if [ "${S3_ENABLED}" = "true" ]; then
-            _enc_path="${S3_BASE}/${BACKUP_NAME}/encryption/pg-encryption-key.yaml"
-            if [ "${s3_readable}" = "true" ]; then
-                _st=0; s3_object_state "${_enc_path}" || _st=$?
-                report_state "${_st}" "encryption" "key ${_enc_path}" "--skip-encryption-key to drop it" || fail=1
-            fi
-        else
-            _enc_path="${BACKUP_DIR}/${BACKUP_NAME}/encryption/pg-encryption-key.yaml"
-            [ -s "${_enc_path}" ] \
-                || { report_state 1 "encryption" "key ${_enc_path}" "--skip-encryption-key to drop it" || fail=1; }
+        # One path, one probe: s3_object_state routes through store_bytes, which handles both
+        # targets and preserves the could-not-look signal that `[ -s ]` cannot express.
+        local _enc_path="$(comp_path encryption)/pg-encryption-key.yaml"
+        if [ "${S3_ENABLED}" != "true" ] || [ "${s3_readable}" = "true" ]; then
+            _st=0; s3_object_state "${_enc_path}" || _st=$?
+            report_state "${_st}" "encryption" "key ${_enc_path}" "--skip-encryption-key to drop it" || fail=1
         fi
     fi
 
@@ -792,11 +786,11 @@ validate_restore_targets() {
             for _db in ${MF_PG_DBS}; do
                 if [ "${S3_ENABLED}" = "true" ]; then
                     if [ "${s3_readable}" = "true" ]; then
-                        _st=0; s3_object_state "${S3_BASE}/${BACKUP_NAME}/postgresql/${_db}.dump" || _st=$?
+                        _st=0; s3_object_state "$(comp_path postgresql)/${_db}.dump" || _st=$?
                         report_state "${_st}" "postgresql" "dump ${_db}.dump" "--skip-postgresql to drop it" || fail=1
                     fi
-                elif [ ! -s "${BACKUP_DIR}/${BACKUP_NAME}/postgresql/${_db}.dump" ]; then
-                    report_state 1 "postgresql" "dump ${BACKUP_DIR}/${BACKUP_NAME}/postgresql/${_db}.dump" "--skip-postgresql to drop it" || fail=1
+                elif [ ! -s "$(comp_path postgresql)/${_db}.dump" ]; then
+                    report_state 1 "postgresql" "dump $(comp_path postgresql)/${_db}.dump" "--skip-postgresql to drop it" || fail=1
                 fi
             done
         fi
@@ -837,13 +831,13 @@ validate_restore_targets() {
             log "INFO" "[Preflight] clickhouse: listing remote backups (can take a while on a populated bucket)..."
             _ch_list=$(timeout "${CH_LIST_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_chpod}" -c clickhouse-backup -- \
                 clickhouse-backup list remote \
-                --env "S3_BUCKET=${S3_BUCKET}" --env "S3_PATH=${S3_PREFIX}/clickhouse" 2>/dev/null) || _ch_rc=$?
+                --env "S3_BUCKET=${S3_BUCKET}" --env "S3_PATH=$(clickhouse_remote_key)" 2>/dev/null) || _ch_rc=$?
             if [ "${_ch_rc}" -ne 0 ]; then
                 log "ERROR" "[Preflight] clickhouse: could not list remote backups (exit ${_ch_rc}); is the 'clickhouse-backup' sidecar running in ${_chpod}?"
                 log "ERROR" "[Preflight]   Not treating this as 'backup absent' — the check itself failed. Fix the sidecar, or pass --skip-clickhouse."
                 fail=1
             elif ! echo "${_ch_list}" | awk '{print $1}' | grep -Fxq "${MF_CH_NAME}"; then
-                log "ERROR" "[Preflight] clickhouse: remote backup '${MF_CH_NAME}' not found under s3://${S3_BUCKET}/${S3_PREFIX}/clickhouse"
+                log "ERROR" "[Preflight] clickhouse: remote backup '${MF_CH_NAME}' not found under s3://${S3_BUCKET}/$(clickhouse_remote_key)"
                 log "ERROR" "[Preflight]   ClickHouse retention prunes independently of the central backups, so an older backup can outlive its ClickHouse half."
                 log "ERROR" "[Preflight]   Restore a newer backup, or pass --skip-clickhouse to restore everything else without QAN data."
                 fail=1
@@ -866,11 +860,11 @@ validate_restore_targets() {
             # stderr: kubectl writes a diagnostic, `test` never does.
             local _cht_rc=0 _cht_err=""
             _cht_err=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_chpod}" -c clickhouse-backup -- \
-                test -s "${SHARED_MOUNT_PATH}/${BACKUP_NAME}/clickhouse/${MF_CH_NAME}.tar.gz" 2>&1 >/dev/null) || _cht_rc=$?
+                test -s "$(comp_inpod clickhouse)/${MF_CH_NAME}.tar.gz" 2>&1 >/dev/null) || _cht_rc=$?
             if [ "${_cht_rc}" -eq 0 ]; then
                 :
             elif [ "${_cht_rc}" -eq 1 ] && [ -z "${_cht_err}" ]; then
-                report_state 1 "clickhouse" "${SHARED_MOUNT_PATH}/${BACKUP_NAME}/clickhouse/${MF_CH_NAME}.tar.gz inside ${_chpod}" "--skip-clickhouse to drop it" || fail=1
+                report_state 1 "clickhouse" "$(comp_inpod clickhouse)/${MF_CH_NAME}.tar.gz inside ${_chpod}" "--skip-clickhouse to drop it" || fail=1
             else
                 log "ERROR" "[Preflight] clickhouse: could not test the tarball inside ${_chpod} (rc ${_cht_rc}): ${_cht_err:-no stderr}"
                 log "ERROR" "[Preflight]   NOT treating this as 'backup absent' — fix the pod/RBAC, or pass --skip-clickhouse."
@@ -930,11 +924,7 @@ validate_restore_targets() {
                     # listing (timeout, evicted client pod) would read as "source is empty" —
                     # blaming the backup for an infrastructure problem.
                     local _vmls="" _vmrc=0
-                    if [ "${S3_ENABLED}" = "true" ]; then
-                        _vmls=$(s3_rclone lsf "${S3_BASE}/${BACKUP_NAME}/victoriametrics/${_sub}/${_vmname}/" 2>/dev/null) || _vmrc=$?
-                    else
-                        _vmls=$(ls -A "${BACKUP_DIR}/${BACKUP_NAME}/victoriametrics/${_sub}/${_vmname}" 2>/dev/null) || _vmrc=$?
-                    fi
+                    _vmls=$(store_list "$(comp_path victoriametrics)/${_sub}/${_vmname}" 2>/dev/null) || _vmrc=$?
                     if [ "${_vmrc}" -ne 0 ]; then
                         report_state 2 "victoriametrics" "source for ordinal '${_ord}' (${_sub}/${_vmname})" "--skip-victoriametrics to drop it" || fail=1
                     elif [ -z "${_vmls}" ]; then
@@ -986,10 +976,10 @@ validate_restore_targets() {
                     log "ERROR" "[Preflight] pmm-server: backup has no /srv directory for ordinal ${_i} (${_replicas} replica(s) expected)"
                     fail=1
                 elif [ "${S3_ENABLED}" = "true" ]; then
-                    _st=0; s3_object_state "${S3_BASE}/${BACKUP_NAME}/pmm-server/${_sub}/srv.tar.gz" || _st=$?
+                    _st=0; s3_object_state "$(comp_path pmm-server)/${_sub}/srv.tar.gz" || _st=$?
                     report_state "${_st}" "pmm-server" "srv.tar.gz for ordinal ${_i} (${_sub})" "--skip-pmm-server to drop it" || fail=1
-                elif [ ! -s "${BACKUP_DIR}/${BACKUP_NAME}/pmm-server/${_sub}/srv.tar.gz" ]; then
-                    report_state 1 "pmm-server" "${BACKUP_DIR}/${BACKUP_NAME}/pmm-server/${_sub}/srv.tar.gz" "--skip-pmm-server to drop it" || fail=1
+                elif [ ! -s "$(comp_path pmm-server)/${_sub}/srv.tar.gz" ]; then
+                    report_state 1 "pmm-server" "$(comp_path pmm-server)/${_sub}/srv.tar.gz" "--skip-pmm-server to drop it" || fail=1
                 fi
                 _i=$((_i + 1))
             done
@@ -1139,11 +1129,7 @@ scale_up_pmm() {
 restore_encryption_key() {
     local tmp
     tmp=$(mktemp /tmp/enc.XXXXXX 2>/dev/null || echo "/tmp/enc.$$")
-    if [ "${S3_ENABLED}" = "true" ]; then
-        s3_rclone cat "${S3_BASE}/${BACKUP_NAME}/encryption/pg-encryption-key.yaml" > "${tmp}" 2>/dev/null || true
-    else
-        cat "${BACKUP_DIR}/${BACKUP_NAME}/encryption/pg-encryption-key.yaml" > "${tmp}" 2>/dev/null || true
-    fi
+    store_read "$(comp_path encryption)/pg-encryption-key.yaml" > "${tmp}" 2>/dev/null || true
     if [ ! -s "${tmp}" ]; then log "ERROR" "[EncryptionKey] not found for ${BACKUP_NAME}"; rm -f "${tmp}"; return 1; fi
     # The exported Secret carries the SOURCE namespace in its metadata, so applying it into a
     # different namespace fails ("the namespace from the object does not match"). Rewrite it to
@@ -1174,9 +1160,9 @@ restore_postgresql() {
     for db in ${dbs}; do
         if [ "${DRY_RUN}" = "true" ]; then
             if [ "${S3_ENABLED}" = "true" ]; then
-                log "INFO" "[PostgreSQL] [DRY RUN] rclone cat ${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}/backups/${BACKUP_NAME}/postgresql/${db}.dump | pg_restore --clean --if-exists -d ${db} (in ${pg_pod})"
+                log "INFO" "[PostgreSQL] [DRY RUN] rclone cat $(comp_path postgresql)/${db}.dump | pg_restore --clean --if-exists -d ${db} (in ${pg_pod})"
             else
-                log "INFO" "[PostgreSQL] [DRY RUN] pg_restore --clean --if-exists -d ${db} < ${BACKUP_DIR}/${BACKUP_NAME}/postgresql/${db}.dump (in ${pg_pod})"
+                log "INFO" "[PostgreSQL] [DRY RUN] pg_restore --clean --if-exists -d ${db} < $(comp_path postgresql)/${db}.dump (in ${pg_pod})"
             fi
             continue
         fi
@@ -1184,7 +1170,7 @@ restore_postgresql() {
         log "INFO" "[PostgreSQL] Restoring database ${db} into ${pg_pod}..."
         local pr_out; pr_out=$(mktemp /tmp/pgrestore.XXXXXX 2>/dev/null || echo "/tmp/pgrestore.$$")
         if [ "${S3_ENABLED}" = "true" ]; then
-            local uri="${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}/backups/${BACKUP_NAME}/postgresql/${db}.dump"
+            local uri="$(comp_path postgresql)/${db}.dump"
             local s3pod; s3pod=$(pick_s3_client_pod) || { log "ERROR" "[PostgreSQL] No pmm-backup sidecar to read the dump"; rm -f "${pr_out}"; return 1; }
             # Verify the dump object exists and is non-empty BEFORE piping: the pipeline's
             # status is pg_restore's, so a missing object would otherwise surface only as
@@ -1199,7 +1185,7 @@ restore_postgresql() {
                 | timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "${pg_pod}" -c database -- \
                   pg_restore --clean --if-exists -U postgres -d "${db}" >"${pr_out}" 2>&1 || rc=$?
         else
-            local dump="${BACKUP_DIR}/${BACKUP_NAME}/postgresql/${db}.dump"
+            local dump="$(comp_path postgresql)/${db}.dump"
             if [ ! -s "${dump}" ]; then log "ERROR" "[PostgreSQL] dump not found: ${dump}"; fail=1; rm -f "${pr_out}"; continue; fi
             timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "${pg_pod}" -c database -- \
                 pg_restore --clean --if-exists -U postgres -d "${db}" < "${dump}" >"${pr_out}" 2>&1 || rc=$?
@@ -1238,9 +1224,9 @@ restore_clickhouse() {
 
     if [ "${DRY_RUN}" = "true" ]; then
         if [ "${S3_ENABLED}" = "true" ]; then
-            log "INFO" "[ClickHouse] [DRY RUN] kubectl exec ${ch_pod} -c clickhouse-backup -- clickhouse-backup restore_remote --env S3_BUCKET=${S3_BUCKET} --env S3_PATH=${S3_PREFIX}/clickhouse --rm ${name}"
+            log "INFO" "[ClickHouse] [DRY RUN] kubectl exec ${ch_pod} -c clickhouse-backup -- clickhouse-backup restore_remote --env S3_BUCKET=${S3_BUCKET} --env S3_PATH=$(clickhouse_remote_key) --rm ${name}"
         else
-            log "INFO" "[ClickHouse] [DRY RUN] kubectl exec ${ch_pod} -c clickhouse-backup -- sh -c 'tar -xzf ${SHARED_MOUNT_PATH}/${BACKUP_NAME}/clickhouse/${name}.tar.gz -C /var/lib/clickhouse/backup && clickhouse-backup restore --rm ${name}'"
+            log "INFO" "[ClickHouse] [DRY RUN] kubectl exec ${ch_pod} -c clickhouse-backup -- sh -c 'tar -xzf $(comp_inpod clickhouse)/${name}.tar.gz -C /var/lib/clickhouse/backup && clickhouse-backup restore --rm ${name}'"
         fi
         return 0
     fi
@@ -1253,13 +1239,13 @@ restore_clickhouse() {
         # prefix, not the backup being restored. Redirect via the tool's own --env flag
         # ("override any environment variable via CLI parameter", verified on 2.8.0) using
         # --s3-bucket/--s3-prefix (the source); IAM access is bucket-wide already.
-        log "INFO" "[ClickHouse] restore_remote --rm ${name} (from s3://${S3_BUCKET}/${S3_PREFIX}/clickhouse, in ${ch_pod})..."
+        log "INFO" "[ClickHouse] restore_remote --rm ${name} (from s3://${S3_BUCKET}/$(clickhouse_remote_key), in ${ch_pod})..."
         timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse-backup -- \
             clickhouse-backup restore_remote \
-            --env "S3_BUCKET=${S3_BUCKET}" --env "S3_PATH=${S3_PREFIX}/clickhouse" \
+            --env "S3_BUCKET=${S3_BUCKET}" --env "S3_PATH=$(clickhouse_remote_key)" \
             --rm "${name}" >>"${LOG_FILE}" 2>&1 || rc=$?
     else
-        local tar="${SHARED_MOUNT_PATH}/${BACKUP_NAME}/clickhouse/${name}.tar.gz"
+        local tar="$(comp_inpod clickhouse)/${name}.tar.gz"
         log "INFO" "[ClickHouse] untar ${tar} + restore --rm ${name} (in ${ch_pod})..."
         timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse-backup -- \
             sh -c "mkdir -p /var/lib/clickhouse/backup && tar -xzf '${tar}' -C /var/lib/clickhouse/backup && clickhouse-backup restore --rm '${name}'" >>"${LOG_FILE}" 2>&1 || rc=$?
@@ -1340,13 +1326,7 @@ delete_vm_restore_pod() {
 # same-release restore (or if the listing is unavailable).
 vm_src_subdir_for_ord() {
     local ord="$1"
-    if [ "${S3_ENABLED}" = "true" ]; then
-        s3_rclone lsf --dirs-only "${S3_BASE}/${BACKUP_NAME}/victoriametrics/" 2>/dev/null \
-            | sed 's:/$::' | grep -E "\-${ord}\$" | head -1
-    else
-        ls -1 "${BACKUP_DIR}/${BACKUP_NAME}/victoriametrics/" 2>/dev/null \
-            | grep -E "\-${ord}\$" | head -1
-    fi
+    store_list_dirs "$(comp_path victoriametrics)" 2>/dev/null | grep -E "\-${ord}\$" | head -1
 }
 
 # Count vmstorage ordinals present in the backup (source). Used to fail fast on a shard-count
@@ -1354,11 +1334,7 @@ vm_src_subdir_for_ord() {
 # different number of target pods either silently drops the extra source shards (source > target)
 # or runs the whole restore then fails on a missing ordinal (target > source).
 vm_src_ordinal_count() {
-    if [ "${S3_ENABLED}" = "true" ]; then
-        s3_rclone lsf --dirs-only "${S3_BASE}/${BACKUP_NAME}/victoriametrics/" 2>/dev/null | grep -c '/$'
-    else
-        ls -1 "${BACKUP_DIR}/${BACKUP_NAME}/victoriametrics/" 2>/dev/null | grep -c '[^[:space:]]'
-    fi
+    store_list_dirs "$(comp_path victoriametrics)" 2>/dev/null | grep -c '[^[:space:]]'
 }
 
 vm_src_for_pod() {
@@ -1369,10 +1345,13 @@ vm_src_for_pod() {
     # listing failed (e.g. no rclone client) or the backup lacks this ordinal — restoring
     # from a guessed path produced a wasted full run once already. Caller must handle rc=1.
     [ -z "${sub}" ] && return 1
+    # vmrestore's -src takes a scheme, so this is one of the few places the target genuinely
+    # differs in more than access method: s3:// for the bucket, fs:// for the mounted volume
+    # (as the vmstorage POD sees it, hence comp_inpod).
     if [ "${S3_ENABLED}" = "true" ]; then
-        echo "s3://${S3_BUCKET}/${S3_PREFIX}/backups/${BACKUP_NAME}/victoriametrics/${sub}/${name}"
+        echo "$(comp_display victoriametrics)/${sub}/${name}"
     else
-        echo "fs://${SHARED_MOUNT_PATH}/${BACKUP_NAME}/victoriametrics/${sub}/${name}"
+        echo "fs://$(comp_inpod victoriametrics)/${sub}/${name}"
     fi
 }
 
@@ -1509,11 +1488,7 @@ restore_victoriametrics() {
 # Backup's pmm-server subdir for a target ordinal (trailing -N), release-name independent.
 pmm_src_subdir_for_ord() {
     local ord="$1"
-    if [ "${S3_ENABLED}" = "true" ]; then
-        s3_rclone lsf --dirs-only "${S3_BASE}/${BACKUP_NAME}/pmm-server/" 2>/dev/null | sed 's:/$::' | grep -E "\-${ord}\$" | head -1
-    else
-        ls -1 "${BACKUP_DIR}/${BACKUP_NAME}/pmm-server/" 2>/dev/null | grep -E "\-${ord}\$" | head -1
-    fi
+    store_list_dirs "$(comp_path pmm-server)" 2>/dev/null | grep -E "\-${ord}\$" | head -1
 }
 
 # Temp pod mounting a pmm-storage PVC at /srv (PMM is down, so the RWO PVC is free).
@@ -1603,12 +1578,12 @@ restore_pmm_server() {
         if ! create_pmm_restore_pod "${restore_pod}" "${pvc}" "${image}"; then delete_vm_restore_pod "${restore_pod}"; continue; fi
         rc=0
         if [ "${S3_ENABLED}" = "true" ]; then
-            local uri="${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}/backups/${BACKUP_NAME}/pmm-server/${src_subdir}/srv.tar.gz"
+            local uri="$(comp_path pmm-server)/${src_subdir}/srv.tar.gz"
             log "INFO" "[PMMServer] Restoring /srv (ord ${ord}) -> ${pvc} from S3..."
             timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${restore_pod}" -- \
                 sh -c "rclone cat --s3-no-check-bucket '${uri}' | tar -xzf - -C /srv --no-same-owner && rm -rf /srv/ha" >>"${LOG_FILE}" 2>&1 || rc=$?
         else
-            local tb="${SHARED_MOUNT_PATH}/${BACKUP_NAME}/pmm-server/${src_subdir}/srv.tar.gz"
+            local tb="$(comp_inpod pmm-server)/${src_subdir}/srv.tar.gz"
             log "INFO" "[PMMServer] Restoring /srv (ord ${ord}) -> ${pvc} from ${tb}..."
             timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${restore_pod}" -- \
                 sh -c "tar -xzf '${tb}' -C /srv --no-same-owner && rm -rf /srv/ha" >>"${LOG_FILE}" 2>&1 || rc=$?
