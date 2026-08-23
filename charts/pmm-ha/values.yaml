@@ -574,7 +574,7 @@ centralBackupStorage:
     ## this for you — cluster identity is not readable through its namespaced RBAC.
     ##
     ## A DR/restore target keeps its OWN root here and names the source only at restore time:
-    ##   restore-orchestrator.sh --s3-prefix <source-namespace>/<source-prefix>
+    ##   pmm-backup.sh restore --s3-prefix <source-namespace>/<source-prefix>
     prefix: "pmm-ha"
     ## Static credentials for the PMM rclone sidecar (pg_dump//srv/encryption-key/manifest
     ## uploads) and the restore temp pods. Required on non-AWS S3-compatible storage;
@@ -659,7 +659,7 @@ centralBackupStorage:
   mountPath: /backups
   
   ## NOTE: backup retention is controlled by centralBackupStorage.schedule.retentionDays
-  ## (passed to backup-orchestrator.sh --retention). There is no per-component retention here.
+  ## (passed to `pmm-backup.sh backup --retention`). There is no per-component retention here.
 
   ## @param centralBackupStorage.schedule Scheduled full backups via a Kubernetes CronJob.
   ## The CronJob triggers a backup by `kubectl exec` into the always-on backup-tools Deployment
@@ -815,7 +815,7 @@ tls:
 ##
 pg-db:
   ## Custom annotations the operator propagates to its objects. Not needed for
-  ## backup-orchestrator.sh (PostgreSQL is backed up with pg_dump). Only set an IRSA
+  ## pmm-backup.sh (PostgreSQL is backed up with pg_dump). Only set an IRSA
   ## role-arn here if you enable an OPTIONAL offsite pgBackRest S3 repo (web-id), e.g.:
   ##   metadata:
   ##     annotations:
@@ -946,7 +946,7 @@ pg-db:
       image: docker.io/percona/percona-pgbackrest:2.56.0-1
       
       ## @param pg-db.backups.pgbackrest.manual Manual backup configuration
-      ## Used when triggering on-demand backups via backup-orchestrator.sh or kubectl
+      ## Used when triggering on-demand backups via pmm-backup.sh or kubectl
       manual:
         ## @param pg-db.backups.pgbackrest.manual.repoName Default repository for manual backups
         repoName: repo1
@@ -959,7 +959,7 @@ pg-db:
         ## - --repo1-retention-diff=3       # Keep 3 differential backups
         ## - --repo1-retention-archive=7    # Keep 7 sets of WAL archives
         options:
-        - --type=full                    # Full backup for manual runs (e.g. backup-orchestrator.sh)
+        - --type=full                    # Full backup for manual runs (e.g. pmm-backup.sh)
         - --repo1-retention-full=1      # Keep 1 full on repo-host so full-folder copy to central is minimal
         - --repo1-retention-diff=1
         - --repo1-retention-archive=1
@@ -972,7 +972,7 @@ pg-db:
       ## - repo4: Azure storage
       ##
       ## IMPORTANT: Scheduled backups are DISABLED by default.
-      ## Backups must be triggered manually using backup-orchestrator.sh or kubectl.
+      ## Backups must be triggered manually using pmm-backup.sh or kubectl.
       ## To enable scheduled backups, uncomment the 'schedules:' section below.
       repos:
       ## Repository 1: Local storage (required, used for WAL archiving)
@@ -1001,13 +1001,13 @@ pg-db:
                 ## @param pg-db.backups.pgbackrest.repos[0].volume.volumeClaimSpec.resources.requests.storage Backup storage size
                 ## repo1 is LOCAL-only: WAL archive + one retained full for replica bootstrap/HA
                 ## (retention is capped at 1 full via manual.options below). The actual off-cluster
-                ## backups are logical pg_dumps taken by backup-orchestrator.sh, NOT pgBackRest, so
+                ## backups are logical pg_dumps taken by pmm-backup.sh, NOT pgBackRest, so
                 ## repo1 stays small. 1Gi matches the operator default — raising it forces a PVC
                 ## expansion on upgrade (fails on storage classes without allowVolumeExpansion).
                 ## Storage persists even after helm uninstall.
                 storage: 1Gi
       
-      ## NOTE: backup-orchestrator.sh backs up PostgreSQL with pg_dump (logical), it does
+      ## NOTE: pmm-backup.sh backs up PostgreSQL with pg_dump (logical), it does
       ## NOT use a pgBackRest offsite repo. repo1 (local) is required by the operator for
       ## replica bootstrap / HA. repo2/3/4 below are OPTIONAL offsite pgBackRest repos you
       ## can enable independently; the orchestrator neither needs nor uses them.
@@ -1040,7 +1040,7 @@ pg-db:
       #     full: "0 5 * * 0"  # Sunday at 5 AM UTC
 
       ## pgBackRest global options — only needed for optional offsite repos you enable above
-      ## (e.g. repo2-s3-key-type: web-id). backup-orchestrator.sh uses pg_dump, so it needs none.
+      ## (e.g. repo2-s3-key-type: web-id). pmm-backup.sh uses pg_dump, so it needs none.
       global: {}
     
     ## @section S3 Credentials Configuration

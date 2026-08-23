@@ -192,13 +192,13 @@ pod the chart already exports the target and all S3 settings from your values, s
 
 ```bash
 # Full backup
-kubectl exec -n <namespace> deploy/<release>-backup-tools -- backup-orchestrator.sh
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh backup
 
 # List backups
-kubectl exec -n <namespace> deploy/<release>-backup-tools -- restore-orchestrator.sh list
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh list
 
-# Restore the latest backup (DESTRUCTIVE — scales PMM/VM down; see docs/restore-orchestrator.md)
-kubectl exec -n <namespace> deploy/<release>-backup-tools -- restore-orchestrator.sh --backup-id latest --force
+# Restore the latest backup (DESTRUCTIVE — scales PMM/VM down; see docs/pmm-backup.md §8)
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh restore --backup-id latest --force
 ```
 
 Scheduled backups (Kubernetes CronJob, disabled by default — enable once the target is
@@ -217,16 +217,14 @@ centralBackupStorage:
 runs. The CronJob `kubectl exec`s into the backup-tools pod (reusing its ServiceAccount,
 scripts, volume and env) rather than mounting the central volume itself, and starts the
 backup detached so it survives the trigger being disrupted — see the *Scheduled Backups*
-section of [docs/backup-orchestrator.md](docs/backup-orchestrator.md).
+section of [docs/pmm-backup.md](docs/pmm-backup.md).
 
 Full documentation:
 
-- [docs/backup-orchestrator.md](docs/backup-orchestrator.md) — architecture, per-component
-  backup methods, chart integration, IRSA setup, scheduling, metrics, CLI reference,
-  operations guide, and known limitations.
-- [docs/restore-orchestrator.md](docs/restore-orchestrator.md) — restore flow,
-  cross-namespace / disaster-recovery restore, what to expect during a run, and
-  post-restore steps.
+- [docs/pmm-backup.md](docs/pmm-backup.md) — architecture, per-component backup
+  methods, chart integration, IRSA setup, scheduling, metrics, CLI reference,
+  operations guide, the restore flow (incl. cross-namespace / disaster-recovery
+  restore and post-restore steps), and known limitations.
 
 ## Uninstalling the Chart
 

@@ -2,11 +2,11 @@
 # PMM-HA scheduled-backup trigger wrapper.
 #
 # Runs INSIDE the backup-tools pod — the backup CronJob execs `cron-backup.sh` here. A naive
-# CronJob would `kubectl exec ... -- backup-orchestrator.sh` and hold that exec stream open
+# CronJob would `kubectl exec ... -- pmm-backup.sh backup` and hold that exec stream open
 # for the whole (multi-hour) backup; a single apiserver/network blip then kills the
 # orchestrator mid-upload, and the Job's retry collides with the still-held per-component
 # locks. Instead this wrapper:
-#   1. starts backup-orchestrator.sh DETACHED (setsid/nohup) so it outlives the exec stream,
+#   1. starts `pmm-backup.sh backup` DETACHED (setsid/nohup) so it outlives the exec stream,
 #      recording its exit code in a small status file next to the log, and
 #   2. polls that status file for completion.
 # If the trigger's exec dies, the detached backup keeps running and the CronJob's retry
@@ -20,7 +20,7 @@
 # whose log has not advanced in CRON_BACKUP_STALL_MIN minutes is treated as CRASHED and
 # restarted instead of re-attached. A CronJob-level activeDeadlineSeconds is the final bound.
 #
-# Usage: cron-backup.sh [--run-id ID] [backup-orchestrator.sh options...]
+# Usage: cron-backup.sh [--run-id ID] [pmm-backup.sh backup options...]
 #   --run-id  Stable identifier for this scheduled run (the CronJob passes the Job name), so
 #             retries reconnect to the same backup. Defaults to a per-process id if omitted.
 set -eu
@@ -47,7 +47,7 @@ if [ "${1:-}" = "__run" ]; then
     ( while [ ! -f "${_status}" ]; do sleep 60; touch "${_log}" 2>/dev/null || true; done ) &
     _hb=$!
     # Capture the exit code without letting `set -e` abort before we record it.
-    backup-orchestrator.sh "$@" >>"${_log}" 2>&1 && _rc=0 || _rc=$?
+    pmm-backup.sh backup "$@" >>"${_log}" 2>&1 && _rc=0 || _rc=$?
     kill "${_hb}" 2>/dev/null || true
     # Publish atomically: write the fully-formed file, then rename into place, so a polling
     # reader never sees a 0-byte .status mid-write (which would read back as an empty, then
@@ -143,7 +143,7 @@ while [ ! -f "${STATUS}" ]; do
     fi
 done
 
-echo "===== backup-orchestrator log (${RUN_ID}) ====="
+echo "===== pmm-backup log (${RUN_ID}) ====="
 cat "${LOG}" 2>/dev/null || true
 echo "===== end log (${RUN_ID}) ====="
 

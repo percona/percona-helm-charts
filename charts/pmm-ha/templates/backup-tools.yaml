@@ -1,6 +1,6 @@
 {{- if .Values.centralBackupStorage.enabled }}
 ---
-# backup-tools: the pod the backup/restore orchestrators run in. A Deployment (not a bare
+# backup-tools: the pod pmm-backup.sh (backup/restore/list) runs in. A Deployment (not a bare
 # Pod) so it survives eviction / node loss / manual deletion; replicas=1 + Recreate
 # because the logs/metrics volume is typically RWO (a rolling update would deadlock on
 # the volume attachment).
@@ -52,7 +52,7 @@ spec:
             for comp in postgresql clickhouse victoriametrics; do
               [ -f "${METRICS_PATH}/${comp}_metrics.prom" ] || echo '# Waiting for first backup run' > "${METRICS_PATH}/${comp}_metrics.prom"
             done
-            [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by restore-orchestrator)' > "${METRICS_PATH}/restore_metrics.prom"
+            [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
             serve_metrics() {
               while true; do
                 { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; cat "${METRICS_PATH}/$1" 2>/dev/null || echo '# not found'; } | nc -l -p "$2" -w 5 >/dev/null 2>&1
@@ -84,7 +84,7 @@ spec:
           - name: METRICS_DIR
             value: {{ .Values.centralBackupStorage.mountPath }}/.metrics
           # Backup target + S3 settings the chart already knows, projected as env so
-          # restore-orchestrator.sh (and manual backup-orchestrator.sh runs) default to THIS
+          # pmm-backup.sh (restore and manual backup runs) defaults to THIS
           # install rather than requiring every --target/--s3-* flag to be re-typed — a
           # forgotten --s3-secret otherwise makes a static-key restore schedule temp pods
           # under a non-existent SA and fail at admission mid-restore. Flags still override.
@@ -105,7 +105,7 @@ spec:
             value: {{ include "pmm.backupS3Root" . | quote }}
           - name: S3_PROVIDER
             value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
-          # Image for the temp rclone client pod the restore spawns (restore-orchestrator.sh reads
+          # Image for the temp rclone client pod the restore spawns (pmm-backup.sh restore reads
           # S3_CLIENT_IMAGE). Projected from the same centralBackupStorage.client.image values the
           # PMM sidecar uses, so a mirror / air-gapped registry override is honored on restore
           # instead of falling back to the hardcoded docker.io/rclone/rclone default (which would
@@ -137,18 +137,11 @@ spec:
         volumeMounts:
           - name: central-backup-storage
             mountPath: {{ .Values.centralBackupStorage.mountPath }}
-          # Chart-shipped orchestrator scripts (subPath keeps /usr/local/bin intact, so
-          # `kubectl exec ... -- backup-orchestrator.sh` works via PATH as before).
-          # Sourced by both orchestrators (same directory, resolved from $0).
+          # Chart-shipped orchestrator (subPath keeps /usr/local/bin intact, so
+          # `kubectl exec ... -- pmm-backup.sh` works via PATH).
           - name: backup-scripts
-            mountPath: /usr/local/bin/backup-layout.sh
-            subPath: backup-layout.sh
-          - name: backup-scripts
-            mountPath: /usr/local/bin/backup-orchestrator.sh
-            subPath: backup-orchestrator.sh
-          - name: backup-scripts
-            mountPath: /usr/local/bin/restore-orchestrator.sh
-            subPath: restore-orchestrator.sh
+            mountPath: /usr/local/bin/pmm-backup.sh
+            subPath: pmm-backup.sh
           - name: backup-scripts
             mountPath: /usr/local/bin/cron-backup.sh
             subPath: cron-backup.sh

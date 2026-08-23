@@ -1,7 +1,7 @@
 {{- if and .Values.centralBackupStorage.enabled .Values.centralBackupStorage.schedule.enabled }}
 {{- $cbs := .Values.centralBackupStorage }}
 {{- $s := $cbs.schedule }}
-{{- /* Build the backup-orchestrator argument list from values. */}}
+{{- /* Build the `pmm-backup.sh backup` argument list from values. */}}
 {{- $args := list "--namespace" .Release.Namespace "--target" $cbs.mode "--retention" (printf "%d" (int $s.retentionDays)) }}
 {{- if eq $cbs.mode "s3" }}
   {{- /* Fail at render time rather than let every nightly Job fail on `--s3-bucket ""`. */}}
@@ -21,7 +21,7 @@
 # Multi-Attach against the RWO logs/metrics PVC held by the always-on backup-tools
 # Deployment), this job execs INSIDE that Deployment's pod — so the run reuses the pod's
 # volume, scripts and env, and its metrics land where vmagent scrapes them. It runs
-# cron-backup.sh, which starts backup-orchestrator.sh DETACHED and polls for completion:
+# cron-backup.sh, which starts `pmm-backup.sh backup` DETACHED and polls for completion:
 # the actual backup survives this trigger's exec stream dying, and a Job retry re-execs
 # cron-backup.sh with the same --run-id (the Job name) to RE-ATTACH to the in-flight run
 # instead of colliding with the orchestrator's still-held per-component locks.
