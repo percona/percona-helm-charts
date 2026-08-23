@@ -723,14 +723,27 @@ sh "${_rn_dir}/run.sh" "${TARGET}" "${_rn_dir}/marks" >/dev/null 2>&1
 # While the parent lived, the lease was being kept fresh.
 if [ -s "${_rn_dir}/marks" ]; then ok; else bad "a held lease is renewed while the run works" "at least one renewal" "none"; fi
 # The parent is gone now. The renewer has to notice and stop on its own.
+#
+# Assert the pid was actually captured FIRST. Without this the whole check is vacuous: an empty
+# _rn_pid makes `kill -0 ""` fail immediately, which reads as "stopped" and passes the assertion
+# below no matter what start_lock_renewer did — so a renewer that never started, or a child that
+# died before writing marks.pid, would look like a working fix.
 _rn_pid=$(cat "${_rn_dir}/marks.pid" 2>/dev/null || echo "")
+case "${_rn_pid}" in
+    ''|*[!0-9]*) bad "the renewer's pid was captured" "a pid" "[${_rn_pid}]" ;;
+    *) ok ;;
+esac
 _rn_state="still-running"
 _rn_waited=0
 while [ "${_rn_waited}" -lt 8 ]; do
     kill -0 "${_rn_pid}" 2>/dev/null || { _rn_state="stopped"; break; }
     sleep 1; _rn_waited=$((_rn_waited + 1))
 done
-assert_eq "the renewer stops once the orchestrator is gone" "stopped" "${_rn_state}"
+# Only meaningful if there was a pid to watch — guarded above, asserted here.
+case "${_rn_pid}" in
+    ''|*[!0-9]*) ;;   # already reported; do not also report a meaningless "stopped"
+    *) assert_eq "the renewer stops once the orchestrator is gone" "stopped" "${_rn_state}" ;;
+esac
 [ "${_rn_state}" = "stopped" ] || kill "${_rn_pid}" 2>/dev/null || true
 rm -rf "${_rn_dir}"
 

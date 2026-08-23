@@ -241,7 +241,13 @@ spec:
                   mountPath: {{ .Values.centralBackupStorage.sharedMountPath }}
                 {{- end }}
             {{- end }}
-          {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+          {{- /* Gated on clickhouse.backup.enabled as well as the mode, because the ONLY
+                 container that mounts this volume is the clickhouse-backup sidecar above,
+                 which carries the same condition. Without it, disabling the ClickHouse
+                 backup left every CH pod declaring a volume nothing mounts — and in shared
+                 mode that is the RWX central PVC, so the pod gains a mount dependency (and
+                 fails to start if the claim is missing or cannot bind) for no reason. */}}
+          {{- if and .Values.centralBackupStorage.enabled .Values.clickhouse.backup.enabled (eq .Values.centralBackupStorage.mode "shared") }}
           volumes:
             {{- include "pmm.centralBackupVolume" . | nindent 12 }}
           {{- end }}

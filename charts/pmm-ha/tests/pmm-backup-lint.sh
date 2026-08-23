@@ -114,12 +114,31 @@ print("  ok: every global read is initialised at top level")
 # wait on explicit PIDs.
 # The --help text contains a `wait` in its concurrent-backup example; that is documentation
 # inside a heredoc, not code, so the help function's body is excluded.
-help_start = next((i for i, ln in enumerate(lines) if ln.startswith('show_help()')), None)
+# Both the bare-`wait` rule below and the backtick rule after it EXCLUDE / SCAN the show_help
+# heredoc, so if these anchors stop resolving, those checks silently pass on everything or scan
+# the wrong range. A renamed function, a `show_help ()` with a space, or a changed heredoc
+# delimiter would do it. Fail loudly instead of degrading into a no-op gate.
+help_start = next((i for i, ln in enumerate(lines) if re.match(r'^show_help\s*\(\)', ln)), None)
+if help_start is None:
+    print("FAIL: cannot find the show_help() definition, so the --help heredoc cannot be located.")
+    print("      Two checks below depend on it and would silently pass. Fix this lint's anchor.")
+    raise SystemExit(1)
+m_delim = next((re.search(r"<<-?\s*'?([A-Za-z_][A-Za-z0-9_]*)'?", ln)
+                for ln in lines[help_start:help_start + 5] if '<<' in ln), None)
+if not m_delim:
+    print(f"FAIL: no heredoc opener found within 5 lines of show_help() (line {help_start + 1}).")
+    raise SystemExit(1)
+help_delim = m_delim.group(1)
 help_end = next((i for i, ln in enumerate(lines[help_start:], help_start)
-                 if ln.strip() == 'EOF'), help_start) if help_start is not None else -1
+                 if ln.strip() == help_delim), None)
+if help_end is None:
+    print(f"FAIL: the show_help heredoc opened with <<{help_delim} has no matching terminator.")
+    print("      Without it the checks below would scan an unrelated range of the file.")
+    raise SystemExit(1)
+print(f"  ok: show_help heredoc located (lines {help_start + 1}-{help_end + 1}, delimiter {help_delim})")
 bare = [i + 1 for i, ln in enumerate(lines)
         if re.match(r'^\s*wait\s*(#.*)?$', ln)
-        and not (help_start is not None and help_start <= i <= help_end)]
+        and not (help_start <= i <= help_end)]
 if bare:
     print("FAIL: bare `wait` waits for the lock renewer too and will hang. Wait on explicit PIDs.")
     for n in bare: print(f"        line {n}")
@@ -130,14 +149,13 @@ print("  ok: no bare `wait` (it would block on the lock renewer)")
 # backticks inside it command substitution: a markdown-style `consistency: per-component` in the
 # text ran `consistency:` as a command, so every --help printed a "command not found" error, and
 # any future backticked content would EXECUTE. Use single quotes in that text.
-if help_start is not None and help_end > help_start:
-    ticked = [i + 1 for i, ln in enumerate(lines[help_start:help_end], help_start) if '`' in ln]
-    if ticked:
-        print("FAIL: backtick inside show_help's unquoted heredoc — it is command substitution,")
-        print("      not markdown. Use single quotes:")
-        for n in ticked: print(f"        line {n}: {lines[n - 1].strip()}")
-        raise SystemExit(1)
-    print("  ok: no backticks in the unquoted --help heredoc")
+ticked = [i + 1 for i, ln in enumerate(lines[help_start:help_end], help_start) if '`' in ln]
+if ticked:
+    print("FAIL: backtick inside show_help's unquoted heredoc — it is command substitution,")
+    print("      not markdown. Use single quotes:")
+    for n in ticked: print(f"        line {n}: {lines[n - 1].strip()}")
+    raise SystemExit(1)
+print("  ok: no backticks in the unquoted --help heredoc")
 PY
 
 if [ "${FAIL}" -eq 0 ]; then echo "LINT OK"; exit 0; fi

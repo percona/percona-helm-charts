@@ -641,9 +641,11 @@ centralBackupStorage:
   ## (Forcing RWX on a cluster whose only storage class is RWO leaves the PVC Pending.)
   accessMode: ""
 
-  ## @param centralBackupStorage.existingClaim PVC name for central backup storage
-  ## When set, the chart creates/keeps a PVC with this name (helm.sh/resource-policy: keep).
-  ## When empty (default), the chart generates a release-scoped name (<release>-central-backup).
+  ## @param centralBackupStorage.existingClaim Name of a PRE-CREATED PVC to consume
+  ## When set, the chart does NOT create a PVC: it only references this one by name, so the
+  ## claim must already exist (standard Helm existingClaim semantics — the chart must not try
+  ## to own a PVC it did not create, which fails on ownership metadata).
+  ## When empty (default), the chart creates and owns <release>-central-backup.
   ## Example: "pmm-ha-central-backup-efs"
   existingClaim: ""
 
@@ -925,10 +927,11 @@ pg-db:
     ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
     serverHost: pmm-ha-haproxy
   ## @param pg-db.pmm.resources Resource requests and limits for PMM client sidecar
-  # resources:
-  #   requests:
-  #     memory: 200M
-  #     cpu: 500m
+  ## (Indented under `pmm:` — uncommenting at the outer level would set pg-db.resources.)
+  #   resources:
+  #     requests:
+  #       memory: 200M
+  #       cpu: 500m
 
   ## @section PostgreSQL Backup Configuration (pgBackRest)
   ## This section configures pgBackRest backups for PostgreSQL

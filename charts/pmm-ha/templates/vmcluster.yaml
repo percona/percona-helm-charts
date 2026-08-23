@@ -149,14 +149,13 @@ spec:
         env:
           - name: AWS_REGION
             value: {{ .Values.victoriaMetrics.vmstorage.backup.s3.region | default .Values.centralBackupStorage.s3.region }}
-          {{- /* Endpoint falls back to the central S3 endpoint (like the credentials below),
-                 so "set centralBackupStorage.s3 once" also points vmbackup at MinIO/Ceph
-                 instead of AWS. */}}
-          {{- $vmEndpoint := .Values.victoriaMetrics.vmstorage.backup.s3.endpoint | default .Values.centralBackupStorage.s3.endpoint }}
-          {{- if $vmEndpoint }}
-          - name: AWS_ENDPOINT
-            value: {{ $vmEndpoint }}
-          {{- end }}
+          {{- /* NO endpoint env here. vmbackup/vmrestore take a custom S3 endpoint ONLY as the
+                 -customS3Endpoint FLAG, which pmm-backup.sh builds and passes; an AWS_ENDPOINT
+                 env var used to be rendered here and was read by nothing at all, so a
+                 victoriaMetrics.vmstorage.backup.s3.endpoint override looked configured and was
+                 silently ignored. The effective endpoint (this override, else the central one)
+                 is projected into the backup-tools pod as VM_S3_ENDPOINT instead, because that
+                 is the process that invokes both tools. */}}
           {{- /* Credentials default to the central S3 secret so a MinIO/Ceph user who sets
                  centralBackupStorage.s3.existingSecret once also authenticates vmbackup,
                  instead of silently failing VM uploads every run. */}}

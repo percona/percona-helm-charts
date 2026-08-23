@@ -91,6 +91,13 @@ spec:
             # nc ships with BusyBox on alpine-based images, but don't rely on it: the
             # metrics listeners below need it, so install a fallback if it's missing.
             command -v nc >/dev/null 2>&1 || apk add --no-cache netcat-openbsd >/dev/null 2>&1 || true
+            # The two nc families spell "listen on this port" INCOMPATIBLY, and the fallback
+            # above installs the other one: BusyBox needs `-l -p PORT`, while OpenBSD nc wants
+            # `-l PORT` and rejects -p alongside -l. Hardcoding either silently kills every
+            # metrics listener on the image that has the other, so pick the form from the
+            # binary that is actually present rather than from an assumption about the image.
+            if nc --help 2>&1 | grep -qi busybox; then NC_LISTEN="-l -p"; else NC_LISTEN="-l"; fi
+            echo "metrics listener: nc ${NC_LISTEN} <port>"
             METRICS_PATH="{{ .Values.centralBackupStorage.mountPath }}/.metrics"
             mkdir -p "${METRICS_PATH}"
             for comp in postgresql clickhouse victoriametrics pmm-server; do
@@ -99,7 +106,7 @@ spec:
             [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
             serve_metrics() {
               while true; do
-                { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; cat "${METRICS_PATH}/$1" 2>/dev/null || echo '# not found'; } | nc -l -p "$2" -w 5 >/dev/null 2>&1
+                { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; cat "${METRICS_PATH}/$1" 2>/dev/null || echo '# not found'; } | nc -w 5 ${NC_LISTEN} "$2" >/dev/null 2>&1
               done
             }
             serve_metrics postgresql_metrics.prom 9091 &
@@ -199,6 +206,16 @@ spec:
           {{- with .Values.centralBackupStorage.s3.endpoint }}
           - name: S3_ENDPOINT
             value: {{ . | quote }}
+          {{- end }}
+          {{- /* VictoriaMetrics may point at a DIFFERENT endpoint than everything else
+                 (victoriaMetrics.vmstorage.backup.s3.endpoint). vmbackup/vmrestore accept it
+                 only as -customS3Endpoint, and this pod is what invokes them, so the effective
+                 value is resolved here rather than as an env var on the sidecar that no tool
+                 reads. Only emitted when it actually differs from S3_ENDPOINT. */}}
+          {{- $vmEndpoint := .Values.victoriaMetrics.vmstorage.backup.s3.endpoint | default .Values.centralBackupStorage.s3.endpoint }}
+          {{- if and $vmEndpoint (ne $vmEndpoint .Values.centralBackupStorage.s3.endpoint) }}
+          - name: VM_S3_ENDPOINT
+            value: {{ $vmEndpoint | quote }}
           {{- end }}
           {{- with .Values.centralBackupStorage.s3.existingSecret }}
           - name: S3_SECRET_NAME

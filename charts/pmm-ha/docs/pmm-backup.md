@@ -453,8 +453,12 @@ concurrent runs from clobbering each other.
 
 When running components concurrently, use `--backup-id` to group them into the same backup directory:
 
+`date -u`, not `date`: an auto-generated id is UTC (see §4), and `backup_id_epoch` converts any
+id back as UTC. A local-time `--backup-id` is therefore mis-aged by your offset — west of UTC it
+looks *older* than it is and can be purged before its retention window is up.
+
 ```bash
-BACKUP_ID=$(date +%Y%m%d-%H%M%S)
+BACKUP_ID=$(date -u +%Y%m%d-%H%M%S)
 pmm-backup.sh backup --postgresql      --backup-id "$BACKUP_ID" &
 pmm-backup.sh backup --clickhouse      --backup-id "$BACKUP_ID" &
 pmm-backup.sh backup --victoriametrics --backup-id "$BACKUP_ID" &
@@ -493,7 +497,9 @@ pmm-backup-victoriametrics
 pmm-backup-manifest-<backup-id>     # only while a manifest merge is in flight
 ```
 
-The locks are **cluster-scoped**, which is the point. They used to be a
+The locks are **cluster-wide in reach** — that is the point. (The Lease objects themselves are
+namespaced, and live in the release namespace; they serialize every client that can reach *this*
+namespace's API, not runs in other namespaces.) They used to be a
 `mkdir /backups/.backup_<component>.lock` plus a `kill -0 <pid>` liveness check, and that only
 excludes processes sharing both a filesystem and a PID namespace — while the thing being
 protected (a database in the cluster) is shared by everything with `kubectl` access. A restore
@@ -734,8 +740,9 @@ pmm-backup.sh backup --namespace demo --postgresql
 # PostgreSQL and ClickHouse together
 pmm-backup.sh backup --namespace demo --postgresql --clickhouse
 
-# Run all three concurrently, grouped into the same backup directory
-BACKUP_ID=$(date +%Y%m%d-%H%M%S)
+# Run all three concurrently, grouped into the same backup directory.
+# date -u: ids are UTC and are aged as UTC, so a local-time id is mis-aged by your offset.
+BACKUP_ID=$(date -u +%Y%m%d-%H%M%S)
 pmm-backup.sh backup --namespace demo --postgresql      --backup-id "$BACKUP_ID" &
 pmm-backup.sh backup --namespace demo --clickhouse      --backup-id "$BACKUP_ID" &
 pmm-backup.sh backup --namespace demo --victoriametrics --backup-id "$BACKUP_ID" &
@@ -846,7 +853,7 @@ s3://<bucket>/<prefix>/manifests/<id>.json   # per component: status + how to lo
 s3://<bucket>/<prefix>/latest               # text pointer -> newest backup id
 ```
 
-**List with the orchestrator** (reads the manifests via the `pmm-backup` sidecar's rclone):
+**List with the orchestrator** (reads the manifests with the backup-tools pod's own rclone):
 
 ```bash
 # All backups (newest manifests), '*latest' marks the latest pointer
@@ -1196,8 +1203,9 @@ storage), create the credentials Secret in the target namespace and pass `--s3-s
 #### S3-compatible storage (MinIO, Ceph RGW, ...)
 
 Add the endpoint (and creds Secret) to every restore invocation — the orchestrator passes
-them through to all tools, including `-customS3Endpoint` for vmrestore and the rclone
-config of its temp S3 client pod:
+them through to all tools: `-customS3Endpoint` for vmrestore, its own rclone config for the
+reads it does itself, and the `RCLONE_CONFIG_S3_*` env it projects into the temp `/srv`
+restore pod (there is no separate S3 client pod):
 
 ```bash
 pmm-backup.sh restore ... \
@@ -1264,9 +1272,11 @@ In kubectl v1.35.x, using `--request-timeout` with `kubectl exec` when running i
 S3 is the **default and recommended target** (`--target s3`), implemented and validated
 end-to-end for all components — credentials via static keys (any S3-compatible storage) or
 IRSA on AWS, see §1 and §3. ClickHouse,
-VictoriaMetrics and PMM `/srv` write directly to the bucket (clickhouse-backup `upload`,
-vmbackup `-dst=s3://`, the `pmm-backup` rclone sidecar); PostgreSQL `pg_dump` and the
-encryption key are streamed up through that same rclone sidecar. Credentials per
+VictoriaMetrics and PMM `/srv` write directly to the bucket from their own pods
+(clickhouse-backup `upload`, vmbackup `-dst=s3://`, and for `/srv` an in-pod
+`tar | rclone rcat` in the `pmm-backup` sidecar); PostgreSQL `pg_dump` and the encryption key
+are streamed up by the **backup-tools pod's own rclone**, because `pg_dump` cannot write S3 and
+the PostgreSQL pod has no rclone (see DN-26). Credentials per
 component come from `existingSecret` values (static keys) or the IRSA credential chain
 (AWS). Custom endpoints (`endpoint` value / `--s3-endpoint`) reach every tool, including
 vmbackup/vmrestore via `-customS3Endpoint`.

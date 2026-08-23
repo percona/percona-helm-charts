@@ -233,6 +233,12 @@ PARALLEL=true
 
 # rclone provider profile for the temp S3 client pod: AWS | Minio | Ceph | Other
 S3_PROVIDER="${S3_PROVIDER:-AWS}"
+# VictoriaMetrics may legitimately live on a different S3 endpoint than the rest
+# (victoriaMetrics.vmstorage.backup.s3.endpoint). vmbackup/vmrestore take it only as the
+# -customS3Endpoint flag, which this script builds — the chart used to render it as an
+# AWS_ENDPOINT env var on the vmbackup sidecar, which no tool reads, so the override was
+# silently ignored. Empty means "same endpoint as everything else".
+VM_S3_ENDPOINT="${VM_S3_ENDPOINT:-}"
 # Static S3 credentials (k8s Secret) for the temp pods (vmrestore + s3 client). Required on
 # non-AWS S3-compatible storage; on AWS with IRSA leave empty (SA credential chain).
 S3_SECRET_NAME="${S3_SECRET_NAME:-}"
@@ -377,8 +383,9 @@ Examples:
   # PostgreSQL only (pg_dump of all app databases)
   $0 backup --namespace demo --postgresql
 
-  # Run components concurrently (grouped by backup-id)
-  BACKUP_ID=\$(date +%Y%m%d-%H%M%S)
+  # Run components concurrently (grouped by backup-id).
+  # date -u, because an auto-generated id is UTC and retention ages any id as UTC.
+  BACKUP_ID=\$(date -u +%Y%m%d-%H%M%S)
   $0 backup --namespace demo --postgresql      --backup-id \$BACKUP_ID &
   $0 backup --namespace demo --clickhouse      --backup-id \$BACKUP_ID &
   $0 backup --namespace demo --victoriametrics --backup-id \$BACKUP_ID &
@@ -1089,6 +1096,12 @@ s3_rclone_purge() {
 # how S3 is reached.
 s3_rclone_deletefile() {
     _rclone_bounded "${RCLONE_TIMEOUT}" deletefile --s3-no-check-bucket "$1"
+}
+
+# The endpoint vmbackup/vmrestore should use: the VictoriaMetrics-specific override if the
+# chart projected one, else the shared endpoint. Empty output means "pass no flag" (AWS).
+vm_s3_endpoint() {
+    if [ -n "${VM_S3_ENDPOINT}" ]; then printf '%s' "${VM_S3_ENDPOINT}"; else printf '%s' "${S3_ENDPOINT}"; fi
 }
 
 # Same tri-state for a namespaced Kubernetes object. kubectl exits non-zero for Forbidden,
@@ -2448,8 +2461,12 @@ backup_victoriametrics() {
     # Non-AWS S3-compatible storage: vmbackup does not read endpoint env vars — the custom
     # endpoint must be passed as a flag (expands to nothing for AWS S3). Computed once here
     # and reused by both the dry-run log and the per-pod exec below.
-    local vm_endpoint_flag=""
-    [ -n "${S3_ENDPOINT}" ] && vm_endpoint_flag="-customS3Endpoint=${S3_ENDPOINT}"
+    local vm_endpoint_flag="" _vm_ep=""
+    # `|| true`: a bare `[ -n x ] && y` returns 1 when the test fails, which is an abort under
+    # `set -e` anywhere errexit is not suppressed — and "no custom endpoint" (plain AWS) is the
+    # DEFAULT case, not an error.
+    _vm_ep=$(vm_s3_endpoint)
+    [ -n "${_vm_ep}" ] && vm_endpoint_flag="-customS3Endpoint=${_vm_ep}" || true
 
     # Get list of vmstorage pods
     local vmstorage_pods=$(kubectl get pods -n "${NAMESPACE}" \
@@ -3724,8 +3741,12 @@ restore_victoriametrics() {
 
     local restored=0 planned=0 pod restore_pod pvc src rc exec_out
     # Non-AWS S3-compatible storage: endpoint must reach vmrestore as a flag (empty for AWS).
-    local vm_endpoint_flag=""
-    [ -n "${S3_ENDPOINT}" ] && vm_endpoint_flag="-customS3Endpoint=${S3_ENDPOINT}"
+    local vm_endpoint_flag="" _vm_ep=""
+    # `|| true`: a bare `[ -n x ] && y` returns 1 when the test fails, which is an abort under
+    # `set -e` anywhere errexit is not suppressed — and "no custom endpoint" (plain AWS) is the
+    # DEFAULT case, not an error.
+    _vm_ep=$(vm_s3_endpoint)
+    [ -n "${_vm_ep}" ] && vm_endpoint_flag="-customS3Endpoint=${_vm_ep}" || true
     for pod in ${vmstorage_pods}; do
         planned=$((planned + 1))
         restore_pod="vm-restore-${pod}"; pvc=$(vmstorage_pvc_name "${pod}")
