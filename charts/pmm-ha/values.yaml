@@ -535,6 +535,14 @@ centralBackupStorage:
   enabled: false
 
   ## @param centralBackupStorage.mode Backup target: s3 (object storage, recommended) | shared (RWX/NFS mounted in pods)
+  ##
+  ## SECURITY NOTE for mode=s3: the PMM PostgreSQL encryption key is stored in the SAME bucket
+  ## and under the same prefix as the PostgreSQL dumps it decrypts (encryption/<id>/). A single
+  ## read of the bucket therefore yields both the ciphertext and the key, which defeats column
+  ## encryption in a bucket-compromise or stolen-backup scenario. Mitigate at the bucket:
+  ## enable SSE-KMS with a CMK whose key policy is NOT grantable by the backup role, and keep
+  ## the bucket private with versioning/Object Lock if your RPO allows. See
+  ## docs/pmm-backup-design-notes.md (DN-24).
   mode: s3
 
   ## @param centralBackupStorage.sharedMountPath Mount path of the central RWX/NFS volume INSIDE the

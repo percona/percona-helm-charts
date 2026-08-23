@@ -34,3 +34,19 @@ test-pxc-operator:
 .PHONY: test-pxc-db
 test-pxc-db:
 	$(HELM) unittest charts/pxc-db
+
+# pmm-ha's backup orchestrator (charts/pmm-ha/files/pmm-backup.sh) carries its own suites,
+# because the bugs it keeps citing in its comments are invisible to `sh -n`: a `set -u` read of
+# a variable a refactor deleted, a dash-only expansion, a helper whose non-zero return aborts
+# the run between the upload and the manifest write. Run these before touching that file.
+# The same two suites run in .github/workflows/pmm-ha-pr-checks.yaml.
+SH ?= sh
+
+.PHONY: test-pmm-backup
+test-pmm-backup: lint-pmm-backup
+	$(SH) charts/pmm-ha/tests/pmm-backup-unit.sh
+
+.PHONY: lint-pmm-backup
+lint-pmm-backup:
+	$(SH) -n charts/pmm-ha/files/pmm-backup.sh
+	$(SH) charts/pmm-ha/tests/pmm-backup-lint.sh

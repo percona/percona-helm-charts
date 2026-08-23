@@ -36,7 +36,12 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ .Release.Name }}-backup-sa
+      {{- /* On the IRSA path run as the S3 SA: the orchestrator now needs S3 credentials of
+             its OWN (it used to borrow the PMM sidecar's), and that is the SA the chart
+             annotates with the role and that the role's trust policy already names — the
+             RoleBinding below adds it as a subject so it keeps the backup RBAC. With static
+             keys or ambient node credentials, stay on the plain backup SA. */}}
+      serviceAccountName: {{ if and (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn }}{{ include "pmm.backupS3SaName" . }}{{ else }}{{ .Release.Name }}-backup-sa{{ end }}
       containers:
       - name: backup-tools
         image: "{{ .Values.centralBackupStorage.tools.image.registry }}/{{ .Values.centralBackupStorage.tools.image.repository }}:{{ .Values.centralBackupStorage.tools.image.tag }}"
@@ -44,12 +49,51 @@ spec:
           - sh
           - -c
           - |
+            # The tools image is kubectl-only, so install what the orchestrator needs:
+            #   jq     — always; it builds the manifest, which IS the restore index
+            #   rclone — reaches the bucket in s3 mode (and the design review's target-unification
+            #            work will use it for shared mode too, so it is not gated on the mode)
+            # Unpinned on purpose: Alpine only carries current versions, so a pin breaks the
+            # install the moment Alpine bumps.
+            #
+            # PROBE FIRST, install only what is missing, and never exit non-zero. This pod is the
+            # RESTORE path as well as the backup path, so an `apk add || exit 1` as the main
+            # command took disaster recovery out with it in three ordinary situations: an
+            # air-gapped or egress-restricted cluster where apk cannot reach a repository, a
+            # centralBackupStorage.tools.image override (which values.yaml documents for exactly
+            # those mirrors) that already ships both tools but has no working apk, and a
+            # non-Alpine image. In all three the container CrashLoopBackOff'd, and a
+            # CrashLooping pod cannot be exec'd into to run a restore.
+            #
+            # Staying up while Not Ready is the better failure: the readinessProbe below still
+            # reports the pod as unusable, `kubectl logs` shows the reason below, and an
+            # operator can exec in to install the tools by hand and get a restore out.
+            need=""
+            jq --version >/dev/null 2>&1     || need="${need} jq"
+            rclone version >/dev/null 2>&1   || need="${need} rclone"
+            if [ -n "${need}" ]; then
+              echo "tools: installing${need}"
+              apk add --no-cache ${need} >/dev/null 2>&1 \
+                || echo "WARN: 'apk add${need}' failed (no repository access, or not an Alpine image)"
+            fi
+            missing=""
+            jq --version >/dev/null 2>&1     || missing="${missing} jq"
+            rclone version >/dev/null 2>&1   || missing="${missing} rclone"
+            if [ -n "${missing}" ]; then
+              echo "ERROR: missing tool(s):${missing} — BOTH backup and restore will fail in this pod."
+              echo "ERROR:   This container stays up but Not Ready so it can still be inspected and exec'd into."
+              echo "ERROR:   Fix by either:"
+              echo "ERROR:     - giving this pod access to an Alpine package mirror, or"
+              echo "ERROR:     - setting centralBackupStorage.tools.image to an image that already ships jq and rclone."
+            else
+              echo "tools: $(jq --version), $(rclone version | head -1)"
+            fi
             # nc ships with BusyBox on alpine-based images, but don't rely on it: the
             # metrics listeners below need it, so install a fallback if it's missing.
             command -v nc >/dev/null 2>&1 || apk add --no-cache netcat-openbsd >/dev/null 2>&1 || true
             METRICS_PATH="{{ .Values.centralBackupStorage.mountPath }}/.metrics"
             mkdir -p "${METRICS_PATH}"
-            for comp in postgresql clickhouse victoriametrics; do
+            for comp in postgresql clickhouse victoriametrics pmm-server; do
               [ -f "${METRICS_PATH}/${comp}_metrics.prom" ] || echo '# Waiting for first backup run' > "${METRICS_PATH}/${comp}_metrics.prom"
             done
             [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
@@ -62,7 +106,20 @@ spec:
             serve_metrics clickhouse_metrics.prom 9092 &
             serve_metrics victoriametrics_metrics.prom 9093 &
             serve_metrics restore_metrics.prom 9094 &
+            # /srv. The orchestrator has always written this file; until now nothing served it,
+            # so a /srv backup failing for every PMM pod never reached Prometheus.
+            serve_metrics pmm-server_metrics.prom 9095 &
             sleep infinity
+        readinessProbe:
+          # Not Ready until the tools actually run. This is what an init container was standing
+          # in for, without the emptyDir + binary/shared-object copying that came with it — and
+          # it is also the ONLY thing reporting a failed install, since the start-up script
+          # deliberately does not exit non-zero (see the comment above it).
+          exec:
+            command: ["sh", "-c", "jq --version >/dev/null && rclone version >/dev/null"]
+          initialDelaySeconds: 2
+          periodSeconds: 10
+          failureThreshold: 3
         ports:
           - name: metrics-pg
             containerPort: 9091
@@ -75,6 +132,9 @@ spec:
             protocol: TCP
           - name: metrics-restore
             containerPort: 9094
+            protocol: TCP
+          - name: metrics-srv
+            containerPort: 9095
             protocol: TCP
         env:
           - name: NAMESPACE
@@ -105,13 +165,37 @@ spec:
             value: {{ include "pmm.backupS3Root" . | quote }}
           - name: S3_PROVIDER
             value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
-          # Image for the temp rclone client pod the restore spawns (pmm-backup.sh restore reads
-          # S3_CLIENT_IMAGE). Projected from the same centralBackupStorage.client.image values the
-          # PMM sidecar uses, so a mirror / air-gapped registry override is honored on restore
-          # instead of falling back to the hardcoded docker.io/rclone/rclone default (which would
-          # ImagePullBackOff before the restore can even read the manifest).
-          - name: S3_CLIENT_IMAGE
-            value: "{{ .Values.centralBackupStorage.client.image.registry }}/{{ .Values.centralBackupStorage.client.image.repository }}:{{ .Values.centralBackupStorage.client.image.tag }}"
+          {{- /* Defines the `s3:` remote the orchestrator addresses as s3:<bucket>/<prefix>.
+                 Same variable set that render_rclone_s3_env() puts in the temp restore pods,
+                 so there is one definition of what "the s3 remote" means. */}}
+          - name: RCLONE_CONFIG_S3_TYPE
+            value: "s3"
+          - name: RCLONE_CONFIG_S3_PROVIDER
+            value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
+          - name: RCLONE_CONFIG_S3_ENV_AUTH
+            value: "true"
+          - name: RCLONE_CONFIG_S3_REGION
+            value: {{ .Values.centralBackupStorage.s3.region | quote }}
+          - name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET
+            value: "true"
+          {{- with .Values.centralBackupStorage.s3.endpoint }}
+          - name: RCLONE_CONFIG_S3_ENDPOINT
+            value: {{ . | quote }}
+          {{- end }}
+          {{- /* Static keys: env_auth=true above makes rclone read these. On the IRSA path
+                 there are no keys and the SA's web-identity token is used instead. */}}
+          {{- with .Values.centralBackupStorage.s3.existingSecret }}
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: {{ . }}
+                key: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "access") }}
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ . }}
+                key: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "secret") }}
+          {{- end }}
           {{- with .Values.centralBackupStorage.s3.endpoint }}
           - name: S3_ENDPOINT
             value: {{ . | quote }}
@@ -193,7 +277,18 @@ rules:
   # scaled down, and deletes them when done.
   - apiGroups: [""]
     resources: ["pods", "pods/log", "pods/exec"]
+    # No patch/update on purpose. The temp restore pods are created with `kubectl create` and a
+    # leftover of the same name is DELETED first — `kubectl apply` would need `patch` and would
+    # then try to mutate an almost entirely immutable Pod anyway. Keeping the verb off means a
+    # future `apply` fails loudly here rather than silently 403-ing mid-restore.
     verbs: ["get", "list", "create", "delete", "watch"]
+  # Component locks are coordination.k8s.io Leases in this namespace (pmm-backup-<component>,
+  # plus a short-lived pmm-backup-manifest-<id> around the concurrent-manifest merge). They
+  # replaced filesystem mkdir locks, which could not exclude a client on another filesystem —
+  # e.g. an operator running a restore from a laptop while the CronJob's backup runs in the pod.
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
   # Secret operations (backup: get/list; restore: apply encryption key)
   - apiGroups: [""]
     resources: ["secrets"]
@@ -248,6 +343,14 @@ subjects:
   - kind: ServiceAccount
     name: {{ .Release.Name }}-backup-sa
     namespace: {{ .Release.Namespace }}
+  {{- /* On the IRSA path the backup-tools pod runs as the S3 SA (see above), so the backup
+         RBAC has to follow it there. Listed as a second subject rather than swapped, so the
+         plain backup SA keeps working for anything else bound to it. */}}
+  {{- if and (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn }}
+  - kind: ServiceAccount
+    name: {{ include "pmm.backupS3SaName" . }}
+    namespace: {{ .Release.Namespace }}
+  {{- end }}
 roleRef:
   kind: Role
   name: {{ .Release.Name }}-backup-role

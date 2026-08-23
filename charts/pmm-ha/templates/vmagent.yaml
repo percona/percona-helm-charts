@@ -382,6 +382,30 @@ spec:
         - source_labels: [__meta_kubernetes_namespace]
           target_label: namespace
 
+    # Scrape PMM /srv backup metrics (port 9095)
+    # Added late: the orchestrator has always WRITTEN pmm-server_metrics.prom, but nothing
+    # served or scraped it, so a /srv backup that failed for every PMM pod was invisible in
+    # Prometheus — the same "a total failure looks green" hole that was closed for the other
+    # components, still open for this one.
+    - job_name: 'backup-pmm-server'
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          regex: 'backup-tools'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '9095'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+
     # Scrape restore metrics (port 9094)
     - job_name: 'backup-restore'
       scrape_interval: 30s

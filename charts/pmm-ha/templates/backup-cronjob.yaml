@@ -84,6 +84,15 @@ spec:
               - /bin/sh
               - -c
               - |
+                # Wait for readiness before exec'ing. backup-tools installs jq/rclone at
+                # start-up and is gated Ready on them running — but `kubectl exec deploy/...`
+                # picks the sole replica whether it is Ready or not, so without this a trigger
+                # firing during a pod restart lands mid-install and the run fails on a missing
+                # rclone. Bounded, and non-fatal: if the wait times out we still try, so a
+                # broken probe cannot silently disable the whole schedule.
+                kubectl wait --for=condition=Ready pod \
+                  -l app.kubernetes.io/component=backup-tools,app.kubernetes.io/instance={{ .Release.Name }} \
+                  -n {{ .Release.Namespace }} --timeout=180s || echo "warning: backup-tools not Ready in time; trying anyway"
                 exec kubectl exec -n {{ .Release.Namespace }} deploy/{{ .Release.Name }}-backup-tools -- \
                   cron-backup.sh --run-id "${JOB_NAME}"{{ range $args }} {{ . | quote }}{{ end }}
             resources:

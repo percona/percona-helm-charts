@@ -6,6 +6,48 @@ on:
       - 'charts/pmm-ha-dependencies/**'
 
 jobs:
+  # The orchestrator's own suites. A separate job on purpose: they need no cluster, no helm and
+  # no repositories, so they finish in seconds and give an independent signal — and they are the
+  # only thing that can catch the class of bug files/pmm-backup.sh keeps citing in its comments
+  # (a `set -u` read of a variable a refactor deleted, a dash-only expansion, a helper whose
+  # non-zero return aborts the run between the upload and the manifest write). Nothing gated on
+  # them before, so those regressions could ship a third time.
+  backup-script-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            charts/pmm-ha
+
+      - name: Install the shells the orchestrator claims to support
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dash busybox-static
+
+      - name: Shell syntax (all three shells)
+        run: |
+          set -eu
+          for sh_bin in /bin/sh /bin/dash /bin/bash; do
+            echo "== ${sh_bin} -n =="
+            "${sh_bin}" -n charts/pmm-ha/files/pmm-backup.sh
+          done
+          busybox sh -n charts/pmm-ha/files/pmm-backup.sh
+
+      - name: Static checks (tests/pmm-backup-lint.sh)
+        run: sh charts/pmm-ha/tests/pmm-backup-lint.sh
+
+      - name: Unit tests, under every supported shell
+        run: |
+          set -eu
+          for sh_bin in dash bash; do
+            echo "===== ${sh_bin} ====="
+            "${sh_bin}" charts/pmm-ha/tests/pmm-backup-unit.sh
+          done
+          echo "===== busybox ash ====="
+          busybox sh charts/pmm-ha/tests/pmm-backup-unit.sh
+
   lint-test:
     runs-on: ubuntu-latest
     steps:

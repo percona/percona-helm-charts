@@ -352,7 +352,7 @@ On startup the container:
 
 1. Creates the metrics directory (`/backups/.metrics/`)
 2. Initializes placeholder `.prom` files for each component
-3. Starts four netcat listeners in the background (ports 9091, 9092, 9093, 9094) to serve per-component backup metrics and restore metrics
+3. Starts five netcat listeners in the background (ports 9091, 9092, 9093, 9095 for the four backup components and 9094 for restore) to serve per-component metrics
 4. Sleeps indefinitely, waiting for backup or restore script invocations
 
 Two operational notes:
@@ -468,24 +468,60 @@ per-component log file (`logs/backup_<id>_postgresql.log`) to avoid conflicts; r
 is consolidated in the shared `manifest.json` via the merge below.
 
 **Manifest merging**: each finishing process performs a read-merge-write of
-`manifests/<id>.json` (serialized by a local mkdir-lock on the shared backup-tools
-pod): it fetches the manifest written so far, carries over the component entries it does
-not own, and recomputes the overall status from the merged set. The last finisher therefore
+`manifests/<id>.json`, serialized by a `Lease` named `pmm-backup-manifest-<id>`: it fetches
+the manifest written so far, carries over the component entries it does not own, and
+recomputes the overall status from the merged set. The last finisher therefore
 produces a manifest listing ALL components of the group — no last-writer-wins clobbering.
 The merge is jq-based; manifests are plain JSON with no format/indentation contract.
 
+If that lease cannot be taken within 60s the manifest is still written, unmerged — the data is
+already uploaded at that point, and refusing to write the index would be worse. A run that
+cannot read the existing manifest and cannot positively prove it absent refuses to overwrite
+it instead, so a sibling's entries are never erased.
+
 ### Per-Component Locking
 
-Each component has its own lock, implemented as an atomic `mkdir` operation:
+Each component's lock is a Kubernetes `Lease` in the release namespace:
 
 ```
-/backups/.backup_clickhouse.lock/pid
-/backups/.backup_pmm-server.lock/pid
-/backups/.backup_postgresql.lock/pid
-/backups/.backup_victoriametrics.lock/pid
+kubectl get leases -n <ns> -l app.kubernetes.io/component=pmm-backup-lock
+
+pmm-backup-clickhouse
+pmm-backup-pmm-server
+pmm-backup-postgresql
+pmm-backup-victoriametrics
+pmm-backup-manifest-<backup-id>     # only while a manifest merge is in flight
 ```
 
-`mkdir` is atomic at the kernel level -- if two processes attempt it simultaneously on the same path, exactly one succeeds and the other gets `EEXIST`. This is more robust than file-based PID locking.
+The locks are **cluster-scoped**, which is the point. They used to be a
+`mkdir /backups/.backup_<component>.lock` plus a `kill -0 <pid>` liveness check, and that only
+excludes processes sharing both a filesystem and a PID namespace — while the thing being
+protected (a database in the cluster) is shared by everything with `kubectl` access. A restore
+run from a laptop and the CronJob's backup in the pod could therefore write the same database
+at the same time, which is exactly what the locking exists to prevent.
+
+A `Lease` is the mechanism Kubernetes provides for this:
+
+| Concern | How |
+|---|---|
+| Acquisition | `kubectl create` — atomic; `AlreadyExists` is the contention signal. Never `apply`, which would take over a live lock. |
+| Liveness | `spec.renewTime` is refreshed every `LOCK_RENEW_SECONDS` (60) by a background renewer for as long as the run lives. |
+| Expiry | A lease is takeable only once `renewTime` is older than `leaseDurationSeconds` (`LOCK_LEASE_SECONDS`, 900). |
+| Takeover | `kubectl replace` with the `resourceVersion` that was observed — optimistic concurrency, so exactly one of two racing takeovers wins. |
+| Release | `kubectl delete`, but only if `holderIdentity` is still ours: a run that aborted *because* someone else holds the lock must not delete that live lock. |
+| Unknown age | If `renewTime` cannot be parsed, the answer is "cannot tell", not "expired" — the lock is left alone. Stealing a live lock means two writers on one database. |
+
+All timestamps are UTC and are converted arithmetically rather than through `date -d`, which
+has no portable way to parse a string as UTC and does not exist in that form on BSD/macOS at
+all. A local-time conversion made a lease written a second ago look 3 hours stale in
+`TZ=Europe/Bucharest` (instant, silent takeover of a live lock) and made every lease
+un-expirable west of UTC.
+
+The renewer stops when the orchestrator does, including when the orchestrator is killed
+abruptly: it re-checks that its parent process is alive before every renewal, and has a
+`LOCK_RENEWER_MAX_SECONDS` (86400) backstop. Without that check a SIGKILL'd or OOM-killed run
+left a renewer patching `renewTime` for the life of the backup-tools pod, and every later
+backup and restore aborted on a lock whose holder no longer existed.
 
 ### Lock Acquisition Order
 
@@ -508,8 +544,8 @@ Locks are always acquired in **alphabetical order** (clickhouse, pmm-server, pos
 - **Backup subdirectories**: With `--backup-id`, concurrent processes share the same `backup_<id>/` parent directory but write only to their own component subdirectory (`postgresql/`, `clickhouse/`, etc.). `mkdir -p` is safe for concurrent use.
 - **No consolidation**: each component writes its payload to the final target from inside its own pod; per-run status is consolidated only in the merged `manifest.json`.
 - **Metrics**: Each component writes to its own `.prom` file atomically (write to `.tmp`, then `mv`).
-- **Manifest / latest pointer**: written once at the end of a run under a local manifest
-  lock (concurrent `--backup-id` processes merge, see §4). The `latest` pointer only moves
+- **Manifest / latest pointer**: written once at the end of a run under the
+  `pmm-backup-manifest-<id>` `Lease` (concurrent `--backup-id` processes merge, see §4). The `latest` pointer only moves
   when the (merged) manifest is a **complete, full-scope** backup — all four core
   components present and successful. Single-component or partial runs never move it, so
   `restore --backup-id latest` cannot silently resolve to (e.g.) an ad-hoc ClickHouse-only
@@ -546,7 +582,7 @@ Each metric includes labels: `component` (postgresql/clickhouse/victoriametrics/
 
 ### HTTP Serving
 
-The backup-tools pod runs four netcat listeners, each serving one metrics file:
+The backup-tools pod runs five netcat listeners, each serving one metrics file:
 
 | Port | Component | Served File |
 |---|---|---|
@@ -554,17 +590,23 @@ The backup-tools pod runs four netcat listeners, each serving one metrics file:
 | 9092 | ClickHouse | `clickhouse_metrics.prom` |
 | 9093 | VictoriaMetrics | `victoriametrics_metrics.prom` |
 | 9094 | Restore | `restore_metrics.prom` |
+| 9095 | PMM `/srv` | `pmm-server_metrics.prom` |
+
+Port 9095 was added late: the orchestrator has always written `pmm-server_metrics.prom`, but
+nothing served or scraped it, so a `/srv` backup that failed for **every** PMM pod was invisible
+in Prometheus while the other three components reported correctly.
 
 ### VMAgent Scrape Configuration
 
-Four scrape jobs are defined in `vmagent.yaml` (conditionally enabled when `centralBackupStorage.enabled`):
+Five scrape jobs are defined in `vmagent.yaml` (conditionally enabled when `centralBackupStorage.enabled`):
 
 - `backup-postgresql` -- scrapes port 9091
 - `backup-clickhouse` -- scrapes port 9092
 - `backup-victoriametrics` -- scrapes port 9093
+- `backup-pmm-server` -- scrapes port 9095
 - `backup-restore` -- scrapes port 9094 (restore metrics)
 
-All use `kubernetes_sd_configs` with `role: pod`, filtering on label `app.kubernetes.io/component: backup-tools` and the corresponding container port number. The three backup jobs scrape every 60s; the `backup-restore` job (port 9094) scrapes every 30s.
+All use `kubernetes_sd_configs` with `role: pod`, filtering on label `app.kubernetes.io/component: backup-tools` and the corresponding container port number. The three original backup jobs scrape every 60s; `backup-pmm-server` and `backup-restore` scrape every 30s.
 
 ### Alerting Examples
 
@@ -654,6 +696,11 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `METRICS_DIR` | Directory for .prom metrics files | /backups/.metrics |
 | `KUBECTL_EXEC_TIMEOUT` | Timeout (seconds) for backup commands | 600 |
 | `KUBECTL_STATUS_TIMEOUT` | Timeout (seconds) for status queries | 30 |
+| `RCLONE_TIMEOUT` | Wall clock (seconds) for one rclone read or delete | `KUBECTL_STATUS_TIMEOUT` |
+| `RCLONE_PURGE_TIMEOUT` | Wall clock (seconds) for one recursive rclone purge | 300 |
+| `RCLONE_IO_TIMEOUT` / `RCLONE_CONNECT_TIMEOUT` | rclone's own idle-IO / connect bounds, applied to every call including streams | 60 / 15 |
+| `LOCK_LEASE_SECONDS` / `LOCK_RENEW_SECONDS` | Component lock lease duration / renewal interval | 900 / 60 |
+| `LOCK_RENEWER_MAX_SECONDS` | Backstop lifetime for the lease renewer | 86400 |
 | `CH_SECRET_NAME` | Kubernetes secret for ClickHouse | pmm-secret |
 | `CH_CREATE_TIMEOUT` / `CH_UPLOAD_TIMEOUT` | Max seconds to wait for clickhouse-backup create / upload | 300 / 600 |
 | `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
@@ -665,11 +712,12 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 static keys (required on non-AWS S3-compatible storage; on AWS, IRSA is the keyless alternative) | |
 
 The chart also injects these into the backup-tools pod from `centralBackupStorage.s3.*`. They are
-consumed by **`pmm-backup.sh restore`** (its temp pods), so a restore inside the pod needs no flags:
+consumed by **`pmm-backup.sh restore`** (its temp vmrestore / `/srv` pods), so a restore inside
+the pod needs no flags:
 
 | Variable | Description | Default |
 |---|---|---|
-| `S3_PROVIDER` | rclone provider profile (`AWS`/`Minio`/`Ceph`/`Other`) for the restore temp client pod | AWS |
+| `S3_PROVIDER` | rclone provider profile (`AWS`/`Minio`/`Ceph`/`Other`) projected into the restore temp pods' rclone config | AWS |
 | `S3_SECRET_NAME` | Static-key Secret name injected into restore temp pods (empty ⇒ IRSA / SA credential chain) | |
 | `S3_SECRET_ACCESS_KEY_KEY` / `S3_SECRET_SECRET_KEY_KEY` | Keys within that Secret | access-key / secret-key |
 | `S3_SERVICE_ACCOUNT` | ServiceAccount for restore temp pods (IRSA SA, or one carrying imagePullSecrets) | pmm-ha-backup-s3 |
@@ -771,8 +819,10 @@ backup-tools — same volume) contains, **all under one per-run dir**:
       pg-encryption-key.yaml          # Kubernetes Secret YAML
   logs/                               # execution logs (backup_<id>.log, restore_<id>.log)
   .metrics/                           # Prometheus metrics (postgresql_metrics.prom, …)
-  .backup_postgresql.lock/            # active lock (directory, exists only during a run)
 ```
+
+Locks are **not** on this volume: they are Kubernetes `Lease` objects, because the thing they
+protect is a database in the cluster rather than a file on a disk (see §4).
 
 ### Listing Backups (`s3` mode)
 
@@ -859,16 +909,24 @@ The pointer is overwritten atomically at the end of each successful **full-scope
 
 ### Checking Lock State
 
+Locks are `Lease` objects in the release namespace, not files on the backup volume:
+
 ```bash
-# List active locks
-ls -la /backups/.backup_*.lock/
+# List the locks currently held
+kubectl get leases -n <namespace> -l app.kubernetes.io/component=pmm-backup-lock
 
-# See which PID holds a lock
-cat /backups/.backup_victoriametrics.lock/pid
+# Who holds one, and when it was last renewed (a live run renews every 60s)
+kubectl get lease pmm-backup-victoriametrics -n <namespace> \
+  -o jsonpath='{.spec.holderIdentity}{"  renewed: "}{.spec.renewTime}{"  duration: "}{.spec.leaseDurationSeconds}{"\n"}'
 
-# Manually remove a stale lock (only if you're sure no backup is running)
-rm -rf /backups/.backup_victoriametrics.lock
+# Manually release a stale lock (only if you are sure no backup or restore is running).
+# You should rarely need this: a lease whose holder is gone stops being renewed and the next
+# run takes it over automatically once it is older than leaseDurationSeconds (900s default).
+kubectl delete lease pmm-backup-victoriametrics -n <namespace>
 ```
+
+If `renewTime` is still advancing, a run really is holding it — do not delete it. If it is
+frozen and older than `leaseDurationSeconds`, the next run will take it over on its own.
 
 ### Checking Metrics
 
@@ -891,9 +949,21 @@ wget -qO- "http://${POD_IP}:9091/"
 - The pre-flight check runs `kubectl get namespace <ns>`. If RBAC is missing the `namespaces` permission, this fails.
 - Fix: Ensure the backup Role includes `get` on `namespaces`.
 
-**"Another <component> backup is already running (PID: ...)"**
-- A concurrent run is already backing up this component.
-- Wait for it to finish, or if it's stale (process died without cleanup), remove the lock: `rm -rf /backups/.backup_<component>.lock`
+**"Another backup/restore holds the &lt;component&gt; lock"**
+- A concurrent run holds that component's `Lease`. Backup and restore share the lock names, so
+  this also fires when a restore is running.
+- Check whether it is live: `kubectl get lease pmm-backup-<component> -n <ns> -o yaml`. A live
+  holder's `renewTime` advances every 60s.
+- If it is live, wait. If it is frozen, no action is needed either — the next run takes it over
+  once it is older than `leaseDurationSeconds` (900s). Only if you need to proceed immediately:
+  `kubectl delete lease pmm-backup-<component> -n <ns>`.
+
+**"...its expiry could not be determined; refusing to steal it"**
+- The lease's `renewTime` could not be converted to a time, so the orchestrator cannot tell
+  whether the holder is alive — and it will not guess, because stealing a live lock means two
+  processes writing one database.
+- Inspect the object; if `renewTime` is missing or malformed (only possible if something other
+  than this script wrote it), delete the lease.
 
 **PostgreSQL backup fails with "localhost:8080 connection refused"**
 - This is a bug in `kubectl exec --request-timeout` (kubectl v1.35.x) when running inside a pod. The `--request-timeout` flag breaks in-cluster API server discovery.
@@ -946,8 +1016,8 @@ kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- \
   pg_restore --clean --if-exists --no-owner -U postgres -d <db> \
   < /backups/postgresql/backup_<id>/<db>.dump
 
-# s3: stream it from the bucket through the pmm-backup sidecar's rclone
-kubectl exec -n <namespace> <pmm-pod> -c pmm-backup -- \
+# s3: stream it from the bucket with the backup-tools pod's own rclone
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
   rclone cat --s3-no-check-bucket s3:<bucket>/<prefix>/postgresql/<id>/<db>.dump \
   | kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- \
     pg_restore --clean --if-exists --no-owner -U postgres -d <db>
@@ -1046,11 +1116,14 @@ PostgreSQL needs no options — databases come from the manifest.
 
 1. **Preflight**: namespace exists, `kubectl`, `timeout` and `jq` available (jq parses the
    manifest; auto-installed via `apk` on the Alpine backup-tools image).
-2. **Temp S3 client pod** (s3 mode): start `restore-s3-client-<pid>` (rclone image, backup
-   SA — plus static creds from `--s3-secret` when set — `karpenter.sh/do-not-disrupt`). All S3 reads (manifest, ordinal mapping, PG dump
-   streaming) go through it — the `pmm-backup` sidecar cannot be used because it rides on
-   the PMM pods, which this restore scales to 0 (and a re-run after a failed restore
-   starts with PMM already down). Deleted on exit via trap.
+2. **S3 access is local to this process** (s3 mode): the orchestrator runs `rclone` itself, in
+   the backup-tools pod, with that pod's own S3 credentials. All S3 reads (manifest, ordinal
+   mapping, PG dump streaming) go through it. There is no temp S3 client pod any more, and the
+   `pmm-backup` sidecar is not used either — it rides on the PMM pods, which this restore
+   scales to 0 (and a re-run after a failed restore starts with PMM already down). Every rclone
+   call is time-bounded (`RCLONE_TIMEOUT` for reads and deletes, `RCLONE_PURGE_TIMEOUT` for a
+   prefix purge, plus rclone's own idle/connect bounds on all of them), so a wedged or
+   throttled endpoint fails the operation instead of hanging it.
 3. If `list`: enumerate backups from their manifests and exit.
 4. **Load manifest**: resolve `--backup-id` (incl. `latest`), validate it is JSON, and read
    each component's status + coordinates (PG databases, CH name, …). Components default to
@@ -1079,8 +1152,8 @@ PostgreSQL needs no options — databases come from the manifest.
     succeeded; otherwise leave PMM at 0 and exit non-zero with the manual scale-up command.
 13. **Metrics**: write `restore_metrics.prom` under `METRICS_DIR` (atomic); served on port 9094, scraped by VMAgent.
 
-Expect ~7 temp pods per full s3 restore (1 S3 client + 1 vmrestore per vmstorage ordinal +
-1 /srv-restore per PMM ordinal). They are required: the data PVCs are RWO and their owner
+Expect ~6 temp pods per full s3 restore (1 vmrestore per vmstorage ordinal +
+1 /srv-restore per PMM ordinal; there is no S3 client pod). They are required: the data PVCs are RWO and their owner
 pods must be down while data is written, so a short-lived mounter pod per PVC is the only
 way in — each is deleted immediately so the real pod can re-attach on scale-up.
 
@@ -1146,12 +1219,11 @@ target becomes a clone of the source's monitoring state.
 A full s3 restore takes minutes even for small data — most of it is pod lifecycle, not
 data transfer:
 
-- **~7 temp pods appear and disappear**: one `restore-s3-client-*` (rclone; lives for the
-  whole run — the pmm-backup sidecar rides on the PMM pods, which the restore scales to
-  0, so a standalone S3 client is required), one `vm-restore-*` per vmstorage ordinal and
+- **~6 temp pods appear and disappear**: one `vm-restore-*` per vmstorage ordinal and
   one `pmm-srv-restore-*` per PMM ordinal (the data PVCs are RWO and their owner pods
   must be down while data is written — a short-lived mounter pod per PVC is the only way
-  in; each is deleted immediately so the real pod can re-attach on scale-up).
+  in; each is deleted immediately so the real pod can re-attach on scale-up). S3 itself
+  needs no pod: the orchestrator runs `rclone` in-process, in the backup-tools pod.
 - A **soft WARN** if vminsert pods are still terminating after 120s is non-blocking
   (vminsert holds no PVCs; the strict wait is on vmstorage).
 - **PMM's final boot back to full replica count is the longest phase** (several minutes).
