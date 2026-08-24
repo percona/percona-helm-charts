@@ -304,6 +304,9 @@ S3_PROVIDER="AWS"; S3_REGION="eu-north-1"; S3_ENDPOINT=""
 S3_SECRET_NAME="sec"; S3_SECRET_ACCESS_KEY_KEY="access-key"; S3_SECRET_SECRET_KEY_KEY="secret-key"
 TEMP_POD_S3_KEYS_ENV=$(render_temp_pod_s3_keys_env)
 
+# mktemp, not a fixed /tmp path: a predictable name in a world-writable directory can be
+# pre-created as a symlink by another local user, and this script redirects onto it.
+_indent_check=$(mktemp)
 bad_indent=0
 name_lines=0
 render_rclone_s3_env | while IFS= read -r line; do
@@ -313,9 +316,9 @@ render_rclone_s3_env | while IFS= read -r line; do
         "          value: "*|"          valueFrom: "*) ;;   # exactly 10
         *) echo "BADLINE:${line}" ;;
     esac
-done > /tmp/.pmmbackup_indent_check 2>/dev/null
-if grep -q '^BADLINE:' /tmp/.pmmbackup_indent_check 2>/dev/null; then
-    bad="$(head -1 /tmp/.pmmbackup_indent_check)"
+done > "${_indent_check}" 2>/dev/null
+if grep -q '^BADLINE:' "${_indent_check}" 2>/dev/null; then
+    bad="$(head -1 "${_indent_check}")"
     bad "every env line is at the manifest's expected column" "8/10 spaces" "${bad}"
 else
     ok
@@ -323,7 +326,7 @@ fi
 # ...and the entries are actually there (an empty block would trivially pass the check above).
 n=$(render_rclone_s3_env | grep -c '^        - name: ')
 if [ "${n}" -ge 6 ]; then ok; else bad "env block carries the rclone settings + keys" ">=6 entries" "${n}"; fi
-rm -f /tmp/.pmmbackup_indent_check
+rm -f "${_indent_check}"
 
 # The SA line sits at pod-spec level: exactly two leading spaces.
 S3_SERVICE_ACCOUNT="pmm-ha-backup-s3"; S3_SA_EXPLICIT=false

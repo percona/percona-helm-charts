@@ -502,9 +502,11 @@ clickhouse:
       ## Empty (default) inherits centralBackupStorage.s3.region; set to override for ClickHouse only.
       region: ""
       ## Key prefix under the bucket; backups land at s3://<bucket>/<path>/<backup_name>/
-      ## Empty (default) = "<centralBackupStorage.s3.prefix>/clickhouse", so each install's
-      ## ClickHouse backups stay inside its own prefix (multi-namespace installs must not
-      ## share a path: incremental chains and retention would cross instances).
+      ## Empty (default) resolves through pmm.backupS3Root to
+      ## "<namespace>/<centralBackupStorage.s3.prefix>/clickhouse" — note the leading
+      ## NAMESPACE segment, which is what keeps two installs that share a bucket (and even a
+      ## prefix) apart. Multi-namespace installs must not share a path: incremental chains and
+      ## retention would cross instances.
       path: ""
       endpoint: ""  # Leave empty for AWS S3
       ## S3 credentials - use existing secret (recommended)

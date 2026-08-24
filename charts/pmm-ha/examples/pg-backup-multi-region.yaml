@@ -71,7 +71,7 @@ pg-db:
 # Usage:
 # helm upgrade --install pmm-ha charts/pmm-ha \
 #   -n demo \
-#   -f examples/pg-backup-multi-region.yaml
+#   -f charts/pmm-ha/examples/pg-backup-multi-region.yaml
 
 # Backup Strategy:
 # - Every 4 hours: Incremental to local (repo1)

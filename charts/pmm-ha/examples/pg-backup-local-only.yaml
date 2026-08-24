@@ -33,4 +33,4 @@ pg-db:
 # Usage:
 # helm upgrade --install pmm-ha charts/pmm-ha \
 #   -n demo \
-#   -f examples/pg-backup-local-only.yaml
+#   -f charts/pmm-ha/examples/pg-backup-local-only.yaml

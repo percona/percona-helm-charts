@@ -29,6 +29,16 @@ BACKUP_DIR="${BACKUP_DIR:-/backups}"
 LOGDIR="${BACKUP_DIR}/.logs"
 mkdir -p "${LOGDIR}"
 
+# The ONE marker that is not keyed by --run-id: "an orchestrator is running right now, and it
+# belongs to this run". Everything else here is per-run-id, which is what a Job RETRY needs —
+# but it is exactly wrong across SCHEDULES. `activeDeadlineSeconds` terminates only the trigger
+# pod, never the detached orchestrator, so a long backup outlives its Job; the next schedule
+# arrives with a different --run-id, sees no `.started` of its own, and starts a SECOND
+# orchestrator, which then dies on the first component Lease it tries to take. The per-component
+# Leases are what actually protect the data; this marker is what keeps the schedule from
+# generating a failed Job every time a backup runs long.
+INFLIGHT="${LOGDIR}/inflight.pid"
+
 # Hidden re-entry: the detached child calls back here to run the orchestrator and capture its
 # exit code next to the log. Kept as a self re-exec so setsid/nohup run a real file, not a
 # shell function, and so there is zero nested-quoting in the CronJob manifest.
@@ -46,6 +56,10 @@ if [ "${1:-}" = "__run" ]; then
     # mtime stops advancing, so a genuine crash is still detected. Stops when .status appears.
     ( while [ ! -f "${_status}" ]; do sleep 60; touch "${_log}" 2>/dev/null || true; done ) &
     _hb=$!
+    # Claim the in-flight marker for the whole life of this orchestrator. `$$` is this detached
+    # process, so its liveness IS the run's liveness — and because cron-backup.sh runs inside
+    # the backup-tools pod, a later trigger execs into that same pod and can check it directly.
+    printf '%s %s\n' "$$" "${_rid}" > "${INFLIGHT}" 2>/dev/null || true
     # Capture the exit code without letting `set -e` abort before we record it.
     pmm-backup.sh backup "$@" >>"${_log}" 2>&1 && _rc=0 || _rc=$?
     kill "${_hb}" 2>/dev/null || true
@@ -53,6 +67,9 @@ if [ "${1:-}" = "__run" ]; then
     # reader never sees a 0-byte .status mid-write (which would read back as an empty, then
     # non-numeric, exit code).
     echo "${_rc}" > "${_status}.tmp" && mv -f "${_status}.tmp" "${_status}"
+    # Released only after the status is published, so no window exists where the run looks
+    # finished to one check and absent to the other.
+    rm -f "${INFLIGHT}" 2>/dev/null || true
     exit 0
 fi
 
@@ -117,6 +134,34 @@ start_run() {
     echo "[cron-backup] starting detached backup run '${RUN_ID}' (log: ${LOG})"
     detach "${SELF}" __run "${RUN_ID}" "$@"
 }
+
+# Is an orchestrator from a DIFFERENT run still alive? Sets _ip/_ir for the caller's message.
+# A stale marker (pod restarted, so the pid is gone) is cleaned up rather than trusted, which
+# keeps a crashed run from wedging the schedule the way a stale `.started` once did.
+inflight_other_run() {
+    [ -f "${INFLIGHT}" ] || return 1
+    _ip=""; _ir=""
+    read -r _ip _ir < "${INFLIGHT}" 2>/dev/null || return 1
+    case "${_ip}" in ''|*[!0-9]*) rm -f "${INFLIGHT}" 2>/dev/null || true; return 1 ;; esac
+    if ! kill -0 "${_ip}" 2>/dev/null; then
+        rm -f "${INFLIGHT}" 2>/dev/null || true
+        return 1
+    fi
+    [ "${_ir}" != "${RUN_ID}" ]
+}
+
+# Skip rather than collide. Exiting 0 is deliberate: the schedule was not missed through a
+# fault, it was superseded by a backup that is still running, and reporting that as a Job
+# failure would page someone for a system behaving exactly as designed. The run that IS in
+# flight reports its own result through its own trigger.
+if [ ! -f "${STARTED}" ] && inflight_other_run; then
+    echo "[cron-backup] a backup from an earlier schedule ('${_ir}', pid ${_ip}) is still running;"
+    echo "[cron-backup] skipping this run rather than starting a second orchestrator that would"
+    echo "[cron-backup] only fail on the component locks. Its own trigger reports its result."
+    echo "[cron-backup] If backups routinely run past their interval, lengthen the schedule or"
+    echo "[cron-backup] raise backup.schedule.activeDeadlineSeconds."
+    exit 0
+fi
 
 # Decide: start fresh, re-attach to a live run, or restart a crashed one.
 if [ ! -f "${STARTED}" ]; then

@@ -5,6 +5,13 @@ on:
       - 'charts/pmm-ha/**'
       - 'charts/pmm-ha-dependencies/**'
 
+# Least privilege for GITHUB_TOKEN. Both jobs below execute files that come FROM the pull
+# request (the chart's shell suites, ct's chart hooks), and nothing here writes to the repo, so
+# read access to contents is all the token needs. Without this block the workflow inherits the
+# repository default, which may be read-write.
+permissions:
+  contents: read
+
 jobs:
   # The orchestrator's own suites. A separate job on purpose: they need no cluster, no helm and
   # no repositories, so they finish in seconds and give an independent signal — and they are the
@@ -18,6 +25,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # Do not leave the token in .git/config: the steps after this one run code that
+          # came from the pull request.
+          persist-credentials: false
           sparse-checkout: |
             charts/pmm-ha
 
@@ -54,6 +64,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # Do not leave the token in .git/config: the steps after this one run code that
+          # came from the pull request.
+          persist-credentials: false
           fetch-depth: 0
           sparse-checkout: |
             .github/

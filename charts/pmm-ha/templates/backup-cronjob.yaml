@@ -25,7 +25,11 @@
 # the actual backup survives this trigger's exec stream dying, and a Job retry re-execs
 # cron-backup.sh with the same --run-id (the Job name) to RE-ATTACH to the in-flight run
 # instead of colliding with the orchestrator's still-held per-component locks.
-# concurrencyPolicy Forbid + those locks prevent overlap across schedules.
+# concurrencyPolicy Forbid keeps two trigger JOBS from overlapping, and the per-component
+# Leases are what actually prevent two orchestrators writing one database. Neither bounds the
+# DETACHED orchestrator itself: it outlives its Job, so a backup running past its interval is
+# handled by cron-backup.sh's inflight marker, which makes the next schedule skip instead of
+# starting a second orchestrator that would only die on the locks.
 # Restore is never scheduled — it stays a deliberate manual action.
 apiVersion: batch/v1
 kind: CronJob
@@ -49,9 +53,12 @@ spec:
       # than restarting it, so a few extra attempts just give the poll stream more chances
       # to reconnect after a transient disruption.
       backoffLimit: 3
-      # Hard upper bound on a single scheduled run so a trigger can never poll forever
-      # (cron-backup.sh self-detects a stalled/crashed detached run first; this is the
-      # last-resort backstop). Raise for very large installs whose backup exceeds it.
+      # Hard upper bound on the TRIGGER, so it can never poll forever (cron-backup.sh
+      # self-detects a stalled/crashed detached run first; this is the last-resort backstop).
+      # It does NOT stop the backup: the orchestrator is detached, so killing the trigger pod
+      # leaves it running and holding its component Leases — which is deliberate (a deadline
+      # must never abort a half-written backup), and why cron-backup.sh checks for a live
+      # orchestrator before starting another. Raise it for installs whose backup exceeds it.
       activeDeadlineSeconds: {{ $s.activeDeadlineSeconds | default 3600 }}
       template:
         metadata:

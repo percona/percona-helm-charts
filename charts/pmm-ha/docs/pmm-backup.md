@@ -103,9 +103,9 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
 - **How**: `kubectl exec` into the primary pod (container `database`), discover the
   application databases (everything except templates and the empty `postgres` db), and run
   `pg_dump -Fc` per database via local peer auth as the `postgres` superuser.
-- **Where stored**: one custom-format file per database under the per-run prefix —
-  `s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump` (s3, streamed `pg_dump | rclone
-  rcat` via the `pmm-backup` sidecar) or `<central>/backup_<id>/postgresql/<db>.dump`
+- **Where stored**: one custom-format file per database under this component's prefix —
+  `s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump` (s3, streamed `pg_dump | rclone rcat`
+  by the backup-tools pod's own rclone) or `<central>/postgresql/<id>/<db>.dump`
   (shared, `pg_dump` streamed onto the mounted volume). For PMM that's typically
   `pmm-managed` + `grafana`.
 - **Operator pgBackRest**: untouched. The Percona/Crunchy operator keeps its own local
@@ -584,7 +584,7 @@ All metrics use the `pmm_ha_backup_` prefix:
 | `pmm_ha_backup_last_duration_seconds` | gauge | Backup duration in seconds |
 | `pmm_ha_backup_last_size_bytes` | gauge | Backup size in bytes |
 
-Each metric includes labels: `component` (postgresql/clickhouse/victoriametrics/pmm-server) and `namespace`. (PMM `/srv` metrics are written to a `.prom` file like the others; a dedicated scrape port for it is not yet wired in the chart.)
+Each metric includes labels: `component` (postgresql/clickhouse/victoriametrics/pmm-server) and `namespace`. All four components, PMM `/srv` included, are served and scraped — see the port table below.
 
 ### HTTP Serving
 
@@ -803,29 +803,39 @@ All logs are written to the logs/ directory on the backup-tools volume:
 > **`shared`** (RWX/NFS) target. The backup-tools pod still keeps logs/metrics locally.
 
 After a backup run, the shared volume (mounted at `/central` in the pods, `/backups` in
-backup-tools — same volume) contains, **all under one per-run dir**:
+backup-tools — same volume) contains one directory **per component**, each holding one
+subdirectory per backup id. There is no single per-run directory: a backup is a *correlation*
+of per-component paths tied together by its manifest (see §4 and DN-06), which is why the
+manifest is deleted last during retention.
 
-```
+```text
 /backups/
-  latest                              # text pointer -> backup_<id> (what `list` reads)
-  backup_20260223-150001/
-    manifest.json                     # per-run index (status + per-component locations/restore)
-    postgresql/
-      pmm-managed.dump                # pg_dump custom format, one file per database
+  latest                                    # text pointer -> backup_<id> (what `list` reads)
+  manifests/
+    backup_20260223-150001.json             # THE index: status + per-component locations/restore
+  postgresql/
+    backup_20260223-150001/
+      pmm-managed.dump                      # pg_dump custom format, one file per database
       grafana.dump
-    clickhouse/
-      backup_20260223-150001.tar.gz   # in-pod tar of the clickhouse-backup FREEZE
-    victoriametrics/
-      vmstorage-...-0/vm_backup_<id>/ # vmbackup fs:// output, per pod (+ backup_complete.ignore)
+  clickhouse/
+    backup_20260223-150001/
+      backup_20260223-150001.tar.gz         # in-pod tar of the clickhouse-backup FREEZE
+  victoriametrics/
+    backup_20260223-150001/
+      vmstorage-...-0/vm_backup_<id>/       # vmbackup fs:// output, per pod (+ backup_complete.ignore)
       vmstorage-...-1/vm_backup_<id>/
       vmstorage-...-2/vm_backup_<id>/
-    pmm-server/
-      pmm-ha-0/srv.tar.gz             # per pod
+  pmm-server/
+    backup_20260223-150001/
+      pmm-ha-0/srv.tar.gz                   # per pod
       pmm-ha-1/srv.tar.gz
-    encryption/
-      pg-encryption-key.yaml          # Kubernetes Secret YAML
-  logs/                               # execution logs (backup_<id>.log, restore_<id>.log)
-  .metrics/                           # Prometheus metrics (postgresql_metrics.prom, …)
+  encryption/
+    backup_20260223-150001/
+      pg-encryption-key.yaml                # Kubernetes Secret YAML
+  logs/                                     # execution logs (backup_<id>.log, restore_<id>.log)
+  .logs/                                    # scheduled-run markers/logs (cron-backup.sh)
+  .staging/                                 # transient per-run staging, reaped after each run
+  .metrics/                                 # Prometheus metrics (postgresql_metrics.prom, …)
 ```
 
 Locks are **not** on this volume: they are Kubernetes `Lease` objects, because the thing they
@@ -908,8 +918,8 @@ cat /backups/latest                                  # -> backup_20260610-120000
 # Per-component summary of the latest backup (PG/CH inline with restore commands)
 pmm-backup.sh list "$(cat /backups/latest)" --target shared
 
-# Size of the latest backup's PostgreSQL dumps
-du -sh /backups/"$(cat /backups/latest)"/postgresql/
+# Size of the latest backup's PostgreSQL dumps (component first, then the id)
+du -sh /backups/postgresql/"$(cat /backups/latest)"/
 ```
 
 The pointer is overwritten atomically at the end of each successful **full-scope** run (single-component or partial runs never move it — see §4).
