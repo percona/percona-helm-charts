@@ -161,8 +161,21 @@ spec:
                   value: "info"
                 - name: ALLOW_EMPTY_BACKUPS
                   value: "true"
+                {{- /* LOOPBACK, not 0.0.0.0. clickhouse-backup's HTTP API is UNAUTHENTICATED
+                       by default (no API_USERNAME/API_PASSWORD here), and it executes
+                       privileged operations with the credentials this sidecar already holds:
+                       `restore <name> --rm` drops and recreates the QAN tables, `delete remote`
+                       destroys the backup estate, `upload --env S3_ENDPOINT=...` can push the
+                       dataset to an attacker's bucket. Bound to 0.0.0.0 with no NetworkPolicy
+                       in this chart, that was reachable from any pod in the cluster.
+                       Nothing outside this pod needs it: the orchestrator drives
+                       clickhouse-backup by `kubectl exec` and through the system.backup_actions
+                       integration table, and that table is created as
+                       URL('http://127.0.0.1:7171/backup/actions') — the client is the ClickHouse
+                       process in this same pod, over loopback. Verified against a live install
+                       before making this change. */}}
                 - name: API_LISTEN
-                  value: "0.0.0.0:7171"
+                  value: "127.0.0.1:7171"
                 - name: API_CREATE_INTEGRATION_TABLES
                   value: "true"
                 - name: BACKUPS_TO_KEEP_LOCAL
@@ -244,10 +257,9 @@ spec:
                   value: "{{ $chS3.secretKey }}"
                 {{- end }}
                 {{- end }}
-              ports:
-                - name: backup-api
-                  containerPort: 7171
-                  protocol: TCP
+              {{- /* No containerPort for 7171: the API is loopback-only (see API_LISTEN above)
+                     and nothing scrapes or calls it from outside this pod, so advertising it
+                     would only invite a Service or a scrape config to be pointed at it. */}}
               resources:
                 {{- toYaml .Values.clickhouse.backup.resources | nindent 16 }}
               volumeMounts:

