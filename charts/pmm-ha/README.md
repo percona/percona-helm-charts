@@ -155,7 +155,10 @@ aren't part of the restored data.
 > **OpenShift**: with `nodeExporter.mode: openshift` (see [Using OpenShift's node exporter](#using-openshifts-node-exporter))
 > the node-exporter scrape job targets the platform exporter in the `openshift-monitoring`
 > namespace rather than the release namespace, so **every** instance still collects node metrics.
-> Set that mode on each instance; the kube-state-metrics choice above is then the only one left.
+> Set that mode on each instance. In this mode `prometheus-node-exporter.enabled: false` is
+> required on **every** instance — including the first — since the bundled DaemonSet would collide
+> with OpenShift's platform node-exporter on host port 9100; the chart fails fast otherwise. The
+> kube-state-metrics choice above is then the only one left.
 
 ```bash
 # First instance (full stack, in namespace "pmm"):
