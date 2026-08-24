@@ -1170,6 +1170,142 @@ _sz_q=$(grep -c "FROM system.backup_list WHERE name=.\${backup_name}. ORDER BY l
 assert_eq "both size queries are LIMIT 1" "2" "${_sz_q}"
 
 #########################################################################################
+section "manifest schema — an older reader must refuse a newer format, not guess"
+#########################################################################################
+
+# The manifest is read back by whatever version is running at DR time, routinely an OLDER one.
+# "Absent means 1" is what keeps every manifest written before the field existed readable, and
+# "unreadable means newer" is what keeps a reader from acting on a version it cannot confirm.
+assert_eq "absent schema is v1"        "1" "$(echo '{"backup_id":"x"}' | manifest_schema_of)"
+assert_eq "explicit v1"                "1" "$(echo '{"schema":1}' | manifest_schema_of)"
+assert_eq "a newer schema is reported" "7" "$(echo '{"schema":7}' | manifest_schema_of)"
+
+# Each of these must FAIL rather than default to 1: a version that cannot be read is a format
+# that cannot be trusted, and every caller treats a failure as "newer" and fails closed.
+for _bad in '{"schema":"next"}' '{"schema":null}' '{"schema":1.5}' 'not json at all'; do
+    printf '%s' "${_bad}" | manifest_schema_of >/dev/null 2>&1 && rc=0 || rc=$?
+    assert_rc "unreadable schema ${_bad} is rejected" 1 "${rc}"
+done
+
+# The writer must actually stamp it, or every backup this version takes reads as v1 forever.
+_ms_written=$(grep -c 'schema: \$schema' "${TARGET}")
+assert_eq "write_manifest stamps the schema" "1" "${_ms_written}"
+
+#########################################################################################
+section "pmm_storage_pvc_name — the StatefulSet owns the PVC name, not a hardcoded default"
+#########################################################################################
+
+# The restore mounts this PVC BY NAME, and a name that does not resolve leaves the temp pod
+# Pending until the readiness wait gives up — with PMM already scaled to 0. Assuming the chart's
+# `storage.name` DEFAULT meant any install that set that value restored /srv from a PVC that had
+# never existed.
+_sts_json='{"spec":{"volumeClaimTemplates":[{"metadata":{"name":"pmm-data"}}],
+  "template":{"spec":{"containers":[
+    {"volumeMounts":[{"name":"annotations","mountPath":"/var/run/pmm/annotations"},
+                     {"name":"pmm-data","mountPath":"/srv"}]}]}}}}'
+kubectl() { printf '%s' "${_sts_json}"; }
+PMM_STORAGE_PVC_PREFIX=""; PMM_STORAGE_PVC_PREFIX_RESOLVED=""; PMM_SRV_PATH="/srv"
+# Resolution happens in the PARENT via resolve_pmm_storage_pvc_prefix; the accessor is pure so
+# it is safe inside `$( )`. That split exists because log() writes to STDOUT, so a warning
+# emitted from the accessor was captured as part of the PVC name.
+resolve_pmm_storage_pvc_prefix sts >/dev/null 2>&1
+assert_eq "prefix comes from the volumeClaimTemplate" "pmm-data-" "$(pmm_storage_pvc_prefix sts)"
+assert_eq "per-ordinal PVC name"            "pmm-data-sts-0" "$(pmm_storage_pvc_name sts 0)"
+assert_eq "…and the ordinal is not fixed"   "pmm-data-sts-2" "$(pmm_storage_pvc_name sts 2)"
+
+# Selected by MOUNT PATH, not by position: a spec whose /srv claim is not first must still
+# resolve to the /srv one.
+_sts_json='{"spec":{"volumeClaimTemplates":[{"metadata":{"name":"scratch"}},{"metadata":{"name":"srv-vol"}}],
+  "template":{"spec":{"containers":[{"volumeMounts":[{"name":"srv-vol","mountPath":"/srv"}]}]}}}}'
+PMM_STORAGE_PVC_PREFIX_RESOLVED=""
+resolve_pmm_storage_pvc_prefix sts >/dev/null 2>&1
+assert_eq "the /srv claim wins over the first claim" "srv-vol-" "$(pmm_storage_pvc_prefix sts)"
+
+# A volumeMount at /srv that is NOT a claim template (a configMap, say) must not be mistaken
+# for one; fall back to the claim template instead.
+_sts_json='{"spec":{"volumeClaimTemplates":[{"metadata":{"name":"real-claim"}}],
+  "template":{"spec":{"containers":[{"volumeMounts":[{"name":"just-a-volume","mountPath":"/srv"}]}]}}}}'
+PMM_STORAGE_PVC_PREFIX_RESOLVED=""
+resolve_pmm_storage_pvc_prefix sts >/dev/null 2>&1
+assert_eq "a non-claim volume at /srv is not the prefix" "real-claim-" "$(pmm_storage_pvc_prefix sts)"
+
+# The DEFAULT must stay empty. A non-empty default is a second copy of the chart's
+# `storage.name` living in this file, and it short-circuits pmm_storage_pvc_prefix so the
+# StatefulSet is never consulted — which is the whole regression (DN-39). The tests above set
+# the variable explicitly, so only a check on the source itself can catch this coming back.
+_pvc_default=$(grep -c '^PMM_STORAGE_PVC_PREFIX="${PMM_STORAGE_PVC_PREFIX:-}"$' "${TARGET}")
+assert_eq "PMM_STORAGE_PVC_PREFIX ships no hardcoded default" "1" "${_pvc_default}"
+
+# An explicit override wins without consulting the cluster at all.
+kubectl() { echo "kubectl must not be called when the prefix is overridden"; }
+PMM_STORAGE_PVC_PREFIX="override-"; PMM_STORAGE_PVC_PREFIX_RESOLVED=""
+assert_eq "explicit override wins" "override-sts-0" "$(pmm_storage_pvc_name sts 0)"
+
+# Unreadable StatefulSet: REFUSE, do not guess. Falling back to the historical 'pmm-storage-'
+# is the very regression DN-39 is about — on an install that sets storage.name it produces a
+# name that looks plausible, passes nothing, and leaves the temp pod Pending until the 300s
+# wait expires, with PMM already scaled to 0. There is no safe guess here, only an explicit
+# PMM_STORAGE_PVC_PREFIX override.
+kubectl() { return 1; }
+PMM_STORAGE_PVC_PREFIX=""; PMM_STORAGE_PVC_PREFIX_RESOLVED=""
+resolve_pmm_storage_pvc_prefix sts >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "an unreadable StatefulSet refuses rather than guessing" 1 "${rc}"
+assert_eq "and nothing is cached from a failed resolution" "" "${PMM_STORAGE_PVC_PREFIX_RESOLVED}"
+# The accessor must then FAIL rather than return an empty prefix: an empty one silently builds
+# a PVC named "sts-0", which reads as a missing PVC instead of a failed lookup.
+pmm_storage_pvc_name sts 0 >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "and the accessor refuses to build a name" 1 "${rc}"
+
+# The override still works with no cluster at all.
+PMM_STORAGE_PVC_PREFIX="override-"
+assert_eq "an explicit override needs no StatefulSet" "override-sts-0" "$(pmm_storage_pvc_name sts 0)"
+PMM_STORAGE_PVC_PREFIX=""
+
+#########################################################################################
+section "ch_restore_* — a restore reads the coordinates the BACKUP recorded"
+#########################################################################################
+
+# DN-12 honours a sidecar that writes outside this run's root and records where. Recording it
+# only as display text meant restore and the pre-flight gate both went on looking under THIS
+# run's root, so the backup reported success, moved `latest`, and could not be restored.
+S3_BUCKET="run-bucket"; S3_PREFIX="ns/pmm-ha"
+MF_CH_S3_BUCKET=""; MF_CH_S3_PATH=""
+assert_eq "no recorded bucket falls back to this run's" "run-bucket"       "$(ch_restore_bucket)"
+assert_eq "no recorded path falls back to this run's"   "ns/pmm-ha/clickhouse" "$(ch_restore_path)"
+
+MF_CH_S3_BUCKET="other-bucket"; MF_CH_S3_PATH="team/ch"
+assert_eq "the recorded bucket wins" "other-bucket" "$(ch_restore_bucket)"
+assert_eq "the recorded path wins"   "team/ch"      "$(ch_restore_path)"
+
+# Both the restore and the gate must go through the resolver — DN-33 records what it cost when
+# those two looked in different places.
+_chr=$(grep -c 'S3_BUCKET=$(ch_restore_bucket)\|S3_BUCKET=\$(ch_restore_bucket)' "${TARGET}")
+[ "${_chr}" -ge 2 ] && ok || bad "restore and pre-flight both use the resolver" ">=2 call sites" "${_chr}"
+_chold=$(grep -c 'S3_PATH=$(clickhouse_remote_key)' "${TARGET}" || true)
+assert_eq "no reader still hardcodes this run's ClickHouse root" "0" "${_chold}"
+
+#########################################################################################
+section "flag_requires — 'prune' takes the backup flag set, not the restore one"
+#########################################################################################
+
+# prune is the backup side's retention half on its own entry point, so --retention must reach
+# it; a restore-only flag typo'd onto a prune run must still be an error rather than silently
+# accepted.
+( COMMAND=prune; flag_requires backup --retention ) >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "prune accepts a backup flag"            0 "${rc}"
+( COMMAND=prune; flag_requires restore --parallel ) >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "prune rejects a restore-only flag"      1 "${rc}"
+( COMMAND=backup; flag_requires restore --force )   >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "backup still rejects a restore-only flag" 1 "${rc}"
+( COMMAND=list; flag_requires restore --parallel )  >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "list still accepts both sets"           0 "${rc}"
+
+# --yes answers the prompt; it is not a way to switch a safety gate off (DN-44). The encryption
+# gate must not consult it, or every automated restore silently loses that check.
+_enc_force=$(awk '/^    if \[ "\$\{RESTORE_ENCRYPTION_KEY\}" = "true" \]/,/^    fi/' "${TARGET}" | grep -c 'ASSUME_YES' || true)
+assert_eq "the encryption gate does not consult --yes" "0" "${_enc_force}"
+
+#########################################################################################
 echo
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then

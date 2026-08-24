@@ -309,9 +309,10 @@ the source cluster, which in a real disaster may be gone.
 
 {{/*
 The relabel rules that scope a backup-metrics scrape job to THIS release's backup-tools pod.
-Defined once because five scrape jobs need it and a divergence between them is invisible until
-two releases share a namespace — a topology this chart supports (the backup SA and the central
-PVC are both release-scoped for it).
+Kept as a named template even though one job uses it today: the rule is subtle (an unescaped
+release name in a regex silently keeps another release's pods) and it belongs somewhere a second
+job can reuse rather than copy. Two releases in one namespace is a topology this chart supports —
+the backup SA and the central PVC are both release-scoped for it.
 
 regexQuoteMeta on the release name matters: Prometheus anchors relabel regexes but does not
 escape them, so an unescaped release called `pmm.prod` would also keep a co-located `pmmXprod`

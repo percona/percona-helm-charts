@@ -331,25 +331,19 @@ spec:
     # simply missing for months, so a /srv backup failing on every PMM pod never reached
     # Prometheus at all. Adding a component now changes nothing here.
     - job_name: 'backup-metrics'
-      scrape_interval: 60s
+      {{- /* 30s, not 60s. This job absorbed the former backup-restore job, and
+             pmm_ha_restore_in_progress / pmm_ha_restore_phase are TRANSIENT gauges — a restore
+             phase shorter than the interval falls entirely between scrapes, so at 60s a fast
+             restore can never be observed as in progress at all. The backup series are written
+             once per run and do not care either way, so the finer of the two intervals wins. */}}
+      scrape_interval: 30s
       kubernetes_sd_configs:
         - role: pod
           namespaces:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
-          regex: 'backup-tools'
-          action: keep
-        {{- /* ...and only THIS release's. Two pmm-ha releases in one namespace is a topology
-               the chart supports (the backup SA and the central PVC are both release-scoped
-               for exactly that reason), and both their backup-tools pods carry the same
-               component label — so without this each release scraped the other's backup
-               metrics into an identical label set, and an alert on
-               pmm_ha_backup_last_success would fire or clear on whichever pod won. */}}
-        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
-          regex: '{{ .Release.Name }}'
-          action: keep
+        {{- include "pmm.backupToolsScrapeKeep" . | nindent 8 }}
         - source_labels: [__meta_kubernetes_pod_container_port_number]
           regex: '9091'
           action: keep

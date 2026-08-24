@@ -1,11 +1,12 @@
 # PMM-HA Backup & Restore (`pmm-backup.sh`)
 
-One tool, three subcommands, documented in one place:
+One tool, four subcommands, documented in one place:
 
 ```
 pmm-backup.sh backup  [OPTIONS]                          # back up components
 pmm-backup.sh restore --backup-id <id|latest> [OPTIONS]  # restore from a backup (§8)
 pmm-backup.sh list    [BACKUP_ID]                        # list / inspect backups
+pmm-backup.sh prune   [OPTIONS]                          # run the retention sweep only
 ```
 
 Sections 1–7 cover backup (architecture, per-component methods, chart integration,
@@ -352,7 +353,7 @@ On startup the container:
 
 1. Creates the metrics directory (`/backups/.metrics/`)
 2. Initializes placeholder `.prom` files for each component
-3. Starts five netcat listeners in the background (ports 9091, 9092, 9093, 9095 for the four backup components and 9094 for restore) to serve per-component metrics
+3. Starts one netcat listener in the background (port 9091) serving every `.prom` file in the metrics directory
 4. Sleeps indefinitely, waiting for backup or restore script invocations
 
 Two operational notes:
@@ -563,13 +564,17 @@ Locks are always acquired in **alphabetical order** (clickhouse, pmm-server, pos
 
 ### Metric Files
 
-After each backup run, per-component Prometheus metrics files are written to `/backups/.metrics/` on the PVC:
+After each backup run, Prometheus metrics are written to `/backups/.metrics/` on the PVC:
 
 ```
-/backups/.metrics/postgresql_metrics.prom
-/backups/.metrics/clickhouse_metrics.prom
-/backups/.metrics/victoriametrics_metrics.prom
+/backups/.metrics/backup_metrics.prom     # every component, written by `backup`
+/backups/.metrics/restore_metrics.prom    # written by `restore`
 ```
+
+Every component appears in `backup_metrics.prom`, distinguished by a `component` **label** --
+`postgresql`, `clickhouse`, `victoriametrics`, `pmm-server` and `encryption`. There is no
+per-component file: the component was already a label, and encoding it in the filename as well
+meant a listener, a container port and a scrape job per component (see DN-42).
 
 Files are written atomically (write to temp file, then `mv`) to prevent partial reads during scraping.
 
@@ -588,31 +593,29 @@ Each metric includes labels: `component` (postgresql/clickhouse/victoriametrics/
 
 ### HTTP Serving
 
-The backup-tools pod runs five netcat listeners, each serving one metrics file:
+The backup-tools pod runs **one** netcat listener on port **9091**, serving every `.prom` file
+in the metrics directory concatenated. The two writers use disjoint metric families
+(`pmm_ha_backup_*` and `pmm_ha_restore_*`), so each `HELP`/`TYPE` pair still appears once.
 
-| Port | Component | Served File |
-|---|---|---|
-| 9091 | PostgreSQL | `postgresql_metrics.prom` |
-| 9092 | ClickHouse | `clickhouse_metrics.prom` |
-| 9093 | VictoriaMetrics | `victoriametrics_metrics.prom` |
-| 9094 | Restore | `restore_metrics.prom` |
-| 9095 | PMM `/srv` | `pmm-server_metrics.prom` |
+| Port | Serves |
+|---|---|
+| 9091 | every `.prom` in `${METRICS_DIR}` -- all backup components plus restore |
 
-Port 9095 was added late: the orchestrator has always written `pmm-server_metrics.prom`, but
-nothing served or scraped it, so a `/srv` backup that failed for **every** PMM pod was invisible
-in Prometheus while the other three components reported correctly.
+This was five listeners on five ports, one per metrics file. The split bought nothing (the
+component is a label either way) and cost a four-file edit per component -- which is how
+`pmm-server_metrics.prom` came to be written for months while nothing served or scraped it, so
+a `/srv` backup failing on **every** PMM pod was invisible in Prometheus. See DN-42.
 
 ### VMAgent Scrape Configuration
 
-Five scrape jobs are defined in `vmagent.yaml` (conditionally enabled when `centralBackupStorage.enabled`):
+One scrape job is defined in `vmagent.yaml` (conditionally enabled when `centralBackupStorage.enabled`):
 
-- `backup-postgresql` -- scrapes port 9091
-- `backup-clickhouse` -- scrapes port 9092
-- `backup-victoriametrics` -- scrapes port 9093
-- `backup-pmm-server` -- scrapes port 9095
-- `backup-restore` -- scrapes port 9094 (restore metrics)
+- `backup-metrics` -- scrapes port 9091 every 60s
 
-All use `kubernetes_sd_configs` with `role: pod`, filtering on label `app.kubernetes.io/component: backup-tools` and the corresponding container port number. The three original backup jobs scrape every 60s; `backup-pmm-server` and `backup-restore` scrape every 30s.
+It uses `kubernetes_sd_configs` with `role: pod`, filtering on label
+`app.kubernetes.io/component: backup-tools`, on `app.kubernetes.io/instance` (so two releases
+in one namespace do not scrape each other) and on the container port number. Adding a backup
+component requires no change here.
 
 ### Alerting Examples
 
@@ -653,6 +656,7 @@ Commands:
 | `backup` | Back up the selected components. |
 | `restore` | Restore the selected components from a backup (see §8). |
 | `list [BACKUP_ID]` | List backups, or — given a `BACKUP_ID` — show every file/location belonging to that one backup (read from its `manifest.json`). Reuses the same `--s3-bucket` / `--s3-prefix` / `--namespace` flags. |
+| `prune` | Run the retention sweep on its own, deleting nothing else. `backup` also sweeps when it finishes; this is the same sweep with its own trigger, so retention keeps working while backups are being fixed. It refuses to delete unless a retained backup is still marked `complete` (see [Retention](#retention)). |
 
 With no component flags, all four components are backed up (PostgreSQL, ClickHouse, VictoriaMetrics, PMM server `/srv`). Specifying any `--postgresql`, `--clickhouse`, `--victoriametrics`, or `--pmm-server` flag switches to selective mode (only specified components run).
 
@@ -727,6 +731,10 @@ the pod needs no flags:
 | `S3_SECRET_NAME` | Static-key Secret name injected into restore temp pods (empty ⇒ IRSA / SA credential chain) | |
 | `S3_SECRET_ACCESS_KEY_KEY` / `S3_SECRET_SECRET_KEY_KEY` | Keys within that Secret | access-key / secret-key |
 | `S3_SERVICE_ACCOUNT` | ServiceAccount for restore temp pods (IRSA SA, or one carrying imagePullSecrets) | pmm-ha-backup-s3 |
+| `PMM_STORAGE_PVC_PREFIX` | Override the PMM `/srv` PVC name prefix. **Normally leave unset** — the name is read from the PMM StatefulSet's `volumeClaimTemplate`, so it follows `storage.name` automatically (DN-39) | *(derived)* |
+| `VM_STORAGE_PVC_PREFIX` | Override the vmstorage PVC name prefix (the VictoriaMetrics operator's convention) | vmstorage-db- |
+| `VMRESTORE_IMAGE` | vmrestore image override | *(auto-detected from the vmstorage pod)* |
+| `CENTRAL_BACKUP_PVC` | Central backup PVC name for a `shared`-mode restore | *(auto-detected from backup-tools)* |
 
 ### Examples
 
@@ -808,11 +816,18 @@ subdirectory per backup id. There is no single per-run directory: a backup is a 
 of per-component paths tied together by its manifest (see §4 and DN-06), which is why the
 manifest is deleted last during retention.
 
+The manifest carries a `schema` field (absent means `1`). It is the tool's on-storage contract,
+read back by whatever version of `pmm-backup.sh` is running at DR time — often an *older* one,
+since a DR cluster is stood up from an earlier chart release. A reader that meets a **newer**
+schema refuses rather than guesses: `restore` aborts, `prune` defers the id, and `list` shows it
+as `vN-too-new`. Adding a new optional field is not a version bump; moving or repurposing an
+existing one is. See DN-41.
+
 ```text
 /backups/
   latest                                    # text pointer -> backup_<id> (what `list` reads)
   manifests/
-    backup_20260223-150001.json             # THE index: status + per-component locations/restore
+    backup_20260223-150001.json             # THE index: schema + status + per-component coordinates
   postgresql/
     backup_20260223-150001/
       pmm-managed.dump                      # pg_dump custom format, one file per database
@@ -835,11 +850,51 @@ manifest is deleted last during retention.
   logs/                                     # execution logs (backup_<id>.log, restore_<id>.log)
   .logs/                                    # scheduled-run markers/logs (cron-backup.sh)
   .staging/                                 # transient per-run staging, reaped after each run
-  .metrics/                                 # Prometheus metrics (postgresql_metrics.prom, …)
+  .metrics/                                 # Prometheus metrics (backup_metrics.prom, restore_metrics.prom)
 ```
 
 Locks are **not** on this volume: they are Kubernetes `Lease` objects, because the thing they
 protect is a database in the cluster rather than a file on a disk (see §4).
+
+### Retention
+
+The sweep deletes every component path of a backup id older than `--retention` days, then that
+id's `manifests/<id>.json` **last** — the manifest is the only record of what an id held, so
+losing it first would strand whatever a partial failure left behind. Age comes from the
+timestamp in the id itself, never from object mtimes (DN-07).
+
+**Two triggers, one sweep.** `backup` runs it when it finishes, and `pmm-backup.sh prune` runs
+it on its own. Use `prune` on its own schedule when you want reclamation to keep working
+independently of whether backups are currently green.
+
+```sh
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  pmm-backup.sh prune --retention 7
+```
+
+It used to run **only** after a fully successful backup. That made "should anything be deleted?"
+a property of the calling run rather than of the catalog, so a single chronically failing
+component — a ClickHouse sidecar that was never deployed, say — silently stopped retention for
+the whole install while the other components kept landing bytes. See DN-40.
+
+**What stops a delete** (each is fail-closed, and each says so in the log):
+
+| Guard | Refuses when |
+|---|---|
+| Known-good survivor | No retained backup is marked `complete` — pruning would leave nothing restorable |
+| `latest` protection | The id is what `latest` points at, even if past the cutoff |
+| Ownership | The manifest's `namespace` is not this install's — two installs sharing a prefix |
+| Unreadable manifest | What the id holds is unknown; it is not deleted on a guess |
+| Schema too new | The manifest is a newer version than this binary understands (DN-41) |
+| ClickHouse chain | The id's ClickHouse backup is still an incremental base a retained backup needs (DN-09) |
+| Out-of-root ClickHouse | The id's ClickHouse data sits outside this install's root (DN-43) |
+| Budgets | `S3_PRUNE_MAX_PER_RUN` deletions or `S3_PRUNE_MAX_SECONDS` elapsed — the rest waits for the next run |
+
+The last two guards keep `clickhouse/` **and** the manifest, purge the components nothing
+depends on, and mark those `pruned` in the index so nothing tries to restore them.
+
+Use `--dry-run` to see the exact delete list before it runs for the first time — the preview
+prints real paths against real storage, and is deliberately not truncated by the per-run cap.
 
 ### Listing Backups (`s3` mode)
 
@@ -949,7 +1004,7 @@ frozen and older than `leaseDurationSeconds`, the next run will take it over on 
 
 ```bash
 # From inside the pod
-cat /backups/.metrics/postgresql_metrics.prom
+cat /backups/.metrics/backup_metrics.prom
 
 # Via HTTP (netcat server)
 wget -qO- http://localhost:9091/
@@ -1106,7 +1161,7 @@ central mount). Discovery is from the manifest.
 > (`BACKUP_TARGET`, `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_PROVIDER`, `S3_SECRET_NAME`,
 > `S3_SERVICE_ACCOUNT`, …) into the backup-tools pod from your values, so a same-install restore
 > needs none of the `--target`/`--s3-*` flags — e.g. `pmm-backup.sh restore --backup-id latest
-> --force`. Pass the flags below only to override for a **cross-namespace / cross-prefix** restore
+> --yes`. Pass the flags below only to override for a **cross-namespace / cross-prefix** restore
 > (point `--s3-prefix` at the source instance) or an S3-compatible endpoint different from the install.
 > The examples below show the flags explicitly for clarity.
 
@@ -1119,7 +1174,7 @@ central mount). Discovery is from the manifest.
 | Restore specific ID | `pmm-backup.sh restore -n demo --target shared --backup-id 20260224-085602` |
 | Restore into another ns | `pmm-backup.sh restore -n demo-dr --target s3 --s3-bucket my-bucket --backup-id latest` |
 | Dry run | `pmm-backup.sh restore ... --backup-id latest --dry-run` |
-| Skip confirmation | `pmm-backup.sh restore ... --force` |
+| Skip confirmation | `pmm-backup.sh restore ... --yes` (`--force` is a deprecated alias) |
 
 **Component selection**: `--postgresql`, `--clickhouse`, `--victoriametrics`, `--pmm-server`,
 `--encryption-key` (plus `--skip-<component>` to drop components from the default set).
@@ -1147,7 +1202,7 @@ PostgreSQL needs no options — databases come from the manifest.
    whatever the manifest marks `success`; explicitly requesting a component the manifest
    does not carry as `success` is a hard error before anything is touched.
 5. If `--dry-run`: print the per-component plan and exit.
-6. **Confirm** (unless `--force`; required when there's no TTY).
+6. **Confirm** (unless `--yes`; required when there's no TTY). `--yes` answers the prompt only — it never disables a safety check, so e.g. a failed encryption-key restore still aborts the run.
 7. **Encryption key**: fetch from the backup and `kubectl apply` (namespace rewritten to
    the target). Aborts the restore if it fails (data can't be decrypted otherwise).
 8. **Scale down PMM** to 0 — nothing may write the DBs during restore, and the
@@ -1167,7 +1222,7 @@ PostgreSQL needs no options — databases come from the manifest.
 11. **Verify**: pg_isready, pod presence for ClickHouse/VictoriaMetrics.
 12. **Scale up PMM** (LAST, so it boots against fully-restored data): only if all restores
     succeeded; otherwise leave PMM at 0 and exit non-zero with the manual scale-up command.
-13. **Metrics**: write `restore_metrics.prom` under `METRICS_DIR` (atomic); served on port 9094, scraped by VMAgent.
+13. **Metrics**: write `restore_metrics.prom` under `METRICS_DIR` (atomic); served on port 9091, scraped by VMAgent.
 
 Expect ~6 temp pods per full s3 restore (1 vmrestore per vmstorage ordinal +
 1 /srv-restore per PMM ordinal; there is no S3 client pod). They are required: the data PVCs are RWO and their owner
@@ -1176,7 +1231,7 @@ way in — each is deleted immediately so the real pod can re-attach on scale-up
 
 ##### Restore Metrics
 
-Written to `/backups/.metrics/restore_metrics.prom` and served on port 9094:
+Written to `/backups/.metrics/restore_metrics.prom` and served on port 9091:
 
 - `pmm_ha_restore_in_progress` — 1 while a restore is running
 - `pmm_ha_restore_phase` — current phase (encryption_key, scale_down_pmm, postgresql, clickhouse, victoriametrics, verification, scale_up_pmm, idle)
@@ -1184,7 +1239,7 @@ Written to `/backups/.metrics/restore_metrics.prom` and served on port 9094:
 - `pmm_ha_restore_last_timestamp_seconds`, `pmm_ha_restore_last_duration_seconds`
 - `pmm_ha_restore_component_success{component="postgresql|clickhouse|victoriametrics|pmm_server|encryption_key"}` — 1 per component on success
 
-The backup-tools pod exposes port 9094 and VMAgent has a `backup-restore` scrape job (30s interval) for these metrics.
+The backup-tools pod exposes port 9091 and VMAgent's single `backup-metrics` scrape job (60s interval) collects these alongside the backup metrics.
 
 ---
 
@@ -1201,7 +1256,7 @@ per-invocation `--env S3_BUCKET/S3_PATH` override for `clickhouse-backup`, whose
 kubectl exec -n <target-ns> deploy/<target-release>-backup-tools -- \
   pmm-backup.sh restore --namespace <target-ns> --target s3 \
   --s3-bucket <bucket> --s3-prefix <SOURCE-prefix> --s3-region <region> \
-  --backup-id <backup_id-or-latest> --force
+  --backup-id <backup_id-or-latest> --yes
 ```
 
 Prerequisites for the target namespace: the PMM-HA instance installed (distinct release

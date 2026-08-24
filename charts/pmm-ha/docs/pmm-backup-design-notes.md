@@ -722,3 +722,67 @@ Two things came out of consolidating that the split had been hiding:
   result only on success, so deriving the list from that object would have dropped the failure
   case — the same trap DN-38 describes for the manifest, which is why `write_manifest` takes
   the status as an argument too.
+
+## DN-43 — A location a human can read is not a location a program can use
+
+DN-12 established that where ClickHouse writes is the **sidecar's** decision: the script asks,
+and when the sidecar points somewhere this run does not own, it honours that rather than
+silently overriding a deliberate `clickhouse.backup.s3.bucket/.path`. It then recorded the real
+destination in the manifest, "because otherwise a 'complete' backup has a ClickHouse half no
+tooling can locate."
+
+It recorded it as a **sentence**: `"clickhouse-backup S3 remote: backup_… at s3://other/path"`,
+in the `location` field, which is display text. Nothing read it. `restore_clickhouse` and the
+pre-flight gate both went on passing `--env S3_PATH=$(clickhouse_remote_key)` — *this run's*
+root — so the honoured override produced a backup that:
+
+1. reported `status: success`, because the upload genuinely succeeded;
+2. satisfied `_move_latest`, so **`latest` advanced onto it** — and `latest` is the DR pointer
+   that `--backup-id latest` follows blindly (DN-14);
+3. failed the pre-flight gate at restore time with "remote backup not found", because the gate
+   looked under the root the data is not in;
+4. did so for every backup taken while the sidecar disagreed — so an install could hold a
+   fortnight of green backups and discover at DR that none of their ClickHouse halves resolve.
+
+The rule this cost us: **anything a later run must act on is a field, not prose.** The manifest
+now carries `components.clickhouse.s3_bucket` and `.s3_path` as data, written on every run
+rather than only when they differ — a reader must never have to infer "no override recorded
+means recompute it from my own settings", because that inference is precisely what breaks when
+the two disagree. `ch_restore_bucket()` / `ch_restore_path()` are the single resolver both the
+restore and the gate call, falling back to this run's root only for a manifest written before
+these fields existed. DN-33 already records what it costs when those two look in different
+places; one function is cheaper than a comment asking two call sites to stay in step.
+
+Retention is the third reader, and its answer is different on purpose. It reclaims storage
+under **this install's root** and nothing else, so ClickHouse data recorded outside it is not
+its to delete — but neither may it delete that id's manifest, which is the only record of where
+those bytes are. So such an id takes the same path as a chain-pinned one: purge what is ours,
+keep `clickhouse/` and the index, and say so. `location` remains, for the human reading `list`.
+
+## DN-44 — Consent and non-interactivity are different questions
+
+`--force` answered both: it confirmed a destructive restore *and* it was the thing that made a
+run without a TTY legal. Because every automated restore therefore had to pass it, "honour
+`--force` here" and "disable this check for all automation" became the same sentence — so each
+safety gate had to write its own carve-out saying it would not be overridden. Two gates had
+already written that comment, word for word, and a third would have had to remember to.
+
+A flag that means two things is a flag whose meaning is decided by whoever reads it last, and
+the two questions genuinely differ:
+
+| Question | Asked by | Answer |
+|---|---|---|
+| Do you accept that this destroys data? | the confirmation prompt | `--yes` |
+| Is anyone there to be asked? | `[ -t 0 ]` | the TTY test |
+| May this run proceed despite failing check X? | one specific gate | that gate's own flag |
+
+So `--yes` (`-y`) now answers only the first, and the TTY test answers the second on its own.
+`--force` remains as a deprecated alias — it is the verb people reach for, and this is a tool
+someone types under pressure — but it grants nothing extra.
+
+The third row is the point. A safety gate is never lifted by consent; it is lifted by a flag
+that names what is being given up, which is why the encryption-key check answers to
+`--skip-encryption-key` and to nothing else. The failure that rule prevents is specific: with
+`ENCRYPTION_KEY_OK` excluded from `all_ok`, a restore that silently skipped the key printed
+"Restore completed successfully" over PostgreSQL data that cannot be decrypted. A gate worth
+having is worth an explicit flag; if a gate is not worth a flag of its own, it is not a gate.

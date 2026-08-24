@@ -116,8 +116,17 @@ spec:
             # noticed nothing served them. The orchestrator now emits one backup_metrics.prom
             # with `component=` as a LABEL, so nothing here needs to know the component list —
             # the listener below serves whatever .prom files exist.
-            [ -f "${METRICS_PATH}/backup_metrics.prom" ] || echo '# Waiting for first backup run' > "${METRICS_PATH}/backup_metrics.prom"
+            mkdir -p "${METRICS_PATH}/backup"
             [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
+            # Legacy layouts, removed on every start. METRICS_PATH is on the PERSISTENT central
+            # volume, so files written by an older chart version survive a helm upgrade — and
+            # both older layouts were self-contained .prom files carrying their own HELP lines.
+            # Concatenated with today's exposition that is a duplicate HELP for the same family,
+            # which makes Prometheus reject the ENTIRE scrape, and their stale samples would pin
+            # last-success values that never update again.
+            rm -f "${METRICS_PATH}"/postgresql_metrics.prom "${METRICS_PATH}"/clickhouse_metrics.prom \
+                  "${METRICS_PATH}"/victoriametrics_metrics.prom "${METRICS_PATH}"/pmm-server_metrics.prom \
+                  "${METRICS_PATH}"/backup_metrics.prom 2>/dev/null || true
             serve_metrics() {
               while true; do
                 # nc normally BLOCKS here until a scrape arrives, so the loop turns over once
@@ -128,11 +137,26 @@ spec:
                 # container, that throttles a backup or a DR restore to a crawl. The guard
                 # costs one syscall per served request and bounds the failure at 1 attempt/s.
                 _t0=$(date +%s 2>/dev/null || echo 0)   # 0 on failure — see the check below
-                # Every .prom in the directory, concatenated. The two writers use disjoint
-                # metric families (pmm_ha_backup_* / pmm_ha_restore_*), so each HELP/TYPE pair
-                # still appears exactly once in the exposition. An unmatched glob stays literal
-                # and cat fails, hence the fallback.
-                { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; cat "${METRICS_PATH}"/*.prom 2>/dev/null || echo '# no metrics files yet'; } | nc -w 5 ${NC_LISTEN} "$1" >/dev/null 2>&1
+                # The backup HELP/TYPE preamble ONCE, then every per-scope sample file, then
+                # the restore file (a disjoint metric family, so it carries its own preamble).
+                # The backup samples are split per run scope because the documented concurrent
+                # workflow has one process per component, each writing its own file — but the
+                # text format permits only one HELP/TYPE pair per family in an exposition, so
+                # the preamble cannot live in those files. This block knows the four family
+                # NAMES; it still knows nothing about which components exist.
+                { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'
+                  printf '%s\n' \
+                    '# HELP pmm_ha_backup_last_success Whether the last backup succeeded (1=yes, 0=no)' \
+                    '# TYPE pmm_ha_backup_last_success gauge' \
+                    '# HELP pmm_ha_backup_last_timestamp_seconds Unix timestamp of backup completion' \
+                    '# TYPE pmm_ha_backup_last_timestamp_seconds gauge' \
+                    '# HELP pmm_ha_backup_last_duration_seconds Backup duration in seconds' \
+                    '# TYPE pmm_ha_backup_last_duration_seconds gauge' \
+                    '# HELP pmm_ha_backup_last_size_bytes Backup size in bytes' \
+                    '# TYPE pmm_ha_backup_last_size_bytes gauge'
+                  cat "${METRICS_PATH}"/backup/*.prom 2>/dev/null || echo '# no backup run yet'
+                  cat "${METRICS_PATH}"/restore_metrics.prom 2>/dev/null || true
+                } | nc -w 5 ${NC_LISTEN} "$1" >/dev/null 2>&1
                 # BOTH fallbacks are 0, so a broken `date` yields 0-0=0, which is < 1 and the
                 # sleep fires. With 0 and 1 the difference was 1, the sleep never ran, and the
                 # guard failed open in precisely the degraded environment it exists for (no nc

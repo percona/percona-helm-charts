@@ -198,7 +198,7 @@ kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh backu
 kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh list
 
 # Restore the latest backup (DESTRUCTIVE — scales PMM/VM down; see docs/pmm-backup.md §8)
-kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh restore --backup-id latest --force
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh restore --backup-id latest --yes
 ```
 
 Scheduled backups (Kubernetes CronJob, disabled by default — enable once the target is
