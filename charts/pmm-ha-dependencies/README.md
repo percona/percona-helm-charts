@@ -31,6 +31,22 @@ helm install pmm-ha percona/pmm-ha --namespace pmm
 
 ## Uninstallation Order
 
+> **⚠️ This chart is installed once per cluster and its operators serve every namespace.**
+> Uninstalling it stops reconciliation of `PerconaPGCluster`, `ClickHouseInstallation` and
+> `VMCluster` resources in **all** namespaces, not just this one — every other `pmm-ha`
+> instance on the cluster is affected. Check for other instances first:
+>
+> ```bash
+> helm list -A -f pmm-ha
+> ```
+>
+> Reinstalling the chart into a *different* namespace afterwards does **not** recover it: the
+> CRDs are kept on uninstall (`helm.sh/resource-policy: keep`) and still carry
+> `meta.helm.sh/release-namespace` pointing at the original namespace, so the new install fails
+> with `invalid ownership metadata ... release-namespace must equal "<new-namespace>"` and the
+> only way out is to hand-patch the annotations on every retained CRD. Reinstall into the
+> **same** namespace, or clean up the CRDs deliberately first.
+
 When uninstalling, follow the **reverse order**:
 
 ```bash
@@ -108,17 +124,36 @@ pg-operator:
 
 ## Multi-namespace support
 
-Both the ClickHouse and PostgreSQL operators default to watching **all** namespaces (VictoriaMetrics is already cluster-scoped), so `pmm-ha` custom resources are reconciled no matter which namespace they live in. You install this dependencies chart **once** per cluster; the operators then serve every namespace, and you can run more than one `pmm-ha` instance in separate namespaces of the same cluster.
+Both the ClickHouse and PostgreSQL operators default to watching **all** namespaces
+(VictoriaMetrics is already cluster-scoped), so `pmm-ha` custom resources are reconciled no
+matter which namespace they live in. Install this dependencies chart **once per cluster**; the
+operators then serve every namespace, and you can run a `pmm-ha` instance in each of several
+namespaces — for example a disaster-recovery / restore target, or an isolated test instance.
 
-**A second `pmm-ha` install must use a different Helm release name.** The `pmm-ha` chart creates cluster-scoped objects — its `ClusterRole` and `ClusterRoleBinding` are named after `pmm.fullname` (derived from the release name). A second install with the same release name collides with the first on those two objects, even when the two installs are in different namespaces. Use a distinct release name (which also flows into the correct pod/peer DNS), for example:
+**Run one `pmm-ha` instance per namespace, each with its own Helm release name.** Both halves
+of that rule matter:
 
-```bash
-# First instance
-helm install pmm-ha percona/pmm-ha --namespace pmm
+1. **A separate namespace per instance.** Several of the chart's namespaced objects have fixed
+   names that do *not* include the release name — `pmm-ha-haproxy`,
+   `pmm-ha-haproxy-init-script`, `monitoring-service`, `pmm-service-account`,
+   `haproxy-tls-secret` and `postgresql-init-extensions`. A second instance in the **same**
+   namespace collides on those no matter what it is called: the install either aborts on an
+   existing resource, or — on an adopt/`--force` path — silently repoints the first instance's
+   HAProxy at the second instance's pods.
+2. **A distinct release name per instance.** The `pmm-ha` chart's `ClusterRole` and
+   `ClusterRoleBinding` are named after `pmm.fullname`, which derives from the release name.
+   Those are cluster-scoped, so two instances sharing a release name collide even when they are
+   in different namespaces. A distinct release name also flows into the correct pod/peer DNS.
 
-# Second instance in another namespace, different release name
-helm install pmm-2 percona/pmm-ha --namespace pmm-2 --create-namespace
-```
+The per-instance settings — the cluster-wide monitoring sub-charts (only one instance per
+cluster can run `prometheus-node-exporter`, which binds host port 9100) and the per-namespace
+prerequisites (each namespace needs its own `pmm-secret` **before** you install) — are covered
+in the [`pmm-ha` chart README](../pmm-ha/README.md), which is also where the worked
+two-namespace example lives.
+
+> **Note:** each instance runs its own `kube-state-metrics` with cluster-wide read access, so
+> every instance ingests and displays object state for the whole cluster, not just for its own
+> namespace. Separate namespaces are **not** a tenancy boundary here.
 
 ### Existing installations: upgrade the operators first
 
@@ -127,8 +162,14 @@ version is still namespace-scoped. Upgrade it before installing into a second na
 
 ```bash
 helm upgrade pmm-ha-operators percona/pmm-ha-dependencies --namespace pmm
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=pg-operator -n pmm --timeout=180s
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=altinity-clickhouse-operator -n pmm --timeout=180s
+
+# `helm upgrade` runs without --wait, so it returns as soon as the Deployments are patched.
+# This change only touches env vars, so it rolls out with an overlap window: a
+# `kubectl wait --for=condition=ready pod` would match the still-Ready *pre-upgrade* pod and
+# succeed immediately. Wait for the new generation instead.
+kubectl rollout status deployment -l app.kubernetes.io/name=pg-operator -n pmm --timeout=300s
+kubectl rollout status deployment -l app.kubernetes.io/name=altinity-clickhouse-operator -n pmm --timeout=300s
+kubectl rollout status deployment -l app.kubernetes.io/name=victoria-metrics-operator -n pmm --timeout=300s
 ```
 
 Do **not** reinstall this chart into the new namespace — the VictoriaMetrics operator CRDs are
@@ -137,10 +178,18 @@ owned by the first release, and a second install fails with
 
 > **⚠️ Order matters — this one is not recoverable by retrying.** If you install `pmm-ha` into
 > the second namespace while the operators are still namespace-scoped, the PostgreSQL cluster
-> and the ClickHouseInstallation are never reconciled. PMM then boots with no PostgreSQL, and
-> Grafana initializes with the **default `admin` password** — `PMM_ADMIN_PASSWORD` from
-> `pmm-secret` is only applied at first initialization, so it stays that way and the
-> `pmm-token-init` job loops on 401. Upgrade the operators first.
+> and the ClickHouseInstallation are never reconciled. The PMM pod then parks at `Init:1/2`:
+> its `wait-for-clickhouse` init container polls the ClickHouse service in a loop with **no
+> timeout**, so the `pmm` container never starts and the StatefulSet never becomes ready. The
+> symptom is a pod stuck in `Init`, not an authentication error — check for an unreconciled
+> `ClickHouseInstallation` / `PerconaPGCluster` rather than a bad password:
+>
+> ```bash
+> kubectl get chi,pg -n <namespace>          # both should exist and report a status
+> kubectl logs <pmm-pod> -n <namespace> -c wait-for-clickhouse
+> ```
+>
+> Upgrade the operators first.
 
 ## Requirements
 

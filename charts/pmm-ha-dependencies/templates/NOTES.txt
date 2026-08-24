@@ -11,6 +11,10 @@ The following operators have been deployed:
   ✓ PostgreSQL Operator (Percona Distribution)
 {{- end }}
 
+🌐 SCOPE: These operators watch ALL namespaces, so this chart is installed once per cluster.
+   Any pmm-ha instance, in any namespace, is reconciled by them - you do not install this
+   chart again for a second namespace.
+
 ⏳ IMPORTANT: Wait for all operators to be ready before installing pmm-ha
 
 Check operator status:
@@ -33,5 +37,7 @@ Once all operators are ready, install the pmm-ha chart:
 
 📚 Documentation: https://docs.percona.com/percona-monitoring-and-management/
 
-⚠️  UNINSTALL ORDER: When uninstalling, remove pmm-ha FIRST, then pmm-ha-dependencies
+⚠️  UNINSTALL ORDER: When uninstalling, remove pmm-ha FIRST, then pmm-ha-dependencies.
+    Because the operators are cluster-wide, uninstalling this chart stops reconciliation for
+    EVERY namespace on the cluster. Check for other instances first: helm list -A -f pmm-ha
 
