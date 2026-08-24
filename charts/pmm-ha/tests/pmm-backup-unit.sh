@@ -306,7 +306,14 @@ TEMP_POD_S3_KEYS_ENV=$(render_temp_pod_s3_keys_env)
 
 # mktemp, not a fixed /tmp path: a predictable name in a world-writable directory can be
 # pre-created as a symlink by another local user, and this script redirects onto it.
-_indent_check=$(mktemp)
+_indent_check=$(mktemp) || _indent_check=""
+if [ -z "${_indent_check}" ]; then
+    # errexit is off in this suite, so a failed mktemp would leave the redirection below
+    # writing to "", the grep would find nothing, and the check would report SUCCESS having
+    # inspected no output at all. A gate that cannot run must fail, not skip.
+    echo "FAIL: cannot create the indentation-check temporary file" >&2
+    exit 1
+fi
 bad_indent=0
 name_lines=0
 render_rclone_s3_env | while IFS= read -r line; do
@@ -694,6 +701,50 @@ write_manifest complete failed >/dev/null 2>&1
 assert_eq "an existing encryption entry is not overwritten" "abc" \
     "$(jq -r '.components.encryption.sha256 // "MISSING"' "${_wm_out}")"
 rm -f "${_wm_out}"
+
+#########################################################################################
+section "write_manifest — an unmerged write must not be able to erase a sibling"
+#########################################################################################
+
+# Without the merge Lease the read-merge-write is a read-modify-write race: two component runs
+# of one backup id both read the manifest as it was, each add their own entry, and the second
+# write drops the first one's component from the restore index while its payload sits uploaded.
+# That race needs a SIBLING, which only exists in the documented concurrent workflow (one
+# process per component, sharing an explicit --backup-id) — so the refusal is scoped to it. A
+# run with an auto-generated id owns an id nobody else is writing, and must still be able to
+# write its index when the lease is unavailable, or an unreachable apiserver would turn every
+# ordinary backup into an orphan.
+# store_write is invoked through a PIPE, so anything it assigns happens in a subshell and never
+# comes back — the fact of the write has to be observed on disk, not in a variable.
+_wm_out2=$(mktemp)
+S3_ENABLED=false
+DRY_RUN=false
+NAMESPACE="test-ns"
+CURRENT_ID="backup_20260610-120000"
+TIMESTAMP="20260610-120000"
+RESULTS_JSON='{"clickhouse":{"status":"success"}}'
+kubectl() { return 1; }          # no cluster: the merge lease can never be taken
+store_read() { return 1; }
+store_absent() { return 0; }
+store_write() { cat > "${_wm_out2}"; }
+
+# Concurrent workflow: an explicit --backup-id means siblings may be writing the same manifest.
+BACKUP_ID="20260610-120000"
+: > "${_wm_out2}"
+write_manifest complete skipped >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "no lease + shared --backup-id refuses to write" 1 "${rc}"
+assert_eq "and nothing was written"                       "0" "$(wc -c < "${_wm_out2}" | tr -d ' ')"
+
+# Solo run: the id is this process's own timestamp, so there is no sibling to erase.
+BACKUP_ID=""
+: > "${_wm_out2}"
+write_manifest complete skipped >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "no lease + auto id still writes" 0 "${rc}"
+if [ -s "${_wm_out2}" ]; then ok; else bad "and it did write" "a manifest" "(empty)"; fi
+assert_eq "with this run's component"          "clickhouse" \
+    "$(jq -r '.components | keys | join(" ")' "${_wm_out2}" 2>/dev/null)"
+rm -f "${_wm_out2}"
+BACKUP_ID=""
 
 #########################################################################################
 section "start_lock_renewer — it must not outlive the orchestrator"

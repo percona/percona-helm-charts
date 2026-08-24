@@ -39,6 +39,28 @@ mkdir -p "${LOGDIR}"
 # generating a failed Job every time a backup runs long.
 INFLIGHT="${LOGDIR}/inflight.pid"
 
+# A per-CONTAINER token, recorded next to the pid. INFLIGHT lives on ${BACKUP_DIR}, a persistent
+# volume, so it outlives the backup-tools pod — but PIDs do not: a new container starts its PID
+# namespace at 1 and very quickly reuses low numbers. Without this, a marker left behind by a
+# pod that was evicted mid-backup would match some unrelated process in the NEW container,
+# every later schedule would take the "still running" branch and exit 0, and the schedule would
+# be silently wedged reporting Success forever — the same class of failure the stale `.started`
+# handling exists to prevent, and one that shows up nowhere in the Job status.
+#
+# /tmp is the container's own writable layer (the only volumes here are the backup PV and the
+# SA token), so this file is born with the container and dies with it. That is exactly the
+# lifetime the check needs, and it needs no /proc.
+INSTANCE_TOKEN_FILE="${CRON_BACKUP_INSTANCE_TOKEN_FILE:-/tmp/.pmm-cron-instance}"
+if [ ! -s "${INSTANCE_TOKEN_FILE}" ]; then
+    # Any value unique to this container start will do; several fallbacks so no one source
+    # (an image without /proc, a shell without $RANDOM) can leave the token empty.
+    { cat /proc/sys/kernel/random/uuid 2>/dev/null \
+      || od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n' \
+      || echo "boot-$$-$(date +%s 2>/dev/null || echo 0)"; } > "${INSTANCE_TOKEN_FILE}" 2>/dev/null || true
+fi
+INSTANCE_TOKEN="$(cat "${INSTANCE_TOKEN_FILE}" 2>/dev/null || true)"
+[ -n "${INSTANCE_TOKEN}" ] || INSTANCE_TOKEN="unknown-$$"
+
 # Hidden re-entry: the detached child calls back here to run the orchestrator and capture its
 # exit code next to the log. Kept as a self re-exec so setsid/nohup run a real file, not a
 # shell function, and so there is zero nested-quoting in the CronJob manifest.
@@ -59,7 +81,7 @@ if [ "${1:-}" = "__run" ]; then
     # Claim the in-flight marker for the whole life of this orchestrator. `$$` is this detached
     # process, so its liveness IS the run's liveness — and because cron-backup.sh runs inside
     # the backup-tools pod, a later trigger execs into that same pod and can check it directly.
-    printf '%s %s\n' "$$" "${_rid}" > "${INFLIGHT}" 2>/dev/null || true
+    printf '%s %s %s\n' "$$" "${_rid}" "${INSTANCE_TOKEN}" > "${INFLIGHT}" 2>/dev/null || true
     # Capture the exit code without letting `set -e` abort before we record it.
     pmm-backup.sh backup "$@" >>"${_log}" 2>&1 && _rc=0 || _rc=$?
     kill "${_hb}" 2>/dev/null || true
@@ -140,12 +162,28 @@ start_run() {
 # keeps a crashed run from wedging the schedule the way a stale `.started` once did.
 inflight_other_run() {
     [ -f "${INFLIGHT}" ] || return 1
-    _ip=""; _ir=""
-    read -r _ip _ir < "${INFLIGHT}" 2>/dev/null || return 1
+    _ip=""; _ir=""; _it=""
+    read -r _ip _ir _it < "${INFLIGHT}" 2>/dev/null || return 1
     case "${_ip}" in ''|*[!0-9]*) rm -f "${INFLIGHT}" 2>/dev/null || true; return 1 ;; esac
+    # Written by a PREVIOUS container (or by a version that recorded no token): its pid means
+    # nothing here, because pid numbering restarted with this container. Stale by definition.
+    if [ "${_it}" != "${INSTANCE_TOKEN}" ]; then
+        rm -f "${INFLIGHT}" 2>/dev/null || true
+        return 1
+    fi
     if ! kill -0 "${_ip}" 2>/dev/null; then
         rm -f "${INFLIGHT}" 2>/dev/null || true
         return 1
+    fi
+    # Same container, live pid — but a run killed with SIGKILL leaves the marker behind, and
+    # that pid can since have been reused by something else in this container. Where /proc is
+    # available, require the process to actually BE this wrapper; where it is not, the token +
+    # liveness checks above stand on their own.
+    if [ -r "/proc/${_ip}/cmdline" ]; then
+        if ! tr '\0' ' ' < "/proc/${_ip}/cmdline" 2>/dev/null | grep -q 'cron-backup'; then
+            rm -f "${INFLIGHT}" 2>/dev/null || true
+            return 1
+        fi
     fi
     [ "${_ir}" != "${RUN_ID}" ]
 }

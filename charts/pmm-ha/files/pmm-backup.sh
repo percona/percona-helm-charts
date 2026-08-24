@@ -1645,6 +1645,28 @@ EOF
         log "WARN" "[Manifest] Merge lease busy for 60s; writing without merge protection"
     fi
 
+    # Without the lease, the read-merge-write below is a read-modify-write race: two component
+    # runs of the same backup id can both read the manifest as it was, each add its own entry,
+    # and the second write then drops the first one's component from the restore index while its
+    # data sits uploaded in the bucket. The merge exists precisely to prevent that (DN-13).
+    #
+    # That race needs a SIBLING, and a sibling only exists in the documented concurrent
+    # workflow — one process per component, all sharing an explicit --backup-id. A run with an
+    # auto-generated id owns a timestamp nobody else can be writing, so an unmerged write there
+    # is safe and MUST stay allowed: failing it would mean an unreachable apiserver (which is
+    # what usually costs us the lease) turns every ordinary backup into an orphan with no index.
+    #
+    # So: refuse only where the race is real. The operator gets a failed component whose data is
+    # still in the bucket and a manifest that still lists its siblings — recoverable by re-running
+    # that one component — instead of a silently truncated index.
+    if [ "${_mlock_held}" != "true" ] && [ -n "${BACKUP_ID}" ]; then
+        log "ERROR" "[Manifest] Could not take the merge lease, and this run shares backup id '${BACKUP_ID}' with other component runs."
+        log "ERROR" "[Manifest]   Writing the manifest unmerged could erase a sibling component's entry from the restore index,"
+        log "ERROR" "[Manifest]   so this component is reported FAILED instead. Its data IS uploaded; re-run just this component"
+        log "ERROR" "[Manifest]   once the lease is available (check RBAC on coordination.k8s.io/leases and the apiserver)."
+        return 1
+    fi
+
     # The read's STATUS decides what an empty result means. `|| true` conflated "could not
     # read it" with "there is no manifest yet", so a single timed-out rclone cat (a PMM pod
     # being replaced mid-run is enough) made the LAST finisher of the documented concurrent

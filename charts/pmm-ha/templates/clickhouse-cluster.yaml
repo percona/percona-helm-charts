@@ -153,6 +153,12 @@ spec:
                   value: "true"
                 - name: BACKUPS_TO_KEEP_LOCAL
                   value: "{{ .Values.clickhouse.backup.keepLocal }}"
+                {{- /* 0 by default: the REMOTE copy is pruned by the orchestrator's retention
+                       sweep, which is the only side that knows about the manifest index. A
+                       non-zero value here prunes by COUNT while the orchestrator retains by
+                       AGE, so ClickHouse data disappears from under manifests that still list
+                       it as `success` (and out of incremental chains retention is deliberately
+                       keeping). See the note in values.yaml. */}}
                 - name: BACKUPS_TO_KEEP_REMOTE
                   value: "{{ .Values.clickhouse.backup.keepRemote }}"
                 # Using default FREEZE method (hardlinks)

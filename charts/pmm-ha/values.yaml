@@ -491,7 +491,19 @@ clickhouse:
     ## @param clickhouse.backup.retention Number of backups to keep
     ## Note: Local backups use hardlinks (~0 space) and are copied to central storage
     keepLocal: 1   # Keep only latest local hardlink backup
-    keepRemote: 7  # Remote (S3) backups to keep
+    ## keepRemote MUST stay 0 unless you know what you are trading away.
+    ## 0 disables clickhouse-backup's own remote pruning and leaves the REMOTE copy entirely to
+    ## the orchestrator's retention sweep, which is the only thing that knows about the manifest
+    ## index. clickhouse-backup prunes by COUNT; the orchestrator retains by AGE and keeps a
+    ## manifest per backup id. With both active they disagree: on any schedule finer than daily,
+    ## N remote backups is a far shorter window than --retention days, so clickhouse-backup
+    ## deletes ClickHouse data that unexpired manifests still list as `success`. The pre-restore
+    ## gate catches it (it checks the name against `list remote`), so the failure is loud rather
+    ## than mid-restore — but that backup is no longer fully restorable, silently, from the
+    ## moment the count is exceeded. It also breaks incremental chains the orchestrator is
+    ## deliberately preserving. Set a non-zero value only if you are NOT using the orchestrator
+    ## for ClickHouse, and then align it with your manifest retention and chain depth.
+    keepRemote: 0  # Remote (S3) pruning is owned by the orchestrator's retention sweep
     
     ## @param clickhouse.backup.s3 S3 configuration for remote backups
     ## With existingSecret/accessKey empty, clickhouse-backup uses the IRSA credential
