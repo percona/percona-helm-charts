@@ -62,17 +62,22 @@ if [ ! -s "${INSTANCE_TOKEN_FILE}" ]; then
         _tok="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n' || true)"
     fi
     if [ -z "${_tok}" ]; then
-        # Last resort. NOT just $$: a fresh container's PID namespace hands out the same small
-        # pids every time, so two successive containers could mint the SAME token — precisely
-        # the collision the token exists to rule out. The pod name (unique per pod, injected by
-        # the chart) and the wall clock make a repeat effectively impossible.
-        _tok="fallback-${HOSTNAME:-nohost}-$$-$(date +%s 2>/dev/null || echo 0)"
+        # Derived from PID 1's start time: stable for the life of THIS container (every later
+        # invocation reads the same number) and different in the next one, which is exactly the
+        # pair of properties the check needs. Not $$ or `date`: the token is compared for
+        # EQUALITY across invocations inside one container, so a value that changes per
+        # invocation would make every trigger declare a live run's marker stale.
+        _tok="pid1-$(awk '{print $22}' /proc/1/stat 2>/dev/null || true)"
+        [ "${_tok}" = "pid1-" ] && _tok=""
     fi
     printf '%s\n' "${_tok}" > "${INSTANCE_TOKEN_FILE}" 2>/dev/null || true
 fi
 INSTANCE_TOKEN="$(cat "${INSTANCE_TOKEN_FILE}" 2>/dev/null || true)"
-# Same reasoning as above: never fall back to a value a new container can reproduce.
-[ -n "${INSTANCE_TOKEN}" ] || INSTANCE_TOKEN="unknown-${HOSTNAME:-nohost}-$$-$(date +%s 2>/dev/null || echo 0)"
+# Deliberately left EMPTY when no stable per-container value could be established, rather than
+# invented. An invented one differs on every invocation, so inflight_other_run would read a LIVE
+# run's marker as "written by a previous container", delete it, and start a second orchestrator —
+# turning a safety check into the failure it was added to prevent. Empty makes the token
+# comparison abstain (see inflight_other_run), leaving the pid + /proc cmdline checks to decide.
 
 # Hidden re-entry: the detached child calls back here to run the orchestrator and capture its
 # exit code next to the log. Kept as a self re-exec so setsid/nohup run a real file, not a
@@ -187,9 +192,16 @@ inflight_other_run() {
     _ip=""; _ir=""; _it=""
     read -r _ip _ir _it < "${INFLIGHT}" 2>/dev/null || return 1
     case "${_ip}" in ''|*[!0-9]*) rm -f "${INFLIGHT}" 2>/dev/null || true; return 1 ;; esac
-    # Written by a PREVIOUS container (or by a version that recorded no token): its pid means
-    # nothing here, because pid numbering restarted with this container. Stale by definition.
-    if [ "${_it}" != "${INSTANCE_TOKEN}" ]; then
+    # Written by a PREVIOUS container: its pid means nothing here, because pid numbering
+    # restarted with this container. Stale by definition.
+    #
+    # Only when BOTH tokens are known. If either is empty — no stable per-container value could
+    # be established, or the marker was written by a version that recorded none — this test
+    # cannot distinguish "previous container" from "this one", so it abstains and the pid +
+    # cmdline checks below decide. Abstaining risks a false "still running" (this schedule is
+    # skipped, the next one re-checks); asserting on an unknown risks deleting a live run's
+    # marker and starting a second orchestrator, which is worse.
+    if [ -n "${_it}" ] && [ -n "${INSTANCE_TOKEN}" ] && [ "${_it}" != "${INSTANCE_TOKEN}" ]; then
         rm -f "${INFLIGHT}" 2>/dev/null || true
         return 1
     fi

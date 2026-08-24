@@ -581,3 +581,144 @@ status it is handed. Without that, a backup whose key export **failed** was byte
 indistinguishable in the restore index from one taken on an install with no encryption
 configured, and the restore gate said `encryption(absent)` instead of `encryption(failed)` —
 losing the only signal that that run's PostgreSQL dumps cannot be decrypted after a DR.
+
+## DN-39 — Cluster object names are read, not assumed
+
+The restore mounts data PVCs **by name**: `pmm_storage_pvc_name()` for `/srv`,
+`vmstorage_pvc_name()` for each vmstorage shard. A name that does not resolve is not a
+mismatch the pod reports — it simply stays `Pending` until the 300s readiness wait gives up,
+and it does that *after* `scale_down_pmm()`, on the wrong side of the point of no return
+DN-15 is built around.
+
+`PMM_STORAGE_PVC_PREFIX` used to default to `pmm-storage-`. That is not a fact about the
+cluster; it is the default of `storage.name`, a documented chart value that names the PMM
+StatefulSet's `volumeClaimTemplate`. So the chart and this script each held a copy of one
+name, in two languages, with nothing keeping them equal — and any install that set
+`storage.name` restored `/srv` by mounting a PVC that had never existed.
+
+The rule is now: **the object that owns a name is the one asked for it.** A StatefulSet names
+its per-ordinal PVCs `<volumeClaimTemplate>-<sts>-<ordinal>`, so the template's own name *is*
+the prefix, and `pmm_storage_pvc_prefix()` reads it from the live StatefulSet — selecting the
+template by the mount path (`${PMM_SRV_PATH}`) rather than by position, because position is an
+ordering this file does not own either. The env var survives as an override for a spec that
+cannot be read that way; it is no longer the source of truth.
+
+Deriving the name is necessary but not sufficient: a derivation can itself be wrong, and it
+would still fail after the scale-down. So the pre-flight gate now proves the PVC **exists**,
+per ordinal, for both components, through the same resolver the restore will use — a check the
+backup Role already had the `persistentvolumeclaims: get` verb for. Asking the same resolver
+twice is deliberate: the gate is proving the object is there, not proving the resolver agrees
+with itself.
+
+This applies past PVCs. Container names, labels and image references are equally chart-owned;
+where this file must hardcode one, it is a coupling that belongs in this note's ledger, not a
+default that quietly disagrees with the chart.
+
+## DN-40 — Retention answers to the catalog, not to the run that called it
+
+Taking a backup and reclaiming old ones are two jobs. They shared an entry point because they
+happen to want the same credentials and the same storage layer, and that sharing quietly made
+one the other's trigger: `cmd_backup` ran the sweep only `if [ "${all_success}" = "true" ]`.
+
+The intent was sound — do not let an age-based sweep keep deleting good backups while a broken
+install produces no new ones. The instrument was not. It made "should anything be deleted?" a
+property of *this process's luck* rather than of what the bucket holds, and the two are not the
+same question:
+
+1. One component fails every night — a ClickHouse sidecar that was never deployed, a `vmbackup`
+   sidecar left disabled, a PG pod that lost its label.
+2. `record_backup_result` sets `all_success=false`, correctly: the run is partial.
+3. `cleanup_old_backups` is skipped. It is skipped again the next night, and every night after.
+4. Nothing else ever called it — there was no other entry point — so retention had stopped
+   entirely, for the whole install, over one component.
+5. The other three components keep succeeding and keep landing bytes. `list` shows a healthy
+   catalog. The only symptom is a bucket that grows without bound, and it is discovered as a
+   storage bill or a full RWX volume months later.
+
+Two changes, and they are separable on purpose:
+
+**The guard now states the property directly.** `prune_expired_backups` refuses unless at least
+one *retained* backup is `status: complete` — that is the real invariant ("never prune down to
+nothing restorable"), where `all_success` was a proxy for it. It is strictly stronger than the
+older `kept_parseable` count, which proved only that some object survived, not that anything
+restorable did. Because the sweep can now judge for itself, it no longer needs a caller to
+judge for it, and `cmd_backup` calls it unconditionally.
+
+**Retention got its own entry point.** `pmm-backup.sh prune` runs the sweep and nothing else, so
+it can be scheduled independently of the backup. That also relaxes a coupling the bounds were
+paying for: `S3_PRUNE_MAX_PER_RUN` and `S3_PRUNE_MAX_SECONDS` exist largely so the sweep cannot
+overrun the backup CronJob's `activeDeadlineSeconds` while holding that run's component locks.
+On its own schedule it answers to its own deadline. It takes no component locks — it touches no
+database, and the only data it deletes belongs to ids past the cutoff, which no in-flight backup
+can be writing.
+
+## DN-41 — The manifest is a versioned on-storage contract
+
+`manifests/<id>.json` is not an internal data structure. It is written into a bucket that
+outlives any one install and is read back by whatever version of this script is running at DR
+time — which is routinely an **older** one, because a DR cluster is stood up from a chart
+release that predates the bucket's newest backups. Version skew here is the normal case, not
+the edge case.
+
+It was unversioned, and the compatibility work had already started without it: `restore_encryption_key`
+skips the checksum when a manifest records no `sha256`, and `object_size_state` falls back to a
+non-empty test when no per-object size was recorded. Both are field-presence probes standing in
+for "which version wrote this", and each new one costs another probe while telling a reader
+nothing about what it *cannot* see. Retention writes into the manifest too (`retention_note`,
+`status: pruned`), so there is more than one writer of the format.
+
+So the manifest carries `schema`, absent meaning 1, and each reader states what it does with a
+version it does not understand — the three answers differ because the consequences do:
+
+- **restore refuses.** It acts on what it reads while PMM is at 0 replicas; misreading where a
+  component lives means reporting a partial restore as complete.
+- **retention defers the id, keeping the manifest.** Purging the components it recognises and
+  then deleting the index would strand the rest — the same reasoning that already defers an id
+  whose component key it cannot turn into a path.
+- **`list` prints it, flagged `vN-too-new`.** It is read-only, and an operator choosing a backup
+  mid-incident needs to see that this id exists and that this binary will not restore it.
+
+**Bump only for a change an older reader would mis-handle**: a component whose data moved, a
+field whose meaning changed, a component removed. Adding a new optional field is not a bump —
+`// empty` already handles it, which is exactly how `sha256` and `files` were added compatibly.
+An unreadable `schema` counts as "newer": a version that cannot be read is a format that cannot
+be trusted, and every caller here fails toward caution rather than guessing.
+
+## DN-42 — The component is a label, not a file name
+
+Every backup metric already carries `component="postgresql"` and friends. The writer *also*
+split them by file — `postgresql_metrics.prom`, `clickhouse_metrics.prom`, … — encoding one
+dimension twice, and the second encoding is the expensive one: a file is not a label, it is a
+thing something has to serve.
+
+That put the component list into the serving contract, in three more places:
+
+| Adding a component meant editing | Because |
+|---|---|
+| `write_component_metrics` call site | a new `<component>_metrics.prom` |
+| `backup-tools.yaml` | a new `nc` listener + a new `containerPort` |
+| `vmagent.yaml` | a new ~30-line scrape job differing only by port |
+
+Four files, no shared definition, and nothing that fails when one is missed. It was missed:
+the orchestrator wrote `pmm-server_metrics.prom` for months while no listener served it and no
+job scraped it, so a `/srv` backup failing on **every** PMM pod never reached Prometheus. The
+`git log` for that fix adds the fifth listener and the fifth job; it does not remove the reason
+there had to be a fifth.
+
+Now `write_backup_metrics` emits one `backup_metrics.prom` holding every component, the pod
+serves *whatever `.prom` files exist* on one port, and vmagent has one job. Adding a component
+changes a label value and nothing else. The two writers keep separate files (backup and
+restore have different lifecycles and write at different times) but use disjoint metric
+families, so concatenating them still yields one `HELP`/`TYPE` pair per family.
+
+Two things came out of consolidating that the split had been hiding:
+
+- **The encryption key now has a metric.** It was excluded as having "no size or duration worth
+  graphing" — true, and beside the point: whether it succeeded is precisely what a DR-readiness
+  alert needs. A run whose key export failed, leaving that night's PostgreSQL dumps
+  undecryptable, was indistinguishable in Prometheus from a run on an install with no
+  encryption configured.
+- **Its status is passed in, not read from `RESULTS_JSON`.** `backup_encryption_key` records a
+  result only on success, so deriving the list from that object would have dropped the failure
+  case — the same trap DN-38 describes for the manifest, which is why `write_manifest` takes
+  the status as an argument too.

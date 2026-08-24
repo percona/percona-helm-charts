@@ -306,3 +306,22 @@ the source cluster, which in a real disaster may be gone.
 {{- $prefix := .Values.centralBackupStorage.s3.prefix | default "pmm-ha" | trimPrefix "/" | trimSuffix "/" -}}
 {{- printf "%s/%s" .Release.Namespace $prefix -}}
 {{- end -}}
+
+{{/*
+The relabel rules that scope a backup-metrics scrape job to THIS release's backup-tools pod.
+Defined once because five scrape jobs need it and a divergence between them is invisible until
+two releases share a namespace — a topology this chart supports (the backup SA and the central
+PVC are both release-scoped for it).
+
+regexQuoteMeta on the release name matters: Prometheus anchors relabel regexes but does not
+escape them, so an unescaped release called `pmm.prod` would also keep a co-located `pmmXprod`
+release's pods — reintroducing the cross-release mixing this rule exists to stop.
+*/}}
+{{- define "pmm.backupToolsScrapeKeep" -}}
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+  regex: 'backup-tools'
+  action: keep
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+  regex: '{{ regexQuoteMeta .Release.Name }}'
+  action: keep
+{{- end -}}

@@ -76,9 +76,18 @@ spec:
               apk add --no-cache ${need} >/dev/null 2>&1 \
                 || echo "WARN: 'apk add${need}' failed (no repository access, or not an Alpine image)"
             fi
+            # rclone is REQUIRED only in s3 mode — the same condition the readinessProbe below
+            # and pmm-backup.sh's preflight_checks use. Declaring it mandatory in shared mode
+            # made the pod's own log contradict its (correct) Ready status.
             missing=""
             jq --version >/dev/null 2>&1     || missing="${missing} jq"
+            {{- if eq .Values.centralBackupStorage.mode "s3" }}
             rclone version >/dev/null 2>&1   || missing="${missing} rclone"
+            {{- else }}
+            # shared mode: note it, but it is not a failure. `--target s3` from this pod would
+            # still need it, which is why this stays visible in the log.
+            rclone version >/dev/null 2>&1   || echo "note: rclone is absent; not needed for centralBackupStorage.mode=shared, but 'pmm-backup.sh --target s3' from this pod would require it"
+            {{- end }}
             if [ -n "${missing}" ]; then
               echo "ERROR: missing tool(s):${missing} — BOTH backup and restore will fail in this pod."
               echo "ERROR:   This container stays up but Not Ready so it can still be inspected and exec'd into."
@@ -100,31 +109,39 @@ spec:
             echo "metrics listener: nc ${NC_LISTEN} <port>"
             METRICS_PATH="{{ .Values.centralBackupStorage.mountPath }}/.metrics"
             mkdir -p "${METRICS_PATH}"
-            for comp in postgresql clickhouse victoriametrics pmm-server; do
-              [ -f "${METRICS_PATH}/${comp}_metrics.prom" ] || echo '# Waiting for first backup run' > "${METRICS_PATH}/${comp}_metrics.prom"
-            done
+            # Two writers, two files, ONE endpoint. This used to be one file per COMPONENT and
+            # a listener/port/scrape-job per file, which put the component list into the
+            # serving contract: adding a component meant editing this file, the ports list and
+            # vmagent.yaml, and pmm-server's metrics were written for months before anyone
+            # noticed nothing served them. The orchestrator now emits one backup_metrics.prom
+            # with `component=` as a LABEL, so nothing here needs to know the component list —
+            # the listener below serves whatever .prom files exist.
+            [ -f "${METRICS_PATH}/backup_metrics.prom" ] || echo '# Waiting for first backup run' > "${METRICS_PATH}/backup_metrics.prom"
             [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
             serve_metrics() {
               while true; do
                 # nc normally BLOCKS here until a scrape arrives, so the loop turns over once
                 # per request. If it instead fails immediately — nc missing (the air-gap path
                 # above deliberately does not exit), the wrong -l/-p flag family, the port
-                # already bound — the loop becomes a tight spin, and five of them saturate this
-                # container's CPU limit. Since the orchestrator runs `kubectl exec` INTO this
-                # same container, that throttles a backup or a DR restore to a crawl. The guard
+                # already bound — the loop becomes a tight spin that saturates this container's
+                # CPU limit. Since the orchestrator runs `kubectl exec` INTO this same
+                # container, that throttles a backup or a DR restore to a crawl. The guard
                 # costs one syscall per served request and bounds the failure at 1 attempt/s.
-                _t0=$(date +%s 2>/dev/null || echo 0)
-                { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; cat "${METRICS_PATH}/$1" 2>/dev/null || echo '# not found'; } | nc -w 5 ${NC_LISTEN} "$2" >/dev/null 2>&1
-                [ "$(( $(date +%s 2>/dev/null || echo 1) - _t0 ))" -lt 1 ] && sleep 1
+                _t0=$(date +%s 2>/dev/null || echo 0)   # 0 on failure — see the check below
+                # Every .prom in the directory, concatenated. The two writers use disjoint
+                # metric families (pmm_ha_backup_* / pmm_ha_restore_*), so each HELP/TYPE pair
+                # still appears exactly once in the exposition. An unmatched glob stays literal
+                # and cat fails, hence the fallback.
+                { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; cat "${METRICS_PATH}"/*.prom 2>/dev/null || echo '# no metrics files yet'; } | nc -w 5 ${NC_LISTEN} "$1" >/dev/null 2>&1
+                # BOTH fallbacks are 0, so a broken `date` yields 0-0=0, which is < 1 and the
+                # sleep fires. With 0 and 1 the difference was 1, the sleep never ran, and the
+                # guard failed open in precisely the degraded environment it exists for (no nc
+                # AND no date).
+                _t1=$(date +%s 2>/dev/null || echo 0)
+                [ "$(( _t1 - _t0 ))" -lt 1 ] && sleep 1
               done
             }
-            serve_metrics postgresql_metrics.prom 9091 &
-            serve_metrics clickhouse_metrics.prom 9092 &
-            serve_metrics victoriametrics_metrics.prom 9093 &
-            serve_metrics restore_metrics.prom 9094 &
-            # /srv. The orchestrator has always written this file; until now nothing served it,
-            # so a /srv backup failing for every PMM pod never reached Prometheus.
-            serve_metrics pmm-server_metrics.prom 9095 &
+            serve_metrics 9091 &
             sleep infinity
         readinessProbe:
           # Not Ready until the tools actually run. This is what an init container was standing
@@ -146,20 +163,9 @@ spec:
           periodSeconds: 10
           failureThreshold: 3
         ports:
-          - name: metrics-pg
+          # One endpoint for every backup/restore metric. The component is a label, not a port.
+          - name: metrics
             containerPort: 9091
-            protocol: TCP
-          - name: metrics-ch
-            containerPort: 9092
-            protocol: TCP
-          - name: metrics-vm
-            containerPort: 9093
-            protocol: TCP
-          - name: metrics-restore
-            containerPort: 9094
-            protocol: TCP
-          - name: metrics-srv
-            containerPort: 9095
             protocol: TCP
         env:
           - name: NAMESPACE

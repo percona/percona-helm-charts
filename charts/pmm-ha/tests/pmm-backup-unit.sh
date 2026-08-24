@@ -703,6 +703,100 @@ assert_eq "an existing encryption entry is not overwritten" "abc" \
 rm -f "${_wm_out}"
 
 #########################################################################################
+section "restore_encryption_key — the store must not be able to choose what gets applied"
+#########################################################################################
+
+# This is the ONE place store content reaches the apiserver as a MANIFEST rather than as data.
+# The first version of the gate used a bare `jq -e '<predicate>'`, which takes its exit status
+# from the LAST value in a JSON STREAM — so an attacker object placed FIRST passed, and the
+# namespace rewrite then emitted both documents for `kubectl apply` to create. That is why the
+# check is slurped (`-s` + `length == 1`), and why the ordering cases below exist.
+# comp_path is deliberately NOT stubbed: a stub here leaked into a later section and made it
+# assert against the stub instead of the real function. BACKUP_DIR points at a temp tree and the
+# payload is written to the path comp_path actually computes, so the real path builder is
+# exercised too. mf_field is restored at the end of the section for the same reason.
+_ek_dir=$(mktemp -d)
+_ek_applied="${_ek_dir}/applied"
+LOG_FILE=/dev/null; DRY_RUN=false; NAMESPACE="target-ns"; S3_ENABLED=false
+BACKUP_DIR="${_ek_dir}"; CURRENT_ID=backup_20260610-120000; BACKUP_NAME=backup_20260610-120000
+_ek_payload="$(comp_path encryption)/pg-encryption-key.yaml"
+mkdir -p "$(dirname "${_ek_payload}")"
+_ek_saved_mf_field=$(command -v mf_field >/dev/null 2>&1 && echo yes || echo no)
+mf_field() { echo ""; }                       # no sha256 recorded: the checksum block is skipped
+store_read() { cat "$1" 2>/dev/null; }
+kubectl() { if [ "$1" = apply ]; then cp "$3" "${_ek_applied}"; fi; return 0; }
+
+_ek_probe() {   # <label> <expect-applied yes|no>
+    : > "${_ek_applied}"
+    restore_encryption_key >/dev/null 2>&1
+    _ek_got=$( [ -s "${_ek_applied}" ] && echo yes || echo no )
+    assert_eq "$1" "$2" "${_ek_got}"
+}
+
+_SECRET='{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pg-encryption-key","namespace":"source-ns"},"data":{"k":"dg=="}}'
+_POD='{"apiVersion":"v1","kind":"Pod","metadata":{"name":"pwn"},"spec":{"hostPID":true}}'
+
+printf '%s\n' "${_SECRET}" > "${_ek_payload}"
+_ek_probe "the real key Secret is applied" "yes"
+assert_eq "and its namespace is rewritten to the target" "target-ns" \
+    "$(jq -r '.metadata.namespace' "${_ek_applied}" 2>/dev/null)"
+assert_eq "and exactly one object is applied" "1" \
+    "$(jq -s 'length' "${_ek_applied}" 2>/dev/null)"
+
+printf '%s\n%s\n' "${_SECRET}" "${_POD}" > "${_ek_payload}"
+_ek_probe "an object appended AFTER the Secret is refused" "no"
+
+# THE regression: with the attacker object first, the last value in the stream is the real
+# Secret, so an unslurped `jq -e` returns 0 and the payload sails through.
+printf '%s\n%s\n' "${_POD}" "${_SECRET}" > "${_ek_payload}"
+_ek_probe "an object placed BEFORE the Secret is refused" "no"
+
+printf '%s\n' "${_POD}" > "${_ek_payload}"
+_ek_probe "a Pod alone is refused" "no"
+printf '%s\n' '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pmm-secret"},"data":{}}' > "${_ek_payload}"
+_ek_probe "a Secret with another name is refused" "no"
+printf '%s\n' 'not json at all' > "${_ek_payload}"
+_ek_probe "unparseable content is refused" "no"
+rm -rf "${_ek_dir}"
+# Put the manifest accessor back so later sections see the real one.
+mf_field() { jq -r --arg c "$1" --arg k "$2" '.components[$c][$k] // empty' "${MANIFEST_FILE}" 2>/dev/null; }
+
+#########################################################################################
+section "wait_for_pods_replaced — StatefulSet pods keep their names"
+#########################################################################################
+
+# vmselect is a StatefulSet, so the replacement pod is recreated with the SAME name. Identifying
+# the old set by NAME therefore never saw it drain: the wait burned its full timeout and
+# returned failure on every VM restore. Identity has to be the pod UID.
+_wpr_state="${TMPDIR:-/tmp}/.wpr_uid_state.$$"
+echo old > "${_wpr_state}"
+kubectl() {
+    case "$*" in
+        *metadata.uid*)  if [ "$(cat "${_wpr_state}")" = old ]; then echo "uid-OLD"; else echo "uid-NEW"; fi ;;
+        *metadata.name*) echo "vmselect-pmm-ha-vmcluster-0" ;;   # SAME name before and after
+        *Ready*)         echo "True" ;;
+    esac
+    [ "$(cat "${_wpr_state}")" = old ] && echo new > "${_wpr_state}"
+    return 0
+}
+VERBOSE=false
+wait_for_pods_replaced ns app=vmselect "uid-OLD" 1 30 >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "a pod recreated under the same name IS seen as replaced" 0 "${rc}"
+
+# ...and a pod that genuinely has not been replaced must NOT satisfy the wait.
+echo old > "${_wpr_state}"
+kubectl() {
+    case "$*" in
+        *metadata.uid*) echo "uid-OLD" ;;    # never changes: nothing was replaced
+        *Ready*)        echo "True" ;;
+    esac
+    return 0
+}
+wait_for_pods_replaced ns app=vmselect "uid-OLD" 1 10 >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "an unreplaced pod does not satisfy the wait" 1 "${rc}"
+rm -f "${_wpr_state}"
+
+#########################################################################################
 section "numeric knobs — a non-numeric value must not disable the check it guards"
 #########################################################################################
 
