@@ -106,7 +106,16 @@ spec:
             [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
             serve_metrics() {
               while true; do
+                # nc normally BLOCKS here until a scrape arrives, so the loop turns over once
+                # per request. If it instead fails immediately — nc missing (the air-gap path
+                # above deliberately does not exit), the wrong -l/-p flag family, the port
+                # already bound — the loop becomes a tight spin, and five of them saturate this
+                # container's CPU limit. Since the orchestrator runs `kubectl exec` INTO this
+                # same container, that throttles a backup or a DR restore to a crawl. The guard
+                # costs one syscall per served request and bounds the failure at 1 attempt/s.
+                _t0=$(date +%s 2>/dev/null || echo 0)
                 { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; cat "${METRICS_PATH}/$1" 2>/dev/null || echo '# not found'; } | nc -w 5 ${NC_LISTEN} "$2" >/dev/null 2>&1
+                [ "$(( $(date +%s 2>/dev/null || echo 1) - _t0 ))" -lt 1 ] && sleep 1
               done
             }
             serve_metrics postgresql_metrics.prom 9091 &
@@ -123,7 +132,16 @@ spec:
           # it is also the ONLY thing reporting a failed install, since the start-up script
           # deliberately does not exit non-zero (see the comment above it).
           exec:
+            {{- /* jq always; rclone ONLY in s3 mode — the same condition preflight_checks
+                   applies. Requiring rclone unconditionally reported a perfectly functional
+                   shared-mode install as permanently NotReady, and made the CronJob's
+                   `kubectl wait --for=condition=Ready` burn its full timeout on every
+                   scheduled run before falling through. */}}
+            {{- if eq .Values.centralBackupStorage.mode "s3" }}
             command: ["sh", "-c", "jq --version >/dev/null && rclone version >/dev/null"]
+            {{- else }}
+            command: ["sh", "-c", "jq --version >/dev/null"]
+            {{- end }}
           initialDelaySeconds: 2
           periodSeconds: 10
           failureThreshold: 3

@@ -52,14 +52,27 @@ INFLIGHT="${LOGDIR}/inflight.pid"
 # lifetime the check needs, and it needs no /proc.
 INSTANCE_TOKEN_FILE="${CRON_BACKUP_INSTANCE_TOKEN_FILE:-/tmp/.pmm-cron-instance}"
 if [ ! -s "${INSTANCE_TOKEN_FILE}" ]; then
-    # Any value unique to this container start will do; several fallbacks so no one source
-    # (an image without /proc, a shell without $RANDOM) can leave the token empty.
-    { cat /proc/sys/kernel/random/uuid 2>/dev/null \
-      || od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n' \
-      || echo "boot-$$-$(date +%s 2>/dev/null || echo 0)"; } > "${INSTANCE_TOKEN_FILE}" 2>/dev/null || true
+    # Any value unique to this container start will do. Each source is tried and CHECKED, one
+    # at a time: chaining them with `||` around a pipeline takes the pipeline's status from its
+    # LAST element, so `od ... | tr ...` reported success even when od failed and the final
+    # fallback could never run — leaving the token empty.
+    _tok=""
+    _tok="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || true)"
+    if [ -z "${_tok}" ]; then
+        _tok="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n' || true)"
+    fi
+    if [ -z "${_tok}" ]; then
+        # Last resort. NOT just $$: a fresh container's PID namespace hands out the same small
+        # pids every time, so two successive containers could mint the SAME token — precisely
+        # the collision the token exists to rule out. The pod name (unique per pod, injected by
+        # the chart) and the wall clock make a repeat effectively impossible.
+        _tok="fallback-${HOSTNAME:-nohost}-$$-$(date +%s 2>/dev/null || echo 0)"
+    fi
+    printf '%s\n' "${_tok}" > "${INSTANCE_TOKEN_FILE}" 2>/dev/null || true
 fi
 INSTANCE_TOKEN="$(cat "${INSTANCE_TOKEN_FILE}" 2>/dev/null || true)"
-[ -n "${INSTANCE_TOKEN}" ] || INSTANCE_TOKEN="unknown-$$"
+# Same reasoning as above: never fall back to a value a new container can reproduce.
+[ -n "${INSTANCE_TOKEN}" ] || INSTANCE_TOKEN="unknown-${HOSTNAME:-nohost}-$$-$(date +%s 2>/dev/null || echo 0)"
 
 # Hidden re-entry: the detached child calls back here to run the orchestrator and capture its
 # exit code next to the log. Kept as a self re-exec so setsid/nohup run a real file, not a
@@ -105,7 +118,16 @@ STALL_MIN="${CRON_BACKUP_STALL_MIN:-15}"
 MARKER_RETENTION_DAYS="${CRON_BACKUP_MARKER_RETENTION_DAYS:-7}"
 
 RUN_ID=""
-if [ "${1:-}" = "--run-id" ]; then RUN_ID="${2:-}"; shift 2; fi
+if [ "${1:-}" = "--run-id" ]; then
+    # `shift 2` with only one argument left returns non-zero, which under `set -eu` kills the
+    # wrapper with a raw "can't shift that many" and no explanation — the same truncated
+    # argument list that motivated require_value in pmm-backup.sh. Shift what is actually
+    # there and fall through to the documented manual-$$ degradation.
+    if [ $# -ge 2 ]; then RUN_ID="$2"; shift 2; else
+        echo "[cron-backup] --run-id was given no value; falling back to a per-process id" >&2
+        shift
+    fi
+fi
 # Fallback id (manual invocation, or an empty Job-name label): still detaches, but retries
 # won't reconnect since the id differs per process — acceptable degradation.
 [ -n "${RUN_ID}" ] || RUN_ID="manual-$$"

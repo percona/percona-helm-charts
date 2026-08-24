@@ -90,8 +90,35 @@ S3_ENABLED=false
 # flag because --request-timeout breaks kubectl's in-cluster API server discovery
 # when running inside a pod (kubectl falls back to localhost:8080 instead of using
 # the ServiceAccount token). Discovered during in-cluster testing on kubectl v1.35.
+# Every env below reaches `[ x -lt y ]` or `timeout <n>`, where a NON-NUMERIC value does not
+# merely misbehave — `[ 0 -lt 5m ]` exits 2, which an `if` reads as FALSE. So a stray
+# CH_CREATE_TIMEOUT=5m made backup_clickhouse skip its wait loop AND skip the timeout arm, and
+# report success for a backup it never confirmed was created. Fall back to the default rather
+# than abort: these are operational knobs, and a typo in one must not fail a whole run.
+# BACKUP_RETENTION, S3_PRUNE_* and the RCLONE_* bounds already do this individually; this is
+# the same rule for the rest.
+# The clamp is applied HERE, at load time, because these values are read all over the file —
+# but log() and LOG_FILE do not exist yet at this point, so what was clamped is accumulated and
+# reported by preflight_checks instead of being silently swallowed.
+# numeric_env <VAR-NAME> <default>
+NUMERIC_ENV_CLAMPED=""
+numeric_env() {
+    # Initialised before the eval: if the eval ever failed, the read below would be an unset
+    # variable under `set -u` — which aborts the script at load time, before any log exists.
+    _ne_v=""
+    eval "_ne_v=\${$1}"
+    case "${_ne_v}" in
+        ''|*[!0-9]*|0)
+            NUMERIC_ENV_CLAMPED="${NUMERIC_ENV_CLAMPED}${NUMERIC_ENV_CLAMPED:+; }$1='${_ne_v}' -> $2"
+            eval "$1=$2" ;;
+    esac
+    unset _ne_v
+}
+
 KUBECTL_EXEC_TIMEOUT="${KUBECTL_EXEC_TIMEOUT:-600}"
+numeric_env KUBECTL_EXEC_TIMEOUT 600
 KUBECTL_STATUS_TIMEOUT="${KUBECTL_STATUS_TIMEOUT:-30}"
+numeric_env KUBECTL_STATUS_TIMEOUT 30
 
 # Kubernetes label selectors (one definition for both operations)
 LABEL_PG_PRIMARY="postgres-operator.crunchydata.com/role=primary"
@@ -136,7 +163,9 @@ BACKUP_ENCRYPTION_KEY="${BACKUP_ENCRYPTION_KEY:-true}"
 CH_BACKUP_TYPE="${CH_BACKUP_TYPE:-full}"
 # Max seconds to wait for clickhouse-backup create/upload to finish (polled async)
 CH_CREATE_TIMEOUT="${CH_CREATE_TIMEOUT:-300}"
+numeric_env CH_CREATE_TIMEOUT 300
 CH_UPLOAD_TIMEOUT="${CH_UPLOAD_TIMEOUT:-600}"
+numeric_env CH_UPLOAD_TIMEOUT 600
 
 # PMM server (/srv) settings: path inside the PMM server pod to archive
 PMM_SRV_PATH="${PMM_SRV_PATH:-/srv}"
@@ -269,6 +298,7 @@ SKIP_POSTGRESQL=false; SKIP_CLICKHOUSE=false; SKIP_VICTORIAMETRICS=false; SKIP_P
 # gate fails closed, so a timeout would refuse a good restore), while the 600s exec budget
 # would stall even a --dry-run for ten silent minutes against a wedged sidecar.
 CH_LIST_TIMEOUT="${CH_LIST_TIMEOUT:-120}"
+numeric_env CH_LIST_TIMEOUT 120
 
 # VictoriaMetrics restore (auto-detected from the vmstorage pod if unset)
 VMRESTORE_IMAGE="${VMRESTORE_IMAGE:-}"
@@ -296,9 +326,17 @@ PMM_SAVED_REPLICAS="" ; PMM_STATEFULSET_NAME=""
 # read-before-assignment, and these two are dereferenced bare by render_rclone_s3_env,
 # create_vm_restore_pod, create_pmm_restore_pod and validate_restore_targets.
 TEMP_POD_S3_KEYS_ENV="" ; TEMP_POD_SA_LINE=""
-# Set to true the moment THIS run creates its first temp mounter pod. restore_cleanup's
-# label-wide sweep is gated on it, so an aborted run cannot delete another run's live pod.
-TEMP_PODS_CREATED=false
+# Proof that THIS run created a temp mounter pod. restore_cleanup's label-wide sweep is gated
+# on it, so an aborted run cannot delete a DIFFERENT run's live pod.
+#
+# A FILE, not a variable. In the default --parallel mode each component restore runs in
+# `( ... ) &`, so a variable set by create_vm_restore_pod is set in a subshell and is invisible
+# to the parent that runs restore_cleanup — the gate would then skip the sweep for exactly the
+# pods it exists to clean up (VictoriaMetrics', which are the ones holding the RWO
+# vmstorage-db PVCs), and a Ctrl-C would leave one attached and wedge vmstorage on Multi-Attach
+# at scale-up. The path is chosen in the parent before any fork, so every subshell inherits the
+# same path and writes to the same file.
+TEMP_PODS_MARKER=""
 RESTORE_START_TIME=0
 ENCRYPTION_KEY_OK=false ; POSTGRESQL_OK=false ; CLICKHOUSE_OK=false
 VICTORIAMETRICS_OK=false ; PMM_SERVER_OK=false
@@ -795,8 +833,20 @@ comp_path() {
     _cp_id=$(_require_id "${2:-$(backup_id_default)}") || return 1
     echo "$(backup_root)/$1/${_cp_id}"
 }
-comp_display() { echo "$(backup_root_display)/$1/${2:-$(backup_id_default)}"; }
-comp_inpod()   { echo "$(backup_root_inpod)/$1/${2:-$(backup_id_default)}"; }
+# Same guard as comp_path, and for the same reason. These are NOT merely read-only views:
+# comp_inpod is what backup_clickhouse tars into and what vm_dst_for_pod turns into vmbackup's
+# fs:// destination, and comp_display is the s3:// -dst vmbackup writes to. With an unset id
+# they resolved to the component ROOT, so a call ordering that reached a component before the
+# dispatcher set CURRENT_ID would write a backup one level up, on top of every other backup of
+# that component, instead of failing.
+comp_display() {
+    _cd_id=$(_require_id "${2:-$(backup_id_default)}") || return 1
+    echo "$(backup_root_display)/$1/${_cd_id}"
+}
+comp_inpod() {
+    _ci_id=$(_require_id "${2:-$(backup_id_default)}") || return 1
+    echo "$(backup_root_inpod)/$1/${_ci_id}"
+}
 manifest_path()    { echo "$(backup_root)/manifests/${1:-$(backup_id_default)}.json"; }
 manifest_display() { echo "$(backup_root_display)/manifests/${1:-$(backup_id_default)}.json"; }
 manifests_dir()    { echo "$(backup_root)/manifests"; }
@@ -1166,6 +1216,35 @@ wait_for_pods_ready() {
     log "ERROR" "Timed out waiting for pods ready (selector: ${selector}, ${max_wait}s)"; return 1
 }
 
+# Wait until a set of pods has actually been REPLACED, not merely until "enough pods report
+# Ready". A pod that is Terminating keeps Ready=True for its whole grace period, so after a
+# `kubectl delete pod -l ...` the plain readiness count can be satisfied by the very pods being
+# deleted — the wait returns immediately and the caller believes a bounce completed that has not
+# started. Requires: none of the pre-delete names still exist, AND `expected` of the pods that
+# do exist are Ready.
+#   wait_for_pods_replaced <ns> <selector> <old-names> <expected> [timeout]
+wait_for_pods_replaced() {
+    local ns="$1" selector="$2" old_names="$3" expected="$4" max_wait="${5:-${KUBECTL_EXEC_TIMEOUT}}"
+    local elapsed=0 names ready survivors _n
+    while [ $elapsed -lt $max_wait ]; do
+        names=$(kubectl get pods -n "${ns}" -l "${selector}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+        survivors=0
+        for _n in ${old_names}; do
+            printf '%s\n' "${names}" | grep -Fxq "${_n}" && survivors=$((survivors + 1))
+        done
+        if [ "${survivors}" -eq 0 ]; then
+            ready=$(kubectl get pods -n "${ns}" -l "${selector}" -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' 2>/dev/null | grep -c "True" || true)
+            : "${ready:=0}"
+            if [ "${ready}" -ge "${expected}" ] 2>/dev/null; then
+                log "INFO" "${ready}/${expected} replacement pod(s) ready (${selector})"; return 0
+            fi
+        fi
+        [ "${VERBOSE}" = "true" ] && log "INFO" "Waiting for replacement pods (${selector}: ${survivors} old still present, ${elapsed}/${max_wait}s)..."
+        sleep 5; elapsed=$((elapsed + 5))
+    done
+    log "ERROR" "Timed out waiting for pods to be replaced (selector: ${selector}, ${max_wait}s)"; return 1
+}
+
 wait_for_pod_ready_by_name() {
     local ns="$1" name="$2" max_wait="${3:-${KUBECTL_EXEC_TIMEOUT}}" elapsed=0 ready
     while [ $elapsed -lt $max_wait ]; do
@@ -1208,7 +1287,9 @@ wait_for_pod_gone_by_name() {
 # A Lease is the mechanism Kubernetes provides for this: creation is atomic (AlreadyExists is
 # the contention signal), and expiry is data in the object rather than a guess about a PID.
 LOCK_LEASE_SECONDS="${LOCK_LEASE_SECONDS:-900}"
+numeric_env LOCK_LEASE_SECONDS 900
 LOCK_RENEW_SECONDS="${LOCK_RENEW_SECONDS:-60}"
+numeric_env LOCK_RENEW_SECONDS 60
 LOCK_HOLDER="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}-$$"
 LOCK_RENEWER_PID=""
 
@@ -1689,17 +1770,36 @@ EOF
     if [ -n "${_existing}" ]; then
         # Existing components lose to this run's on conflict; any failed component in the
         # merged set makes the whole backup partial.
-        _merged=$(jq -n --argjson new "${_manifest}" --argjson old "${_existing}" '
-            $new
-            | .components = (($old.components // {}) + $new.components)
-            | .status = (if $new.status == "partial"
-                            or ([.components[] | .status // ""] | index("failed"))
-                         then "partial" else "complete" end)' 2>/dev/null || true)
-        if [ -n "${_merged}" ]; then
-            [ "${_merged}" != "${_manifest}" ] && log "INFO" "[Manifest] Merged component entries from a concurrent run of this backup id"
-            _manifest="${_merged}"
+        # Two DIFFERENT failures used to collapse into one empty result: --argjson rejecting
+        # content that is not JSON at all, and the filter itself erroring on content that IS
+        # valid JSON but shaped unexpectedly (a .components that is a string, component values
+        # that are not objects — either aborts `[.components[] | .status // ""]`). Both then
+        # took the "not valid JSON; overwriting it" arm, which in the concurrent workflow
+        # ERASES the sibling's entry from the restore index while its data sits uploaded, and
+        # told the operator the wrong cause. Establish which it is before deciding.
+        if ! printf '%s' "${_existing}" | jq -e . >/dev/null 2>&1; then
+            log "WARN" "[Manifest] The existing $(manifest_display) is not valid JSON; overwriting it"
         else
-            log "WARN" "[Manifest] Existing manifest is not valid JSON; overwriting it"
+            _merged=$(jq -n --argjson new "${_manifest}" --argjson old "${_existing}" '
+                $new
+                | .components = (($old.components // {}) + $new.components)
+                | .status = (if $new.status == "partial"
+                                or ([.components[] | .status // ""] | index("failed"))
+                             then "partial" else "complete" end)' 2>/dev/null || true)
+            if [ -n "${_merged}" ]; then
+                [ "${_merged}" != "${_manifest}" ] && log "INFO" "[Manifest] Merged component entries from a concurrent run of this backup id"
+                _manifest="${_merged}"
+            else
+                # Valid JSON that the merge could not process. Overwriting would drop whatever
+                # components it holds, so refuse: the data is already uploaded, and a component
+                # reported failed against an intact index is recoverable by re-running it,
+                # whereas a truncated index is not.
+                log "ERROR" "[Manifest] The existing $(manifest_display) is valid JSON but could not be merged"
+                log "ERROR" "[Manifest]   (unexpected shape — .components is expected to be an object of objects)."
+                log "ERROR" "[Manifest]   Refusing to overwrite it: that would erase whichever components it does list."
+                [ "${_mlock_held}" = "true" ] && kubectl delete lease "${_mlease}" -n "${NAMESPACE}" --ignore-not-found=true >/dev/null 2>&1 || true
+                return 1
+            fi
         fi
     fi
 
@@ -1827,6 +1927,23 @@ load_manifest() {
         esac
     fi
 
+    # Database names from the manifest are word-split by both the pre-flight and the restore
+    # (`for db in ${MF_PG_DBS}`), and they are joined with spaces on the backup side — so a
+    # name containing whitespace silently becomes two restore targets, and the pre-flight then
+    # refuses an intact backup because neither of the two invented dumps exists. Reject it here
+    # instead, where the cause is still visible. (The same one-name-per-word assumption is
+    # baked into sizes_to_json's key format.)
+    if [ -n "${MF_PG_DBS}" ]; then
+        case "${MF_PG_DBS}" in
+            *[!A-Za-z0-9_.\ -]*)
+                log "ERROR" "Manifest records unusable PostgreSQL database name(s) '${MF_PG_DBS}'"
+                log "ERROR" "  Allowed: A-Z a-z 0-9 _ . - and the spaces separating names. A database whose NAME"
+                log "ERROR" "  contains whitespace cannot be addressed by this restore; restore it by hand with"
+                log "ERROR" "  pg_restore against the dump in ${BACKUP_NAME}'s postgresql/ prefix."
+                return 1 ;;
+        esac
+    fi
+
     log "INFO" "Backup ${BACKUP_NAME}: status=${MF_STATUS:-?} target=${MF_TARGET:-?} created=${MF_CREATED:-?}"
     if [ -n "${MF_TARGET}" ] && [ "${MF_TARGET}" != "${BACKUP_TARGET}" ]; then
         log "WARN" "Manifest target '${MF_TARGET}' != --target '${BACKUP_TARGET}'. Restore uses --target ${BACKUP_TARGET}; pass --target ${MF_TARGET} if that's wrong."
@@ -1924,6 +2041,12 @@ cmd_list() {
 preflight_checks() {   # <backup|restore>
     local _pf_mode="${1:-backup}"
     log "INFO" "Running pre-flight checks..."
+    # Reported here rather than at load time: these are clamped before log() exists (see
+    # numeric_env), and a typo'd timeout that silently reverts to a default is exactly the kind
+    # of thing an operator needs told.
+    if [ -n "${NUMERIC_ENV_CLAMPED}" ]; then
+        log "WARN" "Ignoring non-numeric setting(s), using defaults: ${NUMERIC_ENV_CLAMPED}"
+    fi
     local checks_passed=true
 
     if ! command -v kubectl >/dev/null 2>&1; then
@@ -3304,13 +3427,14 @@ restore_cleanup() {
     # acquire_component_lock's `exit 1` — the documented "my kubectl exec dropped, re-run it"
     # hazard — ran this and killed the in-flight run's vmrestore or /srv pod mid-write, leaving
     # that ordinal truncated. release_locks is ownership-checked for exactly this reason; this
-    # sweep had no equivalent. TEMP_PODS_CREATED is our ownership proof.
+    # sweep had no equivalent. TEMP_PODS_MARKER is our ownership proof.
     local _c
-    if [ "${TEMP_PODS_CREATED}" = "true" ]; then
+    if [ -n "${TEMP_PODS_MARKER}" ] && [ -e "${TEMP_PODS_MARKER}" ]; then
         for _c in vm-restore-temp pmm-srv-restore-temp; do
             kubectl delete pod -n "${NAMESPACE}" -l "app.kubernetes.io/component=${_c}" --ignore-not-found=true --wait=false >/dev/null 2>&1 || true
         done
     fi
+    [ -n "${TEMP_PODS_MARKER}" ] && rm -f "${TEMP_PODS_MARKER}" 2>/dev/null || true
     release_locks
     return 0
 }
@@ -3578,7 +3702,7 @@ create_vm_restore_pod() {
     fi
     clear_leftover_temp_pod "${restore_pod}" VictoriaMetrics
     apply_out=$(mktemp /tmp/vmapply.XXXXXX 2>/dev/null || echo "/tmp/vmapply.$$")
-    TEMP_PODS_CREATED=true
+    [ -n "${TEMP_PODS_MARKER}" ] && : > "${TEMP_PODS_MARKER}" || true
     if ! kubectl create -f - -n "${NAMESPACE}" >"${apply_out}" 2>&1 <<EOF
 apiVersion: v1
 kind: Pod
@@ -3708,6 +3832,7 @@ vm_src_for_pod() {
 
 restore_victoriametrics() {
     local vmstorage_pods vmcluster_name original_vminsert original_vmstorage first_vm_pod vmrestore_image
+    local _vs_old=""
     vmstorage_pods=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     if [ -z "${vmstorage_pods}" ]; then log "ERROR" "[VictoriaMetrics] No vmstorage pods found"; return 1; fi
     vmcluster_name=$(kubectl get vmcluster -n "${NAMESPACE}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
@@ -3814,8 +3939,14 @@ restore_victoriametrics() {
     original_vmselect=$(kubectl get vmcluster "${vmcluster_name}" -n "${NAMESPACE}" -o jsonpath='{.spec.vmselect.replicaCount}' 2>/dev/null || echo "1")
     [ -z "${original_vmselect}" ] && original_vmselect=1
     log "INFO" "[VictoriaMetrics] Bouncing vmselect to reconnect to the restored vmstorage nodes..."
+    # Capture the names BEFORE deleting: a Terminating pod still reports Ready=True, so a plain
+    # readiness wait here could be satisfied by the pods being deleted and return before a
+    # single replacement had started — leaving vmselect serving from the old, pre-restore view
+    # and reopening the isPartial window this bounce exists to close (DN-29).
+    _vs_old=$(kubectl get pods -n "${NAMESPACE}" -l app.kubernetes.io/name=vmselect -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
     kubectl delete pod -n "${NAMESPACE}" -l app.kubernetes.io/name=vmselect 2>&1 | append_to_log || true
-    wait_for_pods_ready "${NAMESPACE}" "app.kubernetes.io/name=vmselect" "${original_vmselect}" 180 || log "WARN" "[VictoriaMetrics] vmselect not ready in time after bounce"
+    wait_for_pods_replaced "${NAMESPACE}" "app.kubernetes.io/name=vmselect" "${_vs_old}" "${original_vmselect}" 180 \
+        || log "WARN" "[VictoriaMetrics] vmselect not replaced/ready in time after bounce"
 
     if [ ${restored} -eq 0 ]; then log "ERROR" "[VictoriaMetrics] Restore failed: 0/${planned} pods"; return 1; fi
     # Partial is FAILURE, mirroring the backup side's fail-on-partial: a half-restored
@@ -3865,7 +3996,7 @@ $(render_rclone_s3_env)"
     fi
     clear_leftover_temp_pod "${restore_pod}" PMMServer
     apply_out=$(mktemp /tmp/pmmapply.XXXXXX 2>/dev/null || echo "/tmp/pmmapply.$$")
-    TEMP_PODS_CREATED=true
+    [ -n "${TEMP_PODS_MARKER}" ] && : > "${TEMP_PODS_MARKER}" || true
     if ! kubectl create -f - -n "${NAMESPACE}" >"${apply_out}" 2>&1 <<EOF
 apiVersion: v1
 kind: Pod
@@ -4114,6 +4245,7 @@ ch_chain_required_names() {
 prune_expired_backups() {
     local ids cutoff now latest_id kept=0 expired=0 purged=0 attempted=0 skipped=0 id ts _owner="" _id_comps=""
     local _id_ch_pinned=false _purge_comps="" _partial_fail=0 _pruned_mf="" _ret_cut_h=""
+    local _id_mf="" _id_chname="" _comp_fail=0 _c=""
     local list_rc=0 started
 
     if [ "${BACKUP_RETENTION}" -lt 1 ]; then
@@ -4439,7 +4571,11 @@ cleanup_old_backups() {
     # ${BACKUP_DIR}/logs/ and are not part of a backup id's component set.
     # || true: this runs as a plain statement under set -e AFTER the backups succeeded — a
     # find hiccup (e.g. missing logs dir) must not abort the run before metrics/summary.
-    find "${BACKUP_DIR}/logs" -maxdepth 1 -type f -name "backup_*.log" -mtime +${BACKUP_RETENTION} \
+    # Both prefixes. init_log writes restore runs as restore_<ts>.log into this same directory
+    # and nothing matched them, so on an install that runs DR drills (which the runbook asks
+    # for) they accumulated forever on a logs PVC that is sized for logs alone in s3 mode — and
+    # a full volume then breaks the next backup's own log and metrics writes.
+    find "${BACKUP_DIR}/logs" -maxdepth 1 -type f \( -name "backup_*.log" -o -name "restore_*.log" \) -mtime +${BACKUP_RETENTION} \
         -delete >> "${LOG_FILE}" 2>&1 || true
 
     # The former `find ${BACKUP_DIR} -type d -name 'backup_*'` sweeps are gone: since the
@@ -4909,6 +5045,10 @@ cmd_restore() {
     if [ "${DRY_RUN}" != "true" ]; then
         # EXIT just cleans up; INT/TERM must also EXIT, or ash/dash resumes the restore with its locks
         # released and temp pods deleted. restore_cleanup is idempotent. See DN-20.
+        # Decided before the traps and before any subshell forks: restore_cleanup reads it in
+        # the parent, the component subshells write it. See TEMP_PODS_MARKER.
+        TEMP_PODS_MARKER=$(mktemp 2>/dev/null || echo "/tmp/.pmm-temp-pods.$$")
+        rm -f "${TEMP_PODS_MARKER}" 2>/dev/null || true
         trap restore_cleanup EXIT
         trap 'restore_cleanup; exit 130' INT
         trap 'restore_cleanup; exit 143' TERM
@@ -4968,6 +5108,10 @@ cmd_restore() {
         [ "${RESTORE_VICTORIAMETRICS}" = "true" ] && LOCK_COMPONENTS="${LOCK_COMPONENTS} victoriametrics"
         # As above: the signal handlers must EXIT, or ash/dash resumes the restore with the
         # locks already released and the temp pods already deleted.
+        # Decided before the traps and before any subshell forks: restore_cleanup reads it in
+        # the parent, the component subshells write it. See TEMP_PODS_MARKER.
+        TEMP_PODS_MARKER=$(mktemp 2>/dev/null || echo "/tmp/.pmm-temp-pods.$$")
+        rm -f "${TEMP_PODS_MARKER}" 2>/dev/null || true
         trap restore_cleanup EXIT
         trap 'restore_cleanup; exit 130' INT
         trap 'restore_cleanup; exit 143' TERM

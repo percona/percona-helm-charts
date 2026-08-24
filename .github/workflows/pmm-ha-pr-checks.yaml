@@ -39,11 +39,17 @@ jobs:
       - name: Shell syntax (all three shells)
         run: |
           set -eu
-          for sh_bin in /bin/sh /bin/dash /bin/bash; do
-            echo "== ${sh_bin} -n =="
-            "${sh_bin}" -n charts/pmm-ha/files/pmm-backup.sh
+          # BOTH scripts. cron-backup.sh is the ONLY entry point the backup CronJob execs, so a
+          # syntax error or a busybox-ash-ism in it makes every scheduled run fail at exec time
+          # with the orchestrator never started — and it had no gate at all.
+          for f in charts/pmm-ha/files/pmm-backup.sh charts/pmm-ha/files/cron-backup.sh; do
+            for sh_bin in /bin/sh /bin/dash /bin/bash; do
+              echo "== ${sh_bin} -n ${f} =="
+              "${sh_bin}" -n "${f}"
+            done
+            echo "== busybox sh -n ${f} =="
+            busybox sh -n "${f}"
           done
-          busybox sh -n charts/pmm-ha/files/pmm-backup.sh
 
       - name: Static checks (tests/pmm-backup-lint.sh)
         run: sh charts/pmm-ha/tests/pmm-backup-lint.sh

@@ -334,6 +334,16 @@ spec:
         - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
           regex: 'backup-tools'
           action: keep
+        {{- /* ...and only THIS release's. Two pmm-ha releases in one namespace is a topology
+               the chart supports (the backup SA and the central PVC are both release-scoped
+               for exactly that reason), and both their backup-tools pods carry the same
+               component label — so without this each release scraped the other's backup
+               metrics into an identical label set, and an alert on
+               pmm_ha_backup_last_success would fire or clear on whichever pod won. The
+               ClickHouse/Keeper jobs above already scope this way. */}}
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+          regex: '{{ .Release.Name }}'
+          action: keep
         - source_labels: [__meta_kubernetes_pod_container_port_number]
           regex: '9091'
           action: keep
@@ -354,6 +364,16 @@ spec:
         - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
           regex: 'backup-tools'
           action: keep
+        {{- /* ...and only THIS release's. Two pmm-ha releases in one namespace is a topology
+               the chart supports (the backup SA and the central PVC are both release-scoped
+               for exactly that reason), and both their backup-tools pods carry the same
+               component label — so without this each release scraped the other's backup
+               metrics into an identical label set, and an alert on
+               pmm_ha_backup_last_success would fire or clear on whichever pod won. The
+               ClickHouse/Keeper jobs above already scope this way. */}}
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+          regex: '{{ .Release.Name }}'
+          action: keep
         - source_labels: [__meta_kubernetes_pod_container_port_number]
           regex: '9092'
           action: keep
@@ -373,6 +393,16 @@ spec:
       relabel_configs:
         - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
           regex: 'backup-tools'
+          action: keep
+        {{- /* ...and only THIS release's. Two pmm-ha releases in one namespace is a topology
+               the chart supports (the backup SA and the central PVC are both release-scoped
+               for exactly that reason), and both their backup-tools pods carry the same
+               component label — so without this each release scraped the other's backup
+               metrics into an identical label set, and an alert on
+               pmm_ha_backup_last_success would fire or clear on whichever pod won. The
+               ClickHouse/Keeper jobs above already scope this way. */}}
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+          regex: '{{ .Release.Name }}'
           action: keep
         - source_labels: [__meta_kubernetes_pod_container_port_number]
           regex: '9093'
@@ -398,6 +428,16 @@ spec:
         - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
           regex: 'backup-tools'
           action: keep
+        {{- /* ...and only THIS release's. Two pmm-ha releases in one namespace is a topology
+               the chart supports (the backup SA and the central PVC are both release-scoped
+               for exactly that reason), and both their backup-tools pods carry the same
+               component label — so without this each release scraped the other's backup
+               metrics into an identical label set, and an alert on
+               pmm_ha_backup_last_success would fire or clear on whichever pod won. The
+               ClickHouse/Keeper jobs above already scope this way. */}}
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+          regex: '{{ .Release.Name }}'
+          action: keep
         - source_labels: [__meta_kubernetes_pod_container_port_number]
           regex: '9095'
           action: keep
@@ -417,6 +457,16 @@ spec:
       relabel_configs:
         - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
           regex: 'backup-tools'
+          action: keep
+        {{- /* ...and only THIS release's. Two pmm-ha releases in one namespace is a topology
+               the chart supports (the backup SA and the central PVC are both release-scoped
+               for exactly that reason), and both their backup-tools pods carry the same
+               component label — so without this each release scraped the other's backup
+               metrics into an identical label set, and an alert on
+               pmm_ha_backup_last_success would fire or clear on whichever pod won. The
+               ClickHouse/Keeper jobs above already scope this way. */}}
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+          regex: '{{ .Release.Name }}'
           action: keep
         - source_labels: [__meta_kubernetes_pod_container_port_number]
           regex: '9094'

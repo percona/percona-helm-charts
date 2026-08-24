@@ -703,6 +703,50 @@ assert_eq "an existing encryption entry is not overwritten" "abc" \
 rm -f "${_wm_out}"
 
 #########################################################################################
+section "numeric knobs — a non-numeric value must not disable the check it guards"
+#########################################################################################
+
+# `[ 0 -lt 5m ]` EXITS 2, which an `if` reads as false — so CH_CREATE_TIMEOUT=5m made
+# backup_clickhouse skip its wait loop AND skip the timeout arm, and report success for a
+# ClickHouse backup it never confirmed had been created.
+for _bad in "5m" "abc" "" "0" "-1" "1.5"; do
+    _got=$(CH_CREATE_TIMEOUT="${_bad}" PMM_BACKUP_LIB=1 sh -c \
+        '. "$1" >/dev/null 2>&1; printf "%s" "${CH_CREATE_TIMEOUT}"' _ "${TARGET}" 2>/dev/null)
+    assert_eq "CH_CREATE_TIMEOUT='${_bad}' falls back to the default" "300" "${_got}"
+done
+_got=$(CH_CREATE_TIMEOUT=45 PMM_BACKUP_LIB=1 sh -c \
+    '. "$1" >/dev/null 2>&1; printf "%s" "${CH_CREATE_TIMEOUT}"' _ "${TARGET}" 2>/dev/null)
+assert_eq "a valid value is left alone" "45" "${_got}"
+# What was clamped has to reach the operator: it is applied before log() exists, so it is
+# recorded and reported by preflight_checks instead of being swallowed.
+_got=$(KUBECTL_STATUS_TIMEOUT=abc PMM_BACKUP_LIB=1 sh -c \
+    '. "$1" >/dev/null 2>&1; printf "%s" "${NUMERIC_ENV_CLAMPED}"' _ "${TARGET}" 2>/dev/null)
+case "${_got}" in
+    *KUBECTL_STATUS_TIMEOUT*) ok ;;
+    *) bad "the clamp is recorded for preflight to report" "KUBECTL_STATUS_TIMEOUT..." "${_got}" ;;
+esac
+
+#########################################################################################
+section "path views — the WRITE-facing ones must refuse an unset id too"
+#########################################################################################
+
+# comp_inpod is what backup_clickhouse tars into and what vm_dst_for_pod turns into vmbackup's
+# fs:// destination; comp_display is the s3:// -dst vmbackup writes to. With an unset id they
+# used to resolve to the component ROOT, so a call before the dispatcher sets CURRENT_ID would
+# write on top of every backup of that component instead of failing.
+S3_ENABLED=false
+BACKUP_DIR="/backups"
+SHARED_MOUNT_PATH="/central"
+CURRENT_ID=""
+for _fn in comp_path comp_display comp_inpod; do
+    "${_fn}" postgresql >/dev/null 2>&1 && rc=0 || rc=$?
+    assert_rc "${_fn} refuses an unset backup id" 1 "${rc}"
+done
+CURRENT_ID="backup_20260610-120000"
+assert_eq "comp_display with an id" "/backups/postgresql/backup_20260610-120000" "$(comp_display postgresql)"
+assert_eq "comp_inpod with an id"   "/central/postgresql/backup_20260610-120000"  "$(comp_inpod postgresql)"
+
+#########################################################################################
 section "write_manifest — an unmerged write must not be able to erase a sibling"
 #########################################################################################
 
@@ -967,23 +1011,40 @@ section "restore_cleanup — an aborted run must not delete another run's temp p
 # non-TTY gate or on acquire_component_lock's `exit 1` — the documented "my kubectl exec
 # dropped, re-run it" hazard — used to run a label-wide `kubectl delete pod` and kill the
 # in-flight run's vmrestore or /srv pod mid-write, truncating that ordinal.
-_rc_deletes=""
-kubectl() { case "$*" in "delete pod"*) _rc_deletes="${_rc_deletes} $*" ;; esac; return 0; }
+_rc_swept=$(mktemp)
+kubectl() { case "$*" in "delete pod"*) echo "$*" >> "${_rc_swept}" ;; esac; return 0; }
 release_locks() { :; }
 LOCK_COMPONENTS=""
-TEMP_PODS_CREATED=false
+# The parent picks the marker path before any fork, exactly as cmd_restore does.
+TEMP_PODS_MARKER=$(mktemp); rm -f "${TEMP_PODS_MARKER}"
+
+: > "${_rc_swept}"
 restore_cleanup
-assert_eq "a run that created no temp pod deletes none" "" "${_rc_deletes}"
-TEMP_PODS_CREATED=true
+assert_eq "a run that created no temp pod deletes none" "0" "$(wc -l < "${_rc_swept}" | tr -d ' ')"
+
+# THE case the flag has to survive: in the default --parallel mode each component restore runs
+# in `( ... ) &`, so a shell VARIABLE set by create_vm_restore_pod is set in a subshell and is
+# invisible to the parent that runs restore_cleanup. The gate would then skip the sweep for
+# exactly the pods it exists to clean up — VictoriaMetrics', which hold the RWO vmstorage-db
+# PVCs — and a Ctrl-C would leave one attached, wedging vmstorage on Multi-Attach at scale-up.
+( [ -n "${TEMP_PODS_MARKER}" ] && : > "${TEMP_PODS_MARKER}" || true ) &
+wait $!
+: > "${_rc_swept}"
 restore_cleanup
+_rc_deletes="$(tr '\n' ' ' < "${_rc_swept}")"
 case "${_rc_deletes}" in
     *vm-restore-temp*) ok ;;
-    *) bad "a run that DID create temp pods still sweeps them" "vm-restore-temp" "${_rc_deletes}" ;;
+    *) bad "a temp pod created in a SUBSHELL is still swept" "vm-restore-temp" "${_rc_deletes}" ;;
 esac
 case "${_rc_deletes}" in
     *pmm-srv-restore-temp*) ok ;;
     *) bad "both temp pod kinds are swept" "pmm-srv-restore-temp" "${_rc_deletes}" ;;
 esac
+# The sweep consumed the marker, so a second cleanup (INT then EXIT) does not re-sweep.
+: > "${_rc_swept}"
+restore_cleanup
+assert_eq "the marker is consumed, so a second cleanup is a no-op" "0" "$(wc -l < "${_rc_swept}" | tr -d ' ')"
+rm -f "${_rc_swept}"
 
 #########################################################################################
 section "value-taking flags — a missing value names the flag, not a line number"

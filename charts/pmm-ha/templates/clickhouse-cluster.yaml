@@ -48,6 +48,20 @@ spec:
       # itself creates tables with the implicit form, so this only affects restore.
       # Gated on the backup master switch so non-backup installs don't take a CHI reconcile
       # (settings change) on upgrade for a setting they'll never use.
+      #
+      # KNOWN TRADE-OFF, deliberately taken: this is a cluster-lifetime setting on the
+      # `default` profile, enabled to unblock a path that runs for minutes per restore.
+      # ClickHouse added the guard because a mismatched explicit zookeeper_path corrupts
+      # replication, so what is permitted here is hand-written explicit-path Replicated DDL,
+      # permanently, for every session on this profile.
+      #
+      # It is NOT scoped tighter today because clickhouse-backup connects as the SAME user PMM
+      # does, and that user is on `profile: default` (see the users block below) — a dedicated
+      # profile would therefore cover PMM's own sessions too and narrow nothing. Scoping this
+      # properly means giving clickhouse-backup its own ClickHouse user and profile, which is a
+      # credentials/grants change that needs its own restore verification rather than a
+      # drive-by edit. Until then the exposure is bounded by the fact that nothing in PMM emits
+      # explicit-path Replicated DDL.
       default/database_replicated_allow_replicated_engine_arguments: "1"
       {{- end }}
     
