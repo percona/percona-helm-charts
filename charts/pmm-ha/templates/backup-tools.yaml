@@ -114,8 +114,14 @@ spec:
             # serving contract: adding a component meant editing this file, the ports list and
             # vmagent.yaml, and pmm-server's metrics were written for months before anyone
             # noticed nothing served them. The orchestrator now emits one backup_metrics.prom
-            # with `component=` as a LABEL, so nothing here needs to know the component list —
-            # the listener below serves whatever .prom files exist.
+            # with `component=` as a LABEL, so nothing here needs to know the component list.
+            #
+            # The listener does NOT glob the directory, though: it names each metric FAMILY's file
+            # explicitly, because the text format allows one HELP/TYPE pair per family and the
+            # backup samples get their preamble from here. So it stays independent of the component
+            # list while still needing one line per family — and a family whose line is missing is
+            # written to the volume and served to nobody, which is exactly what happened to
+            # prune_metrics.prom.
             mkdir -p "${METRICS_PATH}/backup"
             [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
             # Legacy layouts, removed on every start. METRICS_PATH is on the PERSISTENT central
@@ -156,6 +162,17 @@ spec:
                     '# TYPE pmm_ha_backup_last_size_bytes gauge'
                   cat "${METRICS_PATH}"/backup/*.prom 2>/dev/null || echo '# no backup run yet'
                   cat "${METRICS_PATH}"/restore_metrics.prom 2>/dev/null || true
+                  # The retention sweep's own family. Written by `pmm-backup.sh prune`, and it is
+                  # the ONLY signal that distinguishes "the sweep ran and deleted nothing because
+                  # nothing was expired" from "the sweep refused and the bucket is growing" — the
+                  # sweep exits 0 either way. Self-contained (its own HELP/TYPE) and a disjoint
+                  # family, so it concatenates like restore_metrics.prom does.
+                  # Serving it is not optional: pmm-backup.sh has always written it here, and while
+                  # this line was missing the metric existed on the volume and reached nothing,
+                  # which is the same "written for months before anyone noticed nothing served
+                  # them" failure recorded above. Adding a .prom family to the writer means adding
+                  # it here.
+                  cat "${METRICS_PATH}"/prune_metrics.prom 2>/dev/null || true
                 } | nc -w 5 ${NC_LISTEN} "$1" >/dev/null 2>&1
                 # BOTH fallbacks are 0, so a broken `date` yields 0-0=0, which is < 1 and the
                 # sleep fires. With 0 and 1 the difference was 1, the sleep never ran, and the

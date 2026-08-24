@@ -591,15 +591,34 @@ All metrics use the `pmm_ha_backup_` prefix:
 
 Each metric includes labels: `component` (postgresql/clickhouse/victoriametrics/pmm-server) and `namespace`. All four components, PMM `/srv` included, are served and scraped — see the port table below.
 
+The retention sweep has its own family, written by the `prune` subcommand:
+
+| Metric | Type | Description |
+|---|---|---|
+| `pmm_ha_prune_last_success` | gauge | Whether the last retention sweep actually swept (1=yes, 0=no) |
+| `pmm_ha_prune_last_timestamp_seconds` | gauge | Unix timestamp of the last retention sweep |
+
+`pmm_ha_prune_last_success` is 0 when the sweep **declined** to delete — no full-scope survivor,
+an unverifiable ClickHouse incremental chain, an unreadable catalog, a non-numeric retention. The
+sweep exits 0 in all of those cases (it must not fail a backup run that already succeeded), so
+this gauge is the only thing that distinguishes them from a healthy no-op. Labelled by
+`namespace` only: a prune run has no components.
+
 ### HTTP Serving
 
-The backup-tools pod runs **one** netcat listener on port **9091**, serving every `.prom` file
-in the metrics directory concatenated. The two writers use disjoint metric families
-(`pmm_ha_backup_*` and `pmm_ha_restore_*`), so each `HELP`/`TYPE` pair still appears once.
+The backup-tools pod runs **one** netcat listener on port **9091**. The three writers use disjoint
+metric families (`pmm_ha_backup_*`, `pmm_ha_restore_*`, `pmm_ha_prune_*`), so each `HELP`/`TYPE`
+pair still appears once in the concatenated exposition.
 
 | Port | Serves |
 |---|---|
-| 9091 | every `.prom` in `${METRICS_DIR}` -- all backup components plus restore |
+| 9091 | `backup/*.prom` (per run scope) + `restore_metrics.prom` + `prune_metrics.prom` |
+
+The listener enumerates those paths **explicitly** — it is not a glob over `${METRICS_DIR}`.
+That matters: `prune_metrics.prom` was written by `pmm-backup.sh prune` and served by nothing,
+so the one signal that separates "retention swept and found nothing expired" from "retention
+refused and the bucket is growing" existed on the volume and reached no scrape. Adding a `.prom`
+family to the writer means adding a line to the listener in `templates/backup-tools.yaml`.
 
 This was five listeners on five ports, one per metrics file. The split bought nothing (the
 component is a label either way) and cost a four-file edit per component -- which is how
@@ -633,6 +652,13 @@ pmm_ha_backup_last_duration_seconds{component="victoriametrics"} > 300
 
 # Suspiciously small backup (possible empty/corrupt)
 pmm_ha_backup_last_size_bytes{component="clickhouse"} < 1000
+
+# Retention refused to prune -- the bucket is growing and the sweep still exits 0.
+# This is the alert that catches a silently stalled sweep; nothing else does.
+pmm_ha_prune_last_success == 0
+
+# No retention sweep in the last 48 hours
+time() - pmm_ha_prune_last_timestamp_seconds > 172800
 ```
 
 ---
@@ -1237,7 +1263,17 @@ Written to `/backups/.metrics/restore_metrics.prom` and served on port 9091:
 - `pmm_ha_restore_phase` — current phase (encryption_key, scale_down_pmm, postgresql, clickhouse, victoriametrics, verification, scale_up_pmm, idle)
 - `pmm_ha_restore_last_success` — 1 if last restore succeeded
 - `pmm_ha_restore_last_timestamp_seconds`, `pmm_ha_restore_last_duration_seconds`
-- `pmm_ha_restore_component_success{component="postgresql|clickhouse|victoriametrics|pmm_server|encryption_key"}` — 1 per component on success
+- `pmm_ha_restore_component_success{component="postgresql|clickhouse|victoriametrics|pmm-server|encryption"}` — 1 per component on success
+
+  The label values are the manifest's component keys, identical to the ones on
+  `pmm_ha_backup_last_success`, so the two families can be filtered and joined with one
+  expression. They used to be spelled `pmm_server` and `encryption_key` here and `pmm-server` /
+  `encryption` on the backup side — one tool, one directory, one scrape, two spellings.
+
+  A component that was **not part of this restore** reports **1**, not 0. `--skip-postgresql` or a
+  narrower `--clickhouse` selection is not a PostgreSQL failure, and reporting 0 for it made a
+  DR-readiness alert fire over components nobody asked to restore. The run-level verdict is
+  `pmm_ha_restore_last_success`; use that, not a per-component sum, to ask "did the restore work".
 
 The backup-tools pod exposes port 9091 and VMAgent's single `backup-metrics` scrape job (60s interval) collects these alongside the backup metrics.
 

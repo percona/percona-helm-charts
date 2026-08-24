@@ -786,3 +786,79 @@ that names what is being given up, which is why the encryption-key check answers
 `ENCRYPTION_KEY_OK` excluded from `all_ok`, a restore that silently skipped the key printed
 "Restore completed successfully" over PostgreSQL data that cannot be decrypted. A gate worth
 having is worth an explicit flag; if a gate is not worth a flag of its own, it is not a gate.
+
+## DN-45 — One table drives every per-component loop
+
+Components were enumerated by hand in fourteen places: argument parsing, `--skip` handling,
+pre-flight pod discovery, the lock lists (twice), the backup run, the concurrent-mode suffix,
+the "Components:" log line, the restore defaults, the explicit-selection gate, the `do_*`
+derivation, the restore verdict, the per-component metric samples and two summaries. Each was a
+five-line block that named all five components in order.
+
+That shape has one failure mode and it kept recurring: a component handled in the backup arm and
+forgotten in the restore arm. The two arms were written months apart, and nothing connected them
+— adding a component meant finding a dozen sites, and *missing one was invisible*, because the
+missing case simply never fired.
+
+`COMPONENTS` is now the single row-per-component table, and every one of those loops reads it:
+
+```
+key : flag : label : BACKUP_* : RESTORE_* : SKIP_* : MF_*_STATUS : *_OK : sel|nosel
+```
+
+Adding a component is a row plus its `backup_<key>` / `restore_<key>` functions. The dispatch is
+by name — `backup_$(echo "$key" | tr - _)` — so a row with no function is a loud failure rather
+than a silent skip.
+
+Two columns exist only because the mapping is not one-to-one, and both were bugs before they were
+columns:
+
+* **`key` vs `flag`.** The encryption key is `encryption` in the manifest, in the metric label
+  and in the path, but `--encryption-key` on the command line. One name for both is what produced
+  `component="encryption_key"` in the restore metrics and `component="encryption"` in the backup
+  metrics — one tool, one directory, one scrape, two spellings, nothing able to join them (DN-42).
+* **`sel` vs `nosel`.** On the backup side the encryption key is captured *with* PostgreSQL rather
+  than selected on its own, so it must not take part in "the first explicit `--<component>` turns
+  the others off" — otherwise `--postgresql` would silently drop the key that decrypts it. It
+  still has a `BACKUP_*` variable, because `--skip-encryption-key` is exactly how a backup opts
+  out.
+
+`CORE_COMPONENTS` is the four that own a `<component>/<id>/` data path. It is what "full scope"
+means: `latest` only advances onto a backup holding all four (DN-14), and the retention sweep's
+survivor guard tests the same predicate (DN-40). `LOCK_ORDER` is a *separate* list, spelled out
+alphabetically, because lock order is what prevents two runs deadlocking on overlapping sets —
+reusing `CORE_COMPONENTS`, which is in pipeline order, would silently remove that property.
+
+## DN-46 — Shared primitives for the operations that must not diverge
+
+Three pairs of near-identical code were merged, all of them chosen because a divergence between
+the copies is a *correctness* failure rather than an untidiness:
+
+**`lease_try_acquire`** — `acquire_component_lock` and `write_manifest`'s merge lease each had
+their own creation, `AlreadyExists` probe, single state read and `resourceVersion`-guarded
+takeover, with two Lease heredocs apiece. On a primitive whose whole job is to stop two processes
+writing one database, two implementations mean the safety argument only holds for whichever one
+you happen to read. It returns four distinct outcomes, and the distinctions are the point:
+`0` acquired, `1` not acquired (with `LEASE_STATE` saying `live` / `unknown` / `norv`), `2` the
+attempt itself failed, `3` lost the takeover race. Collapsing `2` into `1` is what makes an
+unreachable apiserver read as "the lock is free" (DN-03); collapsing `unknown` into `live` is
+what makes a lock nobody can age unrecoverable, and the reverse steals a live one.
+
+**`create_temp_restore_pod`** — the vmrestore and `/srv` restore pods differ in six values (label,
+container name, mount path, volume name, security context, env block) and shared every other
+line: the leftover-pod sweep, the ownership marker, the create, the log plumbing and the readiness
+wait. Both hold an RWO data PVC while its owner is scaled to 0, so a fix applied to one and not
+the other strands a real volume and wedges the owner on Multi-Attach at scale-up (DN-19).
+
+**`pod_exec`** — the sibling of `pod_sh` for commands that are a binary with flags rather than a
+shell snippet (`vmbackup`, `vmrestore`, `clickhouse-backup`). Both exist so the `--dry-run`
+preview *is* the command: the text is supplied once and is both what gets logged and what gets
+executed. Four call sites previously re-typed their command as `log` lines beside the real
+invocation, which is exactly how a preview comes to show flags the run does not use — and
+`--dry-run` is the documented review gate for retention, so a preview that does not match is not
+a gate.
+
+The same rule produced `ch_run_action` (the `create` and `upload` poll loops were one loop twice),
+`store_list_at` (three copies of one listing body), `comp_at` (six path helpers expressing one
+two-axis choice), and `resolved_or_override` (the accessor half of the resolve-once pattern,
+which must never log because every call site is inside `$( )`).

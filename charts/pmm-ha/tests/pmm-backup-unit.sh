@@ -1306,6 +1306,785 @@ _enc_force=$(awk '/^    if \[ "\$\{RESTORE_ENCRYPTION_KEY\}" = "true" \]/,/^    
 assert_eq "the encryption gate does not consult --yes" "0" "${_enc_force}"
 
 #########################################################################################
+section "prune bounds — a bound of ZERO must not silently disable the sweep"
+#########################################################################################
+
+# Both knobs are compared with -ge against a counter that starts at zero, so 0 breaks the purge
+# loop before the first delete, leaves PRUNE_REFUSED at 0, and lets cmd_prune report success and
+# publish pmm_ha_prune_last_success=1 — retention stops for good and nothing says so. "0 means
+# unlimited" is the natural guess for a cap, which is exactly why it has to be refused.
+for _bad in "0" "00" "abc" "" "5m" "-1"; do
+    _got=$(S3_PRUNE_MAX_PER_RUN="${_bad}" PMM_BACKUP_LIB=1 sh -c \
+        '. "$1" >/dev/null 2>&1; printf "%s" "${S3_PRUNE_MAX_PER_RUN}"' _ "${TARGET}" 2>/dev/null)
+    assert_eq "S3_PRUNE_MAX_PER_RUN='${_bad}' falls back to the default" "50" "${_got}"
+    _got=$(S3_PRUNE_MAX_SECONDS="${_bad}" PMM_BACKUP_LIB=1 sh -c \
+        '. "$1" >/dev/null 2>&1; printf "%s" "${S3_PRUNE_MAX_SECONDS}"' _ "${TARGET}" 2>/dev/null)
+    assert_eq "S3_PRUNE_MAX_SECONDS='${_bad}' falls back to the default" "900" "${_got}"
+done
+# A leading zero is decimal here, not octal, and must survive as itself.
+_got=$(S3_PRUNE_MAX_PER_RUN=010 PMM_BACKUP_LIB=1 sh -c \
+    '. "$1" >/dev/null 2>&1; printf "%s" "${S3_PRUNE_MAX_PER_RUN}"' _ "${TARGET}" 2>/dev/null)
+assert_eq "S3_PRUNE_MAX_PER_RUN=010 normalises to 10, not 8" "10" "${_got}"
+_got=$(S3_PRUNE_MAX_SECONDS=120 PMM_BACKUP_LIB=1 sh -c \
+    '. "$1" >/dev/null 2>&1; printf "%s" "${S3_PRUNE_MAX_SECONDS}"' _ "${TARGET}" 2>/dev/null)
+assert_eq "a valid sweep budget is left alone" "120" "${_got}"
+# And the substitution has to reach the operator, like every other clamp.
+_got=$(S3_PRUNE_MAX_PER_RUN=0 PMM_BACKUP_LIB=1 sh -c \
+    '. "$1" >/dev/null 2>&1; printf "%s" "${NUMERIC_ENV_CLAMPED}"' _ "${TARGET}" 2>/dev/null)
+case "${_got}" in
+    *S3_PRUNE_MAX_PER_RUN*) ok ;;
+    *) bad "a rejected prune bound is reported by preflight" "S3_PRUNE_MAX_PER_RUN..." "${_got}" ;;
+esac
+# The documented default of RCLONE_TIMEOUT is the status timeout, so the clamp has to fall back
+# to THAT and not to a second hardcoded number living next to it.
+_got=$(KUBECTL_STATUS_TIMEOUT=120 RCLONE_TIMEOUT=5m PMM_BACKUP_LIB=1 sh -c \
+    '. "$1" >/dev/null 2>&1; printf "%s" "${RCLONE_TIMEOUT}"' _ "${TARGET}" 2>/dev/null)
+assert_eq "RCLONE_TIMEOUT falls back to KUBECTL_STATUS_TIMEOUT, not 30" "120" "${_got}"
+
+#########################################################################################
+section "store_bytes — rc must say whether we could LOOK, not whether the parse worked"
+#########################################################################################
+
+# It used to END IN A PIPE, so the rc was the parser's. A successful read whose output the parser
+# could not understand returned rc 0 with EMPTY output, and s3_object_state's `-gt 0` test then
+# read that as "the object is absent" rather than "the check failed" — fail-open, in the gate
+# that exists to fail closed.
+# An earlier section stubs store_bytes itself (to drive s3_object_state), and that stub is still
+# in scope here — restore the REAL definition before testing it, the same way the rclone-bounds
+# section re-reads the definitions it asserts on.
+eval "$(sed -n '/^store_bytes() {/,/^}/p' "${TARGET}")"
+S3_ENABLED=true
+s3_rclone() { printf '%s' '{"count":1,"bytes":4096}'; }
+_got=$(store_bytes "s3:b/k") && rc=0 || rc=$?
+assert_rc "a parseable size is rc 0" 0 "${rc}"
+assert_eq "and prints the byte count" "4096" "${_got}"
+# rclone size on a MISSING path exits 0 printing bytes:0 — a legitimate zero, not a failure.
+s3_rclone() { printf '%s' '{"count":0,"bytes":0}'; }
+_got=$(store_bytes "s3:b/gone") && rc=0 || rc=$?
+assert_rc "a legitimate zero is still rc 0" 0 "${rc}"
+assert_eq "and prints 0" "0" "${_got}"
+# Output the parser cannot understand is NOT 'absent'.
+s3_rclone() { printf '%s' 'HTTP 503 from a proxy'; }
+_got=$(store_bytes "s3:b/k") && rc=0 || rc=$?
+assert_rc "an unparseable read is rc non-zero" 1 "${rc}"
+_st=0; s3_object_state "s3:b/k" || _st=$?
+assert_rc "so s3_object_state says 'could not check', not 'absent'" 2 "${_st}"
+_st=0; object_size_state "s3:b/k" 4096 || _st=$?
+assert_rc "and object_size_state says the same" 2 "${_st}"
+# A read that FAILS outright keeps propagating its own status, as before.
+s3_rclone() { return 7; }
+store_bytes "s3:b/k" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "a failed read still propagates non-zero" 7 "${rc}"
+unset -f s3_rclone 2>/dev/null || s3_rclone() { return 1; }
+
+#########################################################################################
+section "temp-pod images — resolved from the cluster, never from a stale hardcoded tag"
+#########################################################################################
+
+# Both fallbacks were pinned tags: "percona/pmm-server:3.7.0" (already two chart releases behind
+# by the time anyone compared) and "victoriametrics/vmrestore:latest" (an unpinned tool reading
+# vmstorage's on-disk format, pulled during a DR). A second copy of a chart value in this file is
+# the drift DN-39 exists to stop, so there is no copy any more: resolve, or refuse.
+# Comment lines are excluded on purpose: the two removed tags are NAMED in the comments that
+# explain why they are gone, and that prose is the reason the next person does not put them back.
+_pinned=$(grep -v '^[[:space:]]*#' "${TARGET}" \
+    | grep -c 'percona/pmm-server:[0-9]\|vmrestore:latest' || true)
+assert_eq "no hardcoded image tag remains in code" "0" "${_pinned}"
+
+# get_vmrestore_image must never LOG: every call site is inside $( ), so a log line on stdout
+# would be captured as the image name (the bug pmm_storage_pvc_prefix was split to avoid).
+_vmlog=$(awk '/^get_vmrestore_image\(\) \{/,/^\}/' "${TARGET}" | grep -c 'log "' || true)
+assert_eq "get_vmrestore_image never logs into its own stdout" "0" "${_vmlog}"
+
+NAMESPACE="unit"
+VMRESTORE_IMAGE=""
+kubectl() { return 1; }                       # no vmrestore container readable
+get_vmrestore_image pod-0 >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "get_vmrestore_image refuses rather than guessing a tag" 1 "${rc}"
+VMRESTORE_IMAGE="victoriametrics/vmrestore:v1.149.0"
+assert_eq "the explicit override is honoured" "${VMRESTORE_IMAGE}" "$(get_vmrestore_image pod-0)"
+VMRESTORE_IMAGE=""
+
+# The /srv restore image: resolver logs (it runs in the parent), accessor does not (it is used
+# inside $( )), and the accessor fails loudly if nothing resolved rather than emitting "".
+PMM_RESTORE_IMAGE=""
+PMM_RESTORE_IMAGE_RESOLVED=""
+pmm_restore_image >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "pmm_restore_image fails when nothing resolved it" 1 "${rc}"
+S3_ENABLED=true
+kubectl() { return 1; }
+resolve_pmm_restore_image pmm-sts >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "resolve_pmm_restore_image refuses an unreadable StatefulSet" 1 "${rc}"
+kubectl() { printf '%s' "percona/pmm-server:9.9.9"; }
+resolve_pmm_restore_image pmm-sts >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "and succeeds when the StatefulSet answers" 0 "${rc}"
+assert_eq "the accessor returns what was resolved" "percona/pmm-server:9.9.9" "$(pmm_restore_image)"
+# The accessor — and the helper it delegates to — must never log: every call site is inside
+# `$( )`, so a log line on stdout is captured AS the image name. Handles a one-line function
+# body as well as a braces-on-their-own-lines one.
+_fn_has_log() {   # <function-name>
+    awk -v f="$1" '
+        $0 ~ "^" f "\\(\\) \\{" { inside = 1; if ($0 ~ /\}[[:space:]]*$/) { print; inside = 0; next } }
+        inside { print }
+        inside && /^\}/ { inside = 0 }
+    ' "${TARGET}" | grep -c 'log "' || true
+}
+assert_eq "the accessor never logs into its own stdout"  "0" "$(_fn_has_log pmm_restore_image)"
+assert_eq "nor does the helper it delegates to"          "0" "$(_fn_has_log resolved_or_override)"
+assert_eq "nor the PVC-prefix accessor"                  "0" "$(_fn_has_log pmm_storage_pvc_prefix)"
+# An explicit override wins and needs no cluster read at all.
+PMM_RESTORE_IMAGE="my/tools:1"
+PMM_RESTORE_IMAGE_RESOLVED=""
+kubectl() { echo "should not be called"; return 1; }
+resolve_pmm_restore_image pmm-sts >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "an explicit PMM_RESTORE_IMAGE short-circuits the read" 0 "${rc}"
+assert_eq "and is what the accessor returns" "my/tools:1" "$(pmm_restore_image)"
+PMM_RESTORE_IMAGE=""
+unset -f kubectl 2>/dev/null || kubectl() { return 1; }
+
+#########################################################################################
+section "write_restore_metrics — a metrics write must never be able to kill a restore"
+#########################################################################################
+
+# It used to end in a bare `cat > "${tmp_file}" <<EOF`, and every call site is either a plain
+# command or the last command of an && list — so under `set -e` a full or read-only METRICS_DIR
+# aborted the restore, after scale_down_pmm, with the components half done. DN-32: metrics writers
+# never fail the run.
+# The directory must EXIST and be unwritable. A non-existent METRICS_DIR only exercises the
+# mkdir fallback to /tmp and never reaches the write at all — which is how a test for this could
+# pass while the bug it is aimed at was still there.
+_ro=$(mktemp -d 2>/dev/null || echo "/tmp/.ro_$$"); mkdir -p "${_ro}"; chmod 500 "${_ro}" 2>/dev/null || true
+# The probe runs in a SUBSHELL with stderr redirected: a failed redirection is reported by the
+# shell itself, not by the command being redirected, so `: > f 2>/dev/null` still prints it.
+if [ "$(id -u 2>/dev/null || echo 0)" != "0" ] && ! ( : >"${_ro}/.probe" ) 2>/dev/null; then
+    _out=$(METRICS_DIR="${_ro}" PMM_BACKUP_LIB=1 sh -c '
+        set -eu
+        . "$1" >/dev/null 2>&1
+        METRICS_DIR="$2"; NAMESPACE=unit
+        write_restore_metrics 1 "components"
+        printf "SURVIVED"' _ "${TARGET}" "${_ro}" 2>/dev/null)
+    assert_eq "an unwritable METRICS_DIR does not abort the caller" "SURVIVED" "${_out}"
+    # The other two writers already promised this; assert all three keep it.
+    _out=$(METRICS_DIR="${_ro}" PMM_BACKUP_LIB=1 sh -c '
+        set -eu
+        . "$1" >/dev/null 2>&1
+        METRICS_DIR="$2"; NAMESPACE=unit
+        write_prune_metrics 1
+        printf "SURVIVED"' _ "${TARGET}" "${_ro}" 2>/dev/null)
+    assert_eq "write_prune_metrics likewise" "SURVIVED" "${_out}"
+else
+    echo "     (skipped the unwritable-dir assertions: running as root, mode bits do not apply)"
+fi
+chmod 700 "${_ro}" 2>/dev/null || true; rm -rf "${_ro}" 2>/dev/null || true
+
+# The component label VALUES are the manifest's keys, so they match pmm_ha_backup_last_success.
+# They were 'pmm_server' and 'encryption_key' here and 'pmm-server'/'encryption' on the backup
+# side: one tool, one directory, one scrape, two spellings, nothing able to join them (DN-42).
+_mdir=$(mktemp -d 2>/dev/null || echo "/tmp/.rm_$$"); mkdir -p "${_mdir}"
+( METRICS_DIR="${_mdir}" NAMESPACE=unit PMM_BACKUP_LIB=1 sh -c '
+    . "$1" >/dev/null 2>&1
+    METRICS_DIR="$2"; NAMESPACE=unit
+    POSTGRESQL_OK=true; CLICKHOUSE_OK=true; VICTORIAMETRICS_OK=true
+    PMM_SERVER_OK=true; ENCRYPTION_KEY_OK=true
+    write_restore_metrics 0 idle 1 100 5' _ "${TARGET}" "${_mdir}" ) >/dev/null 2>&1
+_labels=$(grep -c 'component="pmm-server"\|component="encryption"' "${_mdir}/restore_metrics.prom" 2>/dev/null || true)
+assert_eq "restore metrics use the manifest's component keys" "2" "${_labels}"
+_old=$(grep -c 'component="pmm_server"\|component="encryption_key"' "${_mdir}/restore_metrics.prom" 2>/dev/null || true)
+assert_eq "and no longer the old underscored spellings" "0" "${_old}"
+rm -rf "${_mdir}" 2>/dev/null || true
+
+# The chart's listener must actually SERVE every family this file writes. prune_metrics.prom was
+# written here and cat'd by nothing, so the one signal that separates "nothing was expired" from
+# "the sweep refused" reached no scrape at all — the same failure the listener's own comment
+# records for pmm-server_metrics.prom.
+_tools="${SCRIPT_DIR}/../templates/backup-tools.yaml"
+if [ -r "${_tools}" ]; then
+    for _fam in "backup/*.prom" "restore_metrics.prom" "prune_metrics.prom"; do
+        if grep -Fq "${_fam}" "${_tools}"; then ok
+        else bad "the listener serves ${_fam}" "a cat of ${_fam}" "not found in backup-tools.yaml"; fi
+    done
+fi
+
+#########################################################################################
+section "S3 settings reaching an interpreter are charset-gated"
+#########################################################################################
+
+# S3_BUCKET and S3_PREFIX are spliced UNQUOTED into a clickhouse-backup action string that is then
+# embedded in a single-quoted SQL literal and re-used as that row's poll key; the endpoint/region/
+# provider are rendered into the temp pods' YAML as double-quoted scalars. Operator-supplied is not
+# the same as trusted once a values.yaml is templated by anything but a human.
+_try() {   # <label> <expected-rc> <env-assignment...>
+    _lbl="$1"; _want="$2"; shift 2
+    env "$@" PMM_BACKUP_LIB= sh "${TARGET}" list >/dev/null 2>&1 && rc=0 || rc=$?
+    if [ "${_want}" = "reject" ]; then
+        [ "${rc}" -eq 1 ] && ok || bad "${_lbl} is refused" "rc 1" "rc ${rc}"
+    else
+        [ "${rc}" -ne 1 ] && ok || bad "${_lbl} is accepted" "not rc 1" "rc ${rc}"
+    fi
+}
+_try "a normal bucket + prefix"      accept BACKUP_TARGET=s3 S3_BUCKET=pmm-backups S3_PREFIX=demo/pmm-ha NAMESPACE=demo
+_try "an apostrophe in the bucket"   reject BACKUP_TARGET=s3 "S3_BUCKET=b' , '" S3_PREFIX=demo/pmm-ha NAMESPACE=demo
+_try "a space in the prefix"         reject BACKUP_TARGET=s3 S3_BUCKET=b "S3_PREFIX=demo --env X=y" NAMESPACE=demo
+_try "a quote in the endpoint"       reject BACKUP_TARGET=s3 S3_BUCKET=b 'S3_ENDPOINT=http://x" bad' NAMESPACE=demo
+_try "a real endpoint URL"           accept BACKUP_TARGET=s3 S3_BUCKET=b 'S3_ENDPOINT=https://minio.example.com:9000' NAMESPACE=demo
+_try "a quote in the namespace"      reject BACKUP_TARGET=s3 S3_BUCKET=b 'NAMESPACE=de"mo'
+_try "a non-alphanumeric provider"   reject BACKUP_TARGET=s3 S3_BUCKET=b 'S3_PROVIDER=AWS"x' NAMESPACE=demo
+
+
+#########################################################################################
+section "CHARACTERIZATION: path views across both targets"
+#########################################################################################
+# Pinned before the six root/comp helpers are folded into parameterised ones. The exact
+# strings matter: they are rclone remote specs, s3:// URIs and in-pod mount paths, and each is
+# consumed by a different tool.
+_pv_save_t="${BACKUP_TARGET}" _pv_save_e="${S3_ENABLED}" _pv_save_b="${S3_BUCKET}"
+_pv_save_p="${S3_PREFIX}" _pv_save_d="${BACKUP_DIR}" _pv_save_m="${SHARED_MOUNT_PATH}"
+_pv_save_r="${RCLONE_REMOTE}" _pv_save_id="${CURRENT_ID}"
+
+BACKUP_TARGET=s3; S3_ENABLED=true; S3_BUCKET=bk; S3_PREFIX=demo/pmm-ha
+BACKUP_DIR=/backups; SHARED_MOUNT_PATH=/central; RCLONE_REMOTE=s3; CURRENT_ID=backup_20260610-120000
+assert_eq "s3 root"          "s3:bk/demo/pmm-ha"                    "$(backup_root)"
+assert_eq "s3 root display"  "s3://bk/demo/pmm-ha"                  "$(backup_root_display)"
+assert_eq "s3 root inpod"    "s3:bk/demo/pmm-ha"                    "$(backup_root_inpod)"
+assert_eq "s3 comp path"     "s3:bk/demo/pmm-ha/postgresql/backup_20260610-120000"   "$(comp_path postgresql)"
+assert_eq "s3 comp display"  "s3://bk/demo/pmm-ha/postgresql/backup_20260610-120000" "$(comp_display postgresql)"
+assert_eq "s3 comp inpod"    "s3:bk/demo/pmm-ha/postgresql/backup_20260610-120000"   "$(comp_inpod postgresql)"
+assert_eq "s3 comp location" "s3://bk/demo/pmm-ha/clickhouse/backup_20260610-120000" "$(comp_location clickhouse)"
+assert_eq "s3 manifest"      "s3:bk/demo/pmm-ha/manifests/backup_20260610-120000.json"   "$(manifest_path)"
+assert_eq "s3 manifest disp" "s3://bk/demo/pmm-ha/manifests/backup_20260610-120000.json" "$(manifest_display)"
+assert_eq "s3 manifests dir" "s3:bk/demo/pmm-ha/manifests"          "$(manifests_dir)"
+assert_eq "s3 latest"        "s3:bk/demo/pmm-ha/latest"             "$(latest_path)"
+assert_eq "ch remote key"    "demo/pmm-ha/clickhouse"               "$(clickhouse_remote_key)"
+assert_eq "explicit id wins" "s3:bk/demo/pmm-ha/pmm-server/backup_OTHER" "$(comp_path pmm-server backup_OTHER)"
+assert_eq "staging is local" "/backups/.staging/backup_20260610-120000/encryption" "$(staging_dir encryption)"
+assert_eq "vm dst s3"        "s3://bk/demo/pmm-ha/victoriametrics/backup_20260610-120000/p0/n" "$(vm_dst_for_pod p0 n)"
+
+BACKUP_TARGET=shared; S3_ENABLED=false
+assert_eq "shared root"          "/backups"                                   "$(backup_root)"
+assert_eq "shared root display"  "/backups"                                   "$(backup_root_display)"
+assert_eq "shared root inpod"    "/central"                                   "$(backup_root_inpod)"
+assert_eq "shared comp path"     "/backups/postgresql/backup_20260610-120000" "$(comp_path postgresql)"
+assert_eq "shared comp display"  "/backups/postgresql/backup_20260610-120000" "$(comp_display postgresql)"
+assert_eq "shared comp inpod"    "/central/postgresql/backup_20260610-120000" "$(comp_inpod postgresql)"
+assert_eq "shared comp location" "/central/clickhouse/backup_20260610-120000" "$(comp_location clickhouse)"
+assert_eq "shared manifest"      "/backups/manifests/backup_20260610-120000.json" "$(manifest_path)"
+assert_eq "shared latest"        "/backups/latest"                            "$(latest_path)"
+assert_eq "vm dst shared"        "fs:///central/victoriametrics/backup_20260610-120000/p0/n" "$(vm_dst_for_pod p0 n)"
+
+BACKUP_TARGET="${_pv_save_t}"; S3_ENABLED="${_pv_save_e}"; S3_BUCKET="${_pv_save_b}"
+S3_PREFIX="${_pv_save_p}"; BACKUP_DIR="${_pv_save_d}"; SHARED_MOUNT_PATH="${_pv_save_m}"
+RCLONE_REMOTE="${_pv_save_r}"; CURRENT_ID="${_pv_save_id}"
+
+#########################################################################################
+section "CHARACTERIZATION: restore component selection + verdict"
+#########################################################################################
+# Pinned before the ~30 restore globals collapse into a table. These decide what a destructive
+# restore touches.
+_rs_reset() {
+    EXPLICIT_SELECTION=false
+    RESTORE_POSTGRESQL=false; RESTORE_CLICKHOUSE=false; RESTORE_VICTORIAMETRICS=false
+    RESTORE_PMM_SERVER=false; RESTORE_ENCRYPTION_KEY=false
+    SKIP_POSTGRESQL=false; SKIP_CLICKHOUSE=false; SKIP_VICTORIAMETRICS=false
+    SKIP_PMM_SERVER=false; SKIP_ENCRYPTION_KEY=false
+    MF_PG_STATUS=success; MF_CH_STATUS=success; MF_VM_STATUS=success
+    MF_PMM_STATUS=success; MF_ENC_STATUS=success
+}
+_rs_reset; select_default_components
+assert_eq "default selects PG"  "true" "${RESTORE_POSTGRESQL}"
+assert_eq "default selects CH"  "true" "${RESTORE_CLICKHOUSE}"
+assert_eq "default selects VM"  "true" "${RESTORE_VICTORIAMETRICS}"
+assert_eq "default selects PMM" "true" "${RESTORE_PMM_SERVER}"
+assert_eq "default selects key" "true" "${RESTORE_ENCRYPTION_KEY}"
+
+_rs_reset; MF_CH_STATUS=failed; select_default_components
+assert_eq "a failed component is not selected" "false" "${RESTORE_CLICKHOUSE}"
+assert_eq "...and the others still are"        "true"  "${RESTORE_POSTGRESQL}"
+
+_rs_reset; SKIP_VICTORIAMETRICS=true; select_default_components
+assert_eq "--skip beats the manifest default" "false" "${RESTORE_VICTORIAMETRICS}"
+assert_eq "...and leaves the rest alone"      "true"  "${RESTORE_PMM_SERVER}"
+
+_rs_reset; EXPLICIT_SELECTION=true; RESTORE_CLICKHOUSE=true; SKIP_CLICKHOUSE=true
+select_default_components
+assert_eq "--skip beats an explicit --<component>" "false" "${RESTORE_CLICKHOUSE}"
+
+_rs_reset; EXPLICIT_SELECTION=true; RESTORE_POSTGRESQL=true; select_default_components
+assert_eq "explicit selection stays narrow (PG on)"  "true"  "${RESTORE_POSTGRESQL}"
+assert_eq "explicit selection stays narrow (CH off)" "false" "${RESTORE_CLICKHOUSE}"
+_rs_reset
+
+#########################################################################################
+section "CHARACTERIZATION: store_list family + prune sweep, in a FRESH shell"
+#########################################################################################
+# Both drive the REAL storage layer against a temp directory in shared mode. They run in a
+# fresh sourced shell because earlier sections replace store_list/store_list_dirs with
+# fixture stubs, and asserting against those would exercise nothing (same reason as the
+# catalog_manifest cache test above).
+cat > "${SCRIPT_DIR}/.storetest.$$" <<'STOREEOF'
+PMM_BACKUP_LIB=1
+export PMM_BACKUP_LIB
+# shellcheck disable=SC1090
+. "$1"
+set +e
+log() { :; }
+S3_ENABLED=false; BACKUP_TARGET=shared; LOG_FILE=/dev/null
+R() { printf '%s=%s\n' "$1" "$2"; }
+
+D=$(mktemp -d)
+mkdir -p "${D}/sub-0" "${D}/sub-1" "${D}/empty"
+: > "${D}/a.json"; : > "${D}/b.json"
+R list_all   "$(store_list "${D}" | sort | tr '\n' ' ' | sed 's/ *$//')"
+R list_files "$(store_list_files "${D}" | sort | tr '\n' ' ' | sed 's/ *$//')"
+R list_dirs  "$(store_list_dirs "${D}" | sort | tr '\n' ' ' | sed 's/ *$//')"
+out=$(store_list "${D}/nope"); R absent_rc "$?"; R absent_out "${out}"
+out=$(store_list_dirs "${D}/nope"); R absentdir_rc "$?"
+out=$(store_list "${D}/empty"); R empty_rc "$?"; R empty_out "${out}"
+if [ "$(id -u)" -ne 0 ]; then
+    mkdir -p "${D}/locked"; chmod 000 "${D}/locked"
+    store_list "${D}/locked" >/dev/null 2>&1;       R locked_rc "$?"
+    store_list_files "${D}/locked" >/dev/null 2>&1; R lockedf_rc "$?"
+    store_list_dirs "${D}/locked" >/dev/null 2>&1;  R lockedd_rc "$?"
+    chmod 755 "${D}/locked"
+else
+    R locked_rc 1; R lockedf_rc 1; R lockedd_rc 1
+fi
+rm -rf "${D}"
+
+# ---- prune fixtures ----------------------------------------------------------------
+NAMESPACE=demo; BACKUP_RETENTION=7; DRY_RUN=false
+id_days_ago() {
+    e=$(( $(date +%s) - $1 * 86400 ))
+    date -u -d "@${e}" '+backup_%Y%m%d-%H%M%S' 2>/dev/null || date -u -r "${e}" '+backup_%Y%m%d-%H%M%S' 2>/dev/null
+}
+mk() {   # <root> <id> <status> <ns> <components> [ch-base]
+    root="$1"; id="$2"; st="$3"; ns="$4"; comps="$5"; base="${6:-}"
+    mkdir -p "${root}/manifests"
+    obj='{}'
+    for c in ${comps}; do
+        mkdir -p "${root}/${c}/${id}"; : > "${root}/${c}/${id}/data"
+        if [ "${c}" = "clickhouse" ]; then
+            obj=$(printf '%s' "${obj}" | jq --arg c "${c}" --arg n "${id}" --arg b "${base}" '. + {($c):{status:"success",name:$n,base:$b}}')
+        else
+            obj=$(printf '%s' "${obj}" | jq --arg c "${c}" '. + {($c):{status:"success"}}')
+        fi
+    done
+    jq -n --arg id "${id}" --arg st "${st}" --arg ns "${ns}" --argjson c "${obj}" \
+        '{schema:1,backup_id:$id,namespace:$ns,status:$st,components:$c}' > "${root}/manifests/${id}.json"
+}
+have() { [ -e "$1" ] && echo yes || echo no; }
+ALL4="postgresql clickhouse victoriametrics pmm-server"
+NEW=$(id_days_ago 1); OLD=$(id_days_ago 30); OLDER=$(id_days_ago 60)
+
+# 1. expired purged whole, fresh untouched
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${NEW}" complete demo "${ALL4}"; mk "${B}" "${OLD}" complete demo "${ALL4}"
+printf '%s' "${NEW}" > "${B}/latest"
+PRUNE_REFUSED=0; prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+R t1_new_mf "$(have "${B}/manifests/${NEW}.json")"; R t1_new_data "$(have "${B}/postgresql/${NEW}")"
+R t1_old_mf "$(have "${B}/manifests/${OLD}.json")"; R t1_old_pg "$(have "${B}/postgresql/${OLD}")"
+R t1_old_ch "$(have "${B}/clickhouse/${OLD}")";     R t1_old_pmm "$(have "${B}/pmm-server/${OLD}")"
+R t1_refused "${PRUNE_REFUSED}"
+rm -rf "${B}"
+
+# 2. 'latest' protected past the cutoff
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${OLD}" complete demo "${ALL4}"; mk "${B}" "${NEW}" complete demo "${ALL4}"
+printf '%s' "${OLD}" > "${B}/latest"
+prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+R t2_latest_kept "$(have "${B}/manifests/${OLD}.json")"
+rm -rf "${B}"
+
+# 3. no full-scope survivor => refuse
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${OLD}" complete demo "${ALL4}"; mk "${B}" "${NEW}" complete demo "clickhouse"
+PRUNE_REFUSED=0; prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+R t3_refused "${PRUNE_REFUSED}"; R t3_kept "$(have "${B}/manifests/${OLD}.json")"
+rm -rf "${B}"
+
+# 4. every parseable backup expired => refuse
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${OLD}" complete demo "${ALL4}"; mk "${B}" "${OLDER}" complete demo "${ALL4}"
+PRUNE_REFUSED=0; prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+R t4_refused "${PRUNE_REFUSED}"; R t4_a "$(have "${B}/manifests/${OLD}.json")"; R t4_b "$(have "${B}/manifests/${OLDER}.json")"
+rm -rf "${B}"
+
+# 5. foreign namespace is never deleted
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${NEW}" complete demo "${ALL4}"; mk "${B}" "${OLD}" complete other-ns "${ALL4}"
+prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+R t5_foreign_kept "$(have "${B}/manifests/${OLD}.json")"
+rm -rf "${B}"
+
+# 6. a retained incremental pins ONLY its ClickHouse base
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${OLD}" complete demo "${ALL4}"; mk "${B}" "${NEW}" complete demo "${ALL4}" "${OLD}"
+printf '%s' "${NEW}" > "${B}/latest"
+prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+R t6_ch_kept "$(have "${B}/clickhouse/${OLD}")";  R t6_mf_kept "$(have "${B}/manifests/${OLD}.json")"
+R t6_pg_gone "$(have "${B}/postgresql/${OLD}")";  R t6_pmm_gone "$(have "${B}/pmm-server/${OLD}")"
+R t6_pg_status "$(jq -r '.components.postgresql.status' "${B}/manifests/${OLD}.json" 2>/dev/null)"
+R t6_ch_status "$(jq -r '.components.clickhouse.status' "${B}/manifests/${OLD}.json" 2>/dev/null)"
+R t6_overall   "$(jq -r '.status' "${B}/manifests/${OLD}.json" 2>/dev/null)"
+rm -rf "${B}"
+
+# 7. unreadable manifest defers the id
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${NEW}" complete demo "${ALL4}"; mk "${B}" "${OLD}" complete demo "${ALL4}"
+printf 'not json' > "${B}/manifests/${OLD}.json"
+prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+R t7_mf "$(have "${B}/manifests/${OLD}.json")"; R t7_data "$(have "${B}/postgresql/${OLD}")"
+rm -rf "${B}"
+
+# 8. a newer-schema manifest is deferred, never half-purged
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${NEW}" complete demo "${ALL4}"; mk "${B}" "${OLD}" complete demo "${ALL4}"
+jq '.schema=99' "${B}/manifests/${OLD}.json" > "${B}/t" && mv "${B}/t" "${B}/manifests/${OLD}.json"
+prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+R t8_mf "$(have "${B}/manifests/${OLD}.json")"; R t8_data "$(have "${B}/postgresql/${OLD}")"
+rm -rf "${B}"
+
+# 9. retention < 1 refuses outright
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${NEW}" complete demo "${ALL4}"; mk "${B}" "${OLD}" complete demo "${ALL4}"
+BACKUP_RETENTION=0; PRUNE_REFUSED=0; prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+R t9_refused "${PRUNE_REFUSED}"; R t9_kept "$(have "${B}/manifests/${OLD}.json")"
+BACKUP_RETENTION=7
+rm -rf "${B}"
+
+# 10. a dry run deletes nothing
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${NEW}" complete demo "${ALL4}"; mk "${B}" "${OLD}" complete demo "${ALL4}"
+DRY_RUN=true; prune_expired_backups >/dev/null 2>&1; DRY_RUN=false; catalog_cache_clear
+R t10_mf "$(have "${B}/manifests/${OLD}.json")"; R t10_data "$(have "${B}/postgresql/${OLD}")"
+rm -rf "${B}"
+STOREEOF
+_st_res=$(sh "${SCRIPT_DIR}/.storetest.$$" "${TARGET}" 2>&1)
+rm -f "${SCRIPT_DIR}/.storetest.$$"
+# field <key> — pull one result out of the fresh shell's output
+_f() { printf '%s\n' "${_st_res}" | sed -n "s/^$1=//p" | head -1; }
+
+assert_eq "store_list sees files and dirs"            "a.json b.json empty sub-0 sub-1" "$(_f list_all)"
+assert_eq "store_list_files sees only files"          "a.json b.json"                   "$(_f list_files)"
+assert_eq "store_list_dirs sees only dirs, unslashed" "empty sub-0 sub-1"               "$(_f list_dirs)"
+assert_eq "an absent dir is rc 0 (nothing there)"     "0"  "$(_f absent_rc)"
+assert_eq "...and yields no output"                   ""   "$(_f absent_out)"
+assert_eq "an absent dir is rc 0 (dirs-only)"         "0"  "$(_f absentdir_rc)"
+assert_eq "an empty dir is rc 0"                      "0"  "$(_f empty_rc)"
+assert_eq "...and yields no output"                   ""   "$(_f empty_out)"
+assert_eq "an UNREADABLE dir is a LOOK failure"       "1"  "$(_f locked_rc)"
+assert_eq "...files-only too"                         "1"  "$(_f lockedf_rc)"
+assert_eq "...dirs-only too"                          "1"  "$(_f lockedd_rc)"
+
+assert_eq "fresh backup's manifest survives"  "yes" "$(_f t1_new_mf)"
+assert_eq "fresh backup's data survives"      "yes" "$(_f t1_new_data)"
+assert_eq "expired manifest is deleted"       "no"  "$(_f t1_old_mf)"
+assert_eq "expired PG data is deleted"        "no"  "$(_f t1_old_pg)"
+assert_eq "expired CH data is deleted"        "no"  "$(_f t1_old_ch)"
+assert_eq "expired /srv data is deleted"      "no"  "$(_f t1_old_pmm)"
+assert_eq "a sweep that pruned is not refused" "0"  "$(_f t1_refused)"
+assert_eq "the id 'latest' names is never pruned" "yes" "$(_f t2_latest_kept)"
+assert_eq "no full-scope survivor => refuse"  "1"   "$(_f t3_refused)"
+assert_eq "...and nothing is deleted"         "yes" "$(_f t3_kept)"
+assert_eq "all expired => refuse"             "1"   "$(_f t4_refused)"
+assert_eq "...nothing deleted (a)"            "yes" "$(_f t4_a)"
+assert_eq "...nothing deleted (b)"            "yes" "$(_f t4_b)"
+assert_eq "a foreign-namespace backup is skipped" "yes" "$(_f t5_foreign_kept)"
+assert_eq "a pinned chain base keeps its CH data" "yes" "$(_f t6_ch_kept)"
+assert_eq "...and its manifest"                   "yes" "$(_f t6_mf_kept)"
+assert_eq "...but PG is still reclaimed"          "no"  "$(_f t6_pg_gone)"
+assert_eq "...and /srv too"                       "no"  "$(_f t6_pmm_gone)"
+assert_eq "...the index marks PG pruned"          "pruned"  "$(_f t6_pg_status)"
+assert_eq "...ClickHouse stays restorable"        "success" "$(_f t6_ch_status)"
+assert_eq "...and the id becomes partial"         "partial" "$(_f t6_overall)"
+assert_eq "an unreadable manifest defers the id"  "yes" "$(_f t7_mf)"
+assert_eq "...and its data is left alone"         "yes" "$(_f t7_data)"
+assert_eq "a newer-schema manifest is deferred"   "yes" "$(_f t8_mf)"
+assert_eq "...and nothing under it is purged"     "yes" "$(_f t8_data)"
+assert_eq "--retention 0 refuses"                 "1"   "$(_f t9_refused)"
+assert_eq "...and deletes nothing"                "yes" "$(_f t9_kept)"
+assert_eq "a dry run deletes no manifest"         "yes" "$(_f t10_mf)"
+assert_eq "a dry run deletes no data"             "yes" "$(_f t10_data)"
+
+#########################################################################################
+section "CHARACTERIZATION: temp restore pod specs are complete"
+#########################################################################################
+# Pinned before the two creators become one. A dropped field here is a pod rejected at
+# admission — after PMM is already scaled to 0.
+_tp_save_e="${S3_ENABLED}"; _tp_save_sec="${S3_SECRET_NAME}"; _tp_save_sa="${S3_SERVICE_ACCOUNT}"
+_tp_save_pvc="${CENTRAL_BACKUP_PVC}"; _tp_save_keys="${TEMP_POD_S3_KEYS_ENV}"; _tp_save_line="${TEMP_POD_SA_LINE}"
+_tp_out=$(mktemp)
+kubectl() { if [ "${1:-}" = "create" ]; then cat > "${_tp_out}"; fi; return 0; }
+clear_leftover_temp_pod() { :; }
+wait_for_pod_ready_by_name() { return 0; }
+_tp_yaml=""
+_tp_capture() { : > "${_tp_out}"; TEMP_PODS_MARKER="" "$@" >/dev/null 2>&1; _tp_yaml=$(cat "${_tp_out}"); }
+# has <label> <needle>  /  hasnt <label> <needle>
+_tp_has()   { case "${_tp_yaml}" in *"$2"*) ok ;; *) bad "$1" "$2" "not in the rendered pod" ;; esac; }
+_tp_hasnt() { case "${_tp_yaml}" in *"$2"*) bad "$1" "no $2" "present" ;; *) ok ;; esac; }
+
+S3_ENABLED=true; S3_SECRET_NAME=""; S3_SERVICE_ACCOUNT="pmm-ha-backup-s3"
+TEMP_POD_S3_KEYS_ENV=$(render_temp_pod_s3_keys_env)
+TEMP_POD_SA_LINE=$(render_temp_pod_sa_line)
+
+_tp_capture create_vm_restore_pod vm-restore-vmstorage-0 vmstorage-db-vmstorage-0 vmrestore:v1
+_tp_has "vm pod is a Pod"                  "kind: Pod"
+_tp_has "vm pod carries its name"          "name: vm-restore-vmstorage-0"
+_tp_has "vm pod mounts the data PVC"       "claimName: vmstorage-db-vmstorage-0"
+_tp_has "vm pod uses the resolved image"   "image: vmrestore:v1"
+_tp_has "vm pod mounts at /vmstorage-data" "mountPath: /vmstorage-data"
+_tp_has "vm pod opts out of consolidation" "karpenter.sh/do-not-disrupt"
+_tp_has "vm pod carries the SA"            "serviceAccountName: pmm-ha-backup-s3"
+_tp_has "vm pod carries its sweep label"   "component: vm-restore-temp"
+_tp_has "vm pod never restarts"            "restartPolicy: Never"
+_tp_has "vm pod gets the region"           "AWS_REGION"
+
+_tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 percona/pmm-server:3
+_tp_has "pmm pod is a Pod"                 "kind: Pod"
+_tp_has "pmm pod mounts the data PVC"      "claimName: pmm-storage-pmm-0"
+_tp_has "pmm pod mounts at /srv"           "mountPath: /srv"
+_tp_has "pmm pod runs as root"             "runAsUser: 0"
+_tp_has "pmm pod carries its sweep label"  "component: pmm-srv-restore-temp"
+_tp_has "pmm pod gets rclone env on s3"    "RCLONE_CONFIG_S3_TYPE"
+_tp_has "pmm pod opts out of consolidation" "karpenter.sh/do-not-disrupt"
+
+S3_ENABLED=false; CENTRAL_BACKUP_PVC=central-pvc
+_tp_capture create_vm_restore_pod vm-restore-vmstorage-0 vmstorage-db-vmstorage-0 vmrestore:v1
+_tp_has   "shared vm pod mounts the central PVC" "claimName: central-pvc"
+_tp_has   "shared vm pod mounts it at the shared path" "mountPath: /central"
+_tp_hasnt "shared vm pod takes no rclone env"    "RCLONE_CONFIG"
+_tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 img:1
+_tp_has "shared pmm pod mounts the central PVC" "claimName: central-pvc"
+_tp_has "the central mount is read-only"        "readOnly: true"
+
+unset -f kubectl clear_leftover_temp_pod wait_for_pod_ready_by_name
+rm -f "${_tp_out}"
+S3_ENABLED="${_tp_save_e}"; S3_SECRET_NAME="${_tp_save_sec}"; S3_SERVICE_ACCOUNT="${_tp_save_sa}"
+CENTRAL_BACKUP_PVC="${_tp_save_pvc}"; TEMP_POD_S3_KEYS_ENV="${_tp_save_keys}"; TEMP_POD_SA_LINE="${_tp_save_line}"
+
+#########################################################################################
+section "CHARACTERIZATION: lease_try_acquire — the shared lock primitive"
+#########################################################################################
+# Both the component locks and write_manifest's merge lease go through this now, so its
+# outcomes are pinned here: a live holder is never stolen, a lease whose age cannot be
+# determined is never stolen, and an apiserver failure is never read as "the lock is free".
+_lt_save_ns="${NAMESPACE}"; NAMESPACE=unit
+
+# The manifest body is what both the create and the guarded replace send.
+_lm=$(LOCK_HOLDER=h1 lease_manifest pmm-backup-postgresql 900 postgresql "")
+case "${_lm}" in *"name: pmm-backup-postgresql"*) ok ;; *) bad "manifest carries the name" "name" "${_lm}" ;; esac
+case "${_lm}" in *"locked-component: postgresql"*) ok ;; *) bad "manifest carries the component label" "label" "${_lm}" ;; esac
+case "${_lm}" in *resourceVersion*) bad "a create carries NO resourceVersion" "absent" "present" ;; *) ok ;; esac
+_lm=$(LOCK_HOLDER=h1 lease_manifest pmm-backup-x 120 "" 4242)
+case "${_lm}" in *'resourceVersion: "4242"'*) ok ;; *) bad "a takeover is resourceVersion-guarded" "rv" "${_lm}" ;; esac
+case "${_lm}" in *locked-component*) bad "no component label when none is given" "absent" "present" ;; *) ok ;; esac
+
+# Free lease: created, acquired, no incumbent reported.
+kubectl() { case "$1" in create) return 0 ;; esac; return 0; }
+_rc=0; lease_try_acquire l 900 postgresql || _rc=$?
+assert_rc "a free lease is acquired" 0 "${_rc}"
+assert_eq "...with no incumbent to report" "" "${LEASE_HOLDER}"
+
+# The apiserver refuses for a reason that is NOT contention: must be rc 2, never "free".
+kubectl() { echo "Error from server (Forbidden): leases is forbidden" >&2; return 1; }
+_rc=0; lease_try_acquire l 900 postgresql || _rc=$?
+assert_rc "an RBAC failure is 'could not tell', not 'free'" 2 "${_rc}"
+case "${LEASE_ERR}" in *Forbidden*) ok ;; *) bad "the apiserver's text is kept" "Forbidden" "${LEASE_ERR}" ;; esac
+
+# Held by a LIVE holder: refused, and never replaced.
+_replaced=0
+kubectl() {
+    case "$1" in
+        create)  echo 'Error from server (AlreadyExists): leases "l" already exists' >&2; return 1 ;;
+        get)     printf '99\tother-holder\t%s\t900' "$(lease_now)"; return 0 ;;
+        replace) _replaced=1; return 0 ;;
+    esac
+    return 0
+}
+_rc=0; lease_try_acquire l 900 postgresql || _rc=$?
+assert_rc "a live lease is not acquired" 1 "${_rc}"
+assert_eq "...and is reported as live"    "live" "${LEASE_STATE}"
+assert_eq "...and is NEVER replaced"      "0" "${_replaced}"
+assert_eq "...and names its holder"       "other-holder" "${LEASE_HOLDER}"
+
+# Held, demonstrably EXPIRED, resourceVersion readable: taken over, with the rv as precondition.
+# The replace runs inside a pipeline inside $( ), i.e. two subshells deep — so what it received
+# has to come back through a FILE, not a variable.
+_rv_file=$(mktemp)
+kubectl() {
+    case "$1" in
+        create)  echo 'AlreadyExists' >&2; return 1 ;;
+        get)     printf '77\tdead-holder\t2020-01-01T00:00:00.000000Z\t900'; return 0 ;;
+        replace) cat > "${_rv_file}"; return 0 ;;
+    esac
+    return 0
+}
+_rc=0; lease_try_acquire l 900 postgresql || _rc=$?
+assert_rc "an expired lease is taken over" 0 "${_rc}"
+_rv_seen=$(cat "${_rv_file}"); rm -f "${_rv_file}"
+case "${_rv_seen}" in *'resourceVersion: "77"'*) ok ;; *) bad "the takeover is rv-guarded" 'rv 77' "${_rv_seen}" ;; esac
+assert_eq "...and the old holder is reported" "dead-holder" "${LEASE_HOLDER}"
+
+# Expired, but the resourceVersion could not be read: no unguarded takeover.
+kubectl() {
+    case "$1" in
+        create) echo 'AlreadyExists' >&2; return 1 ;;
+        get)    printf '\tdead-holder\t2020-01-01T00:00:00.000000Z\t900'; return 0 ;;
+    esac
+    return 0
+}
+_rc=0; lease_try_acquire l 900 postgresql || _rc=$?
+assert_rc "no resourceVersion means no takeover" 1 "${_rc}"
+assert_eq "...reported as 'norv'"               "norv" "${LEASE_STATE}"
+
+# renewTime unparseable: "cannot tell" must not read as expired.
+kubectl() {
+    case "$1" in
+        create) echo 'AlreadyExists' >&2; return 1 ;;
+        get)    printf '77\tsomeone\tnot-a-time\t900'; return 0 ;;
+    esac
+    return 0
+}
+_rc=0; lease_try_acquire l 900 postgresql || _rc=$?
+assert_rc "an unreadable renewTime is not expiry" 1 "${_rc}"
+assert_eq "...reported as 'unknown'"              "unknown" "${LEASE_STATE}"
+
+# Lost the takeover race (the replace 409s).
+kubectl() {
+    case "$1" in
+        create)  echo 'AlreadyExists' >&2; return 1 ;;
+        get)     printf '77\tdead\t2020-01-01T00:00:00.000000Z\t900'; return 0 ;;
+        replace) echo 'Operation cannot be fulfilled: the object has been modified' >&2; return 1 ;;
+    esac
+    return 0
+}
+_rc=0; lease_try_acquire l 900 postgresql || _rc=$?
+assert_rc "losing the takeover race is its own outcome" 3 "${_rc}"
+
+unset -f kubectl
+NAMESPACE="${_lt_save_ns}"
+
+
+#########################################################################################
+section "CHARACTERIZATION: ch_run_action — one poll loop for create and upload"
+#########################################################################################
+# 'create' and 'upload' were two copies of this loop. The `since` fence is the part worth
+# pinning: the command string is the poll key, so a rerun with the same --backup-id produces a
+# byte-identical command, and without the fence the poll matches a stale 'success' row from the
+# earlier attempt and reports success having created nothing.
+_ca_log="${SCRIPT_DIR}/.chq.$$"
+: > "${_ca_log}"
+LOG_FILE=/dev/null
+# ch_query stub: records each query and answers from _CA_STATUS / _CA_SINCE.
+_CA_STATUS=success; _CA_SINCE=100
+ch_query() {
+    printf '%s\n' "$1" >> "${_ca_log}"
+    case "$1" in
+        *"ifNull(toUnixTimestamp(max(start)),0)"*) printf '%s' "${_CA_SINCE}" ;;
+        "INSERT INTO"*) return 0 ;;
+        "SELECT status"*) printf '%s' "${_CA_STATUS}" ;;
+        "SELECT error"*)  printf 'disk full' ;;
+    esac
+    return 0
+}
+_rc=0; ch_run_action "create backup_X" 30 1 "backup creation" >/dev/null 2>&1 || _rc=$?
+assert_rc "a successful action returns 0" 0 "${_rc}"
+# The fence must be READ before the INSERT and APPLIED in the status poll.
+_first=$(head -1 "${_ca_log}")
+case "${_first}" in *"ifNull(toUnixTimestamp(max(start)),0)"*) ok ;;
+    *) bad "the fence is read before enqueuing" "max(start) query first" "${_first}" ;; esac
+case "$(grep -c 'toUnixTimestamp(start) > 100' "${_ca_log}")" in 0) bad "the poll applies the fence" ">100" "absent" ;; *) ok ;; esac
+case "$(grep -c "^INSERT INTO system.backup_actions(command) VALUES('create backup_X')$" "${_ca_log}")" in
+    1) ok ;; *) bad "the action is enqueued exactly once" "1" "$(grep -c INSERT "${_ca_log}")" ;; esac
+
+# An error row fails the action and surfaces the message.
+: > "${_ca_log}"; _CA_STATUS=error
+_out=$(ch_run_action "upload backup_X" 30 1 "S3 upload" 2>&1); _rc=$?
+assert_rc "a reported error fails the action" 1 "${_rc}"
+case "$(grep -c '^SELECT error' "${_ca_log}")" in 0) bad "the error text is read" "SELECT error" "absent" ;; *) ok ;; esac
+
+# A status that never becomes success times out rather than hanging.
+: > "${_ca_log}"; _CA_STATUS=in_progress
+_rc=0; ch_run_action "create backup_X" 2 1 "backup creation" >/dev/null 2>&1 || _rc=$?
+assert_rc "a stuck action times out" 1 "${_rc}"
+
+# A failed enqueue is a failure, not a poll.
+ch_query() { case "$1" in "INSERT INTO"*) return 1 ;; *) printf '0' ;; esac; }
+_rc=0; ch_run_action "create backup_X" 30 1 "backup creation" >/dev/null 2>&1 || _rc=$?
+assert_rc "a failed enqueue fails immediately" 1 "${_rc}"
+
+unset -f ch_query
+rm -f "${_ca_log}"
+
+
+#########################################################################################
+section "prune_component_keys — a rejected key must reach the operator, not the caller's variable"
+#########################################################################################
+# Component keys come from the MANIFEST, i.e. from the store, and each becomes a path handed to
+# a destructive call, so they are charset-gated (DN-17). The gate returns its results in globals
+# on purpose: an earlier shape returned the list on stdout, and the caller's `$( )` then
+# swallowed the diagnostic naming the bad key — while a global set inside that subshell could
+# never propagate back out either.
+prune_component_keys '{"components":{"postgresql":{},"clickhouse":{}}}' && _rc=0 || _rc=$?
+assert_rc "a clean manifest passes"            0 "${_rc}"
+assert_eq "...and yields its keys"             "clickhouse postgresql" "$(echo ${PRUNE_KEYS})"
+assert_eq "...with nothing rejected"           "" "${PRUNE_BAD_KEYS}"
+
+prune_component_keys '{"components":{"postgresql":{},"bad key!":{}}}' && _rc=0 || _rc=$?
+assert_rc "a bad key fails the whole id"       1 "${_rc}"
+assert_eq "...and NAMES it for the operator"   "'bad key!'" "${PRUNE_BAD_KEYS}"
+# The whole id is deferred rather than the key dropped: dropping it leaves that component's data
+# unpurged while the manifest — the only record of what the backup held — is deleted anyway.
+assert_eq "...while the good keys are still reported" "postgresql" "$(echo ${PRUNE_KEYS})"
+
+prune_component_keys '{"components":{}}' && _rc=0 || _rc=$?
+assert_rc "an empty component set is not an error" 0 "${_rc}"
+assert_eq "...and yields nothing"                  "" "$(echo ${PRUNE_KEYS})"
+prune_component_keys 'not json' && _rc=0 || _rc=$?
+assert_rc "unparseable input yields no keys, not a crash" 0 "${_rc}"
+assert_eq "...and nothing to purge"                       "" "$(echo ${PRUNE_KEYS})"
+
+
+#########################################################################################
+section "value-returning functions must not log into their own stdout"
+#########################################################################################
+# Every one of these is called inside `$( )`. A plain log() there is swallowed into the captured
+# value AND corrupts it — which turned ch_incremental_base's charset gate into the very
+# injection it exists to prevent, and fed log text to `kubectl scale --replicas=`.
+# These tests deliberately restore the REAL log() so the trap is reproducible.
+_vr_saved_lf="${LOG_FILE}"; LOG_FILE=/dev/null
+log() {
+    _l="[$1] $2"
+    echo "${_l}"
+    { echo "${_l}" >> "${LOG_FILE}"; } 2>/dev/null || true
+}
+
+# A remote backup name that must be REFUSED — a space is a legal S3 key character, so this
+# injects a clickhouse-backup flag if it is ever used as the incremental base.
+ch_query() { printf '%s' 'backup_a --env S3_ENDPOINT=http://evil'; }
+_got=$(ch_incremental_base)
+assert_eq "a hostile remote name yields NO base (full upload)" "" "${_got}"
+ch_query() { printf '%s' "backup_20260101-120000"; }
+_got=$(ch_incremental_base)
+assert_eq "a legitimate name is returned as the base" "backup_20260101-120000" "${_got}"
+unset -f ch_query
+
+# pmm_replica_count falls back and WARNs; the warning must not become the replica count.
+kubectl() { return 1; }
+PMM_SERVER_REPLICAS=3
+_got=$(pmm_replica_count pmm-sts)
+assert_eq "the fallback replica count is a bare number" "3" "${_got}"
+case "${_got}" in ''|*[!0-9]*) bad "replica count is numeric" "digits" "${_got}" ;; *) ok ;; esac
+# A non-numeric stashed annotation also WARNs, and must still resolve to a number.
+kubectl() { case "$*" in *original-replicas*) echo "three" ;; *) echo "" ;; esac; }
+_got=$(pmm_replica_count pmm-sts)
+case "${_got}" in ''|*[!0-9]*) bad "a bad annotation still yields a number" "digits" "${_got}" ;; *) ok ;; esac
+unset -f kubectl
+
+log() { :; }
+LOG_FILE="${_vr_saved_lf}"
+
+
+#########################################################################################
 echo
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then

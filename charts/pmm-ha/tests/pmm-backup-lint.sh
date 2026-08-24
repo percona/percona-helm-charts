@@ -108,6 +108,58 @@ if late:
     raise SystemExit(1)
 print("  ok: every global read is initialised at top level")
 
+# The check above only covers SHOUTY_CASE globals. The same `set -u` abort is reachable through a
+# LOWERCASE name, and the first check cannot see it either: a variable that is `local` in ONE
+# function counts as "assigned" file-wide, so a read of it from a DIFFERENT function looks fine.
+#
+# That is exactly how `failed_pods="${failed_pods} ord-${ord}"` shipped in restore_pmm_server:
+# `failed_pods` is `local` to the two BACKUP functions and does not exist in the restore path, so
+# the line aborted the whole run — after scale_down_pmm, i.e. with PMM at 0 replicas.
+#
+# The precise signature is: the FIRST assignment of a name inside a function reads that same name
+# (`X="${X}..."` / `X=$((X + 1))`), while the name is neither `local` in that function nor
+# initialised at top level. Anything else is out of a regex lint's reach, but this shape is the one
+# that bites, because appending to an accumulator is how these are always used.
+func_starts = [(i, m.group(1)) for i, ln in enumerate(lines)
+               for m in [re.match(r'^([A-Za-z_][A-Za-z0-9_]*)\s*\(\)\s*\{', ln)] if m]
+top_level_any = set()
+for ln in lines:
+    m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=', ln)
+    if m: top_level_any.add(m.group(1))
+
+# Intentional dynamic scoping: set by a helper, owned by the caller that always initialises it
+# first. Each entry is a promise that the ONLY callers run inside that caller's frame.
+#   cmd_backup's counters <- record_backup_result
+dynamic_scoped = {'components_backed_up', 'components_failed', 'all_success'}
+
+selfref = []
+for idx, (start, fname) in enumerate(func_starts):
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].rstrip() == '}'), len(lines))
+    body = lines[start + 1:end]
+    locals_here = set()
+    for ln in body:
+        for m in re.finditer(r'\blocal\s+([^;]*)', ln):
+            for tok in m.group(1).split():
+                locals_here.add(tok.split('=')[0])
+    first_seen = {}
+    for ln in body:
+        for m in re.finditer(r'(?:^|[\s;{&|])([a-z_][a-z0-9_]*)=', ln):
+            first_seen.setdefault(m.group(1), ln)
+    for name, ln in first_seen.items():
+        if name in locals_here or name in top_level_any or name in external or name in dynamic_scoped:
+            continue
+        rhs = ln.split(name + '=', 1)[1]
+        if re.search(r'\$\{' + name + r'[}:#%]', rhs) or re.search(r'\$\(\(.*\b' + name + r'\b', rhs):
+            selfref.append((fname, name, ln.strip()))
+if selfref:
+    print("FAIL: a function's FIRST assignment to a variable reads that same variable, but the")
+    print("      variable is not `local` here and not initialised at top level — so under `set -u`")
+    print("      this aborts the run. Declare it `local`, or initialise it at top level:")
+    for fn, name, ln in selfref:
+        print(f"        {fn}(): {name}  ->  {ln}")
+    raise SystemExit(1)
+print(f"  ok: no function appends to an accumulator it does not own ({len(func_starts)} functions checked)")
+
 # A bare `wait` waits for EVERY background child. Since held locks are kept fresh by a
 # background renewer with an infinite loop, a bare `wait` never returns — the restore hung with
 # all components finished and PMM at 0 replicas, and nothing in the log explained it. Always
@@ -117,6 +169,58 @@ print("  ok: every global read is initialised at top level")
 # Both the bare-`wait` rule below and the backtick rule after it EXCLUDE / SCAN the show_help
 # heredoc, so if these anchors stop resolving, those checks silently pass on everything or scan
 # the wrong range. A renamed function, a `show_help ()` with a space, or a changed heredoc
+# The lock renewer runs as a detached subshell and must inherit NONE of the caller's write ends.
+# It emits nothing, but stop_lock_renewer's `kill` reaches the subshell, not the `sleep` it is
+# blocked in — and that orphaned `sleep` holds whatever descriptors it inherited. With stdout (or
+# fd 9, the duplicate opened at the top of the file) still attached, `pmm-backup.sh ... | tee`
+# hangs for up to LOCK_RENEW_SECONDS after the run has finished and printed its summary.
+m = re.search(r'^start_lock_renewer\(\) \{.*?^\}', src, re.S | re.M)
+if not m:
+    print("FAIL: start_lock_renewer not found"); raise SystemExit(1)
+if not re.search(r'\)\s*>/dev/null\s+2>&1\s+9>&-\s*&', m.group(0)):
+    print("FAIL: the lock renewer subshell must be backgrounded as `) >/dev/null 2>&1 9>&- &`")
+    print("      so its orphaned `sleep` cannot hold the caller's stdout (or fd 9) open.")
+    raise SystemExit(1)
+print("  ok: the lock renewer cannot hold the caller's stdout open")
+
+# A function whose STDOUT IS ITS VALUE must not call log() on plain stdout: every call site wraps
+# it in `$( )`, so the message is swallowed into the captured value instead of reaching the
+# operator — and the value is then corrupted by the log text. That inverted ch_incremental_base's
+# charset gate into the injection it exists to prevent, and it silently fed log text to
+# `kubectl scale --replicas=`. Such functions must redirect to fd 9 (the duplicate of the original
+# stdout opened at the top of the file), which is what pod_sh already does for its preview.
+func_bodies = {}
+for i, ln in enumerate(lines):
+    m = re.match(r'^([A-Za-z_][A-Za-z0-9_-]*)\(\)\s*\{', ln)
+    if not m: continue
+    name = m.group(1)
+    if ln.rstrip().endswith('}'):
+        func_bodies[name] = [ln]
+    else:
+        end = next((j for j in range(i + 1, len(lines)) if lines[j] == '}'), len(lines))
+        func_bodies[name] = lines[i + 1:end]
+
+captured = set()
+for ln in lines:
+    if ln.strip().startswith('#'): continue
+    for m in re.finditer(r'\$\(([^()]*)\)', ln):
+        toks = m.group(1).strip().split()
+        if toks and toks[0] in func_bodies: captured.add(toks[0])
+
+offenders = []
+for name in sorted(captured):
+    for b in func_bodies[name]:
+        if re.search(r'\blog "', b) and not re.search(r'>&9', b):
+            offenders.append((name, b.strip()[:80]))
+            break
+if offenders:
+    print("FAIL: function(s) called inside $( ) log to plain stdout, so the message is captured")
+    print("      into the caller's value instead of reaching the operator. Redirect to >&9:")
+    for n, b in offenders: print(f"        {n}: {b}")
+    raise SystemExit(1)
+print(f"  ok: no value-returning function logs into its own stdout ({len(captured)} checked)")
+
+
 # delimiter would do it. Fail loudly instead of degrading into a no-op gate.
 help_start = next((i for i, ln in enumerate(lines) if re.match(r'^show_help\s*\(\)', ln)), None)
 if help_start is None:

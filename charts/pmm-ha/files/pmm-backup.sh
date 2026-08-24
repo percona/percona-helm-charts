@@ -1,12 +1,10 @@
 #!/bin/sh
 set -eu
 
-# fd 9 is a duplicate of the ORIGINAL stdout, kept for output that must reach the operator even
-# when the current command's stdout is redirected. pod_sh needs it: its call sites send tool
-# output to the log file with `>> "${LOG_FILE}" 2>&1`, and that redirect also swallowed the
-# dry-run PREVIEW — so `--dry-run` printed the surrounding narration and silently dropped the
-# one line the reviewer is there to read. Writing the preview to fd 9 puts it back on the
-# console without giving every call site a dry-run branch.
+# fd 9 duplicates the ORIGINAL stdout, for output that must reach the operator even when the
+# current command's stdout is redirected. pod_sh/pod_exec write their --dry-run preview there:
+# their call sites redirect tool output into the log file, which otherwise swallows the one line
+# the reviewer is there to read.
 exec 9>&1
 
 ################################################################################
@@ -33,8 +31,9 @@ exec 9>&1
 # BusyBox ash (the backup-tools image), dash and bash. Portability traps that have actually
 # shipped are catalogued in DN-22 — read it before adding shell cleverness.
 #
-# WHY things are shaped the way they are: docs/pmm-backup-design-notes.md (DN-01..DN-35).
-# Most of those notes exist because the obvious alternative was tried and lost data.
+# WHY things are shaped the way they are: docs/pmm-backup-design-notes.md (DN-01..DN-44).
+# Comments here state the RULE; the notes carry the incident that forced it. Most exist because
+# the obvious alternative was tried and lost data — read the note before undoing a constraint.
 ################################################################################
 
 ################################################################################
@@ -85,21 +84,13 @@ RCLONE_REMOTE="${RCLONE_REMOTE:-s3}"
 # Derived from BACKUP_TARGET after parsing; kept for the per-tool S3 branches.
 S3_ENABLED=false
 
-# Timeout settings (in seconds) for kubectl commands.
-# NOTE: We use the `timeout` command wrapper instead of kubectl's --request-timeout
-# flag because --request-timeout breaks kubectl's in-cluster API server discovery
-# when running inside a pod (kubectl falls back to localhost:8080 instead of using
-# the ServiceAccount token). Discovered during in-cluster testing on kubectl v1.35.
-# Every env below reaches `[ x -lt y ]` or `timeout <n>`, where a NON-NUMERIC value does not
-# merely misbehave — `[ 0 -lt 5m ]` exits 2, which an `if` reads as FALSE. So a stray
-# CH_CREATE_TIMEOUT=5m made backup_clickhouse skip its wait loop AND skip the timeout arm, and
-# report success for a backup it never confirmed was created. Fall back to the default rather
-# than abort: these are operational knobs, and a typo in one must not fail a whole run.
-# BACKUP_RETENTION, S3_PRUNE_* and the RCLONE_* bounds already do this individually; this is
-# the same rule for the rest.
-# The clamp is applied HERE, at load time, because these values are read all over the file —
-# but log() and LOG_FILE do not exist yet at this point, so what was clamped is accumulated and
-# reported by preflight_checks instead of being silently swallowed.
+# Timeouts (seconds). Wrapped with `timeout`, never kubectl --request-timeout, which breaks
+# in-cluster apiserver discovery (DN-27).
+#
+# RULE: every numeric knob is clamped to its default unless it is a positive integer. A
+# non-numeric value does not merely misbehave — `[ 0 -lt 5m ]` exits 2, which `if` reads as
+# FALSE, so the guard it was meant to arm is silently skipped. Clamping happens at load time,
+# before log() exists, so what was clamped is accumulated here and reported by preflight_checks.
 # numeric_env <VAR-NAME> <default>
 NUMERIC_ENV_CLAMPED=""
 numeric_env() {
@@ -127,6 +118,18 @@ LABEL_VM_STORAGE="app.kubernetes.io/name=vmstorage"
 # PMM server pods (HA StatefulSet); selector discovers all replicas (1, 3, 5, ...)
 LABEL_PMM_SERVER="app.kubernetes.io/component=pmm-server"
 LABEL_BACKUP_TOOLS="app.kubernetes.io/component=backup-tools"
+
+# The selector that finds a component's pods, by component key. Lets the generic per-component
+# loops (pre-flight discovery, the restore gate) reach the right pods without a branch each.
+comp_pod_selector() {
+    case "$1" in
+        postgresql)      printf '%s' "${LABEL_PG_PRIMARY}" ;;
+        clickhouse)      printf '%s' "${LABEL_CH_POD}" ;;
+        victoriametrics) printf '%s' "${LABEL_VM_STORAGE}" ;;
+        pmm-server)      printf '%s' "${LABEL_PMM_SERVER}" ;;
+        *) return 1 ;;
+    esac
+}
 
 # ClickHouse credentials secret (both operations)
 CH_SECRET_NAME="${CH_SECRET_NAME:-pmm-secret}"
@@ -175,26 +178,15 @@ PMM_SRV_PATH="${PMM_SRV_PATH:-/srv}"
 COMPONENT_SUFFIX=""
 
 # ---- Component results ----------------------------------------------------------------
-# Every component's outcome, as ONE JSON object keyed by component name. The manifest, the run
-# summary and the Prometheus metrics all read from here.
-#
-# This replaces five near-identical global families (PG_*/CH_*/VM_*/PMM_*/ENCRYPTION_* — about
-# thirty variables) that each had to be declared, set by the component, read by write_manifest,
-# read again by the summary and again by the metrics writer. Adding a component meant finding a
-# dozen places; it is now one result_set call plus one summary row.
-#
-# Deliberately IN MEMORY rather than fragment files on disk: the manifest is the restore index,
-# and routing it through a filesystem would add a way for a successful component to vanish from
-# the index that an in-process variable simply does not have.
-#
-# Only components that actually ran appear, so write_manifest no longer has to re-derive which
-# components were selected.
+# Every component's outcome as ONE JSON object keyed by component name; the manifest, the run
+# summary and the metrics all read from here, and only components that actually ran appear.
+# In memory, never fragment files on disk — the manifest IS the restore index, and a filesystem
+# round-trip would add a way for a successful component to vanish from it (DN-38).
 RESULTS_JSON='{}'
 
-# ClickHouse state that only some paths assign, declared here because the script runs under
-# `set -u`: a variable assigned on one branch and read on another aborts the run — and it aborts
-# after every component has uploaded but before the manifest is written, which orphans the data.
-# tests/pmm-backup-lint.sh enforces that every global read is initialised at top level.
+# ClickHouse state only some paths assign. Initialised here because under `set -u` a variable
+# set on one branch and read on another aborts the run — after every component has uploaded and
+# before the manifest is written, i.e. orphaned data. The lint enforces this file-wide.
 CH_BACKUP_BASE=""          # the remote backup an incremental was diffed against (empty = full)
 CH_SHARED_TAR=""           # shared mode: the tarball the CH backup was archived to
 CH_LOCATION_OVERRIDE=""    # set when the sidecar writes outside this run's root (DN-12)
@@ -203,21 +195,12 @@ CH_LOCATION_OVERRIDE=""    # set when the sidecar writes outside this run's root
 # script depends on no hand-maintained JSON formatting.
 result_set() {
     _rs_c="$1"; shift
-    # NEVER returns non-zero. Every call site is a bare statement, so under `set -eu` a
-    # non-zero status here aborted the whole run — after every component had uploaded and
-    # before write_manifest wrote the index, orphaning the data in the bucket with no way for
-    # `list` or restore to find it. That is precisely the failure these in-memory results were
-    # introduced to make impossible, and a single non-JSON --argjson value (an empty
-    # ${backup_size_bytes}, a sizes_to_json regression) was enough to trigger it.
-    #
-    # A component that cannot be described is recorded as FAILED rather than dropped: dropping
-    # it makes a broken backup indistinguishable from one that was never selected, while a
-    # failed entry keeps it in the index, in the summary and in the metrics.
-    # stderr is captured by a SECOND jq only on the error path, rather than being redirected
-    # into ${LOG_FILE}: this helper is called by every component, and making it depend on a
-    # global file handle is what a low-level helper must not do — with LOG_FILE unset (a
-    # sourced library, a `set -u` ordering change) the redirect itself fails and every
-    # component's result is lost.
+    # NEVER returns non-zero: every call site is a bare statement, so a failure here would
+    # abort the run under `set -e` — after the data is uploaded and before the index is written.
+    # A component that cannot be described is recorded FAILED rather than dropped, because a
+    # dropped entry is indistinguishable from one that was never selected. stderr is re-captured
+    # by a second jq only on the error path rather than redirected into ${LOG_FILE}: a low-level
+    # helper every component calls must not depend on a global file handle. (DN-38)
     _rs_obj=$(jq -n "$@" 2>/dev/null) || _rs_obj=""
     if [ -z "${_rs_obj}" ]; then
         _rs_err=$(jq -n "$@" 2>&1 >/dev/null || true)
@@ -309,13 +292,11 @@ VM_STORAGE_PVC_PREFIX="${VM_STORAGE_PVC_PREFIX:-vmstorage-db-}"
 # PMM /srv PVC prefix — an OVERRIDE, not the source of truth. Empty by default: the name is
 # derived from the live StatefulSet's volumeClaimTemplate instead (see pmm_storage_pvc_prefix).
 #
-# It used to default to "pmm-storage-", which is the chart's `storage.name` default rather than
-# a fact about the cluster. `storage.name` is a documented, user-settable value that names the
-# volumeClaimTemplate, so any install that set it restored /srv by mounting a PVC that does not
-# exist — the temp pod stays Pending, the ordinal times out after 300s, and it does all of that
-# AFTER scale_down_pmm, which is the exact class of failure DN-15's gate exists to keep on the
-# safe side of the point of no return. Two artifacts owned one name in two languages; now the
-# StatefulSet owns it and this file reads it. See DN-39.
+# Defaulting it to the chart's `storage.name` is a fact about the CHART, not about the cluster:
+# any install that sets `storage.name` then restores /srv by mounting a PVC that does not exist,
+# and the temp pod hangs Pending until the 300s wait expires — after scale_down_pmm, on the
+# wrong side of the point of no return. The StatefulSet owns the name; this file reads it.
+# See DN-39.
 PMM_STORAGE_PVC_PREFIX="${PMM_STORAGE_PVC_PREFIX:-}"
 # Cache for the derived value, so the resolution costs one API read per run rather than one per
 # ordinal. Resolved in the parent (the pre-flight gate) before restore_pmm_server needs it.
@@ -490,11 +471,18 @@ Environment Variables:
   CH_LIST_TIMEOUT           Budget for the restore pre-flight 'list remote' (default: 120)
   PMM_SRV_PATH              Path archived from each PMM server pod (default: /srv)
   PMM_SERVER_REPLICAS       Fallback PMM replica count on restore scale-up (default: 3)
-  VMRESTORE_IMAGE           vmrestore image override (default: auto-detected from the pod)
+  VMRESTORE_IMAGE           vmrestore image override. Default: the vmstorage pod's own
+                            vmrestore sidecar image, so it matches the version that
+                            wrote the backup. There is no fallback beyond these two:
+                            the restore refuses rather than guess a tag.
   VM_STORAGE_PVC_PREFIX     vmstorage PVC name prefix (default: vmstorage-db-)
   PMM_STORAGE_PVC_PREFIX    PMM /srv PVC name prefix. Default: read from the PMM
                             StatefulSet's volumeClaimTemplate, so it follows
                             storage.name automatically. Set only to override that.
+  PMM_RESTORE_IMAGE         Image for the temp pod that restores /srv. Default: read
+                            from the PMM StatefulSet (the pmm-backup sidecar in s3
+                            mode, since it carries rclone). Needs tar, plus rclone
+                            for --target s3. Refused rather than guessed if unreadable.
   CENTRAL_BACKUP_PVC        Central backup PVC name (shared-mode restore; auto-detected)
 
 Concurrency:
@@ -561,39 +549,90 @@ flag_requires() {
 }
 
 # ---- Component selection tables -------------------------------------------------------
-# Selection is ONE shape repeated per component: the first explicit --<component> turns the
-# others off, later ones combine, and --skip-<component> wins over both. That was five
-# near-identical eight-line blocks per operation, which is how a component came to be handled
-# in the backup arm and forgotten in the restore arm. Adding a component is now one row.
+# THE component table. Every per-component loop in this file reads it — selection, skipping,
+# pre-flight discovery, lock lists, the backup run, the restore defaults, the restore verdict
+# and the summaries. Adding a component is a row here plus its backup_/restore_ function.
+# Handling one in the backup arm and forgetting it in the restore arm is what this prevents,
+# and that failure is invisible because the missing case simply never fires. See DN-45.
 #
-# Rows are <flag>:<backup-var>:<restore-var>. The encryption key has NO backup var here on
-# purpose: on the backup side it is captured with PostgreSQL rather than selected on its own
-# (--skip-encryption-key turns it off), so it must not participate in "first selection turns
-# the others off".
-COMPONENT_SELECT_FLAGS="postgresql:BACKUP_POSTGRESQL:RESTORE_POSTGRESQL
-clickhouse:BACKUP_CLICKHOUSE:RESTORE_CLICKHOUSE
-victoriametrics:BACKUP_VICTORIAMETRICS:RESTORE_VICTORIAMETRICS
-pmm-server:BACKUP_PMM_SERVER:RESTORE_PMM_SERVER
-encryption-key::RESTORE_ENCRYPTION_KEY"
+# Colon-separated columns:
+#   1 key      manifest key, path segment and metric label
+#   2 flag     CLI stem: --<flag> and --skip-<flag>
+#   3 label    log tag, e.g. [PostgreSQL]
+#   4 bvar     BACKUP_*  selection variable
+#   5 rvar     RESTORE_* selection variable
+#   6 skipvar  SKIP_*    marker (restore; applied after the manifest defaults)
+#   7 mfvar    MF_*      status this backup recorded for the component
+#   8 okvar    *_OK      restore outcome
+#   9 sel      'sel' if --<flag> selects it on the BACKUP side, 'nosel' if not
+#
+# The encryption key is 'nosel': on the backup side it is captured with PostgreSQL rather than
+# chosen on its own, so it must not take part in "the first explicit --<component> turns the
+# others off". --skip-encryption-key still turns it off, which is why it has a bvar at all.
+COMPONENTS="postgresql:postgresql:PostgreSQL:BACKUP_POSTGRESQL:RESTORE_POSTGRESQL:SKIP_POSTGRESQL:MF_PG_STATUS:POSTGRESQL_OK:sel
+clickhouse:clickhouse:ClickHouse:BACKUP_CLICKHOUSE:RESTORE_CLICKHOUSE:SKIP_CLICKHOUSE:MF_CH_STATUS:CLICKHOUSE_OK:sel
+victoriametrics:victoriametrics:VictoriaMetrics:BACKUP_VICTORIAMETRICS:RESTORE_VICTORIAMETRICS:SKIP_VICTORIAMETRICS:MF_VM_STATUS:VICTORIAMETRICS_OK:sel
+pmm-server:pmm-server:PMMServer:BACKUP_PMM_SERVER:RESTORE_PMM_SERVER:SKIP_PMM_SERVER:MF_PMM_STATUS:PMM_SERVER_OK:sel
+encryption:encryption-key:EncryptionKey:BACKUP_ENCRYPTION_KEY:RESTORE_ENCRYPTION_KEY:SKIP_ENCRYPTION_KEY:MF_ENC_STATUS:ENCRYPTION_KEY_OK:nosel"
 
-# Rows are <flag>:<backup-var>:<restore-skip-var>. Here the encryption key DOES have a backup
-# var, because --skip-encryption-key is exactly how a backup opts out of capturing it.
-COMPONENT_SKIP_FLAGS="postgresql:BACKUP_POSTGRESQL:SKIP_POSTGRESQL
-clickhouse:BACKUP_CLICKHOUSE:SKIP_CLICKHOUSE
-victoriametrics:BACKUP_VICTORIAMETRICS:SKIP_VICTORIAMETRICS
-pmm-server:BACKUP_PMM_SERVER:SKIP_PMM_SERVER
-encryption-key:BACKUP_ENCRYPTION_KEY:SKIP_ENCRYPTION_KEY"
+# The four components that own a <component>/<id>/ data path. This is what "full scope" means:
+# 'latest' only advances onto a backup holding all four (DN-14) and the retention sweep's
+# survivor guard tests the same predicate (DN-40). The encryption key rides with PostgreSQL.
+CORE_COMPONENTS="postgresql clickhouse victoriametrics pmm-server"
 
-# Turn ON one component. On the first explicit selection every other component in the table is
-# turned OFF, so `--clickhouse` means "only ClickHouse" while `--clickhouse --postgresql` means
-# both. EXPLICIT_SELECTION is read before it is set, so the first call is the one that clears.
+# comp_col <key-or-flag> <column> — one column of the row matching either identifier. Both are
+# accepted because the CLI knows a component by its flag and everything else by its key, and
+# they differ for the encryption key.
+comp_col() {
+    _cc_want="$1" _cc_n="$2" _cc_row=""
+    for _cc_row in ${COMPONENTS}; do
+        case "${_cc_row}" in
+            "${_cc_want}":*|*:"${_cc_want}":*) ;;
+            *) continue ;;
+        esac
+        _cc_ifs="${IFS}"; IFS=:
+        # shellcheck disable=SC2086
+        set -- ${_cc_row}
+        IFS="${_cc_ifs}"
+        # Match on the two identifier columns only — a later column could otherwise collide.
+        [ "$1" = "${_cc_want}" ] || [ "$2" = "${_cc_want}" ] || continue
+        eval "printf '%s' \"\${${_cc_n}}\""
+        return 0
+    done
+    return 1
+}
+comp_key()   { comp_col "$1" 1; }
+comp_label() { comp_col "$1" 3; }
+comp_bvar()  { comp_col "$1" 4; }
+comp_rvar()  { comp_col "$1" 5; }
+comp_mfvar() { comp_col "$1" 7; }
+comp_okvar() { comp_col "$1" 8; }
+
+# Value of the variable named in one column, e.g. comp_val postgresql 4 -> "$BACKUP_POSTGRESQL".
+comp_val() {
+    _cv_n=$(comp_col "$1" "$2") || return 1
+    [ -n "${_cv_n}" ] || return 1
+    eval "printf '%s' \"\${${_cv_n}}\""
+}
+# Is this component selected for the current operation? <key> <column>
+comp_on() { [ "$(comp_val "$1" "$2" 2>/dev/null)" = "true" ]; }
+
+# Turn ON one component. On the first explicit selection every other component is turned OFF,
+# so `--clickhouse` means "only ClickHouse" while `--clickhouse --postgresql` means both.
+# EXPLICIT_SELECTION is read before it is set, so the first call is the one that clears.
 select_component() {
-    _sc_want="$1" _sc_row="" _sc_flag="" _sc_var="" _sc_rest=""
-    for _sc_row in ${COMPONENT_SELECT_FLAGS}; do
-        _sc_flag="${_sc_row%%:*}"; _sc_rest="${_sc_row#*:}"
-        if [ "${COMMAND}" = "restore" ]; then _sc_var="${_sc_rest#*:}"; else _sc_var="${_sc_rest%%:*}"; fi
+    _sc_want="$1" _sc_row="" _sc_key="" _sc_var=""
+    for _sc_row in ${COMPONENTS}; do
+        _sc_key="${_sc_row%%:*}"
+        if [ "${COMMAND}" = "restore" ]; then
+            _sc_var=$(comp_rvar "${_sc_key}")
+        else
+            # 'nosel' components are not selectable on the backup side (see the table).
+            [ "$(comp_col "${_sc_key}" 9)" = "sel" ] || continue
+            _sc_var=$(comp_bvar "${_sc_key}")
+        fi
         [ -n "${_sc_var}" ] || continue
-        if [ "${_sc_flag}" = "${_sc_want}" ]; then
+        if [ "${_sc_key}" = "${_sc_want}" ] || [ "$(comp_col "${_sc_key}" 2)" = "${_sc_want}" ]; then
             eval "${_sc_var}=true"
         elif [ "${EXPLICIT_SELECTION}" = "false" ]; then
             eval "${_sc_var}=false"
@@ -607,13 +646,10 @@ select_component() {
 # select_default_components, which applies these last so they beat both the manifest defaults
 # and an explicit selection).
 skip_component() {
-    _kc_want="$1" _kc_row="" _kc_flag="" _kc_rest=""
-    for _kc_row in ${COMPONENT_SKIP_FLAGS}; do
-        _kc_flag="${_kc_row%%:*}"; _kc_rest="${_kc_row#*:}"
-        [ "${_kc_flag}" = "${_kc_want}" ] || continue
-        if [ "${COMMAND}" = "restore" ]; then eval "${_kc_rest#*:}=true"; else eval "${_kc_rest%%:*}=false"; fi
-        return 0
-    done
+    if [ "${COMMAND}" = "restore" ]; then _kc_var=$(comp_col "$1" 6) || return 0
+    else _kc_var=$(comp_bvar "$1") || return 0; fi
+    [ -n "${_kc_var}" ] || return 0
+    if [ "${COMMAND}" = "restore" ]; then eval "${_kc_var}=true"; else eval "${_kc_var}=false"; fi
     return 0
 }
 
@@ -766,10 +802,17 @@ log() {
 
 # Restore runs use their own log file name (and can fall back to /tmp when the
 # central volume is unavailable); backup runs derive LOG_FILE at dispatch time.
+#
+# `date -u`, like every other timestamp this file mints. The backup and prune logs are named from
+# ${TIMESTAMP}, which is UTC, and they land in THIS directory — so a local-time restore name meant
+# one log series in two zones: `ls logs/` sorted DR drills into the wrong place relative to the
+# backups they were restoring, by the container's offset. Same argument as the backup id (see the
+# TIMESTAMP note at the top of this file).
 init_log() {
-    LOG_FILE="${BACKUP_DIR}/logs/restore_$(date +%Y%m%d-%H%M%S).log"
+    _il_ts=$(date -u +%Y%m%d-%H%M%S)
+    LOG_FILE="${BACKUP_DIR}/logs/restore_${_il_ts}.log"
     if ! mkdir -p "${BACKUP_DIR}/logs" 2>/dev/null || ! : >>"${LOG_FILE}" 2>/dev/null; then
-        LOG_FILE="/tmp/restore_$(date +%Y%m%d-%H%M%S).log"
+        LOG_FILE="/tmp/restore_${_il_ts}.log"
         : >>"${LOG_FILE}" 2>/dev/null || true
     fi
 }
@@ -780,10 +823,8 @@ append_to_log() { tee -a "${LOG_FILE}" >&2 2>/dev/null || cat >&2; }
 # Run a shell snippet inside a pod, or — in dry run — print the snippet that WOULD run.
 #
 # The script text is supplied ONCE and is both what gets logged and what gets executed, so the
-# preview cannot drift from the run. It already had: the /srv preview printed the s3 pipeline
-# without `set -o pipefail` and without --s3-no-check-bucket, and --dry-run is the documented
-# review gate for retention, so a preview that renders a different command than the one that
-# will execute is not a gate.
+# preview cannot drift from the run. --dry-run is the documented review gate for retention, and
+# a preview that renders a different command than the one that executes is not a gate.
 #
 # Values are passed as POSITIONAL ARGUMENTS ("$1", "$2", ...), never interpolated into the
 # script, so no value can alter what runs (DN-17).
@@ -805,6 +846,28 @@ pod_sh() {
     fi
 }
 
+# Same contract as pod_sh, but WITHOUT a shell in the pod: argv goes straight to the container.
+# That is what vmbackup / vmrestore / clickhouse-backup need — binaries with flags, not shell
+# snippets — and no value is ever interpreted, so nothing needs quoting-proofing.
+#
+# The command is supplied ONCE and is both what gets previewed and what gets run (DN-46).
+#
+#   pod_exec <tag> <pod> <container|-> <timeout> <command> [args...]
+# Returns the command's status; 0 in dry run (the caller's success path is what a real run takes).
+pod_exec() {
+    _pe_tag="$1" _pe_pod="$2" _pe_ctr="$3" _pe_to="$4"; shift 4
+    if [ "${DRY_RUN}" = "true" ]; then
+        # To fd 9, not plain stdout: see the `exec 9>&1` note at the top of this file.
+        log "INFO" "[${_pe_tag}] [DRY RUN] kubectl exec ${_pe_pod}$([ "${_pe_ctr}" = "-" ] || echo " -c ${_pe_ctr}") -- $*" >&9
+        return 0
+    fi
+    if [ "${_pe_ctr}" = "-" ] || [ -z "${_pe_ctr}" ]; then
+        timeout "${_pe_to}" kubectl exec -n "${NAMESPACE}" "${_pe_pod}" -- "$@"
+    else
+        timeout "${_pe_to}" kubectl exec -n "${NAMESPACE}" "${_pe_pod}" -c "${_pe_ctr}" -- "$@"
+    fi
+}
+
 # Format a byte count as a human-readable string (e.g. 1234567 -> "1.2MB").
 # Single source of truth for size formatting across all components.
 human_bytes() {
@@ -813,6 +876,18 @@ human_bytes() {
         while (b >= 1024 && i < 5) { b /= 1024; i++ }
         if (i == 1) printf "%d%s", b, u[i]; else printf "%.1f%s", b, u[i]
     }'
+}
+
+# sha256 of a file, or EMPTY when neither tool is present. Two spellings because the tool
+# differs by image: coreutils ships sha256sum, BusyBox and macOS ship shasum. The caller decides
+# what "no hash available" means — the backup records "N/A", the restore skips verification.
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+    elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
+    fi
+    # Always rc 0: callers assign this bare (`x=$(sha256_of f)`), where a non-zero status
+    # aborts under `set -e`. "No hash" is signalled by EMPTY output, not by a return code.
+    return 0
 }
 
 # jq is a hard requirement: it builds the manifest, which IS the restore index. Provided by
@@ -835,10 +910,9 @@ ensure_rclone() {
 # 3+4. Layout + storage access (formerly the sourced backup-layout.sh)
 ################################################################################
 
-# One definition of where a backup lives and how to read/write it, for BOTH
-# operations. This used to be a separate sourced file with an unenforced
-# pre-source contract (callers had to define the S3 settings and five primitives
-# first); merging the orchestrators deleted the contract.
+# One definition of where a backup lives and how to read/write it, for BOTH operations. It was
+# a separate sourced file with an unenforced pre-source contract; merging deleted the contract
+# (DN-01).
 
 # ---- Layout -------------------------------------------------------------------------
 #   <root>/latest                  newest backup id
@@ -848,42 +922,44 @@ ensure_rclone() {
 # Every component sits at the same depth in the same shape, ClickHouse included, and the
 # namespace leads <root> so two installs cannot share it by default (DN-08).
 #
-# THREE views of one location — path / display / inpod — see DN-05.
-# A backup is a correlation across component paths sharing an id, NOT a directory: atomicity
-# is retention's job, not the layout's (DN-06).
-backup_root() {
-    if [ "${S3_ENABLED}" = "true" ]; then echo "${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}"
-    else echo "${BACKUP_DIR}"; fi
+# A backup is a correlation across component paths sharing an id, NOT a directory: atomicity is
+# retention's job, not the layout's (DN-06).
+#
+# THREE VIEWS of one location (DN-05), across TWO targets:
+#   path     what THIS process reads and writes through the store_* layer
+#   display  what a human or an external tool sees (the s3:// URI)
+#   inpod    what a COMPONENT POD sees (the shared mount; the same rclone spec on s3)
+# Six near-identical functions expressed that one choice twice. It is made here, once.
+backup_root() {   # [view]
+    if [ "${S3_ENABLED}" = "true" ]; then
+        case "${1:-path}" in
+            display) echo "s3://${S3_BUCKET}/${S3_PREFIX}" ;;
+            *)       echo "${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}" ;;
+        esac
+    else
+        case "${1:-path}" in
+            inpod) echo "${SHARED_MOUNT_PATH}" ;;
+            *)     echo "${BACKUP_DIR}" ;;
+        esac
+    fi
 }
-backup_root_display() {
-    if [ "${S3_ENABLED}" = "true" ]; then echo "s3://${S3_BUCKET}/${S3_PREFIX}"
-    else echo "${BACKUP_DIR}"; fi
+backup_root_display() { backup_root display; }
+backup_root_inpod()   { backup_root inpod; }
+
+# <root>/<component>/<id>, in one of the three views.
+#
+# An empty id resolves to the component ROOT — every backup of that component — so a caller
+# that asks before the id is known must fail loudly. These are NOT merely read-only views:
+# comp_inpod is what the ClickHouse backup tars into and what vm_dst_for_pod turns into
+# vmbackup's fs:// destination, so an unset id there writes on top of every other backup.
+comp_at() {   # <view> <component> [id]
+    _ca_id="${3:-$(backup_id_default)}"
+    [ -n "${_ca_id}" ] || { echo "BUG: backup id not yet known at path construction" >&2; return 1; }
+    echo "$(backup_root "$1")/$2/${_ca_id}"
 }
-backup_root_inpod() {
-    if [ "${S3_ENABLED}" = "true" ]; then echo "${RCLONE_REMOTE}:${S3_BUCKET}/${S3_PREFIX}"
-    else echo "${SHARED_MOUNT_PATH}"; fi
-}
-# An empty id would resolve to the component ROOT (every backup), so callers that ask for a
-# path before the id is known must fail rather than silently read one level too high.
-_require_id() { [ -n "$1" ] || { echo "BUG: backup id not yet known at path construction" >&2; return 1; }; echo "$1"; }
-comp_path() {
-    _cp_id=$(_require_id "${2:-$(backup_id_default)}") || return 1
-    echo "$(backup_root)/$1/${_cp_id}"
-}
-# Same guard as comp_path, and for the same reason. These are NOT merely read-only views:
-# comp_inpod is what backup_clickhouse tars into and what vm_dst_for_pod turns into vmbackup's
-# fs:// destination, and comp_display is the s3:// -dst vmbackup writes to. With an unset id
-# they resolved to the component ROOT, so a call ordering that reached a component before the
-# dispatcher set CURRENT_ID would write a backup one level up, on top of every other backup of
-# that component, instead of failing.
-comp_display() {
-    _cd_id=$(_require_id "${2:-$(backup_id_default)}") || return 1
-    echo "$(backup_root_display)/$1/${_cd_id}"
-}
-comp_inpod() {
-    _ci_id=$(_require_id "${2:-$(backup_id_default)}") || return 1
-    echo "$(backup_root_inpod)/$1/${_ci_id}"
-}
+comp_path()    { comp_at path    "$1" "${2:-}"; }
+comp_display() { comp_at display "$1" "${2:-}"; }
+comp_inpod()   { comp_at inpod   "$1" "${2:-}"; }
 manifest_path()    { echo "$(backup_root)/manifests/${1:-$(backup_id_default)}.json"; }
 manifest_display() { echo "$(backup_root_display)/manifests/${1:-$(backup_id_default)}.json"; }
 manifests_dir()    { echo "$(backup_root)/manifests"; }
@@ -910,17 +986,13 @@ ch_restore_path()   { if [ -n "${MF_CH_S3_PATH}" ]; then printf '%s' "${MF_CH_S3
 # looking at the data from inside the cluster. Four components were branching for this.
 comp_location() { if [ "${S3_ENABLED}" = "true" ]; then comp_display "$1"; else comp_inpod "$1"; fi; }
 
-# The manifest is this tool's ON-STORAGE CONTRACT: it is written into a bucket that outlives
-# any one install and is read back by whatever version of this script happens to be running at
-# DR time — routinely an OLDER one, because a DR cluster is restored from a chart release that
-# predates the bucket's newest backups. So the format carries its own version.
+# The manifest is this tool's ON-STORAGE CONTRACT: written into a bucket that outlives any one
+# install and read back by whatever version is running at DR time — routinely an OLDER one, since
+# a DR cluster is restored from a chart release predating the bucket's newest backups (DN-41).
 #
-# Bump ONLY for a change an older reader would mis-handle: a component key whose data lives
-# somewhere it cannot derive, a field whose meaning changed, a component removed. Adding a NEW
-# optional field is not a bump — older readers use `// empty` and skip what they do not know,
-# which is how `sha256` and the per-object `files` sizes were both added compatibly.
-#
-# Absent means 1: every manifest written before this field existed is a v1 manifest.
+# Bump ONLY for a change an older reader would MIS-HANDLE: data moved somewhere it cannot derive,
+# a field whose meaning changed, a component removed. A new OPTIONAL field is not a bump — older
+# readers `// empty` past what they do not know. Absent means 1.
 MANIFEST_SCHEMA=1
 
 # Read a manifest's schema (JSON on stdin), defaulting to 1. Prints nothing and returns 1 when
@@ -973,61 +1045,59 @@ store_write_private() {
         cat > "$1"
     fi
 }
-# Empty output with rc 0 means "nothing there"; rc non-zero means "could not look".
-store_list() {
-    _sl_out=""
+# List a location. CONTRACT: empty output with rc 0 means "nothing there"; a non-zero rc means
+# "could not look". An unreadable directory (EACCES after an fsGroup change, NFS squash, a
+# root-owned dir from an older chart) must NOT read as empty — that conflation is what let a
+# failed purge report "provably gone" while the manifest was deleted anyway (DN-04).
+# <mode> is all | files | dirs. rclone marks directories with a trailing '/', stripped here.
+store_list_at() {   # <mode> <path>
+    _sla_out=""
     if [ "${S3_ENABLED}" = "true" ]; then
-        _sl_out=$(s3_rclone lsf "$1/") || return $?
+        case "$1" in
+            files) _sla_out=$(s3_rclone lsf --files-only "$2/") || return $? ;;
+            dirs)  _sla_out=$(s3_rclone lsf --dirs-only "$2/") || return $?
+                   _sla_out=$(printf '%s\n' "${_sla_out}" | sed 's:/$::') ;;
+            *)     _sla_out=$(s3_rclone lsf "$2/") || return $? ;;
+        esac
     else
-        [ -d "$1" ] || return 0
-        # An unreadable directory (EACCES after an fsGroup change, NFS squash, root-owned dir
-        # from an older chart) must NOT read as "nothing there" — that is the conflation this
-        # file's contract forbids. Only a readable-but-empty directory is success-with-nothing.
-        [ -r "$1" ] || return 1
-        _sl_out=$(ls -1 "$1" 2>/dev/null) || true
+        [ -d "$2" ] || return 0
+        [ -r "$2" ] || return 1
+        case "$1" in
+            files) _sla_out=$(ls -1p "$2" 2>/dev/null | grep -v '/$' || true) ;;
+            dirs)  _sla_out=$(ls -1p "$2" 2>/dev/null | sed -n 's:/$::p' || true) ;;
+            *)     _sla_out=$(ls -1 "$2" 2>/dev/null || true) ;;
+        esac
     fi
-    [ -n "${_sl_out}" ] && printf '%s\n' "${_sl_out}"
+    [ -n "${_sla_out}" ] && printf '%s\n' "${_sla_out}"
     return 0
 }
-store_list_files() {
-    _slf_out=""
-    if [ "${S3_ENABLED}" = "true" ]; then
-        _slf_out=$(s3_rclone lsf --files-only "$1/") || return $?
-    else
-        [ -d "$1" ] || return 0
-        [ -r "$1" ] || return 1
-        _slf_out=$(ls -1p "$1" 2>/dev/null) || true
-        _slf_out=$(printf '%s\n' "${_slf_out}" | grep -v '/$' || true)
-    fi
-    [ -n "${_slf_out}" ] && printf '%s\n' "${_slf_out}"
-    return 0
-}
-store_list_dirs() {
-    _sld_out=""
-    if [ "${S3_ENABLED}" = "true" ]; then
-        _sld_out=$(s3_rclone lsf --dirs-only "$1/") || return $?
-        _sld_out=$(printf '%s\n' "${_sld_out}" | sed 's:/$::' || true)
-    else
-        [ -d "$1" ] || return 0
-        [ -r "$1" ] || return 1
-        _sld_out=$(ls -1p "$1" 2>/dev/null) || true
-        _sld_out=$(printf '%s\n' "${_sld_out}" | sed -n 's:/$::p' || true)
-    fi
-    [ -n "${_sld_out}" ] && printf '%s\n' "${_sld_out}"
-    return 0
-}
-# Byte count on stdout; rc non-zero = could not look (callers rely on that to tell
-# "empty/absent" from "unknown").
+store_list()       { store_list_at all   "$1"; }
+store_list_files() { store_list_at files "$1"; }
+store_list_dirs()  { store_list_at dirs  "$1"; }
+
+# Byte count on stdout; rc non-zero = could not look, which is how callers tell "empty/absent"
+# from "unknown".
+#
+# Does NOT end in a pipe, per this section's contract: ending in `printf | sed` takes the rc from
+# the PARSER, so a successful read the parser could not understand returned rc 0 with EMPTY
+# output — which s3_object_state then read as "absent" rather than "the check failed", the
+# fail-open direction the restore gate exists to prevent (DN-03, DN-15).
+#
+# An unparseable read is rc 1. A legitimate "0" is rc 0 with "0": `rclone size` on a missing path
+# exits 0 printing {"count":0,"bytes":0}, and telling those apart is s3_object_state's job.
 store_bytes() {
-    _sb_out=""
+    _sb_out="" _sb_n=""
     if [ "${S3_ENABLED}" = "true" ]; then
         _sb_out=$(s3_rclone size --s3-no-check-bucket --json "$1" 2>/dev/null) || return $?
-        printf '%s' "${_sb_out}" | sed -n 's/.*"bytes":[ ]*\([0-9][0-9]*\).*/\1/p'
+        _sb_n=$(printf '%s' "${_sb_out}" | sed -n 's/.*"bytes":[ ]*\([0-9][0-9]*\).*/\1/p')
     else
         [ -f "$1" ] || { echo 0; return 0; }
         _sb_out=$(wc -c < "$1" 2>/dev/null) || return $?
-        printf '%s' "${_sb_out}" | tr -dc '0-9'
+        _sb_n=$(printf '%s' "${_sb_out}" | tr -dc '0-9')
     fi
+    [ -n "${_sb_n}" ] || return 1
+    printf '%s' "${_sb_n}"
+    return 0
 }
 # Both deletes treat ABSENT as success: retention retries ids whose purge partially failed,
 # so a second attempt must not fail on what the first already removed. rclone purge and
@@ -1070,12 +1140,10 @@ catalog_ids() {
     _ci_raw=$(store_list_files "$(manifests_dir)") || return $?
     printf '%s\n' "${_ci_raw}" | sed -n 's/\.json$//p' | grep -v '^$' | sort || true
 }
-# Per-run cache for manifest reads. One retention sweep used to fetch the SAME manifest three
-# times per deletion candidate — once in backup_id_owner for the ownership proof, once in
-# ch_chain_required_names (which visits every id in the catalog), once again for the component
-# list — each a separate rclone process and S3 round-trip. On a 30-day catalog that is ~90
-# spawns before the first delete, all inside cmd_backup's lock window and all charged against
-# the S3_PRUNE_MAX_SECONDS budget the sweep then blames for leaving ids unpruned.
+# Per-run cache for manifest reads. A retention sweep reads the SAME manifest three times per
+# deletion candidate (the ownership proof, the chain pass, the component list), each a separate
+# rclone process and S3 round-trip — ~90 spawns on a 30-day catalog before the first delete, all
+# inside the lock window and all charged to the S3_PRUNE_MAX_SECONDS budget.
 #
 # Only SUCCESSFUL, non-empty reads are cached: a failure must stay a failure that the next
 # caller can retry, because "could not read" drives fail-closed decisions (DN-03). And any
@@ -1145,31 +1213,31 @@ backup_id_default() { echo "${CURRENT_ID}"; }
 # carries its own S3 credentials (RCLONE_CONFIG_S3_* + AWS_* / the SA credential chain).
 # Everything below is a thin wrapper over it.
 #
-# It did not used to be, and DN-26 records what that cost — plus which payloads deliberately
-# still go pod -> destination directly rather than through this process.
+# DN-26 records why, and which payloads deliberately still go pod -> destination directly
+# rather than through this process.
 
-# Every rclone call is BOUNDED, in two independent ways. Moving rclone in-process dropped the
-# `timeout` wrappers the kubectl-exec versions had, and nothing replaced them: an endpoint that
-# accepts the connection and then never answers (a throttled bucket, a wedged MinIO/Ceph) made
-# store_read/store_list/store_bytes block for rclone's own defaults — 5m idle x 3 retries —
-# instead of ${KUBECTL_STATUS_TIMEOUT}s. `list` hung, the restore pre-flight that must not
-# "stall a --dry-run for ten silent minutes" did exactly that, and S3_PRUNE_MAX_SECONDS became
-# unenforceable because it is only checked BETWEEN ids, never inside one purge.
+# Every rclone call is BOUNDED, two independent ways. An endpoint that accepts the connection
+# and then never answers (a throttled bucket, a wedged MinIO/Ceph) otherwise blocks for rclone's
+# own defaults — 5m idle x 3 retries — which hung `list`, stalled the restore pre-flight, and
+# made S3_PRUNE_MAX_SECONDS unenforceable (it is only checked BETWEEN ids, never inside a purge).
 #
-#   1. rclone's own idle/connect timeouts, on every call including the streaming ones. These
+#   1. rclone's own idle/connect timeouts, on every call including the streaming ones: they
 #      bound a stalled transfer without killing one that is still moving data.
-#   2. a hard `timeout` wall clock on the metadata, read and delete ops, which are expected to
-#      be quick. Deliberately NOT on rcat: it carries multi-gigabyte pg_dump streams, and a
-#      wall clock there would kill a healthy backup of a large database.
-# A non-numeric or zero value must not silently DISABLE a bound (`timeout abc ...` just fails,
-# and `--timeout 0s` means "no timeout" to rclone), so each one falls back to its default —
-# the same rule BACKUP_RETENTION and S3_PRUNE_MAX_PER_RUN already follow.
+#   2. a hard `timeout` wall clock on metadata, read and delete ops, which are expected to be
+#      quick. Deliberately NOT on rcat, which carries multi-gigabyte pg_dump streams.
+# Each falls back to its default if not a positive integer — `timeout abc` just fails and
+# `--timeout 0s` means "no timeout" to rclone, so a typo must not silently disable a bound.
 RCLONE_IO_TIMEOUT="${RCLONE_IO_TIMEOUT:-60}"           # rclone --timeout: idle IO per attempt
 numeric_env RCLONE_IO_TIMEOUT 60
 RCLONE_CONNECT_TIMEOUT="${RCLONE_CONNECT_TIMEOUT:-15}" # rclone --contimeout
 numeric_env RCLONE_CONNECT_TIMEOUT 15
 RCLONE_TIMEOUT="${RCLONE_TIMEOUT:-${KUBECTL_STATUS_TIMEOUT}}"  # wall clock: cat/lsf/size/deletefile
-numeric_env RCLONE_TIMEOUT 30
+# The clamp falls back to the DOCUMENTED default, not to a second hardcoded number. With a
+# literal 30 here, `RCLONE_TIMEOUT=5m` on an install that raised KUBECTL_STATUS_TIMEOUT to 120
+# silently reverted rclone to 30s while --help promised it followed the status timeout — the same
+# two-artifacts-own-one-value drift DN-39 records. KUBECTL_STATUS_TIMEOUT is itself already
+# clamped above, so it is guaranteed to be a usable number by the time it is used as the default.
+numeric_env RCLONE_TIMEOUT "${KUBECTL_STATUS_TIMEOUT}"
 RCLONE_PURGE_TIMEOUT="${RCLONE_PURGE_TIMEOUT:-300}"    # wall clock: one recursive prefix delete
 numeric_env RCLONE_PURGE_TIMEOUT 300
 # Idle bound for the STREAMING op, deliberately rclone's own default rather than the tight
@@ -1222,6 +1290,16 @@ s3_rclone_deletefile() {
 # chart projected one, else the shared endpoint. Empty output means "pass no flag" (AWS).
 vm_s3_endpoint() {
     if [ -n "${VM_S3_ENDPOINT}" ]; then printf '%s' "${VM_S3_ENDPOINT}"; else printf '%s' "${S3_ENDPOINT}"; fi
+}
+
+# vmbackup/vmrestore take the custom endpoint as a FLAG, not an env var. Expands to nothing on
+# plain AWS, which is the default case and not an error — hence a function rather than the
+# `[ -n x ] && y` one-liner it replaces, which returns 1 when the test fails and aborts under
+# `set -e` wherever errexit is not suppressed.
+vm_endpoint_arg() {
+    _vef=$(vm_s3_endpoint)
+    [ -n "${_vef}" ] && printf '%s' "-customS3Endpoint=${_vef}"
+    return 0
 }
 
 # Same tri-state for a namespaced Kubernetes object. kubectl exits non-zero for Forbidden,
@@ -1286,16 +1364,13 @@ wait_for_pods_ready() {
     log "ERROR" "Timed out waiting for pods ready (selector: ${selector}, ${max_wait}s)"; return 1
 }
 
-# Wait until a set of pods has actually been REPLACED, not merely until "enough pods report
-# Ready". A pod that is Terminating keeps Ready=True for its whole grace period, so after a
-# `kubectl delete pod -l ...` the plain readiness count can be satisfied by the very pods being
-# deleted — the wait returns immediately and the caller believes a bounce completed that has not
-# started. Requires: none of the pre-delete names still exist, AND `expected` of the pods that
-# do exist are Ready.
-# Identity is the pod UID, NOT the pod name. vmselect is a StatefulSet, so the replacement pod
-# is recreated with the SAME name — a name comparison could never see the old set drain, so the
-# wait burned its full timeout and returned failure on every single VM restore. A UID is unique
-# per pod object and changes on recreation, which is exactly the property needed here.
+# Wait until a set of pods has actually been REPLACED, not merely until "enough report Ready".
+# A Terminating pod keeps Ready=True for its whole grace period, so after `kubectl delete pod -l`
+# the plain readiness count is satisfied by the very pods being deleted. Requires: none of the
+# pre-delete pods still exist, AND `expected` of the ones that do are Ready.
+#
+# Identity is the pod UID, NOT the name: vmselect is a StatefulSet, so the replacement carries
+# the SAME name and a name comparison could never see the old set drain (DN-29).
 #   wait_for_pods_replaced <ns> <selector> <old-uids> <expected> [timeout]
 wait_for_pods_replaced() {
     local ns="$1" selector="$2" old_uids="$3" expected="$4" max_wait="${5:-${KUBECTL_EXEC_TIMEOUT}}"
@@ -1357,18 +1432,12 @@ wait_for_pod_gone_by_name() {
 # concurrently.
 ################################################################################
 
-# Locks are CLUSTER-scoped, held as coordination.k8s.io Leases in the namespace.
-#
-# They used to be `mkdir ${BACKUP_DIR}/.backup_<component>.lock` plus a `kill -0 <pid>` liveness
-# check. That only excludes processes that share a filesystem AND a PID namespace, while the
+# Locks are CLUSTER-scoped, held as coordination.k8s.io Leases in the namespace, because the
 # thing being protected — a database in the cluster — is shared by everything with kubectl
-# access. So a restore run from a laptop and the CronJob's backup in the pod could write the
-# same database concurrently, which is exactly what the locking exists to prevent. And in
-# shared mode the lock lived on the RWX volume, where a PID from another pod is either a false
-# "held" (a live local PID collides) or a wrongly-stolen live lock (the holder is invisible).
-#
-# A Lease is the mechanism Kubernetes provides for this: creation is atomic (AlreadyExists is
-# the contention signal), and expiry is data in the object rather than a guess about a PID.
+# access. A local lockdir plus `kill -0 <pid>` only excludes processes sharing a filesystem AND
+# a PID namespace, so a restore from a laptop and the CronJob's backup could write the same
+# database concurrently. A Lease makes creation atomic (AlreadyExists is the contention signal)
+# and puts expiry in the object rather than in a guess about a PID. (DN-37)
 LOCK_LEASE_SECONDS="${LOCK_LEASE_SECONDS:-900}"
 numeric_env LOCK_LEASE_SECONDS 900
 LOCK_RENEW_SECONDS="${LOCK_RENEW_SECONDS:-60}"
@@ -1394,19 +1463,14 @@ lease_now() { date -u +%Y-%m-%dT%H:%M:%S.000000Z; }
 
 # Epoch seconds for a UTC calendar time, computed ARITHMETICALLY — no `date` parsing at all.
 #
-# Every timestamp this file produces is UTC (lease_now, the manifest's `created`, the backup
-# id), but neither `date -D fmt -d str` (BusyBox) nor `date -d str` (GNU) has a way to say
-# "this string is UTC": both interpret it in the container's LOCAL zone. So a lease written a
-# second ago read back as one UTC-offset older or newer than it is — east of UTC that is instantly "expired", and
-# acquire_component_lock then takes over a LIVE lock and two runs write one database; west of
-# UTC the delta is negative, no lease ever expires and a genuinely stale lock can never be
-# recovered. Neither `date` form exists on BSD/macOS either, so both helpers returned empty
-# there and retention skipped every backup while no lock was ever recoverable — on the host the
-# docs tell operators to run restores from.
+# Every timestamp this file produces is UTC, but no `date` implementation has a portable way to
+# say "this string is UTC": GNU and BusyBox both read it in the container's LOCAL zone, and
+# neither form exists on BSD/macOS at all. The consequences are not cosmetic — east of UTC a
+# fresh lease reads as expired and a LIVE lock gets stolen, west of UTC no lease ever expires,
+# and on macOS both helpers returned empty so retention skipped every backup. (DN-37)
 #
 # days_from_civil (Howard Hinnant): calendar date -> days since 1970-01-01, integer only.
-# Inputs are shape-checked by the callers; years before 1970 are rejected rather than handled,
-# because no timestamp this file reads can predate the epoch.
+# Callers shape-check the input; years before 1970 are rejected rather than handled.
 # epoch_utc <YYYY> <MM> <DD> <hh> <mm> <ss>
 epoch_utc() {
     # Strip ONE leading zero per field: shell arithmetic reads a leading zero as octal, so
@@ -1465,93 +1529,104 @@ lease_expired() {   # <renewTime> <durationSeconds>
     [ $(( $(date +%s) - _le_t )) -gt "$2" ]
 }
 
-acquire_component_lock() {
-    local component="$1"
-    local lease; lease=$(lease_name "$1")
+# The body of a Lease object. Identical for a create and for a resourceVersion-guarded replace
+# — the only difference is that one line, which is what makes a takeover exclusive.
+#   lease_manifest <name> <duration> <locked-component-or-empty> <resource-version-or-empty>
+lease_manifest() {
+    printf 'apiVersion: coordination.k8s.io/v1\nkind: Lease\nmetadata:\n  name: %s\n' "$1"
+    [ -n "${4:-}" ] && printf '  resourceVersion: "%s"\n' "$4"
+    printf '  labels:\n    app.kubernetes.io/component: pmm-backup-lock\n'
+    [ -n "${3:-}" ] && printf '    pmm.percona.com/locked-component: %s\n' "$3"
+    printf 'spec:\n  holderIdentity: %s\n  leaseDurationSeconds: %s\n  acquireTime: %s\n  renewTime: %s\n' \
+        "${LOCK_HOLDER}" "$2" "$(lease_now)" "$(lease_now)"
+}
 
-    # Creation is the atomic operation: exactly one caller can succeed, everyone else gets
+# ONE attempt to take a Lease, shared by the component locks and write_manifest's merge lease —
+# a primitive where a divergence between two copies means two runs writing one database (DN-46).
+#
+# Returns:
+#   0  acquired: created it, or took over one that had demonstrably expired
+#   1  NOT acquired; LEASE_STATE says why (see below) — never steal on this
+#   2  the attempt itself failed (RBAC, unreachable apiserver). NOT "the lock is free"
+#   3  lost the takeover race: someone else took it, or its holder renewed it
+#
+# LEASE_STATE is 'live' (a real holder), 'unknown' (expiry could not be determined) or 'norv'
+# (looks expired, but its resourceVersion could not be read, so no exclusive takeover is
+# possible). LEASE_ERR/LEASE_HOLDER/LEASE_RENEW carry the detail for the caller's message.
+LEASE_ERR="" ; LEASE_HOLDER="" ; LEASE_RENEW="" ; LEASE_STATE=""
+lease_try_acquire() {   # <lease-name> <duration-seconds> [locked-component]
+    _lta_n="$1" _lta_d="$2" _lta_c="${3:-}" _lta_rc=0 _lta_state="" _lta_rv="" _lta_dur=""
+    _lta_body=""
+    LEASE_ERR=""; LEASE_HOLDER=""; LEASE_RENEW=""; LEASE_STATE=""
+    # Rendered into a variable and fed by HERE-DOC, never piped into kubectl. A pipe adds an
+    # EPIPE surface the heredoc does not have: kubectl can exit before draining stdin (a
+    # validation error, a bad --namespace), and the writer then dies of SIGPIPE printing
+    # "write error: Broken pipe" onto the OPERATOR'S stderr — outside the 2>&1 that captures
+    # kubectl's own, so it is noise nothing can suppress or attribute.
+    _lta_body=$(lease_manifest "${_lta_n}" "${_lta_d}" "${_lta_c}" "")
+    # Creation is the atomic operation: exactly one caller can succeed and everyone else gets
     # AlreadyExists. `create`, never `apply` — apply would happily take over a live lock.
-    local err rc=0
-    err=$(kubectl create -f - -n "${NAMESPACE}" 2>&1 >/dev/null <<EOF
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: ${lease}
-  labels:
-    app.kubernetes.io/component: pmm-backup-lock
-    pmm.percona.com/locked-component: ${component}
-spec:
-  holderIdentity: ${LOCK_HOLDER}
-  leaseDurationSeconds: ${LOCK_LEASE_SECONDS}
-  acquireTime: $(lease_now)
-  renewTime: $(lease_now)
+    LEASE_ERR=$(kubectl create -f - -n "${NAMESPACE}" 2>&1 >/dev/null <<EOF
+${_lta_body}
 EOF
-    ) || rc=$?
-    if [ "${rc}" -eq 0 ]; then
-        log "INFO" "Acquired ${component} lock (lease ${lease}, holder ${LOCK_HOLDER})"
-        return 0
-    fi
-    case "${err}" in
+    ) || _lta_rc=$?
+    if [ "${_lta_rc}" -eq 0 ]; then LEASE_ERR=""; return 0; fi
+    case "${LEASE_ERR}" in
         *AlreadyExists*|*"already exists"*) ;;
-        *)
-            # Anything else — RBAC, an unreachable apiserver — is NOT "the lock is free".
-            log "ERROR" "Cannot acquire the ${component} lock: ${err}"
-            log "ERROR" "  The backup ServiceAccount needs get/list/create/update/patch/delete on coordination.k8s.io/leases."
-            exit 1 ;;
+        *) return 2 ;;
     esac
-
-    # Held by someone. Take it over only if it has demonstrably expired.
-    # ONE read, not three: three separate `kubectl get`s could observe three different
-    # generations of the lease, so the holder reported in the log need not be the holder whose
-    # renewTime was judged expired. The resourceVersion read here is what makes the takeover
-    # below exclusive.
-    local state holder renew dur rv
-    state=$(kubectl get lease "${lease}" -n "${NAMESPACE}" -o jsonpath='{.metadata.resourceVersion}{"\t"}{.spec.holderIdentity}{"\t"}{.spec.renewTime}{"\t"}{.spec.leaseDurationSeconds}' 2>/dev/null || true)
-    rv=$(printf '%s' "${state}" | cut -f1)
-    holder=$(printf '%s' "${state}" | cut -f2)
-    renew=$(printf '%s' "${state}" | cut -f3)
-    dur=$(printf '%s' "${state}" | cut -f4)
-    : "${dur:=${LOCK_LEASE_SECONDS}}"
-    lease_expired "${renew}" "${dur}" && rc=0 || rc=$?
-    if [ "${rc}" -ne 0 ]; then
-        if [ "${rc}" -eq 2 ]; then
-            log "ERROR" "The ${component} lock is held by '${holder:-unknown}' and its expiry could not be determined (renewTime '${renew:-none}'); refusing to steal it"
-        else
-            log "ERROR" "Another backup/restore holds the ${component} lock (holder: ${holder:-unknown}, renewed ${renew:-never}); aborting"
-        fi
-        exit 1
+    # Held. ONE read, not three: separate `kubectl get`s could observe three generations of the
+    # object, so the holder reported would not be the holder whose renewTime was judged. The
+    # resourceVersion read here is what makes the takeover below exclusive.
+    _lta_state=$(kubectl get lease "${_lta_n}" -n "${NAMESPACE}" \
+        -o jsonpath='{.metadata.resourceVersion}{"\t"}{.spec.holderIdentity}{"\t"}{.spec.renewTime}{"\t"}{.spec.leaseDurationSeconds}' 2>/dev/null || true)
+    _lta_rv=$(printf '%s' "${_lta_state}" | cut -f1)
+    LEASE_HOLDER=$(printf '%s' "${_lta_state}" | cut -f2)
+    LEASE_RENEW=$(printf '%s' "${_lta_state}" | cut -f3)
+    _lta_dur=$(printf '%s' "${_lta_state}" | cut -f4)
+    : "${_lta_dur:=${_lta_d}}"
+    _lta_rc=0; lease_expired "${LEASE_RENEW}" "${_lta_dur}" || _lta_rc=$?
+    if [ "${_lta_rc}" -ne 0 ]; then
+        # 2 = cannot tell. A lock we cannot age must never be stolen.
+        [ "${_lta_rc}" -eq 2 ] && LEASE_STATE=unknown || LEASE_STATE=live
+        return 1
     fi
-    if [ -z "${rv}" ]; then
-        log "ERROR" "The ${component} lock is held by '${holder:-unknown}' and looks expired, but its resourceVersion could not be read; refusing an unguarded takeover"
-        exit 1
-    fi
-    log "WARN" "Taking over the expired ${component} lock (was held by '${holder:-unknown}', last renewed ${renew:-never})"
-    # Guard the takeover with the resourceVersion we OBSERVED. `replace`, not `patch --type=merge`:
-    # patch has no way to express a precondition, so it ALWAYS won — two runs that both judged
-    # the lease expired both "took over" and both went on to write the same database, and a
-    # takeover racing the real holder's renewer silently stole a live lease. `replace` with
-    # metadata.resourceVersion is optimistic concurrency: exactly one writer wins, the loser
-    # gets a 409 Conflict. The whole object is sent because replace is a full overwrite.
-    if ! kubectl replace -f - -n "${NAMESPACE}" >>"${LOG_FILE}" 2>&1 <<EOF
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: ${lease}
-  resourceVersion: "${rv}"
-  labels:
-    app.kubernetes.io/component: pmm-backup-lock
-    pmm.percona.com/locked-component: ${component}
-spec:
-  holderIdentity: ${LOCK_HOLDER}
-  leaseDurationSeconds: ${LOCK_LEASE_SECONDS}
-  acquireTime: $(lease_now)
-  renewTime: $(lease_now)
+    if [ -z "${_lta_rv}" ]; then LEASE_STATE=norv; return 1; fi
+    # `replace` with the OBSERVED resourceVersion is optimistic concurrency: exactly one writer
+    # wins, the loser gets 409. `patch --type=merge` cannot express the precondition, so it
+    # always won — two runs could both judge the lease expired, both "take over", and both go
+    # on to write the same database.
+    _lta_body=$(lease_manifest "${_lta_n}" "${_lta_d}" "${_lta_c}" "${_lta_rv}")
+    LEASE_ERR=$(kubectl replace -f - -n "${NAMESPACE}" 2>&1 >/dev/null <<EOF
+${_lta_body}
 EOF
-    then
-        log "ERROR" "Lost the race to take over the ${component} lock (someone else took it, or its holder renewed it, after we read it)"
-        exit 1
-    fi
+    ) || return 3
+    LEASE_ERR=""
     return 0
+}
+
+acquire_component_lock() {
+    local component="$1" lease rc=0
+    lease=$(lease_name "$1")
+    lease_try_acquire "${lease}" "${LOCK_LEASE_SECONDS}" "${component}" || rc=$?
+    case "${rc}" in
+        0)  if [ -n "${LEASE_HOLDER}" ]; then
+                log "WARN" "Took over the expired ${component} lock (was held by '${LEASE_HOLDER}', last renewed ${LEASE_RENEW:-never})"
+            else
+                log "INFO" "Acquired ${component} lock (lease ${lease}, holder ${LOCK_HOLDER})"
+            fi
+            return 0 ;;
+        2)  # RBAC, an unreachable apiserver — NOT "the lock is free".
+            log "ERROR" "Cannot acquire the ${component} lock: ${LEASE_ERR}"
+            log "ERROR" "  The backup ServiceAccount needs get/list/create/update/patch/delete on coordination.k8s.io/leases." ;;
+        3)  log "ERROR" "Lost the race to take over the ${component} lock (someone else took it, or its holder renewed it, after we read it)" ;;
+        *)  case "${LEASE_STATE}" in
+                unknown) log "ERROR" "The ${component} lock is held by '${LEASE_HOLDER:-unknown}' and its expiry could not be determined (renewTime '${LEASE_RENEW:-none}'); refusing to steal it" ;;
+                norv)    log "ERROR" "The ${component} lock is held by '${LEASE_HOLDER:-unknown}' and looks expired, but its resourceVersion could not be read; refusing an unguarded takeover" ;;
+                *)       log "ERROR" "Another backup/restore holds the ${component} lock (holder: ${LEASE_HOLDER:-unknown}, renewed ${LEASE_RENEW:-never}); aborting" ;;
+            esac ;;
+    esac
+    exit 1
 }
 
 release_component_lock() {
@@ -1566,19 +1641,15 @@ release_component_lock() {
     return 0
 }
 
-# Keep every held lease fresh while the operation runs. Without this, a long backup outlives
-# its own lease and another run legitimately takes it over mid-flight.
+# Keep every held lease fresh while the operation runs, or a long backup outlives its own lease
+# and another run legitimately takes it over mid-flight.
 #
-# The renewer MUST NOT outlive the orchestrator. cron-backup.sh detaches this script with
-# setsid inside the long-lived backup-tools pod, so an abnormal end — SIGKILL, the OOM killer —
-# never runs the EXIT trap and never calls stop_lock_renewer. A renewer left behind then kept
-# patching renewTime every ${LOCK_RENEW_SECONDS}s for the life of the POD, so the leases never
-# expired, every later backup and restore aborted on "another backup/restore holds the lock",
-# and the schedule stayed wedged until someone deleted the Leases by hand. Two independent
-# guards, because this is the failure that takes the whole schedule out:
-#   1. the parent-liveness check below, which is what normally stops it, and
-#   2. LOCK_RENEWER_MAX_SECONDS, a backstop for the case where the parent's PID has been
-#      recycled by an unrelated process.
+# The renewer MUST NOT outlive the orchestrator. cron-backup.sh detaches this script with setsid
+# inside a long-lived pod, so a SIGKILL never runs the EXIT trap — and a renewer left behind kept
+# the leases alive for the life of the POD, wedging every later backup and restore until someone
+# deleted the Leases by hand. Two independent guards, because this takes the whole schedule out:
+#   1. the parent-liveness check below, which is what normally stops it;
+#   2. LOCK_RENEWER_MAX_SECONDS, a backstop for a parent PID recycled by an unrelated process.
 LOCK_RENEWER_MAX_SECONDS="${LOCK_RENEWER_MAX_SECONDS:-86400}"
 # `|0` like every other clamp: 0 makes the renewer's `[ elapsed -ge 0 ]` true on its first turn,
 # so it exits immediately and the component Leases age out while the run is still writing.
@@ -1606,7 +1677,14 @@ start_lock_renewer() {
                     -p "{\"spec\":{\"renewTime\":\"$(lease_now)\"}}" >/dev/null 2>&1 || true
             done
         done
-    ) &
+    # Every inherited write end of the caller's stdout is dropped here — stdout, stderr AND
+    # fd 9 (the duplicate opened at the top of this file). Not cosmetic: the renewer emits
+    # nothing, but stop_lock_renewer's `kill` reaches the SUBSHELL, not the `sleep` it is
+    # blocked in, and that orphaned `sleep` inherits these descriptors. It kept the caller's
+    # stdout open, so `pmm-backup.sh ... | tee` (or a piped `kubectl exec`) appeared to hang for
+    # up to ${LOCK_RENEW_SECONDS} AFTER the run had printed its summary and exited. Closing
+    # only 1 and 2 is not enough — fd 9 alone holds the pipe.
+    ) >/dev/null 2>&1 9>&- &
     LOCK_RENEWER_PID=$!
     return 0
 }
@@ -1616,6 +1694,32 @@ stop_lock_renewer() {
     kill "${LOCK_RENEWER_PID}" 2>/dev/null || true
     LOCK_RENEWER_PID=""
     return 0
+}
+
+# The components an operation must lock, from the selection variable in <column> (4 = backup,
+# 5 = restore).
+#
+# LOCK_ORDER is ALPHABETICAL and that is load-bearing, not tidiness: two runs locking
+# overlapping sets must take them in the SAME order or they deadlock on each other. It is
+# spelled out here rather than reusing CORE_COMPONENTS, which is in pipeline order.
+# The encryption key is deliberately absent — it is a Secret, not a database, and no two runs
+# contend for it.
+LOCK_ORDER="clickhouse pmm-server postgresql victoriametrics"
+
+# The selected components' human labels, space-prefixed, for one summary line.
+selected_labels() {
+    _sl_c="" _sl_out=""
+    for _sl_c in ${CORE_COMPONENTS}; do
+        comp_on "${_sl_c}" "$1" && _sl_out="${_sl_out} $(comp_label "${_sl_c}")"
+    done
+    printf '%s' "${_sl_out}"
+}
+lock_list() {
+    _ll_c="" _ll_out=""
+    for _ll_c in ${LOCK_ORDER}; do
+        comp_on "${_ll_c}" "$1" && _ll_out="${_ll_out} ${_ll_c}"
+    done
+    printf '%s' "${_ll_out}"
 }
 
 # Acquire/release every lock in LOCK_COMPONENTS. Each operation builds its own list — in
@@ -1674,22 +1778,96 @@ backup_id_epoch() {
 
 # Build the per-run manifest and write it (+ a 'latest' pointer) next to the PMM/VM data.
 # Best-effort: never aborts the run. $1=overall status (complete|partial), $2=encryption status.
+# Release the merge lease if this run holds it. Four identical copies of this line sat on
+# write_manifest's four exit paths, which is how one comes to be forgotten on a new one.
+manifest_release_lease() {   # <held true|false> <lease-name>
+    [ "$1" = "true" ] || return 0
+    kubectl delete lease "$2" -n "${NAMESPACE}" --ignore-not-found=true >/dev/null 2>&1 || true
+    return 0
+}
+
+# Merge this run's manifest with whatever is already at manifests/<id>.json, so the documented
+# concurrent workflow (one process per component, one shared --backup-id) does not have its
+# last finisher erase the siblings from the restore index (DN-13).
+#
+# The result comes back in MANIFEST_MERGED rather than on stdout, because this function LOGS and
+# log() writes to stdout — printing the JSON there would interleave the two.
+# rc 1 = refuse to write; the caller reports the component failed with its data still uploaded.
+MANIFEST_MERGED=""
+manifest_merge_existing() {   # <new-manifest-json> <lease-held> <lease-name>
+    _mme_new="$1" _mme_held="$2" _mme_lease="$3" _mme_existing="" _mme_rc=0 _mme_merged=""
+    MANIFEST_MERGED="${_mme_new}"
+
+    # The read's STATUS decides what an empty result means. `|| true` conflated "could not read
+    # it" with "there is no manifest yet", so one timed-out rclone cat made the last finisher
+    # overwrite the shared manifest with only its own component. A failed read is forgiven only
+    # when absence is POSITIVELY established — the same rule the delete path uses.
+    _mme_existing=$(store_read "$(manifest_path)" 2>/dev/null) || _mme_rc=$?
+    if [ "${_mme_rc}" -ne 0 ]; then
+        if store_absent "$(manifest_path)"; then
+            _mme_existing=""   # genuinely not there yet: this is the first writer for this id
+        else
+            log "ERROR" "[Manifest] Could not read the existing $(manifest_display) (rc ${_mme_rc}), and could not prove it is absent"
+            log "ERROR" "[Manifest]   Refusing to overwrite it: a concurrent component run's entries would be erased from the restore index."
+            manifest_release_lease "${_mme_held}" "${_mme_lease}"
+            return 1
+        fi
+    fi
+    [ -n "${_mme_existing}" ] || return 0
+
+    # Two DIFFERENT failures used to collapse into one empty result: --argjson rejecting content
+    # that is not JSON at all, and the filter erroring on content that IS valid JSON but shaped
+    # unexpectedly (a .components that is a string, component values that are not objects). Both
+    # took the "not valid JSON; overwriting it" arm — which in the concurrent workflow erases a
+    # sibling's entry — and told the operator the wrong cause. Establish which it is first.
+    if ! printf '%s' "${_mme_existing}" | jq -e . >/dev/null 2>&1; then
+        log "WARN" "[Manifest] The existing $(manifest_display) is not valid JSON; overwriting it"
+        return 0
+    fi
+    # Existing components lose to this run's on conflict; any failed component in the merged set
+    # makes the whole backup partial.
+    _mme_merged=$(jq -n --argjson new "${_mme_new}" --argjson old "${_mme_existing}" '
+        $new
+        | .components = (($old.components // {}) + $new.components)
+        | .status = (if $new.status == "partial"
+                        or ([.components[] | .status // ""] | index("failed"))
+                     then "partial" else "complete" end)' 2>/dev/null || true)
+    if [ -n "${_mme_merged}" ]; then
+        [ "${_mme_merged}" != "${_mme_new}" ] && log "INFO" "[Manifest] Merged component entries from a concurrent run of this backup id"
+        MANIFEST_MERGED="${_mme_merged}"
+        return 0
+    fi
+    # Valid JSON the merge could not process. Overwriting would drop whatever components it
+    # holds. Same scoping rule as the lease refusal: only a run sharing an explicit --backup-id
+    # can have a SIBLING whose entries an overwrite would erase. A solo run owns an id nobody
+    # else is writing, so what is there is a leftover from an earlier attempt at the same id —
+    # refusing there would strand a backup whose data is already uploaded.
+    if [ -n "${BACKUP_ID}" ]; then
+        log "ERROR" "[Manifest] The existing $(manifest_display) is valid JSON but could not be merged"
+        log "ERROR" "[Manifest]   (unexpected shape — .components is expected to be an object of objects),"
+        log "ERROR" "[Manifest]   and this run shares backup id '${BACKUP_ID}' with other component runs."
+        log "ERROR" "[Manifest]   Refusing to overwrite it: that would erase whichever components it does list."
+        manifest_release_lease "${_mme_held}" "${_mme_lease}"
+        return 1
+    fi
+    log "WARN" "[Manifest] The existing $(manifest_display) is valid JSON but could not be merged (unexpected shape); overwriting it"
+    log "WARN" "[Manifest]   Safe here: this run's id is its own, so nothing else is writing that object."
+    return 0
+}
+
 write_manifest() {
     _overall="$1"
     _enc_status="${2:-skipped}"
     _created=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S')
 
     # The components object is simply this run's results — every component that ran wrote its
-    # own entry (see result_set), so there is nothing to re-derive here. This used to be five
-    # near-identical eight-line jq blocks reading ~30 globals.
+    # own entry (DN-38), so there is nothing to re-derive.
     #
-    # The one exception is the encryption key. backup_encryption_key calls result_set only on
-    # SUCCESS, so a FAILED or not-configured key export left no entry — and without one, a
-    # backup whose key export failed was byte-for-byte indistinguishable in the restore index
-    # from a backup taken on an install with no encryption at all. The restore's
-    # explicit-selection gate then reported `encryption(absent)` instead of
-    # `encryption(failed)`, losing the only signal that this run's PostgreSQL dumps cannot be
-    # decrypted after a DR. ${_enc_status} is that outcome, so it is recorded here.
+    # The encryption key is the exception: backup_encryption_key calls result_set only on
+    # SUCCESS, so a failed or unconfigured export leaves no entry — making a backup whose key
+    # export FAILED indistinguishable in the index from one taken where encryption is not
+    # configured at all, and losing the only signal that this run's dumps will not decrypt
+    # after a DR. ${_enc_status} is that outcome.
     _comps="${RESULTS_JSON}"
     case "${_enc_status}" in
         skipped) ;;   # --skip-encryption-key or PG not selected: genuinely nothing to record
@@ -1731,78 +1909,32 @@ write_manifest() {
         return 0
     fi
 
-    # Concurrent-mode merge: with --backup-id, one process per component (the documented
-    # workflow) each writes the SAME manifests/<id>.json — without a merge the last
-    # finisher erases the other components from the index and restore can't find them.
-    # Carry over component entries from an existing manifest that this run does not own;
-    # writers share the backup-tools pod, so a local mkdir-lock serializes read-merge-write.
-    # Serialised with a Lease, not a local mkdir. The writers of one backup id are separate
-    # PROCESSES (that is the documented concurrent workflow) and they do not necessarily share a
-    # filesystem — a laptop and the backup-tools pod do not — so a local lock left the
-    # read-merge-write unguarded in exactly the case the merge exists for. Closes the limitation
-    # DN-13 records.
+    # Concurrent-mode merge: with --backup-id, one process per component writes the SAME
+    # manifests/<id>.json, and without a merge the last finisher erases the others from the
+    # index (DN-13). Serialised with a Lease, not a local lock — the writers are separate
+    # PROCESSES that do not necessarily share a filesystem (a laptop and the pod do not).
     #
-    # Best effort with a bound: if the lease cannot be taken within the window, the write goes
-    # ahead unmerged rather than failing a backup whose data is already uploaded — the
-    # positively-established-absence check below is what actually protects the siblings' entries.
+    # Best effort with a bound: if the lease cannot be taken in the window the write goes ahead
+    # unmerged rather than failing a backup whose data is already uploaded. What actually
+    # protects a sibling's entries is the positively-established-absence check below.
     _mlease=$(lease_name "manifest-${TIMESTAMP}")
     _mlock_held=false
-    _mlock_err=""
     _mlock_blocked=false   # a permanent condition was reported and already logged
     _i=0
     while [ ${_i} -lt 60 ]; do
-        # The create's stderr is KEPT, not discarded. AlreadyExists is the contention signal
-        # and is expected; anything else (missing RBAC on leases, an unreachable apiserver, a
-        # name the apiserver rejects) is a permanent condition, and swallowing it meant every
-        # concurrent component run silently slept out the full 60s and then wrote the shared
-        # manifest with no merge protection at all — with nothing in the log to say why.
-        _mlock_err=$(kubectl create -f - -n "${NAMESPACE}" 2>&1 >/dev/null <<EOF
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: ${_mlease}
-  labels:
-    app.kubernetes.io/component: pmm-backup-lock
-spec:
-  holderIdentity: ${LOCK_HOLDER}
-  leaseDurationSeconds: 120
-  acquireTime: $(lease_now)
-  renewTime: $(lease_now)
-EOF
-        ) && { _mlock_held=true; break; }
-        case "${_mlock_err}" in
-            *AlreadyExists*|*"already exists"*) ;;
-            *)
-                log "WARN" "[Manifest] Cannot take the merge lease '${_mlease}': ${_mlock_err}"
-                log "WARN" "[Manifest]   Retrying for 60s would not change this, so the manifest is written WITHOUT merge protection."
-                log "WARN" "[Manifest]   The backup ServiceAccount needs get/create/update/patch/delete on coordination.k8s.io/leases."
-                _mlock_blocked=true; break ;;
-        esac
-        # Held: take it over if it has demonstrably expired (a writer that crashed mid-merge).
-        # resourceVersion-guarded, for the same reason acquire_component_lock is: an unguarded
-        # patch always wins, so two writers could both "take over" the same merge lease and
-        # serialise nothing.
-        _mstate=$(kubectl get lease "${_mlease}" -n "${NAMESPACE}" -o jsonpath='{.metadata.resourceVersion}{"\t"}{.spec.renewTime}' 2>/dev/null || true)
-        _mrv=$(printf '%s' "${_mstate}" | cut -f1)
-        _mr=$(printf '%s' "${_mstate}" | cut -f2)
-        if [ -n "${_mrv}" ] && lease_expired "${_mr}" 120; then
-            if kubectl replace -f - -n "${NAMESPACE}" >/dev/null 2>&1 <<EOF
-apiVersion: coordination.k8s.io/v1
-kind: Lease
-metadata:
-  name: ${_mlease}
-  resourceVersion: "${_mrv}"
-  labels:
-    app.kubernetes.io/component: pmm-backup-lock
-spec:
-  holderIdentity: ${LOCK_HOLDER}
-  leaseDurationSeconds: 120
-  acquireTime: $(lease_now)
-  renewTime: $(lease_now)
-EOF
-            then
-                _mlock_held=true; break
-            fi
+        # Same primitive the component locks use, so the merge lease cannot drift away from it.
+        # A permanent condition (missing RBAC on leases, an unreachable apiserver, a name the
+        # apiserver rejects) is reported and gives up immediately: swallowing it made every
+        # concurrent component run sleep out the full 60s and then write the shared manifest
+        # with no merge protection and nothing in the log to say why.
+        _mlock_rc=0
+        lease_try_acquire "${_mlease}" 120 || _mlock_rc=$?
+        if [ "${_mlock_rc}" -eq 0 ]; then _mlock_held=true; break; fi
+        if [ "${_mlock_rc}" -eq 2 ]; then
+            log "WARN" "[Manifest] Cannot take the merge lease '${_mlease}': ${LEASE_ERR}"
+            log "WARN" "[Manifest]   Retrying for 60s would not change this, so the manifest is written WITHOUT merge protection."
+            log "WARN" "[Manifest]   The backup ServiceAccount needs get/create/update/patch/delete on coordination.k8s.io/leases."
+            _mlock_blocked=true; break
         fi
         _i=$((_i + 1))
         sleep 1
@@ -1811,20 +1943,11 @@ EOF
         log "WARN" "[Manifest] Merge lease busy for 60s; writing without merge protection"
     fi
 
-    # Without the lease, the read-merge-write below is a read-modify-write race: two component
-    # runs of the same backup id can both read the manifest as it was, each add its own entry,
-    # and the second write then drops the first one's component from the restore index while its
-    # data sits uploaded in the bucket. The merge exists precisely to prevent that (DN-13).
-    #
-    # That race needs a SIBLING, and a sibling only exists in the documented concurrent
-    # workflow — one process per component, all sharing an explicit --backup-id. A run with an
-    # auto-generated id owns a timestamp nobody else can be writing, so an unmerged write there
-    # is safe and MUST stay allowed: failing it would mean an unreachable apiserver (which is
-    # what usually costs us the lease) turns every ordinary backup into an orphan with no index.
-    #
-    # So: refuse only where the race is real. The operator gets a failed component whose data is
-    # still in the bucket and a manifest that still lists its siblings — recoverable by re-running
-    # that one component — instead of a silently truncated index.
+    # Refuse only where the race is REAL. It needs a sibling, and a sibling only exists when an
+    # explicit --backup-id is shared. A run with an auto-generated id owns a timestamp nobody
+    # else is writing, so an unmerged write there is safe and must stay allowed — failing it
+    # would turn every ordinary backup into an orphan with no index whenever the apiserver is
+    # unreachable, which is what usually costs us the lease. (DN-13)
     if [ "${_mlock_held}" != "true" ] && [ -n "${BACKUP_ID}" ]; then
         log "ERROR" "[Manifest] Could not take the merge lease, and this run shares backup id '${BACKUP_ID}' with other component runs."
         log "ERROR" "[Manifest]   Writing the manifest unmerged could erase a sibling component's entry from the restore index,"
@@ -1833,71 +1956,8 @@ EOF
         return 1
     fi
 
-    # The read's STATUS decides what an empty result means. `|| true` conflated "could not
-    # read it" with "there is no manifest yet", so a single timed-out rclone cat (a PMM pod
-    # being replaced mid-run is enough) made the LAST finisher of the documented concurrent
-    # workflow overwrite the shared manifest with only its own component — erasing its
-    # siblings from the restore index while their data sat in the bucket, unreferenced.
-    # A failed read is only forgiven when absence can be POSITIVELY established, the same
-    # rule the delete path uses; otherwise this run refuses to write rather than clobber.
-    _read_rc=0
-    _existing=$(store_read "$(manifest_path)" 2>/dev/null) || _read_rc=$?
-    if [ "${_read_rc}" -ne 0 ]; then
-        if store_absent "$(manifest_path)"; then
-            _existing=""   # genuinely not there yet: this is the first writer for this id
-        else
-            log "ERROR" "[Manifest] Could not read the existing $(manifest_display) (rc ${_read_rc}), and could not prove it is absent"
-            log "ERROR" "[Manifest]   Refusing to overwrite it: a concurrent component run's entries would be erased from the restore index."
-            [ "${_mlock_held}" = "true" ] && kubectl delete lease "${_mlease}" -n "${NAMESPACE}" --ignore-not-found=true >/dev/null 2>&1 || true
-            return 1
-        fi
-    fi
-    if [ -n "${_existing}" ]; then
-        # Existing components lose to this run's on conflict; any failed component in the
-        # merged set makes the whole backup partial.
-        # Two DIFFERENT failures used to collapse into one empty result: --argjson rejecting
-        # content that is not JSON at all, and the filter itself erroring on content that IS
-        # valid JSON but shaped unexpectedly (a .components that is a string, component values
-        # that are not objects — either aborts `[.components[] | .status // ""]`). Both then
-        # took the "not valid JSON; overwriting it" arm, which in the concurrent workflow
-        # ERASES the sibling's entry from the restore index while its data sits uploaded, and
-        # told the operator the wrong cause. Establish which it is before deciding.
-        if ! printf '%s' "${_existing}" | jq -e . >/dev/null 2>&1; then
-            log "WARN" "[Manifest] The existing $(manifest_display) is not valid JSON; overwriting it"
-        else
-            _merged=$(jq -n --argjson new "${_manifest}" --argjson old "${_existing}" '
-                $new
-                | .components = (($old.components // {}) + $new.components)
-                | .status = (if $new.status == "partial"
-                                or ([.components[] | .status // ""] | index("failed"))
-                             then "partial" else "complete" end)' 2>/dev/null || true)
-            if [ -n "${_merged}" ]; then
-                [ "${_merged}" != "${_manifest}" ] && log "INFO" "[Manifest] Merged component entries from a concurrent run of this backup id"
-                _manifest="${_merged}"
-            else
-                # Valid JSON that the merge could not process. Overwriting would drop whatever
-                # components it holds, so refuse: the data is already uploaded, and a component
-                # reported failed against an intact index is recoverable by re-running it,
-                # whereas a truncated index is not.
-                # Same scoping rule as the lease refusal above, for the same reason: only a run
-                # sharing an explicit --backup-id can have a SIBLING whose entries an overwrite
-                # would erase. A solo run owns an id nobody else is writing, so the only thing
-                # in that file is a leftover from a previous attempt at the same id — refusing
-                # there would strand a backup whose data is already uploaded, which is strictly
-                # worse than replacing content that describes nothing anyone still needs.
-                if [ -n "${BACKUP_ID}" ]; then
-                    log "ERROR" "[Manifest] The existing $(manifest_display) is valid JSON but could not be merged"
-                    log "ERROR" "[Manifest]   (unexpected shape — .components is expected to be an object of objects),"
-                    log "ERROR" "[Manifest]   and this run shares backup id '${BACKUP_ID}' with other component runs."
-                    log "ERROR" "[Manifest]   Refusing to overwrite it: that would erase whichever components it does list."
-                    [ "${_mlock_held}" = "true" ] && kubectl delete lease "${_mlease}" -n "${NAMESPACE}" --ignore-not-found=true >/dev/null 2>&1 || true
-                    return 1
-                fi
-                log "WARN" "[Manifest] The existing $(manifest_display) is valid JSON but could not be merged (unexpected shape); overwriting it"
-                log "WARN" "[Manifest]   Safe here: this run's id is its own, so nothing else is writing that object."
-            fi
-        fi
-    fi
+    manifest_merge_existing "${_manifest}" "${_mlock_held}" "${_mlease}" || return 1
+    _manifest="${MANIFEST_MERGED}"
 
     # 'latest' is the DR pointer: restore's --backup-id latest follows it blindly, so only a
     # COMPLETE, FULL-SCOPE backup (all four core components succeeded, judged on the MERGED
@@ -1924,10 +1984,10 @@ EOF
         # no manifests/<id>.json is invisible to `list`, unresolvable by restore and unseen by
         # retention — cmd_backup treats a non-zero return here as a failed backup.
         log "ERROR" "[Manifest] Failed to write the manifest to $(manifest_display)"
-        [ "${_mlock_held}" = "true" ] && kubectl delete lease "${_mlease}" -n "${NAMESPACE}" --ignore-not-found=true >/dev/null 2>&1 || true
+        manifest_release_lease "${_mlock_held}" "${_mlease}"
         return 1
     fi
-    [ "${_mlock_held}" = "true" ] && kubectl delete lease "${_mlease}" -n "${NAMESPACE}" --ignore-not-found=true >/dev/null 2>&1 || true
+    manifest_release_lease "${_mlock_held}" "${_mlease}"
     return 0
 }
 
@@ -2079,10 +2139,8 @@ cmd_list() {
         *) _want="backup_${_want}" ;;
     esac
 
-    # One implementation for both targets. It used to be two, and they had drifted: the
-    # shared-mode branch printed a bare `ls` of directory names while s3 printed a
-    # status/components table. Same catalog, same output now — the only difference is the
-    # root, which the read helpers absorb.
+    # ONE implementation for both targets: same catalog, same output, the read helpers absorb
+    # the difference in root. Two copies had already drifted into two different formats.
     if [ -z "${_want}" ]; then
         echo "Backups in $(backup_root_display)/"
         echo ""
@@ -2215,33 +2273,15 @@ preflight_checks() {   # <backup|restore|prune>
     # from ${COMMAND}: the caller already knows which operation it is, and a shared helper
     # reaching for the dispatcher's global is how mode leaks back into the lower layers.
     if [ "${_pf_mode}" = "backup" ]; then
-        if [ "${BACKUP_POSTGRESQL}" = "true" ]; then
-            if ! kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PG_PRIMARY}" --no-headers 2>/dev/null | grep -q .; then
-                log "WARN" "[PostgreSQL] No primary pod found (label: ${LABEL_PG_PRIMARY})"
+        local _pf_c="" _pf_sel=""
+        for _pf_c in ${CORE_COMPONENTS}; do
+            comp_on "${_pf_c}" 4 || continue
+            _pf_sel=$(comp_pod_selector "${_pf_c}") || continue
+            if ! kubectl get pods -n "${NAMESPACE}" -l "${_pf_sel}" --no-headers 2>/dev/null | grep -q .; then
+                log "WARN" "[$(comp_label "${_pf_c}")] No pods found (label: ${_pf_sel})"
                 checks_passed=false
             fi
-        fi
-
-        if [ "${BACKUP_CLICKHOUSE}" = "true" ]; then
-            if ! kubectl get pods -n "${NAMESPACE}" -l "${LABEL_CH_POD}" --no-headers 2>/dev/null | grep -q .; then
-                log "WARN" "[ClickHouse] No pods found (label: ${LABEL_CH_POD})"
-                checks_passed=false
-            fi
-        fi
-
-        if [ "${BACKUP_VICTORIAMETRICS}" = "true" ]; then
-            if ! kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" --no-headers 2>/dev/null | grep -q .; then
-                log "WARN" "[VictoriaMetrics] No vmstorage pods found (label: ${LABEL_VM_STORAGE})"
-                checks_passed=false
-            fi
-        fi
-
-        if [ "${BACKUP_PMM_SERVER}" = "true" ]; then
-            if ! kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PMM_SERVER}" --no-headers 2>/dev/null | grep -q .; then
-                log "WARN" "[PMMServer] No PMM server pods found (label: ${LABEL_PMM_SERVER})"
-                checks_passed=false
-            fi
-        fi
+        done
     fi
 
     if [ "${checks_passed}" = "true" ]; then
@@ -2323,12 +2363,10 @@ EOF
         db_count=$((db_count + 1)); size_b=0
         local dump_dest="$(comp_path postgresql)/${db}.dump"
         log "INFO" "[PostgreSQL] Dumping ${db} -> $(comp_display postgresql)/${db}.dump..."
-        # ONE arm for both targets: store_write reaches either (rclone rcat, or mkdir + cat onto
-        # the mounted volume), and store_bytes/store_delete_object likewise. This used to be two
-        # near-identical arms, which is the shape that lets a fix land on one target only.
-        #
+        # ONE arm for both targets: store_write, store_bytes and store_delete_object each reach
+        # either. Two near-identical arms is the shape that lets a fix land on one target only.
         # pg_dump is the one payload that legitimately passes through this process — it cannot
-        # write S3 and the PG pod has no rclone — and it now makes one hop, not two (DN-26).
+        # write S3 and the PG pod has no rclone (DN-26).
         #
         # POSIX sh has no pipefail, so the if-condition only sees the writer's status: pg_dump's
         # exit is captured through an rc file so a dump that dies mid-stream cannot be masked by
@@ -2389,109 +2427,205 @@ EOF
 # ClickHouse Backup - Using clickhouse-backup API (system.backup_actions)
 ################################################################################
 
-backup_clickhouse() {
-    log "INFO" "[ClickHouse] === Starting Backup ==="
-    
-    # Shared mode only: the tarball's destination directory, which this process creates.
-    # In s3 mode clickhouse-backup uploads to the bucket itself and there is nothing local
-    # to make — mkdir'ing comp_path there produced a directory literally named "s3:<bucket>/..."
-    # on the container's writable layer.
-    local ch_backup_dir=""
-    if [ "${S3_ENABLED}" != "true" ]; then
-        ch_backup_dir="$(comp_path clickhouse)"
-        [ "${DRY_RUN}" != "true" ] && mkdir -p "${ch_backup_dir}"
-    fi
-    
-    # Find a ClickHouse pod to run client commands
-    local ch_pod=$(kubectl get pods -n "${NAMESPACE}" \
-        -l "${LABEL_CH_POD}" \
+# ---- ClickHouse session state --------------------------------------------------------
+# Resolved once per run and read by every ch_* helper below. Globals rather than a closure:
+# ch_query used to be DEFINED INSIDE backup_clickhouse and capture its locals by dynamic
+# scoping, so it outlived the call with stale expectations and could not be reached from
+# anywhere else — which is why the restore path and the pre-flight gate each grew their own
+# hand-rolled `kubectl exec` instead of calling it.
+CH_POD=""
+CH_USER=""
+CH_PASS=""
+
+# The pod that runs clickhouse-client and hosts the clickhouse-backup sidecar.
+ch_resolve_pod() {
+    CH_POD=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_CH_POD}" \
         -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-    
-    if [ -z "${ch_pod}" ]; then
+    if [ -z "${CH_POD}" ]; then
         log "ERROR" "[ClickHouse] No pods found in namespace: ${NAMESPACE}"
-        log "ERROR" "[ClickHouse] Check if operator is running: kubectl get pods -n ${NAMESPACE}"
+        log "ERROR" "[ClickHouse] Check that the operator is running: kubectl get pods -n ${NAMESPACE}"
         return 1
     fi
-    
-    log "INFO" "[ClickHouse] Using pod: ${ch_pod}"
-    
-    # Get ClickHouse credentials from secret
-    # Note: Alpine uses 'base64 -d' not 'base64 --decode'
-    # Fetch first, THEN decode: in a `kubectl | base64` pipeline the || fallback keys off
-    # base64's status (0 even on empty stdin), so a failed kubectl silently yielded ""
-    # instead of the intended default and misdiagnosed as a missing backup sidecar.
-    local ch_user_b64 ch_pass_b64 ch_user ch_pass
-    ch_user_b64=$(kubectl get secret "${CH_SECRET_NAME}" -n "${NAMESPACE}" -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' 2>>"${LOG_FILE}" || true)
-    ch_pass_b64=$(kubectl get secret "${CH_SECRET_NAME}" -n "${NAMESPACE}" -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' 2>>"${LOG_FILE}" || true)
-    if [ -n "${ch_user_b64}" ]; then
-        ch_user=$(printf '%s' "${ch_user_b64}" | base64 -d 2>/dev/null || echo "chuser")
+    log "INFO" "[ClickHouse] Using pod: ${CH_POD}"
+    return 0
+}
+
+# Credentials from the secret. Fetch first, THEN decode: in a `kubectl | base64` pipeline the
+# `||` fallback keys off base64's status (0 even on empty stdin), so a failed kubectl silently
+# yielded "" instead of the intended default and was misdiagnosed as a missing sidecar.
+# (Alpine's base64 takes -d, not --decode.)
+ch_resolve_credentials() {
+    _crc_u=$(kubectl get secret "${CH_SECRET_NAME}" -n "${NAMESPACE}" -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' 2>>"${LOG_FILE}" || true)
+    _crc_p=$(kubectl get secret "${CH_SECRET_NAME}" -n "${NAMESPACE}" -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' 2>>"${LOG_FILE}" || true)
+    if [ -n "${_crc_u}" ]; then
+        CH_USER=$(printf '%s' "${_crc_u}" | base64 -d 2>/dev/null || echo "chuser")
     else
         log "WARN" "[ClickHouse] Could not read PMM_CLICKHOUSE_USER from secret ${CH_SECRET_NAME}; using default 'chuser'"
-        ch_user="chuser"
+        CH_USER="chuser"
     fi
-    if [ -n "${ch_pass_b64}" ]; then
-        ch_pass=$(printf '%s' "${ch_pass_b64}" | base64 -d 2>/dev/null || echo "")
+    if [ -n "${_crc_p}" ]; then
+        CH_PASS=$(printf '%s' "${_crc_p}" | base64 -d 2>/dev/null || echo "")
     else
         log "WARN" "[ClickHouse] Could not read PMM_CLICKHOUSE_PASSWORD from secret ${CH_SECRET_NAME}; using empty password"
-        ch_pass=""
+        CH_PASS=""
     fi
+    return 0
+}
 
-    # Credentials are never logged. ch_query() centralizes the exec + client + creds + timeout
-    # boilerplate; it reads ch_pod/ch_user/ch_pass from this function's scope (sh dynamic scoping).
-    # The password is fed through STDIN into CLICKHOUSE_PASSWORD inside the pod — never on the
-    # clickhouse-client argv — so it can't leak via `ps` in the CH pod or the apiserver's exec
-    # audit log (ch_query runs dozens of times per backup). The query text is not secret.
-    ch_query() {
-        printf '%s' "${ch_pass}" | timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "${ch_pod}" -c clickhouse -- \
-            sh -c 'CLICKHOUSE_PASSWORD=$(cat); export CLICKHOUSE_PASSWORD; exec clickhouse-client --user="$1" --query="$2"' sh "${ch_user}" "$1"
-    }
+# One query. The password goes through STDIN into CLICKHOUSE_PASSWORD inside the pod, never on
+# the clickhouse-client argv, so it cannot leak through `ps` in the CH pod or the apiserver's
+# exec audit log — this runs dozens of times per backup. The query text is not secret.
+ch_query() {
+    printf '%s' "${CH_PASS}" | timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "${CH_POD}" -c clickhouse -- \
+        sh -c 'CLICKHOUSE_PASSWORD=$(cat); export CLICKHOUSE_PASSWORD; exec clickhouse-client --user="$1" --query="$2"' sh "${CH_USER}" "$1"
+}
 
-    # Check if system.backup_actions table exists (indicates clickhouse-backup sidecar is running)
-    local has_backup_api=false
-    # clickhouse-client requires --option=value format with equals sign
-    # Split declaration from assignment: `local x=$(...)` would make $? reflect
-    # `local` (always 0), masking the command's real exit code. The && / || guards
-    # also keep a failed exec from tripping `set -e`.
-    local table_check_output table_check_exit
-    table_check_output=$(ch_query "SELECT count() FROM system.tables WHERE database='system' AND name='backup_actions'" 2>&1) && table_check_exit=0 || table_check_exit=$?
-    
+# system.backup_actions exists only when the clickhouse-backup sidecar is running.
+ch_has_backup_api() {
+    # Split declaration from assignment: `local x=$(...)` takes $? from `local` (always 0) and
+    # would mask the exec's real status.
+    _chapi_out="" _chapi_rc=0
+    _chapi_out=$(ch_query "SELECT count() FROM system.tables WHERE database='system' AND name='backup_actions'" 2>&1) || _chapi_rc=$?
     if [ "${VERBOSE}" = "true" ]; then
-        log "INFO" "[ClickHouse] Table check output: ${table_check_output}"
-        log "INFO" "[ClickHouse] Table check exit code: ${table_check_exit}"
+        log "INFO" "[ClickHouse] Table check output: ${_chapi_out} (exit ${_chapi_rc})"
     fi
-    
-    if echo "${table_check_output}" | grep -q "^1$"; then
-        has_backup_api=true
-        log "INFO" "[ClickHouse] clickhouse-backup API detected (system.backup_actions table exists)"
-    elif [ "${VERBOSE}" = "true" ]; then
-        log "WARN" "[ClickHouse] Table check result: ${table_check_output}"
+    if printf '%s' "${_chapi_out}" | grep -q "^1$"; then
+        log "INFO" "[ClickHouse] clickhouse-backup API detected (system.backup_actions exists)"
+        return 0
     fi
-    
-    if [ "${has_backup_api}" != "true" ]; then
-        log "ERROR" "[ClickHouse] clickhouse-backup API not available (system.backup_actions table not found)"
-        log "ERROR" "[ClickHouse] The clickhouse-backup sidecar container is not running"
-        log "INFO" "[ClickHouse] To enable, add clickhouse-backup sidecar to ClickHouse pods in Helm chart"
-        log "INFO" "[ClickHouse] See: https://github.com/Altinity/clickhouse-backup/blob/master/Examples.md#how-to-use-clickhouse-backup-in-kubernetes"
+    log "ERROR" "[ClickHouse] clickhouse-backup API not available (system.backup_actions not found)"
+    log "ERROR" "[ClickHouse] The clickhouse-backup sidecar container is not running."
+    log "INFO"  "[ClickHouse] To enable it, add the sidecar to the ClickHouse pods in the Helm chart:"
+    log "INFO"  "[ClickHouse]   https://github.com/Altinity/clickhouse-backup/blob/master/Examples.md#how-to-use-clickhouse-backup-in-kubernetes"
+    return 1
+}
+
+# One field of the newest system.backup_actions row for <command>, restricted to rows started
+# after <since>.  ch_action_field <field> <command> <since>
+ch_action_field() {
+    ch_query "SELECT $1 FROM system.backup_actions WHERE command='$2' AND toUnixTimestamp(start) > $3 ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null
+}
+
+# Enqueue ONE clickhouse-backup action and wait for it; 'create' and 'upload' were one loop
+# written twice (DN-46).
+#
+# The `since` fence is not optional: the command string is the poll key, and a rerun with the
+# same --backup-id produces a byte-identical command — so without it the poll matches a stale
+# 'success' row from the earlier attempt and reports success having created nothing.
+#
+#   ch_run_action <command> <timeout-seconds> <poll-interval> <what>
+# Returns 0 on success; 1 on enqueue failure, a reported error, or timeout (all logged).
+ch_run_action() {
+    _cra_cmd="$1" _cra_to="$2" _cra_iv="$3" _cra_what="$4" _cra_since="" _cra_el=0 _cra_st=""
+    _cra_since=$(ch_query "SELECT ifNull(toUnixTimestamp(max(start)),0) FROM system.backup_actions WHERE command='${_cra_cmd}' FORMAT TabSeparatedRaw" 2>/dev/null | tr -dc '0-9')
+    [ -n "${_cra_since}" ] || _cra_since=0
+    if ! ch_query "INSERT INTO system.backup_actions(command) VALUES('${_cra_cmd}')" >> "${LOG_FILE}" 2>&1; then
+        log "ERROR" "[ClickHouse] Failed to enqueue ${_cra_what} (clickhouse-client exec failed)"
         return 1
     fi
+    log "INFO" "[ClickHouse] Waiting for ${_cra_what} to complete..."
+    while [ "${_cra_el}" -lt "${_cra_to}" ]; do
+        _cra_st=$(ch_action_field status "${_cra_cmd}" "${_cra_since}")
+        [ "${VERBOSE}" = "true" ] && log "INFO" "[ClickHouse] ${_cra_what} status: ${_cra_st}"
+        case "${_cra_st}" in
+            success) return 0 ;;
+            error)
+                log "ERROR" "[ClickHouse] ${_cra_what} failed: $(ch_action_field error "${_cra_cmd}" "${_cra_since}")"
+                return 1 ;;
+        esac
+        sleep "${_cra_iv}"
+        _cra_el=$((_cra_el + _cra_iv))
+    done
+    log "ERROR" "[ClickHouse] ${_cra_what} timed out after ${_cra_to} seconds"
+    return 1
+}
 
-    # Named backup_<ts>, so ClickHouse lands at <root>/clickhouse/backup_<ts>/ — the same shape as
-    # every other component, which is also what lets the generic retention sweep see it. That is
+# Where the upload will land. clickhouse-backup writes to the S3_BUCKET/S3_PATH baked into the
+# sidecar's env, which this script does not control — so read it, and reconcile.
+# Sets CH_WANT_PATH, CH_CFG_BUCKET and any --env overrides appended to CH_UPLOAD_EXTRA.
+# See DN-11 and DN-12.
+CH_CFG_BUCKET="" ; CH_WANT_PATH="" ; CH_UPLOAD_EXTRA=""
+ch_resolve_destination() {
+    CH_CFG_BUCKET=""; CH_UPLOAD_EXTRA=""
+    CH_WANT_PATH=$(clickhouse_remote_key)
+    [ "${S3_ENABLED}" = "true" ] || return 0
+    _crd_path=""
+    CH_CFG_BUCKET=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${CH_POD}" -c clickhouse-backup -- \
+        printenv S3_BUCKET 2>/dev/null | tr -d '\r' || true)
+    _crd_path=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${CH_POD}" -c clickhouse-backup -- \
+        printenv S3_PATH 2>/dev/null | tr -d '\r' || true)
+    if [ -z "${_crd_path}" ]; then
+        # Cannot tell where it would write, so state the destination explicitly rather than
+        # hoping the sidecar agrees.
+        log "WARN" "[ClickHouse] Could not read the sidecar's S3_PATH; pinning the upload to ${CH_WANT_PATH}"
+        CH_UPLOAD_EXTRA=" --env S3_BUCKET=${S3_BUCKET} --env S3_PATH=${CH_WANT_PATH}"
+    elif [ "${CH_CFG_BUCKET}" = "${S3_BUCKET}" ] && [ "${_crd_path}" = "${CH_WANT_PATH}" ]; then
+        :   # already writing where this run expects
+    else
+        # Either a deliberate per-component override or a pod that has not rolled since the
+        # prefix changed, and this script cannot tell which — so honour the sidecar (never
+        # silently discard configuration) and make the consequence explicit.
+        log "WARN" "[ClickHouse] Sidecar writes to s3://${CH_CFG_BUCKET}/${_crd_path}, not this run's ${S3_BUCKET}/${CH_WANT_PATH}"
+        log "WARN" "[ClickHouse]   Honouring the sidecar and RECORDING that destination in the manifest, so the restore reads it back from there."
+        log "WARN" "[ClickHouse]   Retention only reclaims storage under this run's own root, so that prefix is NOT pruned by this tool — give it its own lifecycle policy. If instead the pods have simply not rolled since the prefix changed, re-run after they have."
+        CH_WANT_PATH="${_crd_path}"
+        CH_LOCATION_OVERRIDE="s3://${CH_CFG_BUCKET}/${_crd_path}"
+    fi
+    return 0
+}
+
+# The base an incremental should diff against: the newest REMOTE backup. location='remote' is
+# required, not cosmetic — the base must exist in the remote, and system.backup_list also
+# carries local-only rows (DN-10). Prints the name, or nothing for a full upload.
+ch_incremental_base() {
+    _cib=$(ch_query "SELECT name FROM system.backup_list WHERE name LIKE 'backup_%' AND location='remote' ORDER BY created DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null || true)
+    # Bucket-derived, so charset-gated like every other store-derived name (DN-17): this is
+    # spliced UNQUOTED into the action string AND into the single-quoted SQL literal the sidecar
+    # runs. A space is a legal S3 key character, so `backup_a --env S3_ENDPOINT=http://evil`
+    # injects flags with no SQL breakout at all; an apostrophe closes the literal outright.
+    # Falling back to a full upload costs bandwidth, never correctness.
+    case "${_cib}" in
+        *[!A-Za-z0-9_.-]*)
+            # To fd 9: this function's STDOUT is the value, and the caller captures it. A plain
+            # log() here is swallowed into that capture — and worse, becomes the "base" the
+            # upload is then diffed against, inverting the gate into the injection it exists to
+            # prevent. Same rule as resolved_or_override; fd 9 keeps the warning on the console
+            # and in the log file without contaminating the return value.
+            log "WARN" "[ClickHouse] Ignoring remote backup name '${_cib}': it has characters outside A-Z a-z 0-9 _ . - and would be interpolated into the upload command" >&9
+            log "WARN" "[ClickHouse]   Falling back to a FULL upload for this run." >&9
+            return 0 ;;
+    esac
+    printf '%s' "${_cib}"
+}
+
+backup_clickhouse() {
+    log "INFO" "[ClickHouse] === Starting Backup ==="
+
+    # Shared mode only: the tarball's destination directory, which THIS process creates. In s3
+    # mode clickhouse-backup uploads to the bucket itself and there is nothing local to make —
+    # mkdir'ing comp_path there produced a directory literally named "s3:<bucket>/..." on the
+    # container's writable layer.
+    if [ "${S3_ENABLED}" != "true" ] && [ "${DRY_RUN}" != "true" ]; then
+        mkdir -p "$(comp_path clickhouse)"
+    fi
+
+    ch_resolve_pod || return 1
+    ch_resolve_credentials
+    ch_has_backup_api || return 1
+
+    # Named backup_<ts>, so ClickHouse lands at <root>/clickhouse/backup_<ts>/ — the same shape
+    # as every other component, which is what lets the generic retention sweep see it. That is
     # not the same as ClickHouse retention being correct; see DN-09.
     local backup_name="backup_${TIMESTAMP}"
+    local ch_create_cmd="create ${backup_name}"
 
     if [ "${DRY_RUN}" = "true" ]; then
-        log "INFO" "[ClickHouse] [DRY RUN] Commands (pod: ${ch_pod}, backup: ${backup_name}, type: ${CH_BACKUP_TYPE}):"
-        log "INFO" "[ClickHouse] [DRY RUN]   \$ kubectl exec -n ${NAMESPACE} ${ch_pod} -c clickhouse -- \\"
-        log "INFO" "[ClickHouse] [DRY RUN]       clickhouse-client --user=*** --password=*** \\"
-        log "INFO" "[ClickHouse] [DRY RUN]       --query=\"INSERT INTO system.backup_actions(command) VALUES('create ${backup_name}')\""
-        log "INFO" "[ClickHouse] [DRY RUN]   (poll system.backup_actions until status=success, timeout 300s)"
+        log "INFO" "[ClickHouse] [DRY RUN] pod ${CH_POD}, backup ${backup_name}, type ${CH_BACKUP_TYPE}:"
+        log "INFO" "[ClickHouse] [DRY RUN]   INSERT INTO system.backup_actions(command) VALUES('${ch_create_cmd}')"
+        log "INFO" "[ClickHouse] [DRY RUN]   (poll until status=success, timeout ${CH_CREATE_TIMEOUT}s)"
         if [ "${S3_ENABLED}" = "true" ]; then
-            log "INFO" "[ClickHouse] [DRY RUN]   \$ kubectl exec ... clickhouse-client ... \\"
-            log "INFO" "[ClickHouse] [DRY RUN]       --query=\"INSERT INTO system.backup_actions(command) VALUES('upload ${backup_name}')\""
-            log "INFO" "[ClickHouse] [DRY RUN]   (poll upload status, timeout 600s)"
-            log "INFO" "[ClickHouse] [DRY RUN]   \$ kubectl exec ... clickhouse-client ... \\"
-            log "INFO" "[ClickHouse] [DRY RUN]       --query=\"INSERT INTO system.backup_actions(command) VALUES('delete local ${backup_name}')\""
+            log "INFO" "[ClickHouse] [DRY RUN]   INSERT ... VALUES('upload ${backup_name}')   (timeout ${CH_UPLOAD_TIMEOUT}s)"
+            log "INFO" "[ClickHouse] [DRY RUN]   INSERT ... VALUES('delete local ${backup_name}')"
         fi
         result_set clickhouse --arg status "success" --arg engine "clickhouse-backup" \
             --arg name "${backup_name}" --arg base "" \
@@ -2500,249 +2634,117 @@ backup_clickhouse() {
         return 0
     fi
 
-    # Use clickhouse-backup API (preferred - Altinity recommended approach)
-    log "INFO" "[ClickHouse] Using clickhouse-backup API via system.backup_actions"
-
     local start_time=$(date +%s)
 
-    # Step 1: Create backup via API.
-    # Incremental note (verified against clickhouse-backup 2.8.0 CLI): for regular
-    # (non-embedded) backups the diff happens at UPLOAD time — 'create' is always a full
-    # local hardlink snapshot, and its --diff-from-remote flag only applies to
-    # embedded/object-disk backups. Flags must also precede the positional <backup_name>.
-    # So: plain 'create <name>' here; '--diff-from-remote' goes on the upload command.
-    local ch_create_cmd="create ${backup_name}"
-    # The command string is the poll key for system.backup_actions, so it must be byte-identical
-    # between the INSERT and the SELECT, and where ClickHouse writes is the sidecar's decision,
-    # not this script's. See DN-11 and DN-12.
-    local ch_cfg_bucket="" ch_cfg_path="" ch_want_path="$(clickhouse_remote_key)"
-    local ch_upload_cmd="upload"
-    if [ "${S3_ENABLED}" = "true" ]; then
-        ch_cfg_bucket=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse-backup -- \
-            printenv S3_BUCKET 2>/dev/null | tr -d '\r' || true)
-        ch_cfg_path=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse-backup -- \
-            printenv S3_PATH 2>/dev/null | tr -d '\r' || true)
-        if [ -z "${ch_cfg_path}" ]; then
-            # Cannot tell where it would write, so state the intended destination explicitly
-            # rather than hoping the sidecar agrees.
-            log "WARN" "[ClickHouse] Could not read the sidecar's S3_PATH; pinning the upload to ${ch_want_path}"
-            ch_upload_cmd="${ch_upload_cmd} --env S3_BUCKET=${S3_BUCKET} --env S3_PATH=${ch_want_path}"
-        elif [ "${ch_cfg_bucket}" = "${S3_BUCKET}" ] && [ "${ch_cfg_path}" = "${ch_want_path}" ]; then
-            : # already writing where this run expects — no override needed
-        else
-            # The sidecar points somewhere else. That is either a deliberate per-component
-            # override or a pod that has not rolled since the prefix changed, and this script
-            # cannot tell which — so honour the sidecar (never silently discard configuration)
-            # and make the consequence explicit instead of guessing.
-            log "WARN" "[ClickHouse] Sidecar writes to s3://${ch_cfg_bucket}/${ch_cfg_path}, not this run's ${S3_BUCKET}/${ch_want_path}"
-            log "WARN" "[ClickHouse]   Honouring the sidecar and RECORDING that destination in the manifest, so the restore reads it back from there."
-            log "WARN" "[ClickHouse]   Retention still only reclaims storage under this run's own root, so that prefix is not pruned by this tool — manage it with its own lifecycle policy. If this is instead a pod that has not rolled since the prefix changed, re-run once the ClickHouse pods have rolled."
-            ch_want_path="${ch_cfg_path}"
-            # Record the REAL destination so it is not lost: the manifest otherwise carries
-            # only the backup name, leaving a "complete" backup whose ClickHouse half no
-            # tooling can locate.
-            CH_LOCATION_OVERRIDE="s3://${ch_cfg_bucket}/${ch_cfg_path}"
-        fi
-    fi
+    # Build the upload command BEFORE creating, so a bad incremental base is caught early.
+    # For regular (non-embedded) backups the diff happens at UPLOAD time — `create` is always a
+    # full local hardlink snapshot, and --diff-from-remote applies only to embedded/object-disk
+    # backups. Flags must also precede the positional <backup_name>. Verified on 2.8.0.
+    ch_resolve_destination
+    local ch_upload_cmd="upload${CH_UPLOAD_EXTRA}"
     if [ "${CH_BACKUP_TYPE}" = "incremental" ]; then
-        # location='remote' is REQUIRED, not cosmetic: the base must exist in the remote, and
-        # system.backup_list also carries local-only rows. See DN-10.
-        local prev_backup=$(ch_query "SELECT name FROM system.backup_list WHERE name LIKE 'backup_%' AND location='remote' ORDER BY created DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null || true)
-        # Store-derived, so gated exactly like MF_CH_NAME and the resolved backup id. Rows with
-        # location='remote' come from clickhouse-backup listing the bucket, so this name is
-        # whatever someone with write access to the ClickHouse prefix chose to call a directory
-        # — and it is spliced UNQUOTED into the clickhouse-backup action string below and into a
-        # single-quoted SQL literal the sidecar executes. A space is a legal S3 key character,
-        # so a name like `backup_a --env S3_ENDPOINT=http://evil` injects flags into the upload
-        # with no SQL breakout at all; an apostrophe (also legal) closes the literal outright.
-        # Falling back to a full upload is always safe — it costs bandwidth, never correctness.
-        case "${prev_backup}" in
-            *[!A-Za-z0-9_.-]*)
-                log "WARN" "[ClickHouse] Ignoring remote backup name '${prev_backup}': it contains characters outside A-Z a-z 0-9 _ . - and would be interpolated into the upload command"
-                log "WARN" "[ClickHouse]   Falling back to a FULL upload for this run."
-                prev_backup="" ;;
-        esac
+        local prev_backup; prev_backup=$(ch_incremental_base)
         if [ -n "${prev_backup}" ]; then
             ch_upload_cmd="${ch_upload_cmd} --diff-from-remote=${prev_backup}"
             # Recorded in the manifest: this backup is NOT independently restorable, and the
-            # retention sweep has to know that ${prev_backup} must outlive it (see the chain
-            # guard in section 9). Without this the sweep expires the base by age and every
-            # incremental built on it becomes unrestorable — while still listing as 'success'.
+            # retention sweep must keep ${prev_backup} alive (see the chain guard in section 9).
             CH_BACKUP_BASE="${prev_backup}"
             log "INFO" "[ClickHouse] Incremental upload based on: ${prev_backup}"
-            log "WARN" "[ClickHouse] This backup DEPENDS on ${prev_backup}; retention will keep that chain alive, which means an incremental's ancestors are not reclaimed on schedule"
+            log "WARN" "[ClickHouse] This backup DEPENDS on ${prev_backup}; retention keeps that chain alive, so an incremental's ancestors are not reclaimed on schedule"
         else
-            log "WARN" "[ClickHouse] No previous backup found for incremental, falling back to full"
+            log "WARN" "[ClickHouse] No previous remote backup for an incremental; falling back to full"
         fi
     fi
     ch_upload_cmd="${ch_upload_cmd} ${backup_name}"
+
     log "INFO" "[ClickHouse] Creating backup: ${backup_name} (type: ${CH_BACKUP_TYPE})"
-    # Record the newest existing action time for THIS exact command before enqueuing, so the poll
-    # below only reads the row this run creates. Without it, a rerun with the same --backup-id
-    # (identical command string) matches a stale 'success' row from a prior attempt and reports
-    # success without creating/uploading anything. Empty table → 0.
-    local ch_create_since
-    ch_create_since=$(ch_query "SELECT ifNull(toUnixTimestamp(max(start)),0) FROM system.backup_actions WHERE command='${ch_create_cmd}' FORMAT TabSeparatedRaw" 2>/dev/null | tr -dc '0-9')
-    [ -n "${ch_create_since}" ] || ch_create_since=0
-    if ! ch_query "INSERT INTO system.backup_actions(command) VALUES('${ch_create_cmd}')" >> "${LOG_FILE}" 2>&1; then
-        log "ERROR" "[ClickHouse] Failed to enqueue backup create action (clickhouse-client exec failed)"
-        return 1
-    fi
+    ch_run_action "${ch_create_cmd}" "${CH_CREATE_TIMEOUT}" 5 "backup creation" || return 1
 
-    # Step 2: Wait for backup creation to complete
-    log "INFO" "[ClickHouse] Waiting for backup creation to complete..."
-    local max_wait=${CH_CREATE_TIMEOUT}  # configurable via CH_CREATE_TIMEOUT
-    local elapsed=0
-    while [ $elapsed -lt $max_wait ]; do
-        local status=$(ch_query "SELECT status FROM system.backup_actions WHERE command='${ch_create_cmd}' AND toUnixTimestamp(start) > ${ch_create_since} ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
+    # Duration measures the CREATE, which is the phase this component controls; the upload that
+    # follows is bounded separately by CH_UPLOAD_TIMEOUT.
+    local duration=$(($(date +%s) - start_time))
 
-        if [ "${VERBOSE}" = "true" ]; then
-            log "INFO" "[ClickHouse] Backup creation status: ${status}"
-        fi
+    # Size: LIMIT 1 and shape-checked before use. system.backup_list can hold MORE THAN ONE row
+    # for a name — a retry with the same --backup-id leaves the earlier attempt's remote row
+    # while `create` has just added a local one — and a two-line result made
+    # `--argjson bytes "123\n456"` invalid JSON, which recorded a ClickHouse backup that is
+    # safely in the bucket as FAILED.
+    local backup_size backup_size_bytes
+    backup_size=$(ch_query "SELECT formatReadableSize(size) FROM system.backup_list WHERE name='${backup_name}' ORDER BY location LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null || echo "unknown")
+    backup_size_bytes=$(ch_query "SELECT size FROM system.backup_list WHERE name='${backup_name}' ORDER BY location LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null || echo "0")
+    # Anything that is not a plain integer becomes 0 rather than reaching --argjson: this value
+    # is the only thing between a good backup and a failed manifest entry.
+    case "${backup_size_bytes}" in
+        ''|*[!0-9]*) log "WARN" "[ClickHouse] Could not read a usable size for ${backup_name} ('${backup_size_bytes}'); recording 0 bytes"
+                     backup_size_bytes=0 ;;
+    esac
+    [ -n "${backup_size}" ] || backup_size="unknown"
+    log "INFO" "[ClickHouse] ✓ Created: ${backup_name} (${backup_size}, ${duration}s)"
+    log "INFO" "[ClickHouse]   Local: ${CH_POD}:/var/lib/clickhouse/backup/${backup_name} (hardlinks)"
 
-        if [ "${status}" = "success" ]; then
-            local end_time=$(date +%s)
-            local duration=$((end_time - start_time))
-
-            # Get backup size (human-readable and raw bytes).
-            # LIMIT 1, and the result is shape-checked before it is used. system.backup_list can
-            # hold MORE THAN ONE row for a name — a retry with the same --backup-id leaves the
-            # earlier attempt's remote row while `create` has just added a local one — and a
-            # two-line result made `--argjson bytes "123\n456"` invalid JSON. result_set's
-            # fallback then recorded a ClickHouse backup whose data is safely in the bucket as
-            # FAILED, which makes the run partial, holds back the 'latest' pointer and makes a
-            # later restore refuse the component.
-            local backup_size=$(ch_query "SELECT formatReadableSize(size) FROM system.backup_list WHERE name='${backup_name}' ORDER BY location LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null || echo "unknown")
-            local backup_size_bytes=$(ch_query "SELECT size FROM system.backup_list WHERE name='${backup_name}' ORDER BY location LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null || echo "0")
-            # Anything that is not a plain integer becomes 0 rather than reaching --argjson:
-            # this value is the ONLY thing between a good backup and a failed manifest entry.
-            case "${backup_size_bytes}" in
-                ''|*[!0-9]*) log "WARN" "[ClickHouse] Could not read a usable size for ${backup_name} ('${backup_size_bytes}'); recording 0 bytes"
-                             backup_size_bytes=0 ;;
-            esac
-            [ -n "${backup_size}" ] || backup_size="unknown"
-
-            log "INFO" "[ClickHouse] ✓ Completed: ${backup_name} (${backup_size}, ${duration}s)"
-            log "INFO" "[ClickHouse]   Location: ${ch_pod}:/var/lib/clickhouse/backup/${backup_name} (hardlinks)"
-            break
-        elif [ "${status}" = "error" ]; then
-            local error=$(ch_query "SELECT error FROM system.backup_actions WHERE command='${ch_create_cmd}' AND toUnixTimestamp(start) > ${ch_create_since} ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
-            log "ERROR" "[ClickHouse] Backup creation failed: ${error}"
-            return 1
-        fi
-
-        sleep 5
-        elapsed=$((elapsed + 5))
-    done
-
-    if [ $elapsed -ge $max_wait ]; then
-        log "ERROR" "[ClickHouse] Backup creation timed out after ${max_wait} seconds"
-        return 1
-    fi
-
-    # Step 3: Upload to S3 if enabled
     if [ "${S3_ENABLED}" = "true" ]; then
         log "INFO" "[ClickHouse] Uploading backup to S3..."
-        local ch_upload_since
-        ch_upload_since=$(ch_query "SELECT ifNull(toUnixTimestamp(max(start)),0) FROM system.backup_actions WHERE command='${ch_upload_cmd}' FORMAT TabSeparatedRaw" 2>/dev/null | tr -dc '0-9')
-        [ -n "${ch_upload_since}" ] || ch_upload_since=0
-        if ! ch_query "INSERT INTO system.backup_actions(command) VALUES('${ch_upload_cmd}')" >> "${LOG_FILE}" 2>&1; then
-            log "ERROR" "[ClickHouse] Failed to enqueue backup upload action (clickhouse-client exec failed)"
-            return 1
-        fi
-
-        # Wait for upload to complete
-        log "INFO" "[ClickHouse] Waiting for S3 upload to complete..."
-        elapsed=0
-        max_wait=${CH_UPLOAD_TIMEOUT}  # configurable via CH_UPLOAD_TIMEOUT
-        while [ $elapsed -lt $max_wait ]; do
-            local upload_status=$(ch_query "SELECT status FROM system.backup_actions WHERE command='${ch_upload_cmd}' AND toUnixTimestamp(start) > ${ch_upload_since} ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
-
-            if [ "${VERBOSE}" = "true" ]; then
-                log "INFO" "[ClickHouse] Upload status: ${upload_status}"
-            fi
-
-            if [ "${upload_status}" = "success" ]; then
-                log "INFO" "[ClickHouse] S3 upload completed successfully"
-                break
-            elif [ "${upload_status}" = "error" ]; then
-                local upload_error=$(ch_query "SELECT error FROM system.backup_actions WHERE command='${ch_upload_cmd}' AND toUnixTimestamp(start) > ${ch_upload_since} ORDER BY start DESC LIMIT 1 FORMAT TabSeparatedRaw" 2>/dev/null)
-                log "ERROR" "[ClickHouse] S3 upload failed: ${upload_error}"
-                return 1
-            fi
-
-            sleep 10
-            elapsed=$((elapsed + 10))
-        done
-
-        if [ $elapsed -ge $max_wait ]; then
-            log "ERROR" "[ClickHouse] S3 upload timed out after ${max_wait} seconds"
-            return 1
-        fi
-
-        # Delete local backup after successful upload
-        log "INFO" "[ClickHouse] Deleting local backup after S3 upload..."
+        ch_run_action "${ch_upload_cmd}" "${CH_UPLOAD_TIMEOUT}" 10 "S3 upload" || return 1
+        log "INFO" "[ClickHouse] Deleting the local backup after upload..."
         ch_query "INSERT INTO system.backup_actions(command) VALUES('delete local ${backup_name}')" >> "${LOG_FILE}" 2>&1
     elif [ "${BACKUP_TARGET}" = "shared" ]; then
-        # clickhouse-backup has no filesystem remote, so archive the FREEZE backup to the
-        # mounted RWX in-pod. Runs in the clickhouse-backup sidecar (it has both the data
-        # volume with the hardlinks AND the central mount); tar dereferences the hardlinks.
-        local ch_shared_dir="$(comp_inpod clickhouse)"
-        CH_SHARED_TAR="${ch_shared_dir}/${backup_name}.tar.gz"
-        log "INFO" "[ClickHouse] Archiving backup to shared volume: ${CH_SHARED_TAR}"
-        if ! pod_sh ClickHouse "${ch_pod}" clickhouse-backup "${KUBECTL_EXEC_TIMEOUT}" \
-            'mkdir -p "$1" && tar -czf "$2" -C /var/lib/clickhouse/backup "$3"' \
-            "${ch_shared_dir}" "${CH_SHARED_TAR}" "${backup_name}" >> "${LOG_FILE}" 2>&1; then
-            log "ERROR" "[ClickHouse] Failed to archive backup to shared volume"
-            return 1
-        fi
-        # Verify the archive landed and is non-empty
-        local ch_tar_bytes
-        ch_tar_bytes=$(pod_sh ClickHouse "${ch_pod}" clickhouse-backup "${KUBECTL_STATUS_TIMEOUT}" \
-            'wc -c < "$1"' "${CH_SHARED_TAR}" 2>/dev/null | tr -d ' ')
-        : "${ch_tar_bytes:=0}"
-        if ! [ "${ch_tar_bytes}" -gt 0 ] 2>/dev/null; then
-            log "ERROR" "[ClickHouse] Shared archive missing/empty at ${CH_SHARED_TAR}"
-            return 1
-        fi
-        log "INFO" "[ClickHouse] ✓ Archived to shared volume (${ch_tar_bytes} bytes)"
-        # Delete local hardlink backup after archiving (keep the data PVC clean)
-        log "INFO" "[ClickHouse] Deleting local backup after archiving..."
-        ch_query "INSERT INTO system.backup_actions(command) VALUES('delete local ${backup_name}')" >> "${LOG_FILE}" 2>&1
+        ch_archive_to_shared "${backup_name}" || return 1
     fi
 
-    # List backups (only in verbose mode)
     if [ "${VERBOSE}" = "true" ]; then
         log "INFO" "[ClickHouse] Listing all backups:"
         ch_query "SELECT name, created, location, desc FROM system.backup_list ORDER BY created DESC LIMIT 10 FORMAT PrettyCompactMonoBlock" 2>&1 | tee -a "${LOG_FILE}"
     fi
 
     log "INFO" "[ClickHouse] Backup completed successfully"
-    local ch_location ch_restore
-    # The COORDINATES, as data rather than prose. `location` is a sentence for a human; these
-    # two are what restore, the pre-flight gate and retention address the backup by. Recording
-    # only the sentence is what left an honoured sidecar override readable by a person and
-    # unusable by every code path — see DN-43. Empty in shared mode, where the tarball path in
-    # `location` is the coordinate.
-    local ch_mf_bucket="" ch_mf_path=""
+    ch_record_result "${backup_name}" "${backup_size}" "${backup_size_bytes}" "${duration}"
+    return 0
+}
+
+# Shared mode: clickhouse-backup has no filesystem remote, so archive the freeze backup to the
+# mounted RWX volume from inside the sidecar (it has both the data volume with the hardlinks
+# AND the central mount). tar dereferences the hardlinks.
+ch_archive_to_shared() {   # <backup-name>
+    local backup_name="$1" ch_shared_dir ch_tar_bytes
+    ch_shared_dir="$(comp_inpod clickhouse)"
+    CH_SHARED_TAR="${ch_shared_dir}/${backup_name}.tar.gz"
+    log "INFO" "[ClickHouse] Archiving backup to the shared volume: ${CH_SHARED_TAR}"
+    if ! pod_sh ClickHouse "${CH_POD}" clickhouse-backup "${KUBECTL_EXEC_TIMEOUT}" \
+        'mkdir -p "$1" && tar -czf "$2" -C /var/lib/clickhouse/backup "$3"' \
+        "${ch_shared_dir}" "${CH_SHARED_TAR}" "${backup_name}" >> "${LOG_FILE}" 2>&1; then
+        log "ERROR" "[ClickHouse] Failed to archive the backup to the shared volume"
+        return 1
+    fi
+    ch_tar_bytes=$(pod_sh ClickHouse "${CH_POD}" clickhouse-backup "${KUBECTL_STATUS_TIMEOUT}" \
+        'wc -c < "$1"' "${CH_SHARED_TAR}" 2>/dev/null | tr -d ' ')
+    : "${ch_tar_bytes:=0}"
+    if ! [ "${ch_tar_bytes}" -gt 0 ] 2>/dev/null; then
+        log "ERROR" "[ClickHouse] Shared archive missing or empty at ${CH_SHARED_TAR}"
+        return 1
+    fi
+    log "INFO" "[ClickHouse] ✓ Archived to the shared volume ($(human_bytes "${ch_tar_bytes}"))"
+    log "INFO" "[ClickHouse] Deleting the local backup after archiving..."
+    ch_query "INSERT INTO system.backup_actions(command) VALUES('delete local ${backup_name}')" >> "${LOG_FILE}" 2>&1
+    return 0
+}
+
+# The manifest entry. `location` is a sentence for a human; s3_bucket/s3_path are the
+# COORDINATES restore, the pre-flight gate and retention address the backup by. Recording only
+# the sentence is what left an honoured sidecar override readable by a person and unusable by
+# every code path — DN-43. Both are always recorded, override or not, so a reader never has to
+# infer "no override means recompute it from my own settings".
+ch_record_result() {   # <name> <size-human> <size-bytes> <duration>
+    local backup_name="$1" size_h="$2" size_b="$3" duration="$4"
+    local ch_location="" ch_restore="" ch_mf_bucket="" ch_mf_path=""
     if [ "${BACKUP_TARGET}" = "shared" ]; then
-        ch_location="${CH_SHARED_TAR:-}"
-        ch_restore="(in CH pod) tar -xzf ${ch_location} -C /var/lib/clickhouse/backup && clickhouse-backup restore ${backup_name}"
+        ch_location="${CH_SHARED_TAR}"
+        ch_restore="(in the CH pod) tar -xzf ${ch_location} -C /var/lib/clickhouse/backup && clickhouse-backup restore ${backup_name}"
     else
-        # Always recorded, override or not: a reader must not have to infer "no override means
-        # recompute it from my own settings", because that inference is exactly what breaks
-        # when the two disagree.
-        ch_mf_bucket="${ch_cfg_bucket:-${S3_BUCKET}}"
-        ch_mf_path="${ch_want_path}"
-        if [ -n "${CH_LOCATION_OVERRIDE:-}" ]; then
-            # The sidecar writes somewhere other than this run's root and we honoured it
-            # (DN-12). Record WHERE, or the manifest reports a "complete" backup whose
-            # ClickHouse half no tool can resolve.
+        ch_mf_path="${CH_WANT_PATH}"
+        if [ -n "${CH_LOCATION_OVERRIDE}" ]; then
             ch_location="clickhouse-backup S3 remote: ${backup_name} at ${CH_LOCATION_OVERRIDE}"
-            ch_mf_bucket="${ch_cfg_bucket}"
+            ch_mf_bucket="${CH_CFG_BUCKET}"
         else
-            # The local hardlinks were deleted after upload; the backup lives in the
-            # clickhouse-backup S3 remote, addressed by name.
             ch_location="clickhouse-backup S3 remote: ${backup_name}"
             ch_mf_bucket="${S3_BUCKET}"
         fi
@@ -2753,12 +2755,11 @@ backup_clickhouse() {
         --arg name "${backup_name}" --arg base "${CH_BACKUP_BASE}" \
         --arg location "${ch_location}" --arg restore "${ch_restore}" \
         --arg s3_bucket "${ch_mf_bucket}" --arg s3_path "${ch_mf_path}" \
-        --arg size "${backup_size:-unknown}" \
-        --argjson bytes "${backup_size_bytes:-0}" --argjson duration "${duration:-0}" \
+        --arg size "${size_h}" \
+        --argjson bytes "${size_b}" --argjson duration "${duration}" \
         '{status: $status, engine: $engine, name: $name, base: $base, location: $location,
           s3_bucket: $s3_bucket, s3_path: $s3_path,
           size: $size, bytes: $bytes, duration: $duration, restore: $restore}'
-    return 0
 }
 
 ################################################################################
@@ -2782,12 +2783,7 @@ backup_victoriametrics() {
     # Non-AWS S3-compatible storage: vmbackup does not read endpoint env vars — the custom
     # endpoint must be passed as a flag (expands to nothing for AWS S3). Computed once here
     # and reused by both the dry-run log and the per-pod exec below.
-    local vm_endpoint_flag="" _vm_ep=""
-    # `|| true`: a bare `[ -n x ] && y` returns 1 when the test fails, which is an abort under
-    # `set -e` anywhere errexit is not suppressed — and "no custom endpoint" (plain AWS) is the
-    # DEFAULT case, not an error.
-    _vm_ep=$(vm_s3_endpoint)
-    [ -n "${_vm_ep}" ] && vm_endpoint_flag="-customS3Endpoint=${_vm_ep}" || true
+    local vm_endpoint_flag=""; vm_endpoint_flag=$(vm_endpoint_arg)
 
     # Get list of vmstorage pods
     local vmstorage_pods=$(kubectl get pods -n "${NAMESPACE}" \
@@ -2801,25 +2797,6 @@ backup_victoriametrics() {
     fi
     
     log "INFO" "[VictoriaMetrics] Found vmstorage pods: ${vmstorage_pods}"
-
-    if [ "${DRY_RUN}" = "true" ]; then
-        log "INFO" "[VictoriaMetrics] [DRY RUN] Commands per vmstorage pod:"
-        for pod in ${vmstorage_pods}; do
-            local backup_dst="$(vm_dst_for_pod "${pod}" "vm_backup_${TIMESTAMP}")"
-            log "INFO" "[VictoriaMetrics] [DRY RUN]   -- ${pod}:"
-            log "INFO" "[VictoriaMetrics] [DRY RUN]     \$ kubectl exec -n ${NAMESPACE} ${pod} -c vmbackup -- \\"
-            log "INFO" "[VictoriaMetrics] [DRY RUN]         /vmbackup-prod \\"
-            log "INFO" "[VictoriaMetrics] [DRY RUN]         -snapshot.createURL=http://localhost:8482/snapshot/create \\"
-            log "INFO" "[VictoriaMetrics] [DRY RUN]         -snapshot.deleteURL=http://localhost:8482/snapshot/delete \\"
-            log "INFO" "[VictoriaMetrics] [DRY RUN]         -storageDataPath=/vmstorage-data \\"
-            log "INFO" "[VictoriaMetrics] [DRY RUN]         -dst=${backup_dst}${vm_endpoint_flag:+ ${vm_endpoint_flag}} -concurrency=10 -maxBytesPerSecond=0"
-        done
-        result_set victoriametrics --arg status "success" --arg engine "vmbackup" \
-            --arg location "$(comp_location victoriametrics)/<pod>/" \
-            '{status: $status, engine: $engine, location: $location, pods: 0, bytes: 0,
-              duration: 0, objects: []}'
-        return 0
-    fi
 
     local pod_count=0
     local success_count=0
@@ -2853,10 +2830,11 @@ backup_victoriametrics() {
         log "INFO" "[VictoriaMetrics] Creating backup ${backup_name} -> ${backup_dst}"
         
         # Execute vmbackup in the sidecar container using snapshot API
+        # Through pod_exec, so --dry-run prints exactly this argv and runs nothing.
         local vm_output
         local vm_exit_code
         set +e
-        vm_output=$(timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${pod}" -c vmbackup -- \
+        vm_output=$(pod_exec VictoriaMetrics "${pod}" vmbackup "${KUBECTL_EXEC_TIMEOUT}" \
             /vmbackup-prod \
             -snapshot.createURL=http://localhost:8482/snapshot/create \
             -snapshot.deleteURL=http://localhost:8482/snapshot/delete \
@@ -2875,6 +2853,13 @@ backup_victoriametrics() {
         fi
         
         if [ $vm_exit_code -eq 0 ]; then
+            if [ "${DRY_RUN}" = "true" ]; then
+                # pod_exec only printed the argv. Count it as planned so the preview reports the
+                # scope a real run would have, and skip the byte accounting there is none of.
+                vm_objects="${vm_objects} ${backup_dst#fs://}"
+                success_count=$((success_count + 1))
+                continue
+            fi
             log "INFO" "[VictoriaMetrics] ✓ Completed: ${backup_name}"
             log "INFO" "[VictoriaMetrics] Location: ${backup_dst}"
             # Record the landed ref (strip vmbackup's fs:// / s3:// scheme noise to a plain URI)
@@ -2926,8 +2911,6 @@ backup_pmm_server() {
     log "INFO" "[PMMServer] === Starting Backup ==="
     local pmm_start_time=$(date +%s)
     local pmm_total_bytes=0 pmm_objects="" pmm_file_sizes=""
-
-    local pmm_backup_dir="$(comp_path pmm-server)"
 
     # Discover all PMM server pods (HA StatefulSet: 1, 3, 5, ... replicas)
     local pmm_pods=$(kubectl get pods -n "${NAMESPACE}" \
@@ -2989,12 +2972,9 @@ backup_pmm_server() {
         if [ ${pmm_exit} -eq 0 ] || [ ${pmm_exit} -eq 1 ]; then
             [ ${pmm_exit} -eq 1 ] && log "WARN" "[PMMServer] ${pod}: tar warnings (files changed/unreadable while archiving)"
 
-            # Verify the archive actually landed and read its size from the destination.
-            # Through the storage layer for BOTH targets. The s3 arm used to shell into the PMM
-            # pod's rclone sidecar and hand-roll a `sed` over the JSON — which reintroduced the
-            # dependency on the PMM pod being reachable that DN-26 removed, and duplicated
-            # store_bytes' parse and store_delete_object's absent-is-success rule, so a fix to
-            # either had to be made in two places and the two targets drifted apart again.
+            # Verify the archive landed, and read its size from the DESTINATION — through the
+            # storage layer for both targets, so neither the size parse nor the
+            # absent-is-success delete rule exists in a second copy (DN-26).
             size_b=$(store_bytes "${dest}" 2>/dev/null || echo 0)
             : "${size_b:=0}"
 
@@ -3119,14 +3099,8 @@ backup_encryption_key() {
         chmod 600 "${key_file}"
         
         # Calculate checksum
-        local checksum
-        if command -v sha256sum >/dev/null 2>&1; then
-            checksum=$(sha256sum "${key_file}" | cut -d' ' -f1)
-        elif command -v shasum >/dev/null 2>&1; then
-            checksum=$(shasum -a 256 "${key_file}" | cut -d' ' -f1)
-        else
-            checksum="N/A"
-        fi
+        local checksum; checksum=$(sha256_of "${key_file}")
+        [ -n "${checksum}" ] || checksum="N/A"
         # `printf '%.16s'`, not ${checksum:0:16}: substring expansion is a bash/ash-with-
         # bash-compat extension and a FATAL "Bad substitution" on dash, which this file
         # claims to support. It aborted the whole run right here — after every component had
@@ -3268,28 +3242,31 @@ render_rclone_s3_env() {
     printf '%s' "${TEMP_POD_S3_KEYS_ENV}"
 }
 
+# The value of a resolve-once setting: the explicit override if there is one, else what the
+# resolver cached. Non-zero when nothing has resolved it yet, so a missing resolve_* call is a
+# loud failure rather than a silent empty string that fails pod admission later.
+#
+# NEVER logs, and neither may its callers: every call site is inside `$( )`, where a log line on
+# stdout would be captured AS the value — producing a three-line claimName. That split (a
+# resolver that may log, an accessor that may not) is why these come in pairs.
+resolved_or_override() {   # <override> <resolved>
+    if [ -n "$1" ]; then printf '%s' "$1"; return 0; fi
+    [ -n "$2" ] || return 1
+    printf '%s' "$2"
+}
+
 vmstorage_pvc_name() { echo "${VM_STORAGE_PVC_PREFIX}$1"; }
 
-# The PMM /srv PVC name prefix, derived from the StatefulSet that owns the PVCs rather than
-# assumed from the chart's default. A StatefulSet names its per-ordinal PVCs
-# <volumeClaimTemplate>-<sts>-<ordinal>, so the template's name IS the prefix; anything else
-# here is this file keeping a second, silently-drifting copy of a chart value (DN-39).
+# The PMM /srv PVC name prefix, READ from the StatefulSet that owns the PVCs rather than assumed
+# from the chart's default — a second copy of a chart value here drifts silently (DN-39). A
+# StatefulSet names its per-ordinal PVCs <volumeClaimTemplate>-<sts>-<ordinal>, so the template's
+# name IS the prefix; it is selected by MOUNT PATH (the one at ${PMM_SRV_PATH}), with position as
+# the fallback.
 #
-# Selected by MOUNT PATH, not by position: the template mounted at ${PMM_SRV_PATH} is the one
-# holding /srv, which is what the restore writes. Position is the fallback for a spec this
-# cannot read that way, and the historical default is the last resort — a wrong guess is
-# reported here, where the pre-flight gate can still refuse, rather than after scale-down.
-#   pmm_storage_pvc_prefix <statefulset-name>
-# Resolve the prefix ONCE, in the parent shell. Split from the accessor below on purpose:
-# log() echoes to stdout, and the accessor is only ever used inside `$( )` — so a WARN emitted
-# from there would be CAPTURED AS PART OF THE PVC NAME, producing a three-line `claimName:` that
-# fails pod admission, while the warning explaining it never reached the log. Anything that can
-# log has to run in the parent.
-#
-# This is also the only place the resolution happens, so the pre-flight and the restore agree by
-# construction. When it ran per call in a subshell the cache never propagated, and the two could
-# resolve DIFFERENTLY: pre-flight passing on a live read, then the restore's read failing and
-# falling back to the default — mounting a PVC that does not exist, after PMM is at 0.
+# Resolved ONCE, in the parent, so the pre-flight gate and the restore agree by construction —
+# resolving per call in a subshell let them differ, and the restore's fallback then mounted a PVC
+# that does not exist with PMM already at 0. Anything that can log has to run here rather than in
+# the accessor; see resolved_or_override.
 resolve_pmm_storage_pvc_prefix() {   # <statefulset-name>
     [ -z "${PMM_STORAGE_PVC_PREFIX}" ] || return 0            # explicit override wins
     [ -z "${PMM_STORAGE_PVC_PREFIX_RESOLVED}" ] || return 0    # already resolved this run
@@ -3326,16 +3303,47 @@ resolve_pmm_storage_pvc_prefix() {   # <statefulset-name>
 # Pure accessor: safe inside `$( )` because it never logs and never calls out to the cluster.
 # Returns non-zero if nothing has resolved the prefix yet, so a missing
 # resolve_pmm_storage_pvc_prefix call is a loud failure rather than a silent wrong name.
-pmm_storage_pvc_prefix() {
-    if [ -n "${PMM_STORAGE_PVC_PREFIX}" ]; then printf '%s' "${PMM_STORAGE_PVC_PREFIX}"; return 0; fi
-    [ -n "${PMM_STORAGE_PVC_PREFIX_RESOLVED}" ] || return 1
-    printf '%s' "${PMM_STORAGE_PVC_PREFIX_RESOLVED}"
-}
+pmm_storage_pvc_prefix() { resolved_or_override "${PMM_STORAGE_PVC_PREFIX}" "${PMM_STORAGE_PVC_PREFIX_RESOLVED}"; }
 
 pmm_storage_pvc_name() {   # <statefulset-name> <ordinal>
     _pspn_pfx=$(pmm_storage_pvc_prefix "$1") || return 1
     printf '%s%s-%s' "${_pspn_pfx}" "$1" "$2"
 }
+
+# The /srv restore pod's image, READ from the StatefulSet that owns the PVCs — never a hardcoded
+# default, which is a second copy of a chart value that drifts (DN-39). In s3 mode the pmm-backup
+# sidecar's image is preferred: it is the one container guaranteed to carry rclone, and the
+# pmm-server image ships none, so a guess would take the RWO /srv PVC and only then fail —
+# past the point of no return (DN-15). The shared path only needs tar.
+#
+# Split resolver/accessor for the same reason as pmm_storage_pvc_prefix: only the resolver may log.
+PMM_RESTORE_IMAGE="${PMM_RESTORE_IMAGE:-}"   # explicit override; empty = read it from the StatefulSet
+PMM_RESTORE_IMAGE_RESOLVED=""
+resolve_pmm_restore_image() {   # <statefulset-name>
+    [ -z "${PMM_RESTORE_IMAGE}" ] || return 0           # explicit override wins
+    [ -z "${PMM_RESTORE_IMAGE_RESOLVED}" ] || return 0  # already resolved this run
+    local _pri=""
+    if [ "${S3_ENABLED}" = "true" ]; then
+        _pri=$(kubectl get statefulset "$1" -n "${NAMESPACE}" \
+            -o jsonpath='{.spec.template.spec.containers[?(@.name=="pmm-backup")].image}' 2>/dev/null || true)
+    fi
+    [ -n "${_pri}" ] || _pri=$(kubectl get statefulset "$1" -n "${NAMESPACE}" \
+        -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+    if [ -z "${_pri}" ]; then
+        log "ERROR" "PMM ${1}: could not read a container image from the StatefulSet, so the /srv restore pod has no image."
+        log "ERROR" "  Refusing to guess one: a wrong image is a temp pod that takes the RWO /srv PVC and then fails."
+        log "ERROR" "  Check RBAC on statefulsets, or set PMM_RESTORE_IMAGE to an image with tar (and rclone for --target s3)."
+        return 1
+    fi
+    PMM_RESTORE_IMAGE_RESOLVED="${_pri}"
+    log "INFO" "PMM ${1}: /srv restore pod image is '${_pri}'"
+    return 0
+}
+
+# Pure accessor: safe inside `$( )` because it never logs and never reaches the cluster. Non-zero
+# when nothing has resolved the image yet, so a missing resolve_pmm_restore_image call is a loud
+# failure rather than an empty `image:` field that fails pod admission.
+pmm_restore_image() { resolved_or_override "${PMM_RESTORE_IMAGE}" "${PMM_RESTORE_IMAGE_RESOLVED}"; }
 
 # Find the central backup PVC (shared mode VM restore pod mounts it).
 resolve_central_backup_pvc() {
@@ -3352,52 +3360,72 @@ resolve_central_backup_pvc() {
     return 0
 }
 
+# The vmrestore temp pod's image: the vmstorage pod's OWN vmrestore sidecar first (version-matched
+# to the vmstorage that wrote the backup), then the explicit override.
+#
+# Deliberately NO ":latest" last resort: vmrestore reads vmstorage's on-disk format, so an
+# unpinned tag can be releases ahead of the data and would be pulled during a DR. A guess also
+# only moves the failure to a temp pod already holding the RWO vmstorage-db PVC (DN-39).
+#
+# Prints the image or nothing, and NEVER logs — every call site is inside `$( )`, where a log
+# line would be captured AS the image name. The caller reports the failure.
 get_vmrestore_image() {
     local pod="$1" img
     img=$(kubectl get pod -n "${NAMESPACE}" "${pod}" -o jsonpath='{.spec.containers[?(@.name=="vmrestore")].image}' 2>/dev/null || true)
     [ -n "${img}" ] && { echo "${img}"; return 0; }
     [ -n "${VMRESTORE_IMAGE}" ] && { echo "${VMRESTORE_IMAGE}"; return 0; }
-    echo "victoriametrics/vmrestore:latest"
+    return 1
 }
 
 # After the manifest is loaded, turn on every component the manifest has (unless
 # the user explicitly selected a subset).
+# Restore order: the encryption key first (nothing decrypts without it), then the three data
+# stores — which may run concurrently — and PMM /srv last, so PMM boots against everything
+# already in place.
+RESTORE_COMPONENTS="encryption postgresql clickhouse victoriametrics pmm-server"
+RESTORE_DB_COMPONENTS="postgresql clickhouse victoriametrics"
+
+# Does this backup actually carry the component, per its manifest?
+restore_has() { [ "$(comp_val "$1" 7 2>/dev/null)" = "success" ]; }
+# Is the component both selected AND present in the backup? This is the ONE predicate that
+# decides whether a component restore runs, and every gate below reads it — so "selected but
+# not in this backup" can never be confused with "it worked".
+restore_do() { comp_on "$1" 5 && restore_has "$1"; }
+# Mark a component's outcome: restore_ok <key> <true|false>
+restore_ok_set() { eval "$(comp_okvar "$1")=$2"; }
+restore_ok()     { [ "$(comp_val "$1" 8)" = "true" ]; }
+
+# "PG=true(success) CH=false(absent) ..." for the one plan line an operator reads.
+restore_plan_line() {
+    _rpl_c="" _rpl_out="" _rpl_st=""
+    for _rpl_c in ${RESTORE_COMPONENTS}; do
+        _rpl_st=$(comp_val "${_rpl_c}" 7)
+        _rpl_out="${_rpl_out} ${_rpl_c}=$(comp_val "${_rpl_c}" 5)(${_rpl_st:-none})"
+    done
+    printf '%s' "${_rpl_out}"
+}
+
 select_default_components() {
-    # Default (no explicit --<component>): restore everything the manifest marks 'success'.
-    if [ "${EXPLICIT_SELECTION}" != "true" ]; then
-        [ "${MF_PG_STATUS}" = "success" ]  && RESTORE_POSTGRESQL=true
-        [ "${MF_CH_STATUS}" = "success" ]  && RESTORE_CLICKHOUSE=true
-        [ "${MF_VM_STATUS}" = "success" ]  && RESTORE_VICTORIAMETRICS=true
-        [ "${MF_PMM_STATUS}" = "success" ] && RESTORE_PMM_SERVER=true
-        [ "${MF_ENC_STATUS}" = "success" ] && RESTORE_ENCRYPTION_KEY=true
-    fi
-    # Apply --skip-<component> last, so it overrides both the defaults and explicit selection.
-    [ "${SKIP_POSTGRESQL}" = "true" ]      && RESTORE_POSTGRESQL=false
-    [ "${SKIP_CLICKHOUSE}" = "true" ]      && RESTORE_CLICKHOUSE=false
-    [ "${SKIP_VICTORIAMETRICS}" = "true" ] && RESTORE_VICTORIAMETRICS=false
-    [ "${SKIP_PMM_SERVER}" = "true" ]      && RESTORE_PMM_SERVER=false
-    [ "${SKIP_ENCRYPTION_KEY}" = "true" ]  && RESTORE_ENCRYPTION_KEY=false
+    _sdc_row="" _sdc_key=""
+    for _sdc_row in ${COMPONENTS}; do
+        _sdc_key="${_sdc_row%%:*}"
+        # Default (no explicit --<component>): restore everything the manifest marks 'success'.
+        if [ "${EXPLICIT_SELECTION}" != "true" ] && [ "$(comp_val "${_sdc_key}" 7)" = "success" ]; then
+            eval "$(comp_rvar "${_sdc_key}")=true"
+        fi
+        # --skip-<component> is applied last, so it beats both the manifest default and an
+        # explicit selection.
+        if [ "$(comp_val "${_sdc_key}" 6)" = "true" ]; then
+            eval "$(comp_rvar "${_sdc_key}")=false"
+        fi
+    done
     return 0
 }
 
-################################################################################
-# Pre-restore validation gate.
-#
-# Everything a SELECTED component needs is proven here, while the cluster is still whole:
-# scale_down_pmm() is the point of no return. Fails CLOSED, does not short-circuit, and names
-# the --skip-<component> flag for each failure. See DN-15.
-################################################################################
-validate_restore_targets() {
+# Credentials for the temp restore pods, proven while the cluster is still whole. A missing
+# Secret or ServiceAccount is rejected at ADMISSION — i.e. after PMM is already scaled to 0.
+validate_temp_pod_credentials() {
     local fail=0
-
-    log "INFO" "Validating restore targets for ${BACKUP_NAME} (nothing has been changed yet)..."
-
-    # No "checks skipped" degradation any more. That branch existed because the object checks
-    # ran through a client pod which a --dry-run against a scaled-down PMM did not have — so a
-    # dry run silently validated nothing. rclone is local now: the checks either run or
-    # preflight_checks has already refused the operation.
-
-    # ---- Cross-cutting: temp-pod credentials -------------------------------------
     # vmrestore, /srv restore and the s3 client pod are all rendered with
     # TEMP_POD_SA_LINE + TEMP_POD_S3_KEYS_ENV. A missing Secret or ServiceAccount is
     # rejected at ADMISSION — i.e. after PMM is already down (see parse_args()).
@@ -3444,247 +3472,298 @@ validate_restore_targets() {
             fi
         fi
     fi
+    return ${fail}
+}
 
-    # ---- Encryption key ----------------------------------------------------------
+validate_restore_encryption() {
+    local fail=0
     # Not overridable by consent. --yes answers the confirmation prompt and nothing else
     # (DN-44), so there is no flag an automated restore could carry that would quietly turn
     # this check off — which matters because automation is where restores actually run, and
     # because the only way past this gate should name what is being given up.
     # --skip-encryption-key is that explicit, narrow override.
-    if [ "${RESTORE_ENCRYPTION_KEY}" = "true" ] && [ "${MF_ENC_STATUS}" = "success" ]; then
-        # One path, one probe: s3_object_state routes through store_bytes, which handles both
-        # targets and preserves the could-not-look signal that `[ -s ]` cannot express.
-        local _enc_path="$(comp_path encryption)/pg-encryption-key.yaml"
-        _st=0; s3_object_state "${_enc_path}" || _st=$?
-        report_state "${_st}" "encryption" "key ${_enc_path}" "--skip-encryption-key to drop it" || fail=1
-    fi
+    # One path, one probe: s3_object_state routes through store_bytes, which handles both
+    # targets and preserves the could-not-look signal that `[ -s ]` cannot express.
+    local _enc_path="$(comp_path encryption)/pg-encryption-key.yaml"
+    _st=0; s3_object_state "${_enc_path}" || _st=$?
+    report_state "${_st}" "encryption" "key ${_enc_path}" "--skip-encryption-key to drop it" || fail=1
+    return ${fail}
+}
 
-    # ---- PostgreSQL --------------------------------------------------------------
-    if [ "${RESTORE_POSTGRESQL}" = "true" ] && [ "${MF_PG_STATUS}" = "success" ]; then
-        local _pgpod="" _db
-        _pgpod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PG_PRIMARY}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-        if [ -z "${_pgpod}" ]; then
-            log "ERROR" "[Preflight] postgresql: no primary pod matching '${LABEL_PG_PRIMARY}' (--skip-postgresql to drop it)"
+validate_restore_postgresql() {
+    local fail=0
+    local _pgpod="" _db
+    _pgpod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PG_PRIMARY}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [ -z "${_pgpod}" ]; then
+        log "ERROR" "[Preflight] postgresql: no primary pod matching '${LABEL_PG_PRIMARY}' (--skip-postgresql to drop it)"
+        fail=1
+    fi
+    if [ -z "${MF_PG_DBS}" ]; then
+        log "ERROR" "[Preflight] postgresql: manifest records no databases"
+        fail=1
+    else
+        # One branch for both targets now: object_size_state routes through store_bytes,
+        # which absorbs the s3/shared difference AND preserves the could-not-look signal
+        # that the old `[ ! -s ]` arm could not express.
+        local _exp=""
+        for _db in ${MF_PG_DBS}; do
+            _exp=$(jq -r --arg d "${_db}" '.components.postgresql.files[$d] // empty' "${MANIFEST_FILE}" 2>/dev/null || true)
+            _st=0; object_size_state "$(comp_path postgresql)/${_db}.dump" "${_exp}" || _st=$?
+            report_state "${_st}" "postgresql" "dump ${_db}.dump${OBJECT_SIZE_DETAIL:+ — ${OBJECT_SIZE_DETAIL}}" "--skip-postgresql to drop it" || fail=1
+        done
+    fi
+    return ${fail}
+}
+
+validate_restore_clickhouse() {
+    local fail=0
+    local _chpod=""
+    _chpod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_CH_POD}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [ -z "${_chpod}" ]; then
+        log "ERROR" "[Preflight] clickhouse: no pod matching '${LABEL_CH_POD}' (--skip-clickhouse to drop it)"
+        fail=1
+    elif [ -z "${MF_CH_NAME}" ]; then
+        log "ERROR" "[Preflight] clickhouse: manifest records no backup name"
+        fail=1
+    elif [ "${S3_ENABLED}" = "true" ]; then
+        # Mirror restore_clickhouse()'s --env overrides exactly, or this gate checks a different place
+        # from the one the restore will read (DN-33). The listing's exit status is captured SEPARATELY
+        # from the name match: piping into grep would report an unreachable sidecar as "backup not
+        # found" and refuse a restore whose data is fine (DN-15).
+        #
+        # Its own timeout budget: `list remote` reads metadata for every remote backup, so 30s is too
+        # tight on a populated bucket, while 600s would stall a --dry-run for ten silent minutes.
+        local _ch_list="" _ch_rc=0
+        log "INFO" "[Preflight] clickhouse: listing remote backups (can take a while on a populated bucket)..."
+        _ch_list=$(timeout "${CH_LIST_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_chpod}" -c clickhouse-backup -- \
+            clickhouse-backup list remote \
+            --env "S3_BUCKET=$(ch_restore_bucket)" --env "S3_PATH=$(ch_restore_path)" 2>/dev/null) || _ch_rc=$?
+        if [ "${_ch_rc}" -ne 0 ]; then
+            log "ERROR" "[Preflight] clickhouse: could not list remote backups (exit ${_ch_rc}); is the 'clickhouse-backup' sidecar running in ${_chpod}?"
+            log "ERROR" "[Preflight]   Not treating this as 'backup absent' — the check itself failed. Fix the sidecar, or pass --skip-clickhouse."
+            fail=1
+        elif ! echo "${_ch_list}" | awk '{print $1}' | grep -Fxq "${MF_CH_NAME}"; then
+            log "ERROR" "[Preflight] clickhouse: remote backup '${MF_CH_NAME}' not found under s3://$(ch_restore_bucket)/$(ch_restore_path)"
+            log "ERROR" "[Preflight]   ClickHouse retention prunes independently of the central backups, so an older backup can outlive its ClickHouse half."
+            log "ERROR" "[Preflight]   Restore a newer backup, or pass --skip-clickhouse to restore everything else without QAN data."
             fail=1
         fi
-        if [ -z "${MF_PG_DBS}" ]; then
-            log "ERROR" "[Preflight] postgresql: manifest records no databases"
+    # shared mode: restore_clickhouse() untars from SHARED_MOUNT_PATH *inside the CH pod*,
+    # a different mount from the orchestrator's own BACKUP_DIR — checking the local path
+    # would prove the wrong end. `sh -c '[ -s ]'` mirrors how the restore reads it, and
+    # the exit status is split three ways for the same reason as the S3 branch: an RBAC
+    # denial, an unready pod, a missing clickhouse-backup container or an image without
+    # `test` must not be reported as "your tarball is gone".
+    else
+        # `test -s` as separate argv entries, NOT interpolated into `sh -c` (DN-17). `test` prints
+        # nothing and returns 1 for false, while kubectl exec also returns 1 for its OWN failures —
+        # they are told apart by stderr, which kubectl writes and `test` never does.
+        local _cht_rc=0 _cht_err=""
+        _cht_err=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_chpod}" -c clickhouse-backup -- \
+            test -s "$(comp_inpod clickhouse)/${MF_CH_NAME}.tar.gz" 2>&1 >/dev/null) || _cht_rc=$?
+        if [ "${_cht_rc}" -eq 0 ]; then
+            :
+        elif [ "${_cht_rc}" -eq 1 ] && [ -z "${_cht_err}" ]; then
+            report_state 1 "clickhouse" "$(comp_inpod clickhouse)/${MF_CH_NAME}.tar.gz inside ${_chpod}" "--skip-clickhouse to drop it" || fail=1
+        else
+            log "ERROR" "[Preflight] clickhouse: could not test the tarball inside ${_chpod} (rc ${_cht_rc}): ${_cht_err:-no stderr}"
+            log "ERROR" "[Preflight]   NOT treating this as 'backup absent' — fix the pod/RBAC, or pass --skip-clickhouse."
+            fail=1
+        fi
+    fi
+    return ${fail}
+}
+
+validate_restore_victoriametrics() {
+    local fail=0
+    local _vmpods="" _vmcluster="" _vmtarget="" _vmsrc="" _p _ord="" _sub="" _vmname="" _vmimg=""
+    _vmpods=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+    _vmcluster=$(kubectl get vmcluster -n "${NAMESPACE}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [ -z "${_vmpods}" ]; then
+        log "ERROR" "[Preflight] victoriametrics: no vmstorage pods matching '${LABEL_VM_STORAGE}' (--skip-victoriametrics to drop it)"
+        fail=1
+    fi
+    if [ -z "${_vmcluster}" ]; then
+        log "ERROR" "[Preflight] victoriametrics: no VMCluster resource; the restore could not scale it safely"
+        fail=1
+    fi
+    # The temp pod's image, proven while the tier is still up. get_vmrestore_image no longer
+    # guesses ":latest", so it can refuse — and discovering that inside the per-ordinal loop
+    # means discovering it with vmstorage already at 0 replicas (DN-15).
+    if [ -n "${_vmpods}" ]; then
+        _vmimg=$(get_vmrestore_image "$(echo "${_vmpods}" | awk '{print $1}')") || _vmimg=""
+        if [ -z "${_vmimg}" ]; then
+            log "ERROR" "[Preflight] victoriametrics: no vmrestore image — the vmstorage pods have no 'vmrestore' container and VMRESTORE_IMAGE is unset."
+            log "ERROR" "[Preflight]   Set victoriaMetrics.vmstorage.backup.restoreImage in the chart, or VMRESTORE_IMAGE=<image>; it must match the vmstorage version that wrote the backup."
+            fail=1
+        fi
+    fi
+    # Shard-count mismatch was already checked inside restore_victoriametrics(), but that
+    # runs with PMM ALREADY DOWN. Hoisted here so it aborts while the cluster is intact.
+    if [ -n "${_vmpods}" ]; then
+        _vmtarget=$(echo "${_vmpods}" | wc -w | tr -d ' ')
+        _vmsrc=$(vm_src_ordinal_count 2>/dev/null || echo "")
+        if [ -n "${_vmsrc}" ] && [ "${_vmsrc}" -gt 0 ] 2>/dev/null && [ "${_vmsrc}" != "${_vmtarget}" ]; then
+            log "ERROR" "[Preflight] victoriametrics: shard-count mismatch — backup has ${_vmsrc} vmstorage ordinal(s), target has ${_vmtarget}. Set vmstorage replicaCount to ${_vmsrc} and retry."
             fail=1
         else
-            # One branch for both targets now: object_size_state routes through store_bytes,
-            # which absorbs the s3/shared difference AND preserves the could-not-look signal
-            # that the old `[ ! -s ]` arm could not express.
-            local _exp=""
-            for _db in ${MF_PG_DBS}; do
-                _exp=$(jq -r --arg d "${_db}" '.components.postgresql.files[$d] // empty' "${MANIFEST_FILE}" 2>/dev/null || true)
-                _st=0; object_size_state "$(comp_path postgresql)/${_db}.dump" "${_exp}" || _st=$?
-                report_state "${_st}" "postgresql" "dump ${_db}.dump${OBJECT_SIZE_DETAIL:+ — ${OBJECT_SIZE_DETAIL}}" "--skip-postgresql to drop it" || fail=1
-            done
-        fi
-    fi
-
-    # ---- ClickHouse --------------------------------------------------------------
-    if [ "${RESTORE_CLICKHOUSE}" = "true" ] && [ "${MF_CH_STATUS}" = "success" ]; then
-        local _chpod=""
-        _chpod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_CH_POD}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-        if [ -z "${_chpod}" ]; then
-            log "ERROR" "[Preflight] clickhouse: no pod matching '${LABEL_CH_POD}' (--skip-clickhouse to drop it)"
-            fail=1
-        elif [ -z "${MF_CH_NAME}" ]; then
-            log "ERROR" "[Preflight] clickhouse: manifest records no backup name"
-            fail=1
-        elif [ "${S3_ENABLED}" = "true" ]; then
-            # Mirror restore_clickhouse()'s --env overrides exactly, or this gate checks a different place
-            # from the one the restore will read (DN-33). The listing's exit status is captured SEPARATELY
-            # from the name match: piping into grep would report an unreachable sidecar as "backup not
-            # found" and refuse a restore whose data is fine (DN-15).
-            #
-            # Its own timeout budget: `list remote` reads metadata for every remote backup, so 30s is too
-            # tight on a populated bucket, while 600s would stall a --dry-run for ten silent minutes.
-            local _ch_list="" _ch_rc=0
-            log "INFO" "[Preflight] clickhouse: listing remote backups (can take a while on a populated bucket)..."
-            _ch_list=$(timeout "${CH_LIST_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_chpod}" -c clickhouse-backup -- \
-                clickhouse-backup list remote \
-                --env "S3_BUCKET=$(ch_restore_bucket)" --env "S3_PATH=$(ch_restore_path)" 2>/dev/null) || _ch_rc=$?
-            if [ "${_ch_rc}" -ne 0 ]; then
-                log "ERROR" "[Preflight] clickhouse: could not list remote backups (exit ${_ch_rc}); is the 'clickhouse-backup' sidecar running in ${_chpod}?"
-                log "ERROR" "[Preflight]   Not treating this as 'backup absent' — the check itself failed. Fix the sidecar, or pass --skip-clickhouse."
-                fail=1
-            elif ! echo "${_ch_list}" | awk '{print $1}' | grep -Fxq "${MF_CH_NAME}"; then
-                log "ERROR" "[Preflight] clickhouse: remote backup '${MF_CH_NAME}' not found under s3://$(ch_restore_bucket)/$(ch_restore_path)"
-                log "ERROR" "[Preflight]   ClickHouse retention prunes independently of the central backups, so an older backup can outlive its ClickHouse half."
-                log "ERROR" "[Preflight]   Restore a newer backup, or pass --skip-clickhouse to restore everything else without QAN data."
-                fail=1
+            # vm_src_subdir_for_ord() is what vm_src_for_pod() resolves internally; calling
+            # it directly gives the subdir needed to also inspect the directory's CONTENTS.
+            _vmname="vm_backup_${BACKUP_NAME#backup_}"
+            # Prove the parent listing works before reading anything into per-ordinal
+            # absence (see backup_subdir_listable). The flag guards the loop instead of
+            # blanking _vmpods: poisoning the pod list would silently mislead any check
+            # added after this block into seeing zero pods.
+            local _vm_skip=false
+            if ! backup_subdir_listable victoriametrics; then
+                report_state 2 "victoriametrics" "${BACKUP_NAME}/victoriametrics/" || fail=1
+                _vm_skip=true
             fi
-        # shared mode: restore_clickhouse() untars from SHARED_MOUNT_PATH *inside the CH pod*,
-        # a different mount from the orchestrator's own BACKUP_DIR — checking the local path
-        # would prove the wrong end. `sh -c '[ -s ]'` mirrors how the restore reads it, and
-        # the exit status is split three ways for the same reason as the S3 branch: an RBAC
-        # denial, an unready pod, a missing clickhouse-backup container or an image without
-        # `test` must not be reported as "your tarball is gone".
-        else
-            # `test -s` as separate argv entries, NOT interpolated into `sh -c` (DN-17). `test` prints
-            # nothing and returns 1 for false, while kubectl exec also returns 1 for its OWN failures —
-            # they are told apart by stderr, which kubectl writes and `test` never does.
-            local _cht_rc=0 _cht_err=""
-            _cht_err=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_chpod}" -c clickhouse-backup -- \
-                test -s "$(comp_inpod clickhouse)/${MF_CH_NAME}.tar.gz" 2>&1 >/dev/null) || _cht_rc=$?
-            if [ "${_cht_rc}" -eq 0 ]; then
-                :
-            elif [ "${_cht_rc}" -eq 1 ] && [ -z "${_cht_err}" ]; then
-                report_state 1 "clickhouse" "$(comp_inpod clickhouse)/${MF_CH_NAME}.tar.gz inside ${_chpod}" "--skip-clickhouse to drop it" || fail=1
-            else
-                log "ERROR" "[Preflight] clickhouse: could not test the tarball inside ${_chpod} (rc ${_cht_rc}): ${_cht_err:-no stderr}"
-                log "ERROR" "[Preflight]   NOT treating this as 'backup absent' — fix the pod/RBAC, or pass --skip-clickhouse."
-                fail=1
-            fi
-        fi
-    fi
-
-    # ---- VictoriaMetrics ---------------------------------------------------------
-    if [ "${RESTORE_VICTORIAMETRICS}" = "true" ] && [ "${MF_VM_STATUS}" = "success" ]; then
-        local _vmpods="" _vmcluster="" _vmtarget="" _vmsrc="" _p _ord="" _sub="" _vmname=""
-        _vmpods=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
-        _vmcluster=$(kubectl get vmcluster -n "${NAMESPACE}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-        if [ -z "${_vmpods}" ]; then
-            log "ERROR" "[Preflight] victoriametrics: no vmstorage pods matching '${LABEL_VM_STORAGE}' (--skip-victoriametrics to drop it)"
-            fail=1
-        fi
-        if [ -z "${_vmcluster}" ]; then
-            log "ERROR" "[Preflight] victoriametrics: no VMCluster resource; the restore could not scale it safely"
-            fail=1
-        fi
-        # Shard-count mismatch was already checked inside restore_victoriametrics(), but that
-        # runs with PMM ALREADY DOWN. Hoisted here so it aborts while the cluster is intact.
-        if [ -n "${_vmpods}" ]; then
-            _vmtarget=$(echo "${_vmpods}" | wc -w | tr -d ' ')
-            _vmsrc=$(vm_src_ordinal_count 2>/dev/null || echo "")
-            if [ -n "${_vmsrc}" ] && [ "${_vmsrc}" -gt 0 ] 2>/dev/null && [ "${_vmsrc}" != "${_vmtarget}" ]; then
-                log "ERROR" "[Preflight] victoriametrics: shard-count mismatch — backup has ${_vmsrc} vmstorage ordinal(s), target has ${_vmtarget}. Set vmstorage replicaCount to ${_vmsrc} and retry."
-                fail=1
-            else
-                # vm_src_subdir_for_ord() is what vm_src_for_pod() resolves internally; calling
-                # it directly gives the subdir needed to also inspect the directory's CONTENTS.
-                _vmname="vm_backup_${BACKUP_NAME#backup_}"
-                # Prove the parent listing works before reading anything into per-ordinal
-                # absence (see backup_subdir_listable). The flag guards the loop instead of
-                # blanking _vmpods: poisoning the pod list would silently mislead any check
-                # added after this block into seeing zero pods.
-                local _vm_skip=false
-                if ! backup_subdir_listable victoriametrics; then
-                    report_state 2 "victoriametrics" "${BACKUP_NAME}/victoriametrics/" || fail=1
-                    _vm_skip=true
-                fi
-                if [ "${_vm_skip}" != "true" ]; then
-                for _p in ${_vmpods}; do
-                    _ord="${_p##*-}"
-                    # Target side, same reasoning as the pmm-server block below: vmrestore's temp
-                    # pod mounts this PVC by name while vmstorage is scaled to 0, so a name that
-                    # does not resolve strands the run past the point of no return (DN-39).
-                    local _vpvc=""
-                    _vpvc=$(vmstorage_pvc_name "${_p}")
-                    _st=0; k8s_object_state persistentvolumeclaim "${_vpvc}" || _st=$?
-                    if [ "${_st}" -eq 1 ]; then
-                        log "ERROR" "[Preflight] victoriametrics: PVC '${_vpvc}' does not exist, so the restore pod for ${_p} would never schedule (override with VM_STORAGE_PVC_PREFIX)"
-                        fail=1
-                    elif [ "${_st}" -ne 0 ]; then
-                        log "ERROR" "[Preflight] victoriametrics: could not check PVC '${_vpvc}' (403/timeout?); NOT treating this as 'PVC absent'"
-                        fail=1
-                    fi
-                    _sub=$(vm_src_subdir_for_ord "${_ord}" 2>/dev/null || echo "")
-                    if [ -z "${_sub}" ]; then
-                        log "ERROR" "[Preflight] victoriametrics: backup has no source directory for ordinal '${_ord}' (pod ${_p})"
-                        fail=1
-                        continue
-                    fi
-                    # A directory being LISTED is not the same as it holding data: vmrestore against an empty or
-                    # truncated vm_backup_<id>/ fails only once PMM is down. One listing per ordinal proves there
-                    # is something to restore, with the listing's own status captured first (DN-03).
-                    local _vmls="" _vmrc=0
-                    _vmls=$(store_list "$(comp_path victoriametrics)/${_sub}/${_vmname}" 2>/dev/null) || _vmrc=$?
-                    if [ "${_vmrc}" -ne 0 ]; then
-                        report_state 2 "victoriametrics" "source for ordinal '${_ord}' (${_sub}/${_vmname})" "--skip-victoriametrics to drop it" || fail=1
-                    elif [ -z "${_vmls}" ]; then
-                        report_state 1 "victoriametrics" "source for ordinal '${_ord}' (${_sub}/${_vmname})" "--skip-victoriametrics to drop it" || fail=1
-                    fi
-                done
-                fi
-            fi
-        fi
-    fi
-
-    # ---- PMM server /srv ---------------------------------------------------------
-    if [ "${RESTORE_PMM_SERVER}" = "true" ] && [ "${MF_PMM_STATUS}" = "success" ]; then
-        local _sts="" _replicas="" _i=0 _sub="" _pexp=""
-        _sts=$(kubectl get statefulset -n "${NAMESPACE}" -l "${LABEL_PMM_SERVER}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-        if [ -z "${_sts}" ]; then
-            log "ERROR" "[Preflight] pmm-server: no StatefulSet matching '${LABEL_PMM_SERVER}' (--skip-pmm-server to drop it)"
-            fail=1
-        else
-            # THE resolver restore_pmm_server uses, so the ordinals checked here are exactly
-            # the ordinals it will iterate. It used to be a third hand-rolled copy of the same
-            # ladder, and the only one that checked the answer is a number.
-            _replicas=$(pmm_replica_count "${_sts}")
-            # Belt and braces: a non-numeric count would make the `-lt` below exit 2, the loop
-            # body never run, and this gate report SUCCESS without validating a single ordinal.
-            # A silent skip is worse than no gate. pmm_replica_count cannot return one, so this
-            # only fires if that contract is ever broken.
-            case "${_replicas}" in
-                ''|*[!0-9]*)
-                    log "ERROR" "[Preflight] pmm-server: replica count '${_replicas}' is not a number; cannot determine which ordinals to validate"
-                    fail=1
-                    _replicas=0
-                    ;;
-            esac
-            # As for VictoriaMetrics: a failed parent listing must not read as "every ordinal
-            # is missing", or a transient error refuses the restore and blames the backup.
-            if [ "${_replicas}" -gt 0 ] && ! backup_subdir_listable pmm-server; then
-                report_state 2 "pmm-server" "${BACKUP_NAME}/pmm-server/" || fail=1
-                _replicas=0
-            fi
-            # Resolved HERE, in the parent, once — the accessor used inside the loop cannot log
-            # and cannot reach the cluster, so this is the call that either establishes the
-            # prefix for the whole run or fails the gate. Both this loop and restore_pmm_server
-            # then read the SAME cached value, which is what makes the check below meaningful.
-            if [ "${_replicas}" -gt 0 ] && ! resolve_pmm_storage_pvc_prefix "${_sts}"; then
-                log "ERROR" "[Preflight] pmm-server: cannot determine the /srv PVC names (--skip-pmm-server to drop it)"
-                fail=1
-                _replicas=0
-            fi
-            while [ "${_i}" -lt "${_replicas}" ]; do
-                # The TARGET side of the restore, proven while PMM is still up. The temp pod
-                # mounts this PVC by name; a name that does not resolve leaves the pod Pending
-                # until the 300s readiness wait gives up — with PMM already at 0 replicas, which
-                # is precisely what this gate exists to prevent (DN-15, DN-39). Same cached
-                # prefix restore_pmm_server will use, so this proves the real thing.
-                local _ppvc=""
-                _ppvc=$(pmm_storage_pvc_name "${_sts}" "${_i}") || { log "ERROR" "[Preflight] pmm-server: PVC name for ordinal ${_i} could not be built"; fail=1; break; }
-                _st=0; k8s_object_state persistentvolumeclaim "${_ppvc}" || _st=$?
+            if [ "${_vm_skip}" != "true" ]; then
+            for _p in ${_vmpods}; do
+                _ord="${_p##*-}"
+                # Target side, same reasoning as the pmm-server block below: vmrestore's temp
+                # pod mounts this PVC by name while vmstorage is scaled to 0, so a name that
+                # does not resolve strands the run past the point of no return (DN-39).
+                local _vpvc=""
+                _vpvc=$(vmstorage_pvc_name "${_p}")
+                _st=0; k8s_object_state persistentvolumeclaim "${_vpvc}" || _st=$?
                 if [ "${_st}" -eq 1 ]; then
-                    log "ERROR" "[Preflight] pmm-server: PVC '${_ppvc}' does not exist, so the ordinal ${_i} restore pod would never schedule"
-                    log "ERROR" "[Preflight]   The name comes from the StatefulSet's volumeClaimTemplate; override with PMM_STORAGE_PVC_PREFIX if that is wrong."
+                    log "ERROR" "[Preflight] victoriametrics: PVC '${_vpvc}' does not exist, so the restore pod for ${_p} would never schedule (override with VM_STORAGE_PVC_PREFIX)"
                     fail=1
                 elif [ "${_st}" -ne 0 ]; then
-                    log "ERROR" "[Preflight] pmm-server: could not check PVC '${_ppvc}' (403/timeout?); NOT treating this as 'PVC absent'"
+                    log "ERROR" "[Preflight] victoriametrics: could not check PVC '${_vpvc}' (403/timeout?); NOT treating this as 'PVC absent'"
                     fail=1
                 fi
-                _sub=$(pmm_src_subdir_for_ord "${_i}" 2>/dev/null || echo "")
+                _sub=$(vm_src_subdir_for_ord "${_ord}" 2>/dev/null || echo "")
                 if [ -z "${_sub}" ]; then
-                    # restore_pmm_server() only WARNs and skips here, so without this gate a
-                    # PMM replica silently keeps its pre-restore /srv while the run reports success.
-                    log "ERROR" "[Preflight] pmm-server: backup has no /srv directory for ordinal ${_i} (${_replicas} replica(s) expected)"
+                    log "ERROR" "[Preflight] victoriametrics: backup has no source directory for ordinal '${_ord}' (pod ${_p})"
                     fail=1
-                else
-                    # Expected size is keyed by the SOURCE pod name, which is exactly the
-                    # subdirectory just resolved for this ordinal. One branch for both targets.
-                    _pexp=$(jq -r --arg p "${_sub}" '.components["pmm-server"].files[$p] // empty' "${MANIFEST_FILE}" 2>/dev/null || true)
-                    _st=0; object_size_state "$(comp_path pmm-server)/${_sub}/srv.tar.gz" "${_pexp}" || _st=$?
-                    report_state "${_st}" "pmm-server" "srv.tar.gz for ordinal ${_i} (${_sub})${OBJECT_SIZE_DETAIL:+ — ${OBJECT_SIZE_DETAIL}}" "--skip-pmm-server to drop it" || fail=1
+                    continue
                 fi
-                _i=$((_i + 1))
+                # A directory being LISTED is not the same as it holding data: vmrestore against an empty or
+                # truncated vm_backup_<id>/ fails only once PMM is down. One listing per ordinal proves there
+                # is something to restore, with the listing's own status captured first (DN-03).
+                local _vmls="" _vmrc=0
+                _vmls=$(store_list "$(comp_path victoriametrics)/${_sub}/${_vmname}" 2>/dev/null) || _vmrc=$?
+                if [ "${_vmrc}" -ne 0 ]; then
+                    report_state 2 "victoriametrics" "source for ordinal '${_ord}' (${_sub}/${_vmname})" "--skip-victoriametrics to drop it" || fail=1
+                elif [ -z "${_vmls}" ]; then
+                    report_state 1 "victoriametrics" "source for ordinal '${_ord}' (${_sub}/${_vmname})" "--skip-victoriametrics to drop it" || fail=1
+                fi
             done
+            fi
         fi
     fi
+    return ${fail}
+}
+
+validate_restore_pmm_server() {
+    local fail=0
+    local _sts="" _replicas="" _i=0 _sub="" _pexp=""
+    _sts=$(kubectl get statefulset -n "${NAMESPACE}" -l "${LABEL_PMM_SERVER}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [ -z "${_sts}" ]; then
+        log "ERROR" "[Preflight] pmm-server: no StatefulSet matching '${LABEL_PMM_SERVER}' (--skip-pmm-server to drop it)"
+        fail=1
+    else
+        # THE resolver restore_pmm_server uses, so the ordinals checked here are exactly
+        # the ordinals it will iterate. It used to be a third hand-rolled copy of the same
+        # ladder, and the only one that checked the answer is a number.
+        _replicas=$(pmm_replica_count "${_sts}")
+        # Belt and braces: a non-numeric count would make the `-lt` below exit 2, the loop
+        # body never run, and this gate report SUCCESS without validating a single ordinal.
+        # A silent skip is worse than no gate. pmm_replica_count cannot return one, so this
+        # only fires if that contract is ever broken.
+        case "${_replicas}" in
+            ''|*[!0-9]*)
+                log "ERROR" "[Preflight] pmm-server: replica count '${_replicas}' is not a number; cannot determine which ordinals to validate"
+                fail=1
+                _replicas=0
+                ;;
+        esac
+        # As for VictoriaMetrics: a failed parent listing must not read as "every ordinal
+        # is missing", or a transient error refuses the restore and blames the backup.
+        if [ "${_replicas}" -gt 0 ] && ! backup_subdir_listable pmm-server; then
+            report_state 2 "pmm-server" "${BACKUP_NAME}/pmm-server/" || fail=1
+            _replicas=0
+        fi
+        # Resolved HERE, in the parent, once — the accessor used inside the loop cannot log
+        # and cannot reach the cluster, so this is the call that either establishes the
+        # prefix for the whole run or fails the gate. Both this loop and restore_pmm_server
+        # then read the SAME cached value, which is what makes the check below meaningful.
+        if [ "${_replicas}" -gt 0 ] && ! resolve_pmm_storage_pvc_prefix "${_sts}"; then
+            log "ERROR" "[Preflight] pmm-server: cannot determine the /srv PVC names (--skip-pmm-server to drop it)"
+            fail=1
+            _replicas=0
+        fi
+        # Same reasoning for the temp pod's image, and the same cached resolver
+        # restore_pmm_server reads — so this proves the real thing rather than a lookalike.
+        if [ "${_replicas}" -gt 0 ] && ! resolve_pmm_restore_image "${_sts}"; then
+            log "ERROR" "[Preflight] pmm-server: cannot determine the /srv restore pod image (--skip-pmm-server to drop it)"
+            fail=1
+            _replicas=0
+        fi
+        while [ "${_i}" -lt "${_replicas}" ]; do
+            # The TARGET side of the restore, proven while PMM is still up. The temp pod
+            # mounts this PVC by name; a name that does not resolve leaves the pod Pending
+            # until the 300s readiness wait gives up — with PMM already at 0 replicas, which
+            # is precisely what this gate exists to prevent (DN-15, DN-39). Same cached
+            # prefix restore_pmm_server will use, so this proves the real thing.
+            local _ppvc=""
+            _ppvc=$(pmm_storage_pvc_name "${_sts}" "${_i}") || { log "ERROR" "[Preflight] pmm-server: PVC name for ordinal ${_i} could not be built"; fail=1; break; }
+            _st=0; k8s_object_state persistentvolumeclaim "${_ppvc}" || _st=$?
+            if [ "${_st}" -eq 1 ]; then
+                log "ERROR" "[Preflight] pmm-server: PVC '${_ppvc}' does not exist, so the ordinal ${_i} restore pod would never schedule"
+                log "ERROR" "[Preflight]   The name comes from the StatefulSet's volumeClaimTemplate; override with PMM_STORAGE_PVC_PREFIX if that is wrong."
+                fail=1
+            elif [ "${_st}" -ne 0 ]; then
+                log "ERROR" "[Preflight] pmm-server: could not check PVC '${_ppvc}' (403/timeout?); NOT treating this as 'PVC absent'"
+                fail=1
+            fi
+            _sub=$(pmm_src_subdir_for_ord "${_i}" 2>/dev/null || echo "")
+            if [ -z "${_sub}" ]; then
+                # restore_pmm_server() only WARNs and skips here, so without this gate a
+                # PMM replica silently keeps its pre-restore /srv while the run reports success.
+                log "ERROR" "[Preflight] pmm-server: backup has no /srv directory for ordinal ${_i} (${_replicas} replica(s) expected)"
+                fail=1
+            else
+                # Expected size is keyed by the SOURCE pod name, which is exactly the
+                # subdirectory just resolved for this ordinal. One branch for both targets.
+                _pexp=$(jq -r --arg p "${_sub}" '.components["pmm-server"].files[$p] // empty' "${MANIFEST_FILE}" 2>/dev/null || true)
+                _st=0; object_size_state "$(comp_path pmm-server)/${_sub}/srv.tar.gz" "${_pexp}" || _st=$?
+                report_state "${_st}" "pmm-server" "srv.tar.gz for ordinal ${_i} (${_sub})${OBJECT_SIZE_DETAIL:+ — ${OBJECT_SIZE_DETAIL}}" "--skip-pmm-server to drop it" || fail=1
+            fi
+            _i=$((_i + 1))
+        done
+    fi
+    return ${fail}
+}
+
+# Pre-restore validation gate.
+#
+# Everything a SELECTED component needs is proven here, while the cluster is still whole:
+# scale_down_pmm() is the point of no return. Fails CLOSED, does NOT short-circuit — an operator
+# mid-incident needs every problem in one pass, not the first one — and names the
+# --skip-<component> flag for each failure. See DN-15.
+#
+# One per-component gate each, dispatched off the component table, so a component cannot be
+# added to the restore and silently left unvalidated.
+validate_restore_targets() {
+    local fail=0 _vrt_c="" _vrt_fn=""
+
+    log "INFO" "Validating restore targets for ${BACKUP_NAME} (nothing has been changed yet)..."
+
+    # No "checks skipped" degradation: the object checks used to run through a client pod that a
+    # --dry-run against a scaled-down PMM did not have, so a dry run silently validated nothing.
+    # rclone is local now — the checks either run, or preflight_checks already refused the run.
+    validate_temp_pod_credentials || fail=1
+    for _vrt_c in ${RESTORE_COMPONENTS}; do
+        # Only what this restore will actually touch. A component that is selected but absent
+        # from the backup is already a hard error in cmd_restore's explicit-selection gate.
+        restore_do "${_vrt_c}" || continue
+        _vrt_fn="validate_restore_$(printf '%s' "${_vrt_c}" | tr '-' '_')"
+        "${_vrt_fn}" || fail=1
+    done
 
     if [ "${fail}" -ne 0 ]; then
         log "ERROR" "Pre-restore validation FAILED. Nothing was changed; PMM is still running."
@@ -3703,12 +3782,9 @@ restore_cleanup() {
     # pmm-storage), which would otherwise wedge the real pod on Multi-Attach at scale-up.
     #
     # ONLY if this run actually created one. The sweep is by LABEL, so an unconditional version
-    # deleted pods belonging to a DIFFERENT, live restore: the EXIT trap is installed before
-    # acquire_locks, so a second run that aborts at the non-TTY/--force gate or on
-    # acquire_component_lock's `exit 1` — the documented "my kubectl exec dropped, re-run it"
-    # hazard — ran this and killed the in-flight run's vmrestore or /srv pod mid-write, leaving
-    # that ordinal truncated. release_locks is ownership-checked for exactly this reason; this
-    # sweep had no equivalent. TEMP_PODS_MARKER is our ownership proof.
+    # kills a DIFFERENT, live restore's pods mid-write: the EXIT trap is installed before
+    # acquire_locks, so a second run aborting at the consent gate or on a held lock would run
+    # this. TEMP_PODS_MARKER is the ownership proof, as the holder check is for release_locks.
     local _c
     if [ -n "${TEMP_PODS_MARKER}" ] && [ -e "${TEMP_PODS_MARKER}" ]; then
         _rc_sweep_ok=true
@@ -3726,6 +3802,13 @@ restore_cleanup() {
             log "WARN" "Temp-pod cleanup did not complete; keeping the marker so the next cleanup pass retries it"
         fi
     fi
+    # The local copy of the manifest, reaped HERE rather than only on cmd_restore's two exit paths.
+    # Every early `exit 1` between load_manifest and those paths — the explicit-selection gate, a
+    # failed pre-flight, the non-interactive refusal, a failed key restore or scale-down — left one
+    # behind, and a DR drill is exactly when an operator re-runs a restore repeatedly. The pod is
+    # long-lived, so they accumulated. cmd_restore's own `rm -f` calls stay: they release it as soon
+    # as it is genuinely done with, and a second rm is harmless.
+    [ -n "${MANIFEST_FILE}" ] && rm -f "${MANIFEST_FILE}" 2>/dev/null || true
     release_locks
     return 0
 }
@@ -3733,17 +3816,14 @@ restore_cleanup() {
 ################################################################################
 # PMM scale down / up (restore happens with PMM down so nothing writes the DBs)
 ################################################################################
-# The replica count PMM must be restored to. Prefer the live spec; but if PMM is already at 0
-# (an interrupted earlier restore) spec.replicas reads 0 and it would never come back, so fall
-# back to the count stashed on the prior scale-down, then to PMM_SERVER_REPLICAS.
+# The replica count PMM must be restored to: the live spec, else the count stashed on the prior
+# scale-down (PMM already at 0 from an interrupted restore reads spec.replicas 0 and would never
+# come back), else PMM_SERVER_REPLICAS.
 #
-# ONE resolver, because there were three copies (this ladder, scale_down_pmm's and
-# restore_pmm_server's) and only the pre-flight gate checked that the answer is a NUMBER. A
-# hand-edited `original-replicas=three` annotation therefore passed the gate's own guard and
-# then reached `kubectl scale --replicas=three` (rejected, restore aborts with PMM annotated) and
-# `while [ "${i}" -lt "three" ]` (exits 2, so the /srv loop body never runs and the component
-# reports "No /srv archives found in backup"). Anything non-numeric now becomes the fallback
-# here, once, for every caller.
+# ONE resolver for all three callers, and it ALWAYS returns a number. A hand-edited
+# `original-replicas=three` annotation otherwise reached `kubectl scale --replicas=three` and
+# `while [ i -lt three ]`, which exits 2 — so the /srv loop body never ran and the component
+# reported "No /srv archives found in backup".
 pmm_replica_count() {   # <statefulset-name>
     _prc_n=$(kubectl get statefulset "$1" -n "${NAMESPACE}" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "")
     case "${_prc_n}" in ''|0|*[!0-9]*) _prc_n="" ;; esac
@@ -3753,7 +3833,7 @@ pmm_replica_count() {   # <statefulset-name>
         case "${_prc_n}" in
             ''|0) _prc_n="" ;;
             *[!0-9]*)
-                log "WARN" "PMM ${1}: the stashed original-replicas annotation ('${_prc_n}') is not a number; ignoring it"
+                log "WARN" "PMM ${1}: the stashed original-replicas annotation ('${_prc_n}') is not a number; ignoring it" >&9
                 _prc_n="" ;;
         esac
     fi
@@ -3765,7 +3845,7 @@ pmm_replica_count() {   # <statefulset-name>
         # operator reads during a DR.
         _prc_n="${PMM_SERVER_REPLICAS:-3}"
         case "${_prc_n}" in ''|*[!0-9]*) _prc_n=3 ;; esac   # PMM_SERVER_REPLICAS is env-supplied
-        log "WARN" "PMM ${1}: neither spec.replicas nor a stashed count is usable; will restore to ${_prc_n} (override with PMM_SERVER_REPLICAS)"
+        log "WARN" "PMM ${1}: neither spec.replicas nor a stashed count is usable; will restore to ${_prc_n} (override with PMM_SERVER_REPLICAS)" >&9
     fi
     printf '%s' "${_prc_n}"
 }
@@ -3813,9 +3893,7 @@ restore_encryption_key() {
     local want_sha="" got_sha=""
     want_sha=$(mf_field encryption sha256)
     if [ -n "${want_sha}" ]; then
-        if command -v sha256sum >/dev/null 2>&1; then got_sha=$(sha256sum "${tmp}" | cut -d' ' -f1)
-        elif command -v shasum >/dev/null 2>&1; then got_sha=$(shasum -a 256 "${tmp}" | cut -d' ' -f1)
-        fi
+        got_sha=$(sha256_of "${tmp}")
         if [ -z "${got_sha}" ]; then
             log "WARN" "[EncryptionKey] No sha256 tool available; could not verify the key against the manifest's checksum"
         elif [ "${got_sha}" != "${want_sha}" ]; then
@@ -3826,24 +3904,17 @@ restore_encryption_key() {
             log "INFO" "[EncryptionKey] Checksum verified ($(printf '%.16s' "${got_sha}")...)"
         fi
     fi
-    # THE gate. This is the only place in this file where content from the backup store is handed
-    # to the apiserver as a MANIFEST rather than as data, and everything else store-derived is
-    # charset-gated before it reaches an interpreter (the resolved id, MF_CH_NAME, MF_PG_DBS,
-    # the per-ordinal subdirs — DN-17/DN-35). Without this, anyone who can write the prefix could
-    # append a second document to this file — a privileged Pod, or a Secret overwriting any other
-    # in the namespace — and a routine DR restore would create it: `kubectl apply` runs as the
-    # backup SA, which holds pods:create and secrets:create/update/patch.
+    # THE gate: this is the only place store content is handed to the apiserver as a MANIFEST
+    # rather than as data. Without it, anyone who can write the prefix could append a second
+    # document — a privileged Pod, or a Secret overwriting any other in the namespace — and a
+    # routine DR restore would create it, because `kubectl apply` runs as the backup SA.
     #
-    # The sha256 above is NOT that control: it is a corruption check whose expected value comes
-    # from the same store-written manifest, it is skipped entirely when the manifest records no
-    # sha256, and it is computed before the namespace rewrite so it never covers the applied bytes.
+    # The sha256 above is NOT this control: its expected value comes from the same store-written
+    # manifest, it is skipped when none is recorded, and it covers the pre-rewrite bytes.
     #
-    # `-s` (slurp) is load-bearing, not style. jq reads concatenated JSON as a STREAM and `-e`
-    # takes its exit status from the LAST value, so a bare `jq -e '<predicate>'` passes as long
-    # as the final document satisfies it — an attacker object placed FIRST sails through, and
-    # the namespace rewrite below then emits both. Verified: with a Pod followed by the real
-    # Secret, the unslurped form exits 0. Slurping turns the stream into one array, so
-    # `length == 1` is what actually rejects a multi-document payload.
+    # `-s` (slurp) is load-bearing. jq reads concatenated JSON as a STREAM and `-e` takes its
+    # status from the LAST value, so an attacker object placed FIRST sails through an unslurped
+    # `jq -e` (verified). Slurping makes it one array, so `length == 1` is the real check.
     if ! jq -e -s 'length == 1 and (.[0] | type == "object" and .kind == "Secret"
                    and .apiVersion == "v1" and .metadata.name == "pg-encryption-key")' \
                  "${tmp}" >/dev/null 2>&1; then
@@ -3939,25 +4010,18 @@ restore_clickhouse() {
     name="${MF_CH_NAME}"
     if [ -z "${name}" ]; then log "ERROR" "[ClickHouse] No backup name in manifest"; return 1; fi
 
-    if [ "${DRY_RUN}" = "true" ]; then
-        if [ "${S3_ENABLED}" = "true" ]; then
-            log "INFO" "[ClickHouse] [DRY RUN] kubectl exec ${ch_pod} -c clickhouse-backup -- clickhouse-backup restore_remote --env S3_BUCKET=$(ch_restore_bucket) --env S3_PATH=$(ch_restore_path) --rm ${name}"
-        else
-            log "INFO" "[ClickHouse] [DRY RUN] kubectl exec ${ch_pod} -c clickhouse-backup -- sh -c 'tar -xzf $(comp_inpod clickhouse)/${name}.tar.gz -C /var/lib/clickhouse/backup && clickhouse-backup restore --rm ${name}'"
-        fi
-        return 0
-    fi
-
+    # No separate dry-run block: pod_exec and pod_sh each print the command they would run, so
+    # the preview cannot drift from the run (the old block spelled both out a second time).
     local rc=0
     if [ "${S3_ENABLED}" = "true" ]; then
-        # clickhouse-backup has no "restore from <path>" argument — restore_remote <name>
-        # looks the name up under the S3_BUCKET/S3_PATH baked into the sidecar env at pod
-        # start. For a cross-namespace/DR restore those point at the TARGET instance's own
-        # prefix, not the backup being restored. Redirect via the tool's own --env flag
-        # ("override any environment variable via CLI parameter", verified on 2.8.0) using
-        # --s3-bucket/--s3-prefix (the source); IAM access is bucket-wide already.
+        # clickhouse-backup has no "restore from <path>" argument — restore_remote <name> looks
+        # the name up under the S3_BUCKET/S3_PATH baked into the sidecar's env at pod start. On
+        # a cross-namespace/DR restore those point at the TARGET instance's own prefix, not at
+        # the backup being restored, so they are redirected with the tool's own --env flag
+        # ("override any environment variable via CLI parameter", verified on 2.8.0). IAM access
+        # is bucket-wide already.
         log "INFO" "[ClickHouse] restore_remote --rm ${name} (from s3://$(ch_restore_bucket)/$(ch_restore_path), in ${ch_pod})..."
-        timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse-backup -- \
+        pod_exec ClickHouse "${ch_pod}" clickhouse-backup "${KUBECTL_EXEC_TIMEOUT}" \
             clickhouse-backup restore_remote \
             --env "S3_BUCKET=$(ch_restore_bucket)" --env "S3_PATH=$(ch_restore_path)" \
             --rm "${name}" >>"${LOG_FILE}" 2>&1 || rc=$?
@@ -3972,6 +4036,7 @@ restore_clickhouse() {
             "${tarball}" "${name}" >>"${LOG_FILE}" 2>&1 || rc=$?
     fi
     if [ ${rc} -ne 0 ]; then log "ERROR" "[ClickHouse] restore failed (exit ${rc})"; return 1; fi
+    [ "${DRY_RUN}" = "true" ] && return 0    # pod_exec/pod_sh only printed; nothing was restored
     log "INFO" "[ClickHouse] Restore complete"
     return 0
 }
@@ -4008,16 +4073,35 @@ render_temp_pod_sa_line() {
     fi
 }
 
-create_vm_restore_pod() {
-    local restore_pod="$1" pvc="$2" image="$3"
+# ONE creator for both temp restore pods: they differ in six values and shared every other line.
+# Both hold an RWO data PVC while its owner is scaled to 0, so a fix applied to one and not the
+# other strands a real volume and wedges the owner on Multi-Attach at scale-up (DN-46).
+#
+#   create_temp_restore_pod <pod> <pvc> <image> <role> <tag>
+#
+# <role> is 'vm' or 'pmm'; <tag> is the log prefix.
+create_temp_restore_pod() {
+    local restore_pod="$1" pvc="$2" image="$3" role="$4" tag="$5"
     local sa_line="" central_mount="" central_vol="" env_block="" apply_out
-    if [ "${S3_ENABLED}" = "true" ]; then
-        sa_line="${TEMP_POD_SA_LINE}"
-        # NOTE: no endpoint env here — vmrestore does not read endpoint env vars; the
-        # custom endpoint is passed to it as the -customS3Endpoint flag instead.
-        env_block="      env:
+    local label="" ctr="" mount_path="" vol_name="" sec_ctx=""
+    if [ "${role}" = "vm" ]; then
+        label="vm-restore-temp"; ctr="vmrestore"; vol_name="vmstorage-db"; mount_path="/vmstorage-data"
+        # No endpoint env: vmrestore does not read endpoint env vars, it takes
+        # -customS3Endpoint as a flag.
+        [ "${S3_ENABLED}" = "true" ] && env_block="      env:
         - name: AWS_REGION
           value: \"${S3_REGION}\"${TEMP_POD_S3_KEYS_ENV}"
+    else
+        label="pmm-srv-restore-temp"; ctr="srv-restore"; vol_name="pmm-storage"; mount_path="/srv"
+        # Root, so it can replace any file in /srv and drop /srv/ha (DN-30).
+        sec_ctx="  securityContext:
+    runAsUser: 0
+    fsGroup: 0"
+        [ "${S3_ENABLED}" = "true" ] && env_block="      env:
+$(render_rclone_s3_env)"
+    fi
+    if [ "${S3_ENABLED}" = "true" ]; then
+        sa_line="${TEMP_POD_SA_LINE}"
     else
         central_mount="        - name: central-backup-storage
           mountPath: ${SHARED_MOUNT_PATH}
@@ -4026,57 +4110,58 @@ create_vm_restore_pod() {
       persistentVolumeClaim:
         claimName: ${CENTRAL_BACKUP_PVC}"
     fi
-    clear_leftover_temp_pod "${restore_pod}" VictoriaMetrics
-    apply_out=$(mktemp /tmp/vmapply.XXXXXX 2>/dev/null || echo "/tmp/vmapply.$$")
+    clear_leftover_temp_pod "${restore_pod}" "${tag}"
+    apply_out=$(mktemp /tmp/podapply.XXXXXX 2>/dev/null || echo "/tmp/podapply.$$")
     [ -n "${TEMP_PODS_MARKER}" ] && : > "${TEMP_PODS_MARKER}" || true
+    # karpenter.sh/do-not-disrupt: this pod holds an RWO data PVC while its owner is scaled
+    # down, and a consolidation eviction mid-restore truncates that ordinal's data. Harmless
+    # outside Karpenter / EKS Auto Mode.
     if ! kubectl create -f - -n "${NAMESPACE}" >"${apply_out}" 2>&1 <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
   name: ${restore_pod}
   labels:
-    app.kubernetes.io/component: vm-restore-temp
+    app.kubernetes.io/component: ${label}
   annotations:
-    # These temp pods hold an RWO data PVC (vmstorage-db / pmm-storage) while its owner is
-    # scaled down; a consolidation eviction mid-restore truncates that ordinal's data and
-    # fails the run. Opt out of consolidation-driven disruption (Karpenter / EKS Auto Mode;
-    # harmless elsewhere) — the s3 client pod already did, these two did not.
     karpenter.sh/do-not-disrupt: "true"
 spec:
   restartPolicy: Never
 ${sa_line}
+${sec_ctx}
   containers:
-    - name: vmrestore
+    - name: ${ctr}
       image: ${image}
       imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
 ${env_block}
       volumeMounts:
-        - name: vmstorage-db
-          mountPath: /vmstorage-data
+        - name: ${vol_name}
+          mountPath: ${mount_path}
 ${central_mount}
   volumes:
-    - name: vmstorage-db
+    - name: ${vol_name}
       persistentVolumeClaim:
         claimName: ${pvc}
 ${central_vol}
 EOF
     then
         cat "${apply_out}" | append_to_log; rm -f "${apply_out}"
-        log "ERROR" "[VictoriaMetrics] Failed to create restore pod ${restore_pod} (PVC: ${pvc})"; return 1
+        log "ERROR" "[${tag}] Failed to create restore pod ${restore_pod} (PVC: ${pvc})"; return 1
     fi
     cat "${apply_out}" | append_to_log; rm -f "${apply_out}"
-    wait_for_pod_ready_by_name "${NAMESPACE}" "${restore_pod}" 300 || { log "ERROR" "[VictoriaMetrics] Restore pod ${restore_pod} not ready"; return 1; }
+    wait_for_pod_ready_by_name "${NAMESPACE}" "${restore_pod}" 300 \
+        || { log "ERROR" "[${tag}] Restore pod ${restore_pod} not ready"; return 1; }
     return 0
 }
 
-# Clear a leftover temp pod of the SAME NAME before creating one. A previous restore killed
-# between create and delete (OOM, eviction, SIGKILL) leaves the pod behind with its EXIT trap
-# never run, and it is still holding the RWO data PVC. `kubectl apply` used to paper over this
-# by PATCHing the survivor — which needs a `patch` verb the backup Role does not grant (403,
-# reported only as "Failed to create restore pod"), and which cannot work anyway because almost
-# every Pod field is immutable. Deleting and recreating is both correct and idempotent, and
-# keeps the Role minimal.
+create_vm_restore_pod()  { create_temp_restore_pod "$1" "$2" "$3" vm  VictoriaMetrics; }
+
+# Clear a leftover temp pod of the SAME NAME before creating one: a restore killed between
+# create and delete (OOM, eviction, SIGKILL) leaves the pod behind, still holding the RWO data
+# PVC. Delete-and-recreate, not `kubectl apply` — apply PATCHes the survivor, which needs a
+# `patch` verb the backup Role does not grant and cannot work anyway, since almost every Pod
+# field is immutable.
 clear_leftover_temp_pod() {   # <pod-name> <log-tag>
     k8s_object_state pod "$1"
     case $? in
@@ -4187,7 +4272,14 @@ restore_victoriametrics() {
     [ -z "${original_vmstorage}" ] && original_vmstorage=$(echo "${vmstorage_pods}" | wc -w | tr -d ' ')
     [ -z "${original_vminsert}" ] && original_vminsert=1
     first_vm_pod=$(echo "${vmstorage_pods}" | awk '{print $1}')
-    vmrestore_image=$(get_vmrestore_image "${first_vm_pod}")
+    # Status captured explicitly: get_vmrestore_image can refuse now (it no longer guesses
+    # ":latest"), and a bare assignment from a failing `$( )` aborts the whole run under `set -e`.
+    # Normally already proven by the pre-flight gate; still checked here, before any scale-down.
+    if ! vmrestore_image=$(get_vmrestore_image "${first_vm_pod}") || [ -z "${vmrestore_image}" ]; then
+        log "ERROR" "[VictoriaMetrics] No vmrestore image: ${first_vm_pod} has no 'vmrestore' container and VMRESTORE_IMAGE is unset."
+        log "ERROR" "[VictoriaMetrics]   Set victoriaMetrics.vmstorage.backup.restoreImage, or VMRESTORE_IMAGE=<image>. Aborting before any scale-down."
+        return 1
+    fi
     [ "${S3_ENABLED}" = "true" ] || resolve_central_backup_pvc || return 1
 
     if [ "${DRY_RUN}" = "true" ]; then
@@ -4214,12 +4306,7 @@ restore_victoriametrics() {
 
     local restored=0 planned=0 pod restore_pod pvc src rc exec_out
     # Non-AWS S3-compatible storage: endpoint must reach vmrestore as a flag (empty for AWS).
-    local vm_endpoint_flag="" _vm_ep=""
-    # `|| true`: a bare `[ -n x ] && y` returns 1 when the test fails, which is an abort under
-    # `set -e` anywhere errexit is not suppressed — and "no custom endpoint" (plain AWS) is the
-    # DEFAULT case, not an error.
-    _vm_ep=$(vm_s3_endpoint)
-    [ -n "${_vm_ep}" ] && vm_endpoint_flag="-customS3Endpoint=${_vm_ep}" || true
+    local vm_endpoint_flag=""; vm_endpoint_flag=$(vm_endpoint_arg)
     for pod in ${vmstorage_pods}; do
         planned=$((planned + 1))
         restore_pod="vm-restore-${pod}"; pvc=$(vmstorage_pvc_name "${pod}")
@@ -4315,66 +4402,7 @@ pmm_src_subdir_for_ord() { src_subdir_for_ord pmm-server "$1"; }
 # On path traversal: no --no-absolute-filenames is passed because BusyBox tar has no such flag
 # and does not need one — verified, see DN-17's neighbours in the review; both tar
 # implementations strip '../' and a leading '/' by default.
-create_pmm_restore_pod() {
-    local restore_pod="$1" pvc="$2" image="$3" sa_line="" central_mount="" central_vol="" env_block="" apply_out
-    if [ "${S3_ENABLED}" = "true" ]; then
-        sa_line="${TEMP_POD_SA_LINE}"
-        env_block="      env:
-$(render_rclone_s3_env)"
-    else
-        central_mount="        - name: central-backup-storage
-          mountPath: ${SHARED_MOUNT_PATH}
-          readOnly: true"
-        central_vol="    - name: central-backup-storage
-      persistentVolumeClaim:
-        claimName: ${CENTRAL_BACKUP_PVC}"
-    fi
-    clear_leftover_temp_pod "${restore_pod}" PMMServer
-    apply_out=$(mktemp /tmp/pmmapply.XXXXXX 2>/dev/null || echo "/tmp/pmmapply.$$")
-    [ -n "${TEMP_PODS_MARKER}" ] && : > "${TEMP_PODS_MARKER}" || true
-    if ! kubectl create -f - -n "${NAMESPACE}" >"${apply_out}" 2>&1 <<EOF
-apiVersion: v1
-kind: Pod
-metadata:
-  name: ${restore_pod}
-  labels:
-    app.kubernetes.io/component: pmm-srv-restore-temp
-  annotations:
-    # These temp pods hold an RWO data PVC (vmstorage-db / pmm-storage) while its owner is
-    # scaled down; a consolidation eviction mid-restore truncates that ordinal's data and
-    # fails the run. Opt out of consolidation-driven disruption (Karpenter / EKS Auto Mode;
-    # harmless elsewhere) — the s3 client pod already did, these two did not.
-    karpenter.sh/do-not-disrupt: "true"
-spec:
-  restartPolicy: Never
-${sa_line}
-  securityContext:
-    runAsUser: 0
-    fsGroup: 0
-  containers:
-    - name: srv-restore
-      image: ${image}
-      imagePullPolicy: IfNotPresent
-      command: ["sleep", "infinity"]
-${env_block}
-      volumeMounts:
-        - name: pmm-storage
-          mountPath: /srv
-${central_mount}
-  volumes:
-    - name: pmm-storage
-      persistentVolumeClaim:
-        claimName: ${pvc}
-${central_vol}
-EOF
-    then
-        cat "${apply_out}" | append_to_log; rm -f "${apply_out}"
-        log "ERROR" "[PMMServer] Failed to create restore pod ${restore_pod} (PVC: ${pvc})"; return 1
-    fi
-    cat "${apply_out}" | append_to_log; rm -f "${apply_out}"
-    wait_for_pod_ready_by_name "${NAMESPACE}" "${restore_pod}" 300 || { log "ERROR" "[PMMServer] Restore pod ${restore_pod} not ready"; return 1; }
-    return 0
-}
+create_pmm_restore_pod() { create_temp_restore_pod "$1" "$2" "$3" pmm PMMServer; }
 
 restore_pmm_server() {
     # NB: all locals initialised — script runs under `set -u`, so a bare `local x` then `[ -z "$x" ]`
@@ -4388,19 +4416,21 @@ restore_pmm_server() {
     replicas="${PMM_SAVED_REPLICAS:-}"
     case "${replicas}" in ''|0|*[!0-9]*) replicas=$(pmm_replica_count "${sts}") ;; esac
     [ "${S3_ENABLED}" = "true" ] || resolve_central_backup_pvc || return 1
-    if [ "${S3_ENABLED}" = "true" ]; then
-        image=$(kubectl get statefulset "${sts}" -n "${NAMESPACE}" -o jsonpath='{.spec.template.spec.containers[?(@.name=="pmm-backup")].image}' 2>/dev/null || true)
-    fi
-    if [ -z "${image}" ]; then image=$(kubectl get statefulset "${sts}" -n "${NAMESPACE}" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true); fi
-    if [ -z "${image}" ]; then image="percona/pmm-server:3.7.0"; fi
 
-    # In the parent, before the loop: the accessor inside it cannot log or query. Normally a
-    # no-op because validate_restore_targets already resolved it for this run.
+    # Both resolved in the parent, before the loop: the accessors inside it cannot log or query.
+    # Normally no-ops, because validate_restore_targets already resolved both for this run — which
+    # is what makes the gate's checks match what this function actually uses.
     resolve_pmm_storage_pvc_prefix "${sts}" || return 1
+    resolve_pmm_restore_image "${sts}" || return 1
+    image=$(pmm_restore_image) || { log "ERROR" "[PMMServer] no /srv restore pod image was resolved"; return 1; }
     i=0
     while [ "${i}" -lt "${replicas}" ]; do
         ord="${i}"; i=$((i + 1)); count=$((count + 1))
-        pvc=$(pmm_storage_pvc_name "${sts}" "${ord}") || { log "ERROR" "[PMMServer] ord ${ord}: could not build the PVC name"; failed_pods="${failed_pods} ord-${ord}"; continue; }
+        # No failed-pod accumulator here, deliberately: ${count} is incremented and ${restored}
+        # is not, so the partial-is-failure gate at the end already reports this ordinal. The
+        # obvious `failed_pods` is `local` to the two BACKUP functions and does not exist here,
+        # so appending to it aborts the run under `set -u` — right after scale_down_pmm.
+        pvc=$(pmm_storage_pvc_name "${sts}" "${ord}") || { log "ERROR" "[PMMServer] ord ${ord}: could not build the PVC name"; continue; }
         src_subdir=$(pmm_src_subdir_for_ord "${ord}")
         if [ "${DRY_RUN}" = "true" ]; then
             log "INFO" "[PMMServer] [DRY RUN] ord ${ord}: temp pod mounts ${pvc} at /srv; extract pmm-server/${src_subdir:-<dir ending -${ord}>}/srv.tar.gz then drop /srv/ha"
@@ -4445,6 +4475,27 @@ restore_pmm_server() {
     return 0
 }
 
+# One summary row per component, from the table. The encryption key reads "Yes/No" rather than
+# "Yes/Failed" because a failed key aborts the run long before this point.
+restore_summary_rows() {
+    _rsr_c="" _rsr_state=""
+    for _rsr_c in ${RESTORE_COMPONENTS}; do
+        if ! comp_on "${_rsr_c}" 5; then _rsr_state="⊘ Skipped"
+        elif restore_ok "${_rsr_c}"; then _rsr_state="✓ Yes"
+        else _rsr_state="✗ Failed"; fi
+        log "INFO" "$(printf '  - %-18s %s' "$(comp_label "${_rsr_c}"):" "${_rsr_state}")"
+    done
+    return 0
+}
+
+# One component restore in its own subshell: the EXIT trap is dropped so a child can never
+# release the parent's locks, and the status goes to a file because a subshell cannot assign to
+# its parent. Named at top level rather than inlined, so the `&` call site stays readable.
+_restore_child() {   # <component-key> <tmpdir>
+    trap - EXIT INT TERM
+    if "restore_$(printf '%s' "$1" | tr '-' '_')"; then echo 0 > "$2/$1.rc"; else echo 1 > "$2/$1.rc"; fi
+}
+
 restore_verification() {
     log "INFO" "Verifying restore..."
     if [ "${RESTORE_POSTGRESQL}" = "true" ]; then
@@ -4472,54 +4523,38 @@ restore_verification() {
 #
 # A bug here destroys backups irreversibly — the guardrails and why each exists are in DN-08.
 ################################################################################
-S3_PRUNE_MAX_PER_RUN="${S3_PRUNE_MAX_PER_RUN:-50}"
-# Same reasoning as BACKUP_RETENTION: this drives destruction, so it must be a usable
-# number. `[ 3 -ge abc ]` returns 2 (not false), so a non-numeric value does not merely
-# misbehave — it silently disables the cap entirely and the sweep purges everything it
-# classified. Fall back to the default rather than aborting a run that already succeeded.
-case "${S3_PRUNE_MAX_PER_RUN}" in
-    ''|*[!0-9]*) S3_PRUNE_MAX_PER_RUN=50 ;;
-    *) S3_PRUNE_MAX_PER_RUN=$(echo "${S3_PRUNE_MAX_PER_RUN}" | sed 's/^0*\([0-9]\)/\1/') ;;
-esac
-# Whole-sweep wall clock. Retention runs after a successful backup, inside cmd_backup's lock
-# window, and the CronJob trigger has its own activeDeadlineSeconds — so an unbounded sweep
-# (50 purges x KUBECTL_EXEC_TIMEOUT would be hours) gets the Job killed, reports the whole
-# run failed, and leaves the next run blocked on locks this one still holds.
-# Set by prune_expired_backups whenever it declines to delete anything it otherwise would have.
-# A FLAG rather than a return code, because cleanup_old_backups is called from cmd_backup too,
-# where a non-zero return would abort a run that has already succeeded. cmd_prune reads it and
-# reports it; cmd_backup ignores it, exactly as before.
+# These bound DESTRUCTION, so they must be usable numbers. Both are compared with `-ge` against
+# a counter starting at zero, so a value of 0 breaks the purge loop before the first delete
+# while still reporting success — retention stops for good and nothing says so (DN-40). ZERO is
+# therefore rejected, not treated as "unlimited", which is the natural guess and the reason it
+# must be refused. Leading zeros are stripped BEFORE the clamp: "00" survives a digits-only
+# check and only becomes "0" once normalised.
+S3_PRUNE_MAX_PER_RUN=$(echo "${S3_PRUNE_MAX_PER_RUN:-50}" | sed 's/^0*\([0-9]\)/\1/')
+numeric_env S3_PRUNE_MAX_PER_RUN 50
+# Set whenever the sweep declines to delete something it otherwise would have. A FLAG, not a
+# return code: cleanup_old_backups is also called from cmd_backup, where a non-zero return would
+# abort a run that has already succeeded. cmd_prune reports it; cmd_backup ignores it.
 PRUNE_REFUSED=0
-S3_PRUNE_MAX_SECONDS="${S3_PRUNE_MAX_SECONDS:-900}"
-case "${S3_PRUNE_MAX_SECONDS}" in
-    ''|*[!0-9]*) S3_PRUNE_MAX_SECONDS=900 ;;
-esac
+
+# Whole-sweep wall clock. The sweep also runs inside cmd_backup's lock window, under the
+# CronJob's activeDeadlineSeconds, so an unbounded sweep gets the Job killed and leaves the next
+# run blocked on locks this one still holds. Clamped like the cap above, zero included.
+S3_PRUNE_MAX_SECONDS=$(echo "${S3_PRUNE_MAX_SECONDS:-900}" | sed 's/^0*\([0-9]\)/\1/')
+numeric_env S3_PRUNE_MAX_SECONDS 900
 
 # ---- ClickHouse incremental chains ---------------------------------------------------
 # An incremental is a diff against an earlier REMOTE backup, so expiring a base breaks every
-# incremental built on it — and the pre-restore gate does not catch it. Full rationale: DN-09.
+# incremental built on it, and the pre-restore gate does not catch it (DN-09). Returns the
+# ClickHouse names a RETAINED backup still needs, transitively.
 #
-# Returns the ClickHouse names something being KEPT still needs, transitively. Fails CLOSED,
-# but NARROWLY: rc non-zero means the caller must defer every ClickHouse-carrying id, and that
-# now happens only for the one condition where it is actually necessary.
-#
-# It used to return 1 for ANY unreadable or non-JSON manifest anywhere in the catalog, and for
-# any required base whose own id had already been pruned. Either turned ClickHouse retention
-# off PERMANENTLY behind a single WARN — one stray file under manifests/, one transient rclone
-# read error, or one legitimately-purged base was enough for every expired ClickHouse-carrying
-# id to be deferred on every subsequent run while the sweep logged "0 purged" and success, and
-# the bucket grew without bound. The two conditions are now separated:
-#
-#   * An unreadable manifest for an id being KEPT is still fatal to the whole computation: we
-#     cannot know which base that backup needs, so any expired ClickHouse backup might be it.
-#     Logged at ERROR, naming the id, because it needs a human.
-#   * An unreadable manifest for an id being PURGED is not: the purge loop refuses to touch an
-#     id whose manifest it cannot read (it would otherwise be guessing at the component list),
-#     so that id is deferred on its own and cannot break anyone's chain.
-#   * A required name with no edge at all means its backup is no longer in the catalog, so the
-#     chain is ALREADY broken and keeping expired backups cannot repair it. Warned about and
-#     treated as a chain leaf, rather than freezing retention forever over damage that has
-#     already happened.
+# Failing closed here is NARROW on purpose — a blanket failure turns ClickHouse retention off
+# permanently behind one WARN, and the bucket grows without bound:
+#   * unreadable manifest of a KEPT id  -> fatal (ERROR): which base it needs is unknowable, so
+#                                          any expired ClickHouse backup might be it
+#   * unreadable manifest of a PURGED id -> not our problem: the purge loop defers that id anyway
+#   * a required name with no edge       -> its backup is already gone, so the chain is ALREADY
+#                                          broken; treat it as a leaf rather than freezing
+#                                          retention forever over damage already done
 #
 # $1 = all catalog ids, $2 = the ids about to be purged. Prints required names, one per line.
 ch_chain_required_names() {
@@ -4535,7 +4570,7 @@ ch_chain_required_names() {
         _ccrn_mf=$(catalog_manifest "${_ccrn_id}" 2>/dev/null) || _ccrn_mf=""
         if [ -z "${_ccrn_mf}" ] || ! printf '%s' "${_ccrn_mf}" | jq -e . >/dev/null 2>&1; then
             if [ "${_ccrn_kept}" = "true" ]; then
-                log "ERROR" "[Retention] Cannot read the manifest of retained backup '${_ccrn_id}'; the ClickHouse incremental chain cannot be verified from it."
+                log "ERROR" "[Retention] Cannot read the manifest of retained backup '${_ccrn_id}'; the ClickHouse incremental chain cannot be verified from it." >&9
                 return 1
             fi
             # An expired id: the purge loop will refuse it on the same grounds. Not our problem.
@@ -4571,7 +4606,7 @@ ch_chain_required_names() {
             # exist would pin every ClickHouse-carrying expired id forever, turning damage that
             # has already happened into a permanent halt of retention.
             if ! printf '%s\n' "${_ccrn_edges}" | awk -v n="${_ccrn_b}" '$1==n {f=1} END{exit !f}'; then
-                log "WARN" "[Retention] ClickHouse backup '${_ccrn_n}' was diffed against '${_ccrn_b}', which no manifest under this prefix declares — that chain is already incomplete. Treating '${_ccrn_n}' as a chain end."
+                log "WARN" "[Retention] ClickHouse backup '${_ccrn_n}' was diffed against '${_ccrn_b}', which no manifest under this prefix declares — that chain is already incomplete. Treating '${_ccrn_n}' as a chain end." >&9
                 continue
             fi
             case " ${_ccrn_req} " in
@@ -4585,12 +4620,193 @@ ch_chain_required_names() {
     return 0
 }
 
+# The component keys this sweep will turn into delete paths. Keys come from the manifest, i.e.
+# from the STORE, and each becomes a path handed to store_delete_prefix (`rm -rf` on shared,
+# `rclone purge` on s3), so they are charset-gated like every other store-derived name (DN-17).
+#
+# Prints the validated keys; rc 1 if ANY key is unusable. The caller then defers the whole id
+# rather than dropping one key — dropping it would leave that component's data unpurged while
+# the manifest, the only record of what the backup held, was deleted anyway.
+#
+# Fed by a HERE-DOC, not a pipe: `while read` on the right of a pipe runs in a subshell, so
+# neither the filtered list nor the warnings would survive it.
+# Results in GLOBALS, not on stdout, so the caller must NOT wrap this in `$( )`. Returning the
+# list on stdout meant the caller captured it in a command substitution — a subshell — where the
+# rejected-key diagnostic was swallowed into the captured value instead of reaching the operator,
+# and a global set here could never propagate back out. rc 1 = at least one key was rejected.
+PRUNE_KEYS="" ; PRUNE_BAD_KEYS=""
+prune_component_keys() {   # <manifest-json>
+    _pck_raw=$(printf '%s' "$1" | jq -r '.components | keys[]' 2>/dev/null || true)
+    _pck_k=""
+    PRUNE_KEYS=""; PRUNE_BAD_KEYS=""
+    while IFS= read -r _pck_k; do
+        [ -n "${_pck_k}" ] || continue
+        case "${_pck_k}" in
+            *[!A-Za-z0-9_.-]*) PRUNE_BAD_KEYS="${PRUNE_BAD_KEYS}${PRUNE_BAD_KEYS:+, }'${_pck_k}'"; continue ;;
+        esac
+        PRUNE_KEYS="${PRUNE_KEYS}${_pck_k}
+"
+    done <<EOF
+${_pck_raw}
+EOF
+    [ -z "${PRUNE_BAD_KEYS}" ]
+}
+
+# Why an expired id's ClickHouse data must survive this sweep, or nothing if it need not.
+# Either reason means the same thing: purge everything else, keep clickhouse/ AND the manifest.
+#   * a RETAINED backup was diffed against it (incremental chain), or
+#   * its data sits outside this install's root because the sidecar's S3_PATH pointed elsewhere
+#     and the backup honoured it (DN-12/DN-43) — not ours to reclaim, and deleting the manifest
+#     would destroy the only record of where it is.
+prune_ch_pin_reason() {   # <manifest-json> <ch-name> <ch-required-set>
+    case "$3" in
+        *" $2 "*) printf '%s' "it is still the base a retained backup was diffed against (incremental chain)"
+                  return 0 ;;
+    esac
+    [ "${S3_ENABLED}" = "true" ] || return 0
+    _pcpr_p=$(printf '%s' "$1" | jq -r '.components.clickhouse.s3_path // empty' 2>/dev/null || true)
+    if [ -n "${_pcpr_p}" ] && [ "${_pcpr_p}" != "$(clickhouse_remote_key)" ]; then
+        printf '%s' "its ClickHouse data is under '${_pcpr_p}', outside this install's root, so this sweep must not delete it or the record of where it is"
+    fi
+    return 0
+}
+
+# Rewrite a pinned id's manifest so the index stops advertising components that are gone.
+# Written AFTER the purge: a manifest that under-reports what is still in the bucket strands
+# those bytes, whereas one that briefly over-reports is corrected by the next run. The keys stay
+# (as status "pruned"), which is what lets a later sweep finish the job once the chain
+# releases the id.
+prune_mark_pruned() {   # <id> <manifest-json> <why> <purged-components>
+    _pmp=$(printf '%s' "$2" | jq --arg why "$3" \
+        --argjson purged "$(printf '%s\n' "$4" | jq -R -s 'split("\n") | map(select(length > 0))')" '
+        .status = "partial"
+        | .retention_note = ("Retention pruned every component except ClickHouse, which is kept because " + $why + ". This backup id is no longer restorable as a whole.")
+        | .components = (.components | with_entries(
+            if (.key as $k | $purged | index($k))
+            then .value = ((.value | del(.location) | del(.restore)) + {status: "pruned"})
+            else . end))' 2>/dev/null || true)
+    catalog_cache_drop "$1"
+    if [ -n "${_pmp}" ] && printf '%s\n' "${_pmp}" | store_write "$(manifest_path "$1")"; then
+        log "INFO" "[Retention] $1: manifest updated — the pruned components are marked 'pruned' so nothing tries to restore them"
+    else
+        log "WARN" "[Retention] $1: components purged but its manifest still lists them as restorable; the next run will retry the rewrite"
+    fi
+    return 0
+}
+
+# Deal with ONE expired id. Reports what it did through three counters rather than a return
+# code, because "attempted", "purged" and "skipped" are independent: a chain-pinned id both
+# deletes (so it consumes the destruction budget) and is kept (so it is not a purge).
+PRUNE_ONE_ATTEMPTED=0 ; PRUNE_ONE_PURGED=0 ; PRUNE_ONE_SKIPPED=0
+prune_purge_one() {   # <id> <ch-required-set>
+    _ppo_id="$1" _ppo_req="$2"
+    _ppo_mf="" _ppo_schema="" _ppo_comps="" _ppo_chname="" _ppo_why="" _ppo_keep=""
+    _ppo_fail=0 _ppo_c=""
+    PRUNE_ONE_ATTEMPTED=0; PRUNE_ONE_PURGED=0; PRUNE_ONE_SKIPPED=0
+
+    # Read ONCE: this drives both the component list to purge and the ClickHouse chain check.
+    # Read BEFORE anything is attempted, because a deferred id must not consume the run's
+    # destruction budget.
+    _ppo_mf=$(catalog_manifest "${_ppo_id}" 2>/dev/null || true)
+
+    # A manifest from a NEWER writer may list components whose data this version cannot turn
+    # into a delete path. Purging what it recognises and then deleting the manifest would
+    # strand the rest, so defer and keep the manifest for a newer reader.
+    if [ -n "${_ppo_mf}" ]; then
+        _ppo_schema=$(printf '%s' "${_ppo_mf}" | manifest_schema_of) || _ppo_schema=""
+        if [ -z "${_ppo_schema}" ] || [ "${_ppo_schema}" -gt "${MANIFEST_SCHEMA}" ]; then
+            log "WARN" "[Retention] Deferring '${_ppo_id}': its manifest is schema v${_ppo_schema:-unreadable} and this version understands v${MANIFEST_SCHEMA}; refusing to delete a backup whose layout it may not fully know"
+            PRUNE_ONE_SKIPPED=1; return 0
+        fi
+    fi
+
+    if ! prune_component_keys "${_ppo_mf}"; then
+        log "WARN" "[Retention] ${_ppo_id}: manifest component key(s) outside A-Z a-z 0-9 _ . - : ${PRUNE_BAD_KEYS}"
+        log "WARN" "[Retention] Deferring '${_ppo_id}': a key this sweep will not turn into a delete path; keeping the manifest so nothing is stranded"
+        PRUNE_ONE_SKIPPED=1; return 0
+    fi
+    _ppo_comps="${PRUNE_KEYS}"
+    if [ -z "${_ppo_comps}" ]; then
+        # The manifest was readable during the ownership check, so this is a transient read
+        # error or a concurrent change. Falling back to a fixed component list would delete on
+        # a GUESS about what this backup holds — including ClickHouse data, without being able
+        # to see whether it is a chain base.
+        log "WARN" "[Retention] Deferring '${_ppo_id}': its manifest could not be read now, so what it holds is unknown; refusing to delete on a guess"
+        PRUNE_ONE_SKIPPED=1; return 0
+    fi
+
+    _ppo_chname=$(printf '%s' "${_ppo_mf}" | jq -r '.components.clickhouse.name // empty' 2>/dev/null || true)
+    if [ -n "${_ppo_chname}" ]; then
+        if [ "${_ppo_req}" = "__unverified__" ]; then
+            log "WARN" "[Retention] Deferring '${_ppo_id}': it carries ClickHouse data and the incremental chain could not be verified"
+            PRUNE_ONE_SKIPPED=1; return 0
+        fi
+        _ppo_why=$(prune_ch_pin_reason "${_ppo_mf}" "${_ppo_chname}" "${_ppo_req}")
+    fi
+
+    # A pin holds ONLY ClickHouse. Skipping the whole id meant an incremental chain — the
+    # default once --ch-backup-type incremental is used, since each night's base is the
+    # previous night — retained every expired id's PostgreSQL, VictoriaMetrics and /srv data
+    # too, usually the bulk of the bytes, for backups nothing depends on.
+    if [ -n "${_ppo_why}" ]; then
+        _ppo_keep=$(printf '%s\n' "${_ppo_comps}" | grep -v '^clickhouse$' || true)
+        if [ -z "${_ppo_keep}" ]; then
+            log "WARN" "[Retention] Keeping '${_ppo_id}': ${_ppo_why}, and ClickHouse is all it holds."
+            PRUNE_ONE_SKIPPED=1; return 0
+        fi
+        if [ "${DRY_RUN}" = "true" ]; then
+            log "INFO" "[Retention] [DRY RUN] '${_ppo_id}': ClickHouse backup '${_ppo_chname}' is kept because ${_ppo_why}; clickhouse/ and the manifest stay. Would purge the rest:"
+            for _ppo_c in ${_ppo_keep}; do
+                log "INFO" "[Retention] [DRY RUN]   would purge $(comp_display "${_ppo_c}" "${_ppo_id}")"
+            done
+            PRUNE_ONE_SKIPPED=1; return 0
+        fi
+        log "WARN" "[Retention] '${_ppo_id}': ClickHouse backup '${_ppo_chname}' is kept because ${_ppo_why}, so clickhouse/ and the manifest stay. Purging the components nothing depends on ($(printf '%s' "${_ppo_keep}" | tr '\n' ' '))."
+        # This branch DELETES, so it consumes the destruction budget like any other purge.
+        # Counting it as skipped-only would let a bucket full of pinned ids issue unbounded
+        # destructive calls while `attempted` never advanced.
+        PRUNE_ONE_ATTEMPTED=1
+        for _ppo_c in ${_ppo_keep}; do
+            store_delete_prefix "$(comp_path "${_ppo_c}" "${_ppo_id}")" || _ppo_fail=$((_ppo_fail + 1))
+        done
+        if [ "${_ppo_fail}" -ne 0 ]; then
+            log "WARN" "[Retention] ${_ppo_id}: ${_ppo_fail} component path(s) could not be purged; leaving the manifest as it is so the next run retries them"
+        else
+            prune_mark_pruned "${_ppo_id}" "${_ppo_mf}" "${_ppo_why}" "${_ppo_keep}"
+        fi
+        PRUNE_ONE_SKIPPED=1; return 0
+    fi
+
+    PRUNE_ONE_ATTEMPTED=1
+    if [ "${DRY_RUN}" = "true" ]; then
+        # The components THIS backup holds, not a fixed list — the preview has to match what a
+        # real run would do, or the review gate is showing a plan that is not the plan.
+        for _ppo_c in ${_ppo_comps}; do
+            log "INFO" "[Retention] [DRY RUN] would purge $(comp_display "${_ppo_c}" "${_ppo_id}")"
+        done
+        log "INFO" "[Retention] [DRY RUN] would then delete $(manifest_display "${_ppo_id}")"
+        PRUNE_ONE_PURGED=1; return 0
+    fi
+
+    # All of an id's components, then the manifest LAST — the manifest is the only record of
+    # what this backup held, so losing it first strands whatever a failure left behind.
+    log "INFO" "[Retention] Purging ${_ppo_id} ($(printf '%s' "${_ppo_comps}" | tr '\n' ' ')) ..."
+    for _ppo_c in ${_ppo_comps}; do
+        store_delete_prefix "$(comp_path "${_ppo_c}" "${_ppo_id}")" || _ppo_fail=$((_ppo_fail + 1))
+    done
+    if [ "${_ppo_fail}" -ne 0 ]; then
+        log "WARN" "[Retention] ${_ppo_id}: ${_ppo_fail} component path(s) could not be purged — KEEPING the manifest so the next run retries this id rather than orphaning what is left"
+    elif store_delete_object "$(manifest_path "${_ppo_id}")"; then
+        PRUNE_ONE_PURGED=1
+    else
+        log "WARN" "[Retention] ${_ppo_id}: component data purged but the manifest remains; the next run will retry it"
+    fi
+    return 0
+}
+
 prune_expired_backups() {
-    local ids cutoff now latest_id kept=0 expired=0 purged=0 attempted=0 skipped=0 id ts _owner="" _id_comps=""
-    local _id_ch_pinned=false _purge_comps="" _partial_fail=0 _pruned_mf="" _ret_cut_h=""
-    local _id_ch_reason="" _id_chpath=""
-    local _id_mf="" _id_chname="" _comp_fail=0 _c="" _ck="" _id_comps_ok="" _id_key_bad=0 _id_schema=""
-    local list_rc=0 started
+    local ids cutoff now latest_id kept=0 expired=0 purged=0 attempted=0 skipped=0
+    local id ts _owner="" _ret_cut_h="" list_rc=0 started
 
     if [ "${BACKUP_RETENTION}" -lt 1 ]; then
         PRUNE_REFUSED=1
@@ -4804,181 +5020,10 @@ prune_expired_backups() {
             log "WARN" "[Retention] Sweep budget of ${S3_PRUNE_MAX_SECONDS}s reached; $((expired - attempted)) expired backup(s) left for the next run"
             break
         fi
-        # This id's manifest, read ONCE: it drives both the component list to purge and the
-        # ClickHouse chain check. Read BEFORE the attempt counter, because an id that gets
-        # deferred has nothing destructive attempted against it and must not consume the run's
-        # destruction budget.
-        # Only the components this backup actually holds. Purging all five unconditionally
-        # cost two failed execs plus a client-pod re-resolution per absent component, wrote a
-        # scary rclone error per miss, and burned the sweep's time budget on nothing.
-        _id_mf=$(catalog_manifest "${id}" 2>/dev/null || true)
-        # A manifest from a NEWER writer may list components whose data this version cannot
-        # turn into a delete path. Purging what it recognises and then deleting the manifest
-        # would strand the rest — invisible to `list`, unresolvable by restore, unreachable by
-        # every future sweep — which is the same reason an unreadable component KEY defers the
-        # whole id below. Defer, keeping the manifest, so a newer reader can finish the job.
-        if [ -n "${_id_mf}" ]; then
-            _id_schema=$(printf '%s' "${_id_mf}" | manifest_schema_of) || _id_schema=""
-            if [ -z "${_id_schema}" ] || [ "${_id_schema}" -gt "${MANIFEST_SCHEMA}" ]; then
-                log "WARN" "[Retention] Deferring '${id}': its manifest is schema v${_id_schema:-unreadable} and this version understands v${MANIFEST_SCHEMA}; refusing to delete a backup whose layout it may not fully know"
-                skipped=$((skipped + 1)); continue
-            fi
-        fi
-        _id_comps=$(printf '%s' "${_id_mf}" | jq -r '.components | keys[]' 2>/dev/null || true)
-        # Component keys come from the manifest, i.e. from the store, and each one becomes a
-        # path handed to store_delete_prefix (`rm -rf` on shared, `rclone purge` on s3). Gated
-        # like every other store-derived name in this file (src_subdir_for_ord, MF_CH_NAME).
-        # Not known to be exploitable — the trailing path segment is pinned to the validated
-        # backup id, and anyone who can write a manifest can already delete the data directly —
-        # but this is the file's one remaining store-derived value that reaches a destructive
-        # call ungated, and the rule here is that they all get the same treatment.
-        # Fed by a HERE-DOC, not a pipe, and NOT wrapped in $( ): `while read` on the right of a
-        # pipe runs in a subshell (so the filtered list would not survive, and neither would the
-        # warnings), and a `case` pattern's closing paren inside $( ) is a parse error in several
-        # shells. Same shape as src_subdir_for_ord, for the same reasons.
-        _id_comps_ok=""
-        _id_key_bad=0
-        while IFS= read -r _ck; do
-            [ -n "${_ck}" ] || continue
-            case "${_ck}" in
-                *[!A-Za-z0-9_.-]*)
-                    log "WARN" "[Retention] ${id}: manifest component key '${_ck}' is outside A-Z a-z 0-9 _ . -"
-                    _id_key_bad=1
-                    continue ;;
-            esac
-            _id_comps_ok="${_id_comps_ok}${_ck}
-"
-        done <<EOF
-${_id_comps}
-EOF
-        # DEFER the whole id, do not just drop the key. Dropping it would leave that component's
-        # data unpurged while the loop below still deleted the manifest — and the manifest is the
-        # only record of what the backup held, so those bytes would be invisible to `list`,
-        # unresolvable by restore, and unreachable by every future sweep. Skipping the id keeps
-        # the manifest, so a human can look at it and the next run retries.
-        if [ "${_id_key_bad}" -ne 0 ]; then
-            log "WARN" "[Retention] Deferring '${id}': its manifest lists a component key this sweep will not turn into a delete path; keeping the manifest so nothing is stranded"
-            skipped=$((skipped + 1)); continue
-        fi
-        _id_comps="${_id_comps_ok}"
-        if [ -z "${_id_comps}" ]; then
-            # No usable manifest at purge time (it was readable during the ownership check, so
-            # this is a transient read error or a concurrent change). Falling back to
-            # ${BACKUP_COMPONENTS} would mean deleting on a GUESS about what this backup holds
-            # — including deleting ClickHouse data without being able to see whether it is a
-            # chain base, which is exactly what the chain check exists to prevent.
-            log "WARN" "[Retention] Deferring '${id}': its manifest could not be read now, so what it holds is unknown; refusing to delete on a guess"
-            skipped=$((skipped + 1)); continue
-        fi
-        _id_chname=$(printf '%s' "${_id_mf}" | jq -r '.components.clickhouse.name // empty' 2>/dev/null || true)
-        _id_ch_pinned=false
-        _id_ch_reason=""
-        if [ -n "${_id_chname}" ]; then
-            if [ "${ch_required_sp}" = "__unverified__" ]; then
-                log "WARN" "[Retention] Deferring '${id}': it carries ClickHouse data and the incremental chain could not be verified"
-                skipped=$((skipped + 1)); continue
-            fi
-            case "${ch_required_sp}" in
-                *" ${_id_chname} "*) _id_ch_pinned=true
-                                     _id_ch_reason="it is still the base a retained backup was diffed against (incremental chain)" ;;
-            esac
-            # ClickHouse data written OUTSIDE this run's root, because the sidecar's own
-            # S3_PATH pointed elsewhere and the backup honoured it (DN-12/DN-43). The sweep
-            # deletes only under its own root, so those bytes are not ours to reclaim — and
-            # deleting this id's MANIFEST would destroy the only record of where they are,
-            # leaving them unreferenced by `list`, by restore and by every future sweep.
-            # Same treatment as a chain pin: purge what is ours, keep clickhouse and the index.
-            if [ "${S3_ENABLED}" = "true" ] && [ "${_id_ch_pinned}" != "true" ]; then
-                _id_chpath=$(printf '%s' "${_id_mf}" | jq -r '.components.clickhouse.s3_path // empty' 2>/dev/null || true)
-                if [ -n "${_id_chpath}" ] && [ "${_id_chpath}" != "$(clickhouse_remote_key)" ]; then
-                    _id_ch_pinned=true
-                    _id_ch_reason="its ClickHouse data is under '${_id_chpath}', outside this install's root, so this sweep must not delete it or the record of where it is"
-                fi
-            fi
-        fi
-        # A pinned ClickHouse backup pins ONLY ClickHouse. Skipping the whole id here meant an
-        # incremental chain (the default once --ch-backup-type incremental is used, since each
-        # night's base is the previous night) retained every expired id's PostgreSQL,
-        # VictoriaMetrics and /srv data as well — usually the bulk of the bytes — indefinitely,
-        # for backups nothing depends on. Retention effectively stopped for the whole install
-        # instead of for the one component the constraint applies to.
-        #
-        # So: purge everything except ClickHouse, keep clickhouse/<id>/ and the manifest, and
-        # then rewrite the manifest so the index does not go on advertising components that are
-        # gone. The component KEYS stay (with status "pruned"), which is what lets a later
-        # sweep purge the ClickHouse data and re-purge anything a failure left behind once the
-        # chain releases the id.
-        if [ "${_id_ch_pinned}" = "true" ]; then
-            _purge_comps=$(printf '%s\n' "${_id_comps}" | grep -v '^clickhouse$' || true)
-            if [ -z "${_purge_comps}" ]; then
-                log "WARN" "[Retention] Keeping '${id}': ${_id_ch_reason}, and ClickHouse is all it holds."
-                skipped=$((skipped + 1)); continue
-            fi
-            if [ "${DRY_RUN}" = "true" ]; then
-                log "INFO" "[Retention] [DRY RUN] '${id}': ClickHouse backup '${_id_chname}' is kept because ${_id_ch_reason}; clickhouse/ and the manifest stay. Would purge the rest:"
-                for _c in ${_purge_comps}; do
-                    log "INFO" "[Retention] [DRY RUN]   would purge $(comp_display "${_c}" "${id}")"
-                done
-                skipped=$((skipped + 1)); continue
-            fi
-            log "WARN" "[Retention] '${id}': ClickHouse backup '${_id_chname}' is kept because ${_id_ch_reason}, so clickhouse/ and the manifest stay. Purging the components nothing depends on ($(printf '%s' "${_purge_comps}" | tr '\n' ' '))."
-            # This branch DELETES, so it consumes the run's destruction budget like any other
-            # purge. Counting it as skipped-only would let a bucket full of chain-pinned ids
-            # issue unbounded destructive calls while `attempted` never advanced — the very
-            # thing the cap-attempts-not-successes rule above exists to prevent.
-            attempted=$((attempted + 1))
-            _partial_fail=0
-            for _c in ${_purge_comps}; do
-                store_delete_prefix "$(comp_path "${_c}" "${id}")" || _partial_fail=$((_partial_fail + 1))
-            done
-            if [ "${_partial_fail}" -ne 0 ]; then
-                log "WARN" "[Retention] ${id}: ${_partial_fail} component path(s) could not be purged; leaving the manifest as it is so the next run retries them"
-            else
-                # Mark them pruned in the manifest, so `list` and the restore pre-flight stop
-                # claiming this id can restore those components. Written AFTER the purge: a
-                # manifest that under-reports what is still in the bucket would strand those
-                # bytes, whereas one that briefly over-reports is corrected on the next run.
-                _pruned_mf=$(printf '%s' "${_id_mf}" | jq --arg why "${_id_ch_reason}" --argjson purged "$(printf '%s\n' "${_purge_comps}" | jq -R -s 'split("\n") | map(select(length > 0))')" '
-                    .status = "partial"
-                    | .retention_note = ("Retention pruned every component except ClickHouse, which is kept because " + $why + ". This backup id is no longer restorable as a whole.")
-                    | .components = (.components | with_entries(
-                        if (.key as $k | $purged | index($k))
-                        then .value = ((.value | del(.location) | del(.restore)) + {status: "pruned"})
-                        else . end))' 2>/dev/null || true)
-                catalog_cache_drop "${id}"
-                if [ -n "${_pruned_mf}" ] && printf '%s\n' "${_pruned_mf}" | store_write "$(manifest_path "${id}")"; then
-                    log "INFO" "[Retention] ${id}: manifest updated — the pruned components are marked 'pruned' so nothing tries to restore them"
-                else
-                    log "WARN" "[Retention] ${id}: components purged but its manifest still lists them as restorable; the next run will retry the rewrite"
-                fi
-            fi
-            skipped=$((skipped + 1)); continue
-        fi
-        attempted=$((attempted + 1))
-        if [ "${DRY_RUN}" = "true" ]; then
-            # The components THIS backup holds, not all five — the preview has to match what a
-            # real run would do, or the review gate is showing a plan that isn't the plan.
-            for _c in ${_id_comps}; do
-                log "INFO" "[Retention] [DRY RUN] would purge $(comp_display "${_c}" "${id}")"
-            done
-            log "INFO" "[Retention] [DRY RUN] would then delete $(manifest_display "${id}")"
-            purged=$((purged + 1))
-            continue
-        fi
-        # All of an id's components, then the manifest LAST — the manifest is the only record
-        # of what this backup held, so losing it first strands whatever the failure left.
-        log "INFO" "[Retention] Purging ${id} ($(printf '%s' "${_id_comps}" | tr '\n' ' ')) ..."
-        _comp_fail=0
-        for _c in ${_id_comps}; do
-            store_delete_prefix "$(comp_path "${_c}" "${id}")" || _comp_fail=$((_comp_fail + 1))
-        done
-        if [ "${_comp_fail}" -ne 0 ]; then
-            log "WARN" "[Retention] ${id}: ${_comp_fail} component path(s) could not be purged — KEEPING the manifest so the next run retries this id rather than orphaning what is left"
-        elif store_delete_object "$(manifest_path "${id}")"; then
-            purged=$((purged + 1))
-        else
-            log "WARN" "[Retention] ${id}: component data purged but the manifest remains; the next run will retry it"
-        fi
+        prune_purge_one "${id}" "${ch_required_sp}"
+        attempted=$((attempted + PRUNE_ONE_ATTEMPTED))
+        purged=$((purged + PRUNE_ONE_PURGED))
+        skipped=$((skipped + PRUNE_ONE_SKIPPED))
     done
 
     set +f
@@ -5087,23 +5132,16 @@ cleanup_old_backups() {
 # 10. Metrics — backup writes per-component gauges, restore its own file
 ################################################################################
 
-# Write this run's Prometheus metrics — EVERY component, ONE file (atomic via mv).
-# Never fails the run — see DN-32.
-#
-# The component is a LABEL, not a file name (DN-42). It used to be both: one
-# <component>_metrics.prom per component, which made the component list part of the serving
-# contract — five files meant five nc listeners, five containerPorts and five near-identical
-# thirty-line vmagent scrape jobs, so adding a component was a four-file change across the
-# chart and forgetting one of them was invisible (pmm-server's file was written for months
-# before anything served it). One file, one port, one scrape job: adding a component is now a
-# label value, which is what it always was.
+# This run's Prometheus metrics: EVERY component, ONE file, atomic via mv. The component is a
+# LABEL, not a file name — one file per component made the component list part of the chart's
+# serving contract (DN-42). Never fails the run (DN-32).
 #
 # $1 = the encryption key's status, for the same reason write_manifest takes it: a FAILED key
-# export never reaches RESULTS_JSON, so deriving the component list from that object alone
-# would silently drop exactly the failure worth alerting on (DN-38).
-# Did the retention sweep actually sweep? A separate family from the backup metrics because it
-# answers a different question and is written by a different subcommand — and because a prune
-# run has no components, so it cannot borrow the component-labelled series.
+# export never reaches RESULTS_JSON, so deriving the component list from that alone would drop
+# exactly the failure worth alerting on (DN-38).
+
+# Did the retention sweep actually sweep? Its own family: a different question, a different
+# subcommand, and a prune run has no components to borrow the component-labelled series from.
 write_prune_metrics() {   # <rc>
     local rc="${1:-1}" timestamp
     timestamp=$(date +%s)
@@ -5135,24 +5173,15 @@ write_backup_metrics() {
         mkdir -p "${metrics_dir}" 2>/dev/null || { log "WARN" "Could not write backup metrics anywhere; continuing"; return 0; }
     fi
 
-    # Per-BACKUP-ID-and-scope file, not one shared name. The documented concurrent workflow runs
-    # one process per component sharing a --backup-id, and each ends here: with a single
-    # backup_metrics.prom they each `mv` over the others, so whichever finished last is all
-    # Prometheus ever sees and the other components' series vanish. write_manifest merges under a
-    # lease for exactly this reason (DN-13); the metrics writer cannot merge safely across
-    # processes, so it separates instead and lets the listener concatenate.
     # One file per RUN SCOPE, holding SAMPLES ONLY — no HELP/TYPE. Two constraints meet here:
-    #
-    #   * The documented concurrent workflow runs one process per component sharing a
-    #     --backup-id, and each ends in this function. With a single shared file they `mv` over
-    #     each other and only the last finisher's component survives into Prometheus.
-    #   * The text format allows exactly ONE HELP/TYPE pair per metric family in an exposition,
-    #     so several self-contained files cannot simply be concatenated — that is what makes the
-    #     whole scrape fail.
-    #
-    # So the samples are split per scope and the listener supplies the single preamble. The
-    # chart therefore knows the four metric FAMILY names, but still nothing about the component
-    # list — adding a component remains a script-only change, which was the point.
+    #   * the concurrent workflow runs one process per component sharing a --backup-id, and each
+    #     ends in this function; with one shared file they `mv` over each other and only the last
+    #     finisher's component reaches Prometheus (write_manifest merges under a lease for the
+    #     same reason, but a metrics writer cannot merge safely across processes);
+    #   * the text format allows exactly ONE HELP/TYPE pair per family per exposition, so
+    #     self-contained files cannot simply be concatenated — that fails the whole scrape.
+    # So samples are split per scope and the listener supplies the single preamble. The chart
+    # knows the family NAMES but nothing about the component list. (DN-42)
     local _m_scope="all"
     [ -n "${COMPONENT_SUFFIX}" ] && _m_scope="${COMPONENT_SUFFIX#_}"
     case "${_m_scope}" in *[!A-Za-z0-9_.-]*) _m_scope="all" ;; esac
@@ -5217,15 +5246,32 @@ write_backup_metrics() {
     return 0
 }
 
-write_restore_metrics() {
+# Like the other two metric writers, this one NEVER fails the run (DN-32). Every call site is a
+# plain command or the last of an `&&` list, so an unguarded write on a full or read-only
+# ${METRICS_DIR} does not merely lose a metric — it kills the restore, and it is called after
+# scale_down_pmm, so that abort lands with PMM at 0 and the components half done.
+#
+# The component LABEL VALUES are the manifest's component keys — "pmm-server", not "pmm_server",
+# and "encryption", not "encryption_key" — so they match pmm_ha_backup_last_success. The two
+# families are written by one tool into one directory and served by one listener, and spelling the
+# same component two ways meant no dashboard or alert could filter or join across them (DN-42).
+write_restore_metrics() {   # <in-progress> <phase> [last-success] [last-ts] [last-duration]
     local in_progress="$1" phase="$2" last_success="${3:-0}" last_ts="${4:-0}" last_dur="${5:-0}"
-    local pg_ok="${6:-0}" ch_ok="${7:-0}" vm_ok="${8:-0}" enc_ok="${9:-0}" pmm_ok="${10:-0}"
+    # The per-component samples are READ FROM THE TABLE rather than passed in. They used to be
+    # five more positional parameters — ten in all, addressed as "${10}" — which every in-flight
+    # call site had to spell out as `0 0 0 0 0`, and which silently reported every component as
+    # failed for the whole run. The *_OK variables are already the authority on each outcome.
+    local _wrm_c="" _wrm_rows=""
+    for _wrm_c in ${RESTORE_COMPONENTS}; do
+        _wrm_rows="${_wrm_rows}pmm_ha_restore_component_success{namespace=\"${NAMESPACE}\",component=\"${_wrm_c}\"} $(restore_ok "${_wrm_c}" && echo 1 || echo 0)
+"
+    done
     local metrics_dir="${METRICS_DIR}"
     if ! mkdir -p "${metrics_dir}" 2>/dev/null; then
         metrics_dir="/tmp/.restore_metrics"; mkdir -p "${metrics_dir}" 2>/dev/null || return 0
     fi
     local tmp_file="${metrics_dir}/.restore_metrics.prom.tmp" target_file="${metrics_dir}/restore_metrics.prom"
-    cat > "${tmp_file}" <<EOF
+    if ! { cat > "${tmp_file}" <<EOF
 # HELP pmm_ha_restore_in_progress Whether a restore is currently running (1=yes, 0=no)
 # TYPE pmm_ha_restore_in_progress gauge
 pmm_ha_restore_in_progress{namespace="${NAMESPACE}"} ${in_progress}
@@ -5243,13 +5289,15 @@ pmm_ha_restore_last_timestamp_seconds{namespace="${NAMESPACE}"} ${last_ts}
 pmm_ha_restore_last_duration_seconds{namespace="${NAMESPACE}"} ${last_dur}
 # HELP pmm_ha_restore_component_success Per-component result (1=ok, 0=fail)
 # TYPE pmm_ha_restore_component_success gauge
-pmm_ha_restore_component_success{namespace="${NAMESPACE}",component="postgresql"} ${pg_ok}
-pmm_ha_restore_component_success{namespace="${NAMESPACE}",component="clickhouse"} ${ch_ok}
-pmm_ha_restore_component_success{namespace="${NAMESPACE}",component="victoriametrics"} ${vm_ok}
-pmm_ha_restore_component_success{namespace="${NAMESPACE}",component="pmm_server"} ${pmm_ok}
-pmm_ha_restore_component_success{namespace="${NAMESPACE}",component="encryption_key"} ${enc_ok}
 EOF
-    mv "${tmp_file}" "${target_file}" 2>/dev/null || true
+          printf '%s' "${_wrm_rows}" >> "${tmp_file}"
+    } 2>/dev/null
+    then
+        rm -f "${tmp_file}" 2>/dev/null || true
+        return 0
+    fi
+    mv "${tmp_file}" "${target_file}" 2>/dev/null || rm -f "${tmp_file}" 2>/dev/null || true
+    return 0
 }
 ################################################################################
 # Main Orchestration
@@ -5292,17 +5340,13 @@ record_backup_result() {   # <label> <component> <rc>
         log "INFO" ""
         return 0
     fi
-    # A component that failed EARLY (no primary pod, no databases, a clickhouse-backup API
-    # error) returned before reaching its result_set, so it had NO entry at all — and an absent
-    # entry is indistinguishable from "not selected" everywhere downstream. That meant a total
-    # failure printed "⊘ Skipped" in the summary while this function logged "Backup failed",
-    # left the component out of the manifest (so retention never reclaimed whatever bytes it
-    # did land), and — worst — never rewrote its .prom file, so the PREVIOUS run's
-    # pmm_ha_backup_last_success{component=...} 1 kept being scraped and a total backup failure
-    # looked green in Prometheus.
+    # A component that failed EARLY returns before reaching its own result_set, and an absent
+    # entry is indistinguishable from "not selected" everywhere downstream: the summary printed
+    # "⊘ Skipped", the manifest omitted it, and — worst — its .prom file was never rewritten, so
+    # the PREVIOUS run's success kept being scraped and a total failure looked green (DN-38).
     #
-    # Recorded here rather than at each early return: this is the one place every component's
-    # outcome passes through, so it cannot be forgotten by the next component's error path.
+    # Recorded HERE rather than at each early return: this is the one place every component's
+    # outcome passes through, so the next component's error path cannot forget it.
     if [ -z "$(result_get "$2" status)" ]; then
         result_set "$2" --arg status "failed" \
             --arg detail "failed before it could record any detail (see the log)" \
@@ -5356,11 +5400,7 @@ cmd_backup() {
         # effectively unkillable by SIGTERM), so a new run could grab the freed locks and run the
         # same components concurrently. release_component_lock is ownership-checked, so the EXIT
         # trap re-running it after the signal handler's exit is harmless.
-        LOCK_COMPONENTS=""
-        [ "${BACKUP_CLICKHOUSE}" = "true" ] && LOCK_COMPONENTS="${LOCK_COMPONENTS} clickhouse"
-        [ "${BACKUP_PMM_SERVER}" = "true" ] && LOCK_COMPONENTS="${LOCK_COMPONENTS} pmm-server"
-        [ "${BACKUP_POSTGRESQL}" = "true" ] && LOCK_COMPONENTS="${LOCK_COMPONENTS} postgresql"
-        [ "${BACKUP_VICTORIAMETRICS}" = "true" ] && LOCK_COMPONENTS="${LOCK_COMPONENTS} victoriametrics"
+        LOCK_COMPONENTS=$(lock_list 4)
         trap release_locks EXIT
         trap 'release_locks; exit 130' INT
         trap 'release_locks; exit 143' TERM
@@ -5371,6 +5411,13 @@ cmd_backup() {
         # no logs/ dir yet). Create it, or fall back to /dev/null.
         mkdir -p "${BACKUP_DIR}/logs" 2>/dev/null || true
         [ -w "${BACKUP_DIR}/logs" ] || LOG_FILE="/dev/null"
+        # A dry run takes no locks, but release_locks is also the reaper for the retention sweep's
+        # manifest cache (catalog_cache_clear), and cleanup_old_backups runs the sweep in dry run
+        # too — that is the documented review gate. Without this trap every `backup --dry-run` left
+        # a /tmp/pmm-backup-catalog.XXXXXX behind in the backup-tools pod, which is long-lived, so
+        # they accumulated one per preview. Harmless with LOCK_COMPONENTS empty: the release loop
+        # has nothing to iterate and the renewer was never started.
+        trap release_locks EXIT
     fi
 
     echo ""
@@ -5383,10 +5430,7 @@ cmd_backup() {
         exit 1
     fi
     log "INFO" "Namespace: ${NAMESPACE}"
-    [ "${BACKUP_POSTGRESQL}" = "true" ] && log "INFO" "Components: PostgreSQL"
-    [ "${BACKUP_CLICKHOUSE}" = "true" ] && log "INFO" "Components: ClickHouse"
-    [ "${BACKUP_VICTORIAMETRICS}" = "true" ] && log "INFO" "Components: VictoriaMetrics"
-    [ "${BACKUP_PMM_SERVER}" = "true" ] && log "INFO" "Components: PMM Server (/srv)"
+    log "INFO" "Components:$(selected_labels 4)"
     log "INFO" ""
     
     # Create backup subdirectory
@@ -5399,43 +5443,21 @@ cmd_backup() {
     local all_success=true
     local components_backed_up=0
     local components_failed=0
-    local pg_backed_up=false
-    local ch_backed_up=false
-    local vm_backed_up=false
-    local pmm_backed_up=false
     local _comp_rc=0
 
-    # PostgreSQL Backup
-    if [ "${BACKUP_POSTGRESQL}" = "true" ]; then
-        if backup_postgresql; then _comp_rc=0; else _comp_rc=$?; fi
-        if record_backup_result "PostgreSQL" postgresql "${_comp_rc}"; then pg_backed_up=true; fi
-    else
-        log "INFO" "[PostgreSQL] ⊘ Backup skipped"
-    fi
-    
-    # ClickHouse Backup
-    if [ "${BACKUP_CLICKHOUSE}" = "true" ]; then
-        if backup_clickhouse; then _comp_rc=0; else _comp_rc=$?; fi
-        if record_backup_result "ClickHouse" clickhouse "${_comp_rc}"; then ch_backed_up=true; fi
-    else
-        log "INFO" "[ClickHouse] ⊘ Backup skipped"
-    fi
-    
-    # VictoriaMetrics Backup
-    if [ "${BACKUP_VICTORIAMETRICS}" = "true" ]; then
-        if backup_victoriametrics; then _comp_rc=0; else _comp_rc=$?; fi
-        if record_backup_result "VictoriaMetrics" victoriametrics "${_comp_rc}"; then vm_backed_up=true; fi
-    else
-        log "INFO" "[VictoriaMetrics] ⊘ Backup skipped"
-    fi
-    
-    # PMM Server /srv Backup
-    if [ "${BACKUP_PMM_SERVER}" = "true" ]; then
-        if backup_pmm_server; then _comp_rc=0; else _comp_rc=$?; fi
-        if record_backup_result "PMMServer" pmm-server "${_comp_rc}"; then pmm_backed_up=true; fi
-    else
-        log "INFO" "[PMMServer] ⊘ Backup skipped"
-    fi
+    # One pass over the table: run each selected component, record its outcome. The function
+    # name is derived from the key, so a new row needs no edit here.
+    local _bc="" _bfn="" _blabel=""
+    for _bc in ${CORE_COMPONENTS}; do
+        _blabel=$(comp_label "${_bc}")
+        if ! comp_on "${_bc}" 4; then
+            log "INFO" "[${_blabel}] ⊘ Backup skipped"
+            continue
+        fi
+        _bfn="backup_$(printf '%s' "${_bc}" | tr '-' '_')"
+        if "${_bfn}"; then _comp_rc=0; else _comp_rc=$?; fi
+        record_backup_result "${_blabel}" "${_bc}" "${_comp_rc}" || true
+    done
 
     # Encryption Key Backup — the PG encryption key, captured with PostgreSQL (skip via
     # --skip-encryption-key).
@@ -5479,20 +5501,12 @@ cmd_backup() {
     fi
     log "INFO" ""
 
-    # Retention runs on the CATALOG's state, not on this run's outcome (DN-40).
-    #
-    # It used to be gated on ${all_success}, to stop an age-based sweep from deleting good
-    # backups while a broken run produced no new one. That fear is real, but the gate was the
-    # wrong instrument for it: it made "should anything be deleted?" a property of this
-    # process's luck rather than of what the bucket holds. One component failing every night —
-    # a ClickHouse sidecar that was never deployed, a vmbackup sidecar left disabled — meant the
-    # sweep never ran ONCE, so nothing was ever reclaimed while `list` went on reporting the
-    # other three components as success. The bill arrives as a full bucket, months later.
-    #
-    # prune_expired_backups now answers the question directly: it refuses unless a retained
-    # backup is 'complete', which is the actual safety property ("never prune down to nothing
-    # restorable") rather than a proxy for it. So the sweep is always invited, and declines on
-    # its own evidence.
+    # Retention runs on the CATALOG's state, not on this run's outcome (DN-40). Gating it on
+    # ${all_success} made "should anything be deleted?" a property of this process's luck: one
+    # component failing every night meant the sweep never ran once, and the bill arrived as a
+    # full bucket months later. The sweep is always invited and declines on its own evidence —
+    # it refuses unless a retained backup is complete and full-scope, which is the actual safety
+    # property rather than a proxy for it.
     cleanup_old_backups
     log "INFO" ""
     
@@ -5569,18 +5583,14 @@ cmd_backup() {
 ################################################################################
 # Retention on its own entry point.
 #
-# The sweep is a SEPARATE JOB from taking a backup: different failure mode (it destroys rather
-# than writes), different budget, different reason to run. Welding it to the end of cmd_backup
-# meant it inherited a trigger it has nothing to do with — see DN-40 — and it also had to be
-# bounded twice over (S3_PRUNE_MAX_PER_RUN, S3_PRUNE_MAX_SECONDS) purely to avoid overrunning
-# the backup CronJob's activeDeadlineSeconds and the component locks that run still holds.
-# On its own schedule those bounds answer to their own deadline.
+# The sweep is a SEPARATE JOB from taking a backup: it destroys rather than writes, and it has
+# its own budget and its own reason to run (DN-40).
 #
-# It deliberately takes NO component locks. Locks exist to stop two processes writing one
-# DATABASE; this touches no database, and the only storage it deletes belongs to ids that are
-# past the cutoff — which no in-flight backup can be writing, because a running backup's id is
-# the current timestamp. Taking them anyway would make a long backup fail the prune schedule
-# for no protection in return.
+# It takes only the clickhouse lock, not the full set. Locks exist to stop two processes writing
+# one DATABASE, and the only storage this deletes belongs to ids past the cutoff, which no
+# in-flight backup can be writing — a running backup's id is the current timestamp. Taking them
+# all would make a long backup fail the prune schedule for no protection in return. ClickHouse
+# is the exception: cleanup_old_backups also execs `clickhouse-backup clean` into the live pod.
 ################################################################################
 cmd_prune() {
     log "INFO" "================================================================================"
@@ -5639,8 +5649,6 @@ cmd_restore() {
     # (There is no S3 client pod to bring up any more — rclone is local, so load_manifest
     # can read the manifest immediately instead of waiting on a pod to be scheduled.)
     if [ "${DRY_RUN}" != "true" ]; then
-        # EXIT just cleans up; INT/TERM must also EXIT, or ash/dash resumes the restore with its locks
-        # released and temp pods deleted. restore_cleanup is idempotent. See DN-20.
         # Decided before the traps and before any subshell forks: restore_cleanup reads it in
         # the parent, the component subshells write it. See TEMP_PODS_MARKER. Set ONCE — a
         # second assignment later would rebind the variable and orphan anything written against
@@ -5649,26 +5657,36 @@ cmd_restore() {
             TEMP_PODS_MARKER=$(mktemp /tmp/pmm-temp-pods.XXXXXX 2>/dev/null || echo "/tmp/.pmm-temp-pods.$$")
             rm -f "${TEMP_PODS_MARKER}" 2>/dev/null || true
         }
-        trap restore_cleanup EXIT
-        trap 'restore_cleanup; exit 130' INT
-        trap 'restore_cleanup; exit 143' TERM
     fi
+    # EXIT just cleans up; INT/TERM must also EXIT, or ash/dash resumes the restore with its locks
+    # released and temp pods deleted. restore_cleanup is idempotent. See DN-20.
+    #
+    # Installed for a DRY RUN too, which the marker block above deliberately is not: restore_cleanup
+    # is also what reaps the local manifest copy, and load_manifest makes one on both paths — so a
+    # dry run that stopped at the explicit-selection gate or a failed pre-flight used to leave it in
+    # /tmp. Nothing else in the handler can act on a dry run: the temp-pod sweep is gated on
+    # TEMP_PODS_MARKER, which stays empty above, and release_locks iterates LOCK_COMPONENTS, which a
+    # dry run never fills.
+    trap restore_cleanup EXIT
+    trap 'restore_cleanup; exit 130' INT
+    trap 'restore_cleanup; exit 143' TERM
 
     if ! load_manifest; then exit 1; fi
     select_default_components
 
-    log "INFO" "Components: PG=${RESTORE_POSTGRESQL}(${MF_PG_STATUS:-none}) CH=${RESTORE_CLICKHOUSE}(${MF_CH_STATUS:-none}) VM=${RESTORE_VICTORIAMETRICS}(${MF_VM_STATUS:-none}) PMM=${RESTORE_PMM_SERVER}(${MF_PMM_STATUS:-none}) Enc=${RESTORE_ENCRYPTION_KEY}(${MF_ENC_STATUS:-none})"
+    log "INFO" "Components:$(restore_plan_line)"
 
-    # An explicitly requested component that this backup does not carry as 'success' is a
-    # hard error BEFORE anything is touched: silently skipping it (old behavior) scaled PMM
-    # down/up and exited 0 without restoring the one thing the user asked for.
+    # An explicitly requested component that this backup does not carry as 'success' is a hard
+    # error BEFORE anything is touched: silently skipping it scaled PMM down/up and exited 0
+    # without restoring the one thing the operator asked for.
     if [ "${EXPLICIT_SELECTION}" = "true" ]; then
-        local _bad=""
-        [ "${RESTORE_POSTGRESQL}" = "true" ]      && [ "${MF_PG_STATUS}" != "success" ]  && _bad="${_bad} postgresql(${MF_PG_STATUS:-absent})"
-        [ "${RESTORE_CLICKHOUSE}" = "true" ]      && [ "${MF_CH_STATUS}" != "success" ]  && _bad="${_bad} clickhouse(${MF_CH_STATUS:-absent})"
-        [ "${RESTORE_VICTORIAMETRICS}" = "true" ] && [ "${MF_VM_STATUS}" != "success" ]  && _bad="${_bad} victoriametrics(${MF_VM_STATUS:-absent})"
-        [ "${RESTORE_PMM_SERVER}" = "true" ]      && [ "${MF_PMM_STATUS}" != "success" ] && _bad="${_bad} pmm-server(${MF_PMM_STATUS:-absent})"
-        [ "${RESTORE_ENCRYPTION_KEY}" = "true" ]  && [ "${MF_ENC_STATUS}" != "success" ] && _bad="${_bad} encryption(${MF_ENC_STATUS:-absent})"
+        local _bad="" _rc="" _rst=""
+        for _rc in ${RESTORE_COMPONENTS}; do
+            comp_on "${_rc}" 5 || continue
+            restore_has "${_rc}" && continue
+            _rst=$(comp_val "${_rc}" 7)
+            _bad="${_bad} ${_rc}(${_rst:-absent})"
+        done
         if [ -n "${_bad}" ]; then
             log "ERROR" "Requested component(s) not marked 'success' in ${BACKUP_NAME}:${_bad}"
             log "ERROR" "Nothing was changed. Pick another backup (see 'list'), or use --skip-<component> to drop it."
@@ -5701,30 +5719,19 @@ cmd_restore() {
         # Locks shared with the backup path (same names, same alphabetical order).
         # pmm-server is unconditional: every restore scales PMM down/up regardless of
         # which components were selected.
-        LOCK_COMPONENTS=""
-        [ "${RESTORE_CLICKHOUSE}" = "true" ] && LOCK_COMPONENTS="${LOCK_COMPONENTS} clickhouse"
-        LOCK_COMPONENTS="${LOCK_COMPONENTS} pmm-server"
-        [ "${RESTORE_POSTGRESQL}" = "true" ] && LOCK_COMPONENTS="${LOCK_COMPONENTS} postgresql"
-        [ "${RESTORE_VICTORIAMETRICS}" = "true" ] && LOCK_COMPONENTS="${LOCK_COMPONENTS} victoriametrics"
-        # As above: the signal handlers must EXIT, or ash/dash resumes the restore with the
-        # locks already released and the temp pods already deleted.
-        # Decided before the traps and before any subshell forks: restore_cleanup reads it in
-        # the parent, the component subshells write it. See TEMP_PODS_MARKER. Set ONCE — a
-        # second assignment later would rebind the variable and orphan anything written against
-        # the first path, invisible to restore_cleanup.
-        [ -n "${TEMP_PODS_MARKER}" ] || {
-            TEMP_PODS_MARKER=$(mktemp /tmp/pmm-temp-pods.XXXXXX 2>/dev/null || echo "/tmp/.pmm-temp-pods.$$")
-            rm -f "${TEMP_PODS_MARKER}" 2>/dev/null || true
-        }
-        trap restore_cleanup EXIT
-        trap 'restore_cleanup; exit 130' INT
-        trap 'restore_cleanup; exit 143' TERM
+        # The marker and the traps are already in place from the top of this function.
+        # pmm-server is forced on top of the selection: every restore scales PMM down and up
+        # regardless of which components were chosen.
+        local _saved_pmm="${RESTORE_PMM_SERVER}"
+        RESTORE_PMM_SERVER=true
+        LOCK_COMPONENTS=$(lock_list 5)
+        RESTORE_PMM_SERVER="${_saved_pmm}"
         acquire_locks
     fi
     RESTORE_START_TIME=$(date +%s)
 
     # 1. Encryption key first — abort if it fails (can't decrypt restored data otherwise).
-    [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "encryption_key" 0 0 0 0 0 0 0
+    [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "encryption_key"
     if [ "${RESTORE_ENCRYPTION_KEY}" = "true" ] && [ "${MF_ENC_STATUS}" = "success" ]; then
         restore_encryption_key && ENCRYPTION_KEY_OK=true
     else
@@ -5740,65 +5747,69 @@ cmd_restore() {
         log "ERROR" "Encryption key restore FAILED. Aborting before anything is changed (PMM is still running)."
         log "ERROR" "  Restored PostgreSQL data would not be decryptable without this key."
         log "ERROR" "  Fix the cause, or re-run with --skip-encryption-key to proceed deliberately without it."
-        write_restore_metrics 0 "idle" 0 "$(date +%s)" 0 0 0 0 0; exit 1
+        write_restore_metrics 0 "idle" 0 "$(date +%s)" 0; exit 1
     fi
 
     # 2. Scale PMM down FIRST so nothing writes the DBs during restore and the pmm-storage PVCs
     #    are free for the /srv restore. PMM is brought up LAST (after all data is restored), so it
     #    boots against the restored DBs + /srv instead of migrating a half-restored database.
-    [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "scale_down_pmm" 0 0 0 0 0 0 0
-    if ! scale_down_pmm; then log "ERROR" "Failed to scale down PMM; aborting."; write_restore_metrics 0 "idle" 0 "$(date +%s)" 0 0 0 0 0; exit 1; fi
+    [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "scale_down_pmm"
+    if ! scale_down_pmm; then log "ERROR" "Failed to scale down PMM; aborting."; write_restore_metrics 0 "idle" 0 "$(date +%s)" 0; exit 1; fi
 
-    # 3. DB components (PMM down).
-    local pg_ret=0 ch_ret=0 vm_ret=0 tmpdir
+    # 3. The three data stores (PMM is down).
+    #
+    # A component that is NOT part of this restore is marked OK, not failed. These flags feed
+    # pmm_ha_restore_component_success directly, and left false they made `restore --clickhouse`
+    # emit postgresql=0 — a DR-readiness alert firing over components nobody asked to restore.
+    # Safe for the verdict, because every check below is guarded by restore_do: "nothing to do"
+    # can never stand in for "it worked". A component that WAS requested and is not in the
+    # backup still gets a WARN — that one case must not pass in silence.
+    local tmpdir _rc=""
     tmpdir=$(mktemp -d 2>/dev/null || echo "/tmp/.restore_$$"); mkdir -p "${tmpdir}" 2>/dev/null || true
-    local do_pg=false do_ch=false do_vm=false
-    [ "${RESTORE_POSTGRESQL}" = "true" ] && [ "${MF_PG_STATUS}" = "success" ] && do_pg=true
-    [ "${RESTORE_CLICKHOUSE}" = "true" ] && [ "${MF_CH_STATUS}" = "success" ] && do_ch=true
-    [ "${RESTORE_VICTORIAMETRICS}" = "true" ] && [ "${MF_VM_STATUS}" = "success" ] && do_vm=true
+    for _rc in ${RESTORE_DB_COMPONENTS}; do
+        restore_do "${_rc}" && continue
+        comp_on "${_rc}" 5 && log "WARN" "$(comp_label "${_rc}") requested but not marked 'success' in this backup; not restoring it"
+        restore_ok_set "${_rc}" true
+    done
 
     if [ "${PARALLEL}" = "true" ] && [ "${DRY_RUN}" != "true" ]; then
-        write_restore_metrics 1 "components" 0 0 0 0 0 0 0
-        # Reset the EXIT trap in each subshell so a child can't release locks; capture
-        # status via if/else so set -e can't mask a failure as success.
-        # Reset the EXIT trap in each subshell so a child cannot release the locks; capture
-        # status via if/else so set -e cannot mask a failure as success.
-        local _pg_pid="" _ch_pid="" _vm_pid="" _p
-        [ "${do_pg}" = "true" ] && ( trap - EXIT INT TERM; if restore_postgresql; then echo 0 > "${tmpdir}/pg_ret"; else echo 1 > "${tmpdir}/pg_ret"; fi ) &
-        _pg_pid=$!
-        [ "${do_ch}" = "true" ] && ( trap - EXIT INT TERM; if restore_clickhouse; then echo 0 > "${tmpdir}/ch_ret"; else echo 1 > "${tmpdir}/ch_ret"; fi ) &
-        _ch_pid=$!
-        [ "${do_vm}" = "true" ] && ( trap - EXIT INT TERM; if restore_victoriametrics; then echo 0 > "${tmpdir}/vm_ret"; else echo 1 > "${tmpdir}/vm_ret"; fi ) &
-        _vm_pid=$!
-        # Wait for THESE children only. A bare `wait` waits for every background job, which now
-        # includes the lock renewer's infinite loop (see start_lock_renewer) — so the restore hung
-        # here indefinitely with all three components already finished, PMM at 0 replicas and
-        # nothing in the log to say why. Never use a bare `wait` in this file;
-        # tests/pmm-backup-lint.sh enforces that.
-        for _p in ${_pg_pid} ${_ch_pid} ${_vm_pid}; do
+        write_restore_metrics 1 "components"
+        # Each component runs in its own subshell with the EXIT trap reset, so a child cannot
+        # release the parent's locks; the status comes back through a file because a subshell
+        # cannot assign to the parent.
+        local _pids="" _p=""
+        for _rc in ${RESTORE_DB_COMPONENTS}; do
+            restore_do "${_rc}" || continue
+            _restore_child "${_rc}" "${tmpdir}" &
+            _pids="${_pids} $!"
+        done
+        # Wait for THESE children only. A bare `wait` also waits on the lock renewer's infinite
+        # loop (see start_lock_renewer), which hung the restore with every component already
+        # finished and PMM at 0. tests/pmm-backup-lint.sh enforces that no bare `wait` appears.
+        for _p in ${_pids}; do
             wait "${_p}" 2>/dev/null || true
         done
-        # A subshell that died without writing its rc file (OOM-kill, unwritable tmpdir)
-        # must count as FAILED — the old [ -f ] && guard silently defaulted it to success.
-        [ "${do_pg}" = "true" ] && { pg_ret=$(cat "${tmpdir}/pg_ret" 2>/dev/null || echo 1); : "${pg_ret:=1}"; }
-        [ "${do_ch}" = "true" ] && { ch_ret=$(cat "${tmpdir}/ch_ret" 2>/dev/null || echo 1); : "${ch_ret:=1}"; }
-        [ "${do_vm}" = "true" ] && { vm_ret=$(cat "${tmpdir}/vm_ret" 2>/dev/null || echo 1); : "${vm_ret:=1}"; }
+        # A child that died without writing its rc file (OOM-kill, unwritable tmpdir) counts as
+        # FAILED: absence of a result is not a result.
+        for _rc in ${RESTORE_DB_COMPONENTS}; do
+            restore_do "${_rc}" || continue
+            [ "$(cat "${tmpdir}/${_rc}.rc" 2>/dev/null || echo 1)" = "0" ] && restore_ok_set "${_rc}" true
+        done
     else
-        [ "${do_pg}" = "true" ] && { [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "postgresql" 0 0 0 0 0 0 0; restore_postgresql || pg_ret=1; }
-        [ "${do_ch}" = "true" ] && { [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "clickhouse" 0 0 0 0 0 0 0; restore_clickhouse || ch_ret=1; }
-        [ "${do_vm}" = "true" ] && { [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "victoriametrics" 0 0 0 0 0 0 0; restore_victoriametrics || vm_ret=1; }
+        for _rc in ${RESTORE_DB_COMPONENTS}; do
+            restore_do "${_rc}" || continue
+            [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "${_rc}"
+            if "restore_$(printf '%s' "${_rc}" | tr '-' '_')"; then restore_ok_set "${_rc}" true; fi
+        done
     fi
     rm -rf "${tmpdir}" 2>/dev/null || true
-    [ "${do_pg}" = "true" ] && [ $pg_ret -eq 0 ] && POSTGRESQL_OK=true
-    [ "${do_ch}" = "true" ] && [ $ch_ret -eq 0 ] && CLICKHOUSE_OK=true
-    [ "${do_vm}" = "true" ] && [ $vm_ret -eq 0 ] && VICTORIAMETRICS_OK=true
 
     # 4. PMM /srv into the (released) pmm-storage PVCs via temp pods — PMM still down.
-    if [ "${RESTORE_PMM_SERVER}" = "true" ] && [ "${MF_PMM_STATUS}" = "success" ]; then
-        [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "pmm_server" 0 0 0 0 0 0 0
+    if restore_do pmm-server; then
+        [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "pmm_server"
         restore_pmm_server && PMM_SERVER_OK=true
     else
-        [ "${RESTORE_PMM_SERVER}" = "true" ] && log "WARN" "PMM /srv requested but not in this backup"
+        comp_on pmm-server 5 && log "WARN" "PMM /srv requested but not in this backup"
         PMM_SERVER_OK=true
     fi
 
@@ -5811,46 +5822,41 @@ cmd_restore() {
     fi
 
     # 5. Verification + outcome.
-    write_restore_metrics 1 "verification" 0 0 0 0 0 0 0
+    write_restore_metrics 1 "verification"
     restore_verification
 
+    # Every component that was actually restored must have succeeded. Guarded by restore_do, so
+    # a component that was never in scope cannot stand in for one that worked. The encryption
+    # key is checked unguarded: it is restored first and aborts the run on failure, so this is
+    # unreachable in practice — and it is exactly the check whose absence once let a --force run
+    # report success over undecryptable data. ENCRYPTION_KEY_OK is true when the key was out of
+    # scope, so it is a no-op then.
     local all_ok=true
-    [ "${do_pg}" = "true" ] && [ "${POSTGRESQL_OK}" != "true" ] && all_ok=false
-    [ "${do_ch}" = "true" ] && [ "${CLICKHOUSE_OK}" != "true" ] && all_ok=false
-    [ "${do_vm}" = "true" ] && [ "${VICTORIAMETRICS_OK}" != "true" ] && all_ok=false
-    [ "${RESTORE_PMM_SERVER}" = "true" ] && [ "${MF_PMM_STATUS}" = "success" ] && [ "${PMM_SERVER_OK}" != "true" ] && all_ok=false
-    # The key belongs in the verdict too. It is restored first and now aborts the run on
-    # failure, so this is unreachable in practice — which is exactly why it is cheap
-    # insurance: leaving it out is what let a --force run report success over undecryptable
-    # data. ENCRYPTION_KEY_OK is true when the key was not selected, so this is a no-op then.
+    for _rc in ${RESTORE_COMPONENTS}; do
+        [ "${_rc}" = "encryption" ] && continue
+        restore_do "${_rc}" || continue
+        restore_ok "${_rc}" || all_ok=false
+    done
     [ "${ENCRYPTION_KEY_OK}" != "true" ] && all_ok=false
 
     local end_ts duration success=0
     end_ts=$(date +%s); duration=$((end_ts - RESTORE_START_TIME))
     [ "${all_ok}" = "true" ] && success=1
-    local pg_ok=0 ch_ok=0 vm_ok=0 enc_ok=0 pmm_ok=0
-    [ "${POSTGRESQL_OK}" = "true" ] && pg_ok=1; [ "${CLICKHOUSE_OK}" = "true" ] && ch_ok=1
-    [ "${VICTORIAMETRICS_OK}" = "true" ] && vm_ok=1; [ "${ENCRYPTION_KEY_OK}" = "true" ] && enc_ok=1
-    [ "${PMM_SERVER_OK}" = "true" ] && pmm_ok=1
     rm -f "${MANIFEST_FILE}" 2>/dev/null || true
 
     if [ "${all_ok}" = "true" ]; then
         scale_up_pmm
-        write_restore_metrics 0 "idle" "${success}" "${end_ts}" "${duration}" "${pg_ok}" "${ch_ok}" "${vm_ok}" "${enc_ok}" "${pmm_ok}"
+        write_restore_metrics 0 "idle" "${success}" "${end_ts}" "${duration}"
         log "INFO" "==============================================================================="
         log "INFO" "PMM-HA Restore Summary"
         log "INFO" "==============================================================================="
         log "INFO" "Backup: ${BACKUP_NAME}   Namespace: ${NAMESPACE}   Target: ${BACKUP_TARGET}   Duration: ${duration}s"
-        log "INFO" "  - PostgreSQL:      $([ "${RESTORE_POSTGRESQL}" != "true" ] && echo '⊘ Skipped' || { [ "${POSTGRESQL_OK}" = "true" ] && echo '✓ Yes' || echo '✗ Failed'; })"
-        log "INFO" "  - ClickHouse:      $([ "${RESTORE_CLICKHOUSE}" != "true" ] && echo '⊘ Skipped' || { [ "${CLICKHOUSE_OK}" = "true" ] && echo '✓ Yes' || echo '✗ Failed'; })"
-        log "INFO" "  - VictoriaMetrics: $([ "${RESTORE_VICTORIAMETRICS}" != "true" ] && echo '⊘ Skipped' || { [ "${VICTORIAMETRICS_OK}" = "true" ] && echo '✓ Yes' || echo '✗ Failed'; })"
-        log "INFO" "  - PMM Server /srv: $([ "${RESTORE_PMM_SERVER}" != "true" ] && echo '⊘ Skipped' || { [ "${PMM_SERVER_OK}" = "true" ] && echo '✓ Yes' || echo '✗ Failed'; })"
-        log "INFO" "  - Encryption Key:  $([ "${ENCRYPTION_KEY_OK}" = "true" ] && echo '✓ Yes' || echo '⊘ No')"
+        restore_summary_rows
         log "INFO" "Restore completed successfully in ${duration}s. PMM scaled back up to ${PMM_SAVED_REPLICAS:-unchanged}."
         log "INFO" "==============================================================================="
         exit 0
     else
-        write_restore_metrics 0 "idle" "${success}" "${end_ts}" "${duration}" "${pg_ok}" "${ch_ok}" "${vm_ok}" "${enc_ok}" "${pmm_ok}"
+        write_restore_metrics 0 "idle" "${success}" "${end_ts}" "${duration}"
         log "ERROR" "One or more restores failed. PMM left scaled DOWN. Fix and re-run, or scale up manually:"
         log "ERROR" "  kubectl scale statefulset ${PMM_STATEFULSET_NAME:-<pmm-sts>} -n ${NAMESPACE} --replicas=${PMM_SAVED_REPLICAS:-1}"
         exit 1
@@ -5915,9 +5921,56 @@ main() {
     # Resolve the S3 prefix now that --namespace and --s3-prefix have both been parsed. Matches
     # the chart's pmm.backupS3Root ("<namespace>/<prefix>"), so a flag-less run outside the
     # backup-tools pod looks where the install actually writes instead of one level up.
+    # NAMESPACE is validated BEFORE it is used as the S3_PREFIX default below. It is a Kubernetes
+    # namespace, i.e. a DNS-1123 label, so this rejects nothing that could actually exist — and it
+    # is interpolated into the Prometheus exposition as namespace="${NAMESPACE}", where a quote
+    # ends the label set and a newline forges additional samples.
+    case "${NAMESPACE}" in
+        ''|*[!a-z0-9.-]*)
+            echo "Error: Invalid --namespace: '${NAMESPACE}' (a Kubernetes namespace is lowercase alphanumerics, '-' and '.')"
+            exit 1 ;;
+    esac
+
     if [ -z "${S3_PREFIX}" ]; then
         S3_PREFIX="${NAMESPACE}/pmm-ha"
     fi
+
+    # The S3 settings, charset-gated like every store-derived name (DN-17) — "the operator can
+    # only hurt himself" stops being true the moment a values.yaml is templated by anything but
+    # a human. Each of these reaches an interpreter:
+    #   S3_BUCKET, S3_PREFIX  -> spliced UNQUOTED into the clickhouse-backup action string, which
+    #                            is then embedded in a single-quoted SQL literal and re-used as
+    #                            that row's poll key. An apostrophe closes the literal; a space
+    #                            injects an extra clickhouse-backup flag.
+    #   S3_ENDPOINT/REGION/PROVIDER -> rendered into the temp pods' YAML as double-quoted
+    #                            scalars, where a '"' ends the value and the rest becomes spec.
+    # REFUSED, not sanitised: a silently rewritten bucket or prefix would address a different
+    # root from the one the install writes to and report "no backups" for a full bucket.
+    case "${S3_BUCKET}" in
+        *[!A-Za-z0-9._-]*)
+            echo "Error: Invalid --s3-bucket: '${S3_BUCKET}' (allowed characters: A-Z a-z 0-9 . _ -)"
+            exit 1 ;;
+    esac
+    case "${S3_PREFIX}" in
+        *[!A-Za-z0-9._/-]*)
+            echo "Error: Invalid --s3-prefix: '${S3_PREFIX}' (allowed characters: A-Z a-z 0-9 . _ - and '/')"
+            exit 1 ;;
+    esac
+    case "${S3_REGION}" in
+        *[!A-Za-z0-9._-]*)
+            echo "Error: Invalid --s3-region: '${S3_REGION}' (allowed characters: A-Z a-z 0-9 . _ -)"
+            exit 1 ;;
+    esac
+    case "${S3_PROVIDER}" in
+        *[!A-Za-z0-9]*)
+            echo "Error: Invalid --s3-provider: '${S3_PROVIDER}' (an rclone provider name: AWS, Minio, Ceph, Other, ...)"
+            exit 1 ;;
+    esac
+    case "${S3_ENDPOINT}" in
+        *[!A-Za-z0-9:/._~%+?=\&-]*)
+            echo "Error: Invalid --s3-endpoint: '${S3_ENDPOINT}' (a URL; quotes, spaces and shell metacharacters are refused)"
+            exit 1 ;;
+    esac
 
     # --backup-id charset, validated for EVERY subcommand rather than per-operation. It flows
     # into filesystem paths, ClickHouse backup names and a SQL string literal on the backup
@@ -5969,10 +6022,10 @@ main() {
         if [ -n "${BACKUP_ID}" ]; then
             _comp_count=0
             _comp_name=""
-            [ "${BACKUP_POSTGRESQL}" = "true" ] && _comp_count=$((_comp_count+1)) && _comp_name="postgresql"
-            [ "${BACKUP_CLICKHOUSE}" = "true" ] && _comp_count=$((_comp_count+1)) && _comp_name="clickhouse"
-            [ "${BACKUP_VICTORIAMETRICS}" = "true" ] && _comp_count=$((_comp_count+1)) && _comp_name="victoriametrics"
-            [ "${BACKUP_PMM_SERVER}" = "true" ] && _comp_count=$((_comp_count+1)) && _comp_name="pmm-server"
+            for _comp_c in ${CORE_COMPONENTS}; do
+                comp_on "${_comp_c}" 4 || continue
+                _comp_count=$((_comp_count + 1)); _comp_name="${_comp_c}"
+            done
             [ ${_comp_count} -eq 1 ] && COMPONENT_SUFFIX="_${_comp_name}"
         fi
 
@@ -5985,6 +6038,15 @@ main() {
             LOG_FILE="${BACKUP_DIR}/logs/prune_${TIMESTAMP}.log"
             mkdir -p "${BACKUP_DIR}/logs" 2>/dev/null || true
             [ -w "${BACKUP_DIR}/logs" ] || LOG_FILE="/tmp/prune_${TIMESTAMP}.log"
+        elif [ "${COMMAND}" = "list" ]; then
+            # 'list' is read-only and reports to stdout — cmd_list uses echo throughout and takes no
+            # locks, so it has nothing to journal. It shared this branch with 'backup' and therefore
+            # named its log file backup_<ts>.log: nothing writes to it today, but the first log()
+            # call added to that path would drop `list` invocations into the very log series an
+            # operator greps to answer "did last night's backup run?". That is the same collision
+            # the separate prune_<ts>.log name above exists to avoid. Nothing is lost by discarding
+            # it: log() echoes every line to stdout as well.
+            LOG_FILE="/dev/null"
         else
             LOG_FILE="${BACKUP_DIR}/logs/backup_${TIMESTAMP}${COMPONENT_SUFFIX}.log"
         fi
