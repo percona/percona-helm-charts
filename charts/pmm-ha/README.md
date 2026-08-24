@@ -33,12 +33,37 @@ This PMM HA deployment provides the following high availability features:
 - Kubernetes 1.22+
 - Helm 3.2.0+
 - PV provisioner support in the underlying infrastructure
+- A StorageClass with `allowVolumeExpansion: true` — every capacity correction on
+  a running install is a PVC expansion, which is impossible without it
+- `amd64` nodes available for the PMM and ClickHouse pods — Query Analytics
+  requires SSE4.2 and PMM Server has no native ARM64 build, so on clusters with
+  mixed or auto-provisioned nodes (Karpenter, EKS Auto Mode, Graviton pools)
+  those pods need `kubernetes.io/arch: amd64`
 - **Required Kubernetes Operators** (must be installed BEFORE this chart):
   - Install via `pmm-ha-dependencies` chart (recommended), OR
   - Install manually (advanced):
     - VictoriaMetrics Operator (v0.56.4+)
     - Altinity ClickHouse Operator (v0.25.4+)
     - Percona PostgreSQL Operator (v2.8.0+)
+
+## Sizing
+
+The chart's defaults target roughly **100 monitored nodes at 30-day retention**
+and need about 17 CPU, 40Gi of memory and 465Gi of storage in requests — three
+workers of 8 vCPU / 32Gi.
+
+`dataRetentionDays` is the single largest lever on the footprint; it drives both
+metrics and Query Analytics retention together.
+
+For larger fleets:
+
+```bash
+helm install pmm-ha percona/pmm-ha -f examples/values-500-nodes.yaml
+helm install pmm-ha percona/pmm-ha -f examples/values-1000-nodes.yaml
+```
+
+See [docs/SIZING.md](docs/SIZING.md) for the model behind these numbers, the
+per-component tables, and how to measure the constants on your own install.
 
 ## Installing the Chart
 

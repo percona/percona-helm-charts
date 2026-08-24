@@ -259,6 +259,11 @@ spec:
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
             - name: PMM_ENCRYPTION_KEY_PATH
               value: /etc/secrets/key
+            {{- /* PMM takes a Go duration and requires a whole number of days. Set from the
+                   same value as vmstorage's retentionPeriod so Query Analytics cannot
+                   silently expire on PMM's own 30-day default while metrics live longer. */}}
+            - name: PMM_DATA_RETENTION
+              value: "{{ mul (int .Values.dataRetentionDays) 24 }}h"
           ports:
             - name: https
               containerPort: 8443
