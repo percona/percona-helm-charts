@@ -244,7 +244,13 @@ sizes_to_json() {
 # checks" flag: every non-interactive run must pass it, so anything it disabled would be
 # disabled for ALL automation, which is where restores actually run.
 ASSUME_YES=false
-PARALLEL=true
+# EMPTY means "use this subcommand's default", which differs on purpose:
+#   restore  -> parallel. PMM is scaled to 0, nothing is serving, only RTO matters.
+#   backup   -> sequential. The system is LIVE, and vmbackup already runs unthrottled
+#               (-maxBytesPerSecond=0), so stealing I/O from the thing being monitored is a
+#               real cost that the operator should opt into rather than inherit.
+# --parallel / --sequential set it explicitly for either operation.
+PARALLEL=""
 
 # rclone provider profile for the temp S3 client pod: AWS | Minio | Ceph | Other
 S3_PROVIDER="${S3_PROVIDER:-AWS}"
@@ -403,9 +409,17 @@ Backup options:
   -r, --retention DAYS      Number of days to retain backups (default: 7)
   --ch-backup-type TYPE     ClickHouse backup type: full or incremental (default: full)
 
+Concurrency (backup and restore):
+  --parallel | --sequential Run the components concurrently, or one at a time.
+                            Defaults differ on purpose: RESTORE is parallel (PMM is scaled
+                            to 0, nothing is serving, only recovery time matters) and BACKUP
+                            is sequential (the system is live, and vmbackup runs unthrottled,
+                            so a backup that competes with itself for node bandwidth is a
+                            cost you should opt into). On a parallel backup the slowest
+                            component sets the wall clock and the log lines interleave.
+
 Restore options:
   --list                    Alias for the 'list' subcommand (list all backups) and exit
-  --parallel | --sequential Restore DB components in parallel (default) or one by one
   -y, --yes                 Confirm the destructive restore without prompting. Required
                             for any non-interactive run (no TTY). It answers the prompt
                             and nothing else — it never disables a safety check; each of
@@ -427,6 +441,9 @@ Examples:
 
   # PostgreSQL only (pg_dump of all app databases)
   $0 backup --namespace demo --postgresql
+
+  # All components at once, in ONE process (one manifest writer, one summary, one log)
+  $0 backup --namespace demo --parallel
 
   # Run components concurrently (grouped by backup-id).
   # date -u, because an auto-generated id is UTC and retention ages any id as UTC.
@@ -489,8 +506,16 @@ Concurrency:
   Per-component locking via coordination.k8s.io Leases in the namespace
   (pmm-backup-<component>) lets separate component backups run in parallel while stopping a
   backup and a restore of the same component from overlapping — across every client with
-  kubectl access, not just processes that share a filesystem. Use --backup-id to group
-  concurrent backup runs into the same backup.
+  kubectl access, not just processes that share a filesystem.
+
+  TWO ways to run components concurrently, and they are not equivalent:
+    --parallel            ONE process, all selected components at once. One manifest writer,
+                          one metrics file, one summary. Prefer this.
+    --backup-id <id>      SEPARATE processes sharing an id, e.g. one per component on
+                          different machines. Each writes the same manifests/<id>.json, so
+                          they merge it under a Lease — and if that lease cannot be taken, a
+                          component is reported FAILED even though its data uploaded. Use it
+                          only when the runs genuinely cannot be one process.
 
 Consistency:
   Each component is captured independently, so a backup id is a CORRELATION of
@@ -533,7 +558,9 @@ EOF
 # working). $1 = operation the flag belongs to, $2 = the flag itself.
 flag_requires() {
     _fr_ok=false
-    if [ "${COMMAND}" = "$1" ] || [ "${COMMAND}" = "list" ]; then
+    # $1 may name MORE THAN ONE subcommand ("backup restore"), for a flag both sides accept.
+    case " $1 " in *" ${COMMAND} "*) _fr_ok=true ;; esac
+    if [ "${_fr_ok}" = "true" ] || [ "${COMMAND}" = "list" ]; then
         _fr_ok=true
     elif [ "${COMMAND}" = "prune" ] && [ "$1" = "backup" ]; then
         # 'prune' is the backup side's retention half on its own entry point (DN-40), so it
@@ -743,11 +770,11 @@ parse_args() {
                 ;;
             # ---- restore-only ----
             --parallel)
-                flag_requires restore "$1"
+                flag_requires "backup restore" "$1"
                 PARALLEL=true
                 ;;
             --sequential)
-                flag_requires restore "$1"
+                flag_requires "backup restore" "$1"
                 PARALLEL=false
                 ;;
             --s3-provider)
@@ -4488,12 +4515,36 @@ restore_summary_rows() {
     return 0
 }
 
+# Is this operation running its components concurrently? $1 is the SUBCOMMAND'S default, used
+# when --parallel/--sequential were not given (see PARALLEL).
+parallel_enabled() { [ "${PARALLEL:-$1}" = "true" ]; }
+
 # One component restore in its own subshell: the EXIT trap is dropped so a child can never
 # release the parent's locks, and the status goes to a file because a subshell cannot assign to
 # its parent. Named at top level rather than inlined, so the `&` call site stays readable.
 _restore_child() {   # <component-key> <tmpdir>
     trap - EXIT INT TERM
     if "restore_$(printf '%s' "$1" | tr '-' '_')"; then echo 0 > "$2/$1.rc"; else echo 1 > "$2/$1.rc"; fi
+}
+
+# The backup equivalent, and it has to carry MORE than a status code. A restore child reports
+# one byte; a backup component produces a whole result object — sizes, durations, locations, the
+# per-object file census — and result_set writes that into RESULTS_JSON, which a subshell cannot
+# hand back to its parent. So the child serialises its own results and the parent merges them
+# after `wait`, which is also what keeps record_backup_result (and the counters it updates) in
+# the parent where they belong.
+#
+# RESULTS_JSON is reset first so the file holds exactly this component's entry and the merge
+# below cannot resurrect a sibling's.
+_backup_child() {   # <component-key> <tmpdir>
+    trap - EXIT INT TERM
+    _bch_c="$1" _bch_d="$2" _bch_rc=0
+    RESULTS_JSON='{}'
+    "backup_$(printf '%s' "${_bch_c}" | tr '-' '_')" || _bch_rc=$?
+    # Results first, status last: the status file is what the parent treats as "this child got
+    # far enough to report", so it must not exist before the results it refers to.
+    printf '%s' "${RESULTS_JSON}" > "${_bch_d}/${_bch_c}.json"
+    echo "${_bch_rc}" > "${_bch_d}/${_bch_c}.rc"
 }
 
 restore_verification() {
@@ -5447,17 +5498,54 @@ cmd_backup() {
 
     # One pass over the table: run each selected component, record its outcome. The function
     # name is derived from the key, so a new row needs no edit here.
-    local _bc="" _bfn="" _blabel=""
+    local _bc="" _btmp="" _bpids="" _bp="" _bres="" _bmerged=""
     for _bc in ${CORE_COMPONENTS}; do
-        _blabel=$(comp_label "${_bc}")
-        if ! comp_on "${_bc}" 4; then
-            log "INFO" "[${_blabel}] ⊘ Backup skipped"
-            continue
-        fi
-        _bfn="backup_$(printf '%s' "${_bc}" | tr '-' '_')"
-        if "${_bfn}"; then _comp_rc=0; else _comp_rc=$?; fi
-        record_backup_result "${_blabel}" "${_bc}" "${_comp_rc}" || true
+        comp_on "${_bc}" 4 || log "INFO" "[$(comp_label "${_bc}")] ⊘ Backup skipped"
     done
+
+    if parallel_enabled false && [ "${DRY_RUN}" != "true" ]; then
+        # Concurrent, IN ONE PROCESS — not the multi-process --backup-id workflow. That matters:
+        # there is still exactly one manifest writer and one metrics writer here, so none of
+        # DN-13's merge-lease machinery is engaged and a component cannot be reported FAILED
+        # because a sibling held the lease. The cost is an interleaved log.
+        log "INFO" "Running components CONCURRENTLY (--parallel). The slowest component sets the"
+        log "INFO" "  wall clock, and they compete for the same node bandwidth while PMM is live."
+        _btmp=$(mktemp -d 2>/dev/null || echo "/tmp/.backup_$$"); mkdir -p "${_btmp}" 2>/dev/null || true
+        for _bc in ${CORE_COMPONENTS}; do
+            comp_on "${_bc}" 4 || continue
+            _backup_child "${_bc}" "${_btmp}" &
+            _bpids="${_bpids} $!"
+        done
+        # These children only, never a bare `wait` — that would also wait on the lock renewer's
+        # infinite loop. tests/pmm-backup-lint.sh enforces it.
+        for _bp in ${_bpids}; do
+            wait "${_bp}" 2>/dev/null || true
+        done
+        # Merge in TABLE order, so the manifest, the summary and the metrics read the same
+        # regardless of which component happened to finish first.
+        for _bc in ${CORE_COMPONENTS}; do
+            comp_on "${_bc}" 4 || continue
+            _bres=$(cat "${_btmp}/${_bc}.json" 2>/dev/null || true)
+            if [ -n "${_bres}" ]; then
+                _bmerged=$(printf '%s' "${RESULTS_JSON}" \
+                    | jq --argjson o "${_bres}" '. + $o' 2>/dev/null) || _bmerged=""
+                [ -n "${_bmerged}" ] && RESULTS_JSON="${_bmerged}"
+            fi
+            # A child that died without writing its status (OOM-kill, an unwritable tmpdir)
+            # counts as FAILED: the absence of a result is not a result. record_backup_result
+            # then synthesises the missing entry, so it cannot read as "never selected".
+            _comp_rc=$(cat "${_btmp}/${_bc}.rc" 2>/dev/null || echo 1)
+            case "${_comp_rc}" in ''|*[!0-9]*) _comp_rc=1 ;; esac
+            record_backup_result "$(comp_label "${_bc}")" "${_bc}" "${_comp_rc}" || true
+        done
+        rm -rf "${_btmp}" 2>/dev/null || true
+    else
+        for _bc in ${CORE_COMPONENTS}; do
+            comp_on "${_bc}" 4 || continue
+            if "backup_$(printf '%s' "${_bc}" | tr '-' '_')"; then _comp_rc=0; else _comp_rc=$?; fi
+            record_backup_result "$(comp_label "${_bc}")" "${_bc}" "${_comp_rc}" || true
+        done
+    fi
 
     # Encryption Key Backup — the PG encryption key, captured with PostgreSQL (skip via
     # --skip-encryption-key).
@@ -5772,7 +5860,7 @@ cmd_restore() {
         restore_ok_set "${_rc}" true
     done
 
-    if [ "${PARALLEL}" = "true" ] && [ "${DRY_RUN}" != "true" ]; then
+    if parallel_enabled true && [ "${DRY_RUN}" != "true" ]; then
         write_restore_metrics 1 "components"
         # Each component runs in its own subshell with the EXIT trap reset, so a child cannot
         # release the parent's locks; the status comes back through a file because a subshell

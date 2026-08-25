@@ -2085,6 +2085,95 @@ LOG_FILE="${_vr_saved_lf}"
 
 
 #########################################################################################
+section "--parallel on the backup side"
+#########################################################################################
+# The DEFAULTS differ by subcommand and that is deliberate, so pin both: a restore runs with
+# PMM at 0 (nothing serving, only RTO matters), a backup runs against a live system.
+PARALLEL=""
+parallel_enabled true  && _rc=0 || _rc=$?; assert_rc "restore defaults to PARALLEL"   0 "${_rc}"
+parallel_enabled false && _rc=0 || _rc=$?; assert_rc "backup defaults to SEQUENTIAL"  1 "${_rc}"
+PARALLEL=true
+parallel_enabled false && _rc=0 || _rc=$?; assert_rc "--parallel overrides the backup default"  0 "${_rc}"
+PARALLEL=false
+parallel_enabled true  && _rc=0 || _rc=$?; assert_rc "--sequential overrides the restore default" 1 "${_rc}"
+PARALLEL=""
+
+# --parallel/--sequential must be accepted by BOTH operations now, and still refused elsewhere.
+_saved_cmd="${COMMAND}"
+for _c in backup restore list; do
+    COMMAND="${_c}"
+    ( flag_requires "backup restore" --parallel ) >/dev/null 2>&1 && _rc=0 || _rc=$?
+    assert_rc "--parallel is accepted by '${_c}'" 0 "${_rc}"
+done
+COMMAND=prune
+( flag_requires "backup restore" --parallel ) >/dev/null 2>&1 && _rc=0 || _rc=$?
+assert_rc "--parallel is still refused by 'prune'" 1 "${_rc}"
+# The single-subcommand form must keep working exactly as before.
+COMMAND=backup
+( flag_requires restore --s3-provider ) >/dev/null 2>&1 && _rc=0 || _rc=$?
+assert_rc "a restore-only flag is still refused by 'backup'" 1 "${_rc}"
+COMMAND=prune
+( flag_requires backup --retention ) >/dev/null 2>&1 && _rc=0 || _rc=$?
+assert_rc "'prune' still takes the backup flag set" 0 "${_rc}"
+COMMAND="${_saved_cmd}"
+
+# _backup_child must carry the whole RESULT OBJECT back, not just a status — that is what
+# distinguishes it from _restore_child, and what the parent merges into RESULTS_JSON.
+_bc_dir=$(mktemp -d)
+backup_postgresql() {
+    result_set postgresql --arg status success --arg engine pg_dump --argjson bytes 4242 \
+        '{status:$status, engine:$engine, bytes:$bytes}'
+    return 0
+}
+( _backup_child postgresql "${_bc_dir}" )
+assert_eq "the child reports its status"        "0" "$(cat "${_bc_dir}/postgresql.rc" 2>/dev/null)"
+assert_eq "...and its full result object"       "success" "$(jq -r '.postgresql.status' "${_bc_dir}/postgresql.json" 2>/dev/null)"
+assert_eq "...including the measured detail"    "4242"    "$(jq -r '.postgresql.bytes'  "${_bc_dir}/postgresql.json" 2>/dev/null)"
+
+# A component that FAILS must still report both, so the parent can tell it apart from a child
+# that died. record_backup_result then turns an absent entry into an explicit failure.
+backup_clickhouse() { return 1; }
+( _backup_child clickhouse "${_bc_dir}" )
+assert_eq "a failed component reports its rc"   "1"  "$(cat "${_bc_dir}/clickhouse.rc" 2>/dev/null)"
+assert_eq "...and an (empty) result object"     "{}" "$(cat "${_bc_dir}/clickhouse.json" 2>/dev/null)"
+
+# The child must NOT inherit a sibling's results: RESULTS_JSON is reset, so each file holds
+# exactly one component and the parent's merge cannot resurrect another's entry.
+RESULTS_JSON='{"victoriametrics":{"status":"success"}}'
+( _backup_child postgresql "${_bc_dir}" )
+assert_eq "a child's file holds only its own component" "postgresql" \
+    "$(jq -r 'keys|join(",")' "${_bc_dir}/postgresql.json" 2>/dev/null)"
+RESULTS_JSON='{}'
+
+# The parent's merge, then record_backup_result — together they are what makes a failure
+# visible. The merge alone yields only postgresql, because a component that failed before its
+# result_set has nothing to contribute; the synthesised entry is what stops that reading as
+# "never selected" (DN-38).
+RESULTS_JSON='{}'
+for _c in postgresql clickhouse; do
+    _r=$(cat "${_bc_dir}/${_c}.json")
+    RESULTS_JSON=$(printf '%s' "${RESULTS_JSON}" | jq --argjson o "${_r}" '. + $o')
+done
+assert_eq "the merge carries the components that reported" "postgresql" \
+    "$(printf '%s' "${RESULTS_JSON}" | jq -r 'keys|join(",")')"
+# Now the parent records each outcome, exactly as cmd_backup's merge loop does.
+components_backed_up=0; components_failed=0; all_success=true
+record_backup_result PostgreSQL postgresql "$(cat "${_bc_dir}/postgresql.rc")" || true
+record_backup_result ClickHouse clickhouse "$(cat "${_bc_dir}/clickhouse.rc")" || true
+# A child that died without writing a status at all: absent file -> rc 1 -> FAILED.
+record_backup_result VictoriaMetrics victoriametrics \
+    "$(cat "${_bc_dir}/victoriametrics.rc" 2>/dev/null || echo 1)" || true
+assert_eq "the successful component is counted"      "1" "${components_backed_up}"
+assert_eq "both failures are counted"                "2" "${components_failed}"
+assert_eq "...and the run is not a success"          "false" "${all_success}"
+assert_eq "a component that failed early is FAILED, not absent" "failed" "$(result_get clickhouse status)"
+assert_eq "a child that vanished is FAILED too"                 "failed" "$(result_get victoriametrics status)"
+rm -rf "${_bc_dir}"
+unset -f backup_postgresql backup_clickhouse
+RESULTS_JSON='{}'
+
+
+#########################################################################################
 echo
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then
