@@ -2555,7 +2555,10 @@ ch_run_action() {
         _cra_st=$(ch_action_field status "${_cra_cmd}" "${_cra_since}")
         [ "${VERBOSE}" = "true" ] && log "INFO" "[ClickHouse] ${_cra_what} status: ${_cra_st}"
         case "${_cra_st}" in
-            success) return 0 ;;
+            # This function owns the "Waiting for ..." line above, so it owns the matching
+            # completion. Without it an upload that takes minutes ended with no marker at all —
+            # the log went straight from "Waiting for S3 upload" to "Deleting the local backup".
+            success) log "INFO" "[ClickHouse] ✓ ${_cra_what} completed"; return 0 ;;
             error)
                 log "ERROR" "[ClickHouse] ${_cra_what} failed: $(ch_action_field error "${_cra_cmd}" "${_cra_since}")"
                 return 1 ;;
@@ -2706,7 +2709,7 @@ backup_clickhouse() {
                      backup_size_bytes=0 ;;
     esac
     [ -n "${backup_size}" ] || backup_size="unknown"
-    log "INFO" "[ClickHouse] ✓ Created: ${backup_name} (${backup_size}, ${duration}s)"
+    log "INFO" "[ClickHouse]   ${backup_name}: ${backup_size}, created in ${duration}s"
     log "INFO" "[ClickHouse]   Local: ${CH_POD}:/var/lib/clickhouse/backup/${backup_name} (hardlinks)"
 
     if [ "${S3_ENABLED}" = "true" ]; then
@@ -5387,10 +5390,13 @@ summary_row() {   # <component> <padded-label>
     return 0
 }
 
+# Deliberately emits NO blank-line spacer: the caller owns spacing, because the two callers
+# want different spacing. Sequentially a blank line after each component separates their
+# narratives; in the parallel merge loop the same call would stack one blank line per component
+# at the very end, which is what produced four in a row.
 record_backup_result() {   # <label> <component> <rc>
     if [ "$3" -eq 0 ] && result_ok "$2"; then
         components_backed_up=$((components_backed_up + 1))
-        log "INFO" ""
         return 0
     fi
     # A component that failed EARLY returns before reaching its own result_set, and an absent
@@ -5408,7 +5414,6 @@ record_backup_result() {   # <label> <component> <rc>
     components_failed=$((components_failed + 1))
     all_success=false
     log "ERROR" "[$1] ✗ Backup failed"
-    log "INFO" ""
     return 1
 }
 
@@ -5540,12 +5545,14 @@ cmd_backup() {
             case "${_comp_rc}" in ''|*[!0-9]*) _comp_rc=1 ;; esac
             record_backup_result "$(comp_label "${_bc}")" "${_bc}" "${_comp_rc}" || true
         done
+        log "INFO" ""
         rm -rf "${_btmp}" 2>/dev/null || true
     else
         for _bc in ${CORE_COMPONENTS}; do
             comp_on "${_bc}" 4 || continue
             if "backup_$(printf '%s' "${_bc}" | tr '-' '_')"; then _comp_rc=0; else _comp_rc=$?; fi
             record_backup_result "$(comp_label "${_bc}")" "${_bc}" "${_comp_rc}" || true
+            log "INFO" ""
         done
     fi
 

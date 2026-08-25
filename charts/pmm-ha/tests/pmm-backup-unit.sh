@@ -1974,6 +1974,9 @@ section "CHARACTERIZATION: ch_run_action — one poll loop for create and upload
 _ca_log="${SCRIPT_DIR}/.chq.$$"
 : > "${_ca_log}"
 LOG_FILE=/dev/null
+# The suite quiets log() globally; these assertions are ABOUT what gets logged, so put a real
+# one back for this section and restore the stub at the end of it.
+log() { echo "[$1] $2"; }
 # ch_query stub: records each query and answers from _CA_STATUS / _CA_SINCE.
 _CA_STATUS=success; _CA_SINCE=100
 ch_query() {
@@ -1986,8 +1989,15 @@ ch_query() {
     esac
     return 0
 }
-_rc=0; ch_run_action "create backup_X" 30 1 "backup creation" >/dev/null 2>&1 || _rc=$?
+_rc=0; _out=$(ch_run_action "create backup_X" 30 1 "backup creation" 2>&1) || _rc=$?
 assert_rc "a successful action returns 0" 0 "${_rc}"
+# It owns the "Waiting for ..." line, so it must own the matching completion. Without it an
+# upload that takes minutes ended with no marker: the log went straight from "Waiting for S3
+# upload to complete..." to "Deleting the local backup after upload...".
+case "${_out}" in *"Waiting for backup creation to complete"*) ok ;;
+    *) bad "it announces the wait" "Waiting for ..." "${_out}" ;; esac
+case "${_out}" in *"✓ backup creation completed"*) ok ;;
+    *) bad "...and announces the completion" "✓ backup creation completed" "${_out}" ;; esac
 # The fence must be READ before the INSERT and APPLIED in the status poll.
 _first=$(head -1 "${_ca_log}")
 case "${_first}" in *"ifNull(toUnixTimestamp(max(start)),0)"*) ok ;;
@@ -2000,6 +2010,7 @@ case "$(grep -c "^INSERT INTO system.backup_actions(command) VALUES('create back
 : > "${_ca_log}"; _CA_STATUS=error
 _out=$(ch_run_action "upload backup_X" 30 1 "S3 upload" 2>&1); _rc=$?
 assert_rc "a reported error fails the action" 1 "${_rc}"
+case "${_out}" in *completed*) bad "a failed action never claims completion" "no 'completed'" "${_out}" ;; *) ok ;; esac
 case "$(grep -c '^SELECT error' "${_ca_log}")" in 0) bad "the error text is read" "SELECT error" "absent" ;; *) ok ;; esac
 
 # A status that never becomes success times out rather than hanging.
@@ -2013,6 +2024,7 @@ _rc=0; ch_run_action "create backup_X" 30 1 "backup creation" >/dev/null 2>&1 ||
 assert_rc "a failed enqueue fails immediately" 1 "${_rc}"
 
 unset -f ch_query
+log() { :; }
 rm -f "${_ca_log}"
 
 
