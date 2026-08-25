@@ -1,8 +1,10 @@
 # Sizing PMM HA
 
-The chart's defaults target **~100 monitored nodes at 30-day retention**. This
-document explains where those numbers come from, how to scale them, and which
-knobs move the footprint most.
+The chart's resource defaults target **~100 monitored nodes**. The tables below
+are quoted at 30-day retention; the chart ships with 90-day metrics retention, so
+read [Retention is the biggest lever](#retention-is-the-biggest-lever) before
+sizing the vmstorage volume. This document explains where the numbers come from,
+how to scale them, and which knobs move the footprint most.
 
 Ready-made overrides for larger fleets live in
 [`examples/values-500-nodes.yaml`](../examples/values-500-nodes.yaml) and
@@ -39,13 +41,13 @@ samples_per_second = nodes × series_per_node / 14
 # 0.9 bytes/sample already accounts for replicationFactor 2 and the index.
 vm_bytes_per_day   = samples_per_second × 86400 × 0.9
 
-vmstorage_pvc_per_pod = vm_bytes_per_day × dataRetentionDays
+vmstorage_pvc_per_pod = vm_bytes_per_day × metrics_retention_days
                         / victoriaMetrics.vmstorage.replicaCount
                         × 1.3          # merge headroom
 
 # Query Analytics. Every ClickHouse replica holds a FULL copy - QAN is not sharded.
 qan_bytes_per_day     = services × 200 rows/min × 1440 × 20 bytes
-clickhouse_pvc_per_pod = qan_bytes_per_day × dataRetentionDays × 1.7
+clickhouse_pvc_per_pod = qan_bytes_per_day × qan_retention_days × 1.7
 ```
 
 The `0.9 bytes/sample` and `20 bytes/row` constants are conservative planning
@@ -78,7 +80,9 @@ Values are `request → limit` for CPU and memory, and PVC size per pod.
 | **PostgreSQL** ×3 | 500m→2 · 1Gi→4Gi · 10Gi | 1→4 · 2Gi→8Gi · 30Gi | 2→4 · 4Gi→16Gi · 50Gi |
 | **pgBouncer** ×3 | 100m→500m · 128Mi→512Mi | 250m→1 · 256Mi→1Gi | 500m→2 · 512Mi→1Gi |
 
-PVC sizes above assume the default `dataRetentionDays: 30`.
+PVC sizes above assume **30 days** of retention. The chart ships with 90-day
+metrics retention, which needs roughly three times the vmstorage PVC — see the
+next section.
 
 | | 100 nodes | 500 nodes | 1000 nodes |
 | --- | --- | --- | --- |
@@ -93,19 +97,43 @@ PVC sizes above assume the default `dataRetentionDays: 30`.
 
 ## Retention is the biggest lever
 
-`dataRetentionDays` drives both vmstorage's `-retentionPeriod` and PMM's
-`PMM_DATA_RETENTION`, so metrics and Query Analytics always expire together.
-Storage scales close to linearly with it:
+Metrics and Query Analytics are retained by two independent mechanisms, and in an
+HA deployment neither knows about the other:
 
-| `dataRetentionDays` | vmstorage PVC per pod, 100 / 500 / 1000 nodes |
+| Data | Setting | Enforced by | Default |
+| --- | --- | --- | --- |
+| Metrics | `victoriaMetrics.vmstorage.retentionPeriod` | VictoriaMetrics operator | `90d` |
+| Query Analytics | PMM's own data retention setting | `qan-api2` against ClickHouse | 30 days |
+
+That split is deliberate rather than accidental: the two have very different
+storage economics. A metric sample costs well under a byte in VictoriaMetrics at
+`replicationFactor: 2`, while a QAN row costs ~20 bytes in ClickHouse and every
+one of the three ClickHouse replicas holds a full copy.
+
+`dataRetentionDays` is an optional single value that drives both. Leave it empty
+— the default — and the chart does not interfere with either mechanism, which
+also leaves retention adjustable from the PMM settings page. Set it and it takes
+precedence over `vmstorage.retentionPeriod`, and PMM will refuse to change data
+retention from the UI or API for as long as it is set.
+
+Storage scales close to linearly with retention:
+
+| Retention | vmstorage PVC per pod, 100 / 500 / 1000 nodes |
 | --- | --- |
-| 30 (default) | 50Gi / 200Gi / 400Gi |
-| 90 | 150Gi / 600Gi / 1.2Ti |
+| 30 days | 50Gi / 200Gi / 400Gi |
+| 90 days (chart default) | 150Gi / 600Gi / 1.2Ti |
 
-Setting `victoriaMetrics.vmstorage.retentionPeriod` explicitly overrides the
-metrics half only. Existing installs that pin it keep their current behaviour,
-but their Query Analytics still follows `dataRetentionDays` - if you want the two
-to match, clear the override and set `dataRetentionDays` instead.
+### The default PVC does not hold the default retention
+
+`vmstorage.storageSize` defaults to `50Gi`, which holds roughly **30 days** at
+100 monitored nodes, not the 90 days `retentionPeriod` asks for. At that point
+vmstorage stops accepting writes rather than dropping old data. Pick one:
+
+* set `dataRetentionDays: 30` to bring retention down to what the disk holds, or
+* raise `vmstorage.storageSize` to 150Gi (100 nodes) per the table above.
+
+Neither default is changed automatically, because one deletes data and the other
+forces a PVC expansion on every existing install.
 
 **Lowering retention on a running install deletes data older than the new window
 on the next reconcile.** There is no confirmation step.

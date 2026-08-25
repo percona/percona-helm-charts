@@ -9,10 +9,10 @@ metadata:
     app.kubernetes.io/component: victoria-metrics-cluster
 spec:
   # Retention period for metrics
-  {{- /* An explicit vmstorage.retentionPeriod wins, so installs already pinning it keep
-         their behaviour; otherwise metrics inherit the chart-wide dataRetentionDays that
-         also drives PMM_DATA_RETENTION, keeping metrics and QAN on the same window. */}}
-  retentionPeriod: {{ .Values.victoriaMetrics.vmstorage.retentionPeriod | default (printf "%dd" (int .Values.dataRetentionDays)) | quote }}
+  {{- /* dataRetentionDays is opt-in and wins when set, aligning metrics with QAN. Left
+         empty - the default - metrics keep whatever vmstorage.retentionPeriod says, so an
+         upgrade never silently shortens retention and deletes data. */}}
+  retentionPeriod: {{ if .Values.dataRetentionDays }}{{ printf "%dd" (int .Values.dataRetentionDays) | quote }}{{ else }}{{ .Values.victoriaMetrics.vmstorage.retentionPeriod | default "90d" | quote }}{{ end }}
   
   # Replication factor for vmstorage (how many copies of data to store)
   # Should be <= vmstorage.replicaCount for redundancy

@@ -48,12 +48,15 @@ This PMM HA deployment provides the following high availability features:
 
 ## Sizing
 
-The chart's defaults target roughly **100 monitored nodes at 30-day retention**
-and need about 17 CPU, 40Gi of memory and 465Gi of storage in requests — three
-workers of 8 vCPU / 32Gi.
+The chart's resource defaults target roughly **100 monitored nodes** and need
+about 17 CPU, 40Gi of memory and 465Gi of storage in requests — three workers of
+8 vCPU / 32Gi.
 
-`dataRetentionDays` is the single largest lever on the footprint; it drives both
-metrics and Query Analytics retention together.
+Retention is the single largest lever on the footprint. Metrics and Query
+Analytics are retained separately — `victoriaMetrics.vmstorage.retentionPeriod`
+(90 days) and PMM's own setting (30 days) — and the optional `dataRetentionDays`
+drives both from one value. Note that the default 50Gi vmstorage volume holds
+roughly 30 days at 100 nodes, not 90.
 
 For larger fleets:
 
