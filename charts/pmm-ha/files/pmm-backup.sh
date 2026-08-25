@@ -4873,11 +4873,13 @@ prune_expired_backups() {
     PRUNE_REFUSED=0
     log "INFO" "[Retention] Scope: $(backup_root_display)/ (must be unique per install — retention deletes by age and cannot tell whose backup an id is)"
     now=$(date +%s); started="${now}"
-    # +1 day so one --retention N means the same window as the `find -mtime +N` sweeps in this
-    # same function: -mtime truncates to whole days and matches age > N, i.e. it deletes at
-    # N+1 days. Without this, "retain 1 day" purged yesterday's backup (and its manifest and
-    # encryption key) at 25 hours while the local markers survived to 48.
-    cutoff=$((now - (BACKUP_RETENTION + 1) * 86400))
+    # EXACTLY N days: the window --help, docs/pmm-backup.md and values.yaml all promise, and
+    # the number an operator reads off --retention. This once subtracted N+1 to stay in step
+    # with the `find -mtime +N` sweeps, which truncate to whole days and so fire at N+1; those
+    # sweeps no longer touch backup data (see the note under the log reaper in
+    # cleanup_old_backups), so all the extra day bought was every backup outliving its stated
+    # retention by 24h.
+    cutoff=$((now - BACKUP_RETENTION * 86400))
     # GNU/BusyBox spell "format this epoch" as -d @N, BSD/macOS as -r N. Cosmetic, but the
     # cutoff is the number an operator checks first when retention did something surprising.
     _ret_cut_h=$(date -u -d "@${cutoff}" '+%Y-%m-%d %H:%M:%S UTC' 2>/dev/null \
