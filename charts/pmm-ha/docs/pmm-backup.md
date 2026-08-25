@@ -400,7 +400,7 @@ centralBackupStorage:
     components: []            # [] = all four; or e.g. ["--postgresql","--clickhouse"] or ["--skip-victoriametrics"]
     extraArgs: []             # extra `pmm-backup.sh backup` args
     startingDeadlineSeconds: 600    # skip a run that can't start within N seconds
-    activeDeadlineSeconds: 21600    # hard cap on one run (6h default; MUST exceed the real backup duration)
+    activeDeadlineSeconds: 21600    # cap on the TRIGGER Job, not the detached backup (6h default)
     successfulJobsHistoryLimit: 3
     failedJobsHistoryLimit: 3
 ```
@@ -428,6 +428,13 @@ volume, scripts and env. `cron-backup.sh`:
 `concurrencyPolicy: Forbid` prevents overlapping scheduled runs; the orchestrator's per-component
 locks are the second line of defense against any other overlap (e.g. a manual run during a
 scheduled one — the later run declines the busy component). See §4.
+
+`activeDeadlineSeconds` bounds the **trigger and polling Job**, not the backup. Because
+`cron-backup.sh` detaches the orchestrator, a Job killed at its deadline leaves the backup running
+and still holding its component Leases — deliberate, since a deadline must never abort a
+half-written backup. Size it above the real backup duration anyway: a too-low value fails the Job
+(a false alert on a healthy backup), and with `concurrencyPolicy: Forbid` a Job left in that state
+can block the next scheduled run.
 
 **Tuning** — environment variables read by `cron-backup.sh` (override by adding them to the
 backup-tools Deployment; rarely needed): `CRON_BACKUP_POLL_INTERVAL` (status poll seconds,
@@ -1344,11 +1351,12 @@ data transfer:
 
 - **Admin password**: Grafana users live in the restored `grafana` database, so after a
   cross-instance restore the admin password is the SOURCE instance's
-  `PMM_ADMIN_PASSWORD`, not the target's secret. Either update the target's `pmm-secret`
-  to match, or reset PMM to the target's value:
+  `PMM_ADMIN_PASSWORD`, not the target's secret. Either update the target's PMM secret
+  to match, or reset PMM to the target's value — `<secret-name>` is the chart's
+  `secret.name` (default `pmm-secret`):
   ```bash
   kubectl exec -n <ns> <pmm-pod-0> -c pmm-ha -- change-admin-password \
-    "$(kubectl get secret pmm-secret -n <ns> -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 -d)"
+    "$(kubectl get secret <secret-name> -n <ns> -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 -d)"
   ```
 - **PG monitoring token**: the target's `pg-pmm-secret` service token was minted in the
   (now overwritten) Grafana DB — re-run the token-init **Job** if PG-side monitoring shows

@@ -160,15 +160,6 @@ if selfref:
     raise SystemExit(1)
 print(f"  ok: no function appends to an accumulator it does not own ({len(func_starts)} functions checked)")
 
-# A bare `wait` waits for EVERY background child. Since held locks are kept fresh by a
-# background renewer with an infinite loop, a bare `wait` never returns — the restore hung with
-# all components finished and PMM at 0 replicas, and nothing in the log explained it. Always
-# wait on explicit PIDs.
-# The --help text contains a `wait` in its concurrent-backup example; that is documentation
-# inside a heredoc, not code, so the help function's body is excluded.
-# Both the bare-`wait` rule below and the backtick rule after it EXCLUDE / SCAN the show_help
-# heredoc, so if these anchors stop resolving, those checks silently pass on everything or scan
-# the wrong range. A renamed function, a `show_help ()` with a space, or a changed heredoc
 # The lock renewer runs as a detached subshell and must inherit NONE of the caller's write ends.
 # It emits nothing, but stop_lock_renewer's `kill` reaches the subshell, not the `sleep` it is
 # blocked in — and that orphaned `sleep` holds whatever descriptors it inherited. With stdout (or
@@ -220,7 +211,15 @@ if offenders:
     raise SystemExit(1)
 print(f"  ok: no value-returning function logs into its own stdout ({len(captured)} checked)")
 
-
+# A bare `wait` waits for EVERY background child. Since held locks are kept fresh by a
+# background renewer with an infinite loop, a bare `wait` never returns — the restore hung with
+# all components finished and PMM at 0 replicas, and nothing in the log explained it. Always
+# wait on explicit PIDs.
+# The --help text contains a `wait` in its concurrent-backup example; that is documentation
+# inside a heredoc, not code, so the help function's body is excluded.
+# Both the bare-`wait` rule below and the backtick rule after it EXCLUDE / SCAN the show_help
+# heredoc, so if these anchors stop resolving, those checks silently pass on everything or scan
+# the wrong range. A renamed function, a `show_help ()` with a space, or a changed heredoc
 # delimiter would do it. Fail loudly instead of degrading into a no-op gate.
 help_start = next((i for i, ln in enumerate(lines) if re.match(r'^show_help\s*\(\)', ln)), None)
 if help_start is None:
