@@ -222,6 +222,16 @@ When `pg-db.pmm.enabled: true` (default), PostgreSQL metrics are automatically p
 
 No manual configuration is required - the Percona PostgreSQL Operator handles the integration automatically.
 
+**Query Analytics (QAN) is intentionally disabled** for the bundled PostgreSQL cluster. PMM's own database
+is an internal component, and the `QAN for PMM Server` toggle in *Settings -> Advanced* cannot control it in
+HA mode (that toggle only ever applied to the single-container PMM deployment). QAN is switched off at the
+source instead, via `pg-db.pmm.postgresParams: "--query-source=none"`, so the PostgreSQL pods still push
+metrics but register no QAN agent. To collect query analytics for the bundled cluster anyway, set
+`pg-db.pmm.postgresParams: ""`.
+
+> Requires the `pg-db` chart >= 3.0.2. Earlier versions accept `pmm.postgresParams` but silently drop it,
+> so the QAN agents stay registered.
+
 ### Using Service Tokens for Automation
 
 Service tokens are recommended for automated deployments and CI/CD pipelines. To retrieve the auto-generated PostgreSQL monitoring token:
@@ -243,6 +253,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.0`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
+| `pmmEnv.PMM_ENABLE_INTERNAL_PG_QAN`     | Enable Query Analytics for PMM's own internal PostgreSQL database. Not supported in HA mode - pinning it to `0` makes the `QAN for PMM Server` toggle in Settings reject attempts to switch it on                                           | `0`                  |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
 | `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |

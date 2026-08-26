@@ -462,6 +462,7 @@ spec:
     imagePullPolicy: {{ .Values.pmm.imagePullPolicy | default "Always" }}
     {{- end }}
     {{- if .Values.pmm.postgresParams }}
+    postgresParams: {{ .Values.pmm.postgresParams | quote }}
     {{- end }}
     secret: {{ .Values.pmm.secret | default (printf "%s-pmm-secret" (include "pg-database.fullname" .)) }}
     serverHost: {{ .Values.pmm.serverHost }}
