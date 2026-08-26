@@ -39,5 +39,6 @@ Once all operators are ready, install the pmm-ha chart:
 
 ⚠️  UNINSTALL ORDER: When uninstalling, remove pmm-ha FIRST, then pmm-ha-dependencies.
     Because the operators are cluster-wide, uninstalling this chart stops reconciliation for
-    EVERY namespace on the cluster. Check for other instances first: helm list -A -f pmm-ha
+    EVERY namespace on the cluster. Check the CHART column of `helm list -A` for other
+    pmm-ha instances first - they may not be named "pmm-ha".
 

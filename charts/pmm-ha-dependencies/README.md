@@ -34,10 +34,11 @@ helm install pmm-ha percona/pmm-ha --namespace pmm
 > **⚠️ This chart is installed once per cluster and its operators serve every namespace.**
 > Uninstalling it stops reconciliation of `PerconaPGCluster`, `ClickHouseInstallation` and
 > `VMCluster` resources in **all** namespaces, not just this one — every other `pmm-ha`
-> instance on the cluster is affected. Check for other instances first:
+> instance on the cluster is affected. Check for other instances first — filter on the chart
+> column, not on the release name, since each instance uses a release name of its own:
 >
 > ```bash
-> helm list -A -f pmm-ha
+> helm list -A -o json | jq -r '.[] | select(.chart | test("^pmm-ha-[0-9]")) | "\(.namespace)/\(.name)"'
 > ```
 >
 > Reinstalling the chart into a *different* namespace afterwards does **not** recover it: the
@@ -145,15 +146,17 @@ of that rule matter:
    Those are cluster-scoped, so two instances sharing a release name collide even when they are
    in different namespaces. A distinct release name also flows into the correct pod/peer DNS.
 
-The per-instance settings — the cluster-wide monitoring sub-charts (only one instance per
-cluster can run `prometheus-node-exporter`, which binds host port 9100) and the per-namespace
-prerequisites (each namespace needs its own `pmm-secret` **before** you install) — are covered
-in the [`pmm-ha` chart README](../pmm-ha/README.md), which is also where the worked
-two-namespace example lives.
+Two per-instance details apply on top of that. Only one instance per cluster can run
+`prometheus-node-exporter`, which binds host port 9100, so any additional instance must not
+deploy its own. And each namespace needs its own `pmm-secret` **before** you install — see
+[Creating PMM Secret Manually](../pmm-ha/README.md#creating-pmm-secret-manually) in the
+`pmm-ha` chart README.
 
 > **Note:** each instance runs its own `kube-state-metrics` with cluster-wide read access, so
 > every instance ingests and displays object state for the whole cluster, not just for its own
-> namespace. Separate namespaces are **not** a tenancy boundary here.
+> namespace. Each instance's ServiceAccount likewise holds cluster-wide read/delete on Secrets,
+> so instances are not isolated from each other's credentials. Separate namespaces are **not** a
+> tenancy boundary here — do not use them as a security boundary between untrusted teams.
 
 ### Existing installations: upgrade the operators first
 
