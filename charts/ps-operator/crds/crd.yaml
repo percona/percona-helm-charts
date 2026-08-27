@@ -227,6 +227,8 @@ spec:
                 type: string
               size:
                 type: string
+              uncompressedSize:
+                type: string
               state:
                 type: string
               stateDescription:
@@ -1549,9 +1551,11 @@ spec:
                     type: array
                   destination:
                     type: string
-                  image:
+                   image:
                     type: string
                   size:
+                    type: string
+                  uncompressedSize:
                     type: string
                   state:
                     type: string
