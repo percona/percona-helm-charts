@@ -102,9 +102,12 @@ logStreamer:
 ## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-client/index.html
 ##
 pmmClient:
-  ## @param pmmClient.replicas Number of PMM Client pods. Nothing is created while this is 0.
+  ## @param pmmClient.replicas Number of PMM Client pods carrying the delegated monitoring
+  ## One is enough to start with, scale it up as more monitoring is delegated to them. Setting it
+  ## to 0 creates none, which leaves an HA deployment with no Node to add services to, since the
+  ## PMM Server Nodes are not offered for that.
   ##
-  replicas: 2
+  replicas: 1
   ## @param pmmClient.image.repository PMM Client image repository
   ## @param pmmClient.image.pullPolicy PMM Client image pull policy
   ## @param pmmClient.image.tag PMM Client image tag, defaults to the chart appVersion
