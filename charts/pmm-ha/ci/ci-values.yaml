@@ -24,7 +24,7 @@ clickhouse:
       memory: "1Gi"
       cpu: "500m"
   keeper:
-    replicas: 1
+    replicasCount: 1
     resources:
       requests:
         memory: "512Mi"

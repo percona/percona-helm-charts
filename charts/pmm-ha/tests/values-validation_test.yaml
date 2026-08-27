@@ -1,0 +1,128 @@
+# Rejection cases for the value validators wired into statefulset.yaml.
+#
+# The suite renders statefulset.yaml alone on purpose. Every case is expected to abort in
+# a validator, so nothing downstream matters - and keeping pg-user-credentials-secrets.yaml
+# out means these run with no cluster and no dependency on Helm's template ordering.
+suite: pmm-ha value validation
+templates:
+  - templates/statefulset.yaml
+release:
+  name: smoke
+  namespace: pmm
+tests:
+  - it: rejects a replicas that is not a whole number
+    set: {replicas: xyz}
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicas must be a whole number between 1 and 9999, got xyz"
+
+  - it: rejects a negative replicas
+    set: {replicas: -1}
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicas must be a whole number between 1 and 9999, got -1"
+
+  - it: rejects replicas 0
+    set: {replicas: 0}
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicas must be a whole number between 1 and 9999, got 0"
+
+  # sprig's int parses base 0, so an accepted "010" would silently validate 8.
+  - it: rejects a replicas with a leading zero
+    set: {replicas: "010"}
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicas must be a whole number between 1 and 9999, got 010"
+
+  # Anything wider than int64 overflows to 0 and would quote a value nobody typed.
+  - it: rejects an oversized replicas
+    set: {replicas: "99999999999999999999"}
+    asserts:
+      - failedTemplate:
+          errorPattern: "got 99999999999999999999"
+
+  # Raft elects by majority: an even count needs more votes without surviving more losses.
+  - it: rejects an even replicas and suggests the neighbours
+    set: {replicas: 2}
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicas must be odd so Raft can form a quorum, got 2.*Use 1 or 3\\."
+
+  - it: suggests the neighbours of 4
+    set: {replicas: 4}
+    asserts:
+      - failedTemplate:
+          errorPattern: "got 4.*Use 3 or 5\\."
+
+  # The hint must stay inside maxReplicas rather than name a value the next check rejects.
+  - it: clamps the suggestion to maxReplicas
+    set: {replicas: 10}
+    asserts:
+      - failedTemplate:
+          errorPattern: "got 10.*Use 9\\."
+
+  - it: reports the ceiling when neither neighbour fits
+    set: {replicas: 12}
+    asserts:
+      - failedTemplate:
+          errorPattern: "got 12.*maxReplicas is 10, so the largest supported value is 9\\."
+
+  # Above maxReplicas a pod gets no server-template slot; if Raft leads there, HAProxy has
+  # no UP backend at all.
+  - it: rejects replicas above the default maxReplicas
+    set: {replicas: 11}
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicas \\(11\\) exceeds maxReplicas \\(10\\)"
+
+  - it: rejects replicas above an explicit maxReplicas
+    set: {replicas: 5, maxReplicas: 3}
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicas \\(5\\) exceeds maxReplicas \\(3\\)"
+
+  - it: rejects a maxReplicas that is not a whole number
+    set: {maxReplicas: abc}
+    asserts:
+      - failedTemplate:
+          errorPattern: "maxReplicas must be a whole number between 1 and 100, got abc"
+
+  # 0 must reach the range check rather than being swallowed by a sprig default.
+  - it: rejects maxReplicas 0
+    set: {maxReplicas: 0}
+    asserts:
+      - failedTemplate:
+          errorPattern: "maxReplicas must be a whole number between 1 and 100, got 0"
+
+  - it: rejects a maxReplicas above the slot ceiling
+    set: {maxReplicas: 200}
+    asserts:
+      - failedTemplate:
+          errorPattern: "maxReplicas must be a whole number between 1 and 100, got 200"
+
+  # Keeper is a Raft ensemble too; values.yaml has always said the count should be odd.
+  - it: rejects an even Keeper count
+    set: {clickhouse.keeper.replicasCount: 2}
+    asserts:
+      - failedTemplate:
+          errorPattern: "clickhouse.keeper.replicasCount must be odd so Raft can form a quorum, got 2"
+
+  - it: rejects Keeper count 0
+    set: {clickhouse.keeper.replicasCount: 0}
+    asserts:
+      - failedTemplate:
+          errorPattern: "clickhouse.keeper.replicasCount must be a whole number between 1 and 9999, got 0"
+
+  # A nulled key must produce the validator's message, not a Go nil-pointer trace.
+  - it: reports a nulled keeper block
+    set: {clickhouse.keeper: null}
+    asserts:
+      - failedTemplate:
+          errorPattern: "clickhouse.keeper.replicasCount must be a whole number between 1 and 9999, got <nil>"
+
+  - it: reports a nulled clickhouse block
+    set: {clickhouse: null}
+    asserts:
+      - failedTemplate:
+          errorPattern: "clickhouse.keeper.replicasCount must be a whole number between 1 and 9999, got <nil>"

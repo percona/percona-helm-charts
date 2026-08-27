@@ -220,12 +220,26 @@ service:
       ## @param service.ports[0].name port name
       name: https
 
+## @param replicas Number of PMM server replicas. Must be odd and no greater than maxReplicas; the chart fails the render otherwise
+## Must be an ODD number and no greater than maxReplicas - the chart fails the render
+## otherwise. Raft elects a leader by majority, so an even count needs more votes to
+## elect without surviving more failures (4 tolerates one loss, exactly like 3), and
+## replicas=2 tolerates none at all.
+##
+## This controls availability, not capacity: more replicas survive more simultaneous
+## failures, they do not raise how many nodes you can monitor. Size the components up
+## for a larger fleet instead.
 replicas: 3
 
-## @param maxReplicas Maximum number of PMM replicas for HAProxy server-template
+## @param maxReplicas HAProxy server-template slots, and therefore the ceiling on replicas. Raising it also needs an HAProxy restart
 ## HAProxy uses DNS-based discovery with server-template. This value sets the
-## maximum number of server slots HAProxy will create. Adjust if you plan to
-## scale beyond 10 replicas.
+## maximum number of server slots HAProxy will create, and therefore the ceiling on
+## replicas - the chart rejects a replicas above it.
+##
+## Raising this alone is not enough: it is rendered into the HAProxy ConfigMap, which
+## the chart does not roll on upgrade. Bump haproxy.podAnnotations
+## "pmm.percona.com/config-version" in the same upgrade so HAProxy restarts and picks
+## up the new server-template.
 maxReplicas: 10
 
 ## Ingress controller configuration
@@ -449,7 +463,10 @@ clickhouse:
       # Keeper cluster name (follows same restrictions as ClickHouse cluster)
       # Regex: ^[a-zA-Z0-9-]{0,15}$
       name: keeper
-    # Number of Keeper nodes (should be odd number: 1, 3, 5, etc.)
+    ## @param clickhouse.keeper.replicasCount Number of ClickHouse Keeper nodes. Must be odd; the chart fails the render otherwise
+    ## Must be an ODD number - the chart fails the render otherwise. Keeper is a Raft
+    ## ensemble like PMM's own, so an even count needs more votes to reach quorum
+    ## without tolerating more failures, and 2 tolerates none.
     replicasCount: 3
     # Persistent storage configuration for Keeper data
     storage:
@@ -508,9 +525,19 @@ haproxy:
     annotations: {}
   
   # Pod annotations
-  # Note: HAProxy uses DNS-based discovery (server-template) for PMM backends,
-  # so scaling up/down replicas does NOT require HAProxy restart.
-  # Increment config-version only for other ConfigMap changes that require restart.
+  #
+  # Two ConfigMaps here are rendered from values, and this chart does not roll the HAProxy
+  # pods when either changes:
+  #
+  #   pmm-ha-haproxy             - haproxy.cfg, which embeds `maxReplicas` as the
+  #                                server-template slot count.
+  #   pmm-ha-haproxy-init-script - the readiness gate, which embeds `replicas` as the
+  #                                number of PMM pods to wait for at startup.
+  #
+  # Routing itself is DNS-based, so changing `replicas` needs no restart to take effect.
+  # Changing `maxReplicas` does: without one, HAProxy keeps serving the old slot count.
+  # Increment config-version in the same upgrade for that, and for any other ConfigMap
+  # change that requires a restart.
   podAnnotations:
     pmm.percona.com/config-version: "3"
 

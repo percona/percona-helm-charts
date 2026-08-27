@@ -1,0 +1,62 @@
+# PMM_HA_PEERS and the HAProxy readiness probe must address the StatefulSet's pods, which
+# are named after pmm.fullname - NOT after .Release.Name. The two are equal only when the
+# release name already contains the chart name, which is why every doc example and every
+# ct-generated release name hides a mismatch. Release "smoke" does not, so it exposes it.
+suite: pmm-ha peer addressing
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/clickhouse-datasource-secret.yaml
+  - templates/haproxy-init-configmap.yaml
+release:
+  name: smoke
+  namespace: pmm
+tests:
+  - it: renders with a supported replica count
+    set: {replicas: 5}
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: accepts every supported replica count
+    set: {replicas: 9, maxReplicas: 9}
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: builds peers from pmm.fullname, not the release name
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_HA_PEERS")].value
+          pattern: "^smoke-pmm-ha-0\\.monitoring-service\\.pmm\\.svc\\.cluster\\.local,"
+        template: templates/statefulset.yaml
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_HA_PEERS")].value
+          pattern: "(^|,)smoke-[0-9]+\\.monitoring-service"
+        template: templates/statefulset.yaml
+
+  - it: emits one peer per replica
+    set: {replicas: 5}
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_HA_PEERS")].value
+          pattern: "smoke-pmm-ha-4\\.monitoring-service"
+        template: templates/statefulset.yaml
+
+  # The HAProxy init script probes the same hostnames and had the identical bug.
+  - it: probes the same hostnames from the HAProxy init script
+    asserts:
+      - matchRegex:
+          path: data["wait-for-pmm.sh"]
+          pattern: 'pmm_host="smoke-pmm-ha-\$i\.'
+        template: templates/haproxy-init-configmap.yaml
+
+  # A release already containing the chart name must be byte-identical to before the fix,
+  # so existing installs see no PMM_HA_PEERS change and therefore no pod recreation.
+  - it: leaves a release named pmm-ha unchanged
+    release:
+      name: pmm-ha
+      namespace: pmm
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_HA_PEERS")].value
+          value: "pmm-ha-0.monitoring-service.pmm.svc.cluster.local,pmm-ha-1.monitoring-service.pmm.svc.cluster.local,pmm-ha-2.monitoring-service.pmm.svc.cluster.local"
+        template: templates/statefulset.yaml
