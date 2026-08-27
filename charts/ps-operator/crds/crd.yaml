@@ -1551,7 +1551,7 @@ spec:
                     type: array
                   destination:
                     type: string
-                   image:
+                  image:
                     type: string
                   size:
                     type: string
