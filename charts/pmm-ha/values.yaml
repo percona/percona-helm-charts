@@ -514,14 +514,30 @@ haproxy:
   podAnnotations:
     pmm.percona.com/config-version: "3"
 
-  # Pod anti-affinity for HAProxy pods
-  affinity:
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - topologyKey: kubernetes.io/hostname
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: haproxy
+  # HAProxy pod spread across nodes.
+  #
+  # A required podAntiAffinity on kubernetes.io/hostname caps replicaCount at the
+  # worker-node count: every replica beyond it stays Pending forever while Helm
+  # still reports the release as successful (PMM-15393). A soft topology spread
+  # keeps one pod per node whenever there are enough nodes, and co-locates rather
+  # than failing to schedule when there are not.
+  #
+  # Replicas beyond the worker-node count buy HAProxy throughput, not fault
+  # tolerance - they share a failure domain with an existing replica.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: haproxy
+
+  # Keep at least one HAProxy pod serving during voluntary disruptions (node
+  # drains, upgrades), now that replicas are allowed to share a node.
+  PodDisruptionBudget:
+    enable: true
+    minAvailable: 1
+
   # Init container to wait for PMM instances to be ready
   initContainers:
     - name: wait-for-pmm-ready
