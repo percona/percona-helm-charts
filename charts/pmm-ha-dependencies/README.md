@@ -161,15 +161,25 @@ deploy its own. And each namespace needs its own `pmm-secret` **before** you ins
 ### Existing installations: upgrade the operators first
 
 The cluster-wide watch is a **values default**, so an operator release installed before this
-version is still namespace-scoped. Upgrade it before installing into a second namespace:
+version is still namespace-scoped. Upgrade it before installing into a second namespace.
+
+Use **your existing release name** — earlier versions of these docs used `pmm-operators`, so an
+install that predates this change is most likely called that rather than `pmm-ha-operators`.
+Check first, otherwise `helm upgrade` aborts with `Error: release: not found` and the operators
+stay namespace-scoped:
 
 ```bash
-helm upgrade pmm-ha-operators percona/pmm-ha-dependencies --namespace pmm
+helm list --namespace pmm    # find the pmm-ha-dependencies release name
 
-# `helm upgrade` runs without --wait, so it returns as soon as the Deployments are patched.
-# This change only touches env vars, so it rolls out with an overlap window: a
-# `kubectl wait --for=condition=ready pod` would match the still-Ready *pre-upgrade* pod and
-# succeed immediately. Wait for the new generation instead.
+helm upgrade <your-release-name> percona/pmm-ha-dependencies --namespace pmm
+
+# `helm upgrade` runs without --wait, so it returns as soon as the Deployments are patched --
+# and it changes more than env vars: with `pg-operator.watchAllNamespaces: true` the PostgreSQL
+# operator's namespaced Role/RoleBinding are replaced by cluster-scoped ones.
+# `kubectl wait --for=condition=ready pod` returns a false green either way -- the pg and
+# ClickHouse operators use `strategy: Recreate`, so when helm returns the pre-upgrade pod is
+# still there and still Ready (merely Terminating), while the VictoriaMetrics operator rolls
+# with an overlap window. Wait for the new generation instead.
 kubectl rollout status deployment -l app.kubernetes.io/name=pg-operator -n pmm --timeout=300s
 kubectl rollout status deployment -l app.kubernetes.io/name=altinity-clickhouse-operator -n pmm --timeout=300s
 kubectl rollout status deployment -l app.kubernetes.io/name=victoria-metrics-operator -n pmm --timeout=300s
