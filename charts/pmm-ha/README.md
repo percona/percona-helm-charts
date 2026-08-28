@@ -734,7 +734,7 @@ To scale the PMM HA deployment:
 # Scale PMM server replicas (odd values only)
 helm upgrade pmm-ha --set replicas=5 --namespace pmm percona/pmm-ha
 
-# Scale HAProxy replicas (must not exceed the worker node count)
+# Scale HAProxy replicas
 helm upgrade pmm-ha --set haproxy.replicaCount=5 --namespace pmm percona/pmm-ha
 
 # Scale ClickHouse replicas
