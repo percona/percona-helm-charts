@@ -5,6 +5,14 @@
 {{- else if .Values.secret.clickhouse_user }}
 {{- $clickhouseUser = .Values.secret.clickhouse_user }}
 {{- end }}
+{{- $datasourceUser := include "pmm.clickhouse.datasourceUser" . }}
+{{- $datasourcePassword := include "pmm.clickhouse.datasourcePassword" . }}
+{{- $clickhouseDatabase := .Values.pmmEnv.PMM_CLICKHOUSE_DATABASE | default "pmm" }}
+{{- include "pmm.clickhouse.validateIdentifier" (dict "name" "clickhouse.datasource.user" "value" $datasourceUser) }}
+{{- include "pmm.clickhouse.validateIdentifier" (dict "name" "pmmEnv.PMM_CLICKHOUSE_DATABASE" "value" $clickhouseDatabase) }}
+{{- if or (eq $datasourceUser $clickhouseUser) (eq $datasourceUser "clickhouse_operator") }}
+{{- fail (printf "clickhouse.datasource.user must differ from the PMM ClickHouse user and from clickhouse_operator, otherwise the drop-in merges into that account and strips its privileges, got %s" $datasourceUser) }}
+{{- end }}
 apiVersion: "clickhouse.altinity.com/v1"
 kind: ClickHouseInstallation
 metadata:
@@ -107,6 +115,71 @@ spec:
       # Note: ClickHouse backups use FREEZE (hardlinks) by default
       # Hardlinks take ~0 space and are copied to central storage by orchestrator
 {{- end }}
+
+      # Read-only user for the Grafana ClickHouse data source.
+      #
+      # Grafana runs data source queries on behalf of every signed-in user, including Viewers, so
+      # this user must not be able to do more than read Query Analytics data. The grants section
+      # is what enforces that: it replaces ClickHouse's implicit "all privileges" with an
+      # allowlist, and withholding the SOURCES privileges keeps table functions such as url(),
+      # file(), s3() and remote() out of reach, which would otherwise allow SSRF against cloud
+      # instance metadata endpoints.
+      #
+      # Declared as a drop-in rather than through the operator's users map because that map has
+      # no way to express grants.
+      users.d/pmm-datasource-user.xml: |
+        <clickhouse>
+          <profiles>
+            <pmm_datasource>
+              <readonly>1</readonly>
+              <constraints>
+                <max_execution_time>
+                  <changeable_in_readonly/>
+                </max_execution_time>
+              </constraints>
+            </pmm_datasource>
+          </profiles>
+          <users>
+            <{{ $datasourceUser }}>
+              <password_sha256_hex>{{ $datasourcePassword | sha256sum }}</password_sha256_hex>
+              <networks>
+                {{- range .Values.clickhouse.users.networks.ip }}
+                <ip>{{ . }}</ip>
+                {{- end }}
+              </networks>
+              <profile>pmm_datasource</profile>
+              <quota>default</quota>
+              <grants>
+                <query>GRANT SELECT ON `{{ $clickhouseDatabase }}`.*</query>
+              </grants>
+            </{{ $datasourceUser }}>
+          </users>
+        </clickhouse>
+
+      # Server-side hardening, matching what PMM Server ships for its built-in ClickHouse.
+      #
+      # settings_constraints_replace_previous: readonly=1 blocks every setting change, but the
+      # Grafana ClickHouse plugin sets max_execution_time on each query to enforce its timeout.
+      # Marking that one setting changeable needs this flag, without which ClickHouse rejects the
+      # constraint outright.
+      #
+      # select_from_system_db_requires_grant: without it ClickHouse lets every user read the whole
+      # system database regardless of its grants, so the data source user could read system.query_log
+      # and with it the SQL text of every query any user has run. The metadata the plugin needs
+      # (system.tables, columns, databases, one) stays readable either way.
+      #
+      # remote_url_allow_hosts: an empty allowlist means no host may be reached through URL-based
+      # engines and table functions - url(), remote(), mysql() and S3 over HTTP - for every user,
+      # not just the data source one. Query Analytics does not use them: replication runs over the
+      # interserver protocol and Keeper, and schema changes go through ON CLUSTER DDL.
+      config.d/pmm-hardening.xml: |
+        <clickhouse>
+          <access_control_improvements>
+            <settings_constraints_replace_previous>true</settings_constraints_replace_previous>
+            <select_from_system_db_requires_grant>true</select_from_system_db_requires_grant>
+          </access_control_improvements>
+          <remote_url_allow_hosts></remote_url_allow_hosts>
+        </clickhouse>
 
   templates:
     podTemplates:

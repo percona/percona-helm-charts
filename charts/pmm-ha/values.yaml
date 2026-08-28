@@ -398,6 +398,23 @@ clickhouse:
       memory: "8Gi"
       cpu: "4"
   
+  ## Read-only ClickHouse user backing the Grafana data source.
+  ## Grafana runs data source queries on behalf of every signed-in user, including Viewers, so this
+  ## account is kept separate from the one PMM writes Query Analytics data with. The chart creates
+  ## it in ClickHouse with SELECT on the Query Analytics database and nothing else, and stores its
+  ## credentials in a chart-managed secret, so neither field has to be set.
+  ##
+  ## @param clickhouse.datasource.user Username. Defaults to "clickhouse_pmm_readonly"
+  ## @param clickhouse.datasource.password Password. Generated when empty, and kept across upgrades
+  ##
+  ## To get the credentials after install:
+  ##   kubectl get secret pmm-ha-clickhouse-datasource -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode
+  ## The secret is named after the chart fullname, so adjust it if your release name differs.
+  ##
+  datasource:
+    user: ""
+    password: ""
+
   cluster:
     # Cluster name restrictions: alphanumeric only, max 15 chars, no underscores
     name: pmmdb
