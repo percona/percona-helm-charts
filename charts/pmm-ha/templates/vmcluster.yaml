@@ -15,6 +15,12 @@ spec:
   # Should be <= vmstorage.replicaCount for redundancy
   replicationFactor: {{ .Values.victoriaMetrics.replicationFactor }}
 
+  {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn }}
+  # Run components under the IRSA-annotated SA so vmbackup gets S3 creds via the AWS
+  # credential chain (web-identity token), no static keys needed.
+  serviceAccountName: {{ include "pmm.backupS3SaName" . }}
+  {{- end }}
+
   # VMSelect component configuration (handles read queries)
   vmselect:
     replicaCount: {{ .Values.victoriaMetrics.vmselect.replicaCount }}
@@ -125,6 +131,83 @@ spec:
     extraArgs:
       {{- toYaml .Values.victoriaMetrics.vmstorage.extraArgs | nindent 6 }}
     {{- end }}
+    {{- /* Gated on the centralBackupStorage master switch: without the backup infrastructure
+           the vmbackup/vmrestore sidecars are idle sleep-infinity containers (100m CPU
+           request each per vmstorage pod) plus a dead emptyDir. */}}
+    {{- if and .Values.centralBackupStorage.enabled .Values.victoriaMetrics.vmstorage.backup.enabled }}
+    # vmbackup sidecar for backups
+    # vmbackup is a one-shot tool, so we keep the container alive and trigger backups manually
+    containers:
+      - name: vmbackup
+        image: {{ .Values.victoriaMetrics.vmstorage.backup.image }}
+        imagePullPolicy: IfNotPresent
+        command: ["sleep", "infinity"]
+        {{- /* Wire the S3 env whenever the install is in s3 mode (the sidecar only exists when
+               centralBackupStorage.enabled); the per-component s3.enabled flag is a manual escape
+               hatch. `env:` itself is inside the conditional so shared mode doesn't render `env: null`. */}}
+        {{- if or (eq .Values.centralBackupStorage.mode "s3") .Values.victoriaMetrics.vmstorage.backup.s3.enabled }}
+        env:
+          - name: AWS_REGION
+            value: {{ .Values.victoriaMetrics.vmstorage.backup.s3.region | default .Values.centralBackupStorage.s3.region }}
+          {{- /* NO endpoint env here. vmbackup/vmrestore take a custom S3 endpoint ONLY as the
+                 -customS3Endpoint FLAG, which pmm-backup.sh builds and passes; an AWS_ENDPOINT
+                 env var used to be rendered here and was read by nothing at all, so a
+                 victoriaMetrics.vmstorage.backup.s3.endpoint override looked configured and was
+                 silently ignored. The effective endpoint (this override, else the central one)
+                 is projected into the backup-tools pod as VM_S3_ENDPOINT instead, because that
+                 is the process that invokes both tools. */}}
+          {{- /* Credentials default to the central S3 secret so a MinIO/Ceph user who sets
+                 centralBackupStorage.s3.existingSecret once also authenticates vmbackup,
+                 instead of silently failing VM uploads every run. */}}
+          {{- $vmS3 := .Values.victoriaMetrics.vmstorage.backup.s3 }}
+          {{- $vmSecret := $vmS3.existingSecret }}
+          {{- $vmKeys := $vmS3.existingSecretKeys }}
+          {{- if not $vmSecret }}{{- $vmSecret = .Values.centralBackupStorage.s3.existingSecret }}{{- $vmKeys = .Values.centralBackupStorage.s3.existingSecretKeys }}{{- end }}
+          {{- if $vmSecret }}
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: {{ $vmSecret }}
+                key: {{ include "pmm.s3SecretKeyName" (dict "keys" $vmKeys "which" "access") }}
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ $vmSecret }}
+                key: {{ include "pmm.s3SecretKeyName" (dict "keys" $vmKeys "which" "secret") }}
+          {{- end }}
+          {{- end }}
+        volumeMounts:
+          - name: vmstorage-db
+            mountPath: /vmstorage-data
+            readOnly: true
+          - name: vmstorage-backup
+            mountPath: /vmstorage-backup
+          {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+          # shared mode: vmbackup -dst=fs://<sharedMountPath>/backup_<id>/victoriametrics/<pod>/...
+          - name: central-backup-storage
+            mountPath: {{ .Values.centralBackupStorage.sharedMountPath }}
+          {{- end }}
+        resources:
+          {{- toYaml .Values.victoriaMetrics.vmstorage.backup.resources | nindent 10 }}
+    {{- if .Values.victoriaMetrics.vmstorage.backup.restoreImage }}
+      - name: vmrestore
+        image: {{ .Values.victoriaMetrics.vmstorage.backup.restoreImage }}
+        imagePullPolicy: IfNotPresent
+        command: ["sleep", "infinity"]
+        volumeMounts:
+          - name: vmstorage-db
+            mountPath: /vmstorage-data
+          - name: vmstorage-backup
+            mountPath: /vmstorage-backup
+          {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+          # shared mode: vmrestore -src=fs://<sharedMountPath>/backup_<id>/victoriametrics/<pod>/...
+          - name: central-backup-storage
+            mountPath: {{ .Values.centralBackupStorage.sharedMountPath }}
+          {{- end }}
+        resources:
+          {{- toYaml .Values.victoriaMetrics.vmstorage.backup.resources | nindent 10 }}
+    {{- end }}
+    {{- end }}
     # Persistent storage configuration
     storage:
       volumeClaimTemplate:
@@ -137,6 +220,21 @@ spec:
           resources:
             requests:
               storage: {{ .Values.victoriaMetrics.vmstorage.storageSize }}
+    {{- /* Gated on the centralBackupStorage master switch: without the backup infrastructure
+           the vmbackup/vmrestore sidecars are idle sleep-infinity containers (100m CPU
+           request each per vmstorage pod) plus a dead emptyDir. */}}
+    {{- if and .Values.centralBackupStorage.enabled .Values.victoriaMetrics.vmstorage.backup.enabled }}
+    # Additional volumes for backup storage
+    # Using emptyDir because VictoriaMetrics operator doesn't support multiple PVCs per pod
+    # For persistent backups, use S3 configuration below
+    volumes:
+      - name: vmstorage-backup
+        emptyDir:
+          sizeLimit: {{ .Values.victoriaMetrics.vmstorage.backupVolumeSize }}
+      {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+      {{- include "pmm.centralBackupVolume" . | nindent 6 }}
+      {{- end }}
+    {{- end }}
     # Service configuration for vmstorage
     serviceSpec:
       metadata:

@@ -478,6 +478,262 @@ clickhouse:
         - 10.0.0.0/8
         - 172.16.0.0/12
         - 192.168.0.0/16
+  
+  ## @section ClickHouse Backup Configuration (clickhouse-backup sidecar)
+  ## This section configures the clickhouse-backup sidecar container
+  ## clickhouse-backup provides backup/restore functionality via API tables
+  ## Documentation: https://github.com/Altinity/clickhouse-backup
+  ##
+  backup:
+    ## @param clickhouse.backup.enabled Enable clickhouse-backup sidecar container
+    ## When enabled, adds a sidecar container that runs clickhouse-backup in server mode
+    ## Creates system.backup_actions and system.backup_list tables for backup management
+    ## Only takes effect when centralBackupStorage.enabled is true (the backup master switch).
+    enabled: true
+    
+    ## @param clickhouse.backup.image clickhouse-backup image
+    ## Pinned (not :latest) so every CH replica runs the same version — a mixed backup/restore
+    ## version pair can be incompatible. Bump deliberately.
+    image: altinity/clickhouse-backup:2.8.0
+    
+    ## @param clickhouse.backup.resources Resource requests and limits for backup sidecar
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    
+    ## @param clickhouse.backup.retention Number of backups to keep
+    ## Note: Local backups use hardlinks (~0 space) and are copied to central storage
+    keepLocal: 1   # Keep only latest local hardlink backup
+    ## keepRemote MUST stay 0 unless you know what you are trading away.
+    ## 0 disables clickhouse-backup's own remote pruning and leaves the REMOTE copy entirely to
+    ## the orchestrator's retention sweep, which is the only thing that knows about the manifest
+    ## index. clickhouse-backup prunes by COUNT; the orchestrator retains by AGE and keeps a
+    ## manifest per backup id. With both active they disagree: on any schedule finer than daily,
+    ## N remote backups is a far shorter window than --retention days, so clickhouse-backup
+    ## deletes ClickHouse data that unexpired manifests still list as `success`. The pre-restore
+    ## gate catches it (it checks the name against `list remote`), so the failure is loud rather
+    ## than mid-restore — but that backup is no longer fully restorable, silently, from the
+    ## moment the count is exceeded. It also breaks incremental chains the orchestrator is
+    ## deliberately preserving. Set a non-zero value only if you are NOT using the orchestrator
+    ## for ClickHouse, and then align it with your manifest retention and chain depth.
+    keepRemote: 0  # Remote (S3) pruning is owned by the orchestrator's retention sweep
+    
+    ## @param clickhouse.backup.s3 S3 configuration for remote backups
+    ## With existingSecret/accessKey empty, clickhouse-backup uses the IRSA credential
+    ## chain (the CH pod's SA role) — no static keys.
+    s3:
+      enabled: false        # set true + bucket/region per install (do not commit creds/bucket)
+      bucket: ""
+      ## Empty (default) inherits centralBackupStorage.s3.region; set to override for ClickHouse only.
+      region: ""
+      ## Key prefix under the bucket; backups land at s3://<bucket>/<path>/<backup_name>/
+      ## Empty (default) resolves through pmm.backupS3Root to
+      ## "<namespace>/<centralBackupStorage.s3.prefix>/clickhouse" — note the leading
+      ## NAMESPACE segment, which is what keeps two installs that share a bucket (and even a
+      ## prefix) apart. Multi-namespace installs must not share a path: incremental chains and
+      ## retention would cross instances.
+      path: ""
+      endpoint: ""  # Leave empty for AWS S3
+      ## S3 credentials - use existing secret (recommended)
+      ## Create secret: kubectl create secret generic clickhouse-backup-s3 \
+      ##   --from-literal=access-key="AKIAIOSFODNN7EXAMPLE" \
+      ##   --from-literal=secret-key="wJalrXUtnFEMI/K7MDENG..." \
+      ##   -n <namespace>
+      ## Empty (default) falls back to centralBackupStorage.s3.existingSecret, so a single
+      ## shared credential authenticates every component's backup. Set here only to point
+      ## ClickHouse at a different secret.
+      existingSecret: ""
+      existingSecretKeys:          # which keys inside existingSecret hold the credentials
+        accessKey: "access-key"
+        secretKey: "secret-key"
+      ## Or provide credentials directly (not recommended for production)
+      # accessKey: ""
+      # secretKey: ""
+
+## @section Central Backup Storage Configuration
+## This section configures a centralized storage location for all component backups
+## All backups (PostgreSQL, ClickHouse, VictoriaMetrics, encryption keys, logs) are
+## consolidated here for easy management, monitoring, and archival
+##
+centralBackupStorage:
+  ## @param centralBackupStorage.enabled Enable backup infrastructure (backup-tools Deployment,
+  ## sidecars, SA wiring, optional CronJob). Opt-in: with it on you must configure a target
+  ## (s3 bucket+credentials, or a shared RWX volume) — otherwise the backup infra can't run.
+  enabled: false
+
+  ## @param centralBackupStorage.mode Backup target: s3 (object storage, recommended) | shared (RWX/NFS mounted in pods)
+  ##
+  ## SECURITY NOTE for mode=s3: the PMM PostgreSQL encryption key is stored in the SAME bucket
+  ## and under the same prefix as the PostgreSQL dumps it decrypts (encryption/<id>/). A single
+  ## read of the bucket therefore yields both the ciphertext and the key, which defeats column
+  ## encryption in a bucket-compromise or stolen-backup scenario. Mitigate at the bucket:
+  ## enable SSE-KMS with a CMK whose key policy is NOT grantable by the backup role, and keep
+  ## the bucket private with versioning/Object Lock if your RPO allows. See
+  ## docs/pmm-backup-design-notes.md (DN-24).
+  mode: s3
+
+  ## @param centralBackupStorage.sharedMountPath Mount path of the central RWX/NFS volume INSIDE the
+  ## component pods (PMM, vmstorage, ClickHouse) when mode=shared. Each tool writes its backup here
+  ## (vmbackup -dst=fs://, in-pod tar). Must match the orchestrator's --shared-mount-path. The
+  ## backup-tools pod mounts the same volume at centralBackupStorage.mountPath; both resolve to the
+  ## same volume root, so a run lands under <root>/backup_<id>/.
+  sharedMountPath: /central
+
+  ## S3 target (mode=s3): any S3-compatible object storage (AWS S3, MinIO, Ceph RGW, ...).
+  ## Authentication, pick ONE:
+  ##   - static keys (works everywhere): create a Secret with the access/secret key pair
+  ##     and set existingSecret below
+  ##   - IRSA (AWS EKS only, keyless): set irsaRoleArn
+  s3:
+    ## Bucket name (no s3:// prefix). REQUIRED for s3 mode — set per install (do not commit).
+    bucket: ""
+    region: "us-east-1"
+    ## Empty for AWS S3; set for S3-compatible endpoints (e.g. http://minio.minio.svc:9000)
+    endpoint: ""
+    ## rclone S3 provider profile for the PMM sidecar / backup-tools client:
+    ## "AWS" (default), "Minio", "Ceph", or "Other" for anything else S3-compatible.
+    provider: "AWS"
+    ## Key prefix under the bucket. The full root is s3://<bucket>/<namespace>/<prefix>/, with
+    ## every component at <namespace>/<prefix>/<component>/<id>/, the index at
+    ## <namespace>/<prefix>/manifests/<id>.json — the release NAMESPACE is prepended automatically.
+    ##
+    ## Why that matters: retention deletes by AGE under an install's own root and cannot tell
+    ## whose backup an id is, so two installs sharing a root delete each other's backups —
+    ## irreversibly on a bucket without versioning. Because the namespace leads the path, two
+    ## instances in different namespaces of the same cluster are safe even if both leave this
+    ## at the default.
+    ##
+    ## SET A DISTINCT VALUE PER CLUSTER if several CLUSTERS share one bucket: Kubernetes
+    ## namespaces are cluster-scoped, so a `demo` namespace on two clusters would otherwise
+    ## resolve to the same root (e.g. "prod-eu" / "dr-us"). Nothing in the chart can detect
+    ## this for you — cluster identity is not readable through its namespaced RBAC.
+    ##
+    ## A DR/restore target keeps its OWN root here and names the source only at restore time:
+    ##   pmm-backup.sh restore --s3-prefix <source-namespace>/<source-prefix>
+    prefix: "pmm-ha"
+    ## Static credentials for the PMM rclone sidecar (pg_dump//srv/encryption-key/manifest
+    ## uploads) and the restore temp pods. Required on non-AWS S3-compatible storage;
+    ## optional on AWS when IRSA is used instead.
+    existingSecret: ""
+    existingSecretKeys:            # which keys inside existingSecret hold the credentials
+      accessKey: "access-key"
+      secretKey: "secret-key"
+    ## IAM role ARN annotated onto the backup ServiceAccounts (IRSA, AWS EKS only). Set per
+    ## install (e.g. arn:aws:iam::<ACCOUNT_ID>:role/pmm-ha-backup-s3). Empty = no IRSA annotation.
+    ## S3-mode credentials come from ONE of: irsaRoleArn (IRSA), existingSecret (static keys),
+    ## or ambient AWS credentials on the node (instance profile / kube2iam). With none of the
+    ## three, the backup sidecars deploy but every S3 operation fails with auth errors.
+    irsaRoleArn: ""
+    ## Dedicated IRSA-annotated SA used by operator-managed pods (vmstorage, clickhouse, pgbackrest)
+    ## so their backup tools get S3 creds via the credential chain. Must be annotated with irsaRoleArn.
+    ## Empty (default) → release-scoped "<release>-backup-s3" so two releases in one namespace
+    ## don't collide on a single fixed SA. Set to pin a specific name.
+    serviceAccountName: ""
+    ## Extra annotations for the chart-created backup S3 ServiceAccount (created when
+    ## irsaRoleArn is set), e.g. eks.amazonaws.com/sts-regional-endpoints: "false".
+    serviceAccountAnnotations: {}
+
+  ## In-pod S3 client image (PMM backup sidecar / backup-tools). Override registry for mirrors/air-gap.
+  client:
+    image:
+      registry: docker.io
+      repository: rclone/rclone
+      tag: "1.74.3"
+
+  ## backup-tools Deployment image (kubectl + shell; runs the orchestrator scripts and the
+  ## metrics listeners). Pinned tag — do not use :latest.
+  tools:
+    image:
+      registry: docker.io
+      repository: alpine/kubectl
+      tag: "1.36.3"
+
+
+  ## @param centralBackupStorage.storageSize Size of central backup storage
+  ## Should be sized for: PostgreSQL + ClickHouse + VictoriaMetrics + logs
+  ## Recommended: 100Gi+ for production
+  storageSize: 100Gi
+  
+  ## @param centralBackupStorage.storageClassName Storage class for central backup PVC
+  ## Empty (default) uses the cluster's default storage class. Set a class that exists on
+  ## your cluster — a non-existent class leaves the PVC Pending and blocks the install.
+  ## shared mode needs an RWX class (NFS/EFS); s3 mode only needs a small RWO logs volume.
+  ## Examples: "gp3", "efs-sc", "nfs-client", etc.
+  storageClassName: ""
+
+  ## @param centralBackupStorage.accessMode Access mode for central backup storage
+  ## Empty (default) picks by mode: ReadWriteMany for shared (many component pods mount the
+  ## volume) and ReadWriteOnce for s3 (only the backup-tools pod mounts a small logs volume).
+  ## Set explicitly to override — e.g. "ReadWriteMany" on NFS/EFS, "ReadWriteOnce" on EBS.
+  ## (Forcing RWX on a cluster whose only storage class is RWO leaves the PVC Pending.)
+  accessMode: ""
+
+  ## @param centralBackupStorage.existingClaim Name of a PRE-CREATED PVC to consume
+  ## When set, the chart does NOT create a PVC: it only references this one by name, so the
+  ## claim must already exist (standard Helm existingClaim semantics — the chart must not try
+  ## to own a PVC it did not create, which fails on ownership metadata).
+  ## When empty (default), the chart creates and owns <release>-central-backup.
+  ## Example: "pmm-ha-central-backup-efs"
+  existingClaim: ""
+
+  ## @param centralBackupStorage.volumeName Bind the central PVC to a PRE-CREATED static PV
+  ## (sets volumeName + storageClassName:"" to disable dynamic provisioning). Use this to put
+  ## the central volume on a specific EFS/NFS sub-path so PostgreSQL's pgBackRest repo (on a
+  ## sibling sub-path PV) lands in the SAME filesystem tree. Empty = dynamic provisioning.
+  volumeName: ""
+
+  ## @param centralBackupStorage.nfs Mount NFS directly without PVC/PV
+  ## When enabled, existingClaim and PVC creation options are ignored.
+  nfs:
+    enabled: false
+    ## @param centralBackupStorage.nfs.server NFS server IP or hostname
+    server: ""
+    ## @param centralBackupStorage.nfs.path NFS export path
+    path: ""
+  
+  ## @param centralBackupStorage.mountPath Mount path in backup orchestrator pod
+  ## This is where all component backups will be consolidated
+  mountPath: /backups
+  
+  ## NOTE: backup retention is controlled by centralBackupStorage.schedule.retentionDays
+  ## (passed to `pmm-backup.sh backup --retention`). There is no per-component retention here.
+
+  ## @param centralBackupStorage.schedule Scheduled full backups via a Kubernetes CronJob.
+  ## The CronJob triggers a backup by `kubectl exec` into the always-on backup-tools Deployment
+  ## pod (reusing its volume/scripts/env) — it does NOT mount the central volume itself (that
+  ## would Multi-Attach the RWO logs PVC). The exec runs cron-backup.sh, which starts the backup
+  ## detached and polls for completion, so a disrupted trigger doesn't abort the run.
+  ## Disabled by default — enable once the target (s3/shared) is configured. Restore is
+  ## never scheduled; it stays a deliberate manual action.
+  schedule:
+    ## @param centralBackupStorage.schedule.enabled Create the backup CronJob
+    enabled: false
+    ## @param centralBackupStorage.schedule.cron Cron expression (cluster timezone)
+    cron: "0 2 * * *"          # daily at 02:00
+    ## @param centralBackupStorage.schedule.retentionDays Prune backups older than N days (--retention)
+    retentionDays: 7
+    ## @param centralBackupStorage.schedule.components Components to back up (empty = all four).
+    ## e.g. ["--postgresql", "--clickhouse"] or add ["--skip-victoriametrics"]
+    components: []
+    ## @param centralBackupStorage.schedule.extraArgs Extra args appended to the backup command
+    extraArgs: []
+    ## @param centralBackupStorage.schedule.startingDeadlineSeconds Skip a run if it can't start within N seconds
+    startingDeadlineSeconds: 600
+    ## @param centralBackupStorage.schedule.activeDeadlineSeconds Hard cap (seconds) on one scheduled run
+    ## before Kubernetes fails the trigger Job — a backstop against a wedged trigger. This MUST
+    ## exceed the real backup duration: the trigger polls the detached backup to completion, so a
+    ## too-low value fails the Job (false alert) even though the backup itself keeps running, and
+    ## with concurrencyPolicy: Forbid it can also block the next scheduled run. Default 6h; raise
+    ## for very large installs (multi-TB VM data) whose backup legitimately runs longer.
+    activeDeadlineSeconds: 21600
+    ## @param centralBackupStorage.schedule.successfulJobsHistoryLimit Kept succeeded jobs
+    successfulJobsHistoryLimit: 3
+    ## @param centralBackupStorage.schedule.failedJobsHistoryLimit Kept failed jobs
+    failedJobsHistoryLimit: 3
 
 haproxy:
   # Override the HAProxy service name to be fixed (not include release name)
@@ -599,6 +855,14 @@ tls:
 ## @param pg-db Configuration values passed to the pg-db dependency chart
 ##
 pg-db:
+  ## Custom annotations the operator propagates to its objects. Not needed for
+  ## pmm-backup.sh (PostgreSQL is backed up with pg_dump). Only set an IRSA
+  ## role-arn here if you enable an OPTIONAL offsite pgBackRest S3 repo (web-id), e.g.:
+  ##   metadata:
+  ##     annotations:
+  ##       eks.amazonaws.com/role-arn: "arn:aws:iam::<ACCOUNT_ID>:role/pmm-ha-backup-s3"
+  metadata:
+    annotations: {}
   autoCreateUserSchema: true
   
   # PostgreSQL user configuration
@@ -693,11 +957,156 @@ pg-db:
     ## @param pg-db.pmm.serverHost PMM server hostname (via HAProxy for HA setup)
     ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
     serverHost: pmm-ha-haproxy
-    ## @param pg-db.pmm.resources Resource requests and limits for PMM client sidecar
-    # resources:
-    #   requests:
-    #     memory: 200M
-    #     cpu: 500m
+  ## @param pg-db.pmm.resources Resource requests and limits for PMM client sidecar
+  ## (Indented under `pmm:` — uncommenting at the outer level would set pg-db.resources.)
+  #   resources:
+  #     requests:
+  #       memory: 200M
+  #       cpu: 500m
+
+  ## @section PostgreSQL Backup Configuration (pgBackRest)
+  ## This section configures pgBackRest backups for PostgreSQL
+  ## pgBackRest is built into the Percona PostgreSQL Operator and provides:
+  ## - Full, Differential, and Incremental backups
+  ## - Point-in-Time Recovery (PITR)
+  ## - Multiple repository support (local, S3, GCS, Azure)
+  ## - Automatic retention management
+  ## - WAL archiving and management
+  ##
+  ## Documentation: https://docs.percona.com/percona-operator-for-postgresql/2.0/backups.html
+  ##
+  backups:
+    ## @param pg-db.backups.enabled Enable pgBackRest backups
+    enabled: true
+    
+    ## @param pg-db.backups.trackLatestRestorableTime Track the latest time to which data can be restored
+    ## Enables real-time monitoring of backup recoverability
+    trackLatestRestorableTime: true
+    
+    pgbackrest:
+      ## @param pg-db.backups.pgbackrest.image pgBackRest image
+      image: docker.io/percona/percona-pgbackrest:2.56.0-1
+      
+      ## @param pg-db.backups.pgbackrest.manual Manual backup configuration
+      ## Used when triggering on-demand backups via pmm-backup.sh or kubectl
+      manual:
+        ## @param pg-db.backups.pgbackrest.manual.repoName Default repository for manual backups
+        repoName: repo1
+        ## @param pg-db.backups.pgbackrest.manual.options Additional pgBackRest options for manual backups
+        ## Example options:
+        ## - --type=full                    # Force full backup
+        ## - --type=incr                    # Incremental backup (default)
+        ## - --type=diff                    # Differential backup
+        ## - --repo1-retention-full=7       # Keep 7 full backups
+        ## - --repo1-retention-diff=3       # Keep 3 differential backups
+        ## - --repo1-retention-archive=7    # Keep 7 sets of WAL archives
+        options:
+        - --type=full                    # Full backup for manual runs (e.g. pmm-backup.sh)
+        - --repo1-retention-full=1      # Keep 1 full on repo-host so full-folder copy to central is minimal
+        - --repo1-retention-diff=1
+        - --repo1-retention-archive=1
+      
+      ## @param pg-db.backups.pgbackrest.repos Backup repositories configuration
+      ## You can configure multiple repositories for different backup strategies:
+      ## - repo1: Local storage (fast recovery)
+      ## - repo2: S3 storage (offsite backup)
+      ## - repo3: GCS storage (geographic redundancy)
+      ## - repo4: Azure storage
+      ##
+      ## IMPORTANT: Scheduled backups are DISABLED by default.
+      ## Backups must be triggered manually using pmm-backup.sh or kubectl.
+      ## To enable scheduled backups, uncomment the 'schedules:' section below.
+      repos:
+      ## Repository 1: Local storage (required, used for WAL archiving)
+      - name: repo1
+        ## @param pg-db.backups.pgbackrest.repos[0].schedules Backup schedules in cron format
+        ## Scheduled backups are DISABLED - uncomment to enable automatic backups
+        # schedules:
+        #   ## Full backup schedule (recommended: weekly)
+        #   full: "0 2 * * 0"  # Sunday at 2 AM UTC
+        #   ## Differential backup schedule (optional, recommended: mid-week)
+        #   # differential: "0 2 * * 3"  # Wednesday at 2 AM UTC
+        #   ## Incremental backup schedule (optional, recommended: frequent)
+        #   # incremental: "0 */6 * * *"  # Every 6 hours
+        ## @param pg-db.backups.pgbackrest.repos[0].volume Local storage configuration
+        ## Storage is persistent - PVC will not be deleted when chart is uninstalled
+        volume:
+          volumeClaimSpec:
+            ## @param pg-db.backups.pgbackrest.repos[0].volume.volumeClaimSpec.storageClassName Storage class for backup PVC
+            ## Leave empty to use cluster default storage class
+            ## For production, use a storage class that supports volume expansion
+            # storageClassName: "gp3"
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                ## @param pg-db.backups.pgbackrest.repos[0].volume.volumeClaimSpec.resources.requests.storage Backup storage size
+                ## repo1 is LOCAL-only: WAL archive + one retained full for replica bootstrap/HA
+                ## (retention is capped at 1 full via manual.options below). The actual off-cluster
+                ## backups are logical pg_dumps taken by pmm-backup.sh, NOT pgBackRest, so
+                ## repo1 stays small. 1Gi matches the operator default — raising it forces a PVC
+                ## expansion on upgrade (fails on storage classes without allowVolumeExpansion).
+                ## Storage persists even after helm uninstall.
+                storage: 1Gi
+      
+      ## NOTE: pmm-backup.sh backs up PostgreSQL with pg_dump (logical), it does
+      ## NOT use a pgBackRest offsite repo. repo1 (local) is required by the operator for
+      ## replica bootstrap / HA. repo2/3/4 below are OPTIONAL offsite pgBackRest repos you
+      ## can enable independently; the orchestrator neither needs nor uses them.
+      ##
+      ## Repository 2: S3 (optional offsite). Uncomment + configure to enable.
+      # - name: repo2
+      #   s3:
+      #     bucket: "my-pg-backups"
+      #     endpoint: ""            # empty = AWS; or s3.<region>.amazonaws.com
+      #     region: "us-east-1"
+
+      ## Repository 3: Google Cloud Storage (optional)
+      ## Uncomment and configure to enable GCS backups
+      # - name: repo3
+      #   gcs:
+      #     ## GCS bucket name (required)
+      #     bucket: "pmm-postgresql-backups-gcs"
+      #   schedules:
+      #     ## Weekly full backup to GCS
+      #     full: "0 4 * * 0"  # Sunday at 4 AM UTC
+      
+      ## Repository 4: Azure Blob Storage (optional)
+      ## Uncomment and configure to enable Azure backups
+      # - name: repo4
+      #   azure:
+      #     ## Azure container name (required)
+      #     container: "pmm-postgresql-backups"
+      #   schedules:
+      #     ## Weekly full backup to Azure
+      #     full: "0 5 * * 0"  # Sunday at 5 AM UTC
+
+      ## pgBackRest global options — only needed for optional offsite repos you enable above
+      ## (e.g. repo2-s3-key-type: web-id). pmm-backup.sh uses pg_dump, so it needs none.
+      global: {}
+    
+    ## @section S3 Credentials Configuration
+    ## If using S3 (repo2), you need to provide credentials
+    ## Create a secret with your S3 credentials:
+    ##
+    ## kubectl create secret generic pg-db-backrest-repo-config \
+    ##   --from-literal=aws-s3-key="AKIAIOSFODNN7EXAMPLE" \
+    ##   --from-literal=aws-s3-key-secret="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" \
+    ##   -n demo
+    ##
+    ## Or use existing secret name:
+    # s3SecretName: "pg-db-backrest-repo-config"
+    
+    ## @section GCS Credentials Configuration
+    ## If using GCS (repo3), you need to provide service account key
+    ## Create a secret with your GCS service account JSON key:
+    ##
+    ## kubectl create secret generic pg-db-gcs-key \
+    ##   --from-file=gcs-key=/path/to/service-account-key.json \
+    ##   -n demo
+    ##
+    ## Or use existing secret name:
+    # gcsSecretName: "pg-db-gcs-key"
 
 ## @section Kubernetes cluster metrics (kube-state-metrics + node-exporter)
 ## Installs kube-state-metrics and node-exporter by default and lets the
@@ -897,6 +1306,12 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmstorage.storageClassName Storage class for VictoriaMetrics persistent volumes
     ## If empty, uses the cluster's default storage class
     storageClassName: ""
+    
+    ## @param victoriaMetrics.vmstorage.backupVolumeSize Size limit for local backup volume (emptyDir)
+    ## Note: Local backups use emptyDir (ephemeral storage on the node)
+    ## For persistent backups, configure S3 below
+    backupVolumeSize: 20Gi
+    
     ## @param victoriaMetrics.vmstorage.affinity Pod affinity configuration for vmstorage
     affinity:
       podAntiAffinity:
@@ -915,3 +1330,47 @@ victoriaMetrics:
     podAnnotations: {}
     ## @param victoriaMetrics.vmstorage.extraArgs Extra arguments for vmstorage
     extraArgs: {}
+    
+    ## @section VictoriaMetrics Backup Configuration (vmbackup sidecar)
+    ## vmbackup provides backup/restore functionality for vmstorage
+    ## Documentation: https://docs.victoriametrics.com/vmbackup/
+    ##
+    backup:
+      ## @param victoriaMetrics.vmstorage.backup.enabled Enable vmbackup sidecar container
+      ## Only takes effect when centralBackupStorage.enabled is true (the backup master switch).
+      enabled: true
+      
+      ## @param victoriaMetrics.vmstorage.backup.image vmbackup image
+      ## Pinned (not :latest) for reproducibility; keep in step with the vmstorage version.
+      image: victoriametrics/vmbackup:v1.149.0
+
+      ## @param victoriaMetrics.vmstorage.backup.restoreImage vmrestore image (for restore from central backup)
+      ## Keep the same version as backup.image.
+      restoreImage: victoriametrics/vmrestore:v1.149.0
+      
+      ## @param victoriaMetrics.vmstorage.backup.resources Resource requests and limits for vmbackup sidecar
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      
+      ## @param victoriaMetrics.vmstorage.backup.s3 S3 configuration for remote backups
+      s3:
+        ## Enables the vmbackup sidecar's AWS env (AWS_REGION). With existingSecret empty,
+        ## vmbackup uses the IRSA credential chain (no static keys). The bucket/key come
+        ## from the -dst the orchestrator passes, not from here. In s3 mode this env is
+        ## wired automatically (see vmcluster.yaml); set true only to force it independently.
+        enabled: false
+        ## Empty (default) inherits centralBackupStorage.s3.region; set to override for VM only.
+        region: ""
+        endpoint: ""  # Leave empty for AWS S3
+        ## S3 credentials - leave empty to use IRSA (the vmstorage SA's role), or to fall back
+        ## to centralBackupStorage.s3.existingSecret (static keys) if that is set. Set here
+        ## only to point vmbackup at a different secret.
+        existingSecret: ""
+        existingSecretKeys:      # which keys inside existingSecret hold the credentials
+          accessKey: "access-key"
+          secretKey: "secret-key"

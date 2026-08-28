@@ -228,6 +228,7 @@ spec:
           target_label: service
         - target_label: __metrics_path__
           replacement: /metrics
+    {{- if dig "enabled" false (default dict (index .Values "kube-state-metrics")) }}
     # Scrape kube-state-metrics for Kubernetes object state
     - job_name: 'kube-state-metrics'
       kubernetes_sd_configs:
@@ -246,6 +247,7 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
+    {{- end }}
     {{- if eq (include "pmm.nodeExporter.mode" .) "internal" }}
     # Scrape node-exporter for node-level metrics (bundled prometheus-node-exporter DaemonSet)
     - job_name: 'node-exporter'
@@ -317,6 +319,38 @@ spec:
     {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
     # User-provided scrape configs (appended)
     {{- toYaml .Values.victoriaMetrics.vmagent.scrapeConfigs | nindent 4 }}
+    {{- end }}
+
+    {{- if .Values.centralBackupStorage.enabled }}
+    # Backup + restore metrics from the backup-tools pod, on one endpoint (port 9091).
+    #
+    # ONE job, deliberately. This was five near-identical ~30-line jobs that differed only in a
+    # port number and a name, because the orchestrator wrote one .prom file per component and
+    # each file needed its own nc listener and containerPort. The component is a LABEL, so that
+    # split bought nothing and cost a four-file edit per component — and the pmm-server job was
+    # simply missing for months, so a /srv backup failing on every PMM pod never reached
+    # Prometheus at all. Adding a component now changes nothing here.
+    - job_name: 'backup-metrics'
+      {{- /* 30s, not 60s. This job absorbed the former backup-restore job, and
+             pmm_ha_restore_in_progress / pmm_ha_restore_phase are TRANSIENT gauges — a restore
+             phase shorter than the interval falls entirely between scrapes, so at 60s a fast
+             restore can never be observed as in progress at all. The backup series are written
+             once per run and do not care either way, so the finer of the two intervals wins. */}}
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        {{- include "pmm.backupToolsScrapeKeep" . | nindent 8 }}
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '9091'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
     {{- end }}
 
   {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}

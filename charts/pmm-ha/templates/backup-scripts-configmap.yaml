@@ -1,0 +1,24 @@
+{{- if .Values.centralBackupStorage.enabled }}
+---
+# Backup / restore orchestrator scripts, shipped by the chart (files/*.sh) and mounted
+# into the backup-tools Deployment — the pod never needs a manual `kubectl cp`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-backup-scripts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup-tools
+data:
+  # The one orchestrator: backup / restore / list subcommands (PMM-13858 merged the two
+  # former orchestrators and the sourced backup-layout.sh into this file — the duplicated
+  # halves had drifted apart repeatedly).
+  pmm-backup.sh: |
+{{ required "files/pmm-backup.sh is missing from the chart — every backup/restore entry point execs it, and .Files.Get would silently render an empty key" (.Files.Get "files/pmm-backup.sh") | indent 4 }}
+  # Guarded like pmm-backup.sh above: this is the ONLY entry point the backup CronJob
+  # execs, so an empty key would make every scheduled run a silent no-op that still
+  # reports Success — invisible until someone needs a restore.
+  cron-backup.sh: |
+{{ required "files/cron-backup.sh is missing from the chart — the backup CronJob execs it, and .Files.Get would silently render an empty key" (.Files.Get "files/cron-backup.sh") | indent 4 }}
+{{- end }}

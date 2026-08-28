@@ -1,0 +1,40 @@
+{{- /* Only CREATE a PVC when the user has NOT supplied an existingClaim. existingClaim means
+       "consume this pre-created PVC" (standard Helm semantics) — the consumers reference it by
+       name; the chart must not try to own/create a PVC of that name (that fails on ownership
+       metadata for a genuinely pre-existing claim). When empty, the chart creates and owns
+       <release>-central-backup. NOTE: accessModes below default by mode (s3=RWO, shared=RWX);
+       switching centralBackupStorage.mode on an EXISTING chart-created PVC will fail `helm upgrade`
+       (accessModes are immutable) — delete/recreate the PVC (data is disposable in s3 mode; in
+       shared mode migrate the volume) or set an explicit accessMode that doesn't change. */}}
+{{- if and .Values.centralBackupStorage.enabled (not .Values.centralBackupStorage.nfs.enabled) (not .Values.centralBackupStorage.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ printf "%s-central-backup" .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: central-backup-storage
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    {{- /* Default by mode: shared needs RWX (many component pods mount it); s3 needs only a
+           small RWO logs/metrics volume on the always-on backup-tools pod. An explicit
+           accessMode value overrides. Defaulting to RWX on the common RWO-only default
+           storage class would otherwise leave this PVC Pending and block the backup. */}}
+    {{- $accessMode := .Values.centralBackupStorage.accessMode }}
+    {{- if not $accessMode }}{{- $accessMode = ternary "ReadWriteMany" "ReadWriteOnce" (eq .Values.centralBackupStorage.mode "shared") }}{{- end }}
+    - {{ $accessMode }}
+  {{- if .Values.centralBackupStorage.volumeName }}
+  # Bind a pre-created static PV (e.g. an EFS sub-path PV) — disables dynamic provisioning.
+  volumeName: {{ .Values.centralBackupStorage.volumeName }}
+  storageClassName: ""
+  {{- else if .Values.centralBackupStorage.storageClassName }}
+  storageClassName: {{ .Values.centralBackupStorage.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.centralBackupStorage.storageSize }}
+{{- end }}

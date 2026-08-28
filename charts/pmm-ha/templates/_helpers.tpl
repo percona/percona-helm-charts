@@ -99,8 +99,15 @@ Generate PMM HA peer list dynamically based on replicas count
 {{- $peers := list }}
 {{- $serviceName := .Values.service.name | default "monitoring-service" }}
 {{- $replicas := int .Values.replicas }}
+{{- $fullname := include "pmm.fullname" . }}
 {{- range $i := until $replicas }}
-  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $.Release.Name $i $serviceName $.Release.Namespace }}
+  {{- /* Peers must use the StatefulSet name (pmm.fullname), not Release.Name: the pods are
+         <fullname>-<ordinal>. pmm.fullname equals Release.Name only when the release name
+         already contains the chart name (e.g. "pmm-ha" or "pmm-ha-2"); otherwise it is
+         "<release>-pmm-ha" (e.g. release "pmm-2" -> pods "pmm-2-pmm-ha-0"). Using
+         Release.Name for those releases yields peers that don't resolve and the HA
+         memberlist panics on startup. */}}
+  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $fullname $i $serviceName $.Release.Namespace }}
   {{- $peers = append $peers $peer }}
 {{- end }}
 {{- join "," $peers }}
@@ -159,7 +166,6 @@ Example output for 3 replicas:
   port: 2181
 {{- end -}}
 {{- end -}}
-
 
 {{- define "pmm.nodeExporter.mode" -}}
 {{- (.Values.nodeExporter).mode | default "internal" -}}
@@ -238,6 +244,41 @@ when nodeExporter.mode == "openshift".
 {{- end -}}
 
 {{/*
+Central backup RWX/NFS volume (shared mode). Renders a single pod-spec volume entry named
+"central-backup-storage" referencing the same NFS/PVC as the backup-tools pod. Mounted at
+.Values.centralBackupStorage.sharedMountPath inside the component pods so each tool writes its
+backup straight to the shared volume. Call with the root context: {{- include "pmm.centralBackupVolume" . }}
+*/}}
+{{- define "pmm.centralBackupVolume" -}}
+- name: central-backup-storage
+{{- if .Values.centralBackupStorage.nfs.enabled }}
+  nfs:
+    server: {{ .Values.centralBackupStorage.nfs.server }}
+    path: {{ .Values.centralBackupStorage.nfs.path }}
+{{- else }}
+  persistentVolumeClaim:
+    claimName: {{ .Values.centralBackupStorage.existingClaim | default (printf "%s-central-backup" .Release.Name) }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Name of the key inside an S3 credentials Secret. Collapses the
+`(<s3>.existingSecretKeys | default dict).accessKey | default "access-key"` idiom that the
+pmm-backup, vmbackup and clickhouse-backup sidecars each hand-copy. Call with the keys dict
+(may be nil) and which credential is wanted:
+  {{ include "pmm.s3SecretKeyName" (dict "keys" $s3.existingSecretKeys "which" "access") }}
+  {{ include "pmm.s3SecretKeyName" (dict "keys" $s3.existingSecretKeys "which" "secret") }}
+*/}}
+{{- define "pmm.s3SecretKeyName" -}}
+{{- $keys := .keys | default dict -}}
+{{- if eq .which "access" -}}
+{{- $keys.accessKey | default "access-key" -}}
+{{- else -}}
+{{- $keys.secretKey | default "secret-key" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Name of the chart-managed secret holding the read-only ClickHouse data source credentials.
 
 Kept apart from .Values.secret.name because that secret is user-managed by default, and these
@@ -278,6 +319,61 @@ Once generated it is read back from the chart-managed secret, so upgrades keep t
 {{- end -}}
 {{- get .Values "generatedClickhouseDatasourcePassword" -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Name of the backup S3 ServiceAccount (used by vmstorage/ClickHouse for the IRSA credential chain
+and referenced by the restore temp pods). Release-scoped by default so two releases in the same
+namespace don't collide on one fixed SA (Helm ownership conflict on install, and uninstall of one
+release deleting the SA the other still uses). Override via centralBackupStorage.s3.serviceAccountName.
+*/}}
+{{- define "pmm.backupS3SaName" -}}
+{{- .Values.centralBackupStorage.s3.serviceAccountName | default (printf "%s-backup-s3" .Release.Name) -}}
+{{- end -}}
+
+{{/*
+S3 key root for THIS install: <namespace>/<prefix>.
+
+Every S3 path the backup and restore tooling builds hangs off this — <component>/<id>/ and
+clickhouse/... — so it is the one place that decides which keys an install owns.
+
+Why the namespace leads the path: retention deletes by AGE under the root it is given and
+cannot tell whose backup an id is, so two installs sharing a root delete each other's
+backups (irreversibly, on a bucket without versioning). The prefix alone does not prevent
+that, because it defaults to the same literal "pmm-ha" for every install — so two namespaces
+on one cluster collide unless the operator intervenes. Leading with .Release.Namespace makes
+that case safe automatically, while keeping the prefix configurable for the case the
+namespace cannot solve: the same namespace name on two DIFFERENT clusters sharing one bucket
+(namespaces are cluster-scoped, and no cluster identity is readable from the chart's
+namespaced RBAC). Set a distinct prefix per cluster for that topology.
+
+Namespace first also keeps the bucket human-navigable and DR-discoverable: the path names the
+install, so a restore can be pointed at a source (--s3-prefix <ns>/<prefix>) without querying
+the source cluster, which in a real disaster may be gone.
+*/}}
+{{- define "pmm.backupS3Root" -}}
+{{- $prefix := .Values.centralBackupStorage.s3.prefix | default "pmm-ha" | trimPrefix "/" | trimSuffix "/" -}}
+{{- printf "%s/%s" .Release.Namespace $prefix -}}
+{{- end -}}
+
+{{/*
+The relabel rules that scope a backup-metrics scrape job to THIS release's backup-tools pod.
+Kept as a named template even though one job uses it today: the rule is subtle (an unescaped
+release name in a regex silently keeps another release's pods) and it belongs somewhere a second
+job can reuse rather than copy. Two releases in one namespace is a topology this chart supports —
+the backup SA and the central PVC are both release-scoped for it.
+
+regexQuoteMeta on the release name matters: Prometheus anchors relabel regexes but does not
+escape them, so an unescaped release called `pmm.prod` would also keep a co-located `pmmXprod`
+release's pods — reintroducing the cross-release mixing this rule exists to stop.
+*/}}
+{{- define "pmm.backupToolsScrapeKeep" -}}
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+  regex: 'backup-tools'
+  action: keep
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+  regex: '{{ regexQuoteMeta .Release.Name }}'
+  action: keep
 {{- end -}}
 
 {{/*

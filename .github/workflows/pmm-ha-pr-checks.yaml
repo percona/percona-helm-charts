@@ -5,13 +5,74 @@ on:
       - 'charts/pmm-ha/**'
       - 'charts/pmm-ha-dependencies/**'
 
+# Least privilege for GITHUB_TOKEN. Both jobs below execute files that come FROM the pull
+# request (the chart's shell suites, ct's chart hooks), and nothing here writes to the repo, so
+# read access to contents is all the token needs. Without this block the workflow inherits the
+# repository default, which may be read-write.
+permissions:
+  contents: read
+
 jobs:
+  # The orchestrator's own suites. A separate job on purpose: they need no cluster, no helm and
+  # no repositories, so they finish in seconds and give an independent signal — and they are the
+  # only thing that can catch the class of bug files/pmm-backup.sh keeps citing in its comments
+  # (a `set -u` read of a variable a refactor deleted, a dash-only expansion, a helper whose
+  # non-zero return aborts the run between the upload and the manifest write). Nothing gated on
+  # them before, so those regressions could ship a third time.
+  backup-script-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Do not leave the token in .git/config: the steps after this one run code that
+          # came from the pull request.
+          persist-credentials: false
+          sparse-checkout: |
+            charts/pmm-ha
+
+      - name: Install the shells the orchestrator claims to support
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dash busybox-static
+
+      - name: Shell syntax (all three shells)
+        run: |
+          set -eu
+          # BOTH scripts. cron-backup.sh is the ONLY entry point the backup CronJob execs, so a
+          # syntax error or a busybox-ash-ism in it makes every scheduled run fail at exec time
+          # with the orchestrator never started — and it had no gate at all.
+          for f in charts/pmm-ha/files/pmm-backup.sh charts/pmm-ha/files/cron-backup.sh; do
+            for sh_bin in /bin/sh /bin/dash /bin/bash; do
+              echo "== ${sh_bin} -n ${f} =="
+              "${sh_bin}" -n "${f}"
+            done
+            echo "== busybox sh -n ${f} =="
+            busybox sh -n "${f}"
+          done
+
+      - name: Static checks (tests/pmm-backup-lint.sh)
+        run: sh charts/pmm-ha/tests/pmm-backup-lint.sh
+
+      - name: Unit tests, under every supported shell
+        run: |
+          set -eu
+          for sh_bin in dash bash; do
+            echo "===== ${sh_bin} ====="
+            "${sh_bin}" charts/pmm-ha/tests/pmm-backup-unit.sh
+          done
+          echo "===== busybox ash ====="
+          busybox sh charts/pmm-ha/tests/pmm-backup-unit.sh
+
   lint-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # Do not leave the token in .git/config: the steps after this one run code that
+          # came from the pull request.
+          persist-credentials: false
           fetch-depth: 0
           sparse-checkout: |
             .github/
