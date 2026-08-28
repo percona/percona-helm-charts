@@ -172,13 +172,31 @@ spec:
       # engines and table functions - url(), remote(), mysql() and S3 over HTTP - for every user,
       # not just the data source one. Query Analytics does not use them: replication runs over the
       # interserver protocol and Keeper, and schema changes go through ON CLUSTER DDL.
+      #
+      # The clickhouse-backup sidecar is the one exception. With API_CREATE_INTEGRATION_TABLES it
+      # creates system.backup_actions and system.backup_list as ENGINE=URL against its own API on
+      # http://127.0.0.1:7171, which an empty allowlist rejects with code 491 - and the orchestrator
+      # then reports the sidecar as missing even though it is running. Allow exactly that host:port
+      # when the sidecar is enabled: API_LISTEN below binds the API to loopback, so no host outside
+      # the pod becomes reachable and the rest of the hardening is unchanged.
+      #
+      # On an EXISTING install this takes effect only after the sidecar restarts. The ClickHouse
+      # operator restarts the `clickhouse` container to pick up a config.d change but leaves
+      # sidecars running, so a `helm upgrade` alone leaves the tables missing. Bounce the
+      # ClickHouse pods (or the sidecar) once after upgrading. Fresh installs are unaffected.
       config.d/pmm-hardening.xml: |
         <clickhouse>
           <access_control_improvements>
             <settings_constraints_replace_previous>true</settings_constraints_replace_previous>
             <select_from_system_db_requires_grant>true</select_from_system_db_requires_grant>
           </access_control_improvements>
+          {{- if and .Values.centralBackupStorage.enabled .Values.clickhouse.backup.enabled }}
+          <remote_url_allow_hosts>
+            <host>127.0.0.1:7171</host>
+          </remote_url_allow_hosts>
+          {{- else }}
           <remote_url_allow_hosts></remote_url_allow_hosts>
+          {{- end }}
         </clickhouse>
 
   templates:
