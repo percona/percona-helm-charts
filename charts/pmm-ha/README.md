@@ -802,9 +802,8 @@ Common troubleshooting steps for PMM HA:
   HAProxy, and if the Raft leader lands on it every backend is DOWN and PMM serves
   `503`. The chart rejects this combination.
 - **Raising `maxReplicas` needs an HAProxy restart.** It is rendered into the
-  `pmm-ha-haproxy` ConfigMap, which the chart does not roll on upgrade. (Changing
-  `replicas` likewise rewrites `pmm-ha-haproxy-init-script`, the startup readiness
-  gate, though routing itself is DNS-based and needs no restart.) Bump
+  `pmm-ha-haproxy` ConfigMap, which the chart does not roll on upgrade. Routing itself
+  is DNS-based, so changing `replicas` needs no restart. Bump
   `haproxy.podAnnotations."pmm.percona.com/config-version"` in the same `helm upgrade`
   so the pods restart and pick up the new `server-template`:
 

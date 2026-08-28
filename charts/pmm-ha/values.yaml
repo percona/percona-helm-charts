@@ -526,13 +526,9 @@ haproxy:
   
   # Pod annotations
   #
-  # Two ConfigMaps here are rendered from values, and this chart does not roll the HAProxy
-  # pods when either changes:
-  #
-  #   pmm-ha-haproxy             - haproxy.cfg, which embeds `maxReplicas` as the
-  #                                server-template slot count.
-  #   pmm-ha-haproxy-init-script - the readiness gate, which embeds `replicas` as the
-  #                                number of PMM pods to wait for at startup.
+  # pmm-ha-haproxy is rendered from values - haproxy.cfg embeds `maxReplicas` as the
+  # server-template slot count - and this chart does not roll the HAProxy pods when it
+  # changes.
   #
   # Routing itself is DNS-based, so changing `replicas` needs no restart to take effect.
   # Changing `maxReplicas` does: without one, HAProxy keeps serving the old slot count.
