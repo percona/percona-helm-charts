@@ -385,6 +385,86 @@ spec:
       {{- end }}
   {{- end }}
 
+  {{- if .Values.logicalReplicas }}
+  logicalReplicas:
+  {{- range $replica := .Values.logicalReplicas }}
+    - name: {{ $replica.name }}
+      {{- if $replica.databases }}
+      databases:
+      {{- range $database := $replica.databases }}
+        - {{ $database }}
+      {{- end }}
+      {{- end }}
+      {{- if $replica.bootstrapMethod }}
+      bootstrapMethod: {{ $replica.bootstrapMethod }}
+      {{- end }}
+      {{- if and $replica.metadata (or $replica.metadata.annotations $replica.metadata.labels) }}
+      metadata:
+        {{- if $replica.metadata.annotations }}
+        annotations:
+{{ $replica.metadata.annotations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $replica.metadata.labels }}
+        labels:
+{{ $replica.metadata.labels | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- include "pg-database.resources" $replica | indent 6 }}
+      {{- if $replica.affinity }}
+      affinity:
+{{ $replica.affinity | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replica.tolerations }}
+      tolerations:
+{{ $replica.tolerations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replica.priorityClassName }}
+      priorityClassName: {{ $replica.priorityClassName }}
+      {{- end }}
+      {{- if $replica.expose }}
+      expose:
+        type: {{ $replica.expose.type }}
+        {{- if $replica.expose.annotations }}
+        annotations:
+{{ $replica.expose.annotations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $replica.expose.labels }}
+        labels:
+{{ $replica.expose.labels | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $replica.expose.loadBalancerClass }}
+        loadBalancerClass:
+{{ $replica.expose.loadBalancerClass | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $replica.expose.loadBalancerSourceRanges }}
+        loadBalancerSourceRanges:
+{{ $replica.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $replica.expose.nodePort }}
+        nodePort: {{ $replica.expose.nodePort }}
+        {{- end }}
+      {{- end }}
+      {{- if $replica.dataVolumeClaimSpec }}
+      dataVolumeClaimSpec:
+        {{- if $replica.dataVolumeClaimSpec.storageClassName }}
+        storageClassName: {{ $replica.dataVolumeClaimSpec.storageClassName }}
+        {{- end }}
+        {{- if $replica.dataVolumeClaimSpec.accessModes }}
+        accessModes:
+        {{- range $accessMode := $replica.dataVolumeClaimSpec.accessModes }}
+        - {{ $accessMode }}
+        {{- end }}
+        {{- else }}
+        accessModes:
+        - ReadWriteOnce
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $replica.dataVolumeClaimSpec.resources.requests.storage }}
+      {{- end }}
+  {{- end }}
+  {{- end }}
+
   proxy:
     pgBouncer:
       image: {{ .Values.proxy.pgBouncer.image }}
