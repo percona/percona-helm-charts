@@ -686,10 +686,15 @@ pg-db:
     image:
       repository: docker.io/percona/pmm-client
       tag: "3"
-    ## @param pg-db.pmm.secret Name of the secret containing PMM_SERVER_TOKEN
-    ## This secret is automatically created by the pmm-token-init Job
-    ## The secret must contain a key named PMM_SERVER_TOKEN with the service account token
-    secret: pg-pmm-secret
+    ## @param pg-db.pmm.secret Name of the secret containing PMM_SERVER_TOKEN. Leave empty to derive "<release>-pg-db-pmm-secret"
+    ## Created automatically by the pmm-token-init Job, which must agree with pg-db on the
+    ## name - both derive it from the pmm.pgPmmSecretName helper when this is unset.
+    ##
+    ## Left unset on purpose. The Job creates this secret with kubectl rather than through
+    ## Helm, so `helm uninstall` leaves it behind; a fixed name would let a new release
+    ## inherit the previous install's service account token, which authenticates against a
+    ## Grafana database that no longer exists. Set it only to adopt an existing secret.
+    secret: ""
     ## @param pg-db.pmm.serverHost PMM server hostname (via HAProxy for HA setup)
     ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
     serverHost: pmm-ha-haproxy

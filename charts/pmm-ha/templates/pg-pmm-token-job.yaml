@@ -63,7 +63,7 @@ spec:
         - name: PMM_PORT
           value: "443"
         - name: SECRET_NAME
-          value: "{{ index .Values "pg-db" "pmm" "secret" | default "pg-pmm-secret" }}"
+          value: "{{ include "pmm.pgPmmSecretName" . }}"
         - name: SERVICE_ACCOUNT_NAME
           value: "pmm-pg-monitoring"
         - name: NAMESPACE
@@ -77,15 +77,6 @@ spec:
           set -e
           
           echo "=== PMM Token Generator for PostgreSQL Monitoring ==="
-          
-          # Check if secret already exists with a valid token
-          if kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
-            EXISTING_KEY=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o jsonpath='{.data.PMM_SERVER_TOKEN}' 2>/dev/null | base64 -d)
-            if [ -n "$EXISTING_KEY" ]; then
-              echo "Secret '$SECRET_NAME' already exists with PMM_SERVER_TOKEN. Skipping token creation."
-              exit 0
-            fi
-          fi
           
           PMM_URL="https://${PMM_SERVICE_NAME}.${NAMESPACE}.svc.cluster.local:${PMM_PORT}"
           
@@ -114,6 +105,32 @@ spec:
             echo "PMM not ready yet (HTTP $HTTP_CODE). Waiting 10 seconds..."
             sleep 10
           done
+          
+          # A service account token is a REFERENCE to a row in PMM's Grafana database, not a
+          # value PMM is seeded from, so unlike PMM_ADMIN_PASSWORD it can go stale. This secret
+          # is created below with kubectl rather than by Helm, so `helm uninstall` leaves it
+          # behind: reusing the release name after a reinstall inherits a token the new Grafana
+          # database never issued. Accepting any non-empty token keeps that dead token forever,
+          # and every pmm-client sidecar in the bundled cluster then fails to register with
+          # "Auth method is not service account token" - silently, because PMM_AGENT_SIDECAR
+          # retries inside the entrypoint, so the container never restarts and the pod stays
+          # Ready. Validate it instead, and re-mint when it does not authenticate.
+          #
+          # This check has to run AFTER the readiness loop above: probing an unready PMM would
+          # fail and re-mint a token that was in fact fine.
+          if kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
+            EXISTING_KEY=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o jsonpath='{.data.PMM_SERVER_TOKEN}' 2>/dev/null | base64 -d)
+            if [ -n "$EXISTING_KEY" ]; then
+              TOKEN_CODE=$(curl -sk -o /dev/null -w "%{http_code}" \
+                -H "Authorization: Bearer ${EXISTING_KEY}" \
+                "${PMM_URL}/graph/api/user" 2>/dev/null) || true
+              if [ "$TOKEN_CODE" = "200" ]; then
+                echo "Secret '$SECRET_NAME' holds a token that authenticates (HTTP $TOKEN_CODE). Skipping token creation."
+                exit 0
+              fi
+              echo "Secret '$SECRET_NAME' holds a token that does NOT authenticate (HTTP $TOKEN_CODE) - re-minting."
+            fi
+          fi
           
           echo ""
           echo "=== Creating Service Account ==="

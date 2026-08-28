@@ -292,3 +292,22 @@ dict with "name" and "value".
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Name of the secret holding the PMM service account token the pg-db PMM client uses.
+
+Mirrors pg-db's own default - `pmm.secret | default "<pg-database.fullname>-pmm-secret"` -
+and pmm-ha overrides pg-database.fullname to "<release>-pg-db", so this resolves to
+"<release>-pg-db-pmm-secret". Release-scoped on purpose: the token is created imperatively
+by the token-init Job rather than owned by Helm, so `helm uninstall` cannot remove it. A
+fixed name therefore lets a NEW release inherit the previous install's dead token. The Job
+and the pg-db subchart must agree on this name, so both derive it from here.
+*/}}
+{{- define "pmm.pgPmmSecretName" -}}
+{{- $explicit := index .Values "pg-db" "pmm" "secret" -}}
+{{- if $explicit -}}
+{{- $explicit -}}
+{{- else -}}
+{{- printf "%s-pg-db-pmm-secret" .Release.Name -}}
+{{- end -}}
+{{- end -}}
