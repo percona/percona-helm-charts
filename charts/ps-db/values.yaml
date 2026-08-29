@@ -16,7 +16,7 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 1.2.0
+crVersion: 1.3.0
 # storageScaling:
 #   enableVolumeScaling: false
 #   enableExternalAutoscaling: false
