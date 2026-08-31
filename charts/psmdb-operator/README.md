@@ -85,7 +85,7 @@ The chart can be customized using the following configurable parameters:
 | `image.pullPolicy`           | PSMDB Operator Container pull policy                                                                         | `IfNotPresent`                              |
 | `imagePullSecrets`           | PSMDB Operator Pod pull secret                                                                               | `[]`                                        |
 | `replicaCount`               | PSMDB Operator Pod quantity                                                                                  | `1`                                         |
-| `podDisruptionBudget.enabled` | Create a PodDisruptionBudget for the operator Deployment. Backup schedules run in the leader process and are not Kubernetes CronJobs; a missed tick is not backfilled. Enable together with `replicaCount` >= 2 (`maxUnavailable=1` does not protect a single replica) | `false` |
+| `podDisruptionBudget.enabled` | Create a PodDisruptionBudget for the operator Deployment                                                      | `false`                                     |
 | `podDisruptionBudget.maxUnavailable` | PDB maxUnavailable                                                                                   | `1`                                         |
 | `podDisruptionBudget.minAvailable` | PDB minAvailable. Do not set together with maxUnavailable                                          | unset                                       |
 | `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                                  | `10`                                        |
