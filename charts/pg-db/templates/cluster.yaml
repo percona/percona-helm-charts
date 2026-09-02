@@ -444,6 +444,18 @@ spec:
         nodePort: {{ $replica.expose.nodePort }}
         {{- end }}
       {{- end }}
+      {{- if $replica.startupProbe }}
+      startupProbe:
+{{ $replica.startupProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replica.livenessProbe }}
+      livenessProbe:
+{{ $replica.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replica.readinessProbe }}
+      readinessProbe:
+{{ $replica.readinessProbe | toYaml | indent 8 }}
+      {{- end }}
       {{- if $replica.dataVolumeClaimSpec }}
       dataVolumeClaimSpec:
         {{- if $replica.dataVolumeClaimSpec.storageClassName }}
