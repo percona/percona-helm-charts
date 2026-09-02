@@ -144,7 +144,10 @@ of that rule matter:
 2. **A distinct release name per instance.** The `pmm-ha` chart's `ClusterRole` and
    `ClusterRoleBinding` are named after `pmm.fullname`, which derives from the release name.
    Those are cluster-scoped, so two instances sharing a release name collide even when they are
-   in different namespaces. A distinct release name also flows into the correct pod/peer DNS.
+   in different namespaces. Uniqueness is the only requirement — the release name does **not**
+   need to contain the chart name, because pod and peer DNS are derived from `pmm.fullname`, not
+   from `Release.Name`. A release named `pmm-dr` renders pods `pmm-dr-pmm-ha-0...` and matching
+   HA peers, exactly like the default `pmm-ha` release does.
 
 Two per-instance details apply on top of that. Only one instance per cluster can run
 `prometheus-node-exporter`, which binds host port 9100, so any additional instance must not
