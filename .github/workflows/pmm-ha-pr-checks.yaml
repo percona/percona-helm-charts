@@ -112,6 +112,54 @@ jobs:
             PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
           EOF
 
+      # Guards the release-name-sensitive names: `pmm.fullname` equals `Release.Name` only
+      # when the release name already contains the chart name, so a release like `pmm-2`
+      # (fullname `pmm-2-pmm-ha`) is the case that regresses. `ct install` generates a
+      # `pmm-ha`-prefixed release name, so the normal install cannot catch this.
+      # Needs the cluster: templates/pg-user-credentials-secrets.yaml does an unconditional
+      # `lookup` + `fail` on pmm-secret, so an offline `helm template` cannot render the chart.
+      - name: Check release-name-sensitive names render correctly
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          NS="${{ env.NS }}"
+          out=$(helm template pmm-2 charts/pmm-ha --namespace "$NS" --dry-run=server)
+
+          assert_has() {  # $1 = expected substring, $2 = what it guards
+            if ! grep -qF -- "$1" <<<"$out"; then
+              echo "::error::missing from render ($2): $1"
+              exit 1
+            fi
+          }
+          assert_lacks() {
+            if grep -qF -- "$1" <<<"$out"; then
+              echo "::error::render regressed ($2): found $1"
+              exit 1
+            fi
+          }
+
+          # HA peer list and HAProxy backends must use the StatefulSet name, not Release.Name.
+          assert_has "value: \"pmm-2-pmm-ha-0.monitoring-service.${NS}.svc.cluster.local" "PMM_HA_PEERS"
+          assert_has "pmm_host=\"pmm-2-pmm-ha-\$i.monitoring-service.${NS}.svc.cluster.local\"" "haproxy init script"
+          assert_lacks "pmm-2-0.monitoring-service" "PMM_HA_PEERS uses Release.Name"
+          assert_lacks "pmm_host=\"pmm-2-\$i." "haproxy init script uses Release.Name"
+
+          # ClickHouse/Keeper scrape jobs match the chi/chk pod label, which carries Release.Name.
+          assert_has "regex: 'pmm-2'" "clickhouse scrape job selector"
+          assert_has "regex: 'pmm-2-keeper'" "keeper scrape job selector"
+
+          # ...and that is only correct while the CRs are still named from Release.Name.
+          chi=$(helm template pmm-2 charts/pmm-ha --namespace "$NS" --dry-run=server \
+                  -s templates/clickhouse-cluster.yaml | grep -m1 '^  name:')
+          [[ "$chi" == "  name: pmm-2" ]] || { echo "::error::CHI name changed: $chi"; exit 1; }
+
+          # Release names are not regex-safe: a dot in the name must not widen an anchored regex.
+          helm template 'pmm.ha' charts/pmm-ha --namespace "$NS" --dry-run=server \
+            | grep -qF "regex: 'pmm\\.ha'" \
+            || { echo "::error::Release.Name is not regex-escaped in vmagent scrape configs"; exit 1; }
+
+          echo "Release-name-sensitive names render correctly."
+
       - name: Install pmm-ha-dependencies chart
         if: steps.list-changed.outputs.changed == 'true'
         run: |

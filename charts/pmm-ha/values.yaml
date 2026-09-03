@@ -568,7 +568,7 @@ haproxy:
   # so scaling up/down replicas does NOT require HAProxy restart.
   # Increment config-version only for other ConfigMap changes that require restart.
   podAnnotations:
-    pmm.percona.com/config-version: "3"
+    pmm.percona.com/config-version: "4"
 
   # Pod anti-affinity for HAProxy pods
   affinity:
@@ -782,7 +782,7 @@ nodeExporter:
 ## before installing this chart. This section configures the VictoriaMetrics resources (not the operator itself).
 ## 
 ## Installation order:
-##   1. helm install pmm-operators charts/pmm-ha-dependencies -n <namespace>
+##   1. helm install pmm-ha-operators charts/pmm-ha-dependencies -n <namespace>
 ##   2. helm install pmm charts/pmm-ha -n <namespace>
 ## 
 ## This configuration uses VictoriaMetrics Operator CRDs (VMCluster, VMAuth, VMAgent, VMStorage)
