@@ -641,31 +641,12 @@ haproxy:
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: haproxy
-  # Init container to wait for PMM instances to be ready
-  initContainers:
-    - name: wait-for-pmm-ready
-      image: "alpine:latest"
-      command:
-        - /bin/sh
-        - /scripts/wait-for-pmm.sh
-      volumeMounts:
-        - name: init-script
-          mountPath: /scripts
-          readOnly: true
-      resources:
-        requests:
-          cpu: 50m
-          memory: 32Mi
-        limits:
-          cpu: 100m
-          memory: 64Mi
-
-  # Additional volumes for init container
-  extraVolumes:
-    - name: init-script
-      configMap:
-        name: pmm-ha-haproxy-init-script
-        defaultMode: 0755
+  # No init container. HAProxy starts immediately and discovers PMM itself:
+  # server-template carries "init-addr last,libc,none", so a backend whose DNS name does
+  # not resolve yet is held with no address rather than aborting startup, and the
+  # /v1/server/leaderHealthCheck check brings it UP only once it is genuinely serving.
+  # Waiting for every replica first turned "HAProxy up, no backends yet" into "no HAProxy
+  # at all" - see PMM-15394.
   # Disable default ConfigMap creation - we create our own
   configMap:
     enabled: false

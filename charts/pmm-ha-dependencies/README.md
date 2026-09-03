@@ -136,8 +136,8 @@ of that rule matter:
 
 1. **A separate namespace per instance.** Several of the chart's namespaced objects have fixed
    names that do *not* include the release name — `pmm-ha-haproxy`,
-   `pmm-ha-haproxy-init-script`, `monitoring-service`, `pmm-service-account`,
-   `haproxy-tls-secret` and `postgresql-init-extensions`. A second instance in the **same**
+   `monitoring-service`, `pmm-service-account`, `haproxy-tls-secret` and
+   `postgresql-init-extensions`. A second instance in the **same**
    namespace collides on those no matter what it is called: the install either aborts on an
    existing resource, or — on an adopt/`--force` path — silently repoints the first instance's
    HAProxy at the second instance's pods.
