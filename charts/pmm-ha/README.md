@@ -55,7 +55,7 @@ helm repo add percona https://percona.github.io/percona-helm-charts/
 helm repo update
 
 # Install the operators
-helm install pmm-operators percona/pmm-ha-dependencies --namespace pmm --create-namespace
+helm install pmm-ha-operators percona/pmm-ha-dependencies --namespace pmm --create-namespace
 
 # Wait for operators to be ready
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=victoria-metrics-operator -n pmm --timeout=300s
@@ -157,7 +157,7 @@ Choose the appropriate method based on how you installed the operators:
 #### If Using pmm-ha-dependencies Chart:
 
 ```sh
-helm uninstall pmm-operators --namespace pmm
+helm uninstall pmm-ha-operators --namespace pmm
 ```
 
 #### If Installed Operators Manually:

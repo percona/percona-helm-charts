@@ -99,8 +99,15 @@ Generate PMM HA peer list dynamically based on replicas count
 {{- $peers := list }}
 {{- $serviceName := .Values.service.name | default "monitoring-service" }}
 {{- $replicas := int .Values.replicas }}
+{{- $fullname := include "pmm.fullname" . }}
 {{- range $i := until $replicas }}
-  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $.Release.Name $i $serviceName $.Release.Namespace }}
+  {{- /* Peers must use the StatefulSet name (pmm.fullname), not Release.Name: the pods are
+         <fullname>-<ordinal>. pmm.fullname equals Release.Name only when the release name
+         already contains the chart name (e.g. "pmm-ha" or "pmm-ha-2"); otherwise it is
+         "<release>-pmm-ha" (e.g. release "pmm-2" -> pods "pmm-2-pmm-ha-0"). Using
+         Release.Name for those releases yields peers that don't resolve and the HA
+         memberlist panics on startup. */}}
+  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $fullname $i $serviceName $.Release.Namespace }}
   {{- $peers = append $peers $peer }}
 {{- end }}
 {{- join "," $peers }}
