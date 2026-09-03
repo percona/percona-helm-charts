@@ -96,7 +96,7 @@ logStreamer:
     - /srv/logs/qan-api2.log
 
 ## @section PMM Client
-## Pre-provisions PMM Client pods to carry the monitoring the PMM Server pods should stay free of,
+## Pre-provisions PMM Client pods to carry monitoring that the PMM Server pods should stay free of,
 ## such as remote databases, RDS and Azure instances. Each pod registers itself as a Node and can be
 ## picked in the "Nodes" dropdown when adding a service.
 ## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-client/index.html
