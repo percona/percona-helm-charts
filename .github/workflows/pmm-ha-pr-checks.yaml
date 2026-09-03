@@ -138,11 +138,11 @@ jobs:
             fi
           }
 
-          # HA peer list and HAProxy backends must use the StatefulSet name, not Release.Name.
+          # The HA peer list must use the StatefulSet name, not Release.Name.
+          # HAProxy has no per-pod names to check: it discovers backends through the
+          # headless service via server-template, with no init script (PMM-15394).
           assert_has "value: \"pmm-2-pmm-ha-0.monitoring-service.${NS}.svc.cluster.local" "PMM_HA_PEERS"
-          assert_has "pmm_host=\"pmm-2-pmm-ha-\$i.monitoring-service.${NS}.svc.cluster.local\"" "haproxy init script"
           assert_lacks "pmm-2-0.monitoring-service" "PMM_HA_PEERS uses Release.Name"
-          assert_lacks "pmm_host=\"pmm-2-\$i." "haproxy init script uses Release.Name"
 
           # ClickHouse/Keeper scrape jobs match the chi/chk pod label, which carries Release.Name.
           assert_has "regex: 'pmm-2'" "clickhouse scrape job selector"
