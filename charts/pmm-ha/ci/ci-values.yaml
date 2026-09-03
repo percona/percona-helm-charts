@@ -12,10 +12,24 @@ pmmResources:
     memory: "1Gi"
     cpu: "500m"
 
+# One Client is enough to exercise the StatefulSet. The chart default of 3 does not
+# fit next to 3 PMM replicas on the single-node Kind cluster.
+pmmClient:
+  replicas: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "512Mi"
+      cpu: "200m"
+
 clickhouse:
   cluster:
     shards: 1
     replicas: 3
+  storage:
+    size: 5Gi
   resources:
     requests:
       memory: "512Mi"
@@ -68,6 +82,14 @@ pg-db:
         podAntiAffinity: null
   backups:
     enabled: false
+  pmm:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
 
 # VictoriaMetrics Configuration
 # NOTE: The VictoriaMetrics operator must be installed separately via pmm-ha-dependencies
@@ -106,6 +128,16 @@ victoriaMetrics:
         memory: "256Mi"
         cpu: "200m"
   
+  vmagent:
+    replicaCount: 1
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "50m"
+      limits:
+        memory: "512Mi"
+        cpu: "200m"
+
   vmstorage:
     replicaCount: 3
     retentionPeriod: "1d"
@@ -132,3 +164,22 @@ haproxy:
   # Disable anti-affinity for single-node CI testing
   affinity:
     podAntiAffinity: null
+
+# Kubernetes cluster metrics - minimal footprint for single-node CI
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
