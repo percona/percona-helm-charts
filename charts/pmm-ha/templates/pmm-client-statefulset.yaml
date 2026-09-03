@@ -1,0 +1,125 @@
+{{- if gt (int .Values.pmmClient.replicas) 0 }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pmm.client.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.client.labels" . | nindent 4 }}
+spec:
+  # A headless service is not needed: the Clients push metrics to PMM Server and are never
+  # addressed by their peers. The name is required by the StatefulSet API all the same.
+  serviceName: {{ include "pmm.client.fullname" . }}
+  replicas: {{ .Values.pmmClient.replicas }}
+  # Each pod owns its identity on its own volume, so they can come up at the same time.
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "pmm.client.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pmm.client.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        # The PMM Client image runs as this user, which has to own the volume to write to it.
+        fsGroup: 1002
+      {{- with .Values.pmmClient.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.pmmClient.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.pmmClient.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # Registers the Node once, on the first start of each pod. PMM Server answers with a service
+        # token dedicated to this Node, which pmm-agent stores in the configuration file on the
+        # volume and uses from then on - which is why the admin credentials below are not passed to
+        # the pmm-client container. Registering again would make PMM Server drop the Node with every
+        # Service configured on it, so it only happens when the configuration file is missing.
+        - name: pmm-client-register
+          image: "{{ .Values.pmmClient.image.repository }}:{{ .Values.pmmClient.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.pmmClient.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              if [ -s "${PMM_AGENT_CONFIG_FILE}" ]; then
+                echo "This Node is registered already, pmm-agent keeps its identity."
+                exit 0
+              fi
+              echo "Registering ${PMM_AGENT_SETUP_NODE_NAME} with ${PMM_AGENT_SERVER_ADDRESS}..."
+              pmm-agent setup
+          env:
+            {{- include "pmm.client.env" . | nindent 12 }}
+            - name: PMM_AGENT_SERVER_USERNAME
+              value: admin
+            - name: PMM_AGENT_SERVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+            {{- if .Values.pmmClient.forceRegistration }}
+            - name: PMM_AGENT_SETUP_FORCE
+              value: "1"
+            {{- end }}
+          volumeMounts:
+            {{- include "pmm.client.volumeMounts" . | nindent 12 }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: pmm-client
+          image: "{{ .Values.pmmClient.image.repository }}:{{ .Values.pmmClient.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.pmmClient.image.pullPolicy }}
+          env:
+            {{- include "pmm.client.env" . | nindent 12 }}
+          ports:
+            - name: agent-local
+              containerPort: 7777
+          readinessProbe:
+            httpGet:
+              path: /local/Status
+              port: agent-local
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /local/Status
+              port: agent-local
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          {{- with .Values.pmmClient.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- include "pmm.client.volumeMounts" . | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: pmm-agent
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- with .Values.pmmClient.storage.storageClassName }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.pmmClient.storage.size }}
+{{- end }}
