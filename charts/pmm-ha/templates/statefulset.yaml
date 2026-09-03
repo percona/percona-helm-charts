@@ -264,6 +264,14 @@ spec:
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
             - name: PMM_ENCRYPTION_KEY_PATH
               value: /etc/secrets/key
+            {{- /* Only emitted when dataRetentionDays is set. PMM refuses to change data
+                   retention from the UI or API while PMM_DATA_RETENTION is present, so the
+                   chart stays out of the way unless retention is managed declaratively.
+                   PMM takes a Go duration and requires a whole number of days. */}}
+            {{- if .Values.dataRetentionDays }}
+            - name: PMM_DATA_RETENTION
+              value: "{{ mul (int .Values.dataRetentionDays) 24 }}h"
+            {{- end }}
           ports:
             - name: https
               containerPort: 8443
