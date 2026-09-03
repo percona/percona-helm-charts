@@ -125,6 +125,67 @@ The command deploys PMM HA on the Kubernetes cluster with the default high avail
 
 > **Important**: For production deployments, you must create the `pmm-secret` manually before installation since `secret.create` is set to `false` by default. See the [Creating PMM Secret Manually](#creating-pmm-secret-manually) section for detailed examples.
 
+### Installing into multiple namespaces
+
+You can run more than one PMM-HA instance on the same cluster (e.g. a disaster-recovery /
+restore target, or an isolated test instance). Install the operators **once** and give each
+instance a distinct Helm release name — see
+[Multi-namespace support](../pmm-ha-dependencies/README.md#multi-namespace-support) in the
+`pmm-ha-dependencies` chart for the operator side and the release-name requirement.
+
+This section covers the per-instance settings that are specific to the `pmm-ha` chart.
+
+**Monitoring sub-charts.** `kube-state-metrics` and `prometheus-node-exporter` behave
+differently here, so they need separate decisions:
+
+1. **`prometheus-node-exporter` — disable on additional instances.** It uses host networking
+   on port 9100, so only one set can run per node; a second DaemonSet's pods fail to start.
+   Install it with the *first* instance only.
+2. **`kube-state-metrics` — optional.** Its resources are named after the release, so a second
+   instance can run its own copy without colliding. Keep it if you want object-state metrics in
+   the secondary instance, or disable it to save a small Deployment.
+
+Whatever you disable is simply not collected by that instance: each instance's vmagent scrapes
+only its own namespace, so a secondary instance does **not** reuse the first's agents — those
+metrics live only in the first instance's VictoriaMetrics. (Basic node/container metrics from
+the `kubelet` and `cadvisor` scrape jobs are still collected either way, since those discover
+nodes cluster-wide.) For a DR / restore target this is usually fine, since cluster-level metrics
+aren't part of the restored data.
+
+> **OpenShift**: with `nodeExporter.mode: openshift` (see [Using OpenShift's node exporter](#using-openshifts-node-exporter))
+> the node-exporter scrape job targets the platform exporter in the `openshift-monitoring`
+> namespace rather than the release namespace, so **every** instance still collects node metrics.
+> Set that mode on each instance. In this mode `prometheus-node-exporter.enabled: false` is
+> required on **every** instance — including the first — since the bundled DaemonSet would collide
+> with OpenShift's platform node-exporter on host port 9100; the chart fails fast otherwise. The
+> kube-state-metrics choice above is then the only one left.
+
+```bash
+# First instance (full stack, in namespace "pmm"):
+kubectl create namespace pmm
+# create the pmm-secret in this namespace first — see "Creating PMM Secret Manually"
+helm install pmm-ha percona/pmm-ha -n pmm
+
+# Additional instance (e.g. a restore/DR target in namespace "pmm-dr"):
+#   - distinct release name (pmm-dr)
+#   - node-exporter off (required: only one set can run per node)
+#   - kube-state-metrics off (optional: drop this flag to keep object-state
+#     metrics in this instance)
+kubectl create namespace pmm-dr
+# create the pmm-secret in pmm-dr too — see "Creating PMM Secret Manually"
+helm install pmm-dr percona/pmm-ha -n pmm-dr \
+  --set prometheus-node-exporter.enabled=false \
+  --set kube-state-metrics.enabled=false
+```
+
+> **Note**: `helm install -n <namespace>` does not create the namespace. Create it first
+> (as shown) so the `pmm-secret` can be created there before installing.
+
+Per-namespace resources (PMM server, PostgreSQL, ClickHouse, VictoriaMetrics, HAProxy) are
+namespaced and do not collide across namespaces. Remember the usual prerequisites in **each**
+namespace: create the `pmm-secret` (see [Creating PMM Secret Manually](#creating-pmm-secret-manually))
+before installing, and ensure the namespace has access to whatever backup storage you use.
+
 ## Uninstalling the Chart
 
 **IMPORTANT**: You must uninstall PMM HA first, then the operators. Uninstalling in the wrong order may leave orphaned resources.
