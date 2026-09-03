@@ -97,7 +97,9 @@ demanding a key the chart is about to write would abort the install on its own o
 PMM_ADMIN_PASSWORD is the key PMM-15400 is about - statefulset.yaml maps it to Grafana's
 GF_SECURITY_ADMIN_PASSWORD, and leaving that ref optional is what let it vanish silently.
 
-Included from statefulset.yaml, the template that depends on these keys.
+Included from statefulset.yaml and vmauth.yaml - both read these keys, and vmauth.yaml
+renders first, so it needs its own call to report the missing key rather than dying on a
+b64dec. Keep every consumer that decodes a key from this secret calling it.
 */}}
 {{- define "pmm.validateSecret" -}}
 {{- if not .Values.secret.create -}}

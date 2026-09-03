@@ -1,4 +1,13 @@
 {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled -}}
+{{- /* Validate the pre-created secret here as well as in statefulset.yaml. Helm renders
+       same-depth templates in reverse alphabetical order, so this file runs before
+       statefulset.yaml and would otherwise fail first, on the b64dec below, with a bare
+       "invalid value; expected string" naming neither the key nor the secret.
+
+       This is not a complete guard. pmm.validateSecret is a no-op when secret.create is
+       set, and the b64dec below still fails that way; clickhouse-cluster.yaml reads a key
+       the same unguarded way. PMM-15436 fixes both at the read site. */ -}}
+{{- include "pmm.validateSecret" . -}}
 {{- /* Lookup existing secret to avoid regenerating passwords on upgrade */ -}}
 {{- $existingSecret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
 {{- $vmuser := "" }}
