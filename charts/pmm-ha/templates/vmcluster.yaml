@@ -9,7 +9,10 @@ metadata:
     app.kubernetes.io/component: victoria-metrics-cluster
 spec:
   # Retention period for metrics
-  retentionPeriod: {{ .Values.victoriaMetrics.vmstorage.retentionPeriod | quote }}
+  {{- /* dataRetentionDays is opt-in and wins when set, aligning metrics with QAN. Left
+         empty - the default - metrics keep whatever vmstorage.retentionPeriod says, so an
+         upgrade never silently shortens retention and deletes data. */}}
+  retentionPeriod: {{ if .Values.dataRetentionDays }}{{ printf "%dd" (int .Values.dataRetentionDays) | quote }}{{ else }}{{ .Values.victoriaMetrics.vmstorage.retentionPeriod | default "90d" | quote }}{{ end }}
   
   # Replication factor for vmstorage (how many copies of data to store)
   # Should be <= vmstorage.replicaCount for redundancy
