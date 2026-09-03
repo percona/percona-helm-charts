@@ -14,7 +14,7 @@ image:
   repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "3.9.0"
+  tag: "3.9.1"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -39,7 +39,8 @@ pmmEnv:
   PMM_HA_GOSSIP_PORT: "9096"
   PMM_HA_RAFT_PORT: "9097"
   PMM_HA_GRAFANA_GOSSIP_PORT: "9094"
-  # PMM_HA_PEERS: "{{ include "pmm.haPeers" . }}"
+  # PMM_HA_PEERS - set in statefulset.yaml
+  # PMM_INTERNAL_NODE_NAME_PREFIXES - set in statefulset.yaml
   GF_ANALYTICS_CHECK_FOR_UPDATES: "0"
   GF_ANALYTICS_ENABLE: "0"
   GF_ANALYTICS_REPORTING_ENABLE: "0"
@@ -93,6 +94,61 @@ logStreamer:
   logFiles:
     - /srv/logs/pmm-managed.log
     - /srv/logs/qan-api2.log
+
+## @section PMM Client
+## Pre-provisions PMM Client pods to carry the monitoring load that the PMM Server pods should stay
+## free of, such as remote databases, RDS and Azure instances. Each pod registers itself as a Node and can be
+## picked in the "Nodes" dropdown when adding a service.
+## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-client/index.html
+##
+pmmClient:
+  ## @param pmmClient.replicas Number of PMM Client pods carrying the delegated monitoring
+  ## Defaults to 3 to provide dedicated monitoring Nodes out of the box. You can scale it down if
+  ## one is enough to start with, or scale it up as more monitoring is delegated to them. Setting
+  ## it to 0 creates none, which leaves an HA deployment with no Node to add services to, since the
+  ## PMM Server Nodes are not offered for that.
+  ##
+  replicas: 3
+  ## @param pmmClient.image.repository PMM Client image repository
+  ## @param pmmClient.image.pullPolicy PMM Client image pull policy
+  ## @param pmmClient.image.tag PMM Client image tag, defaults to the chart appVersion
+  ##
+  image:
+    repository: percona/pmm-client
+    pullPolicy: IfNotPresent
+    tag: "3.9.1"
+  ## @param pmmClient.forceRegistration Register the Node even when one with the same name exists
+  ## Recovers a pod whose volume was lost while its Node is still registered in PMM. PMM Server then
+  ## removes that Node with every Service configured on it, so keep this disabled otherwise.
+  ##
+  forceRegistration: false
+  ## @param pmmClient.storage.size Size of the volume holding the Agent identity and metrics buffer
+  ## @param pmmClient.storage.storageClassName Storage class of that volume, cluster default if empty
+  ## The volume backs the canonical pmm-agent directories /usr/local/percona/pmm/config and
+  ## /usr/local/percona/pmm/tmp. The former keeps the pmm-agent configuration, so a restarted pod
+  ## keeps its Node and the Services configured on it; the latter keeps the 1Gi on-disk queue vmagent
+  ## fills while PMM Server is unreachable. Keep the size above that queue.
+  ##
+  storage:
+    size: 2Gi
+    storageClassName: ""
+  ## @param pmmClient.resources Resources requested for the PMM Client container
+  ## An idle Client only runs node_exporter; raise the limits as monitoring is delegated to it.
+  ##
+  resources:
+    requests:
+      memory: 200Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  ## @param pmmClient.nodeSelector Node labels for the PMM Client pods
+  ## @param pmmClient.tolerations Tolerations for the PMM Client pods
+  ## @param pmmClient.affinity Affinity rules for the PMM Client pods
+  ##
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 ## @section PMM secrets
 ##
@@ -408,7 +464,7 @@ clickhouse:
   ## @param clickhouse.datasource.password Password. Generated when empty, and kept across upgrades
   ##
   ## To get the credentials after install:
-  ##   kubectl get secret pmm-ha-clickhouse-datasource -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode
+  ##   kubectl get secret -n <namespace> pmm-ha-clickhouse-datasource -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode && echo
   ## The secret is named after the chart fullname, so adjust it if your release name differs.
   ##
   datasource:
