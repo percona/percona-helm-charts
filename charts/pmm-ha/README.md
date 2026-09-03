@@ -306,17 +306,25 @@ pmm-admin config --server-url=https://service_token:<token>@pmm-ha-haproxy:443 -
 When `pg-db.pmm.enabled: true` (default), PostgreSQL metrics are automatically pushed to PMM:
 
 1. A **service account token** is automatically created in PMM by the `pmm-token-init` Job
-2. The token is stored in the `pg-pmm-secret` Kubernetes secret
+2. The token is stored in the `<release>-pg-db-pmm-secret` Kubernetes secret
 3. PostgreSQL pods use this token to authenticate and push metrics to PMM via the `pmm-ha-haproxy` endpoint
 
 No manual configuration is required - the Percona PostgreSQL Operator handles the integration automatically.
+
+The Job creates that secret with `kubectl`, so Helm does not own it and `helm uninstall`
+leaves it behind. On every run the Job checks whether the stored token still authenticates
+and re-mints it if not, so a reinstall into a namespace that still holds the old secret
+recovers on its own. If PostgreSQL monitoring is missing, check the `pmm-client` container
+in a PostgreSQL pod: `Auth method is not service account token` means the token was rejected,
+and the Job's log will say whether it re-minted.
 
 ### Using Service Tokens for Automation
 
 Service tokens are recommended for automated deployments and CI/CD pipelines. To retrieve the auto-generated PostgreSQL monitoring token:
 
 ```sh
-kubectl get secret pg-pmm-secret -n <namespace> -o jsonpath='{.data.PMM_SERVER_TOKEN}' | base64 -d
+kubectl get secret <release>-pg-db-pmm-secret -n <namespace> \
+  -o jsonpath='{.data.PMM_SERVER_TOKEN}' | base64 -d
 ```
 
 To create additional service tokens manually, see the [PMM documentation on service accounts](https://docs.percona.com/percona-monitoring-and-management/api/authentication.html).
