@@ -1553,10 +1553,6 @@ spec:
                     type: string
                   image:
                     type: string
-                  size:
-                    type: string
-                  uncompressedSize:
-                    type: string
                   state:
                     type: string
                   stateDescription:
