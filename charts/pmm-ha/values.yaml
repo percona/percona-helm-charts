@@ -408,7 +408,7 @@ clickhouse:
   ## @param clickhouse.datasource.password Password. Generated when empty, and kept across upgrades
   ##
   ## To get the credentials after install:
-  ##   kubectl get secret pmm-ha-clickhouse-datasource -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode
+  ##   kubectl get secret -n <namespace> pmm-ha-clickhouse-datasource -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode && echo
   ## The secret is named after the chart fullname, so adjust it if your release name differs.
   ##
   datasource:
