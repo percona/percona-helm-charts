@@ -11,10 +11,10 @@
 ## @param image.imagePullSecrets Global Docker registry secret names as an array
 ##
 image:
-  repository: perconalab/pmm-server-fb
+  repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4498-700bc38"
+  tag: "3.9.1"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -113,9 +113,9 @@ pmmClient:
   ## @param pmmClient.image.tag PMM Client image tag, defaults to the chart appVersion
   ##
   image:
-    repository: perconalab/pmm-client-fb
+    repository: percona/pmm-client
     pullPolicy: IfNotPresent
-    tag: "PR-4498-700bc38"
+    tag: "3.9.1"
   ## @param pmmClient.forceRegistration Register the Node even when one with the same name exists
   ## Recovers a pod whose volume was lost while its Node is still registered in PMM. PMM Server then
   ## removes that Node with every Service configured on it, so keep this disabled otherwise.
