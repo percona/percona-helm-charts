@@ -532,11 +532,20 @@ haproxy:
         matchLabels:
           app.kubernetes.io/name: haproxy
 
-  # Keep at least one HAProxy pod serving during voluntary disruptions (node
-  # drains, upgrades), now that replicas are allowed to share a node.
+  # Serialize voluntary disruptions (node drains, upgrades) now that the soft
+  # topology spread above allows replicas to share a node: draining a node that
+  # hosts two replicas evicts them one at a time, so a replacement is up before
+  # the next eviction.
+  #
+  # maxUnavailable rather than minAvailable: at the default of 3 replicas it keeps
+  # 2 serving, and at replicaCount 1 the node stays drainable. minAvailable: 1
+  # would give allowedDisruptions = 0 there, wedging kubectl drain, the
+  # cluster-autoscaler and managed node-pool upgrades indefinitely. Draining the
+  # sole replica does interrupt traffic briefly - a single replica cannot be both
+  # drainable and always-up, and a stuck drain is the worse failure.
   PodDisruptionBudget:
     enable: true
-    minAvailable: 1
+    maxUnavailable: 1
 
   # Init container to wait for PMM instances to be ready
   initContainers:
