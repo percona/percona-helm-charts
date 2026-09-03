@@ -265,6 +265,15 @@ Volume mounts backing the PMM Client directories which have to survive a restart
   subPath: tmp
 {{- end -}}
 
+{{/*
+Whether the bundled kube-state-metrics Deployment will render ("true"/"false").
+Like Helm's `condition:`, only a boolean false disables the subchart.
+*/}}
+{{- define "pmm.kubeStateMetrics.bundledEnabled" -}}
+{{- $v := dig "enabled" true (default dict (index .Values "kube-state-metrics")) -}}
+{{- if and (kindIs "bool" $v) (not $v) }}false{{ else }}true{{ end }}
+{{- end -}}
+
 {{- define "pmm.nodeExporter.mode" -}}
 {{- (.Values.nodeExporter).mode | default "internal" -}}
 {{- end -}}
