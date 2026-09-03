@@ -55,7 +55,7 @@ helm repo add percona https://percona.github.io/percona-helm-charts/
 helm repo update
 
 # Install the operators
-helm install pmm-operators percona/pmm-ha-dependencies --namespace pmm --create-namespace
+helm install pmm-ha-operators percona/pmm-ha-dependencies --namespace pmm --create-namespace
 
 # Wait for operators to be ready
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=victoria-metrics-operator -n pmm --timeout=300s
@@ -218,7 +218,7 @@ Choose the appropriate method based on how you installed the operators:
 #### If Using pmm-ha-dependencies Chart:
 
 ```sh
-helm uninstall pmm-operators --namespace pmm
+helm uninstall pmm-ha-operators --namespace pmm
 ```
 
 #### If Installed Operators Manually:
@@ -301,7 +301,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |----------------------|
 | `image.repository`                   | PMM image repository                                                                                                                                                                                                                          | `percona/pmm-server` |
 | `image.pullPolicy`                   | PMM image pull policy                                                                                                                                                                                                                         | `IfNotPresent`       |
-| `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.0`             |
+| `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.1`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
