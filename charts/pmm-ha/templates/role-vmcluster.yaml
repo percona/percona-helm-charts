@@ -1,0 +1,38 @@
+{{- if and .Values.serviceAccount.create .Values.victoriaMetrics.enabled -}}
+# Lets PMM keep the VMCluster retention period in sync with the data retention setting
+# configured in its UI. Namespaced and, via resourceNames, limited to that one named
+# resource on purpose.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "pmm.fullname" . }}-vmcluster
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - operator.victoriametrics.com
+  resources:
+  - vmclusters
+  resourceNames:
+  - {{ include "pmm.fullname" . }}-vmcluster
+  verbs:
+  - get
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "pmm.fullname" . }}-vmcluster
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "pmm.fullname" . }}-vmcluster
+subjects:
+- kind: ServiceAccount
+  name: {{ include "pmm.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

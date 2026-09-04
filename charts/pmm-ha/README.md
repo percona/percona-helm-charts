@@ -243,6 +243,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.1`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
+| `dataRetentionDays`                  | Pin data retention to a number of whole days; unset means the PMM UI controls it. See [Data retention](#data-retention)                                                                                                                        | `~`                  |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
 | `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |
@@ -515,6 +516,18 @@ helm upgrade pmm-ha -f values.yaml --namespace pmm percona/pmm-ha
 
 This will check updates in the repo and upgrade deployment if the updates are available. The rolling update strategy ensures zero-downtime upgrades.
 
+### Data retention
+
+Retention is managed from the PMM UI, under *Configuration -> Settings -> Advanced settings*.
+
+To manage retention declaratively instead, set `dataRetentionDays`:
+
+```yaml
+dataRetentionDays: 30
+```
+
+This renders `PMM_DATA_RETENTION`, which PMM treats as authoritative, so the UI field becomes read-only. PMM still writes the value to the `VMCluster` resource, so both stores stay in step.
+
 ### [PMM environment variables](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables)
 
 In case you want to add extra environment variables (useful for advanced operations like custom init scripts), you can use the `pmmEnv` property.
@@ -522,8 +535,9 @@ In case you want to add extra environment variables (useful for advanced operati
 ```yaml
 pmmEnv:
   PMM_ENABLE_UPDATES: "0"
-  PMM_DATA_RETENTION: "2160h" # 90 days
 ```
+
+Variables that the chart derives from other values, such as `PMM_DATA_RETENTION`, `PMM_VM_URL` and `PMM_CLICKHOUSE_ADDR`, are set on the container directly and cannot be overridden through `pmmEnv`.
 
 ### Kubernetes cluster metrics
 

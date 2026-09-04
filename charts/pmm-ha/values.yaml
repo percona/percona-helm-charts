@@ -27,6 +27,7 @@ pmmEnv:
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
   # PMM_CLICKHOUSE_CLUSTER_NAME is set in statefulset.yaml
+  # PMM_DATA_RETENTION is derived from dataRetentionDays in statefulset.yaml
   # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmm-ha-pg-db-ha.pmm-ha.svc.cluster.local:5432"
@@ -58,6 +59,15 @@ pmmEnv:
 #  GF_AUTH_GENERIC_OAUTH_TOKEN_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_API_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: ''
+
+## How long PMM keeps monitoring data, in whole days.
+##
+## Leave this unset, the default, to manage retention from the PMM UI.
+## Set it to pin retention declaratively instead.
+##
+## @param dataRetentionDays Pin data retention to a number of whole days; unset means the PMM UI controls it
+##
+dataRetentionDays: ~
 
 ## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) 
 ## requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/index.html)
@@ -882,8 +892,9 @@ victoriaMetrics:
   vmstorage:
     ## @param victoriaMetrics.vmstorage.replicaCount Number of vmstorage replicas
     replicaCount: 3
-    ## @param victoriaMetrics.vmstorage.retentionPeriod Data retention period
-    retentionPeriod: "90d"
+    # retentionPeriod comes from dataRetentionDays when pinned, and from PMM otherwise.
+    # Setting it here would let metrics retention drift from what PMM reports and applies
+    # to Query Analytics, so the chart rejects it.
     ## @param victoriaMetrics.vmstorage.resources Resource requests and limits for vmstorage
     resources:
       requests:
