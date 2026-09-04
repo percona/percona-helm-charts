@@ -657,14 +657,39 @@ haproxy:
   podAnnotations:
     pmm.percona.com/config-version: "5"
 
-  # Pod anti-affinity for HAProxy pods
-  affinity:
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - topologyKey: kubernetes.io/hostname
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: haproxy
+  # HAProxy pod spread across nodes.
+  #
+  # A required podAntiAffinity on kubernetes.io/hostname caps replicaCount at the
+  # worker-node count: every replica beyond it stays Pending forever while Helm
+  # still reports the release as successful (PMM-15393). A soft topology spread
+  # keeps one pod per node whenever there are enough nodes, and co-locates rather
+  # than failing to schedule when there are not.
+  #
+  # Replicas beyond the worker-node count buy HAProxy throughput, not fault
+  # tolerance - they share a failure domain with an existing replica.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: haproxy
+
+  # Serialize voluntary disruptions (node drains, upgrades) now that the soft
+  # topology spread above allows replicas to share a node: draining a node that
+  # hosts two replicas evicts them one at a time, so a replacement is up before
+  # the next eviction.
+  #
+  # maxUnavailable rather than minAvailable: at the default of 3 replicas it keeps
+  # 2 serving, and at replicaCount 1 the node stays drainable. minAvailable: 1
+  # would give allowedDisruptions = 0 there, wedging kubectl drain, the
+  # cluster-autoscaler and managed node-pool upgrades indefinitely. Draining the
+  # sole replica does interrupt traffic briefly - a single replica cannot be both
+  # drainable and always-up, and a stuck drain is the worse failure.
+  PodDisruptionBudget:
+    enable: true
+    maxUnavailable: 1
+
   # No init container. HAProxy starts immediately and discovers PMM itself:
   # server-template carries "init-addr last,libc,none", so a backend whose DNS name does
   # not resolve yet is held with no address rather than aborting startup, and the
