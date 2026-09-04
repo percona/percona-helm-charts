@@ -779,6 +779,9 @@ backup:
     #     credentialsSecret: cluster1-s3-credentials
     #     region: us-west-2
     #     prefix: ""
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
 
 toolkit:
   image:
