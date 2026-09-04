@@ -1,0 +1,33 @@
+## OpenShift overlay for the pmm-ha chart.
+##
+##   helm install pmm-ha percona/pmm-ha -n <namespace> -f examples/values-openshift.yaml
+##
+## OpenShift's `restricted-v2` SCC gives every namespace its own uid range and supplemental-group
+## range and rejects any pod requesting values outside them. Each setting below clears one such
+## rejection; without them the StatefulSets and Deployments are admitted-then-refused and Helm
+## still reports STATUS: deployed while no pods exist.
+
+## PMM Server and PMM Client: emit no pod securityContext, so OpenShift assigns uid and fsGroup.
+openshift: true
+
+## The bundled kube-state-metrics pins uid/gid/fsGroup 65534, which is outside the namespace range.
+kube-state-metrics:
+  securityContext:
+    enabled: false
+
+## The bundled node-exporter needs hostNetwork, hostPID, hostPath volumes and host port 9100 -
+## none of which restricted-v2 permits. OpenShift's platform monitoring already runs a
+## node-exporter, so scrape that one instead.
+prometheus-node-exporter:
+  enabled: false
+nodeExporter:
+  mode: openshift
+
+## HAProxy terminates TLS on 443. restricted-v2 runs the container as a non-root uid with all
+## capabilities dropped and allowPrivilegeEscalation=false, so it cannot bind a port below 1024
+## (`cannot bind socket (Permission denied) for [0.0.0.0:443]`). Move the container port above
+## 1024 - the Service still publishes 443 and targets this port by name, so nothing external
+## changes.
+haproxy:
+  containerPorts:
+    https: 8443

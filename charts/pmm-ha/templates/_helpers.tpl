@@ -203,7 +203,8 @@ stays valid across failovers.
 */}}
 {{- define "pmm.client.serverAddress" -}}
 {{- $haproxy := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
-{{- printf "%s.%s.svc.cluster.local:443" $haproxy .Release.Namespace -}}
+{{- $port := (.Values.haproxy.containerPorts).https | default 443 -}}
+{{- printf "%s.%s.svc.cluster.local:%v" $haproxy .Release.Namespace $port -}}
 {{- end -}}
 
 {{/*
@@ -404,4 +405,34 @@ dict with "name" and "value".
 {{- if not (regexMatch "^[A-Za-z_][A-Za-z0-9_-]*$" .value) -}}
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Pod security context for the PMM Server StatefulSet.
+
+On OpenShift the namespace owns the identity: `restricted-v2` requires runAsUser to be inside
+the namespace's assigned uid-range and fsGroup inside its supplemental-group range, and rejects
+the pod outright otherwise. Emitting no securityContext at all lets OpenShift assign both.
+
+On plain Kubernetes fsGroup is load-bearing - it is what makes the PVC group-writable for the
+image's uid - so it must stay. runAsUser is not: the PMM Server image already declares
+`USER 1000`, and its entrypoint supports an arbitrary assigned uid via the NSS wrapper.
+*/}}
+{{- define "pmm.podSecurityContext" -}}
+{{- if not .Values.openshift }}
+securityContext:
+  {{- toYaml .Values.podSecurityContext | nindent 2 }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Pod security context for the PMM Client StatefulSet. Same reasoning as above; the client image
+runs as uid 1002 rather than 1000.
+*/}}
+{{- define "pmm.client.podSecurityContext" -}}
+{{- if not .Values.openshift }}
+securityContext:
+  # The PMM Client image runs as this user, which has to own the volume to write to it.
+  fsGroup: {{ .Values.pmmClient.fsGroup }}
+{{- end }}
 {{- end -}}

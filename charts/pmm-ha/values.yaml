@@ -144,6 +144,11 @@ pmmClient:
   ## PMM Server Nodes are not offered for that.
   ##
   replicas: 3
+  ## @param pmmClient.fsGroup Group that owns the PMM Client data volume
+  ## The PMM Client image runs as this user, which has to own the volume to write to it.
+  ## Ignored when `openshift: true` - OpenShift assigns the fsGroup itself.
+  ##
+  fsGroup: 1002
   ## @param pmmClient.image.repository PMM Client image repository
   ## @param pmmClient.image.pullPolicy PMM Client image pull policy
   ## @param pmmClient.image.tag PMM Client image tag, defaults to the chart appVersion
@@ -427,6 +432,17 @@ podSecurityContext:
   runAsUser: 1000
   fsGroup: 1000
 
+## @param openshift Set to true when installing on OpenShift
+## OpenShift's `restricted-v2` SCC assigns every namespace its own uid and supplemental-group
+## ranges and rejects any pod that asks for values outside them, so the `podSecurityContext`
+## above (and `pmmClient.fsGroup`) must not be set there. With this true the chart
+## emits no pod securityContext and lets OpenShift assign the identity.
+##
+## See examples/values-openshift.yaml for the full OpenShift overlay - the bundled
+## kube-state-metrics and prometheus-node-exporter need their own settings.
+##
+openshift: false
+
 ## @param securityContext Configure Container Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 ## securityContext.capabilities The capabilities to add/drop when running containers
@@ -594,6 +610,14 @@ haproxy:
   # Number of HAProxy replicas
   replicaCount: 3
 
+  ## @param haproxy.containerPorts.https Port HAProxy binds for PMM traffic
+  ## The Service publishes this same port. Keep 443 on plain Kubernetes; on OpenShift it
+  ## must be above 1024, because restricted-v2 runs the container as a non-root uid with
+  ## all capabilities dropped and so without NET_BIND_SERVICE.
+  ##
+  containerPorts:
+    https: 443
+
   ## @param haproxy.resources Resource requests and limits for the HAProxy container
   ## Every client remote_write, QAN payload and UI request crosses HAProxy, and it
   ## terminates TLS for all of them. The upstream subchart ships a request but no
@@ -631,7 +655,7 @@ haproxy:
   # so scaling up/down replicas does NOT require HAProxy restart.
   # Increment config-version only for other ConfigMap changes that require restart.
   podAnnotations:
-    pmm.percona.com/config-version: "4"
+    pmm.percona.com/config-version: "5"
 
   # HAProxy pod spread across nodes.
   #
