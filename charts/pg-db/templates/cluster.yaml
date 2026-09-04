@@ -539,6 +539,10 @@ spec:
       customTLSSecret:
         name: {{ .Values.proxy.pgBouncer.customTLSSecret.name }}
       {{- end }}
+      {{- if .Values.proxy.pgBouncer.additionalTrustedCAs }}
+      additionalTrustedCAs:
+{{ .Values.proxy.pgBouncer.additionalTrustedCAs | toYaml | indent 8 }}
+      {{- end }}
       {{- if .Values.proxy.pgBouncer.config }}
       config:
         global:
