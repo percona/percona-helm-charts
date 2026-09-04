@@ -1,51 +1,26 @@
-{{- if index .Values "pg-db" "pmm" "enabled" }}
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ .Release.Name }}-pmm-token-generator
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "pmm.labels" . | nindent 4 }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ .Release.Name }}-pmm-token-manager
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-rules:
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["create", "get", "update", "patch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: {{ .Release.Name }}-pmm-token-generator-binding
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: {{ .Release.Name }}-pmm-token-manager
-subjects:
-- kind: ServiceAccount
-  name: {{ .Release.Name }}-pmm-token-generator
-  namespace: {{ .Release.Namespace }}
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: {{ .Release.Name }}-pmm-token-init
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-spec:
-  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
-  backoffLimit: 10
+{{/*
+The pod template of the token-init Job, kept in a named template so the Job's name can carry a
+hash of it.
+
+A Job's spec.template is immutable. With a fixed name, any chart change that moves this pod spec
+- a new SECRET_NAME, a different port, an edited script - makes `helm upgrade` fail with
+"spec.template: Invalid value: ...: field is immutable" instead of updating the Job (PMM-15445).
+Hashing the template into the name means a changed spec produces a NEW Job, and Helm deletes the
+old one because it is no longer in the manifest; an unchanged spec keeps the same name, so a
+routine upgrade does not recreate the Job or re-pull its image.
+
+Helm hooks would keep the name fixed, but the script below waits for PMM to be ready in an
+unbounded loop by design, so a post-install/post-upgrade hook would block the release on it and
+fail the install on timeout. Deliberately not used.
+
+Only the immutable part is hashed - ttlSecondsAfterFinished and backoffLimit stay outside, so
+tuning them patches the Job in place as before.
+*/}}
+{{- define "pmm.pgTokenJobPodTemplate" }}
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: pmm-token-init
     spec:
       serviceAccountName: {{ .Release.Name }}-pmm-token-generator
       restartPolicy: OnFailure
@@ -186,4 +161,54 @@ spec:
           echo "=== Success ==="
           echo "Secret '$SECRET_NAME' created with PMM_SERVER_TOKEN"
           echo "PostgreSQL pods can now use this secret for PMM monitoring"
+{{- end -}}
+{{- if index .Values "pg-db" "pmm" "enabled" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-pmm-token-generator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-pmm-token-manager
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create", "get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-pmm-token-generator-binding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-pmm-token-manager
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Name }}-pmm-token-generator
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-pmm-token-init" .Release.Name | trunc 54 | trimSuffix "-" }}-{{ include "pmm.pgTokenJobPodTemplate" . | sha256sum | trunc 8 }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pmm-token-init
+spec:
+  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  backoffLimit: 10
+{{- include "pmm.pgTokenJobPodTemplate" . }}
 {{- end }}
