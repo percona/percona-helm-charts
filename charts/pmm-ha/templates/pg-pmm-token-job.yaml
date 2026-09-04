@@ -61,7 +61,7 @@ spec:
         - name: PMM_SERVICE_NAME
           value: "pmm-ha-haproxy"
         - name: PMM_PORT
-          value: "443"
+          value: "{{ (.Values.haproxy.containerPorts).https | default 443 }}"
         - name: SECRET_NAME
           value: "{{ index .Values "pg-db" "pmm" "secret" | default "pg-pmm-secret" }}"
         - name: SERVICE_ACCOUNT_NAME

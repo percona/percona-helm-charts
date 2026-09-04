@@ -376,6 +376,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------- |
 | `haproxy.service.type`        | Service type for HAProxy: ClusterIP (internal), LoadBalancer (external via LB), or NodePort (external via node) | `ClusterIP` |
 | `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
+| `haproxy.containerPorts.https` | Port HAProxy binds for PMM traffic; the Service publishes the same port. Must be above 1024 on OpenShift        | `443`       |
 
 
 ### PMM storage configuration
@@ -399,7 +400,8 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `serviceAccount.annotations` | Annotations for service account. Evaluated as a template. Only used if `create` is `true`.                          | `{}`                  |
 | `serviceAccount.name`        | Name of the service account to use. If not set and create is true, a name is generated using the fullname template. | `pmm-service-account` |
 | `podAnnotations`             | Pod annotations                                                                                                     | `{}`                  |
-| `podSecurityContext`         | Configure Pods Security Context                                                                                     | `{}`                  |
+| `podSecurityContext`         | Configure Pods Security Context. Ignored when `openshift` is `true`                                                 | `{runAsUser: 1000, fsGroup: 1000}` |
+| `openshift`                  | Set to `true` on OpenShift so the chart emits no pod securityContext and the cluster assigns the uid/fsGroup        | `false`               |
 | `securityContext`            | Configure Container Security Context                                                                                | `{}`                  |
 | `nodeSelector`               | Node labels for pod assignment                                                                                      | `{}`                  |
 | `tolerations`                | Tolerations for pod assignment                                                                                      | `[]`                  |
@@ -641,6 +643,21 @@ victoriaMetrics:
     extraArgs:
       maxLabelsPerTimeseries: "60"
 ```
+
+### Installing on OpenShift
+
+OpenShift's `restricted-v2` SCC gives every namespace its own uid and supplemental-group ranges
+and rejects any pod asking for values outside them, and it runs containers without
+`NET_BIND_SERVICE`. Install with the bundled overlay, which covers all of it:
+
+```bash
+helm install pmm-ha percona/pmm-ha -n pmm -f examples/values-openshift.yaml
+```
+
+It sets `openshift: true` (PMM Server and PMM Client let the cluster assign uid and fsGroup),
+disables the bundled node-exporter in favour of OpenShift's, turns off the kube-state-metrics
+securityContext, and moves the HAProxy port to 8443. Publish 443 externally with a Route or
+Ingress pointing at the HAProxy Service.
 
 ### Using OpenShift's node exporter
 

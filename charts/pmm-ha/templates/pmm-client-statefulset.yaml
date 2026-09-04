@@ -25,9 +25,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      securityContext:
-        # The PMM Client image runs as this user, which has to own the volume to write to it.
-        fsGroup: 1002
+      {{- include "pmm.client.podSecurityContext" . | nindent 6 }}
       {{- with .Values.pmmClient.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
