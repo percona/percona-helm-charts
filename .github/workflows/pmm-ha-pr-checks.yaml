@@ -4,6 +4,8 @@ on:
     paths:
       - 'charts/pmm-ha/**'
       - 'charts/pmm-ha-dependencies/**'
+      # Without this a PR that only edits the assertions below runs no job at all.
+      - '.github/workflows/pmm-ha-pr-checks.yaml'
 
 jobs:
   lint-test:
@@ -19,9 +21,9 @@ jobs:
             charts/pmm-ha-dependencies
 
       - name: Set up Helm
-        uses: azure/setup-helm@v4.2.0
+        uses: azure/setup-helm@v5.0.0
         with:
-          version: v3.15.4
+          version: v3.21.0
 
       - uses: azure/setup-kubectl@v4
 
@@ -69,6 +71,15 @@ jobs:
           assert_fails "$collision" --set nodeExporter.mode=openshift --set prometheus-node-exporter.enabled=0
           assert_fails "$collision" --set nodeExporter.mode=openshift --set-string prometheus-node-exporter.enabled=false
           assert_fails 'nodeExporter.mode must be "internal" or "openshift"' --set nodeExporter.mode=bogus
+
+      # Value validation, peer addressing and the HAProxy server-template, asserted with
+      # helm unittest: no cluster, no dependency on Helm's template ordering, and runnable
+      # locally with `make test-pmm-ha`. Not gated on list-changed, so a PR that only edits
+      # these suites still runs them.
+      - name: Run helm unittest
+        run: |
+          make helm-unittest
+          make test-pmm-ha
 
       - name: Run chart-testing (list-changed)
         id: list-changed

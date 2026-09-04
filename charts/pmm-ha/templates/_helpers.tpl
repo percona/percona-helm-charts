@@ -304,6 +304,103 @@ Called from statefulset.yaml, which always renders.
 {{- end -}}
 
 {{/*
+The number of HAProxy server-template slots, and therefore the ceiling on replicas.
+Shared by haproxy-configmap.yaml (which renders it) and pmm.replicas.validate (which
+enforces it) so the two can never disagree about the default.
+
+kindIs "invalid" rather than `default`, because sprig's `default` treats 0 as empty:
+with it, maxReplicas=0 would silently become 10 and the range check below could never
+see it.
+*/}}
+{{- define "pmm.maxReplicas" -}}
+{{- if kindIs "invalid" .Values.maxReplicas -}}10{{- else -}}{{- .Values.maxReplicas -}}{{- end -}}
+{{- end -}}
+
+{{/*
+Shared parity check for the chart's two Raft ensembles - PMM itself and ClickHouse
+Keeper. Raft elects a leader by majority, so an even count needs more votes to elect
+one without surviving more failures (4 tolerates a single loss, exactly like 3), and a
+count of 2 tolerates none at all.
+
+Takes a dict of:
+  name     - the values key, used verbatim in every message
+  value    - the raw value, validated before it is parsed
+  ceiling  - largest permitted value, or 0 for unbounded. The "use N instead" hint is
+             clamped to it so it never names a value a later check would reject.
+  ceilingName - the values key the ceiling comes from, so the hint can name it.
+
+The regex is deliberately strict. sprig's `int` parses base 0, so "010" would silently
+become 8; and anything wider than int64 overflows to 0. Either way the message would
+quote a number the user never typed, so both are rejected as malformed input instead.
+*/}}
+{{- define "pmm.validate.oddCount" -}}
+{{- $name := .name -}}
+{{- $raw := .value -}}
+{{- if not (regexMatch "^[1-9][0-9]{0,3}$" (toString $raw)) -}}
+{{- fail (printf "%s must be a whole number between 1 and 9999, got %v." $name $raw) -}}
+{{- end -}}
+{{- $n := int $raw -}}
+{{- if eq (mod $n 2) 0 -}}
+{{- $ceiling := int (.ceiling | default 0) -}}
+{{- $lower := sub $n 1 -}}
+{{- $upper := add $n 1 -}}
+{{- $hint := printf "Use %d or %d." $lower $upper -}}
+{{- if gt $ceiling 0 -}}
+{{- $maxOdd := $ceiling -}}
+{{- if eq (mod $ceiling 2) 0 -}}
+{{- $maxOdd = sub $ceiling 1 -}}
+{{- end -}}
+{{- if le $upper $maxOdd -}}
+{{- $hint = printf "Use %d or %d." $lower $upper -}}
+{{- else if le $lower $maxOdd -}}
+{{- $hint = printf "Use %d." $lower -}}
+{{- else -}}
+{{- $hint = printf "%s is %d, so the largest supported value is %d." (.ceilingName | default "The ceiling") $ceiling $maxOdd -}}
+{{- end -}}
+{{- end -}}
+{{- fail (printf "%s must be odd so Raft can form a quorum, got %d: an even count needs more votes to elect a leader without surviving more failures. %s" $name $n $hint) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the PMM replica count.
+Called from statefulset.yaml, which always renders and reaches these checks before the
+lookup in pg-user-credentials-secrets.yaml, so a plain `helm template` reports the real
+problem rather than a missing secret.
+
+HAProxy discovers PMM through a server-template with maxReplicas slots
+(haproxy-configmap.yaml), fills them from a headless-service DNS answer in arbitrary
+order, and marks a backend UP only when it answers /v1/server/leaderHealthCheck with
+200. Going above maxReplicas is therefore not merely under-routing: if the Raft leader
+lands on a pod that got no slot, every backend is DOWN and PMM serves 503.
+*/}}
+{{- define "pmm.replicas.validate" -}}
+{{- $maxRaw := include "pmm.maxReplicas" . -}}
+{{- if not (regexMatch "^([1-9][0-9]?|100)$" $maxRaw) -}}
+{{- fail (printf "maxReplicas must be a whole number between 1 and 100, got %v: it is rendered verbatim into the HAProxy server-template, and every slot is a backend server allocated at startup." $maxRaw) -}}
+{{- end -}}
+{{- $maxReplicas := int $maxRaw -}}
+{{- include "pmm.validate.oddCount" (dict "name" "replicas" "value" .Values.replicas "ceiling" $maxReplicas "ceilingName" "maxReplicas") -}}
+{{- $replicas := int .Values.replicas -}}
+{{- if gt $replicas $maxReplicas -}}
+{{- fail (printf "replicas (%d) exceeds maxReplicas (%d): HAProxy renders only %d server-template slots and fills them from DNS in arbitrary order, so a pod left without a slot is invisible to it. Because HAProxy marks a backend UP only when it answers /v1/server/leaderHealthCheck, a Raft leader on that pod leaves every backend DOWN and PMM serves 503. Lower replicas, or raise maxReplicas and bump haproxy.podAnnotations \"pmm.percona.com/config-version\" in the same upgrade so HAProxy restarts with the new server-template." $replicas $maxReplicas $maxReplicas) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the ClickHouse Keeper node count.
+Called from statefulset.yaml alongside the other value checks, for the same ordering
+reason described above.
+
+The parenthesised lookup matches pmm.nodeExporter.mode: without it, a nulled clickhouse
+or clickhouse.keeper key aborts with a raw Go nil-pointer error instead of the message
+this validator exists to produce.
+*/}}
+{{- define "pmm.keeper.validate" -}}
+{{- include "pmm.validate.oddCount" (dict "name" "clickhouse.keeper.replicasCount" "value" ((.Values.clickhouse).keeper).replicasCount) -}}
+{{- end -}}
+
+{{/*
 Target labels shared by both node-exporter scrape jobs. PMM's OS dashboards filter on node_name
 and node_type ("generic" is PMM's type for a bare host), so without these the node is invisible there.
 Emitted unindented; callers nindent it to their relabel_configs item level.

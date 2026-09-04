@@ -1,0 +1,36 @@
+# maxReplicas is the ceiling the validator enforces on replicas, so the ConfigMap that
+# consumes it must stay in step. Both sides read pmm.maxReplicas; this pins that they do.
+suite: pmm-ha HAProxy config
+templates:
+  - templates/haproxy-configmap.yaml
+release:
+  name: smoke
+  namespace: pmm
+tests:
+  - it: defaults to ten server-template slots
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "server-template pmm 1-10 "
+
+  - it: follows an explicit maxReplicas
+    set: {maxReplicas: 7}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "server-template pmm 1-7 "
+
+  - it: follows maxReplicas at the ceiling
+    set: {maxReplicas: 100}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "server-template pmm 1-100 "
+
+  # Only the Raft leader answers this with 200, which is why a pod without a slot is not
+  # merely unrouted: if leadership lands there, no backend is UP at all.
+  - it: health-checks the leader endpoint
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "/v1/server/leaderHealthCheck"
