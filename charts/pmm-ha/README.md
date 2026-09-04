@@ -311,6 +311,15 @@ When `pg-db.pmm.enabled: true` (default), PostgreSQL metrics are automatically p
 
 No manual configuration is required - the Percona PostgreSQL Operator handles the integration automatically.
 
+The Job's name carries a short hash of its own pod spec - `<release>-pmm-token-init-<hash>` -
+because a Job's `spec.template` is immutable and a fixed name would make `helm upgrade` fail
+whenever a chart change touched it. Address it by label rather than by name:
+
+```sh
+kubectl get job -n <namespace> -l app.kubernetes.io/component=pmm-token-init
+kubectl logs -n <namespace> -l app.kubernetes.io/component=pmm-token-init
+```
+
 **Query Analytics (QAN) is intentionally disabled** for the bundled PostgreSQL cluster. PMM's own database
 is an internal component, and the `QAN for PMM Server` toggle in *Settings -> Advanced* cannot control it in
 HA mode (that toggle only ever applied to the single-container PMM deployment). QAN is switched off at the
