@@ -1,0 +1,189 @@
+{{- if index .Values "pg-db" "pmm" "enabled" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-pmm-token-generator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-pmm-token-manager
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create", "get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-pmm-token-generator-binding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-pmm-token-manager
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Name }}-pmm-token-generator
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pmm-token-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  backoffLimit: 10
+  template:
+    spec:
+      serviceAccountName: {{ .Release.Name }}-pmm-token-generator
+      restartPolicy: OnFailure
+      containers:
+      - name: pmm-token-creator
+        image: alpine/kubectl:latest
+        env:
+        - name: PMM_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret.name }}
+              key: PMM_ADMIN_PASSWORD
+        - name: PMM_SERVICE_NAME
+          value: "pmm-ha-haproxy"
+        - name: PMM_PORT
+          value: "443"
+        - name: SECRET_NAME
+          value: "{{ index .Values "pg-db" "pmm" "secret" | default "pg-pmm-secret" }}"
+        - name: SERVICE_ACCOUNT_NAME
+          value: "pmm-pg-monitoring"
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          
+          echo "=== PMM Token Generator for PostgreSQL Monitoring ==="
+          
+          # Check if secret already exists with a valid token
+          if kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
+            EXISTING_KEY=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o jsonpath='{.data.PMM_SERVER_TOKEN}' 2>/dev/null | base64 -d)
+            if [ -n "$EXISTING_KEY" ]; then
+              echo "Secret '$SECRET_NAME' already exists with PMM_SERVER_TOKEN. Skipping token creation."
+              exit 0
+            fi
+          fi
+          
+          PMM_URL="https://${PMM_SERVICE_NAME}.${NAMESPACE}.svc.cluster.local:${PMM_PORT}"
+          
+          echo "Waiting for PMM to be ready at $PMM_URL..."
+          
+          # Loop forever until PMM is ready
+          ATTEMPT=0
+          while true; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Attempt $ATTEMPT: Checking PMM readiness at ${PMM_URL}/v1/readyz ..."
+            
+            # Check if PMM is responding (using /v1/readyz which doesn't require auth)
+            HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" "${PMM_URL}/v1/readyz" 2>&1) || true
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "PMM is ready! (HTTP $HTTP_CODE)"
+              break
+            fi
+            
+            # Debug: try to resolve the hostname on first attempt
+            if [ $ATTEMPT -eq 1 ]; then
+              echo "Debug: Attempting to resolve ${PMM_SERVICE_NAME}.${NAMESPACE}.svc.cluster.local ..."
+              getent hosts "${PMM_SERVICE_NAME}.${NAMESPACE}.svc.cluster.local" 2>&1 || echo "DNS lookup failed (may not have getent)"
+            fi
+            
+            echo "PMM not ready yet (HTTP $HTTP_CODE). Waiting 10 seconds..."
+            sleep 10
+          done
+          
+          echo ""
+          echo "=== Creating Service Account ==="
+          
+          # Create service account
+          SA_RESPONSE=$(curl -sk -X POST \
+            -H "Content-Type: application/json" \
+            -u "admin:${PMM_ADMIN_PASSWORD}" \
+            -d "{\"name\":\"${SERVICE_ACCOUNT_NAME}\",\"role\":\"Admin\"}" \
+            "${PMM_URL}/graph/api/serviceaccounts" 2>/dev/null)
+          
+          echo "Service Account Response: $SA_RESPONSE"
+          
+          # Extract UID from response - handle both new creation and existing account
+          SA_UID=$(echo "$SA_RESPONSE" | grep -o '"uid":"[^"]*"' | head -1 | cut -d'"' -f4)
+          
+          if [ -z "$SA_UID" ]; then
+            # Service account might already exist, try to find it
+            echo "Could not create service account, checking if it already exists..."
+            
+            SA_LIST=$(curl -sk -X GET \
+              -u "admin:${PMM_ADMIN_PASSWORD}" \
+              "${PMM_URL}/graph/api/serviceaccounts/search?query=${SERVICE_ACCOUNT_NAME}" 2>/dev/null)
+            
+            echo "Service Account Search: $SA_LIST"
+            
+            SA_UID=$(echo "$SA_LIST" | grep -o '"uid":"[^"]*"' | head -1 | cut -d'"' -f4)
+            
+            if [ -z "$SA_UID" ]; then
+              echo "ERROR: Could not create or find service account"
+              exit 1
+            fi
+            
+            echo "Found existing service account with UID: $SA_UID"
+          else
+            echo "Created service account with UID: $SA_UID"
+          fi
+          
+          echo ""
+          echo "=== Creating Service Account Token ==="
+          
+          # Create token for the service account
+          TOKEN_NAME="pg-monitoring-token-$(date +%s)"
+          TOKEN_RESPONSE=$(curl -sk -X POST \
+            -H "Content-Type: application/json" \
+            -u "admin:${PMM_ADMIN_PASSWORD}" \
+            -d "{\"name\":\"${TOKEN_NAME}\"}" \
+            "${PMM_URL}/graph/api/serviceaccounts/${SA_UID}/tokens" 2>/dev/null)
+          
+          # Extract the token key
+          TOKEN_KEY=$(echo "$TOKEN_RESPONSE" | grep -o '"key":"[^"]*"' | cut -d'"' -f4)
+          
+          if [ -z "$TOKEN_KEY" ]; then
+            echo "ERROR: Could not create service account token"
+            exit 1
+          fi
+          
+          echo "Token created successfully"
+          
+          echo ""
+          echo "=== Creating Kubernetes Secret ==="
+          
+          # Create or update the secret
+          kubectl create secret generic "$SECRET_NAME" \
+            --namespace="$NAMESPACE" \
+            --from-literal=PMM_SERVER_TOKEN="$TOKEN_KEY" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          echo ""
+          echo "=== Success ==="
+          echo "Secret '$SECRET_NAME' created with PMM_SERVER_TOKEN"
+          echo "PostgreSQL pods can now use this secret for PMM monitoring"
+{{- end }}

@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pmm-ha-haproxy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: haproxy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  haproxy.cfg: |
+    global
+        log stdout    local0 debug
+        log stdout    local1 info
+        log stdout    local2 info
+        daemon
+    
+    resolvers k8s
+        nameserver dns1 kube-dns.kube-system.svc.cluster.local:53
+        resolve_retries 5
+        timeout resolve 2s
+        timeout retry   1s
+        hold valid      10s
+        hold nx         30s
+        hold other      30s
+        hold obsolete   30s
+        accepted_payload_size 8192
+    
+    defaults
+        log     global
+        mode    http
+        option  httplog
+        option  dontlognull
+        timeout connect 5000
+        timeout client  50000
+        timeout server  50000
+    
+    {{- if .Values.haproxy.monitoring.stats.enabled | default true }}
+    # Statistics and monitoring
+    frontend stats
+        bind *:{{ .Values.haproxy.monitoring.stats.port | default 1024 }}
+        stats enable
+        stats uri {{ .Values.haproxy.monitoring.stats.uri | default "/stats" }}
+        stats refresh {{ .Values.haproxy.monitoring.stats.refresh | default "30s" }}
+        stats admin if TRUE
+        {{- if .Values.haproxy.monitoring.prometheus.enabled | default true }}
+        http-request use-service prometheus-exporter if { path {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }} }
+        {{- end }}
+    {{- end }}
+    
+    frontend https_front
+        bind *:443 ssl crt /etc/haproxy/certs/pmm.pem
+        default_backend https_back
+
+    backend https_back
+        option httpchk
+        http-check send meth GET uri /v1/server/leaderHealthCheck ver HTTP/1.1 hdr Host www
+        http-check expect status 200
+        # Use server-template for dynamic DNS-based discovery of PMM pods
+        # This automatically discovers pods when scaling up/down without requiring HAProxy restart
+        # HAProxy will re-resolve DNS based on 'hold valid' setting in the resolver (10s)
+        server-template pmm 1-{{ $.Values.maxReplicas | default 10 }} {{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none resolvers k8s init-addr last,libc,none
+    
