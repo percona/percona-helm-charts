@@ -51,6 +51,9 @@ pmmEnv:
   PMM_ENABLE_BACKUP_MANAGEMENT: "1"
   PMM_ENABLE_ALERTING: "1"
   PMM_ENABLE_ACCESS_CONTROL: "1"
+  # PMM-15301: QAN on PMM's own PostgreSQL is not supported in HA mode. Pinning it here makes
+  # the "QAN for PMM Server" toggle in Settings reject any attempt to switch it on.
+  PMM_ENABLE_INTERNAL_PG_QAN: "0"
 
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: "1"
@@ -840,6 +843,15 @@ pg-db:
     ## @param pg-db.pmm.serverHost PMM server hostname (via HAProxy for HA setup)
     ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
     serverHost: pmm-ha-haproxy
+    ## @param pg-db.pmm.postgresParams Extra flags appended to `pmm-admin add postgresql`
+    ## PMM-15301: Query Analytics must stay OFF for PMM's own PostgreSQL cluster - it is an
+    ## internal component, and the "QAN for PMM Server" setting in the UI cannot control it.
+    ## The operator always emits `--query-source=<querySource>`; postgresParams is appended
+    ## last, so repeating the flag here wins. Result: postgres_exporter (metrics) is still
+    ## registered, the QAN agent is not.
+    ## Set to "" to collect query analytics for the bundled PostgreSQL cluster.
+    ## NOTE: requires the pg-db chart >= 3.0.2 - earlier versions silently drop this value.
+    postgresParams: "--query-source=none"
     ## @param pg-db.pmm.resources Resource requests and limits for PMM client sidecar
     ## Runs in every PostgreSQL pod; left unset it is BestEffort like the rest of
     ## the pod's containers.
