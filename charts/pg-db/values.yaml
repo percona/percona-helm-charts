@@ -365,6 +365,61 @@ instances:
 #      mounts:
 #        - mountPath: /scratch
 
+# Logical replicas are read-write instances seeded from the primary and kept up
+# to date over logical replication. Requires postgresVersion 17 or higher.
+# logicalReplicas:
+# - name: analytics
+#   databases: []  # empty = all non-template databases except "postgres"
+#   bootstrapMethod: pgbackrest  # or pg_basebackup, the only option when backups are disabled
+#   dataVolumeClaimSpec:
+#     storageClassName: standard
+#     accessModes:
+#     - ReadWriteOnce
+#     resources:
+#       requests:
+#         storage: 1Gi
+#   metadata:
+#     annotations: {}
+#     labels: {}
+#   resources:
+#     requests:
+#       cpu: 2.0
+#       memory: 4Gi
+#     limits:
+#       cpu: 2.0
+#       memory: 4Gi
+#   affinity:
+#     podAntiAffinity:
+#       preferredDuringSchedulingIgnoredDuringExecution:
+#       - weight: 1
+#         podAffinityTerm:
+#           labelSelector:
+#             matchLabels:
+#               postgres-operator.crunchydata.com/data: postgres
+#           topologyKey: kubernetes.io/hostname
+#   tolerations:
+#   - effect: NoSchedule
+#     key: role
+#     operator: Equal
+#     value: connection-poolers
+#   priorityClassName: high-priority
+#   expose:
+#     type: LoadBalancer
+#     annotations: {}
+#     labels: {}
+#     loadBalancerClass: eks.amazonaws.com/nlb
+#     loadBalancerSourceRanges:
+#     - 10.0.0.0/8
+#   startupProbe:
+#     failureThreshold: 30
+#     periodSeconds: 10
+#   livenessProbe:
+#     failureThreshold: 3
+#     periodSeconds: 10
+#   readinessProbe:
+#     failureThreshold: 3
+#     periodSeconds: 10
+
 proxy:
   pgBouncer:
     replicas: 3
@@ -769,6 +824,14 @@ pmm:
 #         work_mem: 2MB
 #       pg_hba:
 #       - host    all mytest 123.123.123.123/32 reject
+#       use_slots: true
+#     slots:
+#       cdc_consumer:
+#         type: logical
+#         database: myapp
+#         plugin: pgoutput
+#       external_replica:
+#         type: physical
 #   switchover:
 #     enabled: "true"
 #     targetInstance: ""
@@ -788,12 +851,32 @@ pmm:
 #     disableSSL: false
 #     secret:
 #       name: cluster1-extensions-secret
-#   builtin:
-#     pg_stat_monitor: false
-#     pg_stat_statements: false
-#     pg_audit: true
-#     pgvector: false
-#     pg_repack: false
+#   pg_stat_monitor:
+#     enabled: false
+#   pg_stat_statements:
+#     enabled: false
+#   pg_audit:
+#     enabled: true
+#   pgvector:
+#     enabled: false
+#   pg_repack:
+#     enabled: false
+#   pg_cron:
+#     enabled: false
+#   set_user:
+#     enabled: false
+#   pg_tde:
+#     enabled: false
+#     walEncryption: false
+#     vault:
+#       host: https://vault-service:8200
+#       mountPath: tde
+#       tokenSecret:
+#         name: pg-tde-vault-secret
+#         key: token
+#       caSecret:
+#         name: pg-tde-vault-secret
+#         key: ca.crt
 #   custom:
 #   - name: pg_cron
 #     version: 1.6.1
