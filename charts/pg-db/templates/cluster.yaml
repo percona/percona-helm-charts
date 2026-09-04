@@ -639,7 +639,7 @@ spec:
       {{- end }}
       {{- if .Values.logcollector.logRotate.extraConfig }}
       extraConfig:
-        name: {{ .Values.logcollector.logRotate.extraConfig.name }}
+{{ .Values.logcollector.logRotate.extraConfig | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.logcollector.logRotate.schedule }}
       schedule: {{ .Values.logcollector.logRotate.schedule | quote }}
