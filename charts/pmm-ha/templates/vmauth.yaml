@@ -5,8 +5,8 @@
 {{- $vmpass := "" }}
 {{- if $existingSecret }}
   {{- /* Use existing credentials from secret */ -}}
-  {{- $vmuser = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_username" | b64dec }}
-  {{- $vmpass = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_password" | b64dec }}
+  {{- $vmuser = index $existingSecret.data "PMM_HA_VM_USERNAME" | b64dec }}
+  {{- $vmpass = index $existingSecret.data "PMM_HA_VM_PASSWORD" | b64dec }}
 {{- else }}
   {{- /* Use values or defaults (secret.yaml will create the secret) */ -}}
   {{- $vmuser = .Values.secret.victoriametrics_user | default "victoriametrics_pmm" }}
