@@ -349,6 +349,23 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `readyProbeConf.failureThreshold`    | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                                                               | `6`                  |
 
 
+### PMM Client
+
+| Name                                 | Description                                                      | Value                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `pmmClient.replicas`                 | Number of PMM Client pods carrying the delegated monitoring      | `3`                                                                                            |
+| `pmmClient.image.repository`         | PMM Client image repository                                      | `percona/pmm-client`                                                                           |
+| `pmmClient.image.pullPolicy`         | PMM Client image pull policy                                     | `IfNotPresent`                                                                                 |
+| `pmmClient.image.tag`                | PMM Client image tag, defaults to the chart appVersion           | `3.9.1`                                                                                        |
+| `pmmClient.forceRegistration`        | Register the Node even when one with the same name exists        | `false`                                                                                        |
+| `pmmClient.storage.size`             | Size of the volume holding the Agent identity and metrics buffer | `2Gi`                                                                                          |
+| `pmmClient.storage.storageClassName` | Storage class of that volume, cluster default if empty           | `""`                                                                                           |
+| `pmmClient.resources`                | Resources requested for the PMM Client container                 | `{"requests": {"memory": "200Mi", "cpu": "100m"}, "limits": {"memory": "1Gi", "cpu": "500m"}}` |
+| `pmmClient.nodeSelector`             | Node labels for the PMM Client pods                              | `{}`                                                                                           |
+| `pmmClient.tolerations`              | Tolerations for the PMM Client pods                              | `[]`                                                                                           |
+| `pmmClient.affinity`                 | Affinity rules for the PMM Client pods                           | `{}`                                                                                           |
+
+
 ### PMM secrets
 
 | Name                  | Description                                                                                                                                                                        | Value        |
