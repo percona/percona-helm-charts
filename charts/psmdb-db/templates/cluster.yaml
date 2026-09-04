@@ -450,6 +450,18 @@ spec:
         emptyDir: {}
         {{- end }}
       {{- end }}
+      {{- if $replset.hidden.sidecars }}
+      sidecars:
+{{ $replset.hidden.sidecars | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.sidecarVolumes }}
+      sidecarVolumes:
+{{ $replset.hidden.sidecarVolumes | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.sidecarPVCs }}
+      sidecarPVCs:
+{{ $replset.hidden.sidecarPVCs | toYaml | indent 8 }}
+      {{- end }}
     {{- end }}
     {{- if $replset.nonvoting }}
     nonvoting:
@@ -542,6 +554,18 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      {{- end }}
+      {{- if $replset.nonvoting.sidecars }}
+      sidecars:
+{{ $replset.nonvoting.sidecars | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.sidecarVolumes }}
+      sidecarVolumes:
+{{ $replset.nonvoting.sidecarVolumes | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.sidecarPVCs }}
+      sidecarPVCs:
+{{ $replset.nonvoting.sidecarPVCs | toYaml | indent 8 }}
       {{- end }}
     {{- end }}
     {{- if $replset.arbiter }}
