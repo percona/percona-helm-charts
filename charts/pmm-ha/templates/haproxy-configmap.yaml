@@ -50,6 +50,14 @@ data:
     
     frontend https_front
         bind *:443 ssl crt /etc/haproxy/certs/pmm.pem
+        {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled }}
+        # Metrics written by PMM Clients go to VictoriaMetrics (vmauth) directly, not to the PMM
+        # Server pods: pmm-managed tells every client vmagent to write to this address, and the
+        # pods run no VictoriaMetrics of their own in HA. Only this exact path is
+        # routed; every other path, including VictoriaMetrics queries, stays behind PMM's own
+        # authentication on the pods.
+        use_backend vmauth_write if { path /victoriametrics/api/v1/write }
+        {{- end }}
         default_backend https_back
 
     backend https_back
@@ -60,4 +68,13 @@ data:
         # This automatically discovers pods when scaling up/down without requiring HAProxy restart
         # HAProxy will re-resolve DNS based on 'hold valid' setting in the resolver (10s)
         server-template pmm 1-{{ $.Values.maxReplicas | default 10 }} {{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none resolvers k8s init-addr last,libc,none
-    
+    {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled }}
+
+    backend vmauth_write
+        # vmauth expects the bare VictoriaMetrics path. Clients authenticate to it with the
+        # VictoriaMetrics credentials from the PMM secret; HAProxy passes the request through.
+        http-request set-path /api/v1/write
+        option httpchk GET /health
+        http-check expect status 200
+        server vmauth {{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427 check resolvers k8s init-addr last,libc,none
+    {{- end }}
