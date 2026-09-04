@@ -232,6 +232,22 @@ kubectl get secret pg-pmm-secret -n <namespace> -o jsonpath='{.data.PMM_SERVER_T
 
 To create additional service tokens manually, see the [PMM documentation on service accounts](https://docs.percona.com/percona-monitoring-and-management/api/authentication.html).
 
+### How client metrics reach VictoriaMetrics
+
+PMM Clients push metrics with a `vmagent` that PMM Server configures for them. Starting with the PMM
+Server release that pairs with this chart, PMM Server tells every client to write to the address the
+client already uses, `https://<pmm-ha-haproxy>/victoriametrics/api/v1/write`, authenticated with the
+VictoriaMetrics credentials from `pmm-secret`. HAProxy routes exactly that path to the in-cluster
+`vmauth` service (`templates/haproxy-configmap.yaml`), so metric writes never pass through the PMM
+Server pods, and clients outside the cluster can write although `vmauth` itself is not exposed.
+Every other path, including VictoriaMetrics queries, keeps going to the PMM Server pods behind PMM's
+own authentication. PMM Server's own agents, which run inside the pods, write to `vmauth` directly.
+
+Consequences:
+
+- The write endpoint is reachable wherever HAProxy is reachable (see [External access to PMM HA](#external-access-to-pmm-ha)) and is protected by HTTP basic auth with the shared VictoriaMetrics credentials. Revoking one client's write access means rotating that credential.
+- Upgrade this chart before upgrading PMM Server to a release that expects the route. A PMM Server that expects it, behind a chart without it, cannot deliver client metrics: the PMM Server pods reject every write with `401 Unauthorized`, because the VictoriaMetrics credential the clients present is not a PMM credential. A chart with the route, running an older PMM Server, is harmless: the older server still tells clients to write to `vmauth` directly, so clients outside the cluster cannot deliver metrics, which is the limitation this route removes.
+
 ## Parameters
 
 ### Percona Monitoring and Management (PMM) parameters
@@ -380,6 +396,13 @@ kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | 
 
 Since `secret.create` is set to `false` by default, you need to create the `pmm-secret` manually before installing the chart. Here are examples of how to create it:
 
+> **Note**: The VictoriaMetrics credential keys are `PMM_HA_VM_USERNAME` and `PMM_HA_VM_PASSWORD`.
+> Do not store this credential under `VMAGENT_`-prefixed names: PMM Server forwards every `VMAGENT_*`
+> variable it finds to all PMM Clients, including to any endpoint an operator redirects their writes
+> to. Technical Preview installations that used
+> `VMAGENT_remoteWrite_basicAuth_username` and `VMAGENT_remoteWrite_basicAuth_password` must rename
+> those two keys in `pmm-secret` before upgrading.
+
 #### ClickHouse data source credentials
 
 The Grafana ClickHouse data source connects as a **read-only** ClickHouse account, separate from
@@ -408,8 +431,8 @@ kubectl create secret generic pmm-secret \
   --from-literal=PMM_ADMIN_PASSWORD="your-secure-password" \
   --from-literal=PMM_CLICKHOUSE_USER="clickhouse_pmm" \
   --from-literal=PMM_CLICKHOUSE_PASSWORD="your-clickhouse-password" \
-  --from-literal=VMAGENT_remoteWrite_basicAuth_username="victoriametrics_pmm" \
-  --from-literal=VMAGENT_remoteWrite_basicAuth_password="your-victoriametrics-password" \
+  --from-literal=PMM_HA_VM_USERNAME="victoriametrics_pmm" \
+  --from-literal=PMM_HA_VM_PASSWORD="your-victoriametrics-password" \
   --from-literal=PG_PASSWORD="your-pmm-postgres-password" \
   --from-literal=GF_PASSWORD="your-grafana-postgres-password" \
   --namespace pmm
@@ -430,8 +453,8 @@ stringData:
   PMM_ADMIN_PASSWORD: "your-secure-password"
   PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   PMM_CLICKHOUSE_PASSWORD: "your-clickhouse-password"
-  VMAGENT_remoteWrite_basicAuth_username: "victoriametrics_pmm"
-  VMAGENT_remoteWrite_basicAuth_password: "your-victoriametrics-password"
+  PMM_HA_VM_USERNAME: "victoriametrics_pmm"
+  PMM_HA_VM_PASSWORD: "your-victoriametrics-password"
   PG_PASSWORD: "your-pmm-postgres-password"
   GF_PASSWORD: "your-grafana-postgres-password"
 ```
@@ -457,8 +480,8 @@ kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' |
 kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' | base64 --decode && echo
 
 # Get VictoriaMetrics credentials
-kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode && echo
-kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_HA_VM_USERNAME}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_HA_VM_PASSWORD}' | base64 --decode && echo
 
 # Get PostgreSQL passwords
 kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PG_PASSWORD}' | base64 --decode && echo

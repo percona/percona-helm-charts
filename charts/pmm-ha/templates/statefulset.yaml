@@ -209,16 +209,19 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_PASSWORD
-            - name: VMAGENT_remoteWrite_basicAuth_username
+            # VictoriaMetrics (vmauth) credentials. Named PMM_HA_* on purpose: PMM Server reads them only
+            # through PMM_VM_URL below, and the PMM_HA_ prefix keeps them out of the VMAGENT_* passthrough
+            # that PMM forwards to every PMM Client's vmagent.
+            - name: PMM_HA_VM_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
-                  key: VMAGENT_remoteWrite_basicAuth_username
-            - name: VMAGENT_remoteWrite_basicAuth_password
+                  key: PMM_HA_VM_USERNAME
+            - name: PMM_HA_VM_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
-                  key: VMAGENT_remoteWrite_basicAuth_password
+                  key: PMM_HA_VM_PASSWORD
             - name: PMM_CLICKHOUSE_USER
               valueFrom:
                 secretKeyRef:
@@ -242,7 +245,7 @@ spec:
                   name: {{ include "pmm.clickhouse.datasourceSecretName" . }}
                   key: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
             - name: PMM_VM_URL
-              value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
+              value: "http://$(PMM_HA_VM_USERNAME):$(PMM_HA_VM_PASSWORD)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
             - name: PMM_CLICKHOUSE_ADDR
               value: "{{ include "pmm.fullname" . }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
