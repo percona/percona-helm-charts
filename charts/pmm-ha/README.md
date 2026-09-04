@@ -398,7 +398,8 @@ Since `secret.create` is set to `false` by default, you need to create the `pmm-
 
 > **Note**: The VictoriaMetrics credential keys are `PMM_HA_VM_USERNAME` and `PMM_HA_VM_PASSWORD`.
 > Do not store this credential under `VMAGENT_`-prefixed names: PMM Server forwards every `VMAGENT_*`
-> variable it finds to all PMM Clients. Technical Preview installations that used
+> variable it finds to all PMM Clients, including to any endpoint an operator redirects their writes
+> to. Technical Preview installations that used
 > `VMAGENT_remoteWrite_basicAuth_username` and `VMAGENT_remoteWrite_basicAuth_password` must rename
 > those two keys in `pmm-secret` before upgrading.
 
