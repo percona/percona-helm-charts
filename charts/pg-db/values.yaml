@@ -783,9 +783,9 @@ pmm:
 #      memory: 200M
 #      cpu: 500m
 
-# logcollector:
-#   enabled: false
-#   image: docker.io/perconalab/fluentbit:main-logcollector
+logcollector:
+  enabled: true
+  image: docker.io/perconalab/fluentbit:main-logcollector
 #   imagePullPolicy: IfNotPresent
 #   # Extra fluent-bit configuration merged with the operator-managed config.
 #   # Must be in Fluent Bit's YAML configuration format.
