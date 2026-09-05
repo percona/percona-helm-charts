@@ -646,11 +646,70 @@ centralBackupStorage:
 
   ## backup-tools Deployment image (kubectl + shell; runs the orchestrator scripts and the
   ## metrics listeners). Pinned tag — do not use :latest.
+  ##
+  ## THE IMAGE MUST PROVIDE kubectl, jq, AND rclone WHEN mode IS s3. This default carries all
+  ## three, so nothing is installed at run time: files/backup-entrypoint.sh probes first and
+  ## skips its `apk add` fallback entirely.
+  ##
+  ## IF YOU OVERRIDE THIS IMAGE, the replacement must carry them too. An image without them
+  ## falls back to `apk add`, which needs ROOT — so on OpenShift, or any cluster whose SCC /
+  ## PodSecurity assigns a non-root UID, the install fails and backup Jobs (which run with
+  ## PMM_TOOLS_STRICT=true) exit non-zero. That is not fixable in the chart; DN-49 records the
+  ## four alternatives measured against shipping a bundled-tools image.
+  ##
+  ## Three things come with this default, and they are not optional:
+  ##   1. TIMESTAMP TAGS ONLY, never :latest. This image bumps kubectl on its own schedule, and
+  ##      kubectl versions have broken this orchestrator before (`kubectl exec
+  ##      --request-timeout` broke in-cluster API discovery in v1.35.x — the reason every call
+  ##      is wrapped in `timeout`).
+  ##   2. Re-run a backup AND a restore whenever you move the tag, for the same reason.
+  ##   3. Give the backup pods a registry pull secret, or mirror the image. Docker Hub rate
+  ##      limits are a real failure mode. Use tools.imagePullSecrets below — NOT
+  ##      image.imagePullSecrets, which also lands on the PMM StatefulSet and would roll every
+  ##      PMM replica just to fix a tools-image pull.
+  ##
+  ## It is a third-party image (Tiger Computing Ltd) and a general-purpose CI toolbox, so it
+  ## also carries aws-cli, helm, ssh and python3 that this chart never uses. Any image with
+  ## kubectl+jq+rclone works; a minimal one you build yourself (Alpine, `apk add jq`, plus
+  ## `COPY --from` for kubectl and rclone) carries far less surface. See docs/pmm-backup.md §9.
+  ##
+  ## TODO(ImageVolume): once the chart's supported floor is Kubernetes >= 1.33 AND OpenShift
+  ## ships ImageVolume (OCP 4.20+), the better answer is to mount the official upstream
+  ## images as read-only OCI volumes instead of depending on any bundled-tools image:
+  ##   volumes:
+  ##     - name: jq-img     # ghcr.io/jqlang/jq       -> /jq
+  ##       image: { reference: "ghcr.io/jqlang/jq:1.8.1" }
+  ##     - name: rclone-img # rclone/rclone           -> /usr/local/bin/rclone
+  ##       image: { reference: "docker.io/rclone/rclone:1.74.3" }
+  ## then add both to PATH. Verified working on Kubernetes 1.36 as an assigned non-root UID:
+  ## official binaries only, read-only mounts nothing in the pod can tamper with, each tool
+  ## pinned independently, and kubectl stays on this chart's own pinned image. Blocked today
+  ## purely by availability — the chart supports 1.22+, ImageVolume is 1.33+, and
+  ## ImageVolumeWithDigest (pinning by digest rather than tag) is still alpha. DN-49 records
+  ## the full comparison so this is not re-derived from scratch.
   tools:
     image:
       registry: docker.io
-      repository: alpine/kubectl
-      tag: "1.36.3"
+      repository: tigercomputing/cloud-tools
+      tag: "20260831175138"
+    ## @param centralBackupStorage.tools.imagePullSecrets Pull secrets for the backup pods only
+    ## Rendered onto the backup ServiceAccount, so it reaches the backup-tools Deployment, every
+    ## backup/restore Job and the s3-mode temp restore pods — without touching
+    ## image.imagePullSecrets, which is chart-wide and would roll the PMM StatefulSet too.
+    ## E.g. imagePullSecrets: [{name: dockerhub}]
+    imagePullSecrets: []
+    ## @param centralBackupStorage.tools.resources Resources for anything running the orchestrator
+    ## Applied to BOTH the always-on backup-tools pod and every backup/restore Job pod — they run
+    ## the same code, so they are sized from one key rather than two blocks that claim to match.
+    ## Raise the memory limit for very large installs (the pg_dump stream is the one payload that
+    ## passes through this process; /srv and ClickHouse tars go pod-to-destination directly).
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
 
 
   ## @param centralBackupStorage.storageSize Size of central backup storage
@@ -670,6 +729,13 @@ centralBackupStorage:
   ## volume) and ReadWriteOnce for s3 (only the backup-tools pod mounts a small logs volume).
   ## Set explicitly to override — e.g. "ReadWriteMany" on NFS/EFS, "ReadWriteOnce" on EBS.
   ## (Forcing RWX on a cluster whose only storage class is RWO leaves the PVC Pending.)
+  ## In s3 mode an explicit ReadWriteMany also LIFTS the backup Job's required co-location with
+  ## the backup-tools pod: that affinity exists only because an RWO volume can be mounted from a
+  ## single node, so an RWX logs volume (e.g. EFS) lets scheduled runs schedule anywhere.
+  ## With existingClaim (or a pre-bound static PV) this value is the chart's ONLY knowledge of
+  ## the real access mode — it creates no PVC to read it from — so it is treated as your
+  ## DECLARATION about that volume: an RWX claim needs it set to lift the affinity, and setting
+  ## it on a claim that is actually RWO lifts the affinity wrongly and yields Multi-Attach.
   accessMode: ""
 
   ## @param centralBackupStorage.existingClaim Name of a PRE-CREATED PVC to consume
@@ -703,12 +769,17 @@ centralBackupStorage:
   ## (passed to `pmm-backup.sh backup --retention`). There is no per-component retention here.
 
   ## @param centralBackupStorage.schedule Scheduled full backups via a Kubernetes CronJob.
-  ## The CronJob triggers a backup by `kubectl exec` into the always-on backup-tools Deployment
-  ## pod (reusing its volume/scripts/env) — it does NOT mount the central volume itself (that
-  ## would Multi-Attach the RWO logs PVC). The exec runs cron-backup.sh, which starts the backup
-  ## detached and polls for completion, so a disrupted trigger doesn't abort the run.
+  ## Each run is a JOB that executes pmm-backup.sh itself — there is no exec into the
+  ## backup-tools Deployment and no detached process. The Job pod carries
+  ## karpenter.sh/do-not-disrupt for exactly the run's lifetime, so consolidation cannot
+  ## kill a backup and nothing pins a node once the run ends. In s3 mode the Job
+  ## co-schedules with backup-tools (required podAffinity) to share the RWO logs/metrics
+  ## volume — RWO is node-scoped, so two pods on one node mount it fine; consequence: the
+  ## Job cannot schedule while backup-tools is unschedulable. shared/NFS modes mount from
+  ## any node. Manual full backup, same run:
+  ##   kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <ns>
   ## Disabled by default — enable once the target (s3/shared) is configured. Restore is
-  ## never scheduled; it stays a deliberate manual action.
+  ## never scheduled; it stays a deliberate manual action (see examples/restore-job.yaml).
   schedule:
     ## @param centralBackupStorage.schedule.enabled Create the backup CronJob
     enabled: false
@@ -723,12 +794,37 @@ centralBackupStorage:
     extraArgs: []
     ## @param centralBackupStorage.schedule.startingDeadlineSeconds Skip a run if it can't start within N seconds
     startingDeadlineSeconds: 600
-    ## @param centralBackupStorage.schedule.activeDeadlineSeconds Hard cap (seconds) on one scheduled run
-    ## before Kubernetes fails the trigger Job — a backstop against a wedged trigger. This MUST
-    ## exceed the real backup duration: the trigger polls the detached backup to completion, so a
-    ## too-low value fails the Job (false alert) even though the backup itself keeps running, and
-    ## with concurrencyPolicy: Forbid it can also block the next scheduled run. Default 6h; raise
-    ## for very large installs (multi-TB VM data) whose backup legitimately runs longer.
+    ## @param centralBackupStorage.schedule.terminationGracePeriodSeconds Time a run gets to shut down
+    ## The orchestrator's TERM trap is what releases the per-component Leases and, on a restore,
+    ## deletes the temp mounter pods — all apiserver calls. Kubernetes' 30s default is not enough
+    ## for a multi-component run, and a SIGKILL instead leaves the Leases held for 900s, which
+    ## makes the backoffLimit retry abort immediately. Applies to activeDeadlineSeconds kills and
+    ## to `kubectl delete job`.
+    terminationGracePeriodSeconds: 300
+    ## @param centralBackupStorage.schedule.backoffLimit Retries for a failed run
+    ## A retry RE-RUNS the whole backup (there is no in-flight run to re-attach to), which is
+    ## safe but not free. It only helps when the killed attempt RELEASED ITS LOCKS: a graceful
+    ## TERM, a failed tool install, a preflight refusal. After a SIGKILL (node loss, OOM kill,
+    ## kubectl delete --force) the traps never ran, the component Leases stay held for
+    ## LOCK_LEASE_SECONDS (900s by default) and the retry aborts on them immediately — so the
+    ## schedule, not this counter, is the real retry loop. A run killed by activeDeadlineSeconds
+    ## is not retried at all, whatever this is set to.
+    backoffLimit: 1
+    ## @param centralBackupStorage.schedule.ttlSecondsAfterFinished Delete finished Jobs after N seconds
+    ## Exists for MANUAL `kubectl create job --from=cronjob/<release>-backup` clones, which the
+    ## history limits below never clean. It applies to the CronJob's own Jobs too and is
+    ## INDEPENDENT of failedJobsHistoryLimit: on a sparse schedule (weekly, monthly) a TTL
+    ## shorter than the interval deletes a failed Job — and its pod log, which is the only place
+    ## a failure BEFORE the orchestrator starts is recorded — before anyone looks. Set to null
+    ## on such schedules and let the history limits do the pruning; 0 is a valid Kubernetes
+    ## value meaning "delete as soon as it finishes" and is honoured as such. Default 7 days.
+    ttlSecondsAfterFinished: 604800
+    ## @param centralBackupStorage.schedule.activeDeadlineSeconds Hard cap (seconds) on one scheduled run.
+    ## The run lives INSIDE the Job, so hitting this deadline KILLS the backup itself — the
+    ## interrupted run releases its locks and writes no manifest (restore never sees a
+    ## partial backup), but the time is lost. MUST comfortably exceed the real backup
+    ## duration. Default 6h; raise for very large installs (multi-TB VM data). A run still
+    ## going at the next schedule tick makes that tick skip (concurrencyPolicy: Forbid).
     activeDeadlineSeconds: 21600
     ## @param centralBackupStorage.schedule.successfulJobsHistoryLimit Kept succeeded jobs
     successfulJobsHistoryLimit: 3

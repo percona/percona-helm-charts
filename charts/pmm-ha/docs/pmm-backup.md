@@ -185,10 +185,10 @@ centralBackupStorage:
       repository: rclone/rclone
       tag: "1.74.3"
   tools:
-    image:                       # backup-tools Deployment (kubectl + orchestrator scripts)
-      registry: docker.io
-      repository: alpine/kubectl
-      tag: "1.36.3"              # pinned; see values.yaml
+    image:                       # backup-tools + every backup/restore Job pod
+      registry: docker.io        # must carry kubectl, jq and rclone — see §9
+      repository: tigercomputing/cloud-tools
+      tag: "20260831175138"      # timestamp tags only, never :latest; see values.yaml
 ```
 
 **Configure `centralBackupStorage.s3` once.** ClickHouse and VictoriaMetrics have their own
@@ -272,8 +272,9 @@ through the cluster's OIDC provider — **no access keys in the cluster**:
 | File | Purpose |
 |---|---|
 | `templates/backup-tools.yaml` | backup-tools Deployment, ServiceAccount, Role, RoleBinding; projects target + S3 settings into the pod env |
-| `templates/backup-scripts-configmap.yaml` | orchestrator + scheduler scripts (`pmm-backup.sh`, `cron-backup.sh`) rendered into a ConfigMap, mounted at `/usr/local/bin` |
-| `templates/backup-cronjob.yaml` | scheduled-backup CronJob `<release>-backup` (conditional on `schedule.enabled`; see §3a) |
+| `templates/backup-scripts-configmap.yaml` | the orchestrator (`pmm-backup.sh`) and the tool bootstrap (`backup-entrypoint.sh`) rendered into a ConfigMap, mounted at `/usr/local/bin` in the Deployment and every backup/restore Job pod |
+| `templates/backup-cronjob.yaml` | CronJob `<release>-backup` — each run is a Job executing `pmm-backup.sh`. Always rendered when `centralBackupStorage.enabled`, **suspended** unless `schedule.enabled`, so its jobTemplate is always available to `kubectl create job --from` (see §3a) |
+| `examples/restore-job.yaml` | restore as a Job (disruption-protected); documents the clone-and-swap invocation |
 | `templates/backup-s3-serviceaccount.yaml` | IRSA SA for operator-managed pods (created when `irsaRoleArn` is set) |
 | `templates/statefulset.yaml` | PMM StatefulSet — `pmm-backup` rclone sidecar + S3 credentials wiring (s3 mode) |
 | `templates/vmcluster.yaml` | VMCluster — backup `serviceAccountName` + vmbackup s3 env/creds |
@@ -343,12 +344,12 @@ cluster's default storage class; set one that actually exists (a non-existent cl
 ### Pod Startup
 
 backup-tools runs as a **Deployment** (`replicas: 1`, `strategy: Recreate` — the
-logs/metrics volume is typically RWO) using a pinned `alpine/kubectl` image
-(`centralBackupStorage.tools.image`, default tag pinned in values.yaml). The scripts
-(`pmm-backup.sh` and the scheduler's `cron-backup.sh`)
-are **shipped by the chart** (`files/*.sh`), rendered into the `<release>-backup-scripts`
-ConfigMap and mounted into `/usr/local/bin/` — no manual copying, and a checksum annotation
-rolls the pod whenever the scripts change.
+logs/metrics volume is typically RWO) using a pinned image that carries kubectl, jq and
+rclone (`centralBackupStorage.tools.image`, default tag pinned in values.yaml). The orchestrator
+(`pmm-backup.sh`) is **shipped by the chart** (`files/pmm-backup.sh`), rendered into the
+`<release>-backup-scripts` ConfigMap and mounted into `/usr/local/bin/` — in this
+Deployment and in every backup/restore Job pod alike; no manual copying, and a checksum
+annotation rolls the Deployment pod whenever the script changes.
 On startup the container:
 
 1. Creates the metrics directory (`/backups/.metrics/`)
@@ -400,53 +401,76 @@ centralBackupStorage:
     components: []            # [] = all four; or e.g. ["--postgresql","--clickhouse"] or ["--skip-victoriametrics"]
     extraArgs: []             # extra `pmm-backup.sh backup` args
     startingDeadlineSeconds: 600    # skip a run that can't start within N seconds
-    activeDeadlineSeconds: 21600    # cap on the TRIGGER Job, not the detached backup (6h default)
+    activeDeadlineSeconds: 21600    # hard cap on the run — the Job IS the backup (6h default)
+    terminationGracePeriodSeconds: 300  # time the run gets to release locks on TERM
+    backoffLimit: 1                 # retries; only helps if the killed attempt released its locks
+    ttlSecondsAfterFinished: 604800 # delete finished Jobs after 7d (null to disable; 0 = at once)
     successfulJobsHistoryLimit: 3
     failedJobsHistoryLimit: 3
 ```
 
-The chart renders a CronJob `<release>-backup` (`concurrencyPolicy: Forbid`, `backoffLimit: 3`).
-Target and all S3 settings come from the same `centralBackupStorage.s3` values as manual runs —
-nothing S3-specific is repeated in the schedule block. In `s3` mode the bucket is required, so the
-chart fails the render if `schedule.enabled` is set with an empty `centralBackupStorage.s3.bucket`.
+The chart renders a CronJob `<release>-backup` whenever `centralBackupStorage.enabled` is true,
+**suspended** when `schedule.enabled` is false. It is rendered even with no schedule on purpose:
+its `jobTemplate` is the canonical, fully-wired run definition that `kubectl create job --from`
+clones for an ad-hoc backup *and* for a restore, so every install has one. Target and all S3
+settings reach the run as environment (via the shared `pmm.backupRunEnv` helper), not as repeated
+CLI flags — only `--retention`, `components` and `extraArgs` are schedule-specific. In `s3` mode
+the bucket is required whenever `mode` is `s3`, **independently of `schedule.enabled`** — the
+chart fails the render on an empty `centralBackupStorage.s3.bucket`. The CronJob is always
+rendered (suspended without a schedule) because its jobTemplate is the documented clone source
+for manual backups and restores, so rendering one with no bucket would hand operators an
+artifact that dies on `--target s3 requires --s3-bucket` the first time they use it.
 
-**How a run executes.** The CronJob does **not** mount the central volume in its own pod (that would
-Multi-Attach the RWO logs PVC held by the always-on backup-tools Deployment). Instead its trigger
-pod `kubectl exec`s the shipped `cron-backup.sh` **into** the backup-tools pod, reusing that pod's
-volume, scripts and env. `cron-backup.sh`:
+The Job pod's `command` is `backup-entrypoint.sh` (the shared tool bootstrap, which probes for
+jq/rclone and installs them only if the image lacks them) and its `args` are the operation. That split
+is what makes a clone-and-swap safe: rewrite `args`, never `command`, or the clone loses the
+bootstrap and fails its own preflight.
 
-1. Starts `pmm-backup.sh backup` **detached** (`setsid`/`nohup`) so the backup survives the
-   trigger's exec stream dropping — an apiserver/network blip no longer aborts a multi-hour run —
-   recording the orchestrator's exit code in a status file.
-2. Polls that status file and reports the result as the Job's exit code.
-3. On a Job retry, **re-attaches** to the same in-flight run (keyed by `--run-id` = the Job name)
-   instead of starting a second orchestrator that would collide on the per-component locks.
-4. If the backup-tools pod itself dies mid-run (eviction / OOM / rollout) so no status is ever
-   written, detects the stalled run (its log stops advancing) and **restarts** it on the next
-   trigger rather than polling a never-arriving status forever.
+**How a run executes.** Each tick spawns a **Job whose pod runs `pmm-backup.sh backup` itself** —
+there is no exec into the backup-tools Deployment and no detached process. Kubernetes provides
+what the former `cron-backup.sh` wrapper hand-rolled around the exec stream: the exit code (Job
+status), the run log (`kubectl logs job/...`), retry (`backoffLimit`), overlap prevention
+(`concurrencyPolicy: Forbid` — a run still going at the next tick makes that tick skip), and a
+real bound on the run (`activeDeadlineSeconds`). The pod carries `karpenter.sh/do-not-disrupt`
+for exactly the run's lifetime: consolidation cannot kill a backup, and nothing pins a node once
+the run ends. (On the always-on Deployment that annotation was permanent and stalled node
+rollouts — which is why the run moved into a Job.)
 
-`concurrencyPolicy: Forbid` prevents overlapping scheduled runs; the orchestrator's per-component
-locks are the second line of defense against any other overlap (e.g. a manual run during a
-scheduled one — the later run declines the busy component). See §4.
+**Volume access.** In `s3` mode the central volume (logs/metrics, RWO) is held by the
+backup-tools Deployment, so the Job co-schedules with it via required `podAffinity` — RWO is
+*node*-scoped, so two pods on one node share the volume without a Multi-Attach error. The
+consequence: the Job cannot schedule while backup-tools is unschedulable (acceptable — its
+metrics would not be served either, and the failed Job is the alert). `shared`/NFS modes mount
+from any node and render no affinity.
 
-`activeDeadlineSeconds` bounds the **trigger and polling Job**, not the backup. Because
-`cron-backup.sh` detaches the orchestrator, a Job killed at its deadline leaves the backup running
-and still holding its component Leases — deliberate, since a deadline must never abort a
-half-written backup. Size it above the real backup duration anyway: a too-low value fails the Job
-(a false alert on a healthy backup), and with `concurrencyPolicy: Forbid` a Job left in that state
-can block the next scheduled run.
+A **retry re-runs the whole backup** — there is no in-flight run to re-attach to. That is safe
+(locks release on TERM; an interrupted run writes no manifest, so restore never sees it) but not
+free: `schedule.backoffLimit` (default 1) absorbs one transient failure, then the schedule itself
+is the retry loop. `activeDeadlineSeconds` now bounds the **actual backup** — hitting it kills the
+run, and a `DeadlineExceeded` Job is **not** retried by `backoffLimit`. It also counts from the
+Job's start, which includes time the pod spends `Pending` (image pull, node scale-up, and in s3
+mode waiting for room on backup-tools' node), so budget scheduling overhead on top of the real
+backup duration (default 6h; raise for multi-TB installs).
 
-**Tuning** — environment variables read by `cron-backup.sh` (override by adding them to the
-backup-tools Deployment; rarely needed): `CRON_BACKUP_POLL_INTERVAL` (status poll seconds,
-default 30), `CRON_BACKUP_STALL_MIN` (minutes of no log progress before a run is treated as
-crashed, default 15), `CRON_BACKUP_MARKER_RETENTION_DAYS` (age out per-run marker/log files after
-N days, default 7).
+`schedule.ttlSecondsAfterFinished` (default 7 days) sweeps finished Jobs, which is what cleans up
+manual `--from` clones — the history limits only ever prune the CronJob's own Jobs. It is
+independent of `failedJobsHistoryLimit`: on a weekly or monthly schedule a TTL shorter than the
+interval deletes a failed Job, and its pod log, before anyone looks — set it to `null` there.
 
-Trigger a run off-schedule (e.g. to test) with a manual Job from the CronJob:
+The orchestrator's per-component locks remain the second line of defense against any other
+overlap (e.g. a manual run during a scheduled one — the later run declines the busy component,
+and they also exclude a laptop-run restore, which no Job setting can). See §4.
+
+Trigger a full run off-schedule (clones the jobTemplate verbatim — args cannot be changed on the
+CLI; for component-scoped runs use the exec path from the Quick start):
 
 ```bash
-kubectl create job --from=cronjob/<release>-backup <release>-backup-manual -n <namespace>
+kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <namespace>
 ```
+
+For **long restores**, use a Job as well — the Deployment carries no disruption protection, so an
+interactive `kubectl exec ... restore` can be killed by node consolidation. `examples/restore-job.yaml`
+documents the recommended clone-and-swap invocation and a standalone shared-mode manifest.
 
 ---
 
@@ -881,7 +905,7 @@ existing one is. See DN-41.
     backup_20260223-150001/
       pg-encryption-key.yaml                # Kubernetes Secret YAML
   logs/                                     # execution logs (backup_<id>.log, restore_<id>.log)
-  .logs/                                    # scheduled-run markers/logs (cron-backup.sh)
+  .logs/                                    # legacy pre-Job scheduler markers; inert, and now aged out by the retention sweep
   .staging/                                 # transient per-run staging, reaped after each run
   .metrics/                                 # Prometheus metrics (backup_metrics.prom, restore_metrics.prom)
 ```
@@ -1077,6 +1101,34 @@ wget -qO- "http://${POD_IP}:9091/"
 **ClickHouse backup fails with "system.backup_actions table not found"**
 - The `clickhouse-backup` sidecar container is not running in the ClickHouse pod.
 - Enable it in the Helm chart: `clickhouse.backup.enabled: true`
+
+**"Failed to create restore pod" / "is forbidden: unable to validate against any security context constraint"**
+- A restore mounts each data PVC into a temp pod of its own while the owning workload is at 0
+  replicas. That pod takes its identity — `runAsUser` / `runAsGroup` / `fsGroup` — from the
+  workload it is standing in for: the PMM StatefulSet's pod template for `/srv`, a live
+  vmstorage pod for `vmstorage-db` (DN-48). It sets nothing of its own.
+- So this error means the *workload's* identity is one the cluster will not accept for a bare
+  Pod. On OpenShift that is what an explicit `runAsUser: 0` in `podSecurityContext` produces:
+  `restricted-v2` validates it against the namespace's `openshift.io/sa.scc.uid-range`.
+- Fix: leave `podSecurityContext.runAsUser` unset so the SCC assigns it (the same guidance
+  `values.yaml` already gives for PMM itself) — the temp pod then renders no
+  `securityContext` either and is assigned the identical UID. Setting a value inside the
+  namespace's range works too.
+- Note the timing: `/srv` is restored last, so this surfaces with the other components already
+  written and PMM at 0. Scale PMM back up (`kubectl scale statefulset <pmm-sts> --replicas=N`)
+  before retrying.
+
+**A restore reported success but no new metrics are appearing**
+
+- Check the ingestion tier: `kubectl get vmcluster <release>-pmm-ha-vmcluster -o jsonpath='{.spec.vminsert.replicaCount}'`.
+  A restore scales vminsert to 0 and back; if the scale-back patch failed (a VMOperator webhook
+  being momentarily unavailable is enough) the tier stays at 0. The data is intact and `readyz`
+  returns 200, but nothing is being written.
+- Since DN-50 this is caught: the vminsert scale-back is readiness-verified, so the restore fails
+  the VictoriaMetrics component instead of reporting success, and a `0` found in the spec is
+  refused as a scale-back target rather than re-applied.
+- Fix: `kubectl patch vmcluster <release>-pmm-ha-vmcluster --type=merge -p '{"spec":{"vminsert":{"replicaCount":<N>}}}'`
+  and re-run the restore if you need the run recorded as successful.
 
 **Scripts in the pod look outdated after a chart change**
 - The scripts are mounted from the `<release>-backup-scripts` ConfigMap with `subPath`
@@ -1397,6 +1449,61 @@ each lands its backup with an in-pod write (no API-server streaming for VM/CH/PM
 PostgreSQL `pg_dump` is streamed through the orchestrator onto the same volume. The chart
 mounts `/central` into the PMM StatefulSet, the clickhouse-backup sidecar, and the vmbackup/
 vmrestore sidecars; the volume must be `ReadWriteMany`.
+
+### OpenShift
+
+Not yet validated end-to-end. Nothing in the backup path hardcodes a privileged identity any
+more — the restore temp pods copy the workload's own `securityContext` rather than demanding
+root (DN-48) — and the tools image now carries what the orchestrator needs, so **no backup
+setting is required**. One caveat remains that is outside this feature's control.
+
+**The default tools image ships the tools.** `centralBackupStorage.tools.image` defaults to
+`docker.io/tigercomputing/cloud-tools`, which carries kubectl, jq, rclone and BusyBox `nc`, so
+`files/backup-entrypoint.sh` probes, finds them, and never runs its `apk add` fallback. Verified
+on a live cluster under an assigned non-root UID: a full backup completed with the bootstrap
+logging only `tools: jq-1.8.1, rclone v1.75.0` and no install step.
+
+**If you override it, the replacement must carry them too.** An image without jq (and rclone in
+s3 mode) falls back to `apk add`, which needs root and therefore fails here:
+
+```
+ERROR: Unable to open log: Permission denied
+```
+
+Backup Jobs run with `PMM_TOOLS_STRICT=true`, so that is a failed backup on every schedule —
+and unlike DN-48's restore problem it breaks *backup*. DN-49 records the four alternatives
+measured against depending on the image (chart-shipped binaries, `apk --usermode`, downloading
+verified static binaries, and mounting the official images as OCI volumes).
+
+Three conditions come with this default, and they are not optional:
+
+- **Pin a timestamp tag, never `:latest`.** That image bumps `kubectl` on its own schedule, and
+  kubectl versions have broken this orchestrator before (`kubectl exec --request-timeout` broke
+  in-cluster API discovery in v1.35.x — the reason every call is wrapped in `timeout`).
+- **Re-run a backup _and_ a restore whenever you move the tag**, for the same reason.
+- **Give the backup pods a pull secret, or mirror the image.** Docker Hub rate limits are a
+  real failure mode, and this image is 255 MB against the 21.5 MB of the kubectl-only one it
+  replaced. Set `centralBackupStorage.tools.imagePullSecrets` — it is rendered onto the backup
+  ServiceAccount, so it covers the Deployment, every Job and the s3-mode temp restore pods.
+  Do **not** use `image.imagePullSecrets` for this: that key is chart-wide and also lands on the
+  PMM StatefulSet, rolling every PMM replica.
+
+It is a third-party general-purpose CI toolbox, so it also carries aws-cli, helm, ssh and
+python3 that this chart never uses — extra surface in a pod that holds the backup
+ServiceAccount's credentials and can exec into every database pod. Any image with
+kubectl+jq+rclone works, and a minimal one built in-house (Alpine, `apk add jq`, plus
+`COPY --from` for kubectl and rclone) is the smaller long-term answer.
+
+> **Revisit when OpenShift ships ImageVolume (OCP 4.20+ / Kubernetes 1.33+).** Mounting the
+> official upstream `jq` and `rclone` images as read-only OCI volumes needs no bundled-tools
+> image at all, and no install, shell, copy or egress — it is verified working on Kubernetes
+> 1.36 under an assigned non-root UID. It is blocked today only by availability: this chart
+> supports Kubernetes 1.22+, and `ImageVolumeWithDigest` (pinning by digest rather than tag) is
+> still alpha. DN-49 carries the full comparison and the values snippet.
+
+The other open item is not specific to backup: the chart sets no `securityContext` on
+ClickHouse, vmstorage or backup-tools, so whether those components come up under an assigned
+UID at all is a question about the chart rather than about this feature.
 
 ### Metrics Persistence
 

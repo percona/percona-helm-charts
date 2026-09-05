@@ -1,36 +1,63 @@
-{{- if and .Values.centralBackupStorage.enabled .Values.centralBackupStorage.schedule.enabled }}
+{{- if .Values.centralBackupStorage.enabled }}
 {{- $cbs := .Values.centralBackupStorage }}
 {{- $s := $cbs.schedule }}
-{{- /* Build the `pmm-backup.sh backup` argument list from values. */}}
-{{- $args := list "--namespace" .Release.Namespace "--target" $cbs.mode "--retention" (printf "%d" (int $s.retentionDays)) }}
+{{- /* The orchestrator's arguments. Target coordinates are NOT repeated here: the pod already
+       carries them as env via pmm.backupRunEnv (NAMESPACE, BACKUP_TARGET, SHARED_MOUNT_PATH,
+       S3_BUCKET/REGION/PREFIX/ENDPOINT), and pmm-backup.sh reads exactly those as its defaults
+       with flags as overrides. Passing both put one fact in two rendered places where the flag
+       silently WINS — so an edit to the helper that was not mirrored here would send scheduled
+       runs to a different root than manual ones, the split-catalog drift the helper exists to
+       prevent. Only what the SCHEDULE decides is passed as flags. */}}
+{{- $args := list "backup" "--retention" (printf "%d" (int $s.retentionDays)) }}
 {{- if eq $cbs.mode "s3" }}
-  {{- /* Fail at render time rather than let every nightly Job fail on `--s3-bucket ""`. */}}
-  {{- $_ := required "centralBackupStorage.schedule is enabled in s3 mode but centralBackupStorage.s3.bucket is empty — set centralBackupStorage.s3.bucket so scheduled backups can run." $cbs.s3.bucket }}
-  {{- /* --s3-prefix carries the composed <namespace>/<prefix> root, matching the S3_PREFIX
-         the backup-tools Deployment projects, so a scheduled run and a manual one write to
-         the same place. See the "pmm.backupS3Root" helper. */}}
-  {{- $args = concat $args (list "--s3-bucket" $cbs.s3.bucket "--s3-region" $cbs.s3.region "--s3-prefix" (include "pmm.backupS3Root" $)) }}
-  {{- with $cbs.s3.endpoint }}{{- $args = concat $args (list "--s3-endpoint" .) }}{{- end }}
-{{- else }}
-  {{- $args = concat $args (list "--shared-mount-path" $cbs.sharedMountPath) }}
+  {{- /* Fail at render time rather than at 02:00 — or, worse, mid-DR. This guard is NOT gated
+         on schedule.enabled: even suspended, this jobTemplate is the documented clone source
+         for manual backups and restores, so rendering one with an empty bucket hands operators
+         an artifact that dies on "--target s3 requires --s3-bucket" the first time they use it.
+         An s3-mode install needs a bucket regardless; values.yaml already says so. */}}
+  {{- $_ := required "centralBackupStorage.mode is s3 but centralBackupStorage.s3.bucket is empty — set centralBackupStorage.s3.bucket (every backup, restore and scheduled run needs it)." $cbs.s3.bucket }}
 {{- end }}
 {{- /* components/extraArgs default to list so a null override (e.g. `components:`) doesn't nil-panic concat. */}}
 {{- $args = concat $args ($s.components | default list) ($s.extraArgs | default list) }}
+{{- /* The central volume is RWO in s3 mode (logs/metrics only) and the backup-tools Deployment
+       holds it, so a Job that mounts it must land on the same node. RWO is NODE-scoped, not
+       pod-scoped, so co-location is sufficient. Skipped when the volume can mount anywhere:
+       direct NFS, shared mode, or an explicit ReadWriteMany accessMode (which values.yaml
+       supports in s3 mode, e.g. an EFS logs volume) — pinning those would be pure downside. */}}
+{{- /* accessMode is read as the operator's DECLARATION of the central volume's access mode.
+       That matters because the chart only creates the PVC when existingClaim is empty — with an
+       existingClaim (or a pre-bound static PV) the chart cannot see the real access mode, so an
+       RWX claim needs accessMode: ReadWriteMany set explicitly to lift the affinity, and setting
+       it on a claim that is really RWO would lift the affinity wrongly and produce Multi-Attach.
+       values.yaml states this contract. */}}
+{{- $rwxAccess := eq ($cbs.accessMode | default "") "ReadWriteMany" }}
+{{- $needsColocation := and (eq $cbs.mode "s3") (not $cbs.nfs.enabled) (not $rwxAccess) }}
 ---
-# Scheduled full backup. Rather than mounting the central volume itself (which would
-# Multi-Attach against the RWO logs/metrics PVC held by the always-on backup-tools
-# Deployment), this job execs INSIDE that Deployment's pod — so the run reuses the pod's
-# volume, scripts and env, and its metrics land where vmagent scrapes them. It runs
-# cron-backup.sh, which starts `pmm-backup.sh backup` DETACHED and polls for completion:
-# the actual backup survives this trigger's exec stream dying, and a Job retry re-execs
-# cron-backup.sh with the same --run-id (the Job name) to RE-ATTACH to the in-flight run
-# instead of colliding with the orchestrator's still-held per-component locks.
-# concurrencyPolicy Forbid keeps two trigger JOBS from overlapping, and the per-component
-# Leases are what actually prevent two orchestrators writing one database. Neither bounds the
-# DETACHED orchestrator itself: it outlives its Job, so a backup running past its interval is
-# handled by cron-backup.sh's inflight marker, which makes the next schedule skip instead of
-# starting a second orchestrator that would only die on the locks.
-# Restore is never scheduled — it stays a deliberate manual action.
+# Scheduled full backup. The Job pod RUNS pmm-backup.sh itself — it is not a trigger that
+# execs into the backup-tools Deployment. That exec design (and cron-backup.sh, its
+# detach/poll/re-attach wrapper) existed so a run could survive its exec stream dying; a Job
+# pod has no exec stream to lose, so Kubernetes itself now provides everything the wrapper
+# hand-rolled: the exit code (Job status), retry (backoffLimit), overlap prevention
+# (concurrencyPolicy: Forbid), and a real bound on the run (activeDeadlineSeconds).
+#
+# The pod carries karpenter.sh/do-not-disrupt for exactly the run's lifetime — the annotation
+# self-scopes because the pod exits with the backup. On the always-on backup-tools Deployment
+# this same annotation pinned whatever node the pod landed on for the pod's whole LIFE, which
+# blocked every Karpenter/EKS-Auto-Mode node rollout (found as 24h-per-node stalls on drift).
+#
+# ALWAYS RENDERED (when the backup infra is on), SUSPENDED when schedule.enabled is false.
+# The jobTemplate is the canonical run definition — it is what `kubectl create job --from`
+# clones for an ad-hoc backup AND for a restore (examples/restore-job.yaml). Rendering it only
+# when a schedule was configured left installs that never wanted one with no way to clone a
+# correctly-wired run, and pushed their restores onto the unprotected exec path.
+#
+#   Manual full backup:
+#     kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <namespace>
+#   (--from clones this jobTemplate verbatim; for component-scoped runs, add flags via the exec
+#   path: `kubectl exec deploy/<release>-backup-tools -- pmm-backup.sh backup --<component>`.)
+#
+# The per-component Leases stay the data-level guard: they exclude what no Job setting can —
+# e.g. a laptop-run restore colliding with a scheduled backup.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -39,74 +66,137 @@ metadata:
   name: {{ printf "%s-backup" .Release.Name | trunc 52 | trimSuffix "-" }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: backup-cronjob
+    {{- include "pmm.componentLabels" (list . "backup-cronjob") | nindent 4 }}
 spec:
+  # Suspended is the "no schedule" state, not absent — see the note above on why the
+  # jobTemplate must exist even when nothing is scheduled.
+  suspend: {{ not $s.enabled }}
   schedule: {{ $s.cron | quote }}
+  # With the run inside the Job, Forbid is the real overlap guard for SCHEDULED runs: a backup
+  # still running at the next tick makes that tick SKIP (the wrapper's inflight marker used to
+  # provide this). It does NOT cover manual `kubectl create job --from` clones — those carry no
+  # ownerReference, so the controller does not count them as active. A manual run straddling a
+  # tick therefore makes the SCHEDULED Job fail on the held component Leases rather than skip.
+  #
+  # To pause the schedule for a long manual run, set centralBackupStorage.schedule.enabled=false
+  # and upgrade — do NOT `kubectl patch ... suspend=true`. `suspend` is rendered from values
+  # below, so Helm owns the field: the next upgrade (or a continuously reconciling ArgoCD/Flux,
+  # which re-applies without being asked) resets it to false, re-arming the schedule mid-run.
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: {{ $s.startingDeadlineSeconds }}
   successfulJobsHistoryLimit: {{ $s.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ $s.failedJobsHistoryLimit }}
   jobTemplate:
     spec:
-      # Retries now re-attach to the in-flight detached backup (see cron-backup.sh) rather
-      # than restarting it, so a few extra attempts just give the poll stream more chances
-      # to reconnect after a transient disruption.
-      backoffLimit: 3
-      # Hard upper bound on the TRIGGER, so it can never poll forever (cron-backup.sh
-      # self-detects a stalled/crashed detached run first; this is the last-resort backstop).
-      # It does NOT stop the backup: the orchestrator is detached, so killing the trigger pod
-      # leaves it running and holding its component Leases — which is deliberate (a deadline
-      # must never abort a half-written backup), and why cron-backup.sh checks for a live
-      # orchestrator before starting another. Raise it for installs whose backup exceeds it.
-      activeDeadlineSeconds: {{ $s.activeDeadlineSeconds | default 3600 }}
+      # A retry RE-RUNS the whole backup — there is no in-flight run to re-attach to anymore.
+      # It helps only when the killed attempt RELEASED ITS LOCKS: a graceful TERM, a failed tool
+      # install, a preflight refusal. After a SIGKILL (node loss, OOM kill, --force delete) the
+      # traps never ran, the component Leases stay held for LOCK_LEASE_SECONDS (900s), and
+      # acquire_component_lock refuses immediately rather than waiting — so the retry is spent
+      # at once and the run fails. That is deliberate (never two orchestrators on one database),
+      # and it is why the schedule, not this counter, is the real retry loop.
+      {{- /* Explicit nil test, NOT `| default 1`: Go templates treat 0 as empty, so `default`
+             silently turns a deliberate backoffLimit: 0 ("never auto-retry") into 1 — and 0 is
+             exactly what a destructive restore needs (examples/restore-job.yaml). A restore
+             clone that asked for no retry would otherwise re-run itself unattended after the
+             first failure, with PMM and VM already scaled to 0. Same trap, same guard as
+             ttlSecondsAfterFinished below. */}}
+      backoffLimit: {{ if ne (toString $s.backoffLimit) "<nil>" }}{{ $s.backoffLimit }}{{ else }}1{{ end }}
+      {{- /* Explicit nil test, not `with`: Go templates treat 0 as empty, so `with` would drop a
+             deliberate ttlSecondsAfterFinished: 0 ("delete as soon as it finishes") and leak
+             manual clones forever — the exact opposite of what was asked. null disables. */}}
+      {{- if ne (toString $s.ttlSecondsAfterFinished) "<nil>" }}
+      # Sweeps finished Jobs. The history limits above already bound the CronJob's OWN Jobs;
+      # this exists for MANUAL `kubectl create job --from=...` clones, which no history limit
+      # ever cleans. NOTE it applies to the CronJob's Jobs too and is independent of
+      # failedJobsHistoryLimit — on a sparse schedule (weekly/monthly) a TTL shorter than the
+      # interval deletes a failed Job, and its pod log, before the next run. Set to null to
+      # disable and keep only the history limits.
+      ttlSecondsAfterFinished: {{ $s.ttlSecondsAfterFinished }}
+      {{- end }}
+      # Hard cap on the ACTUAL BACKUP: the run lives in this pod, so unlike the old
+      # exec-trigger design (where the detached orchestrator outlived its Job), hitting this
+      # deadline kills the backup itself, and a DeadlineExceeded Job is NOT retried by
+      # backoffLimit. It also counts from the Job's start, which INCLUDES time the pod spends
+      # Pending (image pull, node scale-up, and in s3 mode waiting for room on backup-tools'
+      # node), so budget scheduling overhead on top of the real backup duration.
+      # `| default` on purpose here (unlike backoffLimit above): an explicit null would render
+      # the field absent, which means NO bound at all now that this deadline governs the run
+      # itself. 0 is coerced to the default for the same reason and costs nothing — the Job API
+      # rejects activeDeadlineSeconds: 0 outright, so it was never an expressible value. If you
+      # need a longer ceiling, raise it; "unbounded" is deliberately not offered through values,
+      # and the documented restore path clears it per-Job instead (examples/restore-job.yaml).
+      activeDeadlineSeconds: {{ $s.activeDeadlineSeconds | default 21600 }}
       template:
         metadata:
           labels:
-            {{- include "pmm.labels" . | nindent 12 }}
-            app.kubernetes.io/component: backup-cronjob
+            {{- include "pmm.componentLabels" (list . "backup-cronjob") | nindent 12 }}
           annotations:
-            # The backup itself is detached inside the backup-tools pod and survives this
-            # trigger being disrupted, but opting out of consolidation still avoids needless
-            # reconnect churn mid-run.
+            # Opt out of Karpenter voluntary disruption (consolidation/drift) for the run.
+            # Self-scoping on a Job pod: the pod — and with it the annotation — ends when the
+            # backup does. NOTE: on EKS Auto Mode the NodePool's terminationGracePeriod
+            # (default 24h) still force-drains a node past that bound, and spot interruption
+            # or node failure bypass the annotation entirely.
             karpenter.sh/do-not-disrupt: "true"
         spec:
           restartPolicy: Never
+          # The whole design rests on the orchestrator's TERM trap running: it releases the
+          # per-component Leases and, on a restore, deletes the temp mounter pods. The default
+          # 30s is not enough for those apiserver calls on a multi-component run — and a SIGKILL
+          # instead leaves the Leases held for LOCK_LEASE_SECONDS (900s), which (see backoffLimit
+          # above) makes the retry abort immediately. Applies to activeDeadlineSeconds kills and
+          # to `kubectl delete job` alike.
+          terminationGracePeriodSeconds: {{ $s.terminationGracePeriodSeconds | default 300 }}
           {{- with .Values.image.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          serviceAccountName: {{ .Release.Name }}-backup-sa
+          serviceAccountName: {{ include "pmm.backupRunSaName" . }}
+          {{- if $needsColocation }}
+          # REQUIRED, deliberately: if backup-tools is unschedulable the RWO volume is unusable
+          # and its metrics are not being served either, so failing to schedule is the honest
+          # outcome. The cost is real though — see activeDeadlineSeconds above: a Pending pod
+          # burns the deadline. Give the volume an RWX accessMode to lift this entirely.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      {{- include "pmm.backupToolsSelectorLabels" . | nindent 22 }}
+                  topologyKey: kubernetes.io/hostname
+          {{- end }}
           containers:
-          - name: backup-trigger
+          - name: backup
             image: "{{ $cbs.tools.image.registry }}/{{ $cbs.tools.image.repository }}:{{ $cbs.tools.image.tag }}"
             env:
-              # The Job name is stable across a scheduled run's retries; cron-backup.sh uses
-              # it as --run-id so a retry re-attaches to the same detached backup.
-              - name: JOB_NAME
-                valueFrom:
-                  fieldRef:
-                    fieldPath: metadata.labels['job-name']
-            command:
-              - /bin/sh
-              - -c
-              - |
-                # Wait for readiness before exec'ing. backup-tools installs jq/rclone at
-                # start-up and is gated Ready on them running — but `kubectl exec deploy/...`
-                # picks the sole replica whether it is Ready or not, so without this a trigger
-                # firing during a pod restart lands mid-install and the run fails on a missing
-                # rclone. Bounded, and non-fatal: if the wait times out we still try, so a
-                # broken probe cannot silently disable the whole schedule.
-                kubectl wait --for=condition=Ready pod \
-                  -l app.kubernetes.io/component=backup-tools,app.kubernetes.io/instance={{ .Release.Name }} \
-                  -n {{ .Release.Namespace }} --timeout=180s || echo "warning: backup-tools not Ready in time; trying anyway"
-                exec kubectl exec -n {{ .Release.Namespace }} deploy/{{ .Release.Name }}-backup-tools -- \
-                  cron-backup.sh --run-id "${JOB_NAME}"{{ range $args }} {{ . | quote }}{{ end }}
+              {{- include "pmm.backupRunEnv" . | nindent 14 }}
+              # Job pods fail loudly when a tool is missing: backoffLimit retries and the
+              # failed Job is the alert. (The Deployment deliberately does not — it is the
+              # DR exec target and must stay up; see backup-entrypoint.sh.)
+              - name: PMM_TOOLS_STRICT
+                value: "true"
+              {{- if eq $cbs.mode "s3" }}
+              - name: PMM_TOOLS_REQUIRE_RCLONE
+                value: "true"
+              {{- end }}
+            # command is the bootstrap, args is the operation. That split is what makes
+            # `kubectl create job --from=... | yq '...args = [...]'` safe: a caller rewrites
+            # args only, and cannot accidentally drop the tool install by replacing command.
+            # Absolute path, like the Deployment's call: a centralBackupStorage.tools.image
+            # override (documented for mirrors and air-gapped registries) may not carry
+            # /usr/local/bin on PATH, and resolving by bare name would then break only the
+            # scheduled runs while the Deployment on the same image kept working.
+            command: ["/usr/local/bin/backup-entrypoint.sh"]
+            args:
+              {{- range $args }}
+              - {{ . | quote }}
+              {{- end }}
+            volumeMounts:
+              {{- include "pmm.centralBackupMount" . | nindent 14 }}
+              {{- include "pmm.backupScriptsMounts" . | nindent 14 }}
             resources:
-              requests:
-                cpu: 50m
-                memory: 64Mi
-              limits:
-                cpu: 200m
-                memory: 128Mi
+              {{- include "pmm.backupRunResources" . | nindent 14 }}
+          volumes:
+            {{- include "pmm.backupScriptsVolume" . | nindent 12 }}
+            {{- include "pmm.centralBackupVolume" . | nindent 12 }}
 {{- end }}

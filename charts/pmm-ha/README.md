@@ -213,11 +213,15 @@ centralBackupStorage:
     # components: ["--skip-victoriametrics"]   # empty = all four
 ```
 
-`concurrencyPolicy: Forbid` plus the orchestrator's per-component locks prevent overlapping
-runs. The CronJob `kubectl exec`s into the backup-tools pod (reusing its ServiceAccount,
-scripts, volume and env) rather than mounting the central volume itself, and starts the
-backup detached so it survives the trigger being disrupted — see the *Scheduled Backups*
-section of [docs/pmm-backup.md](docs/pmm-backup.md).
+Each scheduled run is a Kubernetes **Job** that executes `pmm-backup.sh` directly — its
+exit code is the Job status, `kubectl logs job/...` is the run log, and the pod carries
+`karpenter.sh/do-not-disrupt` for exactly the run's lifetime (nothing pins a node once the
+run ends). `concurrencyPolicy: Forbid` plus the orchestrator's per-component locks prevent
+overlapping runs. The CronJob is rendered on every install with backups enabled (suspended when no schedule is
+configured), so its jobTemplate is always available to clone: trigger the same run manually with
+`kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <namespace>`;
+for long restores use a Job too (see `examples/restore-job.yaml`) — see the *Scheduled
+Backups* section of [docs/pmm-backup.md](docs/pmm-backup.md).
 
 Full documentation:
 

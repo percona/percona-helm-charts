@@ -352,6 +352,135 @@ assert_eq "static keys + explicit SA is honoured" "  serviceAccountName: pmm-ha-
 S3_SERVICE_ACCOUNT=""
 assert_eq "no SA configured emits nothing" "" "$(render_temp_pod_sa_line)"
 
+_fscp_expect="
+    fsGroupChangePolicy: OnRootMismatch"
+
+# The securityContext block, whose COLUMNS are data: 2 spaces puts it at pod-spec level, 4 puts
+# its keys one level in. Asserted against a literal on purpose — a renderer that agrees with a
+# second copy of its own logic proves nothing (the mistake the indentation test above once made).
+assert_eq "securityContext block columns (user+group)" \
+    "  securityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch" \
+    "$(render_temp_pod_security_context 1000 "" 1000)"
+
+# All three, and a large assigned UID of the shape an OpenShift SCC hands out.
+assert_eq "all three fields render in a fixed order" \
+    "  securityContext:
+    runAsUser: 1000670000
+    runAsGroup: 0
+    fsGroup: 1000670000
+    fsGroupChangePolicy: OnRootMismatch" \
+    "$(render_temp_pod_security_context 1000670000 0 1000670000)"
+
+# Nothing set = NO block, not an empty one. `securityContext:` with no keys is what a cluster
+# that assigns identities needs to see absent, and an empty mapping is also invalid YAML here.
+assert_eq "no fields emits no block at all" "" "$(render_temp_pod_security_context "" "" "")"
+
+# fsGroupChangePolicy rides along with fsGroup and ONLY with it: without an fsGroup there is no
+# ownership pass to police, and the field would be inert noise in the manifest. Its purpose is to
+# stop kubelet walking a whole data volume while create_temp_restore_pod's 300s readiness wait
+# is running.
+assert_eq "no fsGroup means no fsGroupChangePolicy" \
+    "  securityContext:
+    runAsUser: 1000
+    runAsGroup: 2000" \
+    "$(render_temp_pod_security_context 1000 2000 "")"
+
+# The jsonpath must select the data-owning container BY NAME when the caller supplies one, and
+# fall back to index 0 otherwise. Index is safe for the PMM StatefulSet (the chart writes that
+# container first in its own template) but not for a vmstorage pod, whose container list
+# VMOperator merges with the chart's sidecars — so which entry is [0] is not a contract.
+kubectl() { printf '%s' "$*"; }
+case "$(read_security_context_fields pod somepod vmstorage)" in
+    *'containers[?(@.name=="vmstorage")].securityContext.runAsUser'*) ok ;;
+    *) bad "a named container is selected by name" 'containers[?(@.name=="vmstorage")]' "$(read_security_context_fields pod somepod vmstorage)" ;;
+esac
+case "$(read_security_context_fields statefulset somests)" in
+    *'containers[0].securityContext.runAsUser'*) ok ;;
+    *) bad "no name falls back to index 0" 'containers[0]' "$(read_security_context_fields statefulset somests)" ;;
+esac
+# ...and the pod-level fields are read from the right root for each kind.
+case "$(read_security_context_fields statefulset somests)" in
+    *'{.spec.template.spec.securityContext.runAsUser}'*) ok ;;
+    *) bad "statefulset reads the pod TEMPLATE" '{.spec.template.spec.securityContext' "seen otherwise" ;;
+esac
+case "$(read_security_context_fields pod somepod)" in
+    *'{.spec.securityContext.runAsUser}'*) ok ;;
+    *) bad "pod reads its own spec" '{.spec.securityContext' "seen otherwise" ;;
+esac
+unset -f kubectl
+
+# CONTAINER over POD for runAsUser/runAsGroup, which is the precedence Kubernetes applies — and
+# the chart exposes the two levels as separate values keys, so they really can disagree. Copying
+# the pod level alone would give the temp pod an identity that does not own /srv (DN-48).
+_sco_kubectl_out="1000|1000|1000|0|0"
+kubectl() { printf '%s' "${_sco_kubectl_out}"; }
+assert_eq "container securityContext overrides the pod's" \
+    "  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+    fsGroup: 1000${_fscp_expect}" \
+    "$(security_context_of statefulset any)"
+
+# ...and an empty container level leaves the pod's alone rather than blanking it.
+_sco_kubectl_out="1000||1000||"
+assert_eq "an empty container level does not blank the pod's" \
+    "  securityContext:
+    runAsUser: 1000
+    fsGroup: 1000${_fscp_expect}" \
+    "$(security_context_of statefulset any)"
+
+# fsGroup has no container-level equivalent, so field 3 is the only source for it.
+_sco_kubectl_out="||2000|1000|"
+assert_eq "fsGroup comes only from the pod level" \
+    "  securityContext:
+    runAsUser: 1000
+    fsGroup: 2000${_fscp_expect}" \
+    "$(security_context_of statefulset any)"
+unset -f kubectl
+
+# 0 is a real value, so a cluster that legitimately runs its workload as root still gets it.
+assert_eq "zero is a value, not 'unset'" \
+    "  securityContext:
+    runAsUser: 0" \
+    "$(render_temp_pod_security_context 0 "" "")"
+
+# Non-digits are DROPPED, never rendered: the value lands in a Pod manifest, and an invalid
+# securityContext is a pod rejected at admission with PMM already at 0 replicas.
+assert_eq "shell metacharacters are dropped" "" "$(render_temp_pod_security_context "0; rm -rf /" "\$(id -u)" "abc")"
+assert_eq "a negative uid is dropped"        "" "$(render_temp_pod_security_context "-1" "" "")"
+assert_eq "a partial field does not poison the rest" \
+    "  securityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch" \
+    "$(render_temp_pod_security_context "nope" "" 1000)"
+
+# security_context_of parses "u|g|f" WITHOUT collapsing an empty middle field. With a space
+# separator, `read` would slide fsGroup into runAsGroup and invent an identity nobody asked for.
+_sco_kubectl_out="1000||1000"
+kubectl() { printf '%s' "${_sco_kubectl_out}"; }
+assert_eq "an unset middle field stays unset" \
+    "  securityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch" \
+    "$(security_context_of statefulset any)"
+_sco_kubectl_out="||"
+assert_eq "a workload with no securityContext renders none" "" "$(security_context_of statefulset any)"
+_sco_kubectl_out=""
+assert_eq "an unreadable object renders none, and does not fail" "" "$(security_context_of pod any)"
+_sco_kubectl_out="1000|2000|3000"
+assert_eq "all three come through in order" \
+    "  securityContext:
+    runAsUser: 1000
+    runAsGroup: 2000
+    fsGroup: 3000
+    fsGroupChangePolicy: OnRootMismatch" \
+    "$(security_context_of pod any)"
+unset -f kubectl
+
 
 #########################################################################################
 section "component selection tables — same semantics both operations"
@@ -888,9 +1017,10 @@ BACKUP_ID=""
 section "start_lock_renewer — it must not outlive the orchestrator"
 #########################################################################################
 
-# cron-backup.sh detaches the orchestrator with setsid inside the long-lived backup-tools pod,
-# so an abnormal end (SIGKILL, the OOM killer) never runs the EXIT trap and never calls
-# stop_lock_renewer. A renewer left behind kept patching renewTime for the life of the POD: the
+# An abnormal end (SIGKILL, the OOM killer) never runs the EXIT trap and never calls
+# stop_lock_renewer — and in a long-lived pod (interactive runs in the backup-tools
+# Deployment; historically the scheduler's setsid-detached runs too) the renewer survived.
+# A renewer left behind kept patching renewTime for the life of the POD: the
 # leases never expired, every later backup and restore aborted on "another backup/restore holds
 # the lock", and the schedule stayed wedged until someone deleted the Leases by hand.
 _rn_dir=$(mktemp -d)
@@ -982,6 +1112,24 @@ case "${_defs}" in
     *"    rclone "*) bad "no helper calls bare rclone" "via _rclone/_rclone_bounded" "${_defs}" ;;
     *) ok ;;
 esac
+
+#########################################################################################
+section "vm_original_replicas — a 0 in the spec must never be the count we restore to"
+#########################################################################################
+# The scale-back count for a VM tier. 0 is REFUSED, because a 0 in the vmcluster spec is what an
+# earlier restore whose scale-back patch failed leaves behind — honouring it re-applies that
+# outage, and for vminsert that means no ingestion while the run reports success (DN-50).
+assert_eq "a healthy spec value wins"            "2" "$(vm_original_replicas 2 5 1)"
+assert_eq "0 is refused; the live count is used" "5" "$(vm_original_replicas 0 5 1)"
+assert_eq "unset is refused too"                 "5" "$(vm_original_replicas "" 5 1)"
+assert_eq "0 and no live pods -> the floor"      "1" "$(vm_original_replicas 0 0 1)"
+assert_eq "non-numeric spec is refused"          "3" "$(vm_original_replicas abc 3 1)"
+assert_eq "a negative spec is refused"           "3" "$(vm_original_replicas -1 3 1)"
+assert_eq "a non-numeric live count is refused"  "1" "$(vm_original_replicas 0 many 1)"
+assert_eq "spec wins even when live disagrees"   "2" "$(vm_original_replicas 2 "" 1)"
+# The floor is a value, not a default-if-falsy: 0 for the floor would be honoured only because
+# the caller explicitly asked for it, which no call site does.
+assert_eq "both refused -> exactly the floor"    "7" "$(vm_original_replicas "" "" 7)"
 
 #########################################################################################
 section "pmm_replica_count — ONE resolver, and it always returns a number"
@@ -1842,10 +1990,33 @@ _tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 perco
 _tp_has "pmm pod is a Pod"                 "kind: Pod"
 _tp_has "pmm pod mounts the data PVC"      "claimName: pmm-storage-pmm-0"
 _tp_has "pmm pod mounts at /srv"           "mountPath: /srv"
-_tp_has "pmm pod runs as root"             "runAsUser: 0"
+# The identity is now PASSED IN, not baked in: a hardcoded runAsUser: 0 is rejected outright by
+# a restricted OpenShift SCC, and shared-mode temp pods carry no serviceAccountName, so no SCC
+# grant can reach them (DN-48).
+_tp_hasnt "pmm pod does not hardcode root" "runAsUser: 0"
 _tp_has "pmm pod carries its sweep label"  "component: pmm-srv-restore-temp"
 _tp_has "pmm pod gets rclone env on s3"    "RCLONE_CONFIG_S3_TYPE"
 _tp_has "pmm pod opts out of consolidation" "karpenter.sh/do-not-disrupt"
+_tp_hasnt "pmm pod with no identity has no securityContext" "securityContext"
+
+# ...and with one, it lands at pod-spec level rather than inside the container. Both creators take
+# it, because both write a volume another workload owns.
+_tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 percona/pmm-server:3 \
+    "$(render_temp_pod_security_context 1000 "" 1000)"
+_tp_has "pmm pod carries the identity it was given"  "runAsUser: 1000"
+_tp_has "...including the fsGroup that grants write" "fsGroup: 1000"
+case "${_tp_yaml}" in
+    *"
+  securityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  containers:"*) ok ;;
+    *) bad "identity sits at pod-spec level, above containers" "securityContext between spec and containers" "misplaced" ;;
+esac
+_tp_capture create_vm_restore_pod vm-restore-vmstorage-0 vmstorage-db-vmstorage-0 vmrestore:v1 \
+    "$(render_temp_pod_security_context 1000670000 "" 1000670000)"
+_tp_has "vm pod takes an identity too"  "runAsUser: 1000670000"
 
 S3_ENABLED=false; CENTRAL_BACKUP_PVC=central-pvc
 _tp_capture create_vm_restore_pod vm-restore-vmstorage-0 vmstorage-db-vmstorage-0 vmrestore:v1

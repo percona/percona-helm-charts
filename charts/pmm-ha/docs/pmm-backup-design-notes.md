@@ -443,6 +443,9 @@ point as a non-root user → "Operation not permitted" → tar exit 2.
 On restore, `/srv/ha` is dropped so PMM re-bootstraps its memberlist cleanly: the backed-up raft
 state names the SOURCE members, which do not exist in the target cluster.
 
+Both exclusions are what make a *non-root* extractor viable at all, which is what the temp pod
+now is — see DN-48.
+
 ## DN-31 — A benign rclone error on every purge
 
 `ERROR : ... Failed to read versioning status, assuming unversioned: ... AccessDenied` — rclone
@@ -527,9 +530,10 @@ Four rules, each of which had a first version that did not hold:
   holder named in the log need not be the holder whose `renewTime` was judged.
 - **Held leases are renewed** by a background renewer for as long as the operation runs, so a
   long backup does not outlive its own lease. Crucially the renewer must **not** outlive the
-  orchestrator, and "it dies with the process" was simply not true: `cron-backup.sh` detaches
-  the run with `setsid` inside the long-lived backup-tools pod, so a SIGKILL or the OOM killer
-  never runs the EXIT trap. The renewer then kept patching `renewTime` for the life of the POD,
+  orchestrator, and "it dies with the process" was simply not true: at the time, the scheduler's
+  `cron-backup.sh` detached the run with `setsid` inside the long-lived backup-tools pod (runs
+  live in their own Job pods since DN-47), so a SIGKILL or the OOM killer
+  never ran the EXIT trap. The renewer then kept patching `renewTime` for the life of the POD,
   the leases never expired, and every later backup and restore aborted on a lock whose holder
   no longer existed — the schedule stayed wedged until someone deleted the Leases by hand. It
   now re-checks that its parent is alive before each renewal, with a `LOCK_RENEWER_MAX_SECONDS`
@@ -862,3 +866,258 @@ The same rule produced `ch_run_action` (the `create` and `upload` poll loops wer
 `store_list_at` (three copies of one listing body), `comp_at` (six path helpers expressing one
 two-axis choice), and `resolved_or_override` (the accessor half of the resolve-once pattern,
 which must never log because every call site is inside `$( )`).
+
+## DN-47 — A run lives in a Job; only serving lives in the Deployment
+
+The scheduled backup used to run inside the always-on backup-tools Deployment: a CronJob
+trigger pod `kubectl exec`'d a wrapper (`cron-backup.sh`) that detached the orchestrator with
+`setsid`, recorded its exit code in a status file, polled it, re-attached retries by
+`--run-id`, guarded against PID reuse with a per-container token, and stall-detected crashed
+runs from log mtime. All 277 lines of that wrapper were compensation for one fact: **the
+process's host pod outlived the run**, so nothing about the run could be trusted to a pod
+lifecycle — not its exit code, not its retry, not its overlap guard.
+
+The pod hosting the run also carried `karpenter.sh/do-not-disrupt: "true"`, because a
+disrupted pod kills the run inside it. On a Deployment that annotation has no end: it pinned
+whatever node the pod landed on against ALL Karpenter voluntary disruption for the pod's
+life. Found in practice as a stalled AMI rollout — on EKS Auto Mode each pinned node holds
+out until the NodeClaim's `terminationGracePeriod` (default 24h) force-drains it, silently,
+on every node refresh, forever.
+
+The fix is the invariant, not the annotation: **a pod's lifetime must match its work's
+lifetime.** Long work (scheduled/manual backup, non-interactive restore) runs in a Job pod
+that exists exactly as long as the run — so the annotation self-scopes, the exit code is the
+Job status, `backoffLimit` is the retry, `concurrencyPolicy: Forbid` is the overlap guard,
+and `activeDeadlineSeconds` finally bounds the thing it names. The wrapper is deleted, not
+ported. The always-on Deployment keeps only work that is instant or must be always-on: the
+metrics listener (vmagent scrapes :9091 between runs), `list`/`prune`, and the exec target
+for short interactive restores — and it is freely evictable, because the metrics files live
+on the central volume, not in the pod.
+
+Three consequences are deliberate:
+
+- **s3 mode co-locates the Job with the Deployment** (required `podAffinity`). The central
+  RWO logs/metrics volume is held by the Deployment, and RWO scopes to a *node*, not a pod —
+  two pods on one node share it without Multi-Attach. The coupling this buys is stated: the
+  Job cannot schedule while backup-tools is unschedulable, which is acceptable because in
+  that state its metrics are not being served either and the failed Job is the alert.
+  shared/NFS modes mount from anywhere and render no affinity.
+- **A retry re-runs the whole backup.** There is no in-flight run to re-attach to. Safe —
+  locks release on TERM, and an interrupted run writes no manifest, so restore can never see
+  a partial backup — but not free, hence `backoffLimit: 1` instead of the wrapper-era 3.
+- **An interactive exec restore is unprotected.** The Deployment lost the annotation, so a
+  long `kubectl exec ... restore` can be consolidated away mid-run. The documented answer is
+  the restore Job (`examples/restore-job.yaml`); exec stays for short, supervised
+  operations. This matches the laptop DR path, which never had disruption protection either.
+
+Two mechanics make the Job model actually usable, and both were found by reviewing the first
+cut rather than by design:
+
+- **The CronJob renders even with no schedule, suspended.** Its `jobTemplate` is not just the
+  scheduled run — it is the only fully-wired run definition in the chart, and `kubectl create
+  job --from` is how an operator gets an ad-hoc backup or a restore with this install's exact
+  env, ServiceAccount, volumes and affinity. Rendering it only when `schedule.enabled` left
+  installs that never wanted a schedule with nothing to clone, which pushed their restores back
+  onto the unprotected exec path — reintroducing the problem this note exists to fix.
+- **`command` is the bootstrap, `args` is the operation.** The tools image ships neither jq nor
+  rclone, so a run must install them first. Had that install lived in `command`, the documented
+  clone-and-swap (which must replace the operation) would have had to overwrite `command` and
+  would have silently discarded the bootstrap — the cloned restore then fails its own preflight
+  on a missing tool, during the DR it was written for. Putting the bootstrap in a shared script
+  (`files/backup-entrypoint.sh`, also the Deployment's start-up installer) and the operation in
+  `args` makes the only thing a caller rewrites the only thing that is safe to rewrite.
+
+What did NOT move: the per-component Leases. Job-level guards only order Jobs; the Leases
+exclude what no Job setting can see — a laptop-run restore against the same database as a
+scheduled backup (DN-37). And the lock renewer keeps its parent-liveness guard even though
+the setsid scenario that created it is gone: interactive and laptop runs can still die by
+SIGKILL inside a long-lived environment.
+
+## DN-48 — A temp pod borrows the identity of the data it writes
+
+Restore mounts a data PVC into a short-lived pod of its own — `/srv` per PMM ordinal, and
+`vmstorage-db` per vmstorage ordinal — because the owning workload is scaled to 0 and the RWO
+volume has to be held by *something* while it is rewritten. Whatever that pod runs as decides
+whether it can rewrite files another workload created.
+
+The `/srv` pod used to hardcode `runAsUser: 0` / `fsGroup: 0`, on the reasoning that root can
+replace anything. On a cluster that ASSIGNS identities that is not a shortcut, it is a hard
+failure: OpenShift's default `restricted-v2` SCC validates `runAsUser` against the namespace's
+`openshift.io/sa.scc.uid-range` and `fsGroup` against its supplemental-groups range, and `0` is
+in neither, so the **pod is rejected at admission**:
+
+```
+pods "pmm-srv-restore-…-0" is forbidden: unable to validate against any security context
+constraint: [provider "restricted-v2": .spec.securityContext.fsGroup: Invalid value:
+[]int64{0}: 0 is not an allowed group, provider "restricted-v2": .containers[0].runAsUser:
+Invalid value: 0: must be in the ranges: [1000670000, 1000679999]]
+```
+
+Two things make that worse than a normal early failure. `/srv` is restored **last**, so the
+rejection lands after PostgreSQL, ClickHouse and VictoriaMetrics have already been written and
+PMM is at 0 — and a failed restore deliberately leaves PMM scaled down, so the visible outcome
+is a monitoring outage. And it is not configurable away: a shared-mode temp pod carries no
+`serviceAccountName` at all, so it runs as `default` and no amount of SCC granting to the
+backup ServiceAccount can reach it.
+
+**Root was never what made this work.** The chart runs PMM as `runAsUser: 1000, fsGroup: 1000`,
+and `fsGroup` is the operative half: kubelet walks the volume on every mount, chgrp'ing it to
+that GID and adding group write. Measured on a live `/srv` (272 entries): every one of the 73
+directories is writable by uid 1000, `/srv` and `/srv/ha` included. tar replaces a file through
+its parent directory, so group-or-owner write on the directories is the whole requirement —
+and DN-30 already removed the two entries that genuinely needed root (the `/srv` mount point
+itself and `lost+found`) from the archive, for exactly this reason, plus `--no-same-owner` so
+extraction never attempts a chown.
+
+So a temp pod does not need privilege, it needs to be **the same principal as the workload it
+is standing in for**. Both creators now take a rendered `securityContext` and each call site
+reads it from the cluster (DN-39), with the source chosen by what still exists at that moment:
+
+| Pod | Source | Why that one |
+|---|---|---|
+| `/srv` | the PMM **StatefulSet**'s pod template | PMM is already at 0, so no pod is left to read |
+| `vmstorage-db` | the live vmstorage **pod** | they are still up (the scale-down is below), and where a cluster assigns identities the pod carries the assigned values while the operator-owned template carries none |
+
+Only three fields are copied — `runAsUser`, `runAsGroup`, `fsGroup`. They are what decide who
+owns and can write a volume; everything else in a `securityContext` is either irrelevant to
+that or supplied by admission anyway. Restricting it to scalars is also what keeps the renderer
+a fixed string with no nested YAML, so the unit tests can pin its columns (DN-22).
+
+**Emitting nothing is a correct answer, and the common one.** A workload with no
+`securityContext` yields no block, which is what lets a restricted SCC assign the temp pod the
+same UID it assigned the workload — the chart's own values already say as much for PMM:
+*"`runAsUser` needs to be set to nil for OpenShift to be able to assign a random user ID."*
+Read as a fallback rather than a failure, it also means an unreadable object degrades to the
+platform default instead of a broken manifest. The one thing it must never do is invent a
+value: non-digits are dropped rather than rendered, because an invalid `securityContext` is
+another pod rejected after PMM is already down (DN-15).
+
+On plain Kubernetes today this changes one pod's identity from root to `1000:1000` for `/srv`,
+and nothing at all for vmstorage (its pods set no `securityContext`, so nothing renders). Note
+the compatibility edge: archives written before DN-30 contain a `/srv` mount-point member, and
+a non-root extractor fails on it with "Operation not permitted" where root did not. Retention
+is measured in days, so this only matters for a hand-kept archive older than that fix.
+
+## DN-49 — The tools image carries jq and rclone; the chart installs nothing
+
+The orchestrator needs `kubectl`, `jq`, and `rclone` in s3 mode. The tools image used to be
+`alpine/kubectl`, which ships only the first, so `files/backup-entrypoint.sh` installs the other
+two with `apk add` at start-up. That needs to write `/lib/apk/db` and `/usr/bin`, i.e. **root** —
+and under an assigned non-root UID it fails outright:
+
+```
+$ apk add --no-cache jq
+ERROR: Unable to open log: Permission denied
+```
+
+Backup Jobs run with `PMM_TOOLS_STRICT=true`, so on OpenShift (or any cluster whose SCC /
+PodSecurity assigns a UID) that is a failed backup on every schedule — and, unlike DN-48, it
+breaks *backup*, not only restore.
+
+**The decision: this is a property of the image, not a problem for the chart to solve at run
+time.** `centralBackupStorage.tools.image` must point at an image that already carries the
+tools; `backup-entrypoint.sh` probes before installing, so with such an image nothing installs
+and the code path is inert. Five alternatives were measured before settling on that.
+
+**1. Ship the binaries in the chart — impossible.** A chart can only get a file into a cluster
+through a ConfigMap or Secret, and the API server caps both:
+
+```
+$ kubectl create configmap probe --from-file=jq=<2.3MB>
+error: ConfigMap "probe" is invalid: []: Too long: may not be more than 1048576 bytes
+```
+A static jq is 2,255,816 B and rclone 78,848,162 B. Not marginal, and the Helm release Secret
+carries the rendered manifest under the same limit anyway.
+
+**2. `apk --usermode` into an emptyDir — works, and is still the wrong answer.** apk 3 can
+install as a non-root user (`--root <dir> --initdb --usermode`, plus `--repositories-file` and
+`--keys-dir`, which a fresh root does not inherit). It installed jq and rclone as uid
+1000670000. But: Alpine's jq is **dynamically linked**, so it needs `LD_LIBRARY_PATH` into the
+alt root or it fails at run time —
+
+```
+Error loading shared library libjq.so.1: No such file or directory
+```
+
+which is exactly the breakage that once passed `command -v jq` and then exited 127 on every
+call, hidden by the manifest code's `|| echo` fallbacks as a `list` table full of `?`. Setting
+`PATH`/`LD_LIBRARY_PATH` container-wide to fix it has its own edge: overriding `PATH` *replaces*
+the image's, and dropping `/sbin` silently removes `apk` itself. It also still needs a reachable
+Alpine mirror (so air-gapped installs stay broken), leaves versions unpinned — it installed
+rclone `1.74.1-DEV` while the chart pins `rclone/rclone:1.74.3` for the sidecar, i.e. two
+different rclones doing the same S3 work — costs 107.6 MiB, and requires apk-tools >= 3, which
+ties the fix to the very image most likely to be swapped.
+
+**3. Download verified static binaries — works, rejected on principle.** The default image
+already has `wget`, `ssl_client`, `curl`, `tar`, `unzip` and `sha256sum`, and an emptyDir comes
+up `drwxrwsrwx`, so any assigned UID can write and exec from it. Fetching jq's and rclone's
+official releases took **1 second**, both checksums verified, and both are **static** — which
+deletes the entire `.so` class above. What killed it: it puts github.com and downloads.rclone.org
+**in the DR path**. If they are unreachable at 03:00, the restore that needs rclone does not
+start. Images are pulled through infrastructure operators already mirror. (If it is ever
+revived: pin the sha256 in values rather than fetching the checksum file from the same host,
+which verifies transport and not provenance; add a base-URL knob; and fail closed on an
+unrecognised `uname -m` rather than fetching a wrong-arch binary that dies mid-restore.)
+
+**4. Init containers copying from official images — half a solution.** An init container from
+`rclone/rclone` copied its static binary into an emptyDir and the non-root main container ran
+it. jq cannot: the official image is distroless, so there is no `sh` or `cp` to perform the copy
+(`exec: "sh": executable file not found in $PATH`). The workaround is to pull a 302 MB
+jq-bearing image to copy a 2 MB binary, into a *writable* emptyDir.
+
+**5. ImageVolume — the right answer, not yet available.** Mounting the official images as
+read-only OCI volumes needs no shell, no copy, no install and no egress; verified on Kubernetes
+1.36 as an assigned non-root UID, with `jq-1.8.1` and `rclone v1.74.3` running straight off `ro`
+overlay mounts that nothing in the pod can tamper with, each pinned independently, kubectl left
+on this chart's own image, and the readiness probe passing verbatim. Blocked purely by
+availability: ImageVolume is Kubernetes **1.33+** while this chart supports **1.22+**, OpenShift
+does not ship it before **4.20** — and OpenShift is the platform with the problem — and
+`ImageVolumeWithDigest` is still alpha, so references are by tag, which is weaker than the
+immutability that makes the approach attractive. **Revisit when the supported floor reaches 1.33
+or digest pinning reaches beta**; it then becomes a values-only change.
+
+**What that leaves, and its price.** A bundled-tools image works on every version the chart
+supports, needs no code, and is what `tools.image` exists for — so it is now the **default**:
+`docker.io/tigercomputing/cloud-tools`, pinned to a timestamp tag. The trade is that Percona
+does not publish one, so the default is third-party (verified: Alpine + busybox `sh`, all 14 tools the orchestrator
+uses, `nc` in the BusyBox family the metrics listener detects, runs as an assigned UID, and no
+collision with the per-file `subPath` script mounts). Two properties of it are the reason it is
+a stopgap rather than the destination: it is a single small vendor's build, and it **bumps
+kubectl on its own schedule** — a live risk here specifically, because `kubectl exec --request-timeout`
+broke in-cluster API discovery in v1.35.x, which is why this script wraps everything in
+`timeout`. Hence: pin a timestamp tag, never `:latest`, and re-run a backup *and* a restore on
+every bump. A minimal Percona-published image (Alpine + `apk add jq` + two `COPY --from` lines
+for kubectl and rclone) removes both objections and remains the end state.
+
+## DN-50 — A tier scaled to 0 is a symptom, never a target
+
+A restore scales VictoriaMetrics down (vminsert to stop ingestion, vmstorage to release the RWO
+PVCs), then scales both back to what the vmcluster said before it started. Two things about that
+"what it said before" were wrong in a way that compounded.
+
+`spec.vminsert.replicaCount` was read with only an empty-string guard, so a **0 was honoured**.
+And the scale-back patch for vminsert was `kubectl patch … || true` with nothing checking the
+outcome — unlike vmstorage's, which is readiness-checked and fails the component. So:
+
+1. The VMOperator's validating webhook is momentarily unavailable — its pod being rescheduled is
+   enough (`no endpoints available for service …-victoria-metrics-operator`).
+2. The vminsert patch fails. `|| true` swallows it, nothing verifies it, and the run reports
+   **success**: the data is intact, `readyz` returns 200, and every component is ✓.
+3. vminsert stays at 0, so **nothing is ingested**. PMM looks healthy and silently records no
+   new metrics.
+4. The next restore reads `replicaCount: 0` as the count to restore to, and faithfully re-applies
+   it. The outage is now self-perpetuating, and each run keeps reporting success.
+
+Observed exactly this on 2026-09-03 and again on 2026-09-04, the second run overwriting a manual
+fix applied three minutes earlier.
+
+The rule: **0 is a symptom, not a target.** `vm_original_replicas` refuses 0, empty and
+non-numeric alike — the same treatment `pmm_replica_count` already gave `spec.replicas` — and
+falls back to the live pod count observed *before* the scale-down, then to a floor. One resolver
+serves both tiers so they cannot drift apart again (DN-46), and the refusal is logged where the
+condition is *detected*, not inferred afterwards by comparing the answer to a default (the
+mistake that once warned "spec.replicas is 0" on every healthy restore).
+
+The vminsert patch is now readiness-verified like vmstorage's, and the failure message names
+both targets and spells out what vminsert at 0 actually means, because "restore succeeded" plus
+a silently empty ingestion path is the worst outcome this file can produce.

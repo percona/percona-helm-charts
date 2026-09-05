@@ -39,10 +39,11 @@ jobs:
       - name: Shell syntax (all three shells)
         run: |
           set -eu
-          # BOTH scripts. cron-backup.sh is the ONLY entry point the backup CronJob execs, so a
-          # syntax error or a busybox-ash-ism in it makes every scheduled run fail at exec time
-          # with the orchestrator never started — and it had no gate at all.
-          for f in charts/pmm-ha/files/pmm-backup.sh charts/pmm-ha/files/cron-backup.sh; do
+          # BOTH shipped scripts. pmm-backup.sh is the orchestrator; backup-entrypoint.sh is the
+          # `command:` of every backup and restore Job pod AND the backup-tools Deployment's
+          # start-up installer, so a syntax error or a busybox-ash-ism in either one fails every
+          # run at container start, before anything is logged.
+          for f in charts/pmm-ha/files/pmm-backup.sh charts/pmm-ha/files/backup-entrypoint.sh; do
             for sh_bin in /bin/sh /bin/dash /bin/bash; do
               echo "== ${sh_bin} -n ${f} =="
               "${sh_bin}" -n "${f}"

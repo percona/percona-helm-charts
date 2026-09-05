@@ -14,8 +14,7 @@ metadata:
   name: {{ printf "%s-central-backup" .Release.Name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: central-backup-storage
+    {{- include "pmm.componentLabels" (list . "central-backup-storage") | nindent 4 }}
   annotations:
     helm.sh/resource-policy: keep
 spec:

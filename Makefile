@@ -49,5 +49,5 @@ test-pmm-backup: lint-pmm-backup
 .PHONY: lint-pmm-backup
 lint-pmm-backup:
 	$(SH) -n charts/pmm-ha/files/pmm-backup.sh
-	$(SH) -n charts/pmm-ha/files/cron-backup.sh
+	$(SH) -n charts/pmm-ha/files/backup-entrypoint.sh
 	$(SH) charts/pmm-ha/tests/pmm-backup-lint.sh
