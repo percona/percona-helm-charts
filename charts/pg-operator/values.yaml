@@ -47,6 +47,8 @@ disableTelemetry: false
 
 logStructured: false
 logLevel: "INFO"
+# Number of workers used by the operator (PGO_WORKERS)
+workers: 1
 
 leaderElectionEnabled: true
 leaseName: ""
