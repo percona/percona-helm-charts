@@ -2357,6 +2357,57 @@ RESULTS_JSON='{}'
 
 
 #########################################################################################
+section "the consolidation hold covers pods we exec into, and only our own holds"
+#########################################################################################
+# protect_operand_pods annotates the LIVE PostgreSQL and ClickHouse pods for the run's
+# lifetime, because those are restored by exec rather than by a temp pod we create. The part
+# worth pinning is the ownership rule: a hold someone else placed must survive our exit.
+_do_save_ns="${NAMESPACE}"; _do_save_dry="${DRY_RUN}"; _do_save_holder="${LOCK_HOLDER}"
+NAMESPACE=ns; DRY_RUN=false; LOCK_HOLDER=run-1
+_do_log=$(mktemp)
+# The production code bounds every call with `timeout`, which would exec the real binary and
+# never see the stub below.
+timeout() { shift; "$@"; }
+# pods: pg-0 clean, pg-1 held by someone else (no owner), ch-0 held by a dead run of ours.
+kubectl() {
+    case "$*" in
+        *"get pods"*instance*) echo "pg-0 pg-1" ;;
+        *"get pods"*chi*)      echo "ch-0" ;;
+        *"get pod pg-0"*)      printf '|' ;;
+        *"get pod pg-1"*)      printf 'true|' ;;
+        *"get pod ch-0"*)      printf 'true|run-0' ;;
+        annotate*)             echo "$*" >> "${_do_log}" ;;
+    esac
+    return 0
+}
+# `case` inside $( ) trips some parsers on the pattern's ')', so ask through a function.
+_do_held() { case " ${DISRUPTION_HELD_PODS} " in *" $1 "*) echo yes ;; *) echo no ;; esac; }
+_do_logged() { if grep -q -- "$1" "${_do_log}" 2>/dev/null; then echo yes; else echo no; fi; }
+DISRUPTION_HELD_PODS=""
+protect_operand_pods >/dev/null 2>&1
+assert_eq "an unheld pod is held and recorded"        "yes" "$(_do_held pg-0)"
+assert_eq "a foreign hold is left alone"              "no"  "$(_do_held pg-1)"
+assert_eq "...and is never annotated"                 "no"  "$(_do_logged 'pod pg-1')"
+assert_eq "a hold from a dead run of ours is retaken" "yes" "$(_do_held ch-0)"
+assert_eq "the hold records its owner"                "yes" "$(_do_logged 'disruption-hold=run-1')"
+: > "${_do_log}"
+unprotect_operand_pods
+assert_eq "exit strips the holds we placed"           "2"   "$(grep -c 'do-not-disrupt-' "${_do_log}")"
+assert_eq "...and forgets them"                       ""    "${DISRUPTION_HELD_PODS}"
+: > "${_do_log}"
+unprotect_operand_pods
+assert_eq "a second strip pass is a no-op"            "0"   "$(grep -c . "${_do_log}")"
+# A dry run must not touch a live pod at all.
+: > "${_do_log}"; DRY_RUN=true; DISRUPTION_HELD_PODS=""
+protect_operand_pods >/dev/null 2>&1
+assert_eq "a dry run places no holds"                 "0"   "$(grep -c . "${_do_log}")"
+rm -f "${_do_log}"
+unset -f kubectl timeout _do_held _do_logged
+NAMESPACE="${_do_save_ns}"; DRY_RUN="${_do_save_dry}"; LOCK_HOLDER="${_do_save_holder}"
+DISRUPTION_HELD_PODS=""
+
+
+#########################################################################################
 echo
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then

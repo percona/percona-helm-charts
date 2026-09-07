@@ -119,6 +119,19 @@ LABEL_VM_INSERT="app.kubernetes.io/name=vminsert"
 # PMM server pods (HA StatefulSet); selector discovers all replicas (1, 3, 5, ...)
 LABEL_PMM_SERVER="app.kubernetes.io/component=pmm-server"
 LABEL_BACKUP_TOOLS="app.kubernetes.io/component=backup-tools"
+# EVERY PostgreSQL instance, not just the current primary: Patroni can fail over mid-run, so a
+# hold placed on the primary alone protects the wrong pod a second later.
+LABEL_PG_INSTANCE="postgres-operator.crunchydata.com/instance"
+
+# The consolidation hold this run places on pods it writes into but does not create.
+# Two annotations, because one cannot answer "did WE set this?": the first is what Karpenter
+# reads, the second records the holder so the EXIT trap strips only its own holds and leaves a
+# hold an operator (or another run) placed by hand untouched.
+DISRUPTION_ANNOTATION="karpenter.sh/do-not-disrupt"
+DISRUPTION_OWNER_ANNOTATION="pmm.percona.com/disruption-hold"
+# The same two keys with their dots escaped for jsonpath, spelled out rather than derived:
+# `${var//./\\.}` is a bashism and this script also runs under dash and busybox ash.
+DISRUPTION_JSONPATH='{.metadata.annotations.karpenter\.sh/do-not-disrupt}|{.metadata.annotations.pmm\.percona\.com/disruption-hold}'
 
 # The selector that finds a component's pods, by component key. Lets the generic per-component
 # loops (pre-flight discovery, the restore gate) reach the right pods without a branch each.
@@ -138,6 +151,9 @@ CH_SECRET_NAME="${CH_SECRET_NAME:-pmm-secret}"
 # Component locks held by the running operation (see acquire_locks). Empty until an
 # operation computes its list, so an early trap can call release_locks harmlessly.
 LOCK_COMPONENTS=""
+# Pods this run annotated with karpenter.sh/do-not-disrupt, space-separated, so the EXIT trap
+# strips exactly the ones it added and nothing else. Empty until protect_operand_pods runs.
+DISRUPTION_HELD_PODS=""
 # (There is no S3 client pod any more: rclone runs in THIS pod. See section 5.)
 # THE backup this process is working on — the id every path builder defaults to. Set once
 # per operation (backup/list at dispatch, restore in load_manifest); see backup_id_default.
@@ -1277,15 +1293,21 @@ numeric_env RCLONE_PURGE_TIMEOUT 300
 RCLONE_STREAM_IO_TIMEOUT="${RCLONE_STREAM_IO_TIMEOUT:-300}"
 numeric_env RCLONE_STREAM_IO_TIMEOUT 300
 
+# `--config ""` on both helpers: every remote this script uses is defined by RCLONE_CONFIG_S3_*
+# environment variables, so there is no config FILE by design — but without the flag rclone
+# announces that on stderr as `NOTICE: Config file "..." not found - using defaults`, which
+# lands in the middle of `pmm-backup.sh list` output and reads like a warning to anyone running
+# it. Empty means "use no config file", which is exactly the intent.
+#
 # rclone for a STREAM: connect bound plus the generous stream idle bound, and no wall clock —
 # a wall clock here kills a healthy backup of a large database.
 _rclone_stream() {
-    rclone --contimeout "${RCLONE_CONNECT_TIMEOUT}s" --timeout "${RCLONE_STREAM_IO_TIMEOUT}s" "$@"
+    rclone --config "" --contimeout "${RCLONE_CONNECT_TIMEOUT}s" --timeout "${RCLONE_STREAM_IO_TIMEOUT}s" "$@"
 }
 # rclone with idle bounds AND a wall clock: _rclone_bounded <seconds> <rclone args...>
 _rclone_bounded() {
     _rb_t="$1"; shift
-    timeout "${_rb_t}" rclone --contimeout "${RCLONE_CONNECT_TIMEOUT}s" --timeout "${RCLONE_IO_TIMEOUT}s" "$@"
+    timeout "${_rb_t}" rclone --config "" --contimeout "${RCLONE_CONNECT_TIMEOUT}s" --timeout "${RCLONE_IO_TIMEOUT}s" "$@"
 }
 
 # rclone read ops (cat/lsf/size). No retry loop: a local process either runs or does not.
@@ -1766,7 +1788,70 @@ release_locks() {
     local _c
     catalog_cache_clear
     stop_lock_renewer
+    unprotect_operand_pods
     for _c in ${LOCK_COMPONENTS}; do release_component_lock "${_c}"; done
+    return 0
+}
+
+# Hold node consolidation off the pods this run WRITES INTO but does not create.
+#
+# The temp pods the orchestrator creates (vm-restore-*, pmm-srv-restore-*) and the Job pod
+# itself already carry karpenter.sh/do-not-disrupt. PostgreSQL and ClickHouse are different:
+# they are restored by `kubectl exec` into the LIVE operator-managed pods, which nothing was
+# annotating — so a consolidation eviction lands mid-pg_restore and the target database is left
+# half-written. Observed, not theorised: on EKS Auto Mode a restore failed with
+# `pg_restore: FATAL: the database system is shutting down` while the namespace event log read
+# `Evicted pod: Underutilized`.
+#
+# Applied for the whole run rather than per database, because the window is the whole run: the
+# encryption key, both dumps and the ClickHouse restore are separate exec calls into the same
+# pods. Backups take the hold too — a partial backup is a failed backup, so an eviction
+# mid-pg_dump costs a complete run for a fraction of the blast radius.
+#
+# Best-effort by design: a cluster without Karpenter simply carries two inert annotations, and a
+# failure to annotate must never abort a backup or a restore (`|| true` throughout). What it is
+# NOT is a substitute for a PodDisruptionBudget — it stops voluntary consolidation, not a node
+# going away.
+protect_operand_pods() {
+    local _sel _pod _pair _held _owner
+    [ "${DRY_RUN}" = "true" ] && return 0
+    for _sel in "${LABEL_PG_INSTANCE}" "${LABEL_CH_POD}"; do
+        for _pod in $(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl get pods -n "${NAMESPACE}" -l "${_sel}" \
+                        -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true); do
+            # Both annotations in ONE call, split on the '|' the jsonpath emits between them.
+            # A hold WITHOUT our owner annotation belongs to someone else (an operator pinning
+            # the pod by hand, a chart-level annotation): leave it alone and, crucially, do not
+            # record it — stripping it on exit would silently undo a deliberate setting. A hold
+            # WITH an owner annotation is ours to take over, including one a SIGKILLed earlier
+            # run left behind, which is how those finally get cleaned up.
+            _pair=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl get pod "${_pod}" -n "${NAMESPACE}" \
+                      -o jsonpath="${DISRUPTION_JSONPATH}" 2>/dev/null || true)
+            _held=${_pair%%|*}
+            _owner=${_pair#*|}
+            if [ -n "${_held}" ] && [ -z "${_owner}" ]; then
+                log "INFO" "[Disruption] ${_pod} already holds ${DISRUPTION_ANNOTATION} from elsewhere — leaving it untouched"
+                continue
+            fi
+            timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl annotate pod "${_pod}" -n "${NAMESPACE}" --overwrite \
+                "${DISRUPTION_ANNOTATION}=true" "${DISRUPTION_OWNER_ANNOTATION}=${LOCK_HOLDER}" >/dev/null 2>&1 \
+                && DISRUPTION_HELD_PODS="${DISRUPTION_HELD_PODS} ${_pod}" \
+                || log "WARN" "[Disruption] could not hold consolidation off ${_pod} (continuing; an eviction mid-run may fail this operation)"
+        done
+    done
+    [ -n "${DISRUPTION_HELD_PODS}" ] && log "INFO" "[Disruption] Consolidation held off:${DISRUPTION_HELD_PODS}"
+    return 0
+}
+
+# Strip only the holds this run placed. Idempotent: release_locks runs on both the INT handler
+# and the EXIT trap, and the second pass finds the list already empty.
+unprotect_operand_pods() {
+    local _pod
+    [ -n "${DISRUPTION_HELD_PODS}" ] || return 0
+    for _pod in ${DISRUPTION_HELD_PODS}; do
+        timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl annotate pod "${_pod}" -n "${NAMESPACE}" \
+            "${DISRUPTION_ANNOTATION}-" "${DISRUPTION_OWNER_ANNOTATION}-" >/dev/null 2>&1 || true
+    done
+    DISRUPTION_HELD_PODS=""
     return 0
 }
 
@@ -2959,6 +3044,47 @@ backup_pmm_server() {
 
     log "INFO" "[PMMServer] Found PMM server pods: ${pmm_pods}"
 
+    # Fail on what is already knowable, before archiving anything. A partial /srv backup counts
+    # as a failure, so ONE pod that cannot be archived dooms the run — and both ways that
+    # happens are visible up front:
+    #
+    #   1. the pod is not Running (Pending on a cluster with no room is the common one). The
+    #      selector matches it regardless of phase, so the old code archived the healthy pods
+    #      first and then failed ~60s in with "archive missing/empty at destination after
+    #      upload", which describes the symptom of an upload that never had a source.
+    #   2. shared mode, and the pod has no ${SHARED_MOUNT_PATH} mount — the in-pod tar has
+    #      nowhere to write. Seen for real when a backup was started while the StatefulSet was
+    #      still rolling out onto the shared spec, and it produced that same misleading message.
+    #
+    # Read from the pod spec rather than by exec: no round trip into a container that may not
+    # be running, and it is the same fact.
+    local _bad_pods="" _phase _mounts
+    for pod in ${pmm_pods}; do
+        _phase=$(kubectl get pod "${pod}" -n "${NAMESPACE}" -o jsonpath='{.status.phase}' 2>/dev/null || true)
+        if [ "${_phase}" != "Running" ]; then
+            log "ERROR" "[PMMServer] ${pod} is ${_phase:-unknown}, not Running — its ${PMM_SRV_PATH} cannot be archived"
+            _bad_pods="${_bad_pods} ${pod}"
+            continue
+        fi
+        [ "${BACKUP_TARGET}" = "shared" ] || continue
+        _mounts=$(kubectl get pod "${pod}" -n "${NAMESPACE}" \
+                    -o jsonpath='{.spec.containers[*].volumeMounts[*].mountPath}' 2>/dev/null || true)
+        case " ${_mounts} " in
+            *" ${SHARED_MOUNT_PATH} "*) ;;
+            *)  log "ERROR" "[PMMServer] ${pod} has no ${SHARED_MOUNT_PATH} mount, so an in-pod tar has nowhere to write"
+                log "ERROR" "[PMMServer]   In shared mode every PMM pod mounts the central volume. A StatefulSet still"
+                log "ERROR" "[PMMServer]   rolling out looks exactly like this — wait for .status.currentRevision to equal"
+                log "ERROR" "[PMMServer]   .status.updateRevision (pods being Ready is not the same thing) and re-run."
+                _bad_pods="${_bad_pods} ${pod}" ;;
+        esac
+    done
+    if [ -n "${_bad_pods}" ]; then
+        # Same shape as the "no PMM server pods" gate above: return non-zero WITHOUT a result
+        # entry, and let the caller record the component as failed.
+        log "ERROR" "[PMMServer] ✗ Backup refused before it started — a partial /srv backup is a failed backup. Pods:${_bad_pods}"
+        return 1
+    fi
+
     # Archive each top-level entry of /srv as its OWN member (cd /srv; tar ... $(ls -A ...)),
     # NOT '/srv' itself and NOT the './' dir entry, and skip the ext4 'lost+found'. If the
     # archive contains a directory entry for the /srv mount point, restore makes tar chmod/utime
@@ -3013,7 +3139,11 @@ backup_pmm_server() {
             : "${size_b:=0}"
 
             if ! [ "${size_b}" -gt 0 ] 2>/dev/null; then
-                log "ERROR" "[PMMServer] ${pod}: archive missing/empty at destination after upload — treating as failed"
+                # The gate above rules out the two known causes (pod not Running, no shared
+                # mount), so anything reaching here is a genuine transport/permission problem —
+                # say so, rather than leaving the reader with a bare symptom.
+                log "ERROR" "[PMMServer] ${pod}: archive missing or empty at ${dest} after the upload reported success — treating as failed"
+                log "ERROR" "[PMMServer]   The tar ran but nothing landed: check the destination's credentials and write permissions (see ${LOG_FILE})."
                 store_delete_object "${dest}" >/dev/null 2>&1 || true
                 failed_pods="${failed_pods} ${pod}"
                 continue
@@ -5708,6 +5838,10 @@ cmd_backup() {
         trap 'release_locks; exit 130' INT
         trap 'release_locks; exit 143' TERM
         acquire_locks
+        # AFTER the traps, so an interrupt between here and the first component still strips the
+        # holds; after acquire_locks, so a run that loses the lock race never touches a live
+        # run's pods.
+        protect_operand_pods
     else
         # Dry-run also appends tool stderr to ${LOG_FILE}, and in POSIX sh a failed
         # redirect fails the command being redirected (first run on a fresh volume has
@@ -6069,6 +6203,11 @@ cmd_restore() {
         LOCK_COMPONENTS=$(lock_list 5)
         RESTORE_PMM_SERVER="${_saved_pmm}"
         acquire_locks
+        # PostgreSQL and ClickHouse are restored by exec into the live operator-managed pods,
+        # so they need the same consolidation hold the temp pods already carry.
+        # In the PARENT, before the component subshells fork — a subshell cannot record what it
+        # annotated for the parent's EXIT trap to strip.
+        protect_operand_pods
     fi
     RESTORE_START_TIME=$(date +%s)
 

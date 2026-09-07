@@ -1300,12 +1300,17 @@ pg-db:
             resources:
               requests:
                 ## @param pg-db.backups.pgbackrest.repos[0].volume.volumeClaimSpec.resources.requests.storage Backup storage size
-                ## repo1 is LOCAL-only: WAL archive + one retained full for replica bootstrap/HA
-                ## (retention is capped at 1 full via manual.options below). The actual off-cluster
-                ## backups are logical pg_dumps taken by pmm-backup.sh, NOT pgBackRest, so
-                ## repo1 stays small. 1Gi matches the operator default — raising it forces a PVC
-                ## expansion on upgrade (fails on storage classes without allowVolumeExpansion).
-                ## Storage persists even after helm uninstall.
+                ## repo1 is LOCAL-only: WAL archive + one retained full for replica bootstrap/HA.
+                ## Retention is capped at 1 full by `repo1-retention-full` in the `global:` block
+                ## below — NOT by manual.options, which an earlier version of this comment claimed.
+                ## manual.options applies only to on-demand backups; the operator's own
+                ## replica-create and scheduled backups never see it, and pgBackRest says so on
+                ## every run: "option 'repo1-retention-full' is not set for
+                ## 'repo1-retention-full-type=count', the repository may run out of space".
+                ## The actual off-cluster backups are logical pg_dumps taken by pmm-backup.sh,
+                ## NOT pgBackRest, so repo1 stays small. 1Gi matches the operator default —
+                ## raising it forces a PVC expansion on upgrade (fails on storage classes
+                ## without allowVolumeExpansion). Storage persists even after helm uninstall.
                 storage: 1Gi
       
       ## NOTE: pmm-backup.sh backs up PostgreSQL with pg_dump (logical), it does
@@ -1340,9 +1345,22 @@ pg-db:
       #     ## Weekly full backup to Azure
       #     full: "0 5 * * 0"  # Sunday at 5 AM UTC
 
-      ## pgBackRest global options — only needed for optional offsite repos you enable above
-      ## (e.g. repo2-s3-key-type: web-id). pmm-backup.sh uses pg_dump, so it needs none.
-      global: {}
+      ## @param pg-db.backups.pgbackrest.global pgBackRest global options
+      ## These apply to EVERY backup the operator takes — replica-create, scheduled and manual —
+      ## unlike manual.options, which reaches on-demand backups only. That distinction is why
+      ## repo1 retention lives here: without it pgBackRest warns "option 'repo1-retention-full'
+      ## is not set for 'repo1-retention-full-type=count', the repository may run out of space"
+      ## and keeps every full it ever takes, on a 1Gi PVC.
+      ##
+      ## 1 full + its WAL is all repo1 is for (replica bootstrap / HA). Point-in-time recovery
+      ## for PMM's own database is not a goal here — the off-cluster copy is the logical pg_dump
+      ## pmm-backup.sh takes. Raise this only together with the repo1 volume size above.
+      ##
+      ## Add offsite-repo options alongside these when you enable repo2/3/4
+      ## (e.g. repo2-s3-key-type: web-id).
+      global:
+        repo1-retention-full: "1"
+        repo1-retention-full-type: count
     
     ## @section S3 Credentials Configuration
     ## If using S3 (repo2), you need to provide credentials
