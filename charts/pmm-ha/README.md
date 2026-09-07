@@ -214,6 +214,66 @@ namespaced and do not collide across namespaces. Remember the usual prerequisite
 namespace: create the `pmm-secret` (see [Creating PMM Secret Manually](#creating-pmm-secret-manually))
 before installing, and ensure the namespace has access to whatever backup storage you use.
 
+## Backup and Restore
+
+The chart ships a complete backup/restore solution for the whole PMM-HA installation
+(PostgreSQL, ClickHouse, VictoriaMetrics, PMM `/srv`, and the PMM encryption key). The
+orchestrator scripts are installed with the chart (mounted into the `backup-tools`
+Deployment — no manual copying) and support two targets, selected via
+`centralBackupStorage.mode`:
+
+- **`s3`** (default): every component uploads directly to any S3-compatible object storage
+  (AWS S3, MinIO, Ceph RGW, ...), authenticated with either static access keys (a
+  Kubernetes Secret — works everywhere) or IRSA (AWS EKS only, keyless).
+- **`shared`**: every component writes to a user-provided volume — any PVC, NFS export,
+  or pre-created PV the cluster can mount (must be RWX on multi-node clusters). The chart
+  never provisions cloud storage itself; AWS/EFS prerequisites are documented as manual
+  steps.
+
+Quick start (after configuring `centralBackupStorage` in values). Inside the backup-tools
+pod the chart already exports the target and all S3 settings from your values, so no
+`--target`/`--s3-*` flags are needed — pass them only to override for an ad-hoc run:
+
+```bash
+# Full backup
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh backup
+
+# List backups
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh list
+
+# Restore the latest backup (DESTRUCTIVE — scales PMM/VM down; see docs/pmm-backup.md §8)
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh restore --backup-id latest --yes
+```
+
+Scheduled backups (Kubernetes CronJob, disabled by default — enable once the target is
+configured; restore stays manual):
+
+```yaml
+centralBackupStorage:
+  schedule:
+    enabled: true
+    cron: "0 2 * * *"     # daily at 02:00
+    retentionDays: 7
+    # components: ["--skip-victoriametrics"]   # empty = all four
+```
+
+Each scheduled run is a Kubernetes **Job** that executes `pmm-backup.sh` directly — its
+exit code is the Job status, `kubectl logs job/...` is the run log, and the pod carries
+`karpenter.sh/do-not-disrupt` for exactly the run's lifetime (nothing pins a node once the
+run ends). `concurrencyPolicy: Forbid` plus the orchestrator's per-component locks prevent
+overlapping runs. The CronJob is rendered on every install with backups enabled (suspended when no schedule is
+configured), so its jobTemplate is always available to clone: trigger the same run manually with
+`kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <namespace>`;
+for long restores use a Job too (see `examples/restore-job.yaml`) — see the *Scheduled
+Backups* section of [docs/pmm-backup.md](docs/pmm-backup.md).
+
+Full documentation:
+
+- [docs/pmm-backup.md](docs/pmm-backup.md) — architecture, per-component backup
+  methods, chart integration, IRSA setup, scheduling, metrics, CLI reference,
+  operations guide, the restore flow (incl. cross-namespace / disaster-recovery
+  restore and post-restore steps), and known limitations.
+
 ## Uninstalling the Chart
 
 **IMPORTANT**: You must uninstall PMM HA first, then the operators. Uninstalling in the wrong order may leave orphaned resources.

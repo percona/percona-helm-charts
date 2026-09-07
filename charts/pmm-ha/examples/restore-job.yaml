@@ -1,0 +1,163 @@
+# Restore as a Kubernetes Job — the recommended way to run a LONG restore.
+#
+# Why a Job and not `kubectl exec` into backup-tools: the Job pod carries
+# karpenter.sh/do-not-disrupt for exactly the run's lifetime, so node consolidation cannot
+# kill the restore mid-write. The backup-tools Deployment deliberately does NOT carry that
+# annotation (it pinned nodes and stalled node rollouts — see backup-cronjob.yaml), so an
+# interactive exec restore there is unprotected. Short, supervised restores can still use
+# exec; anything long belongs in a Job.
+#
+# ── Recommended: clone the backup CronJob's jobTemplate and swap the ARGS ────────────────
+#
+# The CronJob `<release>-backup` is rendered on every install with the backup infra enabled —
+# suspended when centralBackupStorage.schedule.enabled is false, so it exists even if you
+# never scheduled anything. Its jobTemplate already carries this install's full run
+# environment: target, S3 coordinates, credentials/IRSA ServiceAccount, volumes, tool
+# bootstrap and (in s3 mode) the co-location affinity. Cloning it means ZERO drift with your
+# values — nothing below has to be edited to match your install:
+#
+#   kubectl create job --from=cronjob/<RELEASE>-backup restore-$(date +%s) \
+#       -n <NAMESPACE> --dry-run=client -o yaml \
+#     | yq '.spec.template.spec.containers[0].args =
+#             ["restore","--backup-id","latest","--yes"]
+#           | .spec.backoffLimit = 0
+#           | .spec.activeDeadlineSeconds = null' \
+#     | kubectl apply -f -
+#
+#   kubectl logs -n <NAMESPACE> -f job/restore-<ts>
+#
+# Why each line of that yq matters:
+#
+#   args (not command)  The container's `command` is backup-entrypoint.sh, which verifies
+#                       jq/rclone (installing them if the image lacks them) before exec'ing the
+#                       orchestrator. Replacing `command` would silently discard that bootstrap
+#                       and the restore would fail its own preflight on a missing tool — on any
+#                       image that does not carry them. Rewrite `args`, never `command`.
+#   backoffLimit = 0    Never auto-retry a destructive restore: a failed one needs a human to
+#                       read the log before anything touches the data again.
+#   activeDeadlineSeconds = null
+#                       The backup jobTemplate carries a deadline sized for BACKUPS (6h by
+#                       default). A full restore — PostgreSQL, ClickHouse and a
+#                       multi-terabyte VictoriaMetrics re-ingest — can legitimately run
+#                       longer, and being killed at the deadline leaves PMM and VM scaled to 0
+#                       with half-written PVCs. Clear it, or set your own generous value.
+#
+# Options for the args list:
+#   --backup-id     `latest`, or a specific backup_<timestamp> from `pmm-backup.sh list`.
+#   --yes           Consents to the destructive restore (DN-44). Required non-interactively;
+#                   it does NOT lift safety gates — those have their own flags, e.g.
+#                   --skip-encryption-key.
+#   --s3-prefix     Cross-namespace / DR in s3 mode: `<source-ns>/<source-prefix>` reads
+#                   another install's root. See docs/pmm-backup.md §8.
+#   --skip-victoriametrics, --postgresql, ...   component scoping.
+#
+# ── Fallback: standalone manifest ────────────────────────────────────────────────────────
+#
+# For offline editing, or a cluster where you would rather not pipe through yq. Complete for
+# centralBackupStorage.mode=shared, which needs no S3 environment. For s3 mode use the clone
+# above: its env block (S3 coordinates, rclone config, credentials, IRSA ServiceAccount) is
+# large and install-specific, and hand-copying it here is how env drift happens.
+#
+# Replace every <PLACEHOLDER>, then: kubectl apply -f restore-job.yaml
+#
+#   <RELEASE> / <NAMESPACE>   your Helm release and its namespace
+#   <TOOLS_IMAGE>             centralBackupStorage.tools.image (registry/repository:tag)
+#   <IMAGE_PULL_SECRET>       image.imagePullSecrets, if your install sets one (else delete it)
+#   <BACKUP_DIR>              centralBackupStorage.mountPath          (chart default /backups)
+#   <SHARED_MOUNT_PATH>       centralBackupStorage.sharedMountPath    (chart default /central)
+#   <CENTRAL_VOLUME>          see the volumes block at the bottom — this differs per install
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pmm-restore-manual            # pick a fresh name per restore (Jobs are immutable)
+  namespace: <NAMESPACE>
+spec:
+  backoffLimit: 0                     # never auto-retry a destructive restore
+  # No activeDeadlineSeconds on purpose: a restore killed part-way leaves PMM and VM scaled
+  # to 0 and PVCs half-written. Add one only if you have a duration you are confident in.
+  ttlSecondsAfterFinished: 604800     # sweep the finished Job after 7 days
+  template:
+    metadata:
+      annotations:
+        # Protects the run from Karpenter voluntary disruption; self-scoping because the
+        # pod ends with the restore. Spot interruption / node failure still bypass it.
+        karpenter.sh/do-not-disrupt: "true"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: <RELEASE>-backup-sa
+      # MUST be raised from Kubernetes' 30s default, exactly as the CronJob's jobTemplate does.
+      # On a TERM (kubectl delete job, an eviction, a node drain) pmm-backup.sh's trap has to
+      # release the per-component Leases and delete the pmm-srv-restore-* / vm-restore-* temp
+      # pods. 30s is not enough for those API calls, so the process is SIGKILLed instead: the
+      # Leases stay held for 900s and the temp pods keep holding the RWO /srv and vmstorage-db
+      # PVCs, so scaling PMM and vmstorage back up then wedges on Multi-Attach.
+      terminationGracePeriodSeconds: 300
+      # Only if your install needs a registry pull secret. Prefer
+      # centralBackupStorage.tools.imagePullSecrets, which puts it on <RELEASE>-backup-sa (the
+      # SA named above) — then this pod inherits it and these two lines are unnecessary.
+      # Delete them if the SA already carries a secret, or if you use none.
+      imagePullSecrets:
+        - name: <IMAGE_PULL_SECRET>
+      containers:
+        - name: restore
+          image: <TOOLS_IMAGE>
+          env:
+            - name: NAMESPACE
+              value: <NAMESPACE>
+            # Lets the orchestrator prefer THIS release's backup-tools pod when two pmm-ha
+            # installs share a namespace; without it the selector is unscoped and can resolve
+            # the other release's central backup volume. Safe to omit (it falls back), and the
+            # `--from` clone above gets it from values automatically.
+            - name: RELEASE_NAME
+              value: <RELEASE>
+            - name: BACKUP_DIR
+              value: <BACKUP_DIR>
+            - name: METRICS_DIR
+              value: <BACKUP_DIR>/.metrics
+            - name: BACKUP_TARGET
+              value: shared
+            - name: SHARED_MOUNT_PATH
+              value: <SHARED_MOUNT_PATH>
+            - name: PMM_TOOLS_STRICT       # fail loudly if jq cannot be installed
+              value: "true"
+          # command bootstraps the tools, args is the operation — same split as the CronJob,
+          # so this file can be edited the same way the clone is.
+          command: ["/usr/local/bin/backup-entrypoint.sh"]
+          args: ["restore", "--backup-id", "latest", "--yes"]
+          volumeMounts:
+            - name: central-backup-storage
+              mountPath: <BACKUP_DIR>
+            - name: backup-scripts
+              mountPath: /usr/local/bin/pmm-backup.sh
+              subPath: pmm-backup.sh
+            - name: backup-scripts
+              mountPath: /usr/local/bin/backup-entrypoint.sh
+              subPath: backup-entrypoint.sh
+          resources:                  # centralBackupStorage.tools.resources
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: backup-scripts
+          configMap:
+            name: <RELEASE>-backup-scripts
+            defaultMode: 0555
+        # <CENTRAL_VOLUME> — MUST match how your install mounts the central volume. Copy it
+        # verbatim from the running Deployment, which is always right for your values:
+        #   kubectl get deploy <RELEASE>-backup-tools -n <NAMESPACE> \
+        #     -o jsonpath='{.spec.template.spec.volumes}' | jq
+        # It is one of three shapes:
+        #   centralBackupStorage.existingClaim set  -> claimName: <that claim>
+        #   chart-created PVC (default)             -> claimName: <RELEASE>-central-backup
+        #   centralBackupStorage.nfs.enabled        -> an nfs: {server, path} block, no PVC
+        # NOTE on that third shape: the Job itself mounts an nfs: block fine, but a
+        # VictoriaMetrics restore ALSO needs a PVC — vmrestore runs in a temp pod that the
+        # orchestrator can only give a persistentVolumeClaim, so it refuses with a message
+        # saying so. Expose the same export as a PV/PVC and use existingClaim, or restore VM
+        # separately with --skip-victoriametrics on this run.
+        - name: central-backup-storage
+          persistentVolumeClaim:
+            claimName: <CENTRAL_VOLUME>

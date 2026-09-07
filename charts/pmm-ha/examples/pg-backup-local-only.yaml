@@ -1,0 +1,36 @@
+# Example: PostgreSQL Backup - Local Storage Only
+# Simple configuration with local backups only (fastest recovery)
+
+pg-db:
+  backups:
+    enabled: true
+    trackLatestRestorableTime: true
+    
+    pgbackrest:
+      manual:
+        repoName: repo1
+        options:
+        - --type=incr
+        - --repo1-retention-full=7      # Keep 7 full backups
+        - --repo1-retention-diff=3      # Keep 3 differential backups
+        - --repo1-retention-archive=7   # Keep 7 sets of WAL archives
+      
+      repos:
+      - name: repo1
+        schedules:
+          full: "0 2 * * 0"           # Sunday 2 AM - Weekly full backup
+          differential: "0 2 * * 3"   # Wednesday 2 AM - Mid-week differential
+          incremental: "0 */6 * * *"  # Every 6 hours - Frequent incremental
+        volume:
+          volumeClaimSpec:
+            storageClassName: "gp3"   # Use fast SSD storage
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 100Gi        # Adjust based on your DB size
+
+# Usage:
+# helm upgrade --install pmm-ha charts/pmm-ha \
+#   -n demo \
+#   -f charts/pmm-ha/examples/pg-backup-local-only.yaml

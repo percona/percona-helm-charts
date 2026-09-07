@@ -1,0 +1,85 @@
+# Example: PostgreSQL Backup - Multi-Region with Geographic Redundancy
+# Enterprise configuration with local + multiple cloud providers for maximum resilience
+
+pg-db:
+  backups:
+    enabled: true
+    trackLatestRestorableTime: true
+    
+    pgbackrest:
+      manual:
+        repoName: repo1
+        options:
+        - --type=incr
+        - --repo1-retention-full=7       # Local: 7 full backups (1 week)
+        - --repo2-retention-full=30      # S3 US: 30 full backups (30 days)
+        - --repo3-retention-full=90      # GCS: 90 full backups (90 days)
+      
+      # Cloud credentials for repo2 (S3) and repo3 (GCS), Percona PG Operator v2 style: a Secret
+      # holding a pgBackRest config file (NOT loose aws-s3-key literals — that v1 format is
+      # silently ignored by v2 and every offsite backup then fails auth). See the bottom of this file.
+      configuration:
+      - secret:
+          name: pmm-pgbackrest-cloud
+
+      repos:
+      # Repository 1: Local storage (fast recovery)
+      - name: repo1
+        schedules:
+          full: "0 2 * * 0"           # Sunday 2 AM
+          incremental: "0 */4 * * *"  # Every 4 hours
+        volume:
+          volumeClaimSpec:
+            storageClassName: "fast-ssd"
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 200Gi
+      
+      # Repository 2: S3 us-east-1 (primary offsite)
+      - name: repo2
+        s3:
+          bucket: "pmm-pg-backups-us-east"
+          region: "us-east-1"
+        schedules:
+          full: "0 3 * * *"  # Daily at 3 AM
+      
+      # Repository 3: Google Cloud Storage (geographic redundancy)
+      - name: repo3
+        gcs:
+          bucket: "pmm-pg-backups-gcs"
+        schedules:
+          full: "0 4 * * 0"  # Weekly at 4 AM
+
+# IMPORTANT: Create ONE pgBackRest config-file Secret (referenced above via
+# backups.pgbackrest.configuration) holding both the S3 (repo2) and GCS (repo3) credentials.
+# The repoN-* key names must match the repo numbers used above.
+#
+#   cat > /tmp/pgbackrest.conf <<'EOF'
+#   [global]
+#   repo2-s3-key=YOUR_AWS_ACCESS_KEY
+#   repo2-s3-key-secret=YOUR_AWS_SECRET_KEY
+#   repo3-gcs-key=/etc/pgbackrest/conf.d/gcs-key.json
+#   EOF
+#   # GCS also needs the service-account JSON mounted; add it to the same secret and the
+#   # operator projects it. See the Percona PG Operator v2 backups docs for GCS specifics.
+#   kubectl create secret generic pmm-pgbackrest-cloud \
+#     --from-file=pgbackrest.conf=/tmp/pgbackrest.conf \
+#     --from-file=gcs-key.json=/path/to/service-account-key.json -n demo
+#
+# Usage:
+# helm upgrade --install pmm-ha charts/pmm-ha \
+#   -n demo \
+#   -f charts/pmm-ha/examples/pg-backup-multi-region.yaml
+
+# Backup Strategy:
+# - Every 4 hours: Incremental to local (repo1)
+# - Weekly: Full to local (repo1)
+# - Daily: Full to S3 (repo2) - 30 days retention
+# - Weekly: Full to GCS (repo3) - 90 days retention
+#
+# Recovery scenarios:
+# - Recent data loss: Restore from repo1 (fastest)
+# - Local cluster failure: Restore from repo2 (S3)
+# - Regional disaster: Restore from repo3 (GCS, different region)
