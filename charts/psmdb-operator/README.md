@@ -31,14 +31,14 @@ helm install psmdb-operator-crds percona/psmdb-operator-crds --namespace psmdb -
 
 Install operator chart:
 ```sh
-helm install my-operator percona/psmdb-operator --version 1.23.0 --namespace my-namespace
+helm install my-operator percona/psmdb-operator --version 1.24.0 --namespace my-namespace
 ```
 
 ### Using the `crds/` directory.
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/psmdb-operator --version 1.23.0 --namespace my-namespace
+helm install my-operator percona/psmdb-operator --version 1.24.0 --namespace my-namespace
 ```
 
 ## Upgrading CRDs
@@ -72,7 +72,7 @@ kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=my-namespace -
 ### Option 2: Use kubectl to upgrade the CRDs
 
 ```
-kubectl apply --server-side -f https://raw.githubusercontent.com/percona/percona-server-mongodb-operator/v1.23.0/deploy/crd.yaml -n my-namespace
+kubectl apply --server-side -f https://raw.githubusercontent.com/percona/percona-server-mongodb-operator/v1.24.0/deploy/crd.yaml -n my-namespace
 ```
 
 
@@ -81,13 +81,13 @@ The chart can be customized using the following configurable parameters:
 | Parameter                    | Description                                                                                                  | Default                                     |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
 | `image.repository`           | PSMDB Operator Container image name                                                                          | `percona/percona-server-mongodb-operator`   |
-| `image.tag`                  | PSMDB Operator Container image tag                                                                           | `1.23.0`                                    |
+| `image.tag`                  | PSMDB Operator Container image tag                                                                           | `1.24.0`                                    |
 | `image.pullPolicy`           | PSMDB Operator Container pull policy                                                                         | `IfNotPresent`                              |
 | `imagePullSecrets`           | PSMDB Operator Pod pull secret                                                                               | `[]`                                        |
 | `replicaCount`               | PSMDB Operator Pod quantity                                                                                  | `1`                                         |
-| `podDisruptionBudget.enabled` | Create a PodDisruptionBudget for the operator Deployment                                                      | `false`                                     |
+| `podDisruptionBudget.enabled` | Create a PodDisruptionBudget for the operator Deployment                                                    | `false`                                     |
 | `podDisruptionBudget.maxUnavailable` | PDB maxUnavailable                                                                                   | `1`                                         |
-| `podDisruptionBudget.minAvailable` | PDB minAvailable. Do not set together with maxUnavailable                                          | unset                                       |
+| `podDisruptionBudget.minAvailable` | PDB minAvailable. Do not set together with maxUnavailable                                              | unset                                       |
 | `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                                  | `10`                                        |
 | `tolerations`                | List of node taints to tolerate                                                                              | `[]`                                        |
 | `annotations`                | PSMDB Operator Deployment annotations                                                                        | `{}`                                        |
