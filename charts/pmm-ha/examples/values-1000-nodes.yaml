@@ -1,0 +1,127 @@
+# PMM HA sizing profile: ~1000 monitored nodes
+#
+#   helm install pmm-ha percona/pmm-ha -f examples/values-1000-nodes.yaml
+#
+# Assumes ~5,000 active series per monitored node (a host plus one database
+# service with QAN) and the default dataRetentionDays: 30. See docs/SIZING.md
+# for the model and for how to adjust when your fleet is more cardinal - MySQL
+# with per-table statistics or MongoDB with many collections runs 2-3x higher.
+#
+# Approximate footprint: ~58 CPU and ~154Gi of requests, ~3.2Ti of storage.
+# Requires a storage class with allowVolumeExpansion: true.
+#
+# At this scale the write path needs real burst headroom: every PMM client
+# buffers up to 1GB on disk during an outage and replays it on reconnect, so a
+# failover or rolling upgrade releases hundreds of millions of samples at once.
+# That is why the limits below sit several times above the requests.
+
+pmmResources:
+  requests:
+    cpu: "6"
+    memory: "12Gi"
+  limits:
+    cpu: "12"
+    memory: "24Gi"
+
+haproxy:
+  resources:
+    requests:
+      cpu: 1
+      memory: 512Mi
+    limits:
+      cpu: 4
+      memory: 2Gi
+
+victoriaMetrics:
+  vminsert:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: "1"
+        memory: "1Gi"
+      limits:
+        cpu: "4"
+        memory: "4Gi"
+
+  vmstorage:
+    # Consider replicaCount: 6 with storageSize: 200Gi instead. Same total
+    # capacity, but rebuilds are faster and losing one pod costs less.
+    resources:
+      requests:
+        cpu: "2"
+        memory: "12Gi"
+      limits:
+        cpu: "8"
+        memory: "24Gi"
+    storageSize: 400Gi
+
+  vmselect:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "8"
+        memory: "16Gi"
+
+  vmauth:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "4"
+        memory: "2Gi"
+
+clickhouse:
+  resources:
+    requests:
+      cpu: "4"
+      memory: "16Gi"
+    limits:
+      cpu: "8"
+      memory: "32Gi"
+  storage:
+    size: 400Gi
+  keeper:
+    storage:
+      size: 10Gi
+
+pg-db:
+  # NOTE: instances is a list, so Helm replaces it wholesale rather than merging.
+  # Every field from the chart default has to be repeated here, not just resources.
+  instances:
+    - name: instance1
+      replicas: 3
+      resources:
+        requests:
+          cpu: 2
+          memory: 4Gi
+        limits:
+          cpu: 4
+          memory: 16Gi
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  postgres-operator.crunchydata.com/data: postgres
+                  postgres-operator.crunchydata.com/instance-set: instance1
+  proxy:
+    pgBouncer:
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          cpu: 2
+          memory: 1Gi

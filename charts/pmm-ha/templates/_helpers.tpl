@@ -99,8 +99,15 @@ Generate PMM HA peer list dynamically based on replicas count
 {{- $peers := list }}
 {{- $serviceName := .Values.service.name | default "monitoring-service" }}
 {{- $replicas := int .Values.replicas }}
+{{- $fullname := include "pmm.fullname" . }}
 {{- range $i := until $replicas }}
-  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $.Release.Name $i $serviceName $.Release.Namespace }}
+  {{- /* Peers must use the StatefulSet name (pmm.fullname), not Release.Name: the pods are
+         <fullname>-<ordinal>. pmm.fullname equals Release.Name only when the release name
+         already contains the chart name (e.g. "pmm-ha" or "pmm-ha-2"); otherwise it is
+         "<release>-pmm-ha" (e.g. release "pmm-2" -> pods "pmm-2-pmm-ha-0"). Using
+         Release.Name for those releases yields peers that don't resolve and the HA
+         memberlist panics on startup. */}}
+  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $fullname $i $serviceName $.Release.Namespace }}
   {{- $peers = append $peers $peer }}
 {{- end }}
 {{- join "," $peers }}
@@ -160,6 +167,112 @@ Example output for 3 replicas:
 {{- end -}}
 {{- end -}}
 
+{{/*
+Name of the PMM Client StatefulSet
+*/}}
+{{- define "pmm.client.fullname" -}}
+{{- printf "%s-client" (include "pmm.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Selector labels of the PMM Client pods. They must differ from the PMM Server ones, otherwise the
+Client pods would be picked up by the PMM Server service and join the HA peer discovery.
+*/}}
+{{- define "pmm.client.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "pmm.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: pmm-client
+app.kubernetes.io/part-of: percona-platform
+{{- end -}}
+
+{{/*
+Common labels of the PMM Client resources
+*/}}
+{{- define "pmm.client.labels" -}}
+helm.sh/chart: {{ include "pmm.chart" . }}
+{{ include "pmm.client.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{/*
+PMM Server address reachable from inside the cluster. HAProxy routes to the current leader, so this
+stays valid across failovers.
+*/}}
+{{- define "pmm.client.serverAddress" -}}
+{{- $haproxy := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
+{{- printf "%s.%s.svc.cluster.local:443" $haproxy .Release.Namespace -}}
+{{- end -}}
+
+{{/*
+Base directory of the PMM Client installation inside the image. It holds the exporters and tools, so
+only the subdirectories which have to survive a restart are backed by a volume: "config" keeps the
+Agent identity, "tmp" keeps the on-disk queue vmagent fills while PMM Server is unreachable.
+*/}}
+{{- define "pmm.client.baseDir" -}}
+/usr/local/percona/pmm
+{{- end -}}
+
+{{/*
+Environment shared by the PMM Client container and the init container which registers it.
+Credentials are deliberately not part of it, see pmm-client-statefulset.yaml.
+The temporary directory is left at its default, which is "tmp" under the base directory.
+*/}}
+{{- define "pmm.client.env" -}}
+- name: POD_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: POD_NAMESPACE
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.namespace
+- name: POD_IP
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
+- name: PMM_AGENT_CONFIG_FILE
+  value: {{ include "pmm.client.baseDir" . }}/config/pmm-agent.yaml
+- name: PMM_AGENT_SERVER_ADDRESS
+  value: {{ include "pmm.client.serverAddress" . }}
+- name: PMM_AGENT_SERVER_INSECURE_TLS
+  value: "1"
+- name: PMM_AGENT_LISTEN_ADDRESS
+  value: 0.0.0.0
+- name: PMM_AGENT_LISTEN_PORT
+  value: "7777"
+- name: PMM_AGENT_SETUP_NODE_TYPE
+  value: container
+- name: PMM_AGENT_SETUP_NODE_NAME
+  value: $(POD_NAMESPACE)-$(POD_NAME)
+- name: PMM_AGENT_SETUP_NODE_ADDRESS
+  value: $(POD_IP)
+- name: PMM_AGENT_SETUP_METRICS_MODE
+  value: push
+{{- end -}}
+
+{{/*
+Volume mounts backing the PMM Client directories which have to survive a restart
+*/}}
+{{- define "pmm.client.volumeMounts" -}}
+- name: pmm-agent
+  mountPath: {{ include "pmm.client.baseDir" . }}/config
+  subPath: config
+- name: pmm-agent
+  mountPath: {{ include "pmm.client.baseDir" . }}/tmp
+  subPath: tmp
+{{- end -}}
+
+{{/*
+Whether the bundled kube-state-metrics Deployment will render ("true"/"false").
+Like Helm's `condition:`, only a boolean false disables the subchart.
+*/}}
+{{- define "pmm.kubeStateMetrics.bundledEnabled" -}}
+{{- $v := dig "enabled" true (default dict (index .Values "kube-state-metrics")) -}}
+{{- if and (kindIs "bool" $v) (not $v) }}false{{ else }}true{{ end }}
+{{- end -}}
 
 {{- define "pmm.nodeExporter.mode" -}}
 {{- (.Values.nodeExporter).mode | default "internal" -}}
