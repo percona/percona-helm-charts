@@ -73,7 +73,7 @@ spec:
     {{- if .Values.tls.pgBackRestCertValidityDuration }}
     pgBackRestCertValidityDuration: {{ .Values.tls.pgBackRestCertValidityDuration }}
     {{- end }}
-    {{- if .Values.tls.issuerConf }}
+    {{- if .Values.tls.issuerConf.name }}
     issuerConf:
       name: {{ .Values.tls.issuerConf.name }}
       {{- if .Values.tls.issuerConf.kind }}

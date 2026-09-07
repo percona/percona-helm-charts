@@ -45,7 +45,7 @@ crVersion: 3.1.0
 #   labels:
 #     example-label: value
 repository: docker.io/percona/percona-distribution-postgresql
-image: docker.io/percona/percona-distribution-postgresql:18.4-1
+image: docker.io/percona/percona-distribution-postgresql:18.6.1-1
 imagePullPolicy: Always
 imagePullSecrets: []
 postgresVersion: 18
@@ -423,7 +423,7 @@ instances:
 proxy:
   pgBouncer:
     replicas: 3
-    image: docker.io/percona/percona-pgbouncer:1.25.2-1
+    image: docker.io/percona/percona-pgbouncer:1.25.2-6
 #    paused: true
 #    env:
 #    - name: MY_ENV
@@ -591,7 +591,7 @@ backups:
 #    envFrom:
 #    - secretRef:
 #        name: backup-env-secret
-    image: docker.io/percona/percona-pgbackrest:2.58.0-2
+    image: docker.io/percona/percona-pgbackrest:2.59.0-1
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -771,7 +771,7 @@ pmm:
   enabled: false
   image:
     repository: docker.io/percona/pmm-client
-    tag: 3.7.1
+    tag: 3.9.1
 #  imagePullPolicy: IfNotPresent
 #  secret: cluster1-pmm-secret
   serverHost: monitoring-service
