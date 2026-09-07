@@ -401,7 +401,19 @@ Since `secret.create` is set to `false` by default, you need to create the `pmm-
 > variable it finds to all PMM Clients, including to any endpoint an operator redirects their writes
 > to. Technical Preview installations that used
 > `VMAGENT_remoteWrite_basicAuth_username` and `VMAGENT_remoteWrite_basicAuth_password` must rename
-> those two keys in `pmm-secret` before upgrading.
+> those two keys in `pmm-secret` before upgrading:
+>
+> ```sh
+> kubectl get secret pmm-secret -n pmm -o json | jq '
+>   .data.PMM_HA_VM_USERNAME = .data.VMAGENT_remoteWrite_basicAuth_username
+>   | .data.PMM_HA_VM_PASSWORD = .data.VMAGENT_remoteWrite_basicAuth_password
+>   | del(.data.VMAGENT_remoteWrite_basicAuth_username, .data.VMAGENT_remoteWrite_basicAuth_password)
+> ' | kubectl apply -f -
+> ```
+>
+> Deleting the old keys is part of the rename, not tidying up: with `secret.create: false` the whole
+> secret is mounted into PMM Server with `envFrom`, so a leftover `VMAGENT_`-prefixed key becomes an
+> environment variable that PMM Server forwards to every PMM Client.
 
 #### ClickHouse data source credentials
 

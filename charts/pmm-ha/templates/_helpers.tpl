@@ -292,3 +292,67 @@ dict with "name" and "value".
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Value of one VictoriaMetrics credential already stored in .Values.secret.name, empty when the
+secret does not carry the key. Takes a dict with "root" and "key".
+*/}}
+{{- define "pmm.vm.existingCredential" -}}
+{{- $existing := (lookup "v1" "Secret" .root.Release.Namespace .root.Values.secret.name) -}}
+{{- if and $existing $existing.data (hasKey $existing.data .key) -}}
+{{- index $existing.data .key | b64dec -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail wherever a VictoriaMetrics credential cannot be resolved from a user-managed secret. Takes a
+dict with "root", "key" and "previousKey".
+
+The rename matters beyond the key name: with secret.create false the statefulset mounts the whole
+secret with envFrom, so a VMAGENT_-prefixed key left behind becomes an environment variable that
+PMM Server forwards to every PMM Client's vmagent.
+*/}}
+{{- define "pmm.vm.failMissingKey" -}}
+{{- fail (printf "Secret '%s' is missing required key '%s'. Technical Preview installations stored this credential as '%s' - rename that key rather than adding a second one, because PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients. Alternatively set secret.create=true to have the chart generate the credential." .root.Values.secret.name .key .previousKey) -}}
+{{- end -}}
+
+{{/*
+Username vmauth validates incoming remote-write and query requests against.
+
+vmauth needs the plaintext in its own config while PMM Server and vmagent read it from
+.Values.secret.name, so both have to agree: resolving it in one place is what keeps the config
+secret and pmm-secret from drifting apart.
+*/}}
+{{- define "pmm.vm.username" -}}
+{{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_USERNAME") -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else if not .Values.secret.create -}}
+{{- include "pmm.vm.failMissingKey" (dict "root" . "key" "PMM_HA_VM_USERNAME" "previousKey" "VMAGENT_remoteWrite_basicAuth_username") -}}
+{{- else -}}
+{{- .Values.secret.victoriametrics_user | default "victoriametrics_pmm" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Password vmauth validates incoming remote-write and query requests against.
+
+A generated password is memoised on .Values, the same way the ClickHouse data source password is:
+randAlphaNum would otherwise hand vmauth a different password than the one written to the secret
+PMM Server and vmagent authenticate with.
+*/}}
+{{- define "pmm.vm.password" -}}
+{{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_PASSWORD") -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else if not .Values.secret.create -}}
+{{- include "pmm.vm.failMissingKey" (dict "root" . "key" "PMM_HA_VM_PASSWORD" "previousKey" "VMAGENT_remoteWrite_basicAuth_password") -}}
+{{- else if .Values.secret.victoriametrics_password -}}
+{{- .Values.secret.victoriametrics_password -}}
+{{- else -}}
+{{- if not (hasKey .Values "generatedVictoriaMetricsPassword") -}}
+{{- $_ := set .Values "generatedVictoriaMetricsPassword" (randAlphaNum 32) -}}
+{{- end -}}
+{{- get .Values "generatedVictoriaMetricsPassword" -}}
+{{- end -}}
+{{- end -}}

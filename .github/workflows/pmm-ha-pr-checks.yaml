@@ -106,8 +106,8 @@ jobs:
             PMM_ADMIN_PASSWORD: YWRtaW4=
             PG_PASSWORD: cG1tcGFzcw==
             GF_PASSWORD: Z2ZwYXNz
-            VMAGENT_remoteWrite_basicAuth_username: dm11c2Vy
-            VMAGENT_remoteWrite_basicAuth_password: dm1wYXNz
+            PMM_HA_VM_USERNAME: dm11c2Vy
+            PMM_HA_VM_PASSWORD: dm1wYXNz
             PMM_CLICKHOUSE_USER: Y2h1c2Vy
             PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
           EOF
@@ -145,6 +145,46 @@ jobs:
           grep -q "job_name: 'openshift-node-exporter'" /tmp/smoke.yaml
           # The point of openshift mode: the bundled DaemonSet must not be deployed.
           ! grep -q 'kind: DaemonSet' /tmp/smoke.yaml
+
+      - name: Check VictoriaMetrics credential resolution
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          NS="${{ env.NS }}"
+
+          # The credential resolves to the current keys, and no VMAGENT_-prefixed environment
+          # variable reaches PMM Server: it forwards those to every PMM Client's vmagent.
+          helm install smoke-creds charts/pmm-ha -n "$NS" --dry-run=server > /tmp/smoke-creds.yaml
+          grep -q 'key: PMM_HA_VM_PASSWORD' /tmp/smoke-creds.yaml
+          grep -q 'password: "vmpass"' /tmp/smoke-creds.yaml
+          ! grep -qE '^\s+- name: VMAGENT_' /tmp/smoke-creds.yaml
+
+          # A secret without those keys must say which key is missing instead of failing inside
+          # b64dec. Covers the pre-rename secrets Technical Preview installations still have.
+          cat <<'EOF' | kubectl apply -n "$NS" -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: pmm-secret-legacy
+          type: Opaque
+          data:
+            PMM_ADMIN_PASSWORD: YWRtaW4=
+            PG_PASSWORD: cG1tcGFzcw==
+            GF_PASSWORD: Z2ZwYXNz
+            VMAGENT_remoteWrite_basicAuth_username: dm11c2Vy
+            VMAGENT_remoteWrite_basicAuth_password: dm1wYXNz
+            PMM_CLICKHOUSE_USER: Y2h1c2Vy
+            PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
+          EOF
+          if out=$(helm install smoke-legacy charts/pmm-ha -n "$NS" --dry-run=server \
+            --set secret.name=pmm-secret-legacy 2>&1); then
+            echo "::error::render should have failed on a secret without PMM_HA_VM_* keys"
+            exit 1
+          fi
+          grep -qF "is missing required key 'PMM_HA_VM_USERNAME'" <<<"$out"
+          grep -qF "VMAGENT_remoteWrite_basicAuth_username" <<<"$out"
+
+          kubectl delete secret pmm-secret-legacy -n "$NS"
 
       - name: Run chart-testing (install pmm-ha)
         if: steps.list-changed.outputs.changed == 'true'
