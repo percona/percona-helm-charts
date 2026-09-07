@@ -51,6 +51,7 @@ Chart.
 | `affinity`                     | Affinity for the operator Pod                                                           | `{}`                                                  |
 | `logStructured`                | Force PG operator to print JSON-wrapped log messages                                    | `false`                                               |
 | `logLevel`                     | PG Operator logging level                                                               | `INFO`                                                |
+| `workers`                      | Number of operator workers (`PGO_WORKERS`)                                              | `1`                                                   |
 | `disableTelemetry`             | Disable sending PG Operator telemetry data to Percona                                   | `false`                                               |
 | `podAnnotations`               | Add annotations to the Operator Pod                                                     | `{}`                                                  |
 | `pprofBindAddress`             | TCP address for serving pprof (profiling). Set `""` or `"0"` to disable                 | `"0"`                                                 |
