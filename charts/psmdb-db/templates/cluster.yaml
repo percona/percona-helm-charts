@@ -938,6 +938,10 @@ spec:
       hostAliases:
 {{ .Values.sharding.mongos.hostAliases | toYaml | indent 8 }}
       {{- end }}
+      {{- if .Values.sharding.mongos.logs }}
+      logs:
+{{ .Values.sharding.mongos.logs | toYaml | indent 8 }}
+      {{- end }}
 
   {{- if .Values.users }}
   users:
