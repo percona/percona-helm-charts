@@ -58,6 +58,26 @@ spec:
                 echo "This Node is registered already, pmm-agent keeps its identity."
                 exit 0
               fi
+              # Wait for PMM Server before registering. On a fresh install the Clients start
+              # alongside the Server, so `pmm-agent setup` used to run against an HAProxy with no
+              # healthy backend yet and exit non-zero on
+              # "response from nginx: 503 Service Unavailable". Kubernetes retried it, and the
+              # install spent its first minutes showing Init:Error / Init:CrashLoopBackOff on
+              # every Client pod — self-healing, but indistinguishable from a broken install.
+              # Waiting first turns that into a quiet, legible wait.
+              attempt=0
+              until curl -skf --max-time 5 "https://${PMM_AGENT_SERVER_ADDRESS}/v1/readyz" >/dev/null 2>&1; do
+                attempt=$((attempt + 1))
+                if [ "${attempt}" -ge {{ .Values.pmmClient.registerWaitAttempts | int }} ]; then
+                  # Deliberately NOT a hard failure: after the wait budget the registration is
+                  # attempted anyway, so a genuine problem still surfaces as the real error from
+                  # `pmm-agent setup` rather than as a timeout that hides it.
+                  echo "PMM Server still not ready after ${attempt} attempts; trying to register anyway."
+                  break
+                fi
+                [ $((attempt % 6)) -eq 1 ] && echo "Waiting for PMM Server at ${PMM_AGENT_SERVER_ADDRESS} (attempt ${attempt})..."
+                sleep {{ .Values.pmmClient.registerWaitSeconds | int }}
+              done
               echo "Registering ${PMM_AGENT_SETUP_NODE_NAME} with ${PMM_AGENT_SERVER_ADDRESS}..."
               pmm-agent setup
           env:

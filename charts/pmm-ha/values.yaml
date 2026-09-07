@@ -160,6 +160,16 @@ pmmClient:
   ## removes that Node with every Service configured on it, so keep this disabled otherwise.
   ##
   forceRegistration: false
+  ## @param pmmClient.registerWaitAttempts How many times the register init container polls PMM Server before registering anyway
+  ## @param pmmClient.registerWaitSeconds Seconds between those polls
+  ## On a fresh install the Clients come up with the Server, so registration would otherwise run
+  ## against an HAProxy with no healthy backend and fail with "503 Service Unavailable" — leaving
+  ## every Client pod in Init:CrashLoopBackOff for the first minutes of a perfectly healthy
+  ## install. The defaults give PMM Server 5 minutes (60 x 5s), which covers a cold start on a
+  ## cluster that has to pull the image first. After the budget the init container registers
+  ## anyway rather than failing, so a real problem still surfaces as the real error.
+  registerWaitAttempts: 60
+  registerWaitSeconds: 5
   ## @param pmmClient.storage.size Size of the volume holding the Agent identity and metrics buffer
   ## @param pmmClient.storage.storageClassName Storage class of that volume, cluster default if empty
   ## The volume backs the canonical pmm-agent directories /usr/local/percona/pmm/config and
