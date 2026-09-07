@@ -591,10 +591,10 @@ spec:
     {{- end }}
     {{- include "pg-database.resources" .Values.pmm | indent 4 }}
 
-  {{- if and .Values.logcollector .Values.logcollector.enabled }}
+  {{- if .Values.logcollector }}
   logcollector:
-    enabled: true
-    image: {{ required "logcollector.image is required when logcollector.enabled is true" .Values.logcollector.image }}
+    enabled: {{ .Values.logcollector.enabled }}
+    image: {{ .Values.logcollector.image }}
     {{- if .Values.logcollector.imagePullPolicy }}
     imagePullPolicy: {{ .Values.logcollector.imagePullPolicy }}
     {{- end }}
