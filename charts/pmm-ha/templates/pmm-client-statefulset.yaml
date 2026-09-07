@@ -41,10 +41,11 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
-        # Registers the Node, and stores the service token PMM Server returns in the configuration
-        # file on the volume - which is why only this container gets the admin credentials.
-        # `pmm-agent setup` is idempotent from 3.10.0: it keeps an existing registration, and
-        # registers again when PMM Server no longer knows the Agent.
+        # Registers the Node once, on the first start of each pod. PMM Server answers with a service
+        # token dedicated to this Node, which pmm-agent stores in the configuration file on the
+        # volume and uses from then on - which is why the admin credentials below are not passed to
+        # the pmm-client container. Registering again would make PMM Server drop the Node with every
+        # Service configured on it, so it only happens when the configuration file is missing.
         - name: pmm-client-register
           image: "{{ .Values.pmmClient.image.repository }}:{{ .Values.pmmClient.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.pmmClient.image.pullPolicy }}
