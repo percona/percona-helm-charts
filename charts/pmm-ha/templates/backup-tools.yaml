@@ -229,11 +229,16 @@ rules:
   # scaled down, and deletes them when done.
   - apiGroups: [""]
     resources: ["pods", "pods/log", "pods/exec"]
-    # No patch/update on purpose. The temp restore pods are created with `kubectl create` and a
-    # leftover of the same name is DELETED first — `kubectl apply` would need `patch` and would
-    # then try to mutate an almost entirely immutable Pod anyway. Keeping the verb off means a
-    # future `apply` fails loudly here rather than silently 403-ing mid-restore.
-    verbs: ["get", "list", "create", "delete", "watch"]
+    # `patch` is here for exactly one thing: the consolidation hold the orchestrator places on
+    # the PostgreSQL and ClickHouse pods it execs into, and strips again when the run ends.
+    # Without it every hold 403s and the run continues unprotected — which is what a live
+    # OpenShift run showed, one "could not hold consolidation off <pod>" warning per pod.
+    #
+    # It is NOT an invitation to `kubectl apply` a temp restore pod. Those are still created
+    # with `kubectl create`, deleting any leftover of the same name first, because a Pod is
+    # almost entirely immutable and an apply would fail on the parts that matter rather than
+    # replace them. `update` stays off for the same reason.
+    verbs: ["get", "list", "create", "delete", "watch", "patch"]
   # Component locks are coordination.k8s.io Leases in this namespace (pmm-backup-<component>,
   # plus a short-lived pmm-backup-manifest-<id> around the concurrent-manifest merge). They
   # replaced filesystem mkdir locks, which could not exclude a client on another filesystem —
