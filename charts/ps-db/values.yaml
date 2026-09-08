@@ -73,6 +73,10 @@ upgradeOptions:
 mysql:
   clusterType: group-replication
   autoRecovery: true
+  autoConfig:
+    enabled: true
+    version: "8.4"
+    loadType: someWrites
   # vaultSecretName: ps-cluster1-vault
   podDisruptionBudget:
     maxUnavailable: 1
@@ -103,9 +107,11 @@ mysql:
 
   resources:
     requests:
-      memory: 2Gi
-    limits:
       memory: 4Gi
+      cpu: "2"
+    limits:
+      memory: 8Gi
+      cpu: "4"
 
   # startupProbe:
   #   initialDelaySeconds: 15
