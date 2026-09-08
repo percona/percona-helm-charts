@@ -305,6 +305,23 @@ secret does not carry the key. Takes a dict with "root" and "key".
 {{- end -}}
 
 {{/*
+Whether .Values.secret.name exists but does not carry the key, the one case the chart can call a
+misconfiguration. Takes a dict with "root" and "key".
+
+An empty lookup is not that case: it also means no cluster data, which is every `helm template`
+run, so failing on it would break rendering the chart offline. A secret that is genuinely absent at
+install time is reported by pg-user-credentials-secrets.yaml instead.
+*/}}
+{{- define "pmm.vm.secretMissesKey" -}}
+{{- if not .root.Values.secret.create -}}
+{{- $existing := (lookup "v1" "Secret" .root.Release.Namespace .root.Values.secret.name) -}}
+{{- if and $existing (not (and $existing.data (hasKey $existing.data .key))) -}}
+{{- "true" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Fail wherever a VictoriaMetrics credential cannot be resolved from a user-managed secret. Takes a
 dict with "root", "key" and "previousKey".
 
@@ -327,7 +344,7 @@ secret and pmm-secret from drifting apart.
 {{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_USERNAME") -}}
 {{- if $existing -}}
 {{- $existing -}}
-{{- else if not .Values.secret.create -}}
+{{- else if include "pmm.vm.secretMissesKey" (dict "root" . "key" "PMM_HA_VM_USERNAME") -}}
 {{- include "pmm.vm.failMissingKey" (dict "root" . "key" "PMM_HA_VM_USERNAME" "previousKey" "VMAGENT_remoteWrite_basicAuth_username") -}}
 {{- else -}}
 {{- .Values.secret.victoriametrics_user | default "victoriametrics_pmm" -}}
@@ -345,7 +362,7 @@ PMM Server and vmagent authenticate with.
 {{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_PASSWORD") -}}
 {{- if $existing -}}
 {{- $existing -}}
-{{- else if not .Values.secret.create -}}
+{{- else if include "pmm.vm.secretMissesKey" (dict "root" . "key" "PMM_HA_VM_PASSWORD") -}}
 {{- include "pmm.vm.failMissingKey" (dict "root" . "key" "PMM_HA_VM_PASSWORD" "previousKey" "VMAGENT_remoteWrite_basicAuth_password") -}}
 {{- else if .Values.secret.victoriametrics_password -}}
 {{- .Values.secret.victoriametrics_password -}}
