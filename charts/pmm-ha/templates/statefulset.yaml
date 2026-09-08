@@ -27,8 +27,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- include "pmm.podSecurityContext" . | nindent 6 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
