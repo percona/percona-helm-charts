@@ -115,7 +115,7 @@ spec:
   upgradeOptions:
     versionServiceEndpoint: {{ .Values.upgradeOptions.versionServiceEndpoint }}
     apply: {{ .Values.upgradeOptions.apply }}
-    schedule: {{ .Values.upgradeOptions.schedule }}
+    schedule: {{ .Values.upgradeOptions.schedule | quote }}
     setFCV: {{ .Values.upgradeOptions.setFCV }}
   {{- end }}
   {{- if .Values.storageScaling }}

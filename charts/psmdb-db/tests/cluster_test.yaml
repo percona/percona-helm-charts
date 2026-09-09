@@ -1,0 +1,235 @@
+suite: psmdb-db cluster
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: test_cluster renders default structure
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: apiVersion
+          value: psmdb.percona.com/v1
+      - equal:
+          path: kind
+          value: PerconaServerMongoDB
+      - isSubset:
+          path: metadata
+          content:
+            name: unit-psmdb-db
+            namespace: test-ns
+            finalizers:
+              - percona.com/delete-psmdb-pods-in-order
+      - matchRegex:
+          path: spec.crVersion
+          pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+      - matchRegex:
+          path: spec.image
+          pattern: '^percona/percona-server-mongodb:.+$'
+      - isSubset:
+          path: spec
+          content:
+            pause: false
+            unmanaged: false
+            enableVolumeExpansion: false
+            imagePullPolicy: Always
+            unsafeFlags:
+              tls: false
+              replsetSize: false
+              mongosSize: false
+              terminationGracePeriod: false
+              backupIfUnhealthy: false
+            multiCluster:
+              enabled: false
+            secrets:
+              users: unit-psmdb-db-secrets
+            updateStrategy: SmartUpdate
+            upgradeOptions:
+              versionServiceEndpoint: https://check.percona.com
+              apply: disabled
+              schedule: "0 2 * * *"
+              setFCV: false
+
+  - it: test_cluster renders changed default values
+    values:
+      - values/cluster-changed-defaults.yaml
+    asserts:
+      - isSubset:
+          path: spec
+          content:
+            crVersion: 9.9.9
+            pause: true
+            unmanaged: true
+            enableVolumeExpansion: true
+            image: changed-image:changed-tag
+            imagePullPolicy: IfNotPresent
+            secrets:
+              users: secret
+            updateStrategy: RollingUpdate
+            upgradeOptions:
+              versionServiceEndpoint: https://versions.test
+              apply: recommended
+              schedule: "0 1 * * *"
+              setFCV: true
+            tls:
+              mode: disabled
+
+  - it: test_cluster uses provided secret names
+    set:
+      secrets.users: external-users
+      secrets.ssl: external-ssl
+      secrets.sslInternal: external-ssl-internal
+      secrets.encryptionKey: external-encryption-key
+    asserts:
+      - equal:
+          path: spec.secrets
+          value:
+            users: external-users
+            ssl: external-ssl
+            sslInternal: external-ssl-internal
+            encryptionKey: external-encryption-key
+
+  - it: test_cluster renders init container settings
+    set:
+      initImage.repository: dummy-image
+      initImage.tag: dummy-tag
+      initContainerSecurityContext.runAsUser: 1001
+    asserts:
+      - equal:
+          path: spec.initImage
+          value: dummy-image:dummy-tag
+      - equal:
+          path: spec.initContainerSecurityContext
+          value:
+            runAsUser: 1001
+
+  - it: test_cluster renders custom finalizers when defined
+    set:
+      finalizers:
+        - percona.com/delete-psmdb-pods-in-order
+        - percona.com/delete-psmdb-pvc
+        - percona.com/delete-pitr-chunks
+    asserts:
+      - equal:
+          path: metadata.finalizers
+          value:
+            - percona.com/delete-psmdb-pods-in-order
+            - percona.com/delete-psmdb-pvc
+            - percona.com/delete-pitr-chunks
+
+  - it: test_cluster renders annotations when defined
+    set:
+      annotations.team: database
+    asserts:
+      - equal:
+          path: metadata.annotations.team
+          value: database
+
+  - it: test_cluster renders volume expansion when defined
+    set:
+      enableVolumeExpansion: true
+    asserts:
+      - equal:
+          path: spec.enableVolumeExpansion
+          value: true
+
+  - it: test_cluster renders storage scaling when defined
+    set:
+      storageScaling:
+        enableVolumeScaling: true
+        enableExternalAutoscaling: false
+        autoscaling:
+          enabled: true
+          triggerThresholdPercent: 75
+          growthStep: 2Gi
+          maxSize: 20Gi
+    asserts:
+      - equal:
+          path: spec.storageScaling
+          value:
+            enableVolumeScaling: true
+            enableExternalAutoscaling: false
+            autoscaling:
+              enabled: true
+              triggerThresholdPercent: 75
+              growthStep: 2Gi
+              maxSize: 20Gi
+
+  - it: test_cluster renders ignore annotations when defined
+    set:
+      ignoreAnnotations:
+        - iam.amazonaws.com/role
+    asserts:
+      - equal:
+          path: spec.ignoreAnnotations
+          value:
+            - iam.amazonaws.com/role
+
+  - it: test_cluster renders ignore labels when defined
+    set:
+      ignoreLabels:
+        - rack
+    asserts:
+      - equal:
+          path: spec.ignoreLabels
+          value:
+            - rack
+
+  - it: test_cluster renders pause when defined
+    set:
+      pause: true
+    asserts:
+      - equal:
+          path: spec.pause
+          value: true
+
+  - it: test_cluster renders unmanaged when defined
+    set:
+      unmanaged: true
+    asserts:
+      - equal:
+          path: spec.unmanaged
+          value: true
+
+  - it: test_cluster renders unsafe flags when defined
+    set:
+      unsafeFlags:
+        tls: true
+        replsetSize: true
+        mongosSize: true
+        terminationGracePeriod: true
+        backupIfUnhealthy: true
+    asserts:
+      - equal:
+          path: spec.unsafeFlags
+          value:
+            backupIfUnhealthy: true
+            mongosSize: true
+            replsetSize: true
+            terminationGracePeriod: true
+            tls: true
+
+  - it: test_cluster renders tls optional fields when defined
+    set:
+      tls.mode: requireTLS
+      tls.certValidityDuration: 2160h
+      tls.allowInvalidCertificates: true
+      tls.certManagementPolicy: auto
+      tls.issuerConf:
+        name: special-selfsigned-issuer
+        kind: ClusterIssuer
+        group: cert-manager.io
+    asserts:
+      - isSubset:
+          path: spec.tls
+          content:
+            mode: requireTLS
+            certValidityDuration: 2160h
+            allowInvalidCertificates: true
+            certManagementPolicy: auto
+            issuerConf:
+              name: special-selfsigned-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
