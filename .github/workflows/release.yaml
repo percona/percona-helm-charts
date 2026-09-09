@@ -10,6 +10,10 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # to push chart release and create a release (helm/chart-releaser-action)
+      packages: write # needed for ghcr access
+      id-token: write # needed for keyless signing
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -46,3 +50,33 @@ jobs:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         with:
           skip_existing: true
+
+      # see https://github.com/helm/chart-releaser/issues/183
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push charts to GHCR
+        run: |
+          shopt -s nullglob
+          repo="oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/percona-helm-charts"
+          failed=()
+          for pkg in .cr-release-packages/*.tgz; do
+            pushed=false
+            for attempt in 1 2 3; do
+              if helm push "${pkg}" "${repo}"; then
+                pushed=true
+                break
+              fi
+              echo "::warning::helm push ${pkg} failed (attempt ${attempt}/3)"
+              sleep $((attempt * 5))
+            done
+            "${pushed}" || failed+=("${pkg}")
+          done
+          if [ "${#failed[@]}" -ne 0 ]; then
+            echo "::error::failed to push ${#failed[@]} chart(s): ${failed[*]}"
+            exit 1
+          fi
