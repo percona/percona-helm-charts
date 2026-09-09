@@ -87,6 +87,7 @@ spec:
               path: /metrics
               port: metrics
               scheme: HTTP
+          {{- with .Values.containerSecurityContext }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -94,6 +95,7 @@ spec:
               - ALL
             readOnlyRootFilesystem: true
             runAsNonRoot: true
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
