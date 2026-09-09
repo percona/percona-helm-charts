@@ -20,7 +20,7 @@ PMM HA uses a **two-chart architecture**:
 This PMM HA deployment provides the following high availability features:
 
 - **Multiple PMM Server Replicas**: Deploy 3 PMM server instances for redundancy
-- **HAProxy Load Balancing**: 3 HAProxy replicas with anti-affinity for traffic distribution
+- **HAProxy Load Balancing**: 3 HAProxy replicas spread one per node for traffic distribution
 - **Operator-Managed ClickHouse Cluster**: Dedicated ClickHouse cluster with 3 replicas and ClickHouse Keeper (managed by Altinity ClickHouse Operator)
 - **Operator-Managed VictoriaMetrics Cluster**: Distributed metrics storage with multiple replicas (managed by VictoriaMetrics Operator)
 - **Operator-Managed PostgreSQL Cluster**: HA PostgreSQL cluster for Grafana metadata (managed by Percona PostgreSQL Operator)
@@ -311,6 +311,16 @@ When `pg-db.pmm.enabled: true` (default), PostgreSQL metrics are automatically p
 
 No manual configuration is required - the Percona PostgreSQL Operator handles the integration automatically.
 
+**Query Analytics (QAN) is intentionally disabled** for the bundled PostgreSQL cluster. PMM's own database
+is an internal component, and the `QAN for PMM Server` toggle in *Settings -> Advanced* cannot control it in
+HA mode (that toggle only ever applied to the single-container PMM deployment). QAN is switched off at the
+source instead, via `pg-db.pmm.postgresParams: "--query-source=none"`, so the PostgreSQL pods still push
+metrics but register no QAN agent. To collect query analytics for the bundled cluster anyway, set
+`pg-db.pmm.postgresParams: ""`.
+
+> Requires the `pg-db` chart >= 3.0.2. Earlier versions accept `pmm.postgresParams` but silently drop it,
+> so the QAN agents stay registered.
+
 ### Using Service Tokens for Automation
 
 Service tokens are recommended for automated deployments and CI/CD pipelines. To retrieve the auto-generated PostgreSQL monitoring token:
@@ -332,6 +342,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.1`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
+| `pmmEnv.PMM_ENABLE_INTERNAL_PG_QAN`     | Enable Query Analytics for PMM's own internal PostgreSQL database. Not supported in HA mode - pinning it to `0` makes the `QAN for PMM Server` toggle in Settings reject attempts to switch it on                                           | `0`                  |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
 | `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |
@@ -446,7 +457,10 @@ The PMM HA chart deploys the following components:
 4. **VictoriaMetrics Cluster**: Distributed metrics storage with multiple replicas (managed by VictoriaMetrics Operator)
 5. **PostgreSQL Cluster**: HA PostgreSQL cluster for Grafana metadata storage (managed by Percona PostgreSQL Operator)
 
-All components are configured with pod anti-affinity to ensure distribution across different nodes for maximum resilience.
+All components are scheduled to spread across different nodes for maximum resilience. The stateful
+components (PMM, ClickHouse, VictoriaMetrics, PostgreSQL) use pod anti-affinity; HAProxy uses a soft
+topology spread constraint, so it can be scaled beyond the number of worker nodes at the cost of
+co-locating replicas.
 
 > **Important**: The three Kubernetes operators (VictoriaMetrics, ClickHouse, PostgreSQL) must be installed before deploying PMM HA. They manage the lifecycle of their respective resources through Custom Resource Definitions (CRDs).
 
@@ -791,7 +805,7 @@ haproxy:
 | Component | Value | Supported range | Enforced |
 |---|---|---|---|
 | PMM server | `replicas` | any odd value from `1` to `maxReplicas`; `3` (default) and `5` are what QA certifies | Yes — the chart fails the render |
-| HAProxy | `haproxy.replicaCount` | `1` up to the number of worker nodes | No — extra replicas stay `Pending` |
+| HAProxy | `haproxy.replicaCount` | `1` or higher; replicas past the worker-node count co-locate and add throughput, not fault tolerance | No |
 | ClickHouse | `clickhouse.cluster.replicas` | `3` (default) or higher; scaling up is supported and shown below | No |
 | ClickHouse Keeper | `clickhouse.keeper.replicasCount` | any odd value; `3` is the default | Yes — the chart fails the render |
 | VictoriaMetrics | `victoriaMetrics.*.replicaCount` | defaults, or higher for larger fleets; scale up only | No |
@@ -818,6 +832,8 @@ To scale the PMM HA deployment:
 helm upgrade pmm-ha --set replicas=5 --namespace pmm percona/pmm-ha
 
 # Scale HAProxy replicas
+# HAProxy replicas beyond the worker-node count are co-located rather than left
+# Pending, so they add throughput but not an extra failure domain.
 helm upgrade pmm-ha --set haproxy.replicaCount=5 --namespace pmm percona/pmm-ha
 
 # Scale ClickHouse replicas
@@ -909,10 +925,13 @@ Common troubleshooting steps for PMM HA:
   upgrade, so the restart is reproducible from the chart alone. An out-of-band restart
   also picks up the new config, but a GitOps controller strips the `restartedAt`
   annotation on its next sync and triggers a second, pointless rollout.
-- **`haproxy.replicaCount` cannot exceed the worker node count.** HAProxy pods use
-  required anti-affinity on `kubernetes.io/hostname`, so extra replicas stay
-  `Pending` and Helm still reports success. The same applies to the PostgreSQL
-  instances and pgBouncer.
+- **`haproxy.replicaCount` past the worker-node count buys throughput, not fault
+  tolerance.** HAProxy pods use a soft topology spread on `kubernetes.io/hostname`
+  (`whenUnsatisfiable: ScheduleAnyway`), so extra replicas co-locate rather than
+  staying `Pending` - but a co-located replica shares a failure domain with the one
+  already on that node. pgBouncer still uses required anti-affinity, so its replicas
+  do stay `Pending` past the node count while Helm reports success; the same holds for
+  the PostgreSQL instances in the sizing examples.
 - **`victoriaMetrics.vmstorage.replicaCount` should not be scaled down.** Data is
   sharded across vmstorage pods and is not migrated off a removed pod.
 
