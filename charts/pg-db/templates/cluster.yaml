@@ -73,7 +73,7 @@ spec:
     {{- if .Values.tls.pgBackRestCertValidityDuration }}
     pgBackRestCertValidityDuration: {{ .Values.tls.pgBackRestCertValidityDuration }}
     {{- end }}
-    {{- if .Values.tls.issuerConf.name }}
+    {{- if and (hasKey .Values.tls "issuerConf") .Values.tls.issuerConf.name }}
     issuerConf:
       name: {{ .Values.tls.issuerConf.name }}
       {{- if .Values.tls.issuerConf.kind }}
@@ -433,8 +433,7 @@ spec:
 {{ $replica.expose.labels | toYaml | indent 10 }}
         {{- end }}
         {{- if $replica.expose.loadBalancerClass }}
-        loadBalancerClass:
-{{ $replica.expose.loadBalancerClass | toYaml | indent 10 }}
+        loadBalancerClass: {{ $replica.expose.loadBalancerClass | quote }}
         {{- end }}
         {{- if $replica.expose.loadBalancerSourceRanges }}
         loadBalancerSourceRanges:
