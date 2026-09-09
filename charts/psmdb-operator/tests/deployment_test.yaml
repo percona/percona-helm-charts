@@ -1,0 +1,348 @@
+suite: psmdb-operator deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the default operator deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: unit-psmdb-operator
+      - equal:
+          path: metadata.namespace
+          value: test-ns
+      - isSubset:
+          path: metadata.labels
+          content:
+            app.kubernetes.io/name: psmdb-operator
+            app.kubernetes.io/instance: unit
+            app.kubernetes.io/managed-by: Helm
+      - isSubset:
+          path: spec
+          content:
+            replicas: 1
+            selector:
+              matchLabels:
+                app.kubernetes.io/name: psmdb-operator
+                app.kubernetes.io/instance: unit
+      - isSubset:
+          path: spec.template.metadata.labels
+          content:
+            app.kubernetes.io/name: psmdb-operator
+            app.kubernetes.io/instance: unit
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: unit-psmdb-operator
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: '^percona/percona-server-mongodb-operator:.+$'
+      - isSubset:
+          path: spec.template.spec.containers[0]
+          content:
+            name: psmdb-operator
+            imagePullPolicy: IfNotPresent
+            ports:
+              - containerPort: 8080
+                protocol: TCP
+                name: metrics
+              - containerPort: 8081
+                protocol: TCP
+                name: health
+            command:
+              - percona-server-mongodb-operator
+            env:
+              - name: LOG_STRUCTURED
+                value: "false"
+              - name: LOG_LEVEL
+                value: INFO
+              - name: WATCH_NAMESPACE
+                value: test-ns
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              - name: OPERATOR_NAME
+                value: percona-server-mongodb-operator
+              - name: RESYNC_PERIOD
+                value: 5s
+              - name: RECONCILE_INTERVAL
+                value: 5s
+              - name: DISABLE_TELEMETRY
+                value: "false"
+              - name: MAX_CONCURRENT_RECONCILES
+                value: "1"
+              - name: CERTMANAGER_NAMESPACE
+                value: cert-manager
+            livenessProbe:
+              failureThreshold: 3
+              httpGet:
+                path: /healthz
+                port: health
+                scheme: HTTP
+            readinessProbe:
+              failureThreshold: 3
+              httpGet:
+                path: /readyz
+                port: health
+                scheme: HTTP
+      - notExists:
+          path: spec.template.spec.securityContext
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+
+  - it: renders changed default deployment values
+    values:
+      - values/deployment-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: spec.revisionHistoryLimit
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0]
+          value:
+            name: psmdb-operator
+            image: operator:dummy
+            imagePullPolicy: Always
+            command:
+              - percona-server-mongodb-operator
+            ports:
+              - containerPort: 8080
+                protocol: TCP
+                name: metrics
+              - containerPort: 8081
+                protocol: TCP
+                name: health
+            livenessProbe:
+              failureThreshold: 5
+              httpGet:
+                path: /healthz
+                port: health
+                scheme: HTTP
+            readinessProbe:
+              failureThreshold: 4
+              httpGet:
+                path: /readyz
+                port: health
+                scheme: HTTP
+            resources:
+              limits:
+                cpu: 2m
+                memory: 2Mi
+              requests:
+                cpu: 1m
+                memory: 1Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+            volumeMounts:
+              - mountPath: /tmp
+                name: tmpdir
+            env:
+              - name: LOG_STRUCTURED
+                value: "true"
+              - name: LOG_LEVEL
+                value: DEBUG
+              - name: WATCH_NAMESPACE
+                value: test-ns
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              - name: OPERATOR_NAME
+                value: custom-operator
+              - name: RESYNC_PERIOD
+                value: 10s
+              - name: RECONCILE_INTERVAL
+                value: 15s
+              - name: DISABLE_TELEMETRY
+                value: "true"
+              - name: MAX_CONCURRENT_RECONCILES
+                value: "2"
+              - name: CERTMANAGER_NAMESPACE
+                value: custom-cert-manager
+
+  - it: renders an empty watch namespace for cluster-wide mode
+    set:
+      watchAllNamespaces: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: ""
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CERTMANAGER_NAMESPACE
+
+  - it: renders a specific watch namespace when configured
+    set:
+      watchNamespace: watch-ns
+    asserts:
+      - hasDocuments:
+          count: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: watch-ns
+
+  - it: renders a custom operator image when defined
+    set:
+      image.repository: custom-operator
+      image.tag: 9.9.9
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: custom-operator:9.9.9
+
+  - it: renders image pull secrets when defined
+    set:
+      imagePullSecrets:
+        - name: registry-secret
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: registry-secret
+
+  - it: renders pod annotations when defined
+    set:
+      podAnnotations:
+        test: value
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations
+          value:
+            test: value
+
+  - it: renders container security context and tmp volume when read-only root filesystem is enabled
+    set:
+      securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value:
+            - name: tmpdir
+              mountPath: /tmp
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: tmpdir
+              emptyDir: {}
+
+  - it: renders custom resources when defined
+    set:
+      resources:
+        requests:
+          cpu: 200m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources
+          value:
+            requests:
+              cpu: 200m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+
+  - it: renders scheduling options when defined
+    set:
+      nodeSelector:
+        disktype: ssd
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: operators
+          effect: NoSchedule
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            disktype: ssd
+      - equal:
+          path: spec.template.spec.affinity
+          value:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 1
+                  podAffinityTerm:
+                    topologyKey: kubernetes.io/hostname
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: dedicated
+              operator: Equal
+              value: operators
+              effect: NoSchedule
+
+  - it: renders logging, telemetry and worker options when defined
+    set:
+      logStructured: true
+      logLevel: DEBUG
+      disableTelemetry: true
+      maxConcurrentReconciles: "3"
+      env.resyncPeriod: 20s
+      env.reconcileInterval: 30s
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_STRUCTURED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: DEBUG
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DISABLE_TELEMETRY
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MAX_CONCURRENT_RECONCILES
+            value: "3"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RESYNC_PERIOD
+            value: 20s
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RECONCILE_INTERVAL
+            value: 30s

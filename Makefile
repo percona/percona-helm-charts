@@ -22,10 +22,10 @@ split-psmdb-crds:
 
 .PHONY: helm-unittest
 helm-unittest:
-	$(HELM) plugin install https://github.com/helm-unittest/helm-unittest.git
+	$(HELM) plugin list 2>/dev/null | grep -q '^unittest' || $(HELM) plugin install https://github.com/helm-unittest/helm-unittest.git
 
 .PHONY: test
-test: test-pxc-operator test-pxc-db
+test: test-pxc-operator test-pxc-db test-psmdb-operator test-psmdb-db
 
 .PHONY: test-pxc-operator
 test-pxc-operator:
@@ -34,3 +34,11 @@ test-pxc-operator:
 .PHONY: test-pxc-db
 test-pxc-db:
 	$(HELM) unittest charts/pxc-db
+
+.PHONY: test-psmdb-operator
+test-psmdb-operator:
+	$(HELM) unittest charts/psmdb-operator
+
+.PHONY: test-psmdb-db
+test-psmdb-db:
+	$(HELM) unittest charts/psmdb-db
