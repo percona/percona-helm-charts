@@ -19,10 +19,10 @@ spec:
       basicAuth:
         username:
           name: {{ .Values.secret.name }}
-          key: VMAGENT_remoteWrite_basicAuth_username
+          key: PMM_HA_VM_USERNAME
         password:
           name: {{ .Values.secret.name }}
-          key: VMAGENT_remoteWrite_basicAuth_password
+          key: PMM_HA_VM_PASSWORD
       {{- if .Values.victoriaMetrics.vmagent.remoteWrite }}
       {{- toYaml .Values.victoriaMetrics.vmagent.remoteWrite | nindent 6 }}
       {{- end }}

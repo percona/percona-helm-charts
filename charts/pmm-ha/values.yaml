@@ -33,8 +33,8 @@ pmmEnv:
   PMM_POSTGRES_SSL_MODE: "require"
   GF_DATABASE_SSL_MODE: "require"
   # PMM_VM_URL: "http://:@:8427/"
-  # VMAGENT_remoteWrite_basicAuth_username: ""
-  # VMAGENT_remoteWrite_basicAuth_password: ""
+  # PMM_HA_VM_USERNAME: ""
+  # PMM_HA_VM_PASSWORD: ""
   PMM_HA_ENABLE: "1"
   PMM_HA_GOSSIP_PORT: "9096"
   PMM_HA_RAFT_PORT: "9097"
@@ -141,7 +141,7 @@ secret:
   ## If creating the secret manually (secret.create: false), this field is ignored.
   ##
   ## To get username after install:
-  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_HA_VM_USERNAME}' | base64 --decode
   ## E.g.
   ## victoriametrics_user: my_victoriametrics_user
   ##
@@ -152,7 +152,7 @@ secret:
   ## If creating the secret manually (secret.create: false), this field is ignored.
   ##
   ## To get password after install:
-  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_HA_VM_PASSWORD}' | base64 --decode
   ## E.g.
   ## victoriametrics_password: my_secure_password
   ##
@@ -802,7 +802,7 @@ victoriaMetrics:
       maxLabelsPerTimeseries: "50"
   
   ## VMAuth configuration - authentication proxy
-  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  ## Credentials are read from pmm-secret (PMM_HA_VM_USERNAME/PMM_HA_VM_PASSWORD)
   ## If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
   ## Default username: victoriametrics_pmm
   ## Default password: randomly generated 32-character string
@@ -840,7 +840,7 @@ victoriaMetrics:
   
   ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
   ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
-  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  ## Credentials are read from pmm-secret (PMM_HA_VM_USERNAME/PMM_HA_VM_PASSWORD)
   vmagent:
     ## @param victoriaMetrics.vmagent.enabled Enable VMAgent for metrics scraping
     enabled: true

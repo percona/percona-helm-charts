@@ -1,17 +1,7 @@
 {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled -}}
-{{- /* Lookup existing secret to avoid regenerating passwords on upgrade */ -}}
-{{- $existingSecret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
-{{- $vmuser := "" }}
-{{- $vmpass := "" }}
-{{- if $existingSecret }}
-  {{- /* Use existing credentials from secret */ -}}
-  {{- $vmuser = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_username" | b64dec }}
-  {{- $vmpass = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_password" | b64dec }}
-{{- else }}
-  {{- /* Use values or defaults (secret.yaml will create the secret) */ -}}
-  {{- $vmuser = .Values.secret.victoriametrics_user | default "victoriametrics_pmm" }}
-  {{- $vmpass = .Values.secret.victoriametrics_password | default (randAlphaNum 32) }}
-{{- end }}
+{{- /* Resolved centrally so vmauth's config and pmm-secret cannot end up with different credentials */ -}}
+{{- $vmuser := include "pmm.vm.username" . }}
+{{- $vmpass := include "pmm.vm.password" . }}
 ---
 # Secret for VMAuth configuration
 # Note: VMAuth requires plaintext credentials in its config file to validate incoming requests
