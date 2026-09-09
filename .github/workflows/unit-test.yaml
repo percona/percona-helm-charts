@@ -6,25 +6,20 @@ on:
     - 'charts/pxc-operator/**'
     - 'charts/pxc-db/**'
     - 'charts/psmdb-operator/**'
+    - 'charts/psmdb-operator-crds/**'
     - 'charts/psmdb-db/**'
     - 'Makefile'
     - '.github/workflows/unit-test.yaml'
 
 jobs:
   unit-test:
-    name: Helm Unit Tests (${{ matrix.target }})
+    name: Helm Unit Tests
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - test-pxc-operator
-          - test-pxc-db
-          - test-psmdb-operator
-          - test-psmdb-db
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Helm
         uses: azure/setup-helm@v5.0.1
@@ -34,5 +29,18 @@ jobs:
       - name: Install helm-unittest plugin
         run: make helm-unittest
 
-      - name: Run ${{ matrix.target }}
-        run: make ${{ matrix.target }}
+      - name: Run tests for changed charts
+        run: |
+          changed=$(git diff --name-only \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}")
+
+          if echo "$changed" | grep -qE '^(Makefile|\.github/workflows/unit-test\.yaml)$'; then
+            make test
+            exit
+          fi
+
+          echo "$changed" |
+            awk -F/ '$1 == "charts" && $2 ~ /^(pxc|psmdb)-(operator(-crds)?|db)$/ { print "test-" $2 }' |
+            sort -u |
+            xargs -n1 make

@@ -109,6 +109,11 @@ tests:
           path: spec.revisionHistoryLimit
           value: 5
       - equal:
+          path: spec.template.spec.securityContext
+          value:
+            runAsNonRoot: true
+            runAsUser: 2
+      - equal:
           path: spec.template.spec.containers[0]
           value:
             name: psmdb-operator
