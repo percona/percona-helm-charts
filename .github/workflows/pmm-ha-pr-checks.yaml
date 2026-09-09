@@ -37,9 +37,10 @@ jobs:
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts/
           helm repo update
 
-      # Renders only - no cluster needed. Every case hits the fail in
-      # pmm.nodeExporter.validate before the lookup in pg-user-credentials-secrets.yaml.
-      - name: Check node-exporter mode validation
+      # Renders only - no cluster needed. Every case reaches its fail before the lookup in
+      # pg-user-credentials-secrets.yaml, which is why plain `helm template` works here.
+      # helm lint cannot replace this: it logs `funcMap fail` and still reports success.
+      - name: Check values validation
         run: |
           set -euo pipefail
           helm dependency build charts/pmm-ha
@@ -69,6 +70,15 @@ jobs:
           assert_fails "$collision" --set nodeExporter.mode=openshift --set prometheus-node-exporter.enabled=0
           assert_fails "$collision" --set nodeExporter.mode=openshift --set-string prometheus-node-exporter.enabled=false
           assert_fails 'nodeExporter.mode must be "internal" or "openshift"' --set nodeExporter.mode=bogus
+
+          # Data retention. PMM owns retentionPeriod, so the chart rejects the two values that
+          # would compete with it, and takes whole days rather than a free-form duration.
+          assert_fails 'is no longer used'        --set victoriaMetrics.vmstorage.retentionPeriod=90d
+          assert_fails 'is managed by this chart' --set pmmEnv.PMM_DATA_RETENTION=2160h
+          assert_fails 'whole number of days'     --set dataRetentionDays=0
+          assert_fails 'whole number of days'     --set dataRetentionDays=1.5
+          # A YAML bool satisfies the integer check (int true == 1) and would silently pin one day.
+          assert_fails 'got the boolean'          --set dataRetentionDays=true
 
       - name: Run chart-testing (list-changed)
         id: list-changed
@@ -145,6 +155,34 @@ jobs:
           grep -q "job_name: 'openshift-node-exporter'" /tmp/smoke.yaml
           # The point of openshift mode: the bundled DaemonSet must not be deployed.
           ! grep -q 'kind: DaemonSet' /tmp/smoke.yaml
+
+      # Same --dry-run=server reason as above: a render that succeeds reaches the lookup in
+      # pg-user-credentials-secrets.yaml, so helm template cannot be used for the positive path.
+      - name: Check data retention renders
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+
+          vmcluster() {  # isolate the VMCluster document; retentionPeriod also appears in a comment
+            awk '/^# Source: pmm-ha\/templates\/vmcluster.yaml/,/^---/'
+          }
+
+          # Pinned: the chart declares the period itself, so an upgrade has nothing to revert and
+          # vmstorage is never left on the operator default while PMM catches up.
+          helm install smoke charts/pmm-ha -n "${{ env.NS }}" --dry-run=server \
+            --set dataRetentionDays=30 > /tmp/retention-pinned.yaml
+          grep -q 'value: "720h"' /tmp/retention-pinned.yaml
+          vmcluster < /tmp/retention-pinned.yaml | grep -q 'retentionPeriod: "30d"'
+
+          # UI-managed: PMM writes the field at runtime, so the chart must not declare it.
+          helm install smoke charts/pmm-ha -n "${{ env.NS }}" --dry-run=server \
+            > /tmp/retention-default.yaml
+          ! vmcluster < /tmp/retention-default.yaml | grep -q 'retentionPeriod:'
+
+          # An external VictoriaMetrics must not be blocked by a key that is inert for it.
+          helm install smoke charts/pmm-ha -n "${{ env.NS }}" --dry-run=server \
+            --set victoriaMetrics.enabled=false \
+            --set victoriaMetrics.vmstorage.retentionPeriod=90d > /dev/null
 
       - name: Run chart-testing (install pmm-ha)
         if: steps.list-changed.outputs.changed == 'true'

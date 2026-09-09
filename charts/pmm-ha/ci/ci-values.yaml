@@ -108,7 +108,6 @@ victoriaMetrics:
   
   vmstorage:
     replicaCount: 3
-    retentionPeriod: "1d"
     resources:
       requests:
         memory: "256Mi"
