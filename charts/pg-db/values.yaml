@@ -744,6 +744,13 @@ pmm:
 #   createReplicaMethods:
 #   - pgbackrest
 #   - basebackup
+#   dcs:
+#     type: etcd
+#     etcd:
+#       endpoints:
+#       - https://etcd.etcd-cluster.svc:2379
+#       authSecret: ""
+#       tlsSecret: ""
 
 # extensions:
 #   image: docker.io/percona/percona-postgresql-operator:3.0.0
