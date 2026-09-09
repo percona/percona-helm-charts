@@ -240,7 +240,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |----------------------|
 | `image.repository`                   | PMM image repository                                                                                                                                                                                                                          | `percona/pmm-server` |
 | `image.pullPolicy`                   | PMM image pull policy                                                                                                                                                                                                                         | `IfNotPresent`       |
-| `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.0`             |
+| `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.1`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
@@ -317,6 +317,13 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `affinity`                   | Affinity for pod assignment                                                                                         | `{}`                  |
 
 
+### Node exporter source parameters
+
+| Name                | Description                                                                               | Value      |
+| ------------------- | ----------------------------------------------------------------------------------------- | ---------- |
+| `nodeExporter.mode` | Node metrics source: `internal` (deploy + scrape prometheus-node-exporter) or `openshift` | `internal` |
+
+
 Specify each parameter using the `--set key=value[,key=value]` or `--set-string key=value[,key=value]` arguments to `helm install`. For example,
 
 ```sh
@@ -372,6 +379,26 @@ kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | 
 ### Creating PMM Secret Manually
 
 Since `secret.create` is set to `false` by default, you need to create the `pmm-secret` manually before installing the chart. Here are examples of how to create it:
+
+#### ClickHouse data source credentials
+
+The Grafana ClickHouse data source connects as a **read-only** ClickHouse account, separate from
+`PMM_CLICKHOUSE_USER`. Grafana runs data source queries on behalf of every signed-in user,
+including Viewers, so that account must not be the one PMM writes Query Analytics data with.
+
+Nothing needs to be added to `pmm-secret` for this. The chart creates the ClickHouse user itself,
+through a `users.d` drop-in that grants it `SELECT` on the Query Analytics database and nothing
+else, and stores its credentials in its own secret, named after the chart fullname and suffixed
+`-clickhouse-datasource` — `pmm-ha-clickhouse-datasource` for the documented release name. The
+password is generated on first install and preserved across upgrades. Withholding the `SOURCES`
+privileges is what keeps table functions such as `url()` and `file()` out of reach.
+
+To read the credentials, or to pin them with `clickhouse.datasource.user` and
+`clickhouse.datasource.password`:
+
+```sh
+kubectl get secret pmm-ha-clickhouse-datasource -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode && echo
+```
 
 #### Option 1: Create Secret with kubectl
 
@@ -525,6 +552,45 @@ victoriaMetrics:
     extraArgs:
       maxLabelsPerTimeseries: "60"
 ```
+
+### Using OpenShift's node exporter
+
+By default (`nodeExporter.mode: internal`) the chart deploys its own `prometheus-node-exporter`
+DaemonSet. On OpenShift, whose platform monitoring already runs one, set `nodeExporter.mode: openshift`
+to scrape that instead. The bundled DaemonSet must be disabled:
+
+```yaml
+nodeExporter:
+  mode: openshift
+prometheus-node-exporter:
+  enabled: false
+```
+
+Prerequisites and limitations:
+
+- `mode: openshift` is only valid on OpenShift with platform monitoring enabled. On any other
+  cluster the scrape job still renders, but every scrape fails with `cannot read ca_file` because
+  the service-CA bundle it verifies against does not exist.
+
+- Unlike the bundled exporter, OpenShift's disables the `cpufreq` collector by default, so the CPU
+  frequency panels in PMM's OS dashboards are empty. This was the only gap observed in testing:
+  CPU, memory, disk and network panels all report data. To enable the collector, add it to the
+  `cluster-monitoring-config` ConfigMap in the `openshift-monitoring` namespace - the ConfigMap is
+  not created by default, so you may need to create it:
+
+  ```yaml
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: cluster-monitoring-config
+    namespace: openshift-monitoring
+  data:
+    config.yaml: |
+      nodeExporter:
+        collectors:
+          cpufreq:
+            enabled: true
+  ```
 
 ### External access to PMM HA
 

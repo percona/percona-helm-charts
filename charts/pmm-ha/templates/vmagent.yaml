@@ -246,7 +246,8 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
-    # Scrape node-exporter for node-level metrics
+    {{- if eq (include "pmm.nodeExporter.mode" .) "internal" }}
+    # Scrape node-exporter for node-level metrics (bundled prometheus-node-exporter DaemonSet)
     - job_name: 'node-exporter'
       kubernetes_sd_configs:
         - role: endpoints
@@ -260,12 +261,10 @@ spec:
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'metrics|http-metrics'
           action: keep
-        - source_labels: [__meta_kubernetes_pod_node_name]
-          target_label: node
-        - source_labels: [__meta_kubernetes_namespace]
-          target_label: namespace
-        - source_labels: [__meta_kubernetes_pod_name]
-          target_label: pod
+        {{- include "pmm.nodeExporter.pmmRelabelConfigs" . | nindent 8 }}
+    {{- else if eq (include "pmm.nodeExporter.mode" .) "openshift" }}
+    {{- include "pmm.nodeExporter.openshiftScrapeJob" . | nindent 4 }}
+    {{- end }}
     # Scrape kubelet metrics via the apiserver proxy
     - job_name: 'kubelet'
       scheme: https
