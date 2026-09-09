@@ -303,6 +303,8 @@ The chart can be customized using the following configurable parameters:
 | `backup.containerSecurityContext`               | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                         |
 | `backup.resources`                              | Backup Pods resource requests and limits                                                    | `{}`                         |
 | `backup.storages`                               | Local/remote backup storages settings                                                       | `{}`                         |
+| `backup.storages.[storage-name].s3.caBundle.name` | Name of the Secret containing the CA certificate for an S3-compatible storage              | `""`                         |
+| `backup.storages.[storage-name].s3.caBundle.key`  | Key in the CA bundle Secret containing the CA certificate                                   | `ca.crt`                     |
 | `backup.schedule`                               | Backup execution timetable                                                                  | `[]`                         |
 | `backup.schedule.[0].name`                      | Backup execution timetable name                                                             | `daily-backup`               |
 | `backup.schedule.[0].type`                      | Backup type (`full` or `incremental`)                                                       | `full`                       |
@@ -320,6 +322,8 @@ The chart can be customized using the following configurable parameters:
 | `backup.pitr.binlogServer.storage.s3.endpointUrl`              | S3 endpoint URL                                                                  | ``                                                                 |
 | `backup.pitr.binlogServer.storage.s3.prefix`                   | Object key prefix for binlogs stored in the S3 bucket                            | ``                                                                 |
 | `backup.pitr.binlogServer.storage.s3.region`                   | S3 region                                                                        | ``                                                                 |
+| `backup.pitr.binlogServer.storage.s3.caBundle.name`            | Name of the Secret containing the CA certificate for S3 storage                  | ``                                                                 |
+| `backup.pitr.binlogServer.storage.s3.caBundle.key`             | Key in the CA bundle Secret containing the CA certificate                        | `ca.crt`                                                           |
 | `backup.pitr.binlogServer.connectTimeout`                      | Binlog server connect timeout (seconds)                                          | `30`                                                               |
 | `backup.pitr.binlogServer.readTimeout`                         | Binlog server read timeout (seconds)                                             | `30`                                                               |
 | `backup.pitr.binlogServer.writeTimeout`                        | Binlog server write timeout (seconds)                                            | `30`                                                               |

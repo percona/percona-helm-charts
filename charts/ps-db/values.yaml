@@ -825,6 +825,9 @@ backup:
     #     credentialsSecret: cluster1-s3-credentials
     #     region: us-west-2
     #     prefix: ""
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
   # pitr:
   #   enabled: false
   #   binlogServer:
@@ -840,6 +843,9 @@ backup:
   #         endpointUrl: https://s3.amazonaws.com
   #         prefix: PREFIX_NAME
   #         region: us-west-2
+  #         caBundle:
+  #           name: s3-ca-bundle-secret-name
+  #           key: ca.crt
   #     connectTimeout: 30
   #     readTimeout: 30
   #     writeTimeout: 30
