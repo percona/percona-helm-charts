@@ -438,6 +438,20 @@ replsets:
           resources:
             requests:
               storage: 3Gi
+#      sidecars:
+#      - image: busybox
+#        command: ["/bin/sh"]
+#        args: ["-c", "while true; do echo echo $(date -u) 'test' >> /dev/null; sleep 5;done"]
+#        name: hidden-sidecar-1
+#      sidecarVolumes:
+#      - name: sidecar-secret
+#        secret:
+#          secretName: mysecret
+#      sidecarPVCs:
+#      - apiVersion: v1
+#        kind: PersistentVolumeClaim
+#        metadata:
+#          name: sidecar-volume-claim
 
     nonvoting:
       enabled: false
@@ -510,6 +524,20 @@ replsets:
           resources:
             requests:
               storage: 3Gi
+      # sidecars:
+      # - image: busybox
+      #   command: ["/bin/sh"]
+      #   args: ["-c", "while true; do echo echo $(date -u) 'test' >> /dev/null; sleep 5;done"]
+      #   name: nonvoting-sidecar-1
+      # sidecarVolumes:
+      # - name: sidecar-secret
+      #   secret:
+      #     secretName: mysecret
+      # sidecarPVCs:
+      # - apiVersion: v1
+      #   kind: PersistentVolumeClaim
+      #   metadata:
+      #     name: sidecar-volume-claim
     arbiter:
       enabled: false
       size: 1
