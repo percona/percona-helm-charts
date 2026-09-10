@@ -14,7 +14,7 @@ image:
   repository: perconalab/pmm-server-fb
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "PR-4558-77cd35a"
+  tag: "PR-4558-212bf79"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -154,7 +154,7 @@ pmmClient:
   image:
     repository: perconalab/pmm-client-fb
     pullPolicy: IfNotPresent
-    tag: "PR-4558-77cd35a"
+    tag: "PR-4558-212bf79"
   ## @param pmmClient.forceRegistration Register the Node even when one with the same name exists
   ## Recovers a pod whose volume was lost while its Node is still registered in PMM. PMM Server then
   ## removes that Node with every Service configured on it, so keep this disabled otherwise.
