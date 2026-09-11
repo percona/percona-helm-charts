@@ -286,6 +286,15 @@ The chart can be customized using the following configurable parameters:
 | `toolkit.resources.requests` | Toolkit Container resource requests        | `{}`                      |
 | `toolkit.resources.limits`   | Toolkit Container resource limits          | `{}`                      |
 ||
+| `users`                          | Custom MySQL users to be created and managed by the Operator           | `[]`       |
+| `users.name`                     | The username of the MySQL user                                         | `""`       |
+| `users.dbs`                      | Databases the grants will be applied to                                | `[]`       |
+| `users.hosts`                    | Hosts the user is allowed to connect from                              | `[]`       |
+| `users.grants`                   | Grants that will be applied to the user                                | `[]`       |
+| `users.withGrantOption`          | Allow the user to grant its own privileges to other users              | `false`    |
+| `users.passwordSecretRef.name`   | Name of the Secret that contains the user's password                   | `""`       |
+| `users.passwordSecretRef.key`    | Key in the Secret that corresponds to the value of the user's password | `password` |
+||
 | `backup.enabled`                                | Enable backups                                                                              | `true`                       |
 | `backup.sourcePod`                              | Specify backup source pod                                                                   | ``                           |
 | `backup.encryptionKeySecret.name`               | Name of the Kubernetes Secret with the backup encryption key                                | ``                           |
