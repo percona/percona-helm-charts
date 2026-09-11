@@ -808,6 +808,12 @@ sharding:
     #   hostnames:
     #   - "host1"
     #   - "host2"
+#    logs:
+#      persistentVolumeClaim:
+#        accessModes: [ "ReadWriteOnce" ]
+#        resources:
+#          requests:
+#            storage: 1Gi
 
 # users:
 # - name: my-user
