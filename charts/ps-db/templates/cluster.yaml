@@ -30,16 +30,16 @@ spec:
   {{- if .Values.storageScaling }}
   {{- $storageScaling := .Values.storageScaling }}
   storageScaling:
-    {{- if $storageScaling.enableVolumeScaling }}
+    {{- if hasKey $storageScaling "enableVolumeScaling" }}
     enableVolumeScaling: {{ $storageScaling.enableVolumeScaling }}
     {{- end }}
-    {{- if $storageScaling.enableExternalAutoscaling }}
+    {{- if hasKey $storageScaling "enableExternalAutoscaling" }}
     enableExternalAutoscaling: {{ $storageScaling.enableExternalAutoscaling }}
     {{- end }}
     {{- if $storageScaling.autoscaling }}
     {{- $autoscaling := $storageScaling.autoscaling }}
     autoscaling:
-      {{- if $autoscaling.enabled }}
+      {{- if hasKey $autoscaling "enabled" }}
       enabled: {{ $autoscaling.enabled }}
       {{- end }}
       {{- if $autoscaling.triggerThresholdPercent }}
@@ -128,7 +128,7 @@ spec:
     {{- if $mysql.clusterType }}
     clusterType: {{ $mysql.clusterType }}
     {{- end }}
-    {{- if $mysql.autoRecovery }}
+    {{- if hasKey $mysql "autoRecovery" }}
     autoRecovery: {{ $mysql.autoRecovery }}
     {{- end }}
     {{- if $mysql.vaultSecretName }}
@@ -390,19 +390,6 @@ spec:
       configuration: |
 {{- tpl $haproxy.configuration $ | nindent 8 }}
       {{- end }}
-      {{- if $haproxy.volumeSpec }}
-      volumeSpec:
-        {{- if $haproxy.volumeSpec.hostPath }}
-        hostPath:
-          path: {{ $haproxy.volumeSpec.hostPath }}
-          type: Directory
-        {{- else if $haproxy.volumeSpec.pvc }}
-        persistentVolumeClaim:
-{{ $haproxy.volumeSpec.pvc | toYaml | indent 10 }}
-        {{- else }}
-        emptyDir: {}
-        {{- end }}
-      {{- end }}
       {{- if $haproxy.schedulerName }}
       schedulerName: {{ $haproxy.schedulerName }}
       {{- end }}
@@ -520,19 +507,6 @@ spec:
 {{ tpl ($router.resources.requests | toYaml) $ | indent 10 }}
         limits:
 {{ tpl ($router.resources.limits | toYaml) $ | indent 10 }}
-      {{- if $router.volumeSpec }}
-      volumeSpec:
-        {{- if $router.volumeSpec.hostPath }}
-        hostPath:
-          path: {{ $router.volumeSpec.hostPath }}
-          type: Directory
-        {{- else if $router.volumeSpec.pvc }}
-        persistentVolumeClaim:
-{{ $router.volumeSpec.pvc | toYaml | indent 10 }}
-        {{- else }}
-        emptyDir: {}
-        {{- end }}
-      {{- end }}
       {{- if $router.schedulerName }}
       schedulerName: {{ $router.schedulerName }}
       {{- end }}
@@ -654,19 +628,6 @@ spec:
 {{ tpl ($orc.resources.requests | toYaml) $ | indent 8 }}
       limits:
 {{ tpl ($orc.resources.limits | toYaml) $ | indent 8 }}
-    {{- if $orc.volumeSpec }}
-    volumeSpec:
-      {{- if $orc.volumeSpec.hostPath }}
-      hostPath:
-        path: {{ $orc.volumeSpec.hostPath }}
-        type: Directory
-      {{- else if $orc.volumeSpec.pvc }}
-      persistentVolumeClaim:
-{{ $orc.volumeSpec.pvc | toYaml | indent 8 }}
-      {{- else }}
-      emptyDir: {}
-      {{- end }}
-    {{- end }}
     {{- if $orc.schedulerName }}
     schedulerName: {{ $orc.schedulerName }}
     {{- end }}

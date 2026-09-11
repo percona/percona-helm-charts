@@ -43,3 +43,10 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{/*
+Default operator image used by init containers.
+*/}}
+{{- define "ps-db.operator-image" -}}
+{{- printf "percona/percona-server-mysql-operator:%s" .Chart.AppVersion -}}
+{{- end -}}

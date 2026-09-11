@@ -1,0 +1,67 @@
+suite: ps-db router
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: disables router by default
+    asserts:
+      - isSubset:
+          path: spec.proxy.router
+          content:
+            size: 3
+            gracePeriod: 30
+            enabled: false
+      - matchRegex:
+          path: spec.proxy.router.image
+          pattern: '^percona/percona-mysql-router:.+$'
+
+  - it: renders router when enabled for group replication
+    set:
+      proxy.router.enabled: true
+      proxy.router.image.repository: custom-router
+      proxy.router.image.tag: 9.9.9
+      proxy.router.imagePullPolicy: IfNotPresent
+      proxy.router.imagePullSecrets:
+        - name: registry-secret
+      proxy.router.ports:
+        - name: read-write
+          port: 3306
+          targetPort: 6446
+      proxy.router.env:
+        - name: CUSTOM_ENV
+          value: custom
+      proxy.router.nodeSelector:
+        disktype: ssd
+      proxy.router.runtimeClassName: image-rc
+      proxy.router.serviceAccountName: workload-sa
+    asserts:
+      - isSubset:
+          path: spec.proxy.router
+          content:
+            enabled: true
+            image: custom-router:9.9.9
+            imagePullPolicy: IfNotPresent
+            imagePullSecrets:
+              - name: registry-secret
+            ports:
+              - name: read-write
+                port: 3306
+                targetPort: 6446
+            env:
+              - name: CUSTOM_ENV
+                value: custom
+            nodeSelector:
+              disktype: ssd
+            runtimeClassName: image-rc
+            serviceAccountName: workload-sa
+
+  - it: disables router for async clusters
+    set:
+      mysql.clusterType: async
+      proxy.router.enabled: true
+    asserts:
+      - equal:
+          path: spec.proxy.router.enabled
+          value: false

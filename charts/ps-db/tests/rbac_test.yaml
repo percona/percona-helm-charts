@@ -1,0 +1,56 @@
+suite: ps-db orchestrator rbac
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the orchestrator role
+    template: templates/role.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Role
+      - equal:
+          path: metadata.name
+          value: unit-ps-db-orchestrator
+      - equal:
+          path: metadata.namespace
+          value: test-ns
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - ps.percona.com
+            resources:
+              - perconaservermysqls
+            verbs:
+              - get
+
+  - it: renders the orchestrator service account and binding
+    template: templates/role-binding.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: ServiceAccount
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: unit-ps-db-orchestrator
+        documentIndex: 0
+      - isKind:
+          of: RoleBinding
+        documentIndex: 1
+      - equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: unit-ps-db-orchestrator
+        documentIndex: 1
+      - equal:
+          path: subjects[0]
+          value:
+            kind: ServiceAccount
+            name: unit-ps-db-orchestrator
+        documentIndex: 1

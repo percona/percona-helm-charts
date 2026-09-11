@@ -1,0 +1,160 @@
+suite: ps-db mysql
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the default mysql configuration
+    asserts:
+      - isSubset:
+          path: spec.mysql
+          content:
+            clusterType: group-replication
+            autoRecovery: true
+            imagePullPolicy: Always
+            podDisruptionBudget:
+              maxUnavailable: 1
+            size: 3
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            resources:
+              requests:
+                memory: 2Gi
+              limits:
+                memory: 4Gi
+            exposePrimary:
+              enabled: true
+            volumeSpec:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 3Gi
+            gracePeriod: 600
+      - matchRegex:
+          path: spec.mysql.image
+          pattern: '^percona/percona-server:.+$'
+
+  - it: preserves disabled automatic recovery
+    set:
+      mysql.autoRecovery: false
+    asserts:
+      - equal:
+          path: spec.mysql.autoRecovery
+          value: false
+
+  - it: renders mysql workload options
+    set:
+      mysql.image.repository: custom-mysql
+      mysql.image.tag: 9.9.9
+      mysql.imagePullPolicy: IfNotPresent
+      mysql.imagePullSecrets:
+        - name: registry-secret
+      mysql.size: 5
+      mysql.vaultSecretName: vault-secret
+      mysql.configuration: |
+        [mysqld]
+        max_connections=250
+      mysql.env:
+        - name: CUSTOM_ENV
+          value: custom
+      mysql.envFrom:
+        - secretRef:
+            name: env-secret
+      mysql.nodeSelector:
+        disktype: ssd
+      mysql.tolerations:
+        - key: dedicated
+          operator: Exists
+      mysql.runtimeClassName: image-rc
+      mysql.priorityClassName: high-priority
+      mysql.schedulerName: custom-scheduler
+      mysql.serviceAccountName: workload-sa
+      mysql.containerSecurityContext.runAsUser: 1001
+      mysql.podSecurityContext.fsGroup: 1001
+    asserts:
+      - equal:
+          path: spec.mysql.image
+          value: custom-mysql:9.9.9
+      - equal:
+          path: spec.mysql.imagePullSecrets
+          value:
+            - name: registry-secret
+      - equal:
+          path: spec.mysql.size
+          value: 5
+      - equal:
+          path: spec.mysql.vaultSecretName
+          value: vault-secret
+      - matchRegex:
+          path: spec.mysql.configuration
+          pattern: 'max_connections=250'
+      - equal:
+          path: spec.mysql.env
+          value:
+            - name: CUSTOM_ENV
+              value: custom
+      - equal:
+          path: spec.mysql.envFrom
+          value:
+            - secretRef:
+                name: env-secret
+      - equal:
+          path: spec.mysql.nodeSelector
+          value:
+            disktype: ssd
+      - equal:
+          path: spec.mysql.tolerations
+          value:
+            - key: dedicated
+              operator: Exists
+      - equal:
+          path: spec.mysql.runtimeClassName
+          value: image-rc
+      - equal:
+          path: spec.mysql.priorityClassName
+          value: high-priority
+      - equal:
+          path: spec.mysql.schedulerName
+          value: custom-scheduler
+      - equal:
+          path: spec.mysql.serviceAccountName
+          value: workload-sa
+      - equal:
+          path: spec.mysql.containerSecurityContext
+          value:
+            runAsUser: 1001
+      - equal:
+          path: spec.mysql.podSecurityContext
+          value:
+            fsGroup: 1001
+
+  - it: renders mysql storage variants
+    set:
+      mysql.volumeSpec:
+        hostPath:
+          path: /data
+          type: DirectoryOrCreate
+    asserts:
+      - equal:
+          path: spec.mysql.volumeSpec
+          value:
+            hostPath:
+              path: /data
+              type: DirectoryOrCreate
+
+  - it: renders the optional mysql expose configuration
+    set:
+      mysql.expose:
+        enabled: true
+        type: LoadBalancer
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    asserts:
+      - equal:
+          path: spec.mysql.expose
+          value:
+            annotations:
+              service.beta.kubernetes.io/aws-load-balancer-type: nlb
+            enabled: true
+            type: LoadBalancer

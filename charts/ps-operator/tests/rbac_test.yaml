@@ -1,0 +1,116 @@
+suite: ps-operator rbac
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders namespaced RBAC by default
+    templates:
+      - templates/role.yaml
+      - templates/role-binding.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+        template: templates/role.yaml
+      - isKind:
+          of: Role
+        template: templates/role.yaml
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: test-ns
+        template: templates/role.yaml
+        documentIndex: 1
+      - hasDocuments:
+          count: 3
+        template: templates/role-binding.yaml
+      - isKind:
+          of: ServiceAccount
+        template: templates/role-binding.yaml
+        documentIndex: 0
+      - isKind:
+          of: RoleBinding
+        template: templates/role-binding.yaml
+        documentIndex: 1
+      - equal:
+          path: roleRef.kind
+          value: Role
+        template: templates/role-binding.yaml
+        documentIndex: 2
+
+  - it: renders cluster-wide RBAC when watching all namespaces
+    templates:
+      - templates/role.yaml
+      - templates/role-binding.yaml
+    set:
+      watchAllNamespaces: true
+    asserts:
+      - isKind:
+          of: ClusterRole
+        template: templates/role.yaml
+        documentIndex: 0
+      - notExists:
+          path: metadata.namespace
+        template: templates/role.yaml
+        documentIndex: 1
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - admissionregistration.k8s.io
+            resources:
+              - validatingwebhookconfigurations
+            verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - patch
+              - delete
+        template: templates/role.yaml
+        documentIndex: 1
+      - isKind:
+          of: ClusterRoleBinding
+        template: templates/role-binding.yaml
+        documentIndex: 1
+      - equal:
+          path: subjects[0].namespace
+          value: test-ns
+        template: templates/role-binding.yaml
+        documentIndex: 2
+      - equal:
+          path: roleRef.kind
+          value: ClusterRole
+        template: templates/role-binding.yaml
+        documentIndex: 2
+
+  - it: renders cluster-wide RBAC for a specific watch namespace
+    templates:
+      - templates/role.yaml
+      - templates/role-binding.yaml
+    set:
+      watchNamespace: watch-ns
+    asserts:
+      - isKind:
+          of: ClusterRole
+        template: templates/role.yaml
+        documentIndex: 0
+      - isKind:
+          of: ClusterRoleBinding
+        template: templates/role-binding.yaml
+        documentIndex: 1
+
+  - it: skips RBAC resources when disabled
+    templates:
+      - templates/role.yaml
+      - templates/role-binding.yaml
+    set:
+      rbac.create: false
+      serviceAccount.create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/role.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/role-binding.yaml

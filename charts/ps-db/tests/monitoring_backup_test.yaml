@@ -1,0 +1,102 @@
+suite: ps-db monitoring and backup
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: disables monitoring by default
+    asserts:
+      - isSubset:
+          path: spec.pmm
+          content:
+            enabled: false
+      - matchRegex:
+          path: spec.pmm.image
+          pattern: '^percona/pmm-client:.+$'
+
+  - it: renders monitoring options
+    set:
+      pmm.enabled: true
+      pmm.image.repository: custom-pmm
+      pmm.image.tag: 9.9.9
+      pmm.serverHost: pmm.example.com
+      pmm.mysqlParams: --disable-tablestats
+      pmm.customClusterName: custom-cluster
+    asserts:
+      - isSubset:
+          path: spec.pmm
+          content:
+            enabled: true
+            image: custom-pmm:9.9.9
+            serverHost: pmm.example.com
+            mysqlParams: --disable-tablestats
+            customClusterName: custom-cluster
+
+  - it: renders the default backup configuration
+    asserts:
+      - isSubset:
+          path: spec.backup
+          content:
+            enabled: true
+            imagePullPolicy: Always
+            storages: {}
+      - matchRegex:
+          path: spec.backup.image
+          pattern: '^percona/percona-xtrabackup:.+$'
+
+  - it: disables backups
+    set:
+      backup.enabled: false
+    asserts:
+      - isSubset:
+          path: spec.backup
+          content:
+            enabled: false
+      - matchRegex:
+          path: spec.backup.image
+          pattern: '^percona/percona-xtrabackup:.+$'
+
+  - it: renders backup schedules and storages
+    set:
+      backup.sourcePod: unit-ps-db-mysql-0
+      backup.backoffLimit: 4
+      backup.serviceAccountName: backup-sa
+      backup.schedule:
+        - name: daily
+          schedule: "0 0 * * *"
+          keep: 3
+          storageName: s3
+      backup.storages:
+        s3:
+          type: s3
+          s3:
+            bucket: backups
+            credentialsSecret: s3-secret
+            region: us-east-1
+    asserts:
+      - equal:
+          path: spec.backup.sourcePod
+          value: unit-ps-db-mysql-0
+      - equal:
+          path: spec.backup.backoffLimit
+          value: 4
+      - equal:
+          path: spec.backup.serviceAccountName
+          value: backup-sa
+      - equal:
+          path: spec.backup.schedule
+          value:
+            - name: daily
+              schedule: "0 0 * * *"
+              keep: 3
+              storageName: s3
+      - equal:
+          path: spec.backup.storages
+          value:
+            s3:
+              type: s3
+              s3:
+                bucket: backups
+                credentialsSecret: s3-secret
+                region: us-east-1

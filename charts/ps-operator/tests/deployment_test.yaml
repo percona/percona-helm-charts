@@ -1,0 +1,164 @@
+suite: ps-operator deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the default operator deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: unit-ps-operator
+      - equal:
+          path: metadata.namespace
+          value: test-ns
+      - isSubset:
+          path: metadata.labels
+          content:
+            app.kubernetes.io/name: ps-operator
+            app.kubernetes.io/instance: unit
+            app.kubernetes.io/managed-by: Helm
+      - isSubset:
+          path: spec
+          content:
+            replicas: 1
+            selector:
+              matchLabels:
+                app.kubernetes.io/name: ps-operator
+                app.kubernetes.io/instance: unit
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: unit-ps-operator
+      - isSubset:
+          path: spec.template.spec.containers[0]
+          content:
+            name: manager
+            imagePullPolicy: Always
+            args:
+              - --leader-elect
+            command:
+              - /usr/local/bin/percona-server-mysql-operator
+            securityContext:
+              allowPrivilegeEscalation: false
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: '^percona/percona-server-mysql-operator:.+$'
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: test-ns
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_STRUCTURED
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: INFO
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DISABLE_TELEMETRY
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MAX_CONCURRENT_RECONCILES
+            value: "1"
+
+  - it: renders changed deployment values
+    values:
+      - values/deployment-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: operator:dummy
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+      - equal:
+          path: spec.template.spec.containers[0].resources
+          value:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: pull-secret
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            disktype: ssd
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: dedicated
+              operator: Equal
+              value: operators
+              effect: NoSchedule
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_STRUCTURED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: DEBUG
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DISABLE_TELEMETRY
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MAX_CONCURRENT_RECONCILES
+            value: "3"
+
+  - it: renders an empty watch namespace for cluster-wide mode
+    set:
+      watchAllNamespaces: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: ""
+
+  - it: renders a specific watch namespace when configured
+    set:
+      watchNamespace: watch-ns
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: watch-ns
+
+  - it: renders name overrides
+    set:
+      fullnameOverride: custom-operator
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-operator
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: custom-operator

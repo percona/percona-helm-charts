@@ -1,0 +1,59 @@
+suite: ps-db orchestrator
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: disables orchestrator by default
+    asserts:
+      - isSubset:
+          path: spec.orchestrator
+          content:
+            enabled: false
+            size: 0
+      - matchRegex:
+          path: spec.orchestrator.image
+          pattern: '^percona/percona-orchestrator:.+$'
+
+  - it: renders orchestrator for async clusters
+    set:
+      mysql.clusterType: async
+      orchestrator.enabled: true
+      orchestrator.image.repository: custom-orchestrator
+      orchestrator.image.tag: 9.9.9
+      orchestrator.imagePullPolicy: IfNotPresent
+      orchestrator.imagePullSecrets:
+        - name: registry-secret
+      orchestrator.size: 5
+      orchestrator.env:
+        - name: CUSTOM_ENV
+          value: custom
+      orchestrator.nodeSelector:
+        disktype: ssd
+      orchestrator.runtimeClassName: image-rc
+    asserts:
+      - isSubset:
+          path: spec.orchestrator
+          content:
+            enabled: true
+            image: custom-orchestrator:9.9.9
+            imagePullPolicy: IfNotPresent
+            imagePullSecrets:
+              - name: registry-secret
+            serviceAccountName: unit-ps-db-orchestrator
+            size: 5
+            env:
+              - name: CUSTOM_ENV
+                value: custom
+            nodeSelector:
+              disktype: ssd
+            runtimeClassName: image-rc
+
+  - it: disables orchestrator for group replication clusters
+    set:
+      orchestrator.enabled: true
+    asserts:
+      - equal:
+          path: spec.orchestrator.enabled
+          value: false

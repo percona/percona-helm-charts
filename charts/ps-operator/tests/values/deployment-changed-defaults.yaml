@@ -1,0 +1,35 @@
+replicaCount: 2
+image:
+  repository: operator
+  tag: dummy
+  pullPolicy: IfNotPresent
+imagePullSecrets:
+  - name: pull-secret
+env:
+  logStructured: true
+  logLevel: DEBUG
+  maxConcurrentReconciles: 3
+disableTelemetry: true
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+nodeSelector:
+  disktype: ssd
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: zone
+              operator: In
+              values:
+                - a
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: operators
+    effect: NoSchedule

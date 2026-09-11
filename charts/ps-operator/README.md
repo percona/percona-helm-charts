@@ -19,7 +19,7 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-operator percona/ps-operator --version 1.2.0 --namespace my-namespace
+helm install my-operator percona/ps-operator --version 1.2.0 --namespace my-namespace --create-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
@@ -57,7 +57,7 @@ helm install ps-operator -f values.yaml percona/ps-operator
 To deploy Percona Server run the following command:
 
 ```sh
-helm install my-db percona/ps-db
+helm install my-db percona/ps-db --namespace my-namespace
 ```
 
 See more about Percona Server deployment in its chart [here](https://github.com/percona/percona-helm-charts/tree/main/charts/ps-db) or in the [Helm chart installation guide](https://www.percona.com/doc/kubernetes-operator-for-mysql/helm.html).

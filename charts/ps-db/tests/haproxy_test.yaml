@@ -1,0 +1,84 @@
+suite: ps-db haproxy
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the default haproxy configuration
+    asserts:
+      - isSubset:
+          path: spec.proxy.haproxy
+          content:
+            enabled: true
+            imagePullPolicy: Always
+            size: 3
+            podDisruptionBudget:
+              maxUnavailable: 1
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            resources:
+              requests:
+                cpu: 600m
+                memory: 1Gi
+              limits: {}
+            gracePeriod: 30
+      - matchRegex:
+          path: spec.proxy.haproxy.image
+          pattern: '^percona/haproxy:.+$'
+
+  - it: disables haproxy
+    set:
+      proxy.haproxy.enabled: false
+    asserts:
+      - isSubset:
+          path: spec.proxy.haproxy
+          content:
+            enabled: false
+            size: 0
+      - matchRegex:
+          path: spec.proxy.haproxy.image
+          pattern: '^percona/haproxy:.+$'
+
+  - it: renders haproxy workload options
+    set:
+      proxy.haproxy.image.repository: custom-haproxy
+      proxy.haproxy.image.tag: 9.9.9
+      proxy.haproxy.imagePullSecrets:
+        - name: registry-secret
+      proxy.haproxy.env:
+        - name: CUSTOM_ENV
+          value: custom
+      proxy.haproxy.nodeSelector:
+        disktype: ssd
+      proxy.haproxy.runtimeClassName: image-rc
+      proxy.haproxy.serviceAccountName: workload-sa
+      proxy.haproxy.expose:
+        type: LoadBalancer
+    asserts:
+      - equal:
+          path: spec.proxy.haproxy.image
+          value: custom-haproxy:9.9.9
+      - equal:
+          path: spec.proxy.haproxy.imagePullSecrets
+          value:
+            - name: registry-secret
+      - equal:
+          path: spec.proxy.haproxy.env
+          value:
+            - name: CUSTOM_ENV
+              value: custom
+      - equal:
+          path: spec.proxy.haproxy.nodeSelector
+          value:
+            disktype: ssd
+      - equal:
+          path: spec.proxy.haproxy.runtimeClassName
+          value: image-rc
+      - equal:
+          path: spec.proxy.haproxy.serviceAccountName
+          value: workload-sa
+      - equal:
+          path: spec.proxy.haproxy.expose
+          value:
+            type: LoadBalancer

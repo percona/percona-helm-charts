@@ -8,6 +8,8 @@ on:
     - 'charts/psmdb-operator/**'
     - 'charts/psmdb-operator-crds/**'
     - 'charts/psmdb-db/**'
+    - 'charts/ps-operator/**'
+    - 'charts/ps-db/**'
     - 'Makefile'
     - '.github/workflows/unit-test.yaml'
 
@@ -41,6 +43,6 @@ jobs:
           fi
 
           echo "$changed" |
-            awk -F/ '$1 == "charts" && $2 ~ /^(pxc|psmdb)-(operator(-crds)?|db)$/ { print "test-" $2 }' |
+            awk -F/ '$1 == "charts" && $2 ~ /^(pxc|psmdb|ps)-(operator(-crds)?|db)$/ { print "test-" $2 }' |
             sort -u |
             xargs -n1 make

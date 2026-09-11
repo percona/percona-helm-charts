@@ -1,0 +1,37 @@
+finalizers:
+  - percona.com/delete-mysql-pvc
+crVersion: 9.9.9
+enableVolumeExpansion: true
+storageScaling:
+  enableVolumeScaling: true
+  enableExternalAutoscaling: false
+  autoscaling:
+    enabled: true
+    triggerThresholdPercent: 75
+    growthStep: 2Gi
+    maxSize: 20Gi
+unsafeFlags:
+  mysqlSize: true
+  orchestrator: true
+  orchestratorSize: true
+  proxy: true
+  proxySize: true
+metadata:
+  labels:
+    rack: rack-22
+  annotations:
+    team: database
+updateStrategy: RollingUpdate
+upgradeOptions:
+  versionServiceEndpoint: https://versions.test
+  apply: recommended
+pause: true
+secretsName: custom-secrets
+sslSecretName: custom-ssl
+tls:
+  SANs:
+    - mysql.example.com
+  issuerConf:
+    name: custom-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io

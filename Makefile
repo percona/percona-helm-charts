@@ -25,7 +25,7 @@ helm-unittest:
 	$(HELM) plugin list 2>/dev/null | grep -q '^unittest' || $(HELM) plugin install https://github.com/helm-unittest/helm-unittest.git
 
 .PHONY: test
-test: test-pxc-operator test-pxc-db test-psmdb-operator test-psmdb-operator-crds test-psmdb-db
+test: test-pxc-operator test-pxc-db test-psmdb-operator test-psmdb-operator-crds test-psmdb-db test-ps-operator test-ps-db
 
 .PHONY: test-pxc-operator
 test-pxc-operator:
@@ -46,3 +46,11 @@ test-psmdb-operator-crds:
 .PHONY: test-psmdb-db
 test-psmdb-db:
 	$(HELM) unittest charts/psmdb-db
+
+.PHONY: test-ps-operator
+test-ps-operator:
+	$(HELM) unittest charts/ps-operator
+
+.PHONY: test-ps-db
+test-ps-db:
+	$(HELM) unittest charts/ps-db
