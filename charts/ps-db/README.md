@@ -19,14 +19,14 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 1.2.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 1.3.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                             | Default                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `1.2.0`                     |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `1.3.0`                     |
 | `enableVolumeExpansion`                             | Deprecated. Enable PVC volume expansion. Use `storageScaling.enableVolumeScaling` instead                                                                               | `false`                     |
 | `storageScaling.enableVolumeScaling`                | Allow the operator to resize/expand PVCs when the storage request changes in the spec                                                                                   | `false`                     |
 | `storageScaling.enableExternalAutoscaling`          | Let an external controller manage storage autoscaling (skips the operator's built-in autoscaler)                                                                        | `false`                     |
@@ -285,6 +285,15 @@ The chart can be customized using the following configurable parameters:
 | `toolkit.imagePullPolicy`    | The policy used to update images           | ``                        |
 | `toolkit.resources.requests` | Toolkit Container resource requests        | `{}`                      |
 | `toolkit.resources.limits`   | Toolkit Container resource limits          | `{}`                      |
+||
+| `users`                          | Custom MySQL users to be created and managed by the Operator           | `[]`       |
+| `users.name`                     | The username of the MySQL user                                         | `""`       |
+| `users.dbs`                      | Databases the grants will be applied to                                | `[]`       |
+| `users.hosts`                    | Hosts the user is allowed to connect from                              | `[]`       |
+| `users.grants`                   | Grants that will be applied to the user                                | `[]`       |
+| `users.withGrantOption`          | Allow the user to grant its own privileges to other users              | `false`    |
+| `users.passwordSecretRef.name`   | Name of the Secret that contains the user's password                   | `""`       |
+| `users.passwordSecretRef.key`    | Key in the Secret that corresponds to the value of the user's password | `password` |
 ||
 | `backup.enabled`                                | Enable backups                                                                              | `true`                       |
 | `backup.sourcePod`                              | Specify backup source pod                                                                   | ``                           |
