@@ -364,6 +364,8 @@ To create additional service tokens manually, see the [PMM documentation on serv
 
 | Name                              | Description                                                                                                                                    | Value                 |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `replicas`                        | Number of PMM server replicas. Must be an odd number and no greater than `maxReplicas`; the chart fails the render otherwise                    | `3`                   |
+| `maxReplicas`                     | HAProxy `server-template` slots, and therefore the ceiling on `replicas`. Raising it also needs an HAProxy restart                              | `10`                  |
 | `service.name`                    | Service name that is dns name monitoring services would send data to. `monitoring-service` used by default by pmm-client in Percona operators. | `monitoring-service`  |
 | `service.type`                    | Kubernetes Service type                                                                                                                        | `ClusterIP`            |
 | `service.ports[0].port`           | https port number                                                                                                                              | `8443`                 |
@@ -404,6 +406,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 
 | Name                         | Description                                                                                                         | Value                 |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `clickhouse.keeper.replicasCount` | Number of ClickHouse Keeper nodes. Must be an odd value from 1 to 9; the chart fails the render otherwise | `3` |
 | `nameOverride`               | String to partially override common.names.fullname template with a string (will prepend the release name)           | `""`                  |
 | `extraLabels`                | Labels to add to all deployed objects                                                                               | `{}`                  |
 | `serviceAccount.create`      | Specifies whether a ServiceAccount should be created                                                                | `true`                |
@@ -797,12 +800,38 @@ haproxy:
 | MetalLB | IP from pool via `spec.loadBalancerIP` |
 ### Scaling and Monitoring
 
+#### Supported scaling range
+
+| Component | Value | Supported range | Enforced |
+|---|---|---|---|
+| PMM server | `replicas` | any odd value from `1` to `maxReplicas`; `3` (default) and `5` are what QA certifies | Yes — the chart fails the render |
+| HAProxy | `haproxy.replicaCount` | `1` or higher; replicas past the worker-node count co-locate and add throughput, not fault tolerance | No |
+| ClickHouse | `clickhouse.cluster.replicas` | `3` (default) or higher; scaling up is supported and shown below | No |
+| ClickHouse Keeper | `clickhouse.keeper.replicasCount` | any odd value from `1` to `9`; `3` is the default | Yes — the chart fails the render |
+| VictoriaMetrics | `victoriaMetrics.*.replicaCount` | defaults, or higher for larger fleets; scale up only | No |
+
+`replicas` is an availability knob, not a capacity knob: more PMM servers buy
+tolerance of more simultaneous failures, not more monitored nodes. To monitor a
+larger fleet, raise the per-component `resources` and storage rather than adding
+PMM replicas.
+
+These constraints are covered under [Known Limitations](#known-limitations).
+
+> **Upgrade note (chart 1.7.0)**
+>
+> An even `replicas` (`2` or `4`) was previously accepted and now fails the render.
+> Set an odd value in the same `helm upgrade`. That changes `PMM_HA_PEERS`, so it
+> recreates every PMM pod.
+>
+> `clickhouse.keeper.replicasCount` is now capped at `9` as well as required to be odd.
+> Anything higher was previously accepted and now fails the render.
+
 #### Scaling PMM HA
 
 To scale the PMM HA deployment:
 
 ```sh
-# Scale PMM server replicas
+# Scale PMM server replicas (odd values only)
 helm upgrade pmm-ha --set replicas=5 --namespace pmm percona/pmm-ha
 
 # Scale HAProxy replicas
@@ -861,6 +890,58 @@ Common troubleshooting steps for PMM HA:
 5. **Check storage**: Verify persistent volumes are properly mounted and accessible
 
 ## Known Limitations
+
+### Scaling constraints
+
+- **`replicas` and `clickhouse.keeper.replicasCount` must be odd.** Both are Raft
+  ensembles, and Raft elects by majority: an even count adds a voter without adding
+  fault tolerance - it widens the majority a leader election needs while surviving no
+  more failures - and `2` survives none at all. The chart rejects even values.
+- **`clickhouse.keeper.replicasCount` must not exceed `9`.** Unlike `maxReplicas` this
+  is a supportability limit rather than a correctness one: every Keeper node is a full
+  Raft voter, so each extra pair widens the majority that every write waits on, and `9`
+  already survives 4 simultaneous losses.
+- **`replicas` must not exceed `maxReplicas`** (default `10`). HAProxy renders only
+  `maxReplicas` `server-template` slots and fills them from a headless-service DNS
+  answer in arbitrary order, and it marks a backend UP only when that pod answers
+  `/v1/server/leaderHealthCheck`. A pod left without a slot is therefore invisible to
+  HAProxy, and if the Raft leader lands on it every backend is DOWN and PMM serves
+  `503`. The chart rejects this combination.
+- **Raising `maxReplicas` needs an HAProxy restart.** It is rendered into the
+  `pmm-ha-haproxy` ConfigMap, which the chart does not roll on upgrade. Routing itself
+  is DNS-based, so changing `replicas` needs no restart. Bump
+  `haproxy.podAnnotations."pmm.percona.com/config-version"` in the same `helm upgrade`
+  so the pods restart and pick up the new `server-template`. It has to be a value the
+  release is not already running - the chart ships `"4"`, so the examples below use `"5"`:
+
+  ```sh
+  helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+    --set maxReplicas=20 \
+    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=5'
+  ```
+
+  Or in `values.yaml`:
+
+  ```yaml
+  maxReplicas: 20
+  haproxy:
+    podAnnotations:
+      pmm.percona.com/config-version: "5"
+  ```
+
+  Prefer this over `kubectl rollout restart`: the bump is part of the same declarative
+  upgrade, so the restart is reproducible from the chart alone. An out-of-band restart
+  also picks up the new config, but a GitOps controller strips the `restartedAt`
+  annotation on its next sync and triggers a second, pointless rollout.
+- **`haproxy.replicaCount` past the worker-node count buys throughput, not fault
+  tolerance.** HAProxy pods use a soft topology spread on `kubernetes.io/hostname`
+  (`whenUnsatisfiable: ScheduleAnyway`), so extra replicas co-locate rather than
+  staying `Pending` - but a co-located replica shares a failure domain with the one
+  already on that node. pgBouncer still uses required anti-affinity, so its replicas
+  do stay `Pending` past the node count while Helm reports success; the same holds for
+  the PostgreSQL instances in the sizing examples.
+- **`victoriaMetrics.vmstorage.replicaCount` should not be scaled down.** Data is
+  sharded across vmstorage pods and is not migrated off a removed pod.
 
 ### Scaling Down to Single Replica
 
