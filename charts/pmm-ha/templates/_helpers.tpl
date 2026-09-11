@@ -350,15 +350,15 @@ quote a number the user never typed, so both are rejected as malformed input ins
 {{- if eq (mod $ceiling 2) 0 -}}
 {{- $maxOdd = sub $ceiling 1 -}}
 {{- end -}}
-{{- if le $upper $maxOdd -}}
-{{- $hint = printf "Use %d or %d." $lower $upper -}}
-{{- else if le $lower $maxOdd -}}
+{{- if gt $upper $maxOdd -}}
+{{- if le $lower $maxOdd -}}
 {{- $hint = printf "Use %d." $lower -}}
 {{- else -}}
 {{- $hint = printf "%s is %d, so the largest supported value is %d." (.ceilingName | default "The ceiling") $ceiling $maxOdd -}}
 {{- end -}}
 {{- end -}}
-{{- fail (printf "%s must be odd so Raft can form a quorum, got %d: an even count needs more votes to elect a leader without surviving more failures. %s" $name $n $hint) -}}
+{{- end -}}
+{{- fail (printf "%s must be odd, got %d: an even count adds a Raft voter without adding fault tolerance - it widens the majority a leader election needs while surviving no more failures. %s" $name $n $hint) -}}
 {{- end -}}
 {{- end -}}
 
@@ -395,9 +395,23 @@ reason described above.
 The parenthesised lookup matches pmm.nodeExporter.mode: without it, a nulled clickhouse
 or clickhouse.keeper key aborts with a raw Go nil-pointer error instead of the message
 this validator exists to produce.
+
+Unlike replicas there is no HAProxy-style hard constraint here, so the ceiling is a
+supportability limit rather than a correctness one: every Keeper node is a full Raft
+voter, so each extra pair widens the majority that every write waits on while buying
+fault tolerance nobody asked for - 9 already survives 4 simultaneous losses. The bound
+is enforced here rather than in pmm.validate.oddCount, which only clamps the hint: adding
+a rejection there would fire ahead of the maxReplicas check in pmm.replicas.validate and
+swallow its far more specific message.
 */}}
 {{- define "pmm.keeper.validate" -}}
-{{- include "pmm.validate.oddCount" (dict "name" "clickhouse.keeper.replicasCount" "value" ((.Values.clickhouse).keeper).replicasCount) -}}
+{{- $ceiling := 9 -}}
+{{- $raw := ((.Values.clickhouse).keeper).replicasCount -}}
+{{- include "pmm.validate.oddCount" (dict "name" "clickhouse.keeper.replicasCount" "value" $raw "ceiling" $ceiling "ceilingName" "The supported maximum") -}}
+{{- $n := int $raw -}}
+{{- if gt $n $ceiling -}}
+{{- fail (printf "clickhouse.keeper.replicasCount (%d) exceeds the supported maximum (%d): every Keeper node is a full Raft voter, so each extra pair widens the majority every write waits on without buying fault tolerance the cluster needs - %d already survives 4 simultaneous losses." $n $ceiling $ceiling) -}}
+{{- end -}}
 {{- end -}}
 
 {{/*

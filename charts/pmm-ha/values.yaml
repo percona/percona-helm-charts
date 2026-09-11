@@ -562,10 +562,13 @@ clickhouse:
       # Keeper cluster name (follows same restrictions as ClickHouse cluster)
       # Regex: ^[a-zA-Z0-9-]{0,15}$
       name: keeper
-    ## @param clickhouse.keeper.replicasCount Number of ClickHouse Keeper nodes. Must be odd; the chart fails the render otherwise
+    ## @param clickhouse.keeper.replicasCount Number of ClickHouse Keeper nodes. Must be an odd value from 1 to 9; the chart fails the render otherwise
     ## Must be an ODD number - the chart fails the render otherwise. Keeper is a Raft
-    ## ensemble like PMM's own, so an even count needs more votes to reach quorum
-    ## without tolerating more failures, and 2 tolerates none.
+    ## ensemble like PMM's own, so an even count adds a voter without adding fault
+    ## tolerance, and 2 tolerates no losses at all.
+    ##
+    ## Capped at 9. Every node is a full Raft voter, so each extra pair widens the
+    ## majority that every write waits on; 9 already survives 4 simultaneous losses.
     replicasCount: 3
     # Persistent storage configuration for Keeper data
     storage:

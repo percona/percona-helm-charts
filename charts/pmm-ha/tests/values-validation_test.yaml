@@ -3,6 +3,15 @@
 # The suite renders statefulset.yaml alone on purpose. Every case is expected to abort in
 # a validator, so nothing downstream matters - and keeping pg-user-credentials-secrets.yaml
 # out means these run with no cluster and no dependency on Helm's template ordering.
+#
+# That scoping only works because every case here fails on lines 1-3. A `notFailedTemplate`
+# case added to THIS suite errors instead of passing:
+#
+#   error calling include: template: no template "pmm-ha/templates/configmap.yaml"
+#   associated with template "gotpl"
+#
+# because statefulset.yaml:21 includes pmm.podAnnotations, which checksums configmap.yaml.
+# Positive cases belong in ha-peers_test.yaml, which lists the extra templates.
 suite: pmm-ha value validation
 templates:
   - templates/statefulset.yaml
@@ -47,7 +56,7 @@ tests:
     set: {replicas: 2}
     asserts:
       - failedTemplate:
-          errorPattern: "replicas must be odd so Raft can form a quorum, got 2.*Use 1 or 3\\."
+          errorPattern: "replicas must be odd, got 2.*Use 1 or 3\\."
 
   - it: suggests the neighbours of 4
     set: {replicas: 4}
@@ -101,12 +110,20 @@ tests:
       - failedTemplate:
           errorPattern: "maxReplicas must be a whole number between 1 and 100, got 200"
 
+  # The off-by-one, so a later "simplification" of ^([1-9][0-9]?|100)$ to [0-9]{1,3}
+  # cannot quietly start rendering a 101-slot server-template.
+  - it: rejects a maxReplicas one above the slot ceiling
+    set: {maxReplicas: 101}
+    asserts:
+      - failedTemplate:
+          errorPattern: "maxReplicas must be a whole number between 1 and 100, got 101"
+
   # Keeper is a Raft ensemble too; values.yaml has always said the count should be odd.
   - it: rejects an even Keeper count
     set: {clickhouse.keeper.replicasCount: 2}
     asserts:
       - failedTemplate:
-          errorPattern: "clickhouse.keeper.replicasCount must be odd so Raft can form a quorum, got 2"
+          errorPattern: "clickhouse.keeper.replicasCount must be odd, got 2"
 
   - it: rejects Keeper count 0
     set: {clickhouse.keeper.replicasCount: 0}
@@ -126,3 +143,23 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "clickhouse.keeper.replicasCount must be a whole number between 1 and 9999, got <nil>"
+
+  # Keeper is bounded at 9: every node is a full Raft voter, so each extra pair widens
+  # the majority every write waits on.
+  - it: rejects a Keeper count above the supported maximum
+    set: {clickhouse.keeper.replicasCount: 11}
+    asserts:
+      - failedTemplate:
+          errorPattern: "clickhouse.keeper.replicasCount \\(11\\) exceeds the supported maximum \\(9\\)"
+
+  - it: clamps the Keeper suggestion to the supported maximum
+    set: {clickhouse.keeper.replicasCount: 10}
+    asserts:
+      - failedTemplate:
+          errorPattern: "got 10.*Use 9\\."
+
+  - it: reports the Keeper ceiling when neither neighbour fits
+    set: {clickhouse.keeper.replicasCount: 12}
+    asserts:
+      - failedTemplate:
+          errorPattern: "got 12.*The supported maximum is 9, so the largest supported value is 9\\."

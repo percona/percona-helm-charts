@@ -6,6 +6,10 @@ on:
       - 'charts/pmm-ha-dependencies/**'
       # Without this a PR that only edits the assertions below runs no job at all.
       - '.github/workflows/pmm-ha-pr-checks.yaml'
+      # Same reason: the helm unittest step below runs `make test-pmm-ha`, and
+      # unit-test.yaml's matrix covers only the pxc targets - so a Makefile-only
+      # PR that breaks this chart's target matches no workflow at all.
+      - 'Makefile'
 
 jobs:
   lint-test:

@@ -16,8 +16,15 @@ tests:
     asserts:
       - notFailedTemplate: {}
 
+  # Also the replicas == maxReplicas boundary: the ceiling check is `gt`, not `ge`,
+  # and this is the only case that says so.
   - it: accepts every supported replica count
     set: {replicas: 9, maxReplicas: 9}
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: accepts the largest supported Keeper count
+    set: {clickhouse.keeper.replicasCount: 9}
     asserts:
       - notFailedTemplate: {}
 
