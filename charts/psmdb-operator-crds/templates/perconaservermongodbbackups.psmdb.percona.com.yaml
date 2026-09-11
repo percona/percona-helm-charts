@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/component: crd
     app.kubernetes.io/name: percona-server-mongodb
     app.kubernetes.io/part-of: percona-server-mongodb-operator
-    app.kubernetes.io/version: v1.23.0
+    app.kubernetes.io/version: v1.24.0
   name: perconaservermongodbbackups.psmdb.percona.com
 spec:
   group: psmdb.percona.com
@@ -209,6 +209,8 @@ spec:
                   credentials:
                     properties:
                       secretName:
+                        maxLength: 253
+                        minLength: 1
                         type: string
                       type:
                         type: string
@@ -216,7 +218,7 @@ spec:
                     x-kubernetes-validations:
                     - message: secretName must be set when credentials type is userPrincipal
                       rule: '!has(self.type) || self.type != ''userPrincipal'' ||
-                        (has(self.secretName) && self.secretName != '''')'
+                        has(self.secretName)'
                   maxObjSizeGB:
                     type: number
                   namespace:
