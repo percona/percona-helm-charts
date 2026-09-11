@@ -207,7 +207,10 @@ secret:
   ## To get password execute `kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode`
   ##
   ## With a manually created secret (secret.create: false, the default) this field is ignored:
-  ## the secret's own PMM_ADMIN_PASSWORD key is used, and the chart fails the install without it.
+  ## the secret's own PMM_ADMIN_PASSWORD key is used, and the chart fails the install or upgrade
+  ## without it. Note that Grafana applies GF_SECURITY_ADMIN_PASSWORD only when it first creates
+  ## the admin user, so adding the key to an already-provisioned release does not change the
+  ## password - it has to be reset out of band. See README.md, "PMM admin password".
   ## PMM_ADMIN_PASSWORD is the PMM web UI / API `admin` password - the chart maps it to Grafana's
   ## GF_SECURITY_ADMIN_PASSWORD. Do not confuse it with secret.gf_password / GF_PASSWORD, which
   ## is the Grafana PostgreSQL database user password.
