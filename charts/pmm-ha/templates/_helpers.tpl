@@ -405,3 +405,40 @@ dict with "name" and "value".
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Resolve one key of the PMM secret to its base64 value, for the keys that more than one template
+needs to agree on.
+
+secret.yaml generates GF_PASSWORD and PG_PASSWORD, and pg-user-credentials-secrets.yaml has to
+write those same two passwords into the per-user credentials secrets the PostgreSQL operator
+reads. Under secret.create the secret does not exist yet at render time - Helm renders every
+template before it applies the pre-install hook that creates it - so the second template cannot
+read the value back and has to derive it the same way. Deriving it with a second randAlphaNum
+would hand Grafana a password PostgreSQL never got, so the generated value is cached on .Values
+and every caller gets the same one, the way pmm.clickhouse.datasourcePassword already does.
+
+Precedence: the key already in the secret (upgrades keep their password), then the explicit
+value from values.yaml, then a generated one. Takes a dict with "ctx" (the root context), "key"
+and "override". Returns base64 - the callers write it straight into a Secret's data.
+*/}}
+{{- define "pmm.secret.key" -}}
+{{- $ctx := .ctx -}}
+{{- $existing := (lookup "v1" "Secret" $ctx.Release.Namespace $ctx.Values.secret.name) -}}
+{{- $current := "" -}}
+{{/* An empty secret.name makes lookup return a SecretList, which has no .data. */}}
+{{- if and $existing $existing.data -}}
+{{- $current = get $existing.data .key -}}
+{{- end -}}
+{{- if $current -}}
+{{- $current -}}
+{{- else if .override -}}
+{{- .override | b64enc -}}
+{{- else -}}
+{{- $cache := printf "generated_%s" .key -}}
+{{- if not (hasKey $ctx.Values $cache) -}}
+{{- $_ := set $ctx.Values $cache (randAlphaNum 32 | b64enc) -}}
+{{- end -}}
+{{- get $ctx.Values $cache -}}
+{{- end -}}
+{{- end -}}
