@@ -305,7 +305,7 @@ pmm-admin config --server-url=https://service_token:<token>@pmm-ha-haproxy:443 -
 
 When `pg-db.pmm.enabled: true` (default), PostgreSQL metrics are automatically pushed to PMM:
 
-1. A **service account token** is automatically created in PMM by the `pmm-token-init` Job
+1. A **service account token** is automatically created in PMM by the `<release>-pmm-token-init-<hash>` Job
 2. The token is stored in the `<release>-pg-db-pmm-secret` Kubernetes secret
 3. PostgreSQL pods use this token to authenticate and push metrics to PMM via the `pmm-ha-haproxy` endpoint
 
@@ -316,7 +316,28 @@ leaves it behind. On every run the Job checks whether the stored token still aut
 and re-mints it if not, so a reinstall into a namespace that still holds the old secret
 recovers on its own. If PostgreSQL monitoring is missing, check the `pmm-client` container
 in a PostgreSQL pod: `Auth method is not service account token` means the token was rejected,
-and the Job's log will say whether it re-minted.
+and the Job's log will say whether it re-minted. A probe that is inconclusive rather than
+rejected - PMM unreachable, a 5xx, or a leader change mid-check - is not treated as a dead
+token: the Job fails and retries instead of minting a second token behind the running pods.
+
+The Job's name ends in a hash of its own pod template, so find it by label rather than by a
+fixed name:
+
+```bash
+JOB=$(kubectl get jobs -n <namespace> -l app.kubernetes.io/instance=<release> \
+  -o name | grep pmm-token-init)
+kubectl logs -n <namespace> "$JOB"
+```
+
+A Job's `spec.template` is immutable, so any chart change that touches the script or its
+environment would otherwise fail `helm upgrade` with `spec.template: field is immutable` while
+the previous Job still exists. With the hash in the name, Helm creates the new Job and prunes
+the old one instead.
+
+Upgrading from a chart version that used the old fixed `pg-pmm-secret` name: after the upgrade
+the Job creates `<release>-pg-db-pmm-secret`, and the PostgreSQL operator needs a few minutes
+to reconcile the new name into the instance StatefulSets. Leave `pg-pmm-secret` in place until
+the PostgreSQL pods have restarted against the new secret, then delete it.
 
 **Query Analytics (QAN) is intentionally disabled** for the bundled PostgreSQL cluster. PMM's own database
 is an internal component, and the `QAN for PMM Server` toggle in *Settings -> Advanced* cannot control it in

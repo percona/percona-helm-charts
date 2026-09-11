@@ -38,13 +38,30 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-pmm-token-init
+  name: {{ include "pmm.pgTokenJobName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 spec:
   ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
   backoffLimit: 10
+{{- include "pmm.pgTokenJobPodTemplate" . }}
+{{- end }}
+
+{{/*
+Pod template for the pg-db PMM token-init Job, kept as a named template so the Job name can
+carry a hash of it (see pmm.pgTokenJobName). A Job's spec.template is immutable and this Job
+is an ordinary release resource, not a helm.sh/hook, so a `helm upgrade` that changes the
+script or an env value would otherwise be rejected with "spec.template: field is immutable"
+for as long as the previous Job survives (ttlSecondsAfterFinished bounds that to 24h after
+it completed). Hashing the template into the name makes such a change a create-and-prune
+instead of a patch. A hook would be the other way out, but the readiness loop below is
+unbounded, and a post-install/post-upgrade hook that never returns would hang helm.
+
+Indentation here is the final rendered indentation - the include is not re-indented, so the
+embedded shell script is untouched.
+*/}}
+{{- define "pmm.pgTokenJobPodTemplate" }}
   template:
     spec:
       serviceAccountName: {{ .Release.Name }}-pmm-token-generator
@@ -117,7 +134,15 @@ spec:
           # Ready. Validate it instead, and re-mint when it does not authenticate.
           #
           # This check has to run AFTER the readiness loop above: probing an unready PMM would
-          # fail and re-mint a token that was in fact fine.
+          # fail and re-mint a token that was in fact fine. The readiness loop is necessary but
+          # not sufficient - it only proves /v1/readyz answered 200 once, through HAProxy, whose
+          # backend check is /v1/server/leaderHealthCheck; a leader change between the two
+          # requests, or a curl failure (%{http_code} reports "000", and the request never
+          # completed at all), lands here with nothing said about the token. So only 401/403
+          # count as "the token is dead". Anything else is inconclusive and the Job fails, which
+          # restartPolicy: OnFailure + backoffLimit retries; re-minting there would mint a
+          # second token while the PG pods keep the old one from secretKeyRef until they
+          # restart, and the superseded one is never revoked in Grafana.
           if kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
             EXISTING_KEY=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o jsonpath='{.data.PMM_SERVER_TOKEN}' 2>/dev/null | base64 -d)
             if [ -n "$EXISTING_KEY" ]; then
@@ -127,6 +152,10 @@ spec:
               if [ "$TOKEN_CODE" = "200" ]; then
                 echo "Secret '$SECRET_NAME' holds a token that authenticates (HTTP $TOKEN_CODE). Skipping token creation."
                 exit 0
+              fi
+              if [ "$TOKEN_CODE" != "401" ] && [ "$TOKEN_CODE" != "403" ]; then
+                echo "ERROR: could not validate the token in '$SECRET_NAME' (HTTP $TOKEN_CODE). Not re-minting on an inconclusive probe; failing so the Job retries."
+                exit 1
               fi
               echo "Secret '$SECRET_NAME' holds a token that does NOT authenticate (HTTP $TOKEN_CODE) - re-minting."
             fi
@@ -203,4 +232,4 @@ spec:
           echo "=== Success ==="
           echo "Secret '$SECRET_NAME' created with PMM_SERVER_TOKEN"
           echo "PostgreSQL pods can now use this secret for PMM monitoring"
-{{- end }}
+{{- end -}}

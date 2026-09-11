@@ -837,8 +837,9 @@ pg-db:
       repository: docker.io/percona/pmm-client
       tag: "3"
     ## @param pg-db.pmm.secret Name of the secret containing PMM_SERVER_TOKEN. Leave empty to derive "<release>-pg-db-pmm-secret"
-    ## Created automatically by the pmm-token-init Job, which must agree with pg-db on the
-    ## name - both derive it from the pmm.pgPmmSecretName helper when this is unset.
+    ## Created automatically by the pmm-token-init Job. When this is unset the Job takes the
+    ## name from the pmm.pgPmmSecretName helper, which repeats pg-db's own fallback
+    ## expression - "<pg-database.fullname>-pmm-secret" - so both resolve identically.
     ##
     ## Left unset on purpose. The Job creates this secret with kubectl rather than through
     ## Helm, so `helm uninstall` leaves it behind; a fixed name would let a new release
