@@ -1,4 +1,5 @@
 {{- include "pmm.nodeExporter.validate" . -}}
+{{- include "pmm.validateSecret" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -172,6 +173,31 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            {{/*
+            Grafana reads the admin password from GF_SECURITY_ADMIN_PASSWORD, but the secret
+            stores it under PMM_ADMIN_PASSWORD. With a user-created secret (secret.create: false,
+            the documented default) the envFrom secretRef above injects that secret's keys
+            verbatim and cannot rename one, so the mapping has to be emitted here; with
+            secret.create there is no envFrom secretRef at all and this is the only source.
+            Either way it must not be gated on secret.create - that gate is what caused
+            PMM-15400, leaving PMM on its built-in admin password. charts/pmm guards the same
+            env on secret.name.
+
+            Where envFrom does apply, env wins over it, so a GF_SECURITY_ADMIN_PASSWORD key also
+            placed in the secret is overridden - PMM_ADMIN_PASSWORD is the single source of truth.
+
+            Required, not optional: pmm.validateSecret refuses to render without the key, so an
+            optional ref would only serve to let a key deleted after install silently drop the
+            env var again. Note charts/pmm still uses optional: true for its copy of this ref.
+            */}}
+            {{ if .Values.secret.name }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+                  optional: false
+            {{ end }}
             {{ if .Values.secret.create }}
             # additional secrets that could be used for Grafana iDP
             - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
@@ -185,12 +211,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-                  optional: true
-            - name: GF_SECURITY_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: PMM_ADMIN_PASSWORD
                   optional: true
             {{ end }}
             - name: PMM_POSTGRES_USERNAME
