@@ -71,9 +71,16 @@ Pod annotation
 */}}
 {{- define "pmm.podAnnotations" -}}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-helm.sh/chart: {{ include "pmm.chart" . }}
-checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+checksum/config: {{ include "pmm.configMapOrSecretContentHash" (dict "ctx" . "name" "/configmap.yaml") }}
 {{- if .Values.podAnnotations }}
 {{ toYaml .Values.podAnnotations }}
 {{- end }}
 {{- end }}
+
+{{/*
+Compute a ConfigMap or Secret checksum from its data only, for the checksum/* pod annotations.
+The full manifest carries the helm.sh/chart label, which changes on every chart version bump.
+*/}}
+{{- define "pmm.configMapOrSecretContentHash" -}}
+{{ pick (include (print .ctx.Template.BasePath .name) .ctx | fromYaml) "data" "stringData" | toYaml | sha256sum }}
+{{- end -}}
