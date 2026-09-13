@@ -524,23 +524,9 @@ Set retention with the top-level `dataRetentionDays`, in whole days:
 dataRetentionDays: 30
 ```
 
-The chart renders this one value into two places, so both stores keep data for the same period: `PMM_DATA_RETENTION` on every PMM replica, which governs Query Analytics data in ClickHouse, and `retentionPeriod` on the `VMCluster` resource, which governs metrics.
+The chart renders this one value into two places, so both stores keep data for the same period: `PMM_DATA_RETENTION` on every PMM replica, which governs Query Analytics data in ClickHouse, and `retentionPeriod` on the `VMCluster` resource, which governs metrics. Setting either directly, through `pmmEnv.PMM_DATA_RETENTION` or `victoriaMetrics.vmstorage.retentionPeriod`, is rejected at render time.
 
-To change retention, edit `dataRetentionDays` and run `helm upgrade`. The new period takes effect as the replicas restart.
-
-> **Important**: Retention cannot be changed from the PMM UI in HA. In *Configuration -> Settings -> Advanced settings* the **Data retention** field is read-only, and the API refuses a change to it. Both stores read their period at start-up, so accepting a change while the cluster is running would store a value that PMM displays and neither store enforces. Standalone PMM is unaffected.
-
-Setting `pmmEnv.PMM_DATA_RETENTION` or `victoriaMetrics.vmstorage.retentionPeriod` yourself is rejected at render time. Either one lets the two stores disagree about how long to keep data.
-
-Every replica reports the period it is using, and where the value came from, when it starts:
-
-```sh
-for i in 0 1 2; do
-  kubectl exec -n pmm "pmm-ha-$i" -- grep "Data retention:" /srv/logs/pmm-managed.log
-done
-```
-
-> **Warning**: Shortening retention deletes data. Metrics are removed one whole month partition at a time and Query Analytics data one whole day partition at a time, so a shorter period starts purging as soon as the replicas restart. Increasing the period afterwards does not bring back what was already removed.
+Retention cannot be changed from the PMM UI in HA. For how to change it, how to check the period a replica is using, and what shortening it does to existing data, see [Adjust data retention](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-HA-clustered.html#adjust-data-retention-and-other-settings) in the PMM documentation.
 
 ### [PMM environment variables](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables)
 

@@ -60,18 +60,11 @@ pmmEnv:
 #  GF_AUTH_GENERIC_OAUTH_API_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: ''
 
-## How long PMM keeps monitoring data, in whole days.
+## The only way to set data retention in HA: PMM fixes the period when the replicas start,
+## so the Data retention field in its UI is read-only. Applied to metrics and Query
+## Analytics alike.
 ##
-## This is the only way to set data retention in HA. PMM fixes the period when the replicas
-## start and refuses to change it at runtime, so the Data retention field in the PMM UI is
-## read-only. The chart renders this one value into both PMM_DATA_RETENTION, which governs
-## Query Analytics data, and the VictoriaMetrics retention period, which governs metrics.
-##
-## To change it, edit this value and run `helm upgrade`; the new period takes effect as the
-## replicas restart. Shortening it starts deleting data, and increasing it afterwards does
-## not bring back what was already removed.
-##
-## @param dataRetentionDays Data retention in whole days, applied to metrics and Query Analytics alike
+## @param dataRetentionDays Data retention in whole days
 ##
 dataRetentionDays: 30
 
