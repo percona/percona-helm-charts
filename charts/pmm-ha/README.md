@@ -52,11 +52,10 @@ The chart's resource defaults target roughly **100 monitored nodes** and need
 about 17 CPU, 40Gi of memory and 465Gi of storage in requests — three workers of
 8 vCPU / 32Gi.
 
-Retention is the single largest lever on the footprint. Metrics and Query
-Analytics are retained separately — `victoriaMetrics.vmstorage.retentionPeriod`
-(90 days) and PMM's own setting (30 days) — and the optional `dataRetentionDays`
-drives both from one value. Note that the default 50Gi vmstorage volume holds
-roughly 30 days at 100 nodes, not 90.
+Retention is the single largest lever on the footprint. `dataRetentionDays`
+(30 days by default) sets it for metrics and Query Analytics alike, see
+[Data retention](#data-retention). The default 50Gi vmstorage volume holds
+roughly those 30 days at 100 nodes, so longer retention needs a larger volume.
 
 For larger fleets:
 

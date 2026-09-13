@@ -66,7 +66,7 @@ pmmEnv:
 
 ## The only way to set data retention in HA: PMM fixes the period when the replicas start,
 ## so the Data retention field in its UI is read-only. Applied to metrics and Query
-## Analytics alike.
+## Analytics alike. Storage grows with it, see docs/SIZING.md before raising it.
 ##
 ## @param dataRetentionDays Data retention in whole days
 ##
