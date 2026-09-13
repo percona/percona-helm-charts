@@ -429,20 +429,26 @@ podAnnotations: {}
 
 ## @param podSecurityContext Configure Pods Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
-## Note: we intentionally don't use the `runAsGroup` to make it compatible with OpenShift. 
-## However, `runAsUser` needs to be set to nil for OpenShift to be able to assign a random user ID.
+## `runAsGroup` is deliberately unset. The other two keys are for plain Kubernetes only: on
+## OpenShift `restricted-v2` rejects both, `runAsUser` against the namespace's uid range and
+## `fsGroup` against its supplemental-group range (its fsGroup strategy is MustRunAs, so 1000
+## is refused just like 1000 as a uid). Set `openshift: true` below rather than editing this.
 podSecurityContext:
   runAsUser: 1000
   fsGroup: 1000
 
 ## @param openshift Set to true when installing on OpenShift
 ## OpenShift's `restricted-v2` SCC assigns every namespace its own uid and supplemental-group
-## ranges and rejects any pod that asks for values outside them, so the `podSecurityContext`
-## above (and `pmmClient.fsGroup`) must not be set there. With this true the chart
-## emits no pod securityContext and lets OpenShift assign the identity.
+## ranges and rejects any pod that asks for values outside them. With this true the chart drops
+## `runAsUser`, `runAsGroup` and `fsGroup` from the PMM Server and PMM Client pod
+## securityContexts - including `pmmClient.fsGroup` - and lets OpenShift assign the identity.
+## Anything else you set in `podSecurityContext` is kept: `restricted-v2` permits
+## `seccompProfile`, `supplementalGroups` and `fsGroupChangePolicy`.
 ##
-## See examples/values-openshift.yaml for the full OpenShift overlay - the bundled
-## kube-state-metrics and prometheus-node-exporter need their own settings.
+## This flag covers PMM Server and PMM Client only. The bundled kube-state-metrics and
+## prometheus-node-exporter violate `restricted-v2` in their own right, so the chart refuses to
+## render with `openshift: true` unless they are configured too. Install with
+## examples/values-openshift.yaml, which sets all of it.
 ##
 openshift: false
 

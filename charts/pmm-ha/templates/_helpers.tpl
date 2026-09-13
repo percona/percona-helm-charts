@@ -305,6 +305,29 @@ Called from statefulset.yaml, which always renders.
 {{- end -}}
 
 {{/*
+Fail-fast validation for the `openshift` flag.
+
+It only governs the PMM Server and PMM Client pod securityContexts. The bundled
+kube-state-metrics and prometheus-node-exporter carry their own `restricted-v2` violations, and
+left at their defaults they reproduce the very failure the flag exists to remove: Helm reports
+`STATUS: deployed` while those workloads are rejected at admission and produce zero pods. So the
+flag requires the rest of the overlay rather than silently delivering half of it.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.openshift.validate" -}}
+{{- if .Values.openshift -}}
+{{- if ne (include "pmm.nodeExporter.mode" .) "openshift" -}}
+{{- fail "openshift=true requires nodeExporter.mode=openshift: the bundled prometheus-node-exporter needs hostNetwork, hostPID, hostPath volumes and host port 9100, none of which restricted-v2 permits. Install with -f examples/values-openshift.yaml." -}}
+{{- end -}}
+{{- if eq (include "pmm.kubeStateMetrics.bundledEnabled" .) "true" -}}
+{{- if dig "securityContext" "enabled" true (default dict (index .Values "kube-state-metrics")) -}}
+{{- fail "openshift=true requires kube-state-metrics.securityContext.enabled=false: the subchart pins uid/gid/fsGroup 65534, outside the namespace's assigned ranges. Install with -f examples/values-openshift.yaml." -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Target labels shared by both node-exporter scrape jobs. PMM's OS dashboards filter on node_name
 and node_type ("generic" is PMM's type for a bare host), so without these the node is invisible there.
 Emitted unindented; callers nindent it to their relabel_configs item level.
@@ -412,27 +435,38 @@ Pod security context for the PMM Server StatefulSet.
 
 On OpenShift the namespace owns the identity: `restricted-v2` requires runAsUser to be inside
 the namespace's assigned uid-range and fsGroup inside its supplemental-group range, and rejects
-the pod outright otherwise. Emitting no securityContext at all lets OpenShift assign both.
+the pod outright otherwise. Dropping just those three keys lets OpenShift assign the identity
+while everything else the user set - seccompProfile, supplementalGroups, fsGroupChangePolicy -
+survives, since `restricted-v2` permits all of them.
 
 On plain Kubernetes fsGroup is load-bearing - it is what makes the PVC group-writable for the
 image's uid - so it must stay. runAsUser is not: the PMM Server image already declares
 `USER 1000`, and its entrypoint supports an arbitrary assigned uid via the NSS wrapper.
 */}}
 {{- define "pmm.podSecurityContext" -}}
-{{- if not .Values.openshift }}
+{{- $ctx := .Values.podSecurityContext | default dict -}}
+{{- if .Values.openshift -}}
+{{- $ctx = omit $ctx "runAsUser" "runAsGroup" "fsGroup" -}}
+{{- end -}}
+{{- if $ctx -}}
 securityContext:
-  {{- toYaml .Values.podSecurityContext | nindent 2 }}
-{{- end }}
+  {{- toYaml $ctx | nindent 2 }}
+{{- else -}}
+securityContext: {}
+{{- end -}}
 {{- end -}}
 
 {{/*
 Pod security context for the PMM Client StatefulSet. Same reasoning as above; the client image
-runs as uid 1002 rather than 1000.
+runs as uid 1002 rather than 1000, and fsGroup is the only key the chart sets, so on OpenShift
+nothing is left to emit.
 */}}
 {{- define "pmm.client.podSecurityContext" -}}
-{{- if not .Values.openshift }}
+{{- if .Values.openshift -}}
+securityContext: {}
+{{- else -}}
 securityContext:
   # The PMM Client image runs as this user, which has to own the volume to write to it.
   fsGroup: {{ .Values.pmmClient.fsGroup }}
-{{- end }}
+{{- end -}}
 {{- end -}}

@@ -57,7 +57,8 @@ data:
         # OpenShift's restricted-v2 runs the container as a non-root uid with all
         # capabilities dropped and allowPrivilegeEscalation=false, so NET_BIND_SERVICE is
         # unavailable and binding 443 fails with EACCES. The Service port follows the same
-        # value, so expose 443 externally through an Ingress or an OpenShift Route.
+        # value, so expose 443 externally with an OpenShift Route or an Ingress that points at
+        # this Service.
         bind *:{{ (.Values.haproxy.containerPorts).https | default 443 }} ssl crt /etc/haproxy/certs/pmm.pem
         default_backend https_back
 

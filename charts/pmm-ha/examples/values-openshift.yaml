@@ -26,8 +26,17 @@ nodeExporter:
 ## HAProxy terminates TLS on 443. restricted-v2 runs the container as a non-root uid with all
 ## capabilities dropped and allowPrivilegeEscalation=false, so it cannot bind a port below 1024
 ## (`cannot bind socket (Permission denied) for [0.0.0.0:443]`). Move the container port above
-## 1024. The HAProxy Service publishes this same port, so expose 443 externally through an
-## OpenShift Route or an Ingress pointing at the Service.
+## 1024. The HAProxy Service publishes this same port, so expose 443 externally with an OpenShift
+## Route pointing at the pmm-ha-haproxy Service. Do not use the chart's own `ingress.enabled` for
+## this - it targets monitoring-service and bypasses HAProxy, losing leader routing.
 haproxy:
   containerPorts:
     https: 8443
+
+## The PGO PMM sidecar in every PostgreSQL pod reaches PMM through HAProxy too, and the operator
+## copies this value verbatim into PMM_AGENT_SERVER_ADDRESS. pmm-agent appends :443 to an address
+## that carries no port, so with the bare hostname the sidecar would dial a port HAProxy no longer
+## publishes - silently, while the install still looks healthy. Spell the port out.
+pg-db:
+  pmm:
+    serverHost: pmm-ha-haproxy:8443
