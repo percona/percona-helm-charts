@@ -8,15 +8,10 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: victoria-metrics-cluster
 spec:
-  {{- if not (kindIs "invalid" .Values.dataRetentionDays) }}
-  # Declared only when dataRetentionDays pins retention. The value is then fixed here and
-  # in PMM_DATA_RETENTION, so there is nothing for an upgrade to revert, and vmstorage is
-  # never left on the operator default while PMM catches up.
-  retentionPeriod: {{ printf "%dd" (int .Values.dataRetentionDays) | quote }}
-  {{- else }}
-  # Left undeclared when the PMM UI owns retention: PMM writes it, and declaring it here
-  # would have each `helm upgrade` re-assert the chart value over the user's choice.
-  {{- end }}
+  # Metrics retention, rendered from the same dataRetentionDays as PMM_DATA_RETENTION on the
+  # PMM replicas so that metrics and Query Analytics keep data for the same period. Always
+  # declared, so an upgrade never drops the field and leaves vmstorage on the operator default.
+  retentionPeriod: {{ include "pmm.dataRetention.vm" . | quote }}
 
   # Replication factor for vmstorage (how many copies of data to store)
   # Should be <= vmstorage.replicaCount for redundancy

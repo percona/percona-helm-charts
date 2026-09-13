@@ -296,50 +296,58 @@ dict with "name" and "value".
 {{/*
 Data retention.
 
-PMM owns retention. It applies whatever is set in the UI to Query Analytics directly, and
-to metrics by updating VMCluster.spec.retentionPeriod, which is why this chart leaves that
-field undeclared unless dataRetentionDays pins it. Declaring it otherwise would have each
-`helm upgrade` and PMM overwrite each other, rolling vmstorage each round.
+In HA, retention is fixed when the replicas start: vmstorage reads its period when it
+starts, and each replica's Query Analytics service reads its own when it starts. PMM
+therefore refuses a retention change through its API and shows the UI field as read-only,
+which makes this chart the only place the period is set.
 
-`dataRetentionDays` is the opt-out: setting it pins retention declaratively by rendering
-PMM_DATA_RETENTION, which PMM treats as authoritative and which makes the UI field
-read-only. PMM requires that value to be a whole multiple of 24h and refuses to start
+`dataRetentionDays` is that place. The one value is rendered into two, so there is no
+window in which the stores disagree: PMM_DATA_RETENTION on every PMM replica, which
+governs Query Analytics data in ClickHouse, and VMCluster.spec.retentionPeriod, which
+governs metrics.
+
+PMM requires PMM_DATA_RETENTION to be a whole multiple of 24h and refuses to start
 otherwise, which is why this chart takes whole days and does the conversion itself rather
 than accepting a free-form duration.
 
-Example: dataRetentionDays: 90 -> PMM_DATA_RETENTION "2160h", and PMM sets the VMCluster
-retentionPeriod to "90d".
+Example: dataRetentionDays: 90 -> PMM_DATA_RETENTION "2160h" and retentionPeriod "90d".
 */}}
 {{- define "pmm.dataRetention.validate" -}}
 {{- if .Values.victoriaMetrics.enabled }}
   {{- with .Values.victoriaMetrics.vmstorage }}
     {{- if hasKey . "retentionPeriod" }}
-      {{- fail "victoriaMetrics.vmstorage.retentionPeriod is no longer used: PMM sets the VMCluster retention period from its own data retention setting, so a value declared here would fight PMM's, rolling vmstorage each round. Change data retention in the PMM UI, or pin it with the top-level `dataRetentionDays` (whole days)." }}
+      {{- fail "victoriaMetrics.vmstorage.retentionPeriod is no longer used: this chart renders the VMCluster retention period from the top-level `dataRetentionDays`, and a value declared here would let metrics keep data for a different period than Query Analytics. Set `dataRetentionDays` (whole days) instead." }}
     {{- end }}
   {{- end }}
 {{- end }}
 {{- with .Values.pmmEnv }}
   {{- if hasKey . "PMM_DATA_RETENTION" }}
-    {{- fail "pmmEnv.PMM_DATA_RETENTION is managed by this chart. Set the top-level `dataRetentionDays` (whole days) instead, or leave it unset to manage retention from the PMM UI." }}
+    {{- fail "pmmEnv.PMM_DATA_RETENTION is derived by this chart from the top-level `dataRetentionDays`, and a value declared here would let Query Analytics keep data for a different period than metrics. Set `dataRetentionDays` (whole days) instead." }}
   {{- end }}
 {{- end }}
-{{- if not (kindIs "invalid" .Values.dataRetentionDays) }}
-  {{- if kindIs "bool" .Values.dataRetentionDays }}
-    {{- fail (printf "dataRetentionDays must be a whole number of days, got the boolean %v" .Values.dataRetentionDays) }}
-  {{- end }}
-  {{- if or (lt (int .Values.dataRetentionDays) 1) (ne (float64 .Values.dataRetentionDays) (float64 (int .Values.dataRetentionDays))) }}
-    {{- fail (printf "dataRetentionDays must be a whole number of days greater than or equal to 1, got %v" .Values.dataRetentionDays) }}
-  {{- end }}
+{{- if kindIs "invalid" .Values.dataRetentionDays }}
+  {{- fail "dataRetentionDays must be set to a whole number of days. It is the only way to set data retention in HA, because PMM fixes the period when the replicas start and refuses to change it at runtime, so leaving it unset gives a cluster whose retention nothing can set." }}
+{{- end }}
+{{- if kindIs "bool" .Values.dataRetentionDays }}
+  {{- fail (printf "dataRetentionDays must be a whole number of days, got the boolean %v" .Values.dataRetentionDays) }}
+{{- end }}
+{{- if or (lt (int .Values.dataRetentionDays) 1) (ne (float64 .Values.dataRetentionDays) (float64 (int .Values.dataRetentionDays))) }}
+  {{- fail (printf "dataRetentionDays must be a whole number of days greater than or equal to 1, got %v" .Values.dataRetentionDays) }}
 {{- end }}
 {{- end -}}
 
 {{/*
 Retention period for the PMM_DATA_RETENTION environment variable, as a Go duration.
-Empty when retention is not pinned, in which case the caller omits the variable.
 */}}
 {{- define "pmm.dataRetention.pmm" -}}
 {{- include "pmm.dataRetention.validate" . -}}
-{{- if not (kindIs "invalid" .Values.dataRetentionDays) -}}
 {{- printf "%dh" (mul (int .Values.dataRetentionDays) 24) -}}
 {{- end -}}
+
+{{/*
+Retention period for VMCluster.spec.retentionPeriod, in days.
+*/}}
+{{- define "pmm.dataRetention.vm" -}}
+{{- include "pmm.dataRetention.validate" . -}}
+{{- printf "%dd" (int .Values.dataRetentionDays) -}}
 {{- end -}}
