@@ -477,10 +477,15 @@ extraVolumeMounts: []
 extraVolumes: []
 
 clickhouse:
-  # ClickHouse server image configuration
+  # ClickHouse server image configuration.
+  # Keep the server and the Keeper below on the SAME upstream ClickHouse release: they are
+  # built from two different repositories (Altinity Stable rebuilds vs upstream Keeper), so
+  # "latest" resolves differently for each and they only stay compatible if moved as a pair.
+  # Stay on the `altinitystable` line - `altinityantalya` tags are Altinity's feature fork,
+  # not the supported stable build, and sort newest on Docker Hub.
   image:
     repository: altinity/clickhouse-server
-    tag: 25.3.6.10034.altinitystable-alpine
+    tag: 25.8.28.10001.altinitystable-alpine
     pullPolicy: IfNotPresent
   
   # ClickHouse server resource configuration.
@@ -529,9 +534,10 @@ clickhouse:
   # ClickHouse Keeper configuration
   keeper:
     # ClickHouse Keeper image configuration
+    # Must track the ClickHouse server release above - see the note on clickhouse.image.
     image:
       repository: clickhouse/clickhouse-keeper
-      tag: "25.3.6.56"
+      tag: "25.8.28.1"
       pullPolicy: IfNotPresent
     # ClickHouse Keeper resource configuration.
     # Coordination metadata only - does not scale with the monitored fleet, but a
@@ -727,6 +733,18 @@ tls:
 ## @param pg-db Configuration values passed to the pg-db dependency chart
 ##
 pg-db:
+  ## PostgreSQL major version and image, pinned deliberately.
+  ## Left unset, these inherit the pg-db subchart's defaults, so bumping the pg-db dependency
+  ## also bumps PostgreSQL itself - the store holding pmm-managed, Grafana state and alert
+  ## rules - with no diff in this chart. pg-db 2.8.0 defaulted to PostgreSQL 17; 3.1.0
+  ## defaults to 18. Pinning keeps that a reviewable decision rather than a side effect.
+  ## crVersion must track the pg-operator version installed by pmm-ha-dependencies.
+  ## NOTE: changing postgresVersion on an existing cluster is a major upgrade, not an
+  ## in-place edit - it needs the operator's PerconaPGUpgrade flow.
+  crVersion: 3.1.0
+  postgresVersion: 18
+  image: docker.io/percona/percona-distribution-postgresql:18.6.1-1
+
   autoCreateUserSchema: true
   
   # PostgreSQL user configuration
@@ -915,6 +933,21 @@ victoriaMetrics:
   ## @param victoriaMetrics.enabled Enable VictoriaMetrics components via operator
   enabled: true
   
+  ## @param victoriaMetrics.version VictoriaMetrics version for VMCluster, VMAgent and VMAuth
+  ## Pinned deliberately. Left empty, every VM CR inherits whatever version the operator was
+  ## built with (VM_METRICS_VERSION), so bumping the operator silently moves the data plane
+  ## too - with no diff anywhere in this chart. For reference, operator v0.65.0 defaulted to
+  ## v1.128.0 and v0.74.1 defaults to v1.148.0.
+  ## Give the BARE version here, with no "-cluster" suffix. Each template applies what its
+  ## own components need: vmcluster.yaml renders `spec.clusterVersion` with "-cluster"
+  ## appended (vmselect/vminsert/vmstorage ship only under those tags), while VMAgent and
+  ## VMAuth render `spec.componentVersion` with the bare tag. The CRDs also spell the field
+  ## differently - VMCluster has no `componentVersion` at all.
+  ## Set to "" to go back to inheriting the operator's default.
+  ## NOTE: VictoriaMetrics storage upgrades are one-way. Do not lower this on a cluster that
+  ## has already run a newer version.
+  version: "v1.151.0"
+
   ## @param victoriaMetrics.replicationFactor Replication factor for VMCluster
   ## Defines how many copies of data to store across vmstorage nodes
   replicationFactor: 2
