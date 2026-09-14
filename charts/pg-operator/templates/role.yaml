@@ -16,9 +16,7 @@ rules:
   - ""
   resources:
   - configmaps
-  - pods
-  - secrets
-  - serviceaccounts
+  - persistentvolumeclaims
   - services
   verbs:
   - create
@@ -26,6 +24,7 @@ rules:
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - ""
@@ -57,20 +56,31 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - persistentvolumeclaims
+  - pods
+  - secrets
+  - serviceaccounts
   verbs:
   - create
   - delete
   - get
   - list
   - patch
-  - update
   - watch
 - apiGroups:
   - apps
   resources:
   - deployments
   - replicasets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - apps
+  resources:
   - statefulsets
   verbs:
   - create
@@ -78,6 +88,7 @@ rules:
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - batch

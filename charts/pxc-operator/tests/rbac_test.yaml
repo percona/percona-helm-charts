@@ -31,6 +31,30 @@ tests:
         template: templates/role-binding.yaml
         documentIndex: 1
 
+  - it: grants certificates/status for cert-manager CA rotation
+    templates:
+      - templates/role.yaml
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - certmanager.k8s.io
+              - cert-manager.io
+            resources:
+              - issuers
+              - certificates
+              - certificates/status
+            verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - patch
+              - delete
+              - deletecollection
+
   - it: renders cluster-wide RBAC when watching all namespaces
     templates:
       - templates/role.yaml
