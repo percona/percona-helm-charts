@@ -12,9 +12,9 @@ finalizers:
 # Set this if you want that operator deletes the backups on cluster deletion
 #  - percona.com/delete-backups
 
-crVersion: 3.1.0
+crVersion: 3.2.0
 # initContainer:
-#   image: docker.io/percona/percona-postgresql-operator:3.1.0
+#   image: docker.io/percona/percona-postgresql-operator:3.2.0
 #   resources:
 #     limits:
 #       cpu: 2.0
@@ -199,7 +199,7 @@ instances:
 - name: instance1
   replicas: 3
 #  initContainer:
-#    image: docker.io/percona/percona-postgresql-operator:3.1.0
+#    image: docker.io/percona/percona-postgresql-operator:3.2.0
 #    resources:
 #      limits:
 #        cpu: 2.0
@@ -558,7 +558,7 @@ backups:
 #        value: connection-poolers
   pgbackrest:
 #    initContainer:
-#      image: docker.io/percona/percona-postgresql-operator:3.1.0
+#      image: docker.io/percona/percona-postgresql-operator:3.2.0
 #      resources:
 #        limits:
 #          cpu: 2.0
@@ -941,7 +941,7 @@ logcollector:
 #   - basebackup
 
 # extensions:
-#   image: docker.io/percona/percona-postgresql-operator:3.1.0
+#   image: docker.io/percona/percona-postgresql-operator:3.2.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
