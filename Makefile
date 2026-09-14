@@ -15,6 +15,11 @@ split-psmdb-crds:
 		{ \
 			buf = buf $$0 "\n"; \
 			if ($$0 ~ /^  name: .*\.psmdb\.percona\.com[[:space:]]*$$/) { name = $$2 } \
+			if ($$0 ~ /^    controller-gen\.kubebuilder\.io\/version:/) { \
+				buf = buf "    {{- if .Values.preserveCrds }}\n"; \
+				buf = buf "    helm.sh/resource-policy: keep\n"; \
+				buf = buf "    {{- end }}\n"; \
+			} \
 		} \
 		END { flush() } \
 	' $(PSMDB_CRD_SRC)
