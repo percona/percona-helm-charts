@@ -34,12 +34,21 @@ stringData:
       - src_paths:
         - "/api/v1/write"
         url_prefix: "http://vminsert-{{ include "pmm.fullname" . }}-vmcluster.{{ .Release.Namespace }}.svc.cluster.local:8480/insert/0/prometheus/"
+      {{- /* Every read path Grafana's Prometheus data source reaches for. A path that is not
+             listed here does not 404 quietly - vmauth answers 400 with a plain-text
+             "missing route for ...", which Grafana then fails to parse as a Prometheus
+             response. query_exemplars and status/buildinfo were missing, so each panel with
+             exemplars enabled logged a parse failure on every refresh (PMM-15461). vmselect
+             serves both: exemplars return an empty placeholder, buildinfo the Prometheus
+             version Grafana uses to pick its API dialect. */}}
       - src_paths:
         - "/api/v1/query"
         - "/api/v1/query_range"
         - "/api/v1/series"
         - "/api/v1/labels"
         - "/api/v1/label/.+/values"
+        - "/api/v1/query_exemplars"
+        - "/api/v1/status/buildinfo"
         url_prefix: "http://vmselect-{{ include "pmm.fullname" . }}-vmcluster.{{ .Release.Namespace }}.svc.cluster.local:8481/select/0/prometheus/"
 ---
 # VMAuth CRD managed by VictoriaMetrics operator
