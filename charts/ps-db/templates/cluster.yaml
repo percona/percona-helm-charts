@@ -687,6 +687,11 @@ spec:
     {{- end }}
   {{- end }}
 
+  {{- if .Values.users }}
+  users:
+{{ .Values.users | toYaml | indent 4 }}
+  {{- end }}
+
   pmm:
   {{- $pmm := .Values.pmm }}
   {{- if not $pmm.enabled }}
@@ -695,6 +700,9 @@ spec:
   {{- else }}
   {{- if $pmm.mysqlParams }}
     mysqlParams: {{ $pmm.mysqlParams }}
+  {{- end }}
+  {{- if $pmm.haproxyParams }}
+    haproxyParams: {{ $pmm.haproxyParams }}
   {{- end }}
   {{- if $pmm.customClusterName }}
     customClusterName: {{ $pmm.customClusterName }}
