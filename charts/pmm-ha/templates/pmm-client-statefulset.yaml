@@ -79,7 +79,23 @@ spec:
                 sleep {{ .Values.pmmClient.registerWaitSeconds | int }}
               done
               echo "Registering ${PMM_AGENT_SETUP_NODE_NAME} with ${PMM_AGENT_SERVER_ADDRESS}..."
-              pmm-agent setup
+              if ! pmm-agent setup; then
+                # A Node can exist on the Server while this pod has no config file: setup creates
+                # the Node first and writes the file afterwards, so any failure in between - an
+                # HAProxy failover mid-install is exactly that window - leaves the two out of
+                # step. The guard above reads LOCAL state and cannot see it, so every retry dies
+                # on "Node with name ... already exists" and the pod wedges in
+                # Init:CrashLoopBackOff permanently: the only thing that would write the config
+                # file is the command that keeps failing. Observed on a clean install, one
+                # Client out of three.
+                #
+                # --force is safe HERE and only here. Reaching this line means there is no local
+                # config, so this pod has no working agent and whatever Services the stale Node
+                # carries are already dead; re-registering re-creates them. A HEALTHY agent is
+                # still protected by the config-file guard above, which exits before this runs.
+                echo "Registration failed; retrying once with --force to adopt a stale Node..."
+                pmm-agent setup --force
+              fi
           env:
             {{- include "pmm.client.env" . | nindent 12 }}
             - name: PMM_AGENT_SERVER_USERNAME
