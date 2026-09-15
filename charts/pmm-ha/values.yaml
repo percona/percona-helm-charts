@@ -500,10 +500,15 @@ extraVolumeMounts: []
 extraVolumes: []
 
 clickhouse:
-  # ClickHouse server image configuration
+  # ClickHouse server image configuration.
+  # Keep the server and the Keeper below on the SAME upstream ClickHouse release: they are
+  # built from two different repositories (Altinity Stable rebuilds vs upstream Keeper), so
+  # "latest" resolves differently for each and they only stay compatible if moved as a pair.
+  # Stay on the `altinitystable` line - `altinityantalya` tags are Altinity's feature fork,
+  # not the supported stable build, and sort newest on Docker Hub.
   image:
     repository: altinity/clickhouse-server
-    tag: 25.3.6.10034.altinitystable-alpine
+    tag: 25.8.28.10001.altinitystable-alpine
     pullPolicy: IfNotPresent
   
   # ClickHouse server resource configuration.
@@ -552,9 +557,10 @@ clickhouse:
   # ClickHouse Keeper configuration
   keeper:
     # ClickHouse Keeper image configuration
+    # Must track the ClickHouse server release above - see the note on clickhouse.image.
     image:
       repository: clickhouse/clickhouse-keeper
-      tag: "25.3.6.56"
+      tag: "25.8.28.1"
       pullPolicy: IfNotPresent
     # ClickHouse Keeper resource configuration.
     # Coordination metadata only - does not scale with the monitored fleet, but a
@@ -762,6 +768,18 @@ tls:
 ## @param pg-db Configuration values passed to the pg-db dependency chart
 ##
 pg-db:
+  ## PostgreSQL major version and image, pinned deliberately.
+  ## Left unset, these inherit the pg-db subchart's defaults, so bumping the pg-db dependency
+  ## also bumps PostgreSQL itself - the store holding pmm-managed, Grafana state and alert
+  ## rules - with no diff in this chart. pg-db 2.8.0 defaulted to PostgreSQL 17; 3.1.0
+  ## defaults to 18. Pinning keeps that a reviewable decision rather than a side effect.
+  ## crVersion must track the pg-operator version installed by pmm-ha-dependencies.
+  ## NOTE: changing postgresVersion on an existing cluster is a major upgrade, not an
+  ## in-place edit - it needs the operator's PerconaPGUpgrade flow.
+  crVersion: 3.1.0
+  postgresVersion: 18
+  image: docker.io/percona/percona-distribution-postgresql:18.6.1-1
+
   autoCreateUserSchema: true
   
   # PostgreSQL user configuration
@@ -956,6 +974,21 @@ victoriaMetrics:
   ## @param victoriaMetrics.enabled Enable VictoriaMetrics components via operator
   enabled: true
   
+  ## @param victoriaMetrics.version VictoriaMetrics version for VMCluster, VMAgent and VMAuth
+  ## Pinned deliberately. Left empty, every VM CR inherits whatever version the operator was
+  ## built with (VM_METRICS_VERSION), so bumping the operator silently moves the data plane
+  ## too - with no diff anywhere in this chart. For reference, operator v0.65.0 defaulted to
+  ## v1.128.0 and v0.74.1 defaults to v1.148.0.
+  ## Give the BARE version here, with no "-cluster" suffix. Each template applies what its
+  ## own components need: vmcluster.yaml renders `spec.clusterVersion` with "-cluster"
+  ## appended (vmselect/vminsert/vmstorage ship only under those tags), while VMAgent and
+  ## VMAuth render `spec.componentVersion` with the bare tag. The CRDs also spell the field
+  ## differently - VMCluster has no `componentVersion` at all.
+  ## Set to "" to go back to inheriting the operator's default.
+  ## NOTE: VictoriaMetrics storage upgrades are one-way. Do not lower this on a cluster that
+  ## has already run a newer version.
+  version: "v1.151.0"
+
   ## @param victoriaMetrics.replicationFactor Replication factor for VMCluster
   ## Defines how many copies of data to store across vmstorage nodes
   replicationFactor: 2
@@ -992,8 +1025,37 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmselect.podAnnotations Annotations for vmselect pods
     podAnnotations: {}
     ## @param victoriaMetrics.vmselect.extraArgs Extra arguments for vmselect
-    extraArgs: {}
-  
+    ## A single-node PMM server starts VictoriaMetrics itself, with a set of --search.*
+    ## overrides baked into its supervisord template. In HA that program never starts - VM is
+    ## external - so vmselect would otherwise run on upstream defaults and behave noticeably
+    ## differently from the PMM everyone else is using. These keep the two in step.
+    ##
+    ## The one that breaks dashboards is maxQueryLen. PMM expands an "All" node/service
+    ## dashboard variable into a regex naming every node, so the query text grows with the
+    ## fleet; past roughly 120 monitored nodes it crosses the 16KiB upstream default and the
+    ## panel fails with "422: too long query" (PMM-15461).
+    extraArgs:
+      ## Upstream default 16KiB; PMM single-node uses 1MB.
+      search.maxQueryLen: "1MB"
+      ## Upstream default 30s; PMM single-node uses 5s. This is how long collected points stay
+      ## invisible to queries, so the default leaves "last value" stat panels empty.
+      search.latencyOffset: "5s"
+      ## Upstream default 30s; PMM single-node uses 90s.
+      search.maxQueryDuration: "90s"
+      ## Upstream default 10s; PMM single-node uses 30s. How long a query waits for a vmselect
+      ## slot before it is rejected with 429.
+      search.maxQueueDuration: "30s"
+      ## Upstream default 1000000000; PMM single-node uses 1500000000.
+      search.maxSamplesPerQuery: "1500000000"
+      ## Upstream default 5s; PMM single-node uses 30s. Purely log volume - PMM's dashboard
+      ## queries routinely take longer than 5s on a large fleet.
+      search.logSlowQueryDuration: "30s"
+    ## NOTE: search.maxUniqueTimeseries is deliberately NOT carried over, although PMM
+    ## single-node pins it to 100000000. On a cluster the effective limit is the one on
+    ## vmstorage, and vmselect's own value cannot exceed it; left at 0 vmstorage derives it
+    ## from search.maxConcurrentRequests and the memory actually available to the pod. Forcing
+    ## 100M would remove that guard while vmstorage still runs under a hard memory limit.
+
   ## VMInsert configuration - handles write requests
   vminsert:
     ## @param victoriaMetrics.vminsert.replicaCount Number of vminsert replicas
@@ -1061,8 +1123,19 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmauth.podAnnotations Annotations for vmauth pods
     podAnnotations: {}
     ## @param victoriaMetrics.vmauth.extraArgs Extra arguments for vmauth
-    extraArgs: {}
-  
+    extraArgs:
+      ## vmauth's per-user concurrency limit exists to stop one tenant starving the others,
+      ## but PMM authenticates everything - browser dashboards, Grafana's alert scheduler,
+      ## vmalert and vmagent - as a single user, so that per-user bucket is simply the whole
+      ## cluster's read capacity. At fleet scale the alert scheduler alone exhausted it and
+      ## rule evaluation started failing with "429 cannot handle more than N concurrent
+      ## requests from user victoriametrics_pmm" (PMM-15461). Relying on the upstream default
+      ## is also a moving target - it was 300 up to v1.111.0 and is 100 as of v1.151.0, so
+      ## the ceiling tightens on its own as the operator moves the data plane forward. Pin it
+      ## to vmauth's global maxConcurrentRequests default instead, leaving that global limit -
+      ## which does protect vmauth itself from OOM - as the only ceiling.
+      maxConcurrentPerUserRequests: "1000"
+
   ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
   ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
   ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
