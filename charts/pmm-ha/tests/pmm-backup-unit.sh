@@ -2423,6 +2423,46 @@ DISRUPTION_HELD_PODS=""
 
 #########################################################################################
 echo
+
+#########################################################################################
+section "write_backup_metrics — a full run must not leave duplicate series behind"
+#########################################################################################
+
+# The listener cats backup/*.prom into ONE exposition. Two files carrying the same series is
+# not a cosmetic duplicate: the text format allows one sample per series per exposition, so
+# Prometheus rejects the WHOLE scrape and backup-failure alerting goes quiet.
+_md=$(mktemp -d 2>/dev/null || echo "/tmp/mtest.$$"); mkdir -p "${_md}/backup"
+METRICS_DIR="${_md}"
+
+# A previous component-scoped run's leftovers.
+: > "${_md}/backup/postgresql.prom"
+: > "${_md}/backup/clickhouse.prom"
+
+# write_backup_metrics deliberately publishes nothing when the run produced no component
+# results (it leaves the previous file in place), so seed one.
+result_set postgresql --arg status completed '{status:$status}'
+
+COMPONENT_SUFFIX=""            # no suffix => full-scope run => writes all.prom
+write_backup_metrics skipped >/dev/null 2>&1
+
+assert_eq "full run publishes all.prom"            "yes" "$([ -f "${_md}/backup/all.prom" ] && echo yes || echo no)"
+assert_eq "stale postgresql.prom is cleared"       "no"  "$([ -f "${_md}/backup/postgresql.prom" ] && echo yes || echo no)"
+assert_eq "stale clickhouse.prom is cleared"       "no"  "$([ -f "${_md}/backup/clickhouse.prom" ] && echo yes || echo no)"
+
+# DN-42: the concurrent workflow writes one file per component and NO all.prom. A
+# component-scoped run must therefore leave its siblings alone, or concurrent runs would
+# delete each other's metrics as they finish.
+: > "${_md}/backup/victoriametrics.prom"
+COMPONENT_SUFFIX="_postgresql"
+write_backup_metrics skipped >/dev/null 2>&1
+
+assert_eq "component run writes its own file"      "yes" "$([ -f "${_md}/backup/postgresql.prom" ] && echo yes || echo no)"
+assert_eq "component run keeps a sibling's file"   "yes" "$([ -f "${_md}/backup/victoriametrics.prom" ] && echo yes || echo no)"
+assert_eq "component run keeps all.prom"           "yes" "$([ -f "${_md}/backup/all.prom" ] && echo yes || echo no)"
+
+COMPONENT_SUFFIX=""
+rm -rf "${_md}" 2>/dev/null || true
+
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then
     echo "OK: ${PASS} assertion(s) passed"
@@ -2430,5 +2470,6 @@ if [ "${FAIL}" -eq 0 ]; then
     exit 0
 fi
 echo "FAILED: ${FAIL} of $((PASS + FAIL)) assertion(s)"
+
 echo "========================================"
 exit 1

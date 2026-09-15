@@ -5676,6 +5676,21 @@ write_backup_metrics() {
 
     if mv "${tmp_file}" "${target_file}" 2>/dev/null; then
         log "INFO" "Metrics written to ${target_file}"
+        # A full-scope run supersedes every per-component file. The listener cats
+        # backup/*.prom into ONE exposition (see backup-tools.yaml), so a postgresql.prom left
+        # by an earlier component-scoped run republishes the same series with a stale value.
+        # The text format admits one sample per series per exposition: Prometheus rejects the
+        # whole scrape, which takes backup-failure alerting offline silently - precisely when
+        # it is needed. DN-42's per-scope split stays intact, because the concurrent workflow
+        # writes only per-component files and never reaches this branch.
+        if [ "${_m_scope}" = "all" ]; then
+            for _stale in "${metrics_dir}"/backup/*.prom; do
+                if [ -f "${_stale}" ] && [ "${_stale}" != "${target_file}" ]; then
+                    rm -f "${_stale}" 2>/dev/null || true
+                    log "INFO" "Removed superseded component metrics ${_stale##*/}"
+                fi
+            done
+        fi
     else
         log "WARN" "Could not publish backup metrics to ${target_file}; continuing"
         rm -f "${tmp_file}" 2>/dev/null || true
