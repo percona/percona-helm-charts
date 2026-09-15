@@ -284,17 +284,21 @@ PMM HA provides the following service endpoints for clients to connect:
 
 | Service | Description | Port |
 |---------|-------------|------|
-| `pmm-ha-haproxy` | **Recommended** - HAProxy load balancer that routes to the active PMM leader | 443 (HTTPS) |
+| `pmm-ha-haproxy` | **Recommended** - HAProxy load balancer that routes to the active PMM leader | `haproxy.containerPorts.https`, 443 by default (HTTPS) |
 | `monitoring-service` | Headless service for direct PMM pod access (used internally) | 8443 (HTTPS) |
 
 **For all external clients and Percona Operators, use `pmm-ha-haproxy` as the PMM server endpoint.**
+
+The HAProxy port is not fixed: the Service publishes whatever `haproxy.containerPorts.https` is
+set to, and the OpenShift overlay moves it to 8443 because `restricted-v2` cannot bind below 1024.
+Substitute that port for 443 everywhere below if you changed it.
 
 ### Connecting PMM Clients
 
 To connect a PMM client to the HA cluster:
 
 ```sh
-# From within the Kubernetes cluster
+# From within the Kubernetes cluster (use 8443 instead of 443 on OpenShift)
 pmm-admin config --server-url=https://admin:<password>@pmm-ha-haproxy:443 --server-insecure-tls
 
 # Or using the service token (recommended for automation)
@@ -378,6 +382,24 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `readyProbeConf.failureThreshold`    | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                                                               | `6`                  |
 
 
+### PMM Client parameters
+
+| Name                              | Description                                                                                      | Value                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------- |
+| `pmmClient.replicas`              | Number of PMM Client pods carrying the delegated monitoring                                      | `3`                  |
+| `pmmClient.fsGroup`               | Group that owns the PMM Client data volume. Ignored when `openshift` is `true`                   | `1002`               |
+| `pmmClient.image.repository`      | PMM Client image repository                                                                      | `percona/pmm-client` |
+| `pmmClient.image.pullPolicy`      | PMM Client image pull policy                                                                     | `IfNotPresent`       |
+| `pmmClient.image.tag`             | PMM Client image tag, defaults to the chart appVersion                                           | `3.9.1`              |
+| `pmmClient.forceRegistration`     | Register the Node even when one with the same name exists                                        | `false`              |
+| `pmmClient.storage.size`          | Size of the volume holding the Agent identity and metrics buffer                                 | `2Gi`                |
+| `pmmClient.storage.storageClassName` | Storage class of that volume, cluster default if empty                                        | `""`                 |
+| `pmmClient.resources`             | Resources requested for the PMM Client container                                                 | `{requests: {memory: 200Mi, cpu: 100m}, limits: {memory: 1Gi, cpu: 500m}}` |
+| `pmmClient.nodeSelector`          | Node labels for the PMM Client pods                                                              | `{}`                 |
+| `pmmClient.tolerations`           | Tolerations for the PMM Client pods                                                              | `[]`                 |
+| `pmmClient.affinity`              | Affinity rules for the PMM Client pods                                                           | `{}`                 |
+
+
 ### PMM secrets
 
 | Name                  | Description                                                                                                                                                                        | Value        |
@@ -416,6 +438,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------- |
 | `haproxy.service.type`        | Service type for HAProxy: ClusterIP (internal), LoadBalancer (external via LB), or NodePort (external via node) | `ClusterIP` |
 | `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
+| `haproxy.containerPorts.https` | Port HAProxy binds for PMM traffic; the Service publishes the same port. Must be above 1024 on OpenShift        | `443`       |
 
 
 ### PMM storage configuration
@@ -439,7 +462,8 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `serviceAccount.annotations` | Annotations for service account. Evaluated as a template. Only used if `create` is `true`.                          | `{}`                  |
 | `serviceAccount.name`        | Name of the service account to use. If not set and create is true, a name is generated using the fullname template. | `pmm-service-account` |
 | `podAnnotations`             | Pod annotations                                                                                                     | `{}`                  |
-| `podSecurityContext`         | Configure Pods Security Context                                                                                     | `{}`                  |
+| `podSecurityContext`         | Configure Pods Security Context. `runAsUser`/`runAsGroup`/`fsGroup` are dropped when `openshift` is `true`          | `{runAsUser: 1000, fsGroup: 1000}` |
+| `openshift`                  | Set to `true` on OpenShift so the cluster assigns the uid/fsGroup. Requires the rest of `examples/values-openshift.yaml` | `false`               |
 | `securityContext`            | Configure Container Security Context                                                                                | `{}`                  |
 | `nodeSelector`               | Node labels for pod assignment                                                                                      | `{}`                  |
 | `tolerations`                | Tolerations for pod assignment                                                                                      | `[]`                  |
@@ -698,6 +722,36 @@ victoriaMetrics:
       maxLabelsPerTimeseries: "60"
 ```
 
+### Installing on OpenShift
+
+OpenShift's `restricted-v2` SCC gives every namespace its own uid and supplemental-group ranges
+and rejects any pod asking for values outside them, and it runs containers without
+`NET_BIND_SERVICE`. Install with the bundled overlay, which covers all of it:
+
+```bash
+helm install pmm-ha percona/pmm-ha -n pmm -f examples/values-openshift.yaml
+```
+
+It sets `openshift: true` (PMM Server and PMM Client let the cluster assign uid and fsGroup),
+disables the bundled node-exporter in favour of OpenShift's, turns off the kube-state-metrics
+securityContext, moves the HAProxy port to 8443, and points the bundled PostgreSQL cluster's PMM
+sidecar at that port.
+
+`openshift: true` governs the PMM Server and PMM Client pod securityContexts only. Setting it on
+its own is refused: the chart fails to render unless `nodeExporter.mode`, the kube-state-metrics
+securityContext and `haproxy.containerPorts.https` are set with it. Left at their defaults those
+three would be rejected at admission or crash-loop while Helm still reported `STATUS: deployed` -
+a green install with no metrics and no reachable UI.
+
+`haproxy.containerPorts.https` is also checked on plain Kubernetes: the HAProxy Service publishes
+whatever the container binds, and `pg-db.pmm.serverHost` is the one consumer the chart cannot
+rewrite, because the PostgreSQL operator copies it verbatim into `PMM_AGENT_SERVER_ADDRESS`.
+Move the port and the chart requires the port in `serverHost` too.
+
+To reach PMM from outside the cluster, create an OpenShift Route pointing at the `pmm-ha-haproxy`
+Service. Do not use the chart's own `ingress.enabled` for this - it targets `monitoring-service`
+and bypasses HAProxy, which pins you to a single PMM pod with no leader routing.
+
 ### Using OpenShift's node exporter
 
 By default (`nodeExporter.mode: internal`) the chart deploys its own `prometheus-node-exporter`
@@ -757,7 +811,8 @@ After deployment, get the external endpoint:
 kubectl get svc -n pmm -l app.kubernetes.io/name=haproxy
 ```
 
-The `EXTERNAL-IP` column shows the public access point. Connect via `https://<EXTERNAL-IP>:443`.
+The `EXTERNAL-IP` column shows the public access point. Connect via `https://<EXTERNAL-IP>:443`,
+or on the port `haproxy.containerPorts.https` is set to (8443 under the OpenShift overlay).
 
 #### Using NodePort (For bare-metal or when LoadBalancer is unavailable)
 

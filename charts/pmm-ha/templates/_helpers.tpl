@@ -257,12 +257,21 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{/*
+Port HAProxy binds for PMM traffic. The HAProxy Service publishes this same value, so every
+in-cluster consumer of PMM has to follow it rather than assume 443.
+*/}}
+{{- define "pmm.haproxy.httpsPort" -}}
+{{- (.Values.haproxy.containerPorts).https | default 443 -}}
+{{- end -}}
+
+{{/*
 PMM Server address reachable from inside the cluster. HAProxy routes to the current leader, so this
 stays valid across failovers.
 */}}
 {{- define "pmm.client.serverAddress" -}}
 {{- $haproxy := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
-{{- printf "%s.%s.svc.cluster.local:443" $haproxy .Release.Namespace -}}
+{{- $port := include "pmm.haproxy.httpsPort" . -}}
+{{- printf "%s.%s.svc.cluster.local:%v" $haproxy .Release.Namespace $port -}}
 {{- end -}}
 
 {{/*
@@ -358,6 +367,65 @@ Called from statefulset.yaml, which always renders.
 {{- if eq $mode "openshift" -}}
 {{- if eq (include "pmm.nodeExporter.bundledEnabled" .) "true" -}}
 {{- fail "nodeExporter.mode=openshift requires prometheus-node-exporter.enabled=false: the bundled DaemonSet would collide with OpenShift's node-exporter on host port 9100." -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the `openshift` flag.
+
+It only governs the PMM Server and PMM Client pod securityContexts. The bundled
+kube-state-metrics and prometheus-node-exporter carry their own `restricted-v2` violations, and
+left at their defaults they reproduce the very failure the flag exists to remove: Helm reports
+`STATUS: deployed` while those workloads are rejected at admission and produce zero pods. So the
+flag requires the rest of the overlay rather than silently delivering half of it.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.openshift.validate" -}}
+{{- if .Values.openshift -}}
+{{- if ne (include "pmm.nodeExporter.mode" .) "openshift" -}}
+{{- fail "openshift=true requires nodeExporter.mode=openshift: the bundled prometheus-node-exporter needs hostNetwork, hostPID, hostPath volumes and host port 9100, none of which restricted-v2 permits. Install with -f examples/values-openshift.yaml." -}}
+{{- end -}}
+{{- if eq (include "pmm.kubeStateMetrics.bundledEnabled" .) "true" -}}
+{{- if dig "securityContext" "enabled" true (default dict (index .Values "kube-state-metrics")) -}}
+{{- fail "openshift=true requires kube-state-metrics.securityContext.enabled=false: the subchart pins uid/gid/fsGroup 65534, outside the namespace's assigned ranges. Install with -f examples/values-openshift.yaml." -}}
+{{- end -}}
+{{- end -}}
+{{- $httpsPort := int (include "pmm.haproxy.httpsPort" .) -}}
+{{- if lt $httpsPort 1024 -}}
+{{- fail (printf "openshift=true requires haproxy.containerPorts.https above 1024, got %d: restricted-v2 runs the container as a non-root uid with all capabilities dropped and allowPrivilegeEscalation=false, so HAProxy cannot bind a privileged port (\"cannot bind socket (Permission denied) for [0.0.0.0:%d]\") and the only ingress to PMM crash-loops while Helm still reports STATUS: deployed. Install with -f examples/values-openshift.yaml." $httpsPort $httpsPort) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation that the bundled PostgreSQL cluster still reaches HAProxy.
+
+`haproxy.containerPorts.https` moves the HAProxy bind and the Service port together, and the
+chart's own consumers follow it. `pg-db.pmm.serverHost` does not: the PostgreSQL operator copies
+it verbatim into PMM_AGENT_SERVER_ADDRESS, and pmm-agent appends :443 to an address that carries
+no port. Left behind, the sidecar dials a port HAProxy no longer publishes while every pod stays
+Running and the PMM inventory stays empty - the same silent half-install the openshift validator
+exists to prevent, and reachable on plain Kubernetes.
+Only checked when serverHost actually points at this chart's HAProxy; an external PMM is the
+user's business.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.haproxy.validate" -}}
+{{- $port := int (include "pmm.haproxy.httpsPort" .) -}}
+{{- $pg := default dict (index .Values "pg-db") -}}
+{{- if dig "pmm" "enabled" false $pg -}}
+{{- $host := dig "pmm" "serverHost" "" $pg -}}
+{{- $svc := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
+{{- $parts := splitList ":" $host -}}
+{{- if hasPrefix $svc (first $parts) -}}
+{{- $declared := 443 -}}
+{{- if gt (len $parts) 1 -}}
+{{- $declared = int (last $parts) -}}
+{{- end -}}
+{{- if ne $declared $port -}}
+{{- fail (printf "pg-db.pmm.serverHost is %q, which resolves to port %d, but haproxy.containerPorts.https is %d. The PostgreSQL operator copies serverHost verbatim into PMM_AGENT_SERVER_ADDRESS and pmm-agent appends :443 to an address with no port, so the PMM sidecar would dial a port HAProxy does not publish - silently, while every pod stays Running and the PMM inventory stays empty. Set pg-db.pmm.serverHost to %q." $host $declared $port (printf "%s:%d" $svc $port)) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -462,6 +530,47 @@ dict with "name" and "value".
 {{- define "pmm.clickhouse.validateIdentifier" -}}
 {{- if not (regexMatch "^[A-Za-z_][A-Za-z0-9_-]*$" .value) -}}
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Pod security context for the PMM Server StatefulSet.
+
+On OpenShift the namespace owns the identity: `restricted-v2` requires runAsUser to be inside
+the namespace's assigned uid-range and fsGroup inside its supplemental-group range, and rejects
+the pod outright otherwise. Dropping just those three keys lets OpenShift assign the identity
+while everything else the user set - seccompProfile, supplementalGroups, fsGroupChangePolicy -
+survives, since `restricted-v2` permits all of them.
+
+On plain Kubernetes fsGroup is load-bearing - it is what makes the PVC group-writable for the
+image's uid - so it must stay. runAsUser is not: the PMM Server image already declares
+`USER 1000`, and its entrypoint supports an arbitrary assigned uid via the NSS wrapper.
+*/}}
+{{- define "pmm.podSecurityContext" -}}
+{{- $ctx := .Values.podSecurityContext | default dict -}}
+{{- if .Values.openshift -}}
+{{- $ctx = omit $ctx "runAsUser" "runAsGroup" "fsGroup" -}}
+{{- end -}}
+{{- if $ctx -}}
+securityContext:
+  {{- toYaml $ctx | nindent 2 }}
+{{- else -}}
+securityContext: {}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Pod security context for the PMM Client StatefulSet. Same reasoning as above; the client image
+runs as uid 1002 rather than 1000, and fsGroup is the only key the chart sets, so on OpenShift
+nothing is left to emit.
+*/}}
+{{- define "pmm.client.podSecurityContext" -}}
+{{- if .Values.openshift -}}
+securityContext: {}
+{{- else -}}
+securityContext:
+  # The PMM Client image runs as this user, which has to own the volume to write to it.
+  fsGroup: {{ .Values.pmmClient.fsGroup }}
 {{- end -}}
 {{- end -}}
 

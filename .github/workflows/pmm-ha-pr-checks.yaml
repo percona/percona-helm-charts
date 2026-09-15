@@ -37,9 +37,9 @@ jobs:
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts/
           helm repo update
 
-      # Renders only - no cluster needed. Every case hits the fail in
-      # pmm.nodeExporter.validate before the lookup in pg-user-credentials-secrets.yaml.
-      - name: Check node-exporter mode validation
+      # Renders only - no cluster needed. Every case hits a fail in pmm.nodeExporter.validate
+      # or pmm.openshift.validate before the lookup in pg-user-credentials-secrets.yaml.
+      - name: Check node-exporter mode and openshift validation
         run: |
           set -euo pipefail
           helm dependency build charts/pmm-ha
@@ -69,6 +69,40 @@ jobs:
           assert_fails "$collision" --set nodeExporter.mode=openshift --set prometheus-node-exporter.enabled=0
           assert_fails "$collision" --set nodeExporter.mode=openshift --set-string prometheus-node-exporter.enabled=false
           assert_fails 'nodeExporter.mode must be "internal" or "openshift"' --set nodeExporter.mode=bogus
+
+          # `openshift: true` only covers the PMM Server and PMM Client securityContexts. On its
+          # own it leaves kube-state-metrics and prometheus-node-exporter rejected by restricted-v2
+          # with Helm still reporting success, so it must refuse to render without the rest of
+          # examples/values-openshift.yaml.
+          assert_fails "openshift=true requires nodeExporter.mode=openshift" --set openshift=true
+          assert_fails "openshift=true requires kube-state-metrics.securityContext.enabled=false" \
+            --set openshift=true \
+            --set nodeExporter.mode=openshift \
+            --set prometheus-node-exporter.enabled=false
+          # HAProxy is the only ingress to PMM, and restricted-v2 leaves it without
+          # NET_BIND_SERVICE, so a privileged bind is a crash-loop behind a successful install -
+          # the same half-delivered overlay as the two checks above. Any port below 1024 fails,
+          # not just the 443 default.
+          openshift_base=(
+            --set openshift=true
+            --set nodeExporter.mode=openshift
+            --set prometheus-node-exporter.enabled=false
+            --set kube-state-metrics.securityContext.enabled=false
+          )
+          port_msg="openshift=true requires haproxy.containerPorts.https above 1024"
+          assert_fails "$port_msg" "${openshift_base[@]}"
+          assert_fails "$port_msg" "${openshift_base[@]}" --set haproxy.containerPorts.https=80
+          assert_fails "$port_msg" "${openshift_base[@]}" --set haproxy.containerPorts.https=1023
+
+          # Moving the port is not OpenShift-specific, and neither is this failure: the PGO
+          # sidecar address is the one consumer the chart cannot rewrite, because the operator
+          # copies it verbatim. A mismatch must fail rather than register nothing.
+          host_msg="but haproxy.containerPorts.https is 8443"
+          assert_fails "$host_msg" --set haproxy.containerPorts.https=8443
+          assert_fails "$host_msg" --set haproxy.containerPorts.https=8443 \
+            --set pg-db.pmm.serverHost=pmm-ha-haproxy:9999
+          assert_fails "$host_msg" --set haproxy.containerPorts.https=8443 \
+            --set pg-db.pmm.serverHost=pmm-ha-haproxy.pmm.svc.cluster.local
 
       - name: Run chart-testing (list-changed)
         id: list-changed
@@ -193,6 +227,62 @@ jobs:
           grep -q "job_name: 'openshift-node-exporter'" /tmp/smoke.yaml
           # The point of openshift mode: the bundled DaemonSet must not be deployed.
           ! grep -q 'kind: DaemonSet' /tmp/smoke.yaml
+
+      # Nothing else exercises examples/values-openshift.yaml - there is no OpenShift in CI, but
+      # every mechanical part of the overlay is a render and can be pinned here.
+      # --dry-run=server for the same reason as the step above: the pmm-secret lookup.
+      - name: Check OpenShift overlay renders
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          NS="${{ env.NS }}"
+          OVERLAY=charts/pmm-ha/examples/values-openshift.yaml
+
+          render() {  # rest = extra helm args (-s <template>, -f <values>)
+            helm template smoke charts/pmm-ha -n "$NS" --dry-run=server "$@"
+          }
+
+          assert_has() {  # $1 = haystack, $2 = pattern, $3 = what it guards
+            if ! grep -qE -- "$2" <<<"$1"; then
+              echo "::error::missing from render ($3): $2"
+              exit 1
+            fi
+          }
+          assert_lacks() {
+            if grep -qE -- "$2" <<<"$1"; then
+              echo "::error::render regressed ($3): found $2"
+              grep -nE -- "$2" <<<"$1"
+              exit 1
+            fi
+          }
+
+          identity='^[[:space:]]*(runAsUser|runAsGroup|fsGroup):'
+
+          # The keys restricted-v2 rejects are gone from both PMM StatefulSets under the overlay...
+          for tpl in templates/statefulset.yaml templates/pmm-client-statefulset.yaml; do
+            assert_lacks "$(render -s "$tpl" -f "$OVERLAY")" "$identity" "$tpl under the overlay"
+          done
+
+          # ...and still there without it, so the flag cannot quietly take plain Kubernetes with it.
+          assert_has "$(render -s templates/statefulset.yaml)" 'fsGroup: 1000' "PMM Server default fsGroup"
+          assert_has "$(render -s templates/pmm-client-statefulset.yaml)" 'fsGroup: 1002' "PMM Client default fsGroup"
+
+          full=$(render -f "$OVERLAY")
+
+          # HAProxy binds above 1024, since restricted-v2 drops NET_BIND_SERVICE...
+          assert_has "$full" 'bind \*:8443 ' "HAProxy bind port"
+
+          # ...and every consumer of that port follows it. pmm-agent appends :443 to an address
+          # carrying no port, so a bare serverHost leaves the PGO sidecar dialling a closed port.
+          assert_has "$full" 'serverHost: pmm-ha-haproxy:8443' "pg-db PMM sidecar"
+          assert_has "$full" 'pmm-ha-haproxy\.'"$NS"'\.svc\.cluster\.local:8443' "pmm.client.serverAddress"
+          assert_has "$(grep -A1 'name: PMM_PORT' <<<"$full")" 'value: "8443"' "pg-pmm-token-job PMM_PORT"
+
+          # The two subcharts restricted-v2 rejects outright are off.
+          assert_lacks "$full" '^kind: DaemonSet' "bundled node-exporter"
+          assert_lacks "$full" 'runAsUser: 65534' "kube-state-metrics securityContext"
+
+          echo "OpenShift overlay renders correctly."
 
       - name: Run chart-testing (install pmm-ha)
         if: steps.list-changed.outputs.changed == 'true'

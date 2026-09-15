@@ -1,4 +1,6 @@
 {{- include "pmm.nodeExporter.validate" . -}}
+{{- include "pmm.openshift.validate" . -}}
+{{- include "pmm.haproxy.validate" . -}}
 {{- include "pmm.validateSecret" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -28,8 +30,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- include "pmm.podSecurityContext" . | nindent 6 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
