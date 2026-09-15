@@ -2211,6 +2211,45 @@ manifest_top() { manifest_field "$1" < "${MANIFEST_FILE}"; }
 # Component nested scalar field of the loaded manifest: mf_field <component> <key>
 mf_field() { jq -r --arg c "$1" --arg k "$2" '.components[$c][$k] // empty' "${MANIFEST_FILE}" 2>/dev/null; }
 
+# 'latest' only advances onto a COMPLETE, FULL-SCOPE backup (DN-14) - that is what stops
+# `restore --backup-id latest` from silently restoring a single component. The consequence is
+# easy to miss: set centralBackupStorage.schedule.components to a partial scope and EVERY
+# scheduled run is partial, so the pointer never advances again and 'latest' keeps naming
+# whatever full backup happened last, possibly weeks ago. Until now the only hint was an INFO
+# line at BACKUP time, in a different log from the restore that inherits the consequence.
+#
+# So: say how old it is, say how many newer backups it passed over, and stop unless --yes.
+# The restore is destructive and the operator is usually mid-incident; this is the wrong place
+# to be quiet. The gate itself stays - advancing the pointer onto a partial backup would trade
+# a visible staleness problem for an invisible data-loss one.
+latest_staleness_guard() {   # <resolved-id>
+    _ls_id="$1"
+    _ls_epoch=$(backup_id_epoch "${_ls_id}" 2>/dev/null) || _ls_epoch=""
+    if [ -n "${_ls_epoch}" ]; then
+        _ls_age=$(( ( $(date +%s) - _ls_epoch ) / 86400 ))
+        log "INFO" "'latest' resolves to ${_ls_id}, ${_ls_age} day(s) old"
+    fi
+
+    # Ids are backup_<UTC timestamp>, so chronological order IS lexicographic order: anything
+    # sorting after the pointer is a backup the pointer declined to advance onto.
+    _ls_newer=$(catalog_ids 2>/dev/null | awk -v cur="${_ls_id}" 'length($0) && $0 > cur' | wc -l | tr -d ' ')
+    if [ "${_ls_newer:-0}" -eq 0 ]; then
+        return 0
+    fi
+
+    log "WARN" "${_ls_newer} newer backup(s) exist that 'latest' did not advance onto."
+    log "WARN" "The pointer only moves onto a complete, full-scope backup (all of: ${CORE_COMPONENTS})."
+    log "WARN" "This usually means schedule.components is set to a partial scope, in which case"
+    log "WARN" "no scheduled run will ever move it again and 'latest' will keep ageing."
+    log "WARN" "Inspect with: $(basename "$0") list    then restore an id explicitly."
+    if [ "${ASSUME_YES}" = "true" ]; then
+        log "WARN" "Proceeding with the stale pointer because --yes was given."
+        return 0
+    fi
+    log "ERROR" "Refusing to restore a stale 'latest' without --yes."
+    return 1
+}
+
 # Resolve BACKUP_ID (incl. 'latest') -> BACKUP_NAME, fetch + parse manifest.json.
 load_manifest() {
     if [ -z "${BACKUP_ID}" ]; then
@@ -2222,6 +2261,7 @@ load_manifest() {
         id=$(catalog_latest || true)
         if [ -z "${id}" ]; then log "ERROR" "Could not resolve 'latest' pointer (target=${BACKUP_TARGET})"; return 1; fi
         log "INFO" "Resolved 'latest' -> ${id}"
+        latest_staleness_guard "${id}" || return 1
     fi
     # Same charset as --backup-id, applied AFTER resolution because 'latest' makes this id
     # bucket-controlled rather than operator-controlled: it is read from an object any

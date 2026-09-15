@@ -2425,6 +2425,51 @@ DISRUPTION_HELD_PODS=""
 echo
 
 #########################################################################################
+section "latest_staleness_guard — a partial schedule freezes the DR pointer"
+#########################################################################################
+
+# DN-14 keeps 'latest' off partial backups. With schedule.components set, every scheduled run
+# is partial, so the pointer stops advancing and `restore --backup-id latest` quietly restores
+# an ever-older backup. The gate is right; the silence is not.
+_cat_ids=""
+catalog_ids() { printf '%s\n' ${_cat_ids}; }
+
+# Healthy install: the pointer IS the newest id, so nothing to warn about.
+_cat_ids="backup_20260601-120000 backup_20260610-120000"
+ASSUME_YES=false
+latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
+assert_rc "pointer at the newest id passes" 0 $?
+
+# Partial schedule: newer ids exist that the pointer declined. Destructive + silent = refuse.
+_cat_ids="backup_20260601-120000 backup_20260610-120000 backup_20260612-120000"
+ASSUME_YES=false
+latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
+assert_rc "stale pointer is refused without --yes" 1 $?
+
+# --yes is the operator saying they know. It must still have been told.
+ASSUME_YES=true
+latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
+assert_rc "--yes allows the stale pointer" 0 $?
+
+# The refusal has to NAME the newer backups, or it is just an obstacle. The suite silences
+# log() globally, so restore it for the two assertions that are ABOUT what the operator reads.
+ASSUME_YES=false
+log() { echo "[$1] $2"; }
+_out=$(latest_staleness_guard "backup_20260610-120000" 2>&1)
+log() { :; }
+case "${_out}" in
+    *"1 newer backup(s) exist"*) ok ;;
+    *) bad "refusal counts the skipped backups" "1 newer backup(s) exist" "${_out}" ;;
+esac
+case "${_out}" in
+    *"day(s) old"*) ok ;;
+    *) bad "refusal reports the pointer's age" "day(s) old" "${_out}" ;;
+esac
+
+ASSUME_YES=false
+unset -f catalog_ids 2>/dev/null || true
+
+#########################################################################################
 section "resolve_one — restore must never guess which install it overwrites"
 #########################################################################################
 

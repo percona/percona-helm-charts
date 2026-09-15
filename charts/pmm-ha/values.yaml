@@ -920,6 +920,13 @@ centralBackupStorage:
     retentionDays: 7
     ## @param centralBackupStorage.schedule.components Components to back up (empty = all four).
     ## e.g. ["--postgresql", "--clickhouse"] or add ["--skip-victoriametrics"]
+    ##
+    ## WARNING: a partial scope FREEZES the 'latest' pointer. 'latest' only advances onto a
+    ## complete, full-scope backup - that is what stops `restore --backup-id latest` from
+    ## restoring a single component - so if every scheduled run is partial, nothing ever moves
+    ## it again and the documented DR path keeps restoring an ever-older backup. Restore now
+    ## reports the pointer's age and refuses without --yes when newer backups were skipped, but
+    ## the fix is to keep at least one full-scope schedule. Leave empty unless you have one.
     components: []
     ## @param centralBackupStorage.schedule.extraArgs Extra args appended to the backup command
     extraArgs: []
