@@ -70,6 +70,11 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: vmauth
 spec:
+  {{- if .Values.victoriaMetrics.version }}
+  # Pinned alongside the VMCluster - see victoriaMetrics.version in values.yaml.
+  componentVersion: {{ .Values.victoriaMetrics.version | quote }}
+  {{- end }}
+
   # Number of VMAuth replicas
   replicaCount: {{ .Values.victoriaMetrics.vmauth.replicaCount }}
   

@@ -42,9 +42,9 @@ This PMM HA deployment provides the following high availability features:
 - **Required Kubernetes Operators** (must be installed BEFORE this chart):
   - Install via `pmm-ha-dependencies` chart (recommended), OR
   - Install manually (advanced):
-    - VictoriaMetrics Operator (v0.56.4+)
-    - Altinity ClickHouse Operator (v0.25.4+)
-    - Percona PostgreSQL Operator (v2.8.0+)
+    - VictoriaMetrics Operator (v0.67.3+)
+    - Altinity ClickHouse Operator (v0.27.3+)
+    - Percona PostgreSQL Operator (v3.1.0+)
 
 ## Sizing
 
@@ -270,8 +270,19 @@ kubectl delete crds $(kubectl get crds -o name | grep victoriametrics)
 # Remove ClickHouse CRDs
 kubectl delete crds $(kubectl get crds -o name | grep clickhouse)
 
-# Remove PostgreSQL Operator CRDs
-kubectl delete crds $(kubectl get crds -o name | grep -E "(postgres-operator|perconapg)")
+# Remove PostgreSQL Operator CRDs.
+# Covers BOTH API groups: Operator 3.0.0 moved every Crunchy CRD from
+# `postgres-operator.crunchydata.com` to `upstream.pgv2.percona.com`, so a cluster that ever
+# ran 2.x carries both sets. Matching only "postgres-operator" or "perconapg" leaves the
+# renamed CRDs (postgresclusters/pgupgrades/pgadmins/crunchybridgeclusters under
+# upstream.pgv2.percona.com) behind, and a later "fresh" install then inherits them.
+kubectl delete crds $(kubectl get crds -o name | grep -E "(postgres-operator\.crunchydata\.com|pgv2\.percona\.com)")
+```
+
+Verify nothing is left before reinstalling:
+
+```sh
+kubectl get crds | grep -E "victoriametrics|clickhouse|pgv2|crunchydata"   # expect no output
 ```
 
 > **Warning**: This will remove all PMM data, including metrics, dashboards, and configuration. Make sure to backup any important data before uninstalling.
@@ -417,6 +428,30 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `haproxy.service.type`        | Service type for HAProxy: ClusterIP (internal), LoadBalancer (external via LB), or NodePort (external via node) | `ClusterIP` |
 | `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
 
+
+### Data-plane version pins
+
+The chart pins the version of every bundled data store explicitly. Left unpinned, these are
+inherited from the operator or the `pg-db` subchart, so bumping an operator dependency would
+also move the database or the metrics engine with no visible diff in this chart.
+
+| Name                        | Description                                                                                                   | Value                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `victoriaMetrics.version`   | VictoriaMetrics version for VMCluster, VMAgent and VMAuth. Empty string inherits the operator's built-in default | `v1.151.0`                                                     |
+| `clickhouse.image.tag`      | ClickHouse server image tag. Stay on the `altinitystable` line, not `altinityantalya`                          | `25.8.28.10001.altinitystable-alpine`                          |
+| `clickhouse.keeper.image.tag` | ClickHouse Keeper image tag. Must track the ClickHouse server release above                                  | `25.8.28.1`                                                    |
+| `pg-db.postgresVersion`     | PostgreSQL major version                                                                                      | `18`                                                           |
+| `pg-db.image`               | PostgreSQL server image                                                                                       | `docker.io/percona/percona-distribution-postgresql:18.6.1-1`   |
+| `pg-db.crVersion`           | PerconaPGCluster CR version. Must track the installed `pg-operator` version                                   | `3.1.0`                                                        |
+
+Two things to know before changing these:
+
+- **ClickHouse server and Keeper come from different repositories** (`altinity/clickhouse-server`
+  rebuilds vs upstream `clickhouse/clickhouse-keeper`), so "latest" resolves differently for
+  each. Move them together, onto the same upstream ClickHouse release.
+- **VictoriaMetrics storage upgrades are one-way**, and changing `pg-db.postgresVersion` on an
+  existing cluster is a major upgrade needing the operator's `PerconaPGUpgrade` flow - not an
+  in-place edit.
 
 ### PMM storage configuration
 
