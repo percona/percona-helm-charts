@@ -85,6 +85,65 @@ checksum/clickhouse-datasource: {{ include (print $.Template.BasePath "/clickhou
 {{- end }}
 
 {{/*
+Validate the pmm-secret when the user owns it.
+
+statefulset.yaml mounts seven keys from this secret with no `optional`, so one missing key leaves
+every PMM pod in CreateContainerConfigError without naming what is wrong. Check them here and
+report all of the missing ones in a single message instead.
+
+The list is exactly what secret.yaml generates, which is why secret.create exempts all of it:
+demanding a key the chart is about to write would abort the install on its own output.
+
+PMM_ADMIN_PASSWORD is the key PMM-15400 is about - statefulset.yaml maps it to Grafana's
+GF_SECURITY_ADMIN_PASSWORD, and leaving that ref optional is what let it vanish silently.
+
+Included from statefulset.yaml and vmauth.yaml - both read these keys, and vmauth.yaml
+renders first, so it needs its own call to report the missing key rather than dying on a
+b64dec. Keep every consumer that decodes a key from this secret calling it.
+*/}}
+{{- define "pmm.validateSecret" -}}
+{{/*
+An empty secret.name is never a working configuration - statefulset.yaml drops both the envFrom
+secretRef and the GF_SECURITY_ADMIN_PASSWORD ref, and vmauth.yaml / pg-user-credentials-secrets.yaml
+/ clickhouse-cluster.yaml all read keys off a secret that was never named. Fail on it explicitly
+and first: `lookup` with an empty name does not come back empty, it returns a SecretList - truthy,
+with no .data - so the key loop below would otherwise report all seven keys as missing from a
+secret the operator never asked for, and simply skipping the loop would leave the render to die in
+vmauth.yaml on "index of untyped nil", naming neither the secret nor the setting.
+*/}}
+{{- if not .Values.secret.name -}}
+{{- fail "secret.name is empty. Set it to the name of the Kubernetes Secret that holds the PMM credentials (the chart default is 'pmm-secret')." -}}
+{{- end -}}
+{{- if not .Values.secret.create -}}
+{{- $found := lookup "v1" "Secret" .Release.Namespace .Values.secret.name -}}
+{{/*
+Only inspect keys once the Secret is actually in hand. `lookup` also comes back empty on every
+client-side render - helm template, --dry-run=client, a GitOps preview - where it says nothing
+about the secret's contents, and reporting all seven keys as missing there would be simply
+wrong. When the secret really is absent, pg-user-credentials-secrets.yaml fails with the
+accurate "Secret not found" message instead.
+*/}}
+{{- if $found -}}
+{{- $data := $found.data | default dict -}}
+{{- $required := list "PMM_ADMIN_PASSWORD" "GF_PASSWORD" "PG_PASSWORD" "PMM_CLICKHOUSE_USER" "PMM_CLICKHOUSE_PASSWORD" "VMAGENT_remoteWrite_basicAuth_username" "VMAGENT_remoteWrite_basicAuth_password" -}}
+{{- $missing := list -}}
+{{- range $key := $required -}}
+{{- if not (get $data $key) -}}
+{{- $missing = append $missing $key -}}
+{{- end -}}
+{{- end -}}
+{{- if $missing -}}
+{{- $hint := "" -}}
+{{- if has "PMM_ADMIN_PASSWORD" $missing -}}
+{{- $hint = " PMM_ADMIN_PASSWORD sets the PMM/Grafana admin password." -}}
+{{- end -}}
+{{- fail (printf "Secret '%s' in namespace '%s' is missing, or has an empty value for, required key(s): %s.%s" .Values.secret.name .Release.Namespace (join ", " $missing) $hint) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Override pg-database.fullname to ensure consistent naming
 This overrides the function from the pg-db subchart
 */}}
