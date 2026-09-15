@@ -67,6 +67,8 @@ spec:
               value: "{{ .Values.logLevel }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
+            - name: PGO_WORKERS
+              value: {{ .Values.workers | quote }}
             - name: PPROF_BIND_ADDRESS
               value: "{{ .Values.pprofBindAddress }}"
             - name: PGO_CONTROLLER_LEADER_ELECTION_ENABLED

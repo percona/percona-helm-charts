@@ -12,9 +12,9 @@ finalizers:
 # Set this if you want that operator deletes the backups on cluster deletion
 #  - percona.com/delete-backups
 
-crVersion: 3.0.0
+crVersion: 3.1.0
 # initContainer:
-#   image: docker.io/percona/percona-postgresql-operator:3.0.0
+#   image: docker.io/percona/percona-postgresql-operator:3.1.0
 #   resources:
 #     limits:
 #       cpu: 2.0
@@ -45,7 +45,7 @@ crVersion: 3.0.0
 #   labels:
 #     example-label: value
 repository: docker.io/percona/percona-distribution-postgresql
-image: docker.io/percona/percona-distribution-postgresql:18.4-1
+image: docker.io/percona/percona-distribution-postgresql:18.6.1-1
 imagePullPolicy: Always
 imagePullSecrets: []
 postgresVersion: 18
@@ -76,8 +76,13 @@ customReplicationTLSSecret:
 
 # tls:
 #   caValidityDuration: 87600h
+#   certManagementPolicy: auto
 #   certValidityDuration: 2160h
 #   pgBackRestCertValidityDuration: 2160h
+#   issuerConf:
+#     name: my-issuer
+#     kind: ClusterIssuer
+#     group: cert-manager.io
 
 # openshift: true
 
@@ -194,7 +199,7 @@ instances:
 - name: instance1
   replicas: 3
 #  initContainer:
-#    image: docker.io/percona/percona-postgresql-operator:3.0.0
+#    image: docker.io/percona/percona-postgresql-operator:3.1.0
 #    resources:
 #      limits:
 #        cpu: 2.0
@@ -345,11 +350,81 @@ instances:
 #        resources:
 #          requests:
 #            storage: 1Gi
+#
+#  extraVolumes:
+#    - name: fts-dicts
+#      volumeSource:
+#        configMap:
+#          name: my-dicts
+#      mounts:
+#        - mountPath: /pgdata/dicts
+#          readOnly: true
+#    - name: scratch
+#      volumeSource:
+#        emptyDir: {}
+#      mounts:
+#        - mountPath: /scratch
+
+# Logical replicas are read-write instances seeded from the primary and kept up
+# to date over logical replication. Requires postgresVersion 17 or higher.
+# logicalReplicas:
+# - name: analytics
+#   databases: []  # empty = all non-template databases except "postgres"
+#   bootstrapMethod: pgbackrest  # or pg_basebackup, the only option when backups are disabled
+#   dataVolumeClaimSpec:
+#     storageClassName: standard
+#     accessModes:
+#     - ReadWriteOnce
+#     resources:
+#       requests:
+#         storage: 1Gi
+#   metadata:
+#     annotations: {}
+#     labels: {}
+#   resources:
+#     requests:
+#       cpu: 2.0
+#       memory: 4Gi
+#     limits:
+#       cpu: 2.0
+#       memory: 4Gi
+#   affinity:
+#     podAntiAffinity:
+#       preferredDuringSchedulingIgnoredDuringExecution:
+#       - weight: 1
+#         podAffinityTerm:
+#           labelSelector:
+#             matchLabels:
+#               postgres-operator.crunchydata.com/data: postgres
+#           topologyKey: kubernetes.io/hostname
+#   tolerations:
+#   - effect: NoSchedule
+#     key: role
+#     operator: Equal
+#     value: connection-poolers
+#   priorityClassName: high-priority
+#   expose:
+#     type: LoadBalancer
+#     annotations: {}
+#     labels: {}
+#     loadBalancerClass: eks.amazonaws.com/nlb
+#     loadBalancerSourceRanges:
+#     - 10.0.0.0/8
+#   startupProbe:
+#     failureThreshold: 30
+#     periodSeconds: 10
+#   livenessProbe:
+#     failureThreshold: 3
+#     periodSeconds: 10
+#   readinessProbe:
+#     failureThreshold: 3
+#     periodSeconds: 10
 
 proxy:
   pgBouncer:
     replicas: 3
-    image: docker.io/percona/percona-pgbouncer:1.25.2-1
+    image: docker.io/percona/percona-pgbouncer:1.25.2-6
+#    paused: true
 #    env:
 #    - name: MY_ENV
 #      value: "1000"
@@ -357,6 +432,8 @@ proxy:
 #    - secretRef:
 #        name: pgbouncer-env-secret
 #    exposeSuperusers: false
+#    usersSecret:
+#      name: pgbouncer-users
 #    resources:
 #      limits:
 #        cpu: 200m
@@ -376,6 +453,9 @@ proxy:
 #        type: LoadBalancer
 #        loadBalancerSourceRanges:
 #          - 10.0.0.0/8
+
+#      additionalTrustedCAs:
+#      - name: some-client-ca
 
     affinity:
       podAntiAffinity:
@@ -470,9 +550,15 @@ backups:
 #      checkpoint:
 #        enabled: true
 #        timeoutSeconds: 300
+#    jobs:
+#      tolerations:
+#      - effect: NoSchedule
+#        key: role
+#        operator: Equal
+#        value: connection-poolers
   pgbackrest:
 #    initContainer:
-#      image: docker.io/percona/percona-postgresql-operator:3.0.0
+#      image: docker.io/percona/percona-postgresql-operator:3.1.0
 #      resources:
 #        limits:
 #          cpu: 2.0
@@ -505,7 +591,7 @@ backups:
 #    envFrom:
 #    - secretRef:
 #        name: backup-env-secret
-    image: docker.io/percona/percona-pgbackrest:2.58.0-2
+    image: docker.io/percona/percona-pgbackrest:2.59.0-1
 #    containers:
 #      pgbackrest:
 #        resources:
@@ -685,7 +771,7 @@ pmm:
   enabled: false
   image:
     repository: docker.io/percona/pmm-client
-    tag: 3.7.1
+    tag: 3.9.1
 #  imagePullPolicy: IfNotPresent
 #  secret: cluster1-pmm-secret
   serverHost: monitoring-service
@@ -696,6 +782,107 @@ pmm:
 #    requests:
 #      memory: 200M
 #      cpu: 500m
+
+logcollector:
+  enabled: true
+  image: docker.io/percona/fluentbit:5.1.1-1
+#   imagePullPolicy: IfNotPresent
+#   # Extra fluent-bit configuration merged with the operator-managed config.
+#   # Must be in Fluent Bit's YAML configuration format.
+#   # NOTE: the operator already ships a `service:` section (HTTP server on,
+#   # port 2020). Fluent Bit does not merge duplicate top-level sections, so do
+#   # not add your own `service:` here or the collector will fail to start.
+#   configuration: |
+#     pipeline:
+#       filters:
+#         - name: record_modifier
+#           match: "*"
+#           record:
+#             - cluster_name cluster1
+#   env:
+#   - name: MY_ENV
+#     value: "my-value"
+#   envFrom:
+#   - secretRef:
+#       name: my-log-collector-secret
+#   resources:
+#     limits:
+#       memory: 200M
+#       cpu: 350m
+#     requests:
+#       memory: 150M
+#       cpu: 300m
+#   containerSecurityContext:
+#     allowPrivilegeEscalation: false
+#     readOnlyRootFilesystem: true
+#   # Liveness/readiness probes for the fluent-bit "logs" container.
+#   # When not set, the container has no probes.
+#   livenessProbe:
+#     tcpSocket:
+#       port: 2020
+#     initialDelaySeconds: 30
+#     periodSeconds: 15
+#   readinessProbe:
+#     tcpSocket:
+#       port: 2020
+#     initialDelaySeconds: 5
+#     periodSeconds: 10
+#   # Extra volumes/mounts for the collector sidecars, e.g. a CA bundle so an
+#   # S3 output can verify TLS via tls.ca_file.
+#   volumeMounts:
+#   - name: s3-ca
+#     mountPath: /etc/fluentbit/tls
+#     readOnly: true
+#   volumes:
+#   - name: s3-ca
+#     secret:
+#       secretName: my-s3-ca
+#   logRotate:
+#     # Override the operator-managed logrotate config. The snippet below mirrors
+#     # the default the operator ships; adjust it to your needs.
+#     configuration: |
+#       # PostgreSQL server logs. logging_collector already rotates these daily,
+#       # so this block is a size-based safety net only.
+#       /pgdata/pg[0-9]*/log/*.log
+#       /pgdata/pg[0-9]*/log/*.csv {
+#           size 100M
+#           rotate 7
+#           missingok
+#           nocompress
+#           notifempty
+#           copytruncate
+#           sharedscripts
+#       }
+#       # pgBackRest client logs on instance pods.
+#       /pgdata/pgbackrest/log/*.log {
+#           daily
+#           maxsize 100M
+#           rotate 7
+#           missingok
+#           nocompress
+#           notifempty
+#           copytruncate
+#           sharedscripts
+#       }
+#     # Additional logrotate config supplied via a ConfigMap.
+#     extraConfig:
+#       name: my-logrotate-config
+#     # Cron schedule for logrotate runs (default "0 0 * * *").
+#     schedule: "0 0 * * *"
+#     # Liveness/readiness probes for the "logrotate" container.
+#     # When not set, the container has no probes.
+#     livenessProbe:
+#       exec:
+#         command:
+#           - /bin/true
+#       initialDelaySeconds: 30
+#       periodSeconds: 15
+#     readinessProbe:
+#       exec:
+#         command:
+#           - /bin/true
+#       initialDelaySeconds: 5
+#       periodSeconds: 10
 
 # config:
 #   files:
@@ -738,6 +925,14 @@ pmm:
 #         work_mem: 2MB
 #       pg_hba:
 #       - host    all mytest 123.123.123.123/32 reject
+#       use_slots: true
+#     slots:
+#       cdc_consumer:
+#         type: logical
+#         database: myapp
+#         plugin: pgoutput
+#       external_replica:
+#         type: physical
 #   switchover:
 #     enabled: "true"
 #     targetInstance: ""
@@ -746,7 +941,7 @@ pmm:
 #   - basebackup
 
 # extensions:
-#   image: docker.io/percona/percona-postgresql-operator:3.0.0
+#   image: docker.io/percona/percona-postgresql-operator:3.1.0
 #   imagePullPolicy: Always
 #   storage:
 #     type: s3
@@ -757,12 +952,32 @@ pmm:
 #     disableSSL: false
 #     secret:
 #       name: cluster1-extensions-secret
-#   builtin:
-#     pg_stat_monitor: false
-#     pg_stat_statements: false
-#     pg_audit: true
-#     pgvector: false
-#     pg_repack: false
+#   pg_stat_monitor:
+#     enabled: false
+#   pg_stat_statements:
+#     enabled: false
+#   pg_audit:
+#     enabled: true
+#   pgvector:
+#     enabled: false
+#   pg_repack:
+#     enabled: false
+#   pg_cron:
+#     enabled: false
+#   set_user:
+#     enabled: false
+#   pg_tde:
+#     enabled: false
+#     walEncryption: false
+#     vault:
+#       host: https://vault-service:8200
+#       mountPath: tde
+#       tokenSecret:
+#         name: pg-tde-vault-secret
+#         key: token
+#       caSecret:
+#         name: pg-tde-vault-secret
+#         key: ca.crt
 #   custom:
 #   - name: pg_cron
 #     version: 1.6.1
