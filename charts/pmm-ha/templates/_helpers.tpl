@@ -405,3 +405,47 @@ dict with "name" and "value".
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Name of the secret holding the PMM service account token the pg-db PMM client uses.
+
+Reproduces pg-db's own default expression - `pmm.secret | default (printf "%s-pmm-secret"
+(include "pg-database.fullname" .))` (charts/pg-db/templates/cluster.yaml) - rather than the
+string it happens to produce, so the two cannot drift: pmm-ha overrides pg-database.fullname
+above, and both sides pick that override up from the same place. Only the Job reads this
+helper; the subchart reaches pg-database.fullname directly.
+
+Release-scoped on purpose: the token is created imperatively by the token-init Job rather
+than owned by Helm, so `helm uninstall` cannot remove it. A fixed name therefore lets a NEW
+release inherit the previous install's dead token.
+*/}}
+{{- define "pmm.pgPmmSecretName" -}}
+{{- $explicit := index .Values "pg-db" "pmm" "secret" -}}
+{{- if $explicit -}}
+{{- $explicit -}}
+{{- else -}}
+{{- printf "%s-pmm-secret" (include "pg-database.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Name of the pg-db PMM token-init Job, suffixed with a hash of its own pod template.
+
+A Job's spec.template is immutable, and this Job carries no helm.sh/hook annotations, so Helm
+treats it as an ordinary release resource and patches it on upgrade. Any change to the script
+or to an env value would then fail the upgrade with `spec.template: field is immutable` for as
+long as the previous Job exists - ttlSecondsAfterFinished bounds that to 24h after it
+completed, so it only bites an upgrade that follows soon after an install, which is exactly
+what CI (fresh `ct install` only) never exercises. With the hash in the name such a change
+renames the resource instead, and Helm creates the new Job and prunes the old one.
+
+The release name is truncated, rather than the finished string, so the result stays within the
+63-character limit that applies to the `job-name` label Kubernetes puts on the Job's pods while
+keeping the "-pmm-token-init" part readable: 37 + "-pmm-token-init" + "-" + 8 = 61. Helm caps
+release names at 53, so the untruncated `<release>-pmm-token-init` this replaces could reach 68
+and be rejected outright.
+*/}}
+{{- define "pmm.pgTokenJobName" -}}
+{{- $base := .Release.Name | trunc 37 | trimSuffix "-" -}}
+{{- printf "%s-pmm-token-init-%s" $base (include "pmm.pgTokenJobPodTemplate" . | sha256sum | trunc 8) -}}
+{{- end -}}
