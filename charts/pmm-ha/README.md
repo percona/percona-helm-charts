@@ -738,9 +738,15 @@ securityContext, moves the HAProxy port to 8443, and points the bundled PostgreS
 sidecar at that port.
 
 `openshift: true` governs the PMM Server and PMM Client pod securityContexts only. Setting it on
-its own is refused: the chart fails to render unless `nodeExporter.mode` and the kube-state-metrics
-securityContext are set with it, because those two workloads would otherwise be rejected at
-admission while Helm still reported `STATUS: deployed`.
+its own is refused: the chart fails to render unless `nodeExporter.mode`, the kube-state-metrics
+securityContext and `haproxy.containerPorts.https` are set with it. Left at their defaults those
+three would be rejected at admission or crash-loop while Helm still reported `STATUS: deployed` -
+a green install with no metrics and no reachable UI.
+
+`haproxy.containerPorts.https` is also checked on plain Kubernetes: the HAProxy Service publishes
+whatever the container binds, and `pg-db.pmm.serverHost` is the one consumer the chart cannot
+rewrite, because the PostgreSQL operator copies it verbatim into `PMM_AGENT_SERVER_ADDRESS`.
+Move the port and the chart requires the port in `serverHost` too.
 
 To reach PMM from outside the cluster, create an OpenShift Route pointing at the `pmm-ha-haproxy`
 Service. Do not use the chart's own `ingress.enabled` for this - it targets `monitoring-service`

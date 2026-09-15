@@ -78,7 +78,7 @@ embedded shell script is untouched.
         - name: PMM_SERVICE_NAME
           value: "pmm-ha-haproxy"
         - name: PMM_PORT
-          value: "{{ (.Values.haproxy.containerPorts).https | default 443 }}"
+          value: "{{ include "pmm.haproxy.httpsPort" . }}"
         - name: SECRET_NAME
           value: "{{ include "pmm.pgPmmSecretName" . }}"
         - name: SERVICE_ACCOUNT_NAME

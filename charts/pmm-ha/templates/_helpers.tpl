@@ -257,12 +257,20 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{/*
+Port HAProxy binds for PMM traffic. The HAProxy Service publishes this same value, so every
+in-cluster consumer of PMM has to follow it rather than assume 443.
+*/}}
+{{- define "pmm.haproxy.httpsPort" -}}
+{{- (.Values.haproxy.containerPorts).https | default 443 -}}
+{{- end -}}
+
+{{/*
 PMM Server address reachable from inside the cluster. HAProxy routes to the current leader, so this
 stays valid across failovers.
 */}}
 {{- define "pmm.client.serverAddress" -}}
 {{- $haproxy := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
-{{- $port := (.Values.haproxy.containerPorts).https | default 443 -}}
+{{- $port := include "pmm.haproxy.httpsPort" . -}}
 {{- printf "%s.%s.svc.cluster.local:%v" $haproxy .Release.Namespace $port -}}
 {{- end -}}
 
@@ -381,6 +389,42 @@ Called from statefulset.yaml, which always renders.
 {{- if eq (include "pmm.kubeStateMetrics.bundledEnabled" .) "true" -}}
 {{- if dig "securityContext" "enabled" true (default dict (index .Values "kube-state-metrics")) -}}
 {{- fail "openshift=true requires kube-state-metrics.securityContext.enabled=false: the subchart pins uid/gid/fsGroup 65534, outside the namespace's assigned ranges. Install with -f examples/values-openshift.yaml." -}}
+{{- end -}}
+{{- end -}}
+{{- $httpsPort := int (include "pmm.haproxy.httpsPort" .) -}}
+{{- if lt $httpsPort 1024 -}}
+{{- fail (printf "openshift=true requires haproxy.containerPorts.https above 1024, got %d: restricted-v2 runs the container as a non-root uid with all capabilities dropped and allowPrivilegeEscalation=false, so HAProxy cannot bind a privileged port (\"cannot bind socket (Permission denied) for [0.0.0.0:%d]\") and the only ingress to PMM crash-loops while Helm still reports STATUS: deployed. Install with -f examples/values-openshift.yaml." $httpsPort $httpsPort) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation that the bundled PostgreSQL cluster still reaches HAProxy.
+
+`haproxy.containerPorts.https` moves the HAProxy bind and the Service port together, and the
+chart's own consumers follow it. `pg-db.pmm.serverHost` does not: the PostgreSQL operator copies
+it verbatim into PMM_AGENT_SERVER_ADDRESS, and pmm-agent appends :443 to an address that carries
+no port. Left behind, the sidecar dials a port HAProxy no longer publishes while every pod stays
+Running and the PMM inventory stays empty - the same silent half-install the openshift validator
+exists to prevent, and reachable on plain Kubernetes.
+Only checked when serverHost actually points at this chart's HAProxy; an external PMM is the
+user's business.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.haproxy.validate" -}}
+{{- $port := int (include "pmm.haproxy.httpsPort" .) -}}
+{{- $pg := default dict (index .Values "pg-db") -}}
+{{- if dig "pmm" "enabled" false $pg -}}
+{{- $host := dig "pmm" "serverHost" "" $pg -}}
+{{- $svc := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
+{{- $parts := splitList ":" $host -}}
+{{- if hasPrefix $svc (first $parts) -}}
+{{- $declared := 443 -}}
+{{- if gt (len $parts) 1 -}}
+{{- $declared = int (last $parts) -}}
+{{- end -}}
+{{- if ne $declared $port -}}
+{{- fail (printf "pg-db.pmm.serverHost is %q, which resolves to port %d, but haproxy.containerPorts.https is %d. The PostgreSQL operator copies serverHost verbatim into PMM_AGENT_SERVER_ADDRESS and pmm-agent appends :443 to an address with no port, so the PMM sidecar would dial a port HAProxy does not publish - silently, while every pod stays Running and the PMM inventory stays empty. Set pg-db.pmm.serverHost to %q." $host $declared $port (printf "%s:%d" $svc $port)) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

@@ -1,5 +1,6 @@
 {{- include "pmm.nodeExporter.validate" . -}}
 {{- include "pmm.openshift.validate" . -}}
+{{- include "pmm.haproxy.validate" . -}}
 {{- include "pmm.validateSecret" . -}}
 apiVersion: apps/v1
 kind: StatefulSet

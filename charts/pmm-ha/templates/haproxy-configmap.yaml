@@ -59,7 +59,7 @@ data:
         # unavailable and binding 443 fails with EACCES. The Service port follows the same
         # value, so expose 443 externally with an OpenShift Route or an Ingress that points at
         # this Service.
-        bind *:{{ (.Values.haproxy.containerPorts).https | default 443 }} ssl crt /etc/haproxy/certs/pmm.pem
+        bind *:{{ include "pmm.haproxy.httpsPort" . }} ssl crt /etc/haproxy/certs/pmm.pem
         default_backend https_back
 
     backend https_back
