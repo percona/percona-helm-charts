@@ -73,7 +73,7 @@ jobs:
       - name: Run chart-testing (list-changed)
         id: list-changed
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
+          changed=$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF")
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
@@ -202,7 +202,7 @@ jobs:
 
       - name: Build chart packages
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
+          changed=$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF")
           if [[ -n "$changed" ]]; then
             for chart in $changed; do
               echo "Packaging $chart..."
