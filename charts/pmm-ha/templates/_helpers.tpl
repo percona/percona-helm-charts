@@ -85,6 +85,65 @@ checksum/clickhouse-datasource: {{ include (print $.Template.BasePath "/clickhou
 {{- end }}
 
 {{/*
+Validate the pmm-secret when the user owns it.
+
+statefulset.yaml mounts seven keys from this secret with no `optional`, so one missing key leaves
+every PMM pod in CreateContainerConfigError without naming what is wrong. Check them here and
+report all of the missing ones in a single message instead.
+
+The list is exactly what secret.yaml generates, which is why secret.create exempts all of it:
+demanding a key the chart is about to write would abort the install on its own output.
+
+PMM_ADMIN_PASSWORD is the key PMM-15400 is about - statefulset.yaml maps it to Grafana's
+GF_SECURITY_ADMIN_PASSWORD, and leaving that ref optional is what let it vanish silently.
+
+Included from statefulset.yaml and vmauth.yaml - both read these keys, and vmauth.yaml
+renders first, so it needs its own call to report the missing key rather than dying on a
+b64dec. Keep every consumer that decodes a key from this secret calling it.
+*/}}
+{{- define "pmm.validateSecret" -}}
+{{/*
+An empty secret.name is never a working configuration - statefulset.yaml drops both the envFrom
+secretRef and the GF_SECURITY_ADMIN_PASSWORD ref, and vmauth.yaml / pg-user-credentials-secrets.yaml
+/ clickhouse-cluster.yaml all read keys off a secret that was never named. Fail on it explicitly
+and first: `lookup` with an empty name does not come back empty, it returns a SecretList - truthy,
+with no .data - so the key loop below would otherwise report all seven keys as missing from a
+secret the operator never asked for, and simply skipping the loop would leave the render to die in
+vmauth.yaml on "index of untyped nil", naming neither the secret nor the setting.
+*/}}
+{{- if not .Values.secret.name -}}
+{{- fail "secret.name is empty. Set it to the name of the Kubernetes Secret that holds the PMM credentials (the chart default is 'pmm-secret')." -}}
+{{- end -}}
+{{- if not .Values.secret.create -}}
+{{- $found := lookup "v1" "Secret" .Release.Namespace .Values.secret.name -}}
+{{/*
+Only inspect keys once the Secret is actually in hand. `lookup` also comes back empty on every
+client-side render - helm template, --dry-run=client, a GitOps preview - where it says nothing
+about the secret's contents, and reporting all seven keys as missing there would be simply
+wrong. When the secret really is absent, pg-user-credentials-secrets.yaml fails with the
+accurate "Secret not found" message instead.
+*/}}
+{{- if $found -}}
+{{- $data := $found.data | default dict -}}
+{{- $required := list "PMM_ADMIN_PASSWORD" "GF_PASSWORD" "PG_PASSWORD" "PMM_CLICKHOUSE_USER" "PMM_CLICKHOUSE_PASSWORD" "VMAGENT_remoteWrite_basicAuth_username" "VMAGENT_remoteWrite_basicAuth_password" -}}
+{{- $missing := list -}}
+{{- range $key := $required -}}
+{{- if not (get $data $key) -}}
+{{- $missing = append $missing $key -}}
+{{- end -}}
+{{- end -}}
+{{- if $missing -}}
+{{- $hint := "" -}}
+{{- if has "PMM_ADMIN_PASSWORD" $missing -}}
+{{- $hint = " PMM_ADMIN_PASSWORD sets the PMM/Grafana admin password." -}}
+{{- end -}}
+{{- fail (printf "Secret '%s' in namespace '%s' is missing, or has an empty value for, required key(s): %s.%s" .Values.secret.name .Release.Namespace (join ", " $missing) $hint) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Override pg-database.fullname to ensure consistent naming
 This overrides the function from the pg-db subchart
 */}}
@@ -469,4 +528,48 @@ securityContext:
   # The PMM Client image runs as this user, which has to own the volume to write to it.
   fsGroup: {{ .Values.pmmClient.fsGroup }}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Name of the secret holding the PMM service account token the pg-db PMM client uses.
+
+Reproduces pg-db's own default expression - `pmm.secret | default (printf "%s-pmm-secret"
+(include "pg-database.fullname" .))` (charts/pg-db/templates/cluster.yaml) - rather than the
+string it happens to produce, so the two cannot drift: pmm-ha overrides pg-database.fullname
+above, and both sides pick that override up from the same place. Only the Job reads this
+helper; the subchart reaches pg-database.fullname directly.
+
+Release-scoped on purpose: the token is created imperatively by the token-init Job rather
+than owned by Helm, so `helm uninstall` cannot remove it. A fixed name therefore lets a NEW
+release inherit the previous install's dead token.
+*/}}
+{{- define "pmm.pgPmmSecretName" -}}
+{{- $explicit := index .Values "pg-db" "pmm" "secret" -}}
+{{- if $explicit -}}
+{{- $explicit -}}
+{{- else -}}
+{{- printf "%s-pmm-secret" (include "pg-database.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Name of the pg-db PMM token-init Job, suffixed with a hash of its own pod template.
+
+A Job's spec.template is immutable, and this Job carries no helm.sh/hook annotations, so Helm
+treats it as an ordinary release resource and patches it on upgrade. Any change to the script
+or to an env value would then fail the upgrade with `spec.template: field is immutable` for as
+long as the previous Job exists - ttlSecondsAfterFinished bounds that to 24h after it
+completed, so it only bites an upgrade that follows soon after an install, which is exactly
+what CI (fresh `ct install` only) never exercises. With the hash in the name such a change
+renames the resource instead, and Helm creates the new Job and prunes the old one.
+
+The release name is truncated, rather than the finished string, so the result stays within the
+63-character limit that applies to the `job-name` label Kubernetes puts on the Job's pods while
+keeping the "-pmm-token-init" part readable: 37 + "-pmm-token-init" + "-" + 8 = 61. Helm caps
+release names at 53, so the untruncated `<release>-pmm-token-init` this replaces could reach 68
+and be rejected outright.
+*/}}
+{{- define "pmm.pgTokenJobName" -}}
+{{- $base := .Release.Name | trunc 37 | trimSuffix "-" -}}
+{{- printf "%s-pmm-token-init-%s" $base (include "pmm.pgTokenJobPodTemplate" . | sha256sum | trunc 8) -}}
 {{- end -}}
