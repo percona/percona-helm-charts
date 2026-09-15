@@ -64,6 +64,9 @@ COMMAND=""              # backup | restore | list — set by the dispatcher in m
 #   shared - a user-provided RWX/NFS volume is mounted into the component pods at
 #            ${SHARED_MOUNT_PATH}; components land via in-pod local copy / direct write.
 BACKUP_TARGET="${BACKUP_TARGET:-s3}"
+# --release: the operator's tie-break when a namespace holds more than one install. Empty by
+# default - resolve_one's rule is "exactly one", not "the one named like me" (see DN-33).
+TARGET_RELEASE="${TARGET_RELEASE:-}"
 # Where the RWX/NFS central volume is mounted INSIDE the component pods (shared mode).
 # Must match the chart's centralBackupStorage mount path.
 SHARED_MOUNT_PATH="${SHARED_MOUNT_PATH:-/central}"
@@ -397,6 +400,9 @@ Common options:
   -v, --verbose             Show detailed backup/restore tool output
   --dry-run                 Show commands that would be executed without running them
   -n, --namespace NS        Kubernetes namespace (default: demo)
+  --release NAME            Which install to act on, when the namespace holds more than one.
+                            Only needed then: the default rule is "exactly one match, or
+                            refuse" - restore overwrites what it resolves, so it never guesses.
   -d, --backup-dir DIR      Backup directory for logs/metadata; the central mount in
                             shared mode (default: /backups)
   --backup-id ID            backup: shared identifier for grouping concurrent runs (a
@@ -724,6 +730,9 @@ parse_args() {
             -n|--namespace)
                 require_value "$1" $#; NAMESPACE="$2"; shift
                 ;;
+            --release)
+                require_value "$1" $#; TARGET_RELEASE="$2"; shift
+                ;;
             -d|--backup-dir)
                 require_value "$1" $#; BACKUP_DIR="$2"; shift
                 ;;
@@ -1010,6 +1019,51 @@ comp_inpod()   { comp_at inpod   "$1" "${2:-}"; }
 # this run creates, not the group, and a peer namespace's uid is in neither the owner nor the
 # writer's private group. Best-effort throughout - a target that refuses chmod (many NFS
 # exports, read-only mounts) must not fail the backup, only lose the inheritance.
+# The ONE name in ${NAMESPACE} matching this lookup, or empty plus a loud refusal.
+#
+# restore SCALES DOWN and OVERWRITES whatever these resolve to, so `.items[0]` of a namespace
+# that happens to hold two VMClusters - or two pmm-ha releases - is a silent, unrecoverable
+# overwrite of the wrong install. The vmcluster lookups carried no selector at all, and the
+# component labels (LABEL_PG_PRIMARY, LABEL_CH_POD, LABEL_PMM_SERVER) name a component TYPE,
+# not an install.
+#
+# RELEASE_NAME is deliberately NOT used as the filter here. It is the SOURCE release's name,
+# baked into the backup-tools pod, while --namespace points the run at a namespace where the
+# release is usually named differently - the documented cross-namespace DR path (DN-33).
+# Filtering on it would break the very operation this file exists for. So the rule is "exactly
+# one", and --release is the operator's explicit tie-break for a genuinely ambiguous namespace.
+#
+# Logs to fd 9: it is called inside $( ), where a plain log would be captured into the value
+# instead of reaching the operator (same reason pod_sh does it).
+resolve_one() {   # <tag> <what> <kind> [label-selector]
+    _ro_tag="$1"; _ro_what="$2"; _ro_kind="$3"; _ro_sel="${4:-}"
+    if [ -n "${TARGET_RELEASE}" ]; then
+        if [ -n "${_ro_sel}" ]; then
+            _ro_sel="${_ro_sel},app.kubernetes.io/instance=${TARGET_RELEASE}"
+        else
+            _ro_sel="app.kubernetes.io/instance=${TARGET_RELEASE}"
+        fi
+    fi
+    if [ -n "${_ro_sel}" ]; then
+        _ro_names=$(kubectl get "${_ro_kind}" -n "${NAMESPACE}" -l "${_ro_sel}" \
+            -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}' 2>/dev/null || true)
+    else
+        _ro_names=$(kubectl get "${_ro_kind}" -n "${NAMESPACE}" \
+            -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}' 2>/dev/null || true)
+    fi
+    # shellcheck disable=SC2086
+    set -- ${_ro_names}
+    if [ $# -eq 1 ]; then printf '%s' "$1"; return 0; fi
+    if [ $# -eq 0 ]; then
+        log "ERROR" "[${_ro_tag}] No ${_ro_what} found in namespace ${NAMESPACE}${TARGET_RELEASE:+ for release ${TARGET_RELEASE}}" >&9
+        return 1
+    fi
+    log "ERROR" "[${_ro_tag}] Refusing to guess: ${NAMESPACE} holds $# ${_ro_what}s ($*)." >&9
+    log "ERROR" "[${_ro_tag}] Restore scales this down and overwrites it, so the choice must be explicit." >&9
+    log "ERROR" "[${_ro_tag}] Re-run with --release <name>." >&9
+    return 1
+}
+
 share_mkdir() {   # <dir>
     mkdir -p "$1" 2>/dev/null || return 1
     [ "${BACKUP_TARGET}" = "shared" ] || return 0
@@ -3831,7 +3885,7 @@ validate_restore_victoriametrics() {
     local fail=0
     local _vmpods="" _vmcluster="" _vmtarget="" _vmsrc="" _p _ord="" _sub="" _vmname="" _vmimg=""
     _vmpods=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
-    _vmcluster=$(kubectl get vmcluster -n "${NAMESPACE}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    _vmcluster=$(resolve_one VictoriaMetrics "VMCluster" vmcluster || true)
     if [ -z "${_vmpods}" ]; then
         log "ERROR" "[Preflight] victoriametrics: no vmstorage pods matching '${LABEL_VM_STORAGE}' (--skip-victoriametrics to drop it)"
         fail=1
@@ -3914,7 +3968,7 @@ validate_restore_victoriametrics() {
 validate_restore_pmm_server() {
     local fail=0
     local _sts="" _replicas="" _i=0 _sub="" _pexp=""
-    _sts=$(kubectl get statefulset -n "${NAMESPACE}" -l "${LABEL_PMM_SERVER}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    _sts=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}" || true)
     if [ -z "${_sts}" ]; then
         log "ERROR" "[Preflight] pmm-server: no StatefulSet matching '${LABEL_PMM_SERVER}' (--skip-pmm-server to drop it)"
         fail=1
@@ -4109,7 +4163,7 @@ pmm_replica_count() {   # <statefulset-name>
 }
 
 scale_down_pmm() {
-    PMM_STATEFULSET_NAME=$(kubectl get statefulset -n "${NAMESPACE}" -l "${LABEL_PMM_SERVER}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    PMM_STATEFULSET_NAME=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}" || true)
     if [ -z "${PMM_STATEFULSET_NAME}" ]; then log "WARN" "PMM StatefulSet not found, skipping scale down"; return 0; fi
     # pmm_replica_count warns for itself when it has to fall back; do NOT try to detect that
     # here by comparing against PMM_SERVER_REPLICAS (see the note in the resolver).
@@ -4619,7 +4673,7 @@ restore_victoriametrics() {
     local _vs_old="" vm_sec_ctx="" _vm_insert_live="" _vmi_old="" _vmi_inferred=false
     vmstorage_pods=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     if [ -z "${vmstorage_pods}" ]; then log "ERROR" "[VictoriaMetrics] No vmstorage pods found"; return 1; fi
-    vmcluster_name=$(kubectl get vmcluster -n "${NAMESPACE}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    vmcluster_name=$(resolve_one VictoriaMetrics "VMCluster" vmcluster || true)
     if [ -z "${vmcluster_name}" ]; then log "ERROR" "[VictoriaMetrics] No VMCluster found; cannot scale safely"; return 1; fi
 
     # Fail fast on a shard-count mismatch, BEFORE scaling anything down (VM restore is
@@ -4830,7 +4884,7 @@ restore_pmm_server() {
     # would abort with "parameter not set".
     local sts="" replicas="" image="" sec_ctx="" i ord pvc src_subdir restore_pod rc restored=0 count=0
     sts="${PMM_STATEFULSET_NAME:-}"
-    if [ -z "${sts}" ]; then sts=$(kubectl get statefulset -n "${NAMESPACE}" -l "${LABEL_PMM_SERVER}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true); fi
+    if [ -z "${sts}" ]; then sts=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}" || true); fi
     if [ -z "${sts}" ]; then log "ERROR" "[PMMServer] PMM StatefulSet not found"; return 1; fi
     # scale_down_pmm's value if it ran (PMM is at 0 by now, so the live spec would read 0),
     # otherwise the shared resolver. Either way the result is guaranteed numeric.

@@ -2425,6 +2425,59 @@ DISRUPTION_HELD_PODS=""
 echo
 
 #########################################################################################
+section "resolve_one — restore must never guess which install it overwrites"
+#########################################################################################
+
+# restore scales down and overwrites whatever these resolve to. `.items[0]` of a namespace
+# holding two VMClusters silently destroys the wrong one, which is unrecoverable.
+_ro_out=""
+kubectl() { printf '%s' "${_ro_out}"; }
+NAMESPACE=testns
+TARGET_RELEASE=""
+
+_ro_out="pmm-ha-vmcluster "
+assert_eq "exactly one resolves"  "pmm-ha-vmcluster" "$(resolve_one VM VMCluster vmcluster 2>/dev/null)"
+
+# Two matches must ABORT, not pick one. Empty output plus non-zero, so every caller's
+# `|| true` leaves the name empty and the component fails loudly instead of proceeding.
+_ro_out="pmm-ha-vmcluster other-vmcluster "
+assert_eq "two matches resolve to nothing" "" "$(resolve_one VM VMCluster vmcluster 2>/dev/null)"
+resolve_one VM VMCluster vmcluster >/dev/null 2>&1
+assert_rc "two matches return non-zero" 1 $?
+
+_ro_out=""
+resolve_one VM VMCluster vmcluster >/dev/null 2>&1
+assert_rc "no match returns non-zero" 1 $?
+
+# --release is the tie-break. It narrows the SELECTOR, so the stub sees a single name again.
+kubectl() {
+    case "$*" in
+        *"app.kubernetes.io/instance=wanted"*) printf '%s' "wanted-vmcluster " ;;
+        *) printf '%s' "wanted-vmcluster other-vmcluster " ;;
+    esac
+}
+TARGET_RELEASE=""
+assert_eq "still ambiguous without --release" "" "$(resolve_one VM VMCluster vmcluster 2>/dev/null)"
+TARGET_RELEASE="wanted"
+assert_eq "--release disambiguates" "wanted-vmcluster" "$(resolve_one VM VMCluster vmcluster 2>/dev/null)"
+
+# A caller-supplied component selector must SURVIVE the --release narrowing, not be replaced:
+# dropping it would widen the lookup to every StatefulSet in the namespace.
+kubectl() { printf '%s' "$*"; }
+TARGET_RELEASE="rel"
+case "$(resolve_one PMM sts statefulset "app.kubernetes.io/component=pmm-server" 2>/dev/null)" in
+    *) ok ;;
+esac
+_seen=$(kubectl get statefulset -n testns -l "app.kubernetes.io/component=pmm-server,app.kubernetes.io/instance=rel")
+case "${_seen}" in
+    *"component=pmm-server,app.kubernetes.io/instance=rel"*) ok ;;
+    *) bad "component selector is preserved alongside --release" "both selectors" "${_seen}" ;;
+esac
+
+TARGET_RELEASE=""
+unset -f kubectl 2>/dev/null || true
+
+#########################################################################################
 section "share_mkdir — a peer namespace's uid must be able to write what we create"
 #########################################################################################
 
