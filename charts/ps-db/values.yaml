@@ -16,7 +16,7 @@ finalizers:
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 1.2.0
+crVersion: 1.3.0
 # storageScaling:
 #   enableVolumeScaling: false
 #   enableExternalAutoscaling: false
@@ -672,6 +672,26 @@ orchestrator:
     #   rack: rack-22
     # loadBalancerSourceRanges:
     #   - 10.0.0.0/8
+
+# Custom MySQL users to be created and managed by the Operator.
+# If "passwordSecretRef" is not set, the Operator generates a password and
+# stores it in the "<cluster-name>-user-<username>" Secret.
+# users:
+# - name: my-user
+#   dbs:
+#   - db1
+#   - db2
+#   hosts:
+#   - localhost
+#   grants:
+#   - SELECT
+#   - DELETE
+#   - INSERT
+#   withGrantOption: true
+#   passwordSecretRef:
+#     name: my-user-pwd
+#     key: my-user-pwd-key
+# - name: my-user-two
 
 pmm:
   enabled: false
