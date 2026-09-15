@@ -2425,6 +2425,39 @@ DISRUPTION_HELD_PODS=""
 echo
 
 #########################################################################################
+section "share_mkdir — a peer namespace's uid must be able to write what we create"
+#########################################################################################
+
+# OpenShift gives every namespace its own uid range, so the DR namespace's pods are a
+# different uid from the source's and cannot write a 0755 directory the source created. The
+# one thing both carry is gid 0. setgid keeps that group on everything created below.
+_sd=$(mktemp -d 2>/dev/null || echo "/tmp/sdtest.$$")
+
+BACKUP_TARGET=shared
+share_mkdir "${_sd}/shared/logs"
+assert_eq "shared: directory is created" "yes" "$([ -d "${_sd}/shared/logs" ] && echo yes || echo no)"
+_mode=$(ls -ld "${_sd}/shared/logs" | cut -c1-10)
+assert_eq "shared: group-writable"       "w" "$(printf '%s' "${_mode}" | cut -c6)"
+assert_eq "shared: setgid is set"        "s" "$(printf '%s' "${_mode}" | cut -c7)"
+
+# s3's BACKUP_DIR is pod-local scratch nobody else reads, so it must NOT be widened.
+BACKUP_TARGET=s3
+share_mkdir "${_sd}/s3/logs"
+assert_eq "s3: directory is created"     "yes" "$([ -d "${_sd}/s3/logs" ] && echo yes || echo no)"
+_s3mode=$(ls -ld "${_sd}/s3/logs" | cut -c7)
+_s3sgid=no
+[ "${_s3mode}" = "s" ] && _s3sgid=yes
+[ "${_s3mode}" = "S" ] && _s3sgid=yes
+assert_eq "s3: setgid NOT set"           "no"  "${_s3sgid}"
+
+# A path that cannot be created is a failure the caller must see (it falls back to /tmp).
+share_mkdir "/proc/nonexistent-f17/logs" 2>/dev/null
+assert_rc "uncreatable path returns non-zero" 1 $?
+
+rm -rf "${_sd}" 2>/dev/null || true
+BACKUP_TARGET=shared
+
+#########################################################################################
 section "write_backup_metrics — a full run must not leave duplicate series behind"
 #########################################################################################
 

@@ -296,6 +296,20 @@ orchestrator onto the backup-tools mount.) EBS / `gp3` (ReadWriteOnce) cannot be
 yourself — EFS, an NFS server, `nfs-subdir-external-provisioner`, etc.; the chart does not
 provision RWX storage for you.
 
+> **The export must be group-writable if you will restore into a second namespace.**
+> OpenShift assigns every namespace its own uid range, so the DR namespace's pods run as a
+> different uid from the source's and cannot write anything the source created `0755`. The one
+> identity both carry is **gid 0**. The orchestrator therefore creates its directories
+> group-writable and `setgid` (so children keep gid 0), and pre-creates vmbackup's destination
+> the same way — vmbackup would otherwise make it `0700` and the peer namespace could not even
+> list it.
+>
+> A **pre-existing** export still has to allow this: make its root group-writable and setgid
+> once, e.g. `chmod -R g+rwX,g+s /exports/pmm-central-backup`. This is not OpenShift-specific —
+> any shared filesystem that does not pin uids (NFS, CephFS, hostPath, EFS *without* access
+> points) behaves the same. EFS access points that force a single `PosixUser` sidestep it
+> entirely, because both namespaces are then squashed to the same uid.
+
 **Option 1: Bring-your-own RWX PVC (recommended)**
 
 ```yaml

@@ -855,7 +855,7 @@ log() {
 init_log() {
     _il_ts=$(date -u +%Y%m%d-%H%M%S)
     LOG_FILE="${BACKUP_DIR}/logs/restore_${_il_ts}.log"
-    if ! mkdir -p "${BACKUP_DIR}/logs" 2>/dev/null || ! : >>"${LOG_FILE}" 2>/dev/null; then
+    if ! share_mkdir "${BACKUP_DIR}/logs" || ! : >>"${LOG_FILE}" 2>/dev/null; then
         LOG_FILE="/tmp/restore_${_il_ts}.log"
         : >>"${LOG_FILE}" 2>/dev/null || true
     fi
@@ -1004,6 +1004,19 @@ comp_at() {   # <view> <component> [id]
 comp_path()    { comp_at path    "$1" "${2:-}"; }
 comp_display() { comp_at display "$1" "${2:-}"; }
 comp_inpod()   { comp_at inpod   "$1" "${2:-}"; }
+# mkdir -p that also makes the directory group-owned-inheriting (setgid) in shared mode, so
+# every file and subdirectory a LATER run creates under it keeps gid 0 rather than picking up
+# the writer's own primary group. umask 0002 alone is not enough: it governs the mode of what
+# this run creates, not the group, and a peer namespace's uid is in neither the owner nor the
+# writer's private group. Best-effort throughout - a target that refuses chmod (many NFS
+# exports, read-only mounts) must not fail the backup, only lose the inheritance.
+share_mkdir() {   # <dir>
+    mkdir -p "$1" 2>/dev/null || return 1
+    [ "${BACKUP_TARGET}" = "shared" ] || return 0
+    chmod g+rwxs "$1" 2>/dev/null || true
+    return 0
+}
+
 manifest_path()    { echo "$(backup_root)/manifests/${1:-$(backup_id_default)}.json"; }
 manifest_display() { echo "$(backup_root_display)/manifests/${1:-$(backup_id_default)}.json"; }
 manifests_dir()    { echo "$(backup_root)/manifests"; }
@@ -2953,6 +2966,21 @@ backup_victoriametrics() {
         # step that could drop it.
         local backup_dst="$(vm_dst_for_pod "${pod}" "${backup_name}")"
         log "INFO" "[VictoriaMetrics] Creating backup ${backup_name} -> ${backup_dst}"
+
+        # vmbackup creates its own fs:// destination, in the vmstorage container, under that
+        # container's umask - which yields 0700. Every other directory on the shared volume is
+        # group-writable (see the umask 0002 note at --target parsing), but this one the
+        # orchestrator does not create, so a peer namespace cannot even LIST it: the catalog
+        # shows the backup and the cross-namespace restore then fails reading it. Pre-create it
+        # group-writable and setgid so vmbackup writes into a directory that already has the
+        # right mode, instead of making one that does not. Best-effort: a target that refuses
+        # chmod must not fail the backup. s3 has no directories, so it is skipped there.
+        if [ "${BACKUP_TARGET}" = "shared" ]; then
+            _vm_dstdir="${backup_dst#fs://}"
+            pod_sh VictoriaMetrics "${pod}" vmbackup "${KUBECTL_EXEC_TIMEOUT}" \
+                'mkdir -p "$1" 2>/dev/null && chmod 2775 "$1" 2>/dev/null || true' \
+                "${_vm_dstdir}" >/dev/null 2>&1 || true
+        fi
         
         # Execute vmbackup in the sidecar container using snapshot API
         # Through pod_exec, so --dry-run prints exactly this argv and runs nothing.
@@ -5834,7 +5862,7 @@ cmd_backup() {
     if [ "${DRY_RUN}" != "true" ]; then
         if [ ! -d "${BACKUP_DIR}" ]; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Creating backup directory: ${BACKUP_DIR}"
-            if ! mkdir -p "${BACKUP_DIR}"; then
+            if ! share_mkdir "${BACKUP_DIR}"; then
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Failed to create backup directory: ${BACKUP_DIR}"
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Please check permissions or specify --backup-dir"
                 exit 1
@@ -5846,7 +5874,7 @@ cmd_backup() {
             exit 1
         fi
 
-        mkdir -p "${BACKUP_DIR}/logs" 2>/dev/null || true
+        share_mkdir "${BACKUP_DIR}/logs" || true
 
         # Acquire per-component locks (allows concurrent runs of different components).
         # EXIT just releases; INT/TERM must also EXIT — a bare `trap release_locks INT TERM`
@@ -5867,7 +5895,7 @@ cmd_backup() {
         # Dry-run also appends tool stderr to ${LOG_FILE}, and in POSIX sh a failed
         # redirect fails the command being redirected (first run on a fresh volume has
         # no logs/ dir yet). Create it, or fall back to /dev/null.
-        mkdir -p "${BACKUP_DIR}/logs" 2>/dev/null || true
+        share_mkdir "${BACKUP_DIR}/logs" || true
         [ -w "${BACKUP_DIR}/logs" ] || LOG_FILE="/dev/null"
         # A dry run takes no locks, but release_locks is also the reaper for the retention sweep's
         # manifest cache (catalog_cache_clear), and cleanup_old_backups runs the sweep in dry run
@@ -6415,6 +6443,19 @@ main() {
             ;;
         shared)
             S3_ENABLED=false
+            # Every namespace writes the shared volume as its OWN uid - OpenShift assigns each
+            # namespace a distinct uid range - so a 0755 directory created by the source
+            # namespace is unwritable by the DR namespace, and a cross-namespace restore dies
+            # on its own log file before it reads a byte of backup. What both DO share is gid 0,
+            # the supplementary group every arbitrary-uid image carries. So the run creates
+            # group-writable and relies on setgid (share_mkdir) to keep that group on children.
+            # This is the standard OpenShift arbitrary-uid pattern, and it is not
+            # OpenShift-specific: any shared filesystem that does not pin uids - NFS, CephFS,
+            # a hostPath, EFS without access points - has the same problem.
+            #
+            # s3 mode is deliberately excluded: there BACKUP_DIR is pod-local scratch that no
+            # other namespace ever reads, so widening its mode would be a needless loosening.
+            umask 0002
             ;;
         *)
             echo "Error: Invalid --target: '${BACKUP_TARGET}' (must be: s3, shared)"; exit 1 ;;
@@ -6545,7 +6586,7 @@ main() {
         # accumulate forever on the logs PVC.
         if [ "${COMMAND}" = "prune" ]; then
             LOG_FILE="${BACKUP_DIR}/logs/prune_${TIMESTAMP}.log"
-            mkdir -p "${BACKUP_DIR}/logs" 2>/dev/null || true
+            share_mkdir "${BACKUP_DIR}/logs" || true
             [ -w "${BACKUP_DIR}/logs" ] || LOG_FILE="/tmp/prune_${TIMESTAMP}.log"
         elif [ "${COMMAND}" = "list" ]; then
             # 'list' is read-only and reports to stdout — cmd_list uses echo throughout and takes no
