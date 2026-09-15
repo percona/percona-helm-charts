@@ -701,6 +701,9 @@ spec:
   {{- if $pmm.mysqlParams }}
     mysqlParams: {{ $pmm.mysqlParams }}
   {{- end }}
+  {{- if $pmm.haproxyParams }}
+    haproxyParams: {{ $pmm.haproxyParams }}
+  {{- end }}
   {{- if $pmm.customClusterName }}
     customClusterName: {{ $pmm.customClusterName }}
   {{- end }}

@@ -713,6 +713,7 @@ pmm:
 #    failureThreshold: 3
   serverHost: monitoring-service
   # mysqlParams: "--disable-tablestats-limit=2000"
+  # haproxyParams: "--environment=production"
   # customClusterName: "cluster1-custom"
   resources:
     requests:
