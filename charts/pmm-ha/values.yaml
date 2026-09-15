@@ -966,8 +966,37 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmselect.podAnnotations Annotations for vmselect pods
     podAnnotations: {}
     ## @param victoriaMetrics.vmselect.extraArgs Extra arguments for vmselect
-    extraArgs: {}
-  
+    ## A single-node PMM server starts VictoriaMetrics itself, with a set of --search.*
+    ## overrides baked into its supervisord template. In HA that program never starts - VM is
+    ## external - so vmselect would otherwise run on upstream defaults and behave noticeably
+    ## differently from the PMM everyone else is using. These keep the two in step.
+    ##
+    ## The one that breaks dashboards is maxQueryLen. PMM expands an "All" node/service
+    ## dashboard variable into a regex naming every node, so the query text grows with the
+    ## fleet; past roughly 120 monitored nodes it crosses the 16KiB upstream default and the
+    ## panel fails with "422: too long query" (PMM-15461).
+    extraArgs:
+      ## Upstream default 16KiB; PMM single-node uses 1MB.
+      search.maxQueryLen: "1MB"
+      ## Upstream default 30s; PMM single-node uses 5s. This is how long collected points stay
+      ## invisible to queries, so the default leaves "last value" stat panels empty.
+      search.latencyOffset: "5s"
+      ## Upstream default 30s; PMM single-node uses 90s.
+      search.maxQueryDuration: "90s"
+      ## Upstream default 10s; PMM single-node uses 30s. How long a query waits for a vmselect
+      ## slot before it is rejected with 429.
+      search.maxQueueDuration: "30s"
+      ## Upstream default 1000000000; PMM single-node uses 1500000000.
+      search.maxSamplesPerQuery: "1500000000"
+      ## Upstream default 5s; PMM single-node uses 30s. Purely log volume - PMM's dashboard
+      ## queries routinely take longer than 5s on a large fleet.
+      search.logSlowQueryDuration: "30s"
+    ## NOTE: search.maxUniqueTimeseries is deliberately NOT carried over, although PMM
+    ## single-node pins it to 100000000. On a cluster the effective limit is the one on
+    ## vmstorage, and vmselect's own value cannot exceed it; left at 0 vmstorage derives it
+    ## from search.maxConcurrentRequests and the memory actually available to the pod. Forcing
+    ## 100M would remove that guard while vmstorage still runs under a hard memory limit.
+
   ## VMInsert configuration - handles write requests
   vminsert:
     ## @param victoriaMetrics.vminsert.replicaCount Number of vminsert replicas
@@ -1035,8 +1064,19 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmauth.podAnnotations Annotations for vmauth pods
     podAnnotations: {}
     ## @param victoriaMetrics.vmauth.extraArgs Extra arguments for vmauth
-    extraArgs: {}
-  
+    extraArgs:
+      ## vmauth's per-user concurrency limit exists to stop one tenant starving the others,
+      ## but PMM authenticates everything - browser dashboards, Grafana's alert scheduler,
+      ## vmalert and vmagent - as a single user, so that per-user bucket is simply the whole
+      ## cluster's read capacity. At fleet scale the alert scheduler alone exhausted it and
+      ## rule evaluation started failing with "429 cannot handle more than N concurrent
+      ## requests from user victoriametrics_pmm" (PMM-15461). Relying on the upstream default
+      ## is also a moving target - it was 300 up to v1.111.0 and is 100 as of v1.151.0, so
+      ## the ceiling tightens on its own as the operator moves the data plane forward. Pin it
+      ## to vmauth's global maxConcurrentRequests default instead, leaving that global limit -
+      ## which does protect vmauth itself from OOM - as the only ceiling.
+      maxConcurrentPerUserRequests: "1000"
+
   ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
   ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
   ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
