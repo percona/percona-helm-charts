@@ -85,6 +85,9 @@ The chart can be customized using the following configurable parameters:
 | `image.pullPolicy`           | PSMDB Operator Container pull policy                                                                         | `IfNotPresent`                              |
 | `imagePullSecrets`           | PSMDB Operator Pod pull secret                                                                               | `[]`                                        |
 | `replicaCount`               | PSMDB Operator Pod quantity                                                                                  | `1`                                         |
+| `podDisruptionBudget.enabled` | Create a PodDisruptionBudget for the operator Deployment                                                      | `false`                                     |
+| `podDisruptionBudget.maxUnavailable` | PDB maxUnavailable                                                                                   | `1`                                         |
+| `podDisruptionBudget.minAvailable` | PDB minAvailable. Do not set together with maxUnavailable                                          | unset                                       |
 | `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                                  | `10`                                        |
 | `tolerations`                | List of node taints to tolerate                                                                              | `[]`                                        |
 | `annotations`                | PSMDB Operator Deployment annotations                                                                        | `{}`                                        |

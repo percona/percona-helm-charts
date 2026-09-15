@@ -45,7 +45,11 @@ spec:
     
     # Profiles configuration
     profiles:
-      clickhouse_operator/allow_experimental_analyzer: "0"
+      {{- /* allow_experimental_analyzer was dropped here in PMM-15462: on ClickHouse 25.8 it is
+             an obsolete alias for enable_analyzer (default on), it only ever scoped the
+             clickhouse_operator profile - never PMM's own user or the Grafana datasource - and
+             PMM Server does not set it at all. Carrying an obsolete setting across a version
+             bump only risks the profile failing to apply. */}}
       clickhouse_operator/prefer_localhost_replica: "1"
       readonly/readonly: "2"
       {{- if .Values.centralBackupStorage.enabled }}
