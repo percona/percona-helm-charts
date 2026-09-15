@@ -91,6 +91,20 @@ assert_rc "non-timestamp id is refused" 1 $?
 backup_id_epoch "" >/dev/null 2>&1
 assert_rc "empty id is refused" 1 $?
 
+# --backup-id accepts either spelling, and `list` plus the run summary PRINT the prefixed one.
+# Feeding that printed form straight back into `backup` used to compose backup_backup_<ts>,
+# which backup_id_epoch cannot parse - so retention skipped it forever (unbounded growth).
+assert_eq "prefixed id loses exactly one prefix" "20260610-120000" "$(backup_id_bare "backup_20260610-120000")"
+assert_eq "bare id is unchanged"                 "20260610-120000" "$(backup_id_bare "20260610-120000")"
+assert_eq "only ONE prefix is stripped"          "backup_20260610-120000" "$(backup_id_bare "backup_backup_20260610-120000")"
+assert_eq "empty stays empty"                    "" "$(backup_id_bare "")"
+
+# The composition the backup path actually performs must stay parseable for BOTH spellings.
+for _spelling in "20260610-120000" "backup_20260610-120000"; do
+    backup_id_epoch "backup_$(backup_id_bare "${_spelling}")" >/dev/null 2>&1
+    assert_rc "composed name parses for '${_spelling}'" 0 $?
+done
+
 # A bare timestamp (no backup_ prefix) is what --backup-id accepts, so it must parse too.
 got=$(backup_id_epoch "20260610-120000" 2>/dev/null || echo "")
 case "${got}" in ''|*[!0-9]*) bad "bare timestamp parses" "digits" "${got}" ;; *) ok ;; esac

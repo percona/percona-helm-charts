@@ -1871,6 +1871,12 @@ backup_id_owner() {
     printf '%s' "${_bio_json}" | jq -r '.namespace // empty' 2>/dev/null
 }
 
+# <id> without its optional backup_ prefix. The entry points that accept an id must agree on
+# what an id IS: `list` and the run summary both PRINT backup_<ts>, so that exact spelling has
+# to round-trip back in. restore (load_manifest) and list normalise it; the backup path did
+# not, which is how --backup-id backup_<ts> produced backup_backup_<ts>.
+backup_id_bare() { printf '%s' "${1#backup_}"; }
+
 # Epoch seconds for the timestamp embedded in a backup id (backup_YYYYMMDD-HHMMSS), or
 # non-zero when it cannot be parsed. Callers must then SKIP the id rather than guess.
 #
@@ -6497,7 +6503,14 @@ main() {
         BACKUP_RETENTION=$(echo "${BACKUP_RETENTION}" | sed 's/^0*\([0-9]\)/\1/')
 
         # A validated --backup-id (see the charset check above) doubles as this run's identifier.
-        [ -n "${BACKUP_ID}" ] && TIMESTAMP="${BACKUP_ID}"
+        #
+        # Strip a leading backup_ exactly as load_manifest and cmd_list do: every path builder
+        # below composes "backup_${TIMESTAMP}", so passing the id in the spelling that `list`
+        # and the run summary PRINT (backup_<ts>) would otherwise yield backup_backup_<ts>.
+        # That id never merges into the intended manifest, and backup_id_epoch strips only one
+        # prefix before requiring YYYYMMDD-HHMMSS, so it fails to parse and the retention sweep
+        # skips it forever - storage grows without bound and nothing says why.
+        [ -n "${BACKUP_ID}" ] && TIMESTAMP="$(backup_id_bare "${BACKUP_ID}")"
 
         # Determine per-component suffix for concurrent mode (--backup-id with a single component)
         if [ -n "${BACKUP_ID}" ]; then
