@@ -101,6 +101,41 @@ Included from statefulset.yaml and vmauth.yaml - both read these keys, and vmaut
 renders first, so it needs its own call to report the missing key rather than dying on a
 b64dec. Keep every consumer that decodes a key from this secret calling it.
 */}}
+{{/*
+Fail-fast when the cluster's PerconaPGCluster CRD is too old for the postgresVersion this chart
+asks for.
+
+Helm installs the CRDs in a chart's crds/ directory ONCE and never upgrades them, and these are
+not Helm-owned (no meta.helm.sh annotations), so `helm upgrade` leaves them alone. A cluster that
+previously ran pmm-ha-dependencies 1.1.0 keeps a CRD capped at postgresVersion 17 while this
+chart requests 18 (PMM-15462), and the install dies inside the operator's admission with
+
+  PerconaPGCluster "..." is invalid: spec.postgresVersion: Invalid value: 18:
+  spec.postgresVersion in body should be less than or equal to 17
+
+which names neither the CRD nor the fix. Reproduced on a ROSA cluster whose CRD came from 1.1.0;
+a cluster whose CRD came from 1.2.0 (maximum 19) installs cleanly.
+
+Fails OPEN on purpose. `lookup` returns nothing during `helm template` and `--dry-run` without a
+cluster, and nothing when the CRD is simply absent (a first install, where the dependencies chart
+is about to create a current one). Only an actually-present, actually-too-low maximum is an error
+- the same fail-open rule the secret lookup above follows.
+*/}}
+{{- define "pmm.validatePgCrd" -}}
+{{- $want := dig "postgresVersion" 0 (default dict (index .Values "pg-db")) -}}
+{{- if $want -}}
+{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "perconapgclusters.pgv2.percona.com" -}}
+{{- if $crd -}}
+{{- range $v := (dig "spec" "versions" (list) $crd) -}}
+{{- $max := dig "schema" "openAPIV3Schema" "properties" "spec" "properties" "postgresVersion" "maximum" 0 $v -}}
+{{- if and $max (lt (int $max) (int $want)) -}}
+{{- fail (printf "pg-db.postgresVersion is %d, but this cluster's PerconaPGCluster CRD (version %s) accepts at most %d. Helm installs CRDs once and never upgrades them, so a cluster that previously ran an older pmm-ha-dependencies still carries the old CRD. Apply the current CRDs first:\n  helm pull percona/pmm-ha-dependencies --version <ver> --untar\n  kubectl apply --server-side --force-conflicts -f pmm-ha-dependencies/charts/pg-operator/crds/\nThen re-run this install." (int $want) (dig "name" "?" $v) (int $max)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "pmm.validateSecret" -}}
 {{/*
 An empty secret.name is never a working configuration - statefulset.yaml drops both the envFrom
