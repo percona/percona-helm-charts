@@ -232,7 +232,10 @@ Deployment — no manual copying) and support two targets, selected via
 
 Quick start (after configuring `centralBackupStorage` in values). Inside the backup-tools
 pod the chart already exports the target and all S3 settings from your values, so no
-`--target`/`--s3-*` flags are needed — pass them only to override for an ad-hoc run:
+`--target`/`--s3-*` flags are needed — pass them only to override for an ad-hoc run.
+For the fuller copy-paste set — scheduling, running a backup or restore as a Job, a
+cross-namespace DR restore, and what to check when something is wrong — see
+[docs/pmm-backup.md §0 Quick Start](docs/pmm-backup.md#0-quick-start):
 
 ```bash
 # Full backup

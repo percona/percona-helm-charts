@@ -11,7 +11,153 @@ pmm-backup.sh prune   [OPTIONS]                          # run the retention swe
 
 Sections 1–7 cover backup (architecture, per-component methods, chart integration,
 scheduling, concurrency, metrics, CLI, operations); §8 covers restore end-to-end;
-§9 lists known limitations.
+§9 lists known limitations. **§0 below is the copy-paste version** — everything else is
+the explanation behind it.
+
+---
+
+## 0. Quick Start
+
+Every command below is copy-paste ready: substitute `<namespace>` and `<release>` and run it
+from wherever your `kubectl` is. Nothing here needs `--target` or `--s3-*` flags — the chart
+projects the target and every S3 setting into the pod as environment, so the tool already
+knows where your backups live. Pass those flags only to override for an ad-hoc run.
+
+Assumed done once: `centralBackupStorage.enabled: true` and a configured target
+(§3 for `s3`, §3 *Storage Options* for `shared`).
+
+### Take a backup now
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh backup
+```
+
+It prints a summary per component and exits non-zero if any of them failed. A partial backup
+is a failure: `latest` is not advanced and the run is catalogued `partial`, so a later
+`--backup-id latest` cannot pick it up.
+
+Long backups are better run as a Job, which survives node consolidation — see
+*Run it as a Job* below.
+
+### See what you have
+
+```bash
+# every backup, newest last, with the 'latest' pointer marked
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh list
+
+# every file belonging to one backup
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh list backup_20260916-143054
+```
+
+### Back up on a schedule
+
+In your values, then `helm upgrade`:
+
+```yaml
+centralBackupStorage:
+  schedule:
+    enabled: true
+    cron: "0 2 * * *"      # daily at 02:00, cluster timezone
+    retentionDays: 7
+```
+
+Check it landed, and watch a run:
+
+```bash
+kubectl get cronjob -n <namespace>
+kubectl get jobs -n <namespace> -w
+kubectl logs -n <namespace> job/<release>-backup-<timestamp> -f
+```
+
+### Run it as a Job, off-schedule
+
+The CronJob exists on every install with backups enabled (suspended when you have not set a
+schedule), so its `jobTemplate` is always there to clone. This is the recommended way to run a
+long backup, because the Job pod carries `karpenter.sh/do-not-disrupt` for exactly the run's
+lifetime and an interactive `kubectl exec` does not:
+
+```bash
+kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <namespace>
+```
+
+### Restore the latest backup, in place
+
+**Destructive.** This scales PMM and vmstorage to 0, replaces PostgreSQL, ClickHouse,
+VictoriaMetrics and `/srv`, and scales back up. Expect roughly 8–10 minutes. `--yes` is the
+consent gate and is required non-interactively.
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  pmm-backup.sh restore --backup-id latest --yes
+```
+
+Check what it *would* do first, changing nothing:
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  pmm-backup.sh restore --backup-id latest --dry-run --yes
+```
+
+The dry run is worth using on its own: it validates that every component's objects are
+actually present and readable — including testing the ClickHouse tarball and resolving the
+VictoriaMetrics ordinal mapping — without touching anything.
+
+### Restore as a Job (recommended for a real restore)
+
+An interactive `exec` restore can be killed by node consolidation part-way through, which
+leaves PMM scaled to 0. A Job cannot. Clone the jobTemplate and swap `args` — never
+`command`, which carries the tool bootstrap:
+
+```bash
+kubectl create job --from=cronjob/<release>-backup restore-$(date +%s) \
+    -n <namespace> --dry-run=client -o yaml \
+  | yq '.spec.template.spec.containers[0].args =
+          ["restore","--backup-id","latest","--yes"]
+        | .spec.backoffLimit = 0
+        | .spec.activeDeadlineSeconds = null' \
+  | kubectl apply -f -
+
+kubectl logs -n <namespace> -f job/restore-<timestamp>
+```
+
+`backoffLimit: 0` because a failed restore needs a human before anything touches the data
+again; `activeDeadlineSeconds: null` because the backup deadline is sized for backups and a
+large restore legitimately runs longer.
+
+### Restore another install's backup into this one (DR)
+
+Same as above plus `--s3-prefix`, pointing at the SOURCE install's root
+(`<source-namespace>/<source-release>` by default). Run it from the TARGET namespace:
+
+```bash
+kubectl exec -n <target-namespace> deploy/<target-release>-backup-tools -- \
+  pmm-backup.sh restore --backup-id latest \
+    --s3-prefix <source-namespace>/<source-release> --yes
+```
+
+In `shared` mode both installs already see one directory, so no flag is needed — just run the
+restore in the target namespace. Full detail, including what is and is not carried across, is
+in [§8.2](#82-cross-namespace--dr-restore).
+
+### When something is wrong
+
+```bash
+# the run's own log, inside the pod
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- sh -c 'ls -t /backups/logs | head'
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- tail -50 /backups/logs/backup_<id>.log
+
+# is a lock still held by a dead run?
+kubectl get leases -n <namespace> | grep pmm-backup
+
+# what the metrics endpoint is actually serving
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  wget -qO- http://127.0.0.1:9091/metrics
+```
+
+If that last command returns `# HELP`/`# TYPE` lines and **no samples**, the backup metrics
+are not reaching Prometheus and every alert in [Alerting Examples](#alerting-examples) has
+silently stopped evaluating. See the RWX callout under
+[Storage Options](#storage-options-shared-mode).
 
 ---
 
@@ -482,9 +628,13 @@ rollouts — which is why the run moved into a Job.)
 **Volume access.** In `s3` mode the central volume (logs/metrics, RWO) is held by the
 backup-tools Deployment, so the Job co-schedules with it via required `podAffinity` — RWO is
 *node*-scoped, so two pods on one node share the volume without a Multi-Attach error. The
-consequence: the Job cannot schedule while backup-tools is unschedulable (acceptable — its
-metrics would not be served either, and the failed Job is the alert). `shared`/NFS modes mount
-from any node and render no affinity.
+consequence: the Job cannot schedule while backup-tools is unschedulable, and it does not fail
+when that happens — it sits `Pending` until `activeDeadlineSeconds` (6h by default), writing no
+log and no metric, so nothing alerts in between. On a node with no headroom that is a backup
+that silently never runs. Set `centralBackupStorage.accessMode: ReadWriteMany` on an RWX volume
+to drop the affinity entirely — see the callout under
+[Storage Options](#storage-options-shared-mode), which also covers a second reason to prefer RWX
+on SELinux hosts. `shared`/NFS modes mount from any node and render no affinity.
 
 A **retry re-runs the whole backup** — there is no in-flight run to re-attach to. That is safe
 (locks release on TERM; an interrupted run writes no manifest, so restore never sees it) but not
@@ -505,7 +655,7 @@ overlap (e.g. a manual run during a scheduled one — the later run declines the
 and they also exclude a laptop-run restore, which no Job setting can). See §4.
 
 Trigger a full run off-schedule (clones the jobTemplate verbatim — args cannot be changed on the
-CLI; for component-scoped runs use the exec path from the Quick start):
+CLI; for component-scoped runs use the `kubectl exec` form in [Quick Start](#0-quick-start)):
 
 ```bash
 kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <namespace>
@@ -882,6 +1032,12 @@ the pod needs no flags:
 
 ### Examples
 
+> These are the CLI as invoked **inside** the backup-tools pod, which is why they name
+> `--namespace` explicitly. From outside, wrap them in
+> `kubectl exec -n <namespace> deploy/<release>-backup-tools -- ...`, where `--namespace` is
+> already supplied by the pod environment and can be dropped —
+> see [Quick Start](#0-quick-start) for the ready-to-run forms.
+
 ```bash
 # Full backup of all components
 pmm-backup.sh backup --namespace demo
@@ -988,9 +1144,8 @@ Upgrades that change `centralBackupStorage.mode` are the common case: switching 
 `s3` and `shared` changes the vmbackup sidecar's mounts **and** adds or removes the
 `pmm-backup` sidecar on the PMM StatefulSet, so both roll.
 
-A pod readiness count is not a sufficient check here — a pod on the old revision reports
-`Ready`. Use `kubectl rollout status` (or compare `.status.observedGeneration` against
-`.metadata.generation`), which is revision-aware.
+A pod readiness count is not a sufficient check here either — a pod still on the OLD revision
+reports `Ready` quite happily. Only the generation and replica fields above are revision-aware.
 
 ### Log Locations
 
