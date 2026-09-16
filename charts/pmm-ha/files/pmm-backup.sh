@@ -3146,7 +3146,24 @@ backup_victoriametrics() {
                 vm_total_bytes=$((vm_total_bytes + pod_bytes))
             fi
         else
-            log "ERROR" "[VictoriaMetrics] Backup creation failed for ${pod}"
+            log "ERROR" "[VictoriaMetrics] Backup creation failed for ${pod} (vmbackup exit ${vm_exit_code})"
+            # vm_output went to LOG_FILE above - but ONLY there unless --verbose, and the
+            # operator running `kubectl exec ... pmm-backup.sh backup` is watching stdout. Without
+            # this the failure reaches them as a bare "creation failed" while the reason stays in
+            # a file inside the pod; that is what made an 11-second-old vmstorage pod (mid-rollout,
+            # sidecar mount not yet in place) take so long to identify. Carry the cause with the
+            # error. Tail, not the whole thing: vmbackup is chatty and the last lines are the ones
+            # that say why.
+            # `if`, not `[ ... ] && log`: as the last command in the loop body the && form
+            # returns 1 on an empty line, which under `set -e` aborts the whole backup instead
+            # of recording this pod and moving to the next. The trailing `|| true` guards the
+            # same hazard for the pipeline itself. vmbackup output ending in a blank line is
+            # enough to trigger it.
+            printf '%s\n' "${vm_output}" | tail -5 | while IFS= read -r _vm_err_line; do
+                if [ -n "${_vm_err_line}" ]; then
+                    log "ERROR" "[VictoriaMetrics]   ${_vm_err_line}"
+                fi
+            done || true
             failed_pods="${failed_pods} ${pod}"
         fi
     done
