@@ -355,6 +355,35 @@ the backup-tools logs/metrics). Set it explicitly to override. An empty `storage
 cluster's default storage class; set one that actually exists (a non-existent class leaves the PVC
 `Pending` and blocks the install).
 
+> **In `s3` mode, prefer an RWX volume where each POD gets its own SELinux MCS categories** —
+> EKS Auto Mode / Bottlerocket, and SELinux-enforcing hosts generally:
+>
+> ```yaml
+> centralBackupStorage:
+>   mode: s3
+>   accessMode: ReadWriteMany      # e.g. an EFS-backed claim
+> ```
+>
+> The RWO default is correct in the narrow sense — the volume really is only the backup-tools
+> logs and metrics — but it costs two things on those platforms, and both are silent:
+>
+> 1. **Schedulability.** An RWO volume can only be mounted from one node, so the backup
+>    CronJob's jobTemplate carries a *required* podAffinity onto the backup-tools pod. If that
+>    node has no headroom the Job sits `Pending` until `schedule.activeDeadlineSeconds` (6h by
+>    default) kills it — with no log, no metric and no alert in between. Restarting
+>    backup-tools does not move it either: the volume is already attached to that node.
+> 2. **Metric continuity.** The Deployment and each Job pod get different MCS categories, and
+>    mounting relabels the volume to the mounting pod. After any Job runs, backup-tools can no
+>    longer read `/backups/.metrics`, and `/metrics` answers **200 with the HELP/TYPE preamble
+>    and zero samples** — so the scrape keeps succeeding while every alert in
+>    [Alerting Examples](#alerting-examples) quietly stops evaluating.
+>    `kubectl rollout restart deploy/<release>-backup-tools` restores it until the next Job.
+>
+> An NFS/EFS mount takes a single mount-wide SELinux context rather than per-file labels, so
+> nothing relabels it; setting `accessMode: ReadWriteMany` also removes the affinity, so one
+> setting addresses both. **OpenShift is unaffected by (2)** — it assigns MCS per *namespace*,
+> so every pod of an install shares one context — but (1) still applies.
+
 ### Pod Startup
 
 backup-tools runs as a **Deployment** (`replicas: 1`, `strategy: Recreate` — the

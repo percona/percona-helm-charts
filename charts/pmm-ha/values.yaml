@@ -868,6 +868,26 @@ centralBackupStorage:
   ## In s3 mode an explicit ReadWriteMany also LIFTS the backup Job's required co-location with
   ## the backup-tools pod: that affinity exists only because an RWO volume can be mounted from a
   ## single node, so an RWX logs volume (e.g. EFS) lets scheduled runs schedule anywhere.
+  ##
+  ## RECOMMENDED in s3 mode on any platform that gives each POD its own SELinux MCS categories
+  ## — EKS Auto Mode / Bottlerocket, and SELinux-enforcing hosts generally. The RWO default
+  ## costs two things there, both of them silent:
+  ##
+  ##   1. Schedulability. The co-location affinity above pins every backup Job to the one node
+  ##      holding the volume. If that node has no room the Job sits Pending until
+  ##      schedule.activeDeadlineSeconds (6h by default) kills it — no log, no metric, no alert.
+  ##      Restarting backup-tools does not move it: the RWO volume is already attached there.
+  ##   2. Metric continuity. Deployment and Job pods get different MCS categories, and each
+  ##      mount relabels the volume to the mounting pod. After any Job runs, the backup-tools
+  ##      pod can no longer read /backups/.metrics — /metrics then answers 200 with the
+  ##      HELP/TYPE preamble and ZERO samples, so every backup alert stops evaluating while the
+  ##      scrape still succeeds. `kubectl rollout restart deploy/<release>-backup-tools` clears
+  ##      it until the next Job. Measured on EKS Auto Mode; an NFS/EFS mount takes one
+  ##      mount-wide SELinux context instead of per-file labels, so it is unaffected.
+  ##
+  ## OpenShift does not need this: it assigns MCS per NAMESPACE, so all pods of an install
+  ## share one context and the relabel is a no-op. Only (1) applies there.
+  ##
   ## With existingClaim (or a pre-bound static PV) this value is the chart's ONLY knowledge of
   ## the real access mode — it creates no PVC to read it from — so it is treated as your
   ## DECLARATION about that volume: an RWX claim needs it set to lift the affinity, and setting
