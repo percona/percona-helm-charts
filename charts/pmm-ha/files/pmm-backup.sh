@@ -4188,16 +4188,21 @@ restore_cleanup() {
     # interrupted run it prevents a leaked pod from holding an RWO data PVC (vmstorage-db /
     # pmm-storage), which would otherwise wedge the real pod on Multi-Attach at scale-up.
     #
-    # ONLY if this run actually created one. The sweep is by LABEL, so an unconditional version
-    # kills a DIFFERENT, live restore's pods mid-write: the EXIT trap is installed before
-    # acquire_locks, so a second run aborting at the consent gate or on a held lock would run
-    # this. TEMP_PODS_MARKER is the ownership proof, as the holder check is for release_locks.
-    local _c
+    # ONLY the pods THIS run recorded, by name. Two separate over-reach hazards, both real:
+    # the EXIT trap is installed before acquire_locks, so a second run aborting at the consent
+    # gate or on a held lock reaches this handler having created nothing — TEMP_PODS_MARKER's
+    # existence is the ownership proof there, as the holder check is for release_locks. And
+    # even for a run that DID create a pod, deleting by label reached pods this run does not
+    # own: per-component locks let disjoint restores proceed together and two releases can
+    # share a namespace, so a --pmm-server run's cleanup would delete a concurrent
+    # --victoriametrics run's live vm-restore pod while it held the RWO vmstorage-db PVC.
+    local _tp
     if [ -n "${TEMP_PODS_MARKER}" ] && [ -e "${TEMP_PODS_MARKER}" ]; then
         _rc_sweep_ok=true
-        for _c in vm-restore-temp pmm-srv-restore-temp; do
-            kubectl delete pod -n "${NAMESPACE}" -l "app.kubernetes.io/component=${_c}" --ignore-not-found=true --wait=false >/dev/null 2>&1 || _rc_sweep_ok=false
-        done
+        while IFS= read -r _tp; do
+            [ -n "${_tp}" ] || continue
+            kubectl delete pod -n "${NAMESPACE}" "${_tp}" --ignore-not-found=true --wait=false >/dev/null 2>&1 || _rc_sweep_ok=false
+        done < "${TEMP_PODS_MARKER}"
         # The marker is consumed ONLY when the sweep actually issued its deletes. restore_cleanup
         # runs twice on a signal (the INT handler, then the EXIT trap), and that second pass is
         # the retry: if the first delete failed on an apiserver blip, dropping the marker
@@ -4614,7 +4619,17 @@ $(render_rclone_s3_env)"
     fi
     clear_leftover_temp_pod "${restore_pod}" "${tag}"
     apply_out=$(mktemp /tmp/podapply.XXXXXX 2>/dev/null || echo "/tmp/podapply.$$")
-    [ -n "${TEMP_PODS_MARKER}" ] && : > "${TEMP_PODS_MARKER}" || true
+    # Record the exact pod NAME, appended, BEFORE the create. Two separate things depend on it:
+    #   - Appended, not `: >`: that truncated, so a run restoring both VictoriaMetrics and PMM
+    #     Server kept only the pod written last and leaked the other on an interrupt.
+    #   - Names, not the label the sweep used to delete by: per-component locks let disjoint
+    #     restores run at once (docs, "What Can Run Concurrently") and two releases can share a
+    #     namespace, so a label-wide delete from THIS run's cleanup killed a DIFFERENT live
+    #     run's temp pod mid-write, while it held that ordinal's RWO data PVC.
+    # Written before `kubectl create` so a pod that is created and then interrupted is still
+    # recorded; a name for a pod that never appeared is harmless (--ignore-not-found).
+    # The names are release-scoped by construction (they embed the target StatefulSet name).
+    [ -n "${TEMP_PODS_MARKER}" ] && printf '%s\n' "${restore_pod}" >> "${TEMP_PODS_MARKER}" 2>/dev/null || true
     # karpenter.sh/do-not-disrupt: this pod holds an RWO data PVC while its owner is scaled
     # down, and a consolidation eviction mid-restore truncates that ordinal's data. Harmless
     # outside Karpenter / EKS Auto Mode.

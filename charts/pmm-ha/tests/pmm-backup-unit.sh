@@ -1278,23 +1278,52 @@ TEMP_PODS_MARKER=$(mktemp); rm -f "${TEMP_PODS_MARKER}"
 restore_cleanup
 assert_eq "a run that created no temp pod deletes none" "0" "$(wc -l < "${_rc_swept}" | tr -d ' ')"
 
-# THE case the flag has to survive: in the default --parallel mode each component restore runs
+# THE case the marker has to survive: in the default --parallel mode each component restore runs
 # in `( ... ) &`, so a shell VARIABLE set by create_vm_restore_pod is set in a subshell and is
 # invisible to the parent that runs restore_cleanup. The gate would then skip the sweep for
 # exactly the pods it exists to clean up — VictoriaMetrics', which hold the RWO vmstorage-db
 # PVCs — and a Ctrl-C would leave one attached, wedging vmstorage on Multi-Attach at scale-up.
-( [ -n "${TEMP_PODS_MARKER}" ] && : > "${TEMP_PODS_MARKER}" || true ) &
+( [ -n "${TEMP_PODS_MARKER}" ] && printf '%s\n' "vm-restore-vmstorage-rel1-pmm-ha-vmcluster-0" >> "${TEMP_PODS_MARKER}" ) &
 wait $!
 : > "${_rc_swept}"
 restore_cleanup
 _rc_deletes="$(tr '\n' ' ' < "${_rc_swept}")"
 case "${_rc_deletes}" in
-    *vm-restore-temp*) ok ;;
-    *) bad "a temp pod created in a SUBSHELL is still swept" "vm-restore-temp" "${_rc_deletes}" ;;
+    *vm-restore-vmstorage-rel1-pmm-ha-vmcluster-0*) ok ;;
+    *) bad "a temp pod created in a SUBSHELL is still swept" "the recorded pod name" "${_rc_deletes}" ;;
 esac
+
+# Every pod this run recorded is swept, not just the last one. The marker used to be written
+# with `: >`, which truncated: a restore of BOTH VictoriaMetrics and PMM Server kept only the
+# name written second and leaked the other on an interrupt.
+TEMP_PODS_MARKER=$(mktemp); rm -f "${TEMP_PODS_MARKER}"
+( printf '%s\n' "vm-restore-vmstorage-rel1-pmm-ha-vmcluster-0" >> "${TEMP_PODS_MARKER}" ) &
+wait $!
+( printf '%s\n' "pmm-srv-restore-rel1-pmm-ha-0" >> "${TEMP_PODS_MARKER}" ) &
+wait $!
+: > "${_rc_swept}"
+restore_cleanup
+_rc_deletes="$(tr '\n' ' ' < "${_rc_swept}")"
 case "${_rc_deletes}" in
-    *pmm-srv-restore-temp*) ok ;;
-    *) bad "both temp pod kinds are swept" "pmm-srv-restore-temp" "${_rc_deletes}" ;;
+    *vm-restore-vmstorage-rel1-pmm-ha-vmcluster-0*pmm-srv-restore-rel1-pmm-ha-0*|*pmm-srv-restore-rel1-pmm-ha-0*vm-restore-vmstorage-rel1-pmm-ha-vmcluster-0*) ok ;;
+    *) bad "both recorded pods are swept, not just the last" "both names" "${_rc_deletes}" ;;
+esac
+
+# And the reason the sweep deletes by NAME rather than by label: per-component locks let a
+# --pmm-server restore and a --victoriametrics restore run at the same time (docs, "What Can
+# Run Concurrently"), and two releases can share a namespace. A label-wide delete from the
+# run that finishes first killed the other one's live pod mid-write, while it held that
+# ordinal's RWO data PVC.
+TEMP_PODS_MARKER=$(mktemp); rm -f "${TEMP_PODS_MARKER}"
+( printf '%s\n' "pmm-srv-restore-rel2-pmm-ha-0" >> "${TEMP_PODS_MARKER}" ) &
+wait $!
+: > "${_rc_swept}"
+restore_cleanup
+_rc_deletes="$(tr '\n' ' ' < "${_rc_swept}")"
+case "${_rc_deletes}" in
+    *vm-restore*) bad "a --pmm-server run must not delete a concurrent VM restore's pod" "no vm-restore delete" "${_rc_deletes}" ;;
+    *pmm-srv-restore-rel2-pmm-ha-0*) ok ;;
+    *) bad "the --pmm-server run still sweeps its own pod" "pmm-srv-restore-rel2-pmm-ha-0" "${_rc_deletes}" ;;
 esac
 # The sweep consumed the marker, so a second cleanup (INT then EXIT) does not re-sweep.
 : > "${_rc_swept}"
