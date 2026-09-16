@@ -1,6 +1,7 @@
 {{- include "pmm.nodeExporter.validate" . -}}
 {{- include "pmm.validatePgCrd" . -}}
 {{- include "pmm.validateSecret" . -}}
+{{- include "pmm.validateBackupIrsaSa" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

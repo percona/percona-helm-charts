@@ -705,6 +705,21 @@ centralBackupStorage:
   ## enable SSE-KMS with a CMK whose key policy is NOT grantable by the backup role, and keep
   ## the bucket private with versioning/Object Lock if your RPO allows. See
   ## docs/pmm-backup-design-notes.md (DN-24).
+  ##
+  ## SECURITY NOTE for mode=shared: the same exposure, with a different set of readers, and it
+  ## is the narrower-to-exploit but harder-to-mitigate one. The encryption key is written 0640
+  ## onto the shared volume, deliberately — a DR namespace runs under a different UID and must
+  ## be able to read it for a cross-namespace restore. That volume also holds the PostgreSQL
+  ## dumps the key decrypts, and it is mounted READ-WRITE (no readOnly) into the PMM pods, both
+  ## vmstorage backup sidecars and the clickhouse-backup sidecar, because all of them write
+  ## their own backups to it. So compromise of ANY one of those containers yields the ciphertext
+  ## and the key together.
+  ##
+  ## There is no bucket-policy equivalent to mitigate with. Until the layout separates them:
+  ##   - if you manage the PMM encryption key yourself, exclude it from backups with
+  ##     `pmm-backup.sh backup --skip-encryption-key` and restore it out of band; or
+  ##   - treat every pod that mounts this volume as being in the key's trust boundary, and
+  ##     restrict who can exec into them accordingly.
   mode: s3
 
   ## @param centralBackupStorage.sharedMountPath Mount path of the central RWX/NFS volume INSIDE the

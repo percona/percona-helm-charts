@@ -2047,14 +2047,50 @@ _tp_hasnt "pmm pod with no identity has no securityContext" "securityContext"
 _tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 percona/pmm-server:3 \
     "$(render_temp_pod_security_context 1000 "" 1000)"
 _tp_has "pmm pod carries the identity it was given"  "runAsUser: 1000"
-_tp_has "...including the fsGroup that grants write" "fsGroup: 1000"
+
+# The temp pod inherits the workload's DEPLOYMENT constraints, not just its identity. Without
+# these it had no pull secret (ImagePullBackOff on a private registry / Docker Hub 429), no
+# tolerations (Pending forever on a dedicated monitoring pool) and no requests (rejected by a
+# ResourceQuota) -- each of them AFTER scale_down_pmm, with the tier at 0 and its PVCs held.
+_tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 percona/pmm-server:3 \
+    "" "  nodeSelector: {\"pool\":\"mon\"}
+  tolerations: [{\"key\":\"d\",\"operator\":\"Exists\"}]
+  imagePullSecrets: [{\"name\":\"dockerhub\"}]"
+_tp_has "temp pod carries the workload's nodeSelector"    'nodeSelector: {"pool":"mon"}'
+_tp_has "temp pod carries the workload's tolerations"     'tolerations: [{"key":"d","operator":"Exists"}]'
+_tp_has "temp pod carries the workload's imagePullSecrets" 'imagePullSecrets: [{"name":"dockerhub"}]'
+_tp_has "temp pod always declares resource requests"      'resources: {"requests"'
+
+# Rendered as JSON on purpose: JSON is a subset of YAML, so a map or list drops in with no
+# indentation to get wrong and no newline to break the block. A multi-line YAML rendering here
+# would have to track the surrounding indent, which is how this kind of splice usually breaks.
 case "${_tp_yaml}" in
-    *"
-  securityContext:
-    runAsUser: 1000
-    fsGroup: 1000
-    fsGroupChangePolicy: OnRootMismatch
-  containers:"*) ok ;;
+    *'nodeSelector: {"pool":"mon"}'*) ok ;;
+    *) bad "scheduling fields splice as single-line JSON" "one-line JSON" "multi-line" ;;
+esac
+
+# An install that declares none of them must not render empty keys -- `nodeSelector:` with no
+# value is null, which the apiserver rejects.
+_tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 percona/pmm-server:3 "" ""
+case "${_tp_yaml}" in
+    *"nodeSelector:"*|*"tolerations:"*|*"imagePullSecrets:"*)
+        bad "no scheduling block means no empty keys" "absent" "rendered an empty key" ;;
+    *) ok ;;
+esac
+_tp_has "resources are rendered even with no scheduling block" 'resources: {"requests"'
+
+_tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 percona/pmm-server:3 \
+    "$(render_temp_pod_security_context 1000 "" 1000)"
+_tp_has "...including the fsGroup that grants write" "fsGroup: 1000"
+# Asserts the PROPERTY, not adjacency: the securityContext must sit at pod-spec level (two-space
+# indent) and before `containers:`, which is what stops it being nested into a container. Pinning
+# the two as literally adjacent broke the moment another spec-level key was added between them
+# (nodeSelector/tolerations), even though the property still held.
+_tp_sec_at_spec=$(printf '%s' "${_tp_yaml}" | awk '
+    /^  securityContext:$/ { sec = NR }
+    /^  containers:$/      { if (sec && NR > sec) { print "ok"; exit } }')
+case "${_tp_sec_at_spec}" in
+    ok) ok ;;
     *) bad "identity sits at pod-spec level, above containers" "securityContext between spec and containers" "misplaced" ;;
 esac
 _tp_capture create_vm_restore_pod vm-restore-vmstorage-0 vmstorage-db-vmstorage-0 vmrestore:v1 \

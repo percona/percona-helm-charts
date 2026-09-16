@@ -55,6 +55,7 @@ METRICS_DIR="${METRICS_DIR:-/backups/.metrics}"
 VERBOSE="${VERBOSE:-false}"
 DRY_RUN=false
 LOG_FILE=""             # set per operation before the first log() call (see dispatch)
+_LOGDIR_FELL_BACK=""    # set when logs/ was unwritable and LOG_FILE fell back to /tmp
 COMMAND=""              # backup | restore | list — set by the dispatcher in main()
 
 # Backup target mode (where backups land / where a restore reads from):
@@ -349,6 +350,10 @@ PMM_SAVED_REPLICAS="" ; PMM_STATEFULSET_NAME=""
 # read-before-assignment, and these two are dereferenced bare by render_rclone_s3_env,
 # create_vm_restore_pod, create_pmm_restore_pod and validate_restore_targets.
 TEMP_POD_S3_KEYS_ENV="" ; TEMP_POD_SA_LINE=""
+# Requests/limits for the temp restore pods, as compact JSON (JSON is valid YAML, so it
+# splices straight into the manifest). Projected by the chart from
+# centralBackupStorage.tools.resources; the default is small on purpose — the pod sleeps.
+TEMP_POD_RESOURCES="${TEMP_POD_RESOURCES:-{\"requests\":{\"cpu\":\"50m\",\"memory\":\"64Mi\"}}}"
 # Proof that THIS run created a temp mounter pod. restore_cleanup's label-wide sweep is gated
 # on it, so an aborted run cannot delete a DIFFERENT run's live pod.
 #
@@ -1141,7 +1146,7 @@ store_read() {
 }
 store_write() {  # <path> <- stdin
     if [ "${S3_ENABLED}" = "true" ]; then s3_rclone_rcat "$1"
-    else mkdir -p "$(dirname "$1")" && cat > "$1"; fi
+    else share_mkdir "$(dirname "$1")" && cat > "$1"; fi
 }
 # Same, for secrets. `cat >` creates 0644 under the default umask, so the PG encryption key —
 # which decrypts the database — was landing world-readable on a central RWX volume that every
@@ -1150,7 +1155,7 @@ store_write() {  # <path> <- stdin
 # mode, so there is nothing extra to do there.
 store_write_private() {
     if [ "${S3_ENABLED}" = "true" ]; then s3_rclone_rcat "$1"; else
-        mkdir -p "$(dirname "$1")" || return 1
+        share_mkdir "$(dirname "$1")" || return 1
         : > "$1" || return 1
         # 0600 keeps the key private on a single-namespace volume, but it also locks out the DR
         # namespace: OpenShift gives every namespace its own uid, so a cross-namespace restore
@@ -2849,7 +2854,7 @@ backup_clickhouse() {
     # mkdir'ing comp_path there produced a directory literally named "s3:<bucket>/..." on the
     # container's writable layer.
     if [ "${S3_ENABLED}" != "true" ] && [ "${DRY_RUN}" != "true" ]; then
-        mkdir -p "$(comp_path clickhouse)"
+        share_mkdir "$(comp_path clickhouse)"
     fi
 
     ch_resolve_pod || return 1
@@ -3703,11 +3708,14 @@ pmm_restore_image() { resolved_or_override "${PMM_RESTORE_IMAGE}" "${PMM_RESTORE
 # Both initialised at top level — the convention that keeps `set -u` from aborting a run after
 # every component has already been written.
 PMM_RESTORE_SEC_CTX=""
+PMM_RESTORE_SCHED=""
 PMM_RESTORE_SEC_CTX_DONE=""
 resolve_pmm_restore_security_context() {   # <statefulset-name>
     [ -z "${PMM_RESTORE_SEC_CTX_DONE}" ] || return 0
     PMM_RESTORE_SEC_CTX=$(security_context_of statefulset "$1")
+    PMM_RESTORE_SCHED=$(scheduling_of statefulset "$1")
     PMM_RESTORE_SEC_CTX_DONE=yes
+    log "INFO" "PMM ${1}: /srv restore pod inherits scheduling:$(sched_oneline "${PMM_RESTORE_SCHED}")"
     if [ -n "${PMM_RESTORE_SEC_CTX}" ]; then
         log "INFO" "PMM ${1}: /srv restore pod takes the StatefulSet's own identity:$(sec_ctx_oneline "${PMM_RESTORE_SEC_CTX}")"
     else
@@ -3826,6 +3834,76 @@ select_default_components() {
 
 # Credentials for the temp restore pods, proven while the cluster is still whole. A missing
 # Secret or ServiceAccount is rejected at ADMISSION — i.e. after PMM is already scaled to 0.
+# Ask the APISERVER whether the temp restore pod we are about to build would be admitted, using
+# the pod spec this run would really create. `--dry-run=server` runs the full admission chain —
+# ResourceQuota, LimitRange, PodSecurity, OpenShift SCC, any validating webhook — and creates
+# nothing.
+#
+# This is the gate that moves the whole class of temp-pod failures from "discovered with the tier
+# already at 0 replicas" to "refused before anything is touched" (DN-15). It cannot prove the
+# image is pullable — nothing short of pulling can — which is why the pod also inherits the
+# workload's imagePullSecrets (see scheduling_of).
+#
+# BOTH signals matter. A PodSecurity violation in *warn* mode is reported on stderr as
+# "Warning: would violate ..." while the command still exits 0; a quota or enforcing-SCC denial
+# is a non-zero exit. Checking only the exit status silently passes exactly the case this exists
+# to catch, so scan the output too.
+validate_temp_pod_admission() {   # <role> <pvc> <image> <sec-ctx> <sched>
+    local _vtpa_role="$1" _vtpa_pvc="$2" _vtpa_image="$3" _vtpa_sec="${4:-}" _vtpa_sched="${5:-}"
+    local _vtpa_out _vtpa_rc=0 _vtpa_name="pmm-restore-admission-probe"
+    local _vtpa_ctr _vtpa_vol _vtpa_mnt
+    case "${_vtpa_role}" in
+        vm)  _vtpa_ctr=vmrestore;   _vtpa_vol=vmstorage-db; _vtpa_mnt=/vmstorage-data ;;
+        *)   _vtpa_ctr=srv-restore; _vtpa_vol=pmm-storage;  _vtpa_mnt=/srv ;;
+    esac
+    _vtpa_out=$(kubectl create --dry-run=server -f - -n "${NAMESPACE}" 2>&1 <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ${_vtpa_name}
+  labels:
+    app.kubernetes.io/component: ${_vtpa_role}-restore-temp
+spec:
+  restartPolicy: Never
+${TEMP_POD_SA_LINE}
+${_vtpa_sec}
+${_vtpa_sched}
+  containers:
+    - name: ${_vtpa_ctr}
+      image: ${_vtpa_image}
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources: ${TEMP_POD_RESOURCES}
+      volumeMounts:
+        - name: ${_vtpa_vol}
+          mountPath: ${_vtpa_mnt}
+  volumes:
+    - name: ${_vtpa_vol}
+      persistentVolumeClaim:
+        claimName: ${_vtpa_pvc}
+EOF
+) || _vtpa_rc=$?
+    if [ "${_vtpa_rc}" -ne 0 ]; then
+        log "ERROR" "[Preflight] the ${_vtpa_role} restore pod would be REJECTED by this namespace; nothing has been changed"
+        printf '%s\n' "${_vtpa_out}" | while IFS= read -r _vtpa_l; do
+            if [ -n "${_vtpa_l}" ]; then log "ERROR" "[Preflight]   ${_vtpa_l}"; fi
+        done || true
+        return 1
+    fi
+    case "${_vtpa_out}" in
+        *"would violate"*)
+            log "ERROR" "[Preflight] the ${_vtpa_role} restore pod violates this namespace's pod-security policy"
+            log "ERROR" "[Preflight]   It is only a WARNING today, so the create would succeed — but it will be denied"
+            log "ERROR" "[Preflight]   the moment the namespace moves from 'warn' to 'enforce', mid-restore."
+            printf '%s\n' "${_vtpa_out}" | while IFS= read -r _vtpa_l; do
+                if [ -n "${_vtpa_l}" ]; then log "ERROR" "[Preflight]   ${_vtpa_l}"; fi
+            done || true
+            return 1 ;;
+    esac
+    log "INFO" "[Preflight] ${_vtpa_role} restore pod passes admission (quota, SCC/pod-security, webhooks)"
+    return 0
+}
+
 validate_temp_pod_credentials() {
     local fail=0
     # vmrestore, /srv restore and the s3 client pod are all rendered with
@@ -3999,6 +4077,18 @@ validate_restore_victoriametrics() {
             log "ERROR" "[Preflight]   Set victoriaMetrics.vmstorage.backup.restoreImage in the chart, or VMRESTORE_IMAGE=<image>; it must match the vmstorage version that wrote the backup."
             fail=1
         fi
+        # Admission probe with the REAL spec, while vmstorage is still up. The per-ordinal checks
+        # below prove the PVC and the source exist; this proves the namespace will actually accept
+        # the pod (quota, LimitRange, pod-security, SCC) — every one of which otherwise rejects
+        # after the tier has been scaled to 0.
+        if [ -n "${_vmimg}" ]; then
+            local _vmprobe_pvc="" _vmprobe_p=""
+            _vmprobe_p=$(echo "${_vmpods}" | awk '{print $1}')
+            _vmprobe_pvc="${VM_STORAGE_PVC_PREFIX}${_vmprobe_p}"
+            validate_temp_pod_admission vm "${_vmprobe_pvc}" "${_vmimg}" \
+                "$(security_context_of pod "${_vmprobe_p}" vmstorage)" \
+                "$(scheduling_of pod "${_vmprobe_p}")" || fail=1
+        fi
     fi
     # Shard-count mismatch was already checked inside restore_victoriametrics(), but that
     # runs with PMM ALREADY DOWN. Hoisted here so it aborts while the cluster is intact.
@@ -4109,7 +4199,18 @@ validate_restore_pmm_server() {
         # a gate: an empty answer is a valid one (DN-48), so there is nothing here that can fail.
         # Doing it now puts the identity in the log BEFORE any scale-down, and surfaces an RBAC
         # problem on statefulsets in this block rather than at pod-creation time.
-        if [ "${_replicas}" -gt 0 ]; then resolve_pmm_restore_security_context "${_sts}"; fi
+        if [ "${_replicas}" -gt 0 ]; then
+            resolve_pmm_restore_security_context "${_sts}"
+            # Ask the apiserver whether the pod we are about to build is admissible HERE, while
+            # PMM is still up. Quota, LimitRange, pod-security and SCC all reject at admission,
+            # i.e. after scale_down_pmm, and the ordinal loop below only proves the PVC exists.
+            local _pprobe=""
+            _pprobe=$(pmm_storage_pvc_name "${_sts}" 0 2>/dev/null) || _pprobe=""
+            if [ -n "${_pprobe}" ] && [ -n "${PMM_RESTORE_IMAGE}" ]; then
+                validate_temp_pod_admission pmm "${_pprobe}" "${PMM_RESTORE_IMAGE}" \
+                    "${PMM_RESTORE_SEC_CTX}" "${PMM_RESTORE_SCHED}" || fail=1
+            fi
+        fi
         while [ "${_i}" -lt "${_replicas}" ]; do
             # The TARGET side of the restore, proven while PMM is still up. The temp pod
             # mounts this PVC by name; a name that does not resolve leaves the pod Pending
@@ -4582,6 +4683,54 @@ EOF
     render_temp_pod_security_context "${_sco_u}" "${_sco_g}" "${_sco_f}"
 }
 
+# The DEPLOYMENT constraints of a live workload, rendered for the temp restore pod: nodeSelector,
+# tolerations, priorityClassName and imagePullSecrets. Same principle as security_context_of
+# above (DN-39, "read, never assumed") and for the same reason — the temp pod must land where the
+# RWO data PVC can be bound, which is the pool the workload itself was scheduled onto, and only
+# the cluster knows what that is.
+#
+# Without this the pod inherited NOTHING: no pull secret (ImagePullBackOff on any private
+# registry or a Docker Hub 429), no tolerations (Pending forever on a dedicated/tainted
+# monitoring pool), no priority. Every one of those fails AFTER scale_down_pmm, with the tier at
+# 0 replicas and its PVCs held — the post-no-return class DN-15 exists to keep empty.
+#
+# JSON, not YAML: `jq -c` emits compact JSON and JSON is a subset of YAML, so the value drops
+# straight into the manifest with no quoting or indentation to get wrong, and no newline to
+# break the block.
+#
+# DELIBERATELY NOT affinity. A copied podAffinity/podAntiAffinity references the very pods this
+# restore has just scaled to 0, which would make the temp pod permanently unschedulable — the
+# exact failure this function removes. nodeSelector plus tolerations is what binds the pod to the
+# right pool; node affinity beyond that is not needed to reach the PVC.
+scheduling_of() {   # <pod|statefulset> <name>
+    case "$1" in
+        pod)         _schof_sel='.spec' ;;
+        statefulset) _schof_sel='.spec.template.spec' ;;
+        *) return 1 ;;
+    esac
+    command -v jq >/dev/null 2>&1 || return 0
+    _schof_spec=$(kubectl get "$1" "$2" -n "${NAMESPACE}" -o json 2>/dev/null | jq -c "${_schof_sel}" 2>/dev/null) || return 0
+    [ -n "${_schof_spec}" ] && [ "${_schof_spec}" != "null" ] || return 0
+    _schof_out=""
+    for _schof_f in nodeSelector tolerations priorityClassName imagePullSecrets; do
+        _schof_v=$(printf '%s' "${_schof_spec}" | jq -c --arg f "${_schof_f}" '.[$f] // empty' 2>/dev/null) || continue
+        [ -n "${_schof_v}" ] || continue
+        case "${_schof_v}" in ''|'null'|'{}'|'[]') continue ;; esac
+        # One line per field; the newline is added by the caller's here-doc position.
+        _schof_out="${_schof_out}$(printf '\n  %s: %s' "${_schof_f}" "${_schof_v}")"
+    done
+    [ -n "${_schof_out}" ] || return 0
+    # Leading newline is already on the first field, so print without one.
+    printf '%s' "${_schof_out#?}"
+}
+
+# A one-line summary of what scheduling_of found, for the log. Same intent as sec_ctx_oneline:
+# an operator reading a restore log should be able to see WHY a temp pod went where it did.
+sched_oneline() {   # <rendered-block>
+    [ -n "$1" ] || { printf ' none (workload declares no nodeSelector/tolerations/pullSecrets)'; return 0; }
+    printf '%s' "$1" | sed 's/^  //' | tr '\n' ' ' | sed 's/  */ /g; s/^/ /'
+}
+
 # ONE creator for both temp restore pods: they differ in six values and shared every other line.
 # Both hold an RWO data PVC while its owner is scaled to 0, so a fix applied to one and not the
 # other strands a real volume and wedges the owner on Multi-Attach at scale-up (DN-46).
@@ -4592,7 +4741,7 @@ EOF
 # (security_context_of) — omitted means none, which is the safe default: the platform or the
 # image's own user decides (DN-48).
 create_temp_restore_pod() {
-    local restore_pod="$1" pvc="$2" image="$3" role="$4" tag="$5" sec_ctx="${6:-}"
+    local restore_pod="$1" pvc="$2" image="$3" role="$4" tag="$5" sec_ctx="${6:-}" sched="${7:-}"
     local sa_line="" central_mount="" central_vol="" env_block="" apply_out
     local label="" ctr="" mount_path="" vol_name=""
     if [ "${role}" = "vm" ]; then
@@ -4617,6 +4766,14 @@ $(render_rclone_s3_env)"
       persistentVolumeClaim:
         claimName: ${CENTRAL_BACKUP_PVC}"
     fi
+    # Requests/limits, so a namespace with a ResourceQuota that REQUIRES them (and no defaulting
+    # LimitRange) does not reject this pod at admission — which happened after scale_down_pmm,
+    # i.e. with the tier already at 0. Value comes from centralBackupStorage.tools.resources,
+    # projected by the chart, so an operator tunes it in one place; the fallback is deliberately
+    # tiny because the pod only sleeps while another process execs into it.
+    local res_block
+    res_block="      resources: ${TEMP_POD_RESOURCES}"
+
     clear_leftover_temp_pod "${restore_pod}" "${tag}"
     apply_out=$(mktemp /tmp/podapply.XXXXXX 2>/dev/null || echo "/tmp/podapply.$$")
     # Record the exact pod NAME, appended, BEFORE the create. Two separate things depend on it:
@@ -4646,11 +4803,13 @@ spec:
   restartPolicy: Never
 ${sa_line}
 ${sec_ctx}
+${sched}
   containers:
     - name: ${ctr}
       image: ${image}
       imagePullPolicy: IfNotPresent
       command: ["sleep", "infinity"]
+${res_block}
 ${env_block}
       volumeMounts:
         - name: ${vol_name}
@@ -4672,7 +4831,7 @@ EOF
     return 0
 }
 
-create_vm_restore_pod()  { create_temp_restore_pod "$1" "$2" "$3" vm  VictoriaMetrics "${4:-}"; }
+create_vm_restore_pod()  { create_temp_restore_pod "$1" "$2" "$3" vm  VictoriaMetrics "${4:-}" "${5:-}"; }
 
 # Clear a leftover temp pod of the SAME NAME before creating one: a restore killed between
 # create and delete (OOM, eviction, SIGKILL) leaves the pod behind, still holding the RWO data
@@ -4861,6 +5020,11 @@ restore_victoriametrics() {
     # /vmstorage-data as exactly the user that owns it (DN-48). Before the scale-down, so a dry
     # run exercises the same read.
     vm_sec_ctx=$(security_context_of pod "${first_vm_pod}" vmstorage)
+    # Same source as the identity above, for the same reason: the POD carries what was actually
+    # applied. The temp pod must be able to schedule where this one did, or it cannot bind the
+    # RWO vmstorage-db PVC at all.
+    vm_sched=$(scheduling_of pod "${first_vm_pod}")
+    log "INFO" "[VictoriaMetrics] Restore pods inherit scheduling:$(sched_oneline "${vm_sched}")"
     if [ -n "${vm_sec_ctx}" ]; then
         log "INFO" "[VictoriaMetrics] Restore pods take ${first_vm_pod}'s identity:$(sec_ctx_oneline "${vm_sec_ctx}")"
     else
@@ -4877,13 +5041,20 @@ restore_victoriametrics() {
         return 0
     fi
 
+    # UIDs BEFORE the teardown, for the replacement check after the scale-back (see there).
+    # Read before the patch, not after: the patch is what makes the operator delete these pods,
+    # so collecting them afterwards races the reconcile. A fast operator (or a single-replica
+    # vminsert) returned an empty _vmi_old, which silently dropped the scale-back to
+    # wait_for_pods_ready — the weaker check DN-29 exists to avoid, since a Terminating pod
+    # keeps Ready=True for its whole grace period. The strength of a verification must not
+    # depend on losing a race.
+    _vmi_old=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_INSERT}" -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}' 2>/dev/null) || _vmi_old=""
+
     log "INFO" "[VictoriaMetrics] Scaling vminsert+vmstorage to 0 (vmrestore needs exclusive PVC access)..."
     kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge \
         -p '{"spec":{"vminsert":{"replicaCount":0},"vmstorage":{"replicaCount":0}}}' 2>&1 | append_to_log || true
     # Soft wait: vminsert holds no PVCs — it is only scaled down to stop ingestion, and a
     # pod stuck Terminating cannot write once vmstorage (strict wait below) is gone.
-    # UIDs before the teardown, for the replacement check after the scale-back (see there).
-    _vmi_old=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_INSERT}" -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}' 2>/dev/null) || _vmi_old=""
     wait_for_pods_gone "${NAMESPACE}" "${LABEL_VM_INSERT}" 120 soft || log "WARN" "[VictoriaMetrics] vminsert not gone in time, continuing (non-blocking)"
     if ! wait_for_pods_gone "${NAMESPACE}" "${LABEL_VM_STORAGE}" 300; then
         log "ERROR" "[VictoriaMetrics] vmstorage did not terminate; restoring replica counts and aborting"
@@ -4902,7 +5073,7 @@ restore_victoriametrics() {
             continue
         fi
         log "INFO" "[VictoriaMetrics] Restoring ${pod} from ${src} via ${restore_pod}..."
-        if ! create_vm_restore_pod "${restore_pod}" "${pvc}" "${vmrestore_image}" "${vm_sec_ctx}"; then
+        if ! create_vm_restore_pod "${restore_pod}" "${pvc}" "${vmrestore_image}" "${vm_sec_ctx}" "${vm_sched}"; then
             delete_temp_restore_pod "${restore_pod}"; continue
         fi
         timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${restore_pod}" -c vmrestore -- rm -f /vmstorage-data/flock.lock 2>/dev/null || true
@@ -5017,7 +5188,7 @@ pmm_src_subdir_for_ord() { src_subdir_for_ord pmm-server "$1"; }
 # On path traversal: no --no-absolute-filenames is passed because BusyBox tar has no such flag
 # and does not need one — verified, see DN-17's neighbours in the review; both tar
 # implementations strip '../' and a leading '/' by default.
-create_pmm_restore_pod() { create_temp_restore_pod "$1" "$2" "$3" pmm PMMServer "${4:-}"; }
+create_pmm_restore_pod() { create_temp_restore_pod "$1" "$2" "$3" pmm PMMServer "${4:-}" "${5:-}"; }
 
 restore_pmm_server() {
     # NB: all locals initialised — script runs under `set -u`, so a bare `local x` then `[ -z "$x" ]`
@@ -5057,7 +5228,7 @@ restore_pmm_server() {
         fi
         if [ -z "${src_subdir}" ]; then log "WARN" "[PMMServer] No backup /srv dir for ordinal ${ord}; skipping"; continue; fi
         restore_pod="pmm-srv-restore-${sts}-${ord}"
-        if ! create_pmm_restore_pod "${restore_pod}" "${pvc}" "${image}" "${sec_ctx}"; then delete_temp_restore_pod "${restore_pod}"; continue; fi
+        if ! create_pmm_restore_pod "${restore_pod}" "${pvc}" "${image}" "${sec_ctx}" "${PMM_RESTORE_SCHED}"; then delete_temp_restore_pod "${restore_pod}"; continue; fi
         rc=0
         # The source path is passed as a POSITIONAL ARGUMENT to `sh -c`, never interpolated into
         # the script text. src_subdir_for_ord already refuses names outside [A-Za-z0-9_.-], so
@@ -5065,16 +5236,35 @@ restore_pmm_server() {
         # string, so no value can alter what runs, and it matches how the pre-flight gate
         # already tests the ClickHouse tarball. A shell is still needed for the pipe / the && .
         if [ "${S3_ENABLED}" = "true" ]; then
+            # CLEAR /srv before extracting. tar only overwrites the members it carries, so an
+            # extract onto a populated volume MERGES two installs: every file the target has and
+            # the backup does not survives the "restore". That is not hypothetical — a DR target
+            # must have PMM installed before anything can be restored into it, so /srv is never
+            # empty there. It stays invisible while source and target run the same PMM version
+            # and the file sets coincide, and bites the moment they differ: restore an older
+            # backup onto an upgraded install (the documented rollback) and the target keeps the
+            # newer release's Grafana plugins, provisioning, nginx certs and pmm-distribution
+            # while the databases go back a schema. PMM then boots against a /srv matching no
+            # release, and nothing says so.
+            #
+            # The delete list is deliberately the SAME expression the backup uses to build the
+            # tar (`ls -A | grep -vxF lost+found`), so what is removed is by construction exactly
+            # what is restored. lost+found must survive: it is root-owned on ext4 and recreating
+            # it is not ours to do.
+            #
+            # If the extract fails after the wipe /srv is empty — but PMM is already scaled to 0
+            # and the run exits non-zero leaving it there, so nothing serves a half-state. A
+            # silent merge of two releases is the worse outcome.
             local uri="$(comp_path pmm-server)/${src_subdir}/srv.tar.gz"
             log "INFO" "[PMMServer] Restoring /srv (ord ${ord}) -> ${pvc} from S3..."
             pod_sh PMMServer "${restore_pod}" - "${KUBECTL_EXEC_TIMEOUT}" \
-                'rclone cat --s3-no-check-bucket "$1" | tar -xzf - -C /srv --no-same-owner && rm -rf /srv/ha' \
+                'set -o pipefail; cd /srv && ls -A | grep -vxF lost+found | xargs -r rm -rf && rclone cat --s3-no-check-bucket "$1" | tar -xzf - -C /srv --no-same-owner && rm -rf /srv/ha' \
                 "${uri}" >>"${LOG_FILE}" 2>&1 || rc=$?
         else
             local tb="$(comp_inpod pmm-server)/${src_subdir}/srv.tar.gz"
             log "INFO" "[PMMServer] Restoring /srv (ord ${ord}) -> ${pvc} from ${tb}..."
             pod_sh PMMServer "${restore_pod}" - "${KUBECTL_EXEC_TIMEOUT}" \
-                'tar -xzf "$1" -C /srv --no-same-owner && rm -rf /srv/ha' \
+                'cd /srv && ls -A | grep -vxF lost+found | xargs -r rm -rf && tar -xzf "$1" -C /srv --no-same-owner && rm -rf /srv/ha' \
                 "${tb}" >>"${LOG_FILE}" 2>&1 || rc=$?
         fi
         delete_temp_restore_pod "${restore_pod}"
@@ -5176,7 +5366,10 @@ S3_PRUNE_MAX_PER_RUN=$(echo "${S3_PRUNE_MAX_PER_RUN:-50}" | sed 's/^0*\([0-9]\)/
 numeric_env S3_PRUNE_MAX_PER_RUN 50
 # Set whenever the sweep declines to delete something it otherwise would have. A FLAG, not a
 # return code: cleanup_old_backups is also called from cmd_backup, where a non-zero return would
-# abort a run that has already succeeded. cmd_prune reports it; cmd_backup ignores it.
+# abort a run that has already succeeded. BOTH callers now publish it through
+# write_prune_metrics — cmd_prune also exits non-zero on it, cmd_backup only warns, because the
+# backup itself succeeded and hiding a good backup behind a retention problem is the wrong
+# trade. Reset at the top of cleanup_old_backups, so a read after the call is this run's value.
 PRUNE_REFUSED=0
 
 # Whole-sweep wall clock. The sweep also runs inside cmd_backup's lock window, under the
@@ -6233,7 +6426,22 @@ cmd_backup() {
     # full bucket months later. The sweep is always invited and declines on its own evidence —
     # it refuses unless a retained backup is complete and full-scope, which is the actual safety
     # property rather than a proxy for it.
-    cleanup_old_backups
+    # Publish the sweep's OUTCOME here too, not just from `prune`. The chart's CronJob runs
+    # `backup`, and write_prune_metrics used to be reachable only from cmd_prune — so on a
+    # default install pmm_ha_prune_* never existed at all and
+    # `pmm_ha_prune_last_success == 0`, documented as the one alert that catches a silently
+    # stalled sweep, evaluated against a missing series and could never fire while the bucket
+    # grew. Same sweep, same refusal flag, same metric.
+    #
+    # Deliberately does NOT fail the backup: the backup itself succeeded, and hiding a good
+    # backup behind a retention problem is the wrong trade. The metric is the signal.
+    _bk_prune_rc=0
+    cleanup_old_backups || _bk_prune_rc=$?
+    [ "${PRUNE_REFUSED}" -eq 0 ] || _bk_prune_rc=1
+    write_prune_metrics "${_bk_prune_rc}"
+    if [ "${_bk_prune_rc}" -ne 0 ]; then
+        log "WARN" "Retention sweep did NOT prune (see the reason above); the backup itself is unaffected."
+    fi
     log "INFO" ""
     
     # Metrics for vmagent, straight from the results: every component in one file, one call.
@@ -6805,9 +7013,29 @@ main() {
             LOG_FILE="/dev/null"
         else
             LOG_FILE="${BACKUP_DIR}/logs/backup_${TIMESTAMP}${COMPONENT_SUFFIX}.log"
+            # Same fallback the prune branch above has, and restore's init_log, and the dry-run
+            # branch in cmd_backup. `backup` was the one path that assigned unconditionally, and
+            # it is the path where it hurts most: cmd_backup only tests ${BACKUP_DIR} itself, so
+            # an unwritable logs/ let every `store_write ... >>"${LOG_FILE}"`,
+            # `ch_query ... >>"${LOG_FILE}"` and `store_delete_prefix ... >>"${LOG_FILE}"` fail on
+            # the REDIRECTION. PostgreSQL then reports "Dump/write failed", ClickHouse an enqueue
+            # failure and retention every purge as failed — none of which is the cause. Observed
+            # on a shared volume whose logs/ had been relabelled away from the pod.
+            share_mkdir "${BACKUP_DIR}/logs" || true
+            if [ ! -w "${BACKUP_DIR}/logs" ]; then
+                LOG_FILE="/tmp/backup_${TIMESTAMP}${COMPONENT_SUFFIX}.log"
+                _LOGDIR_FELL_BACK="${BACKUP_DIR}/logs"
+            fi
         fi
         # TIMESTAMP is final here (--backup-id may have replaced it), so this run's id is too.
         CURRENT_ID="backup_${TIMESTAMP}"
+    fi
+
+    # Said once, here, because log() is usable from this point and the value of the warning is
+    # that it names the REAL cause before the component errors it would otherwise be blamed for.
+    if [ -n "${_LOGDIR_FELL_BACK}" ]; then
+        log "WARN" "${_LOGDIR_FELL_BACK} is not writable; this run logs to ${LOG_FILE} instead."
+        log "WARN" "  The log is inside this pod and is NOT on the backup volume: copy it out before the pod is replaced."
     fi
 
     case "${COMMAND}" in

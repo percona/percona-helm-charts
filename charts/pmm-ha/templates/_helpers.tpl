@@ -136,6 +136,29 @@ is about to create a current one). Only an actually-present, actually-too-low ma
 {{- end -}}
 {{- end -}}
 
+{{/*
+Refuse an install whose PMM pods would get the /srv backup sidecar but no S3 credentials.
+
+serviceaccount.yaml is gated entirely on .Values.serviceAccount.create, so with create=false
+the chart never emits the eks.amazonaws.com/role-arn annotation and statefulset.yaml drops
+serviceAccountName — the PMM pods run as the namespace `default` SA. The pmm-backup sidecar is
+NOT gated the same way: it is added whenever centralBackupStorage is on in s3 mode, complete
+with RCLONE_CONFIG_S3_ENV_AUTH=true and no static keys. Its `rclone rcat` then has no
+web-identity token, 403s on every PMM pod, and backup_pmm_server reports the archive missing —
+so the whole backup is marked failed, on every run, with nothing at render time having said why.
+
+The chart cannot annotate a ServiceAccount it does not create, so the honest move is to refuse
+rather than ship the broken combination. Only this exact combination fails: with an
+existingSecret the sidecar has static keys and needs no SA, and with create=true the annotation
+is emitted normally.
+*/}}
+{{- define "pmm.validateBackupIrsaSa" -}}
+{{- $cbs := .Values.centralBackupStorage -}}
+{{- if and $cbs.enabled (eq $cbs.mode "s3") $cbs.s3.irsaRoleArn (not .Values.serviceAccount.create) (not $cbs.s3.existingSecret) -}}
+{{- fail (printf "centralBackupStorage.s3.irsaRoleArn is set, but serviceAccount.create is false, so the chart cannot annotate the PMM ServiceAccount with the IAM role. The pmm-backup sidecar would run with no S3 credentials and every /srv backup would fail with 403.\n\nPick one:\n  - annotate your own ServiceAccount (%s) yourself:\n      eks.amazonaws.com/role-arn: %s\n    and set serviceAccount.name to it; or\n  - set serviceAccount.create=true and let the chart do it; or\n  - use static keys instead: centralBackupStorage.s3.existingSecret=<secret>" (.Values.serviceAccount.name | default "your pre-created SA") $cbs.s3.irsaRoleArn) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "pmm.validateSecret" -}}
 {{/*
 An empty secret.name is never a working configuration - statefulset.yaml drops both the envFrom
@@ -709,6 +732,14 @@ about. Call with the root context and nindent to the env list's indent:
   value: {{ include "pmm.backupS3SaName" . | quote }}
 {{- end }}
 {{- end }}
+{{- /* Requests/limits for the RESTORE temp pods, as compact JSON (JSON is a subset of YAML, so
+       the orchestrator splices it into the pod manifest verbatim). Projected in BOTH modes,
+       unlike the S3 block above: a namespace with a ResourceQuota that requires requests, and
+       no defaulting LimitRange, rejects an unqualified pod at admission — and the temp pods are
+       created AFTER the tier has been scaled to 0, so that rejection lands past the point of no
+       return. Reuses centralBackupStorage.tools.resources so there is one knob, not two. */}}
+- name: TEMP_POD_RESOURCES
+  value: {{ .Values.centralBackupStorage.tools.resources | default dict | toJson | quote }}
 {{- end -}}
 
 {{/*

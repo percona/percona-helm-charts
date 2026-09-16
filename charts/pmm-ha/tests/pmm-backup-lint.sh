@@ -259,6 +259,25 @@ if ticked:
     for n in ticked: print(f"        line {n}: {lines[n - 1].strip()}")
     raise SystemExit(1)
 print("  ok: no backticks in the unquoted --help heredoc")
+
+# Every writer that creates a directory ON THE BACKUP STORE must go through share_mkdir, which
+# adds the setgid bit in shared mode so a peer namespace's uid can traverse and write what this
+# run created. Three of them used a bare `mkdir -p`, so manifests/ and clickhouse/<id>/ came out
+# without it. Masked on EFS access points (PosixUser pins uid/gid) and on OpenShift (one gid per
+# namespace), which is why live cross-namespace DR testing on both never caught it.
+# Named functions, not a blanket rule: the encryption key's staging dir and the per-install
+# .metrics dir are deliberately NOT group-writable.
+for _fn in ("store_write", "store_write_private", "backup_clickhouse"):
+    _m = re.search(r"^" + re.escape(_fn) + r"\(\)[^\n]*\n(.*?)^\}", src, re.M | re.S)
+    if not _m:
+        print("FAIL: could not locate " + _fn + "() to check its directory creation")
+        raise SystemExit(1)
+    if re.search(r"(?<!share_)\bmkdir -p\b", _m.group(1)):
+        print("FAIL: " + _fn + "() creates a backup-store directory with a bare `mkdir -p`.")
+        print("      Use share_mkdir, or it loses the setgid bit that makes a cross-namespace")
+        print("      restore possible in shared mode.")
+        raise SystemExit(1)
+print("  ok: backup-store writers all create directories via share_mkdir")
 PY
 
 if [ "${FAIL}" -eq 0 ]; then echo "LINT OK"; exit 0; fi
