@@ -7,13 +7,22 @@ pg-db:
     trackLatestRestorableTime: true
     
     pgbackrest:
+      # Retention lives under `global`, NOT `manual.options`. global reaches EVERY backup the
+      # operator takes - replica-create, scheduled and manual - while manual.options reaches
+      # on-demand backups only, so retention placed there leaves the SCHEDULES below on the
+      # chart default of one full. pgBackRest then warns that the repository may run out of
+      # space and keeps every full it ever takes. These merge over the defaults in
+      # values.yaml (pg-db.backups.pgbackrest.global), which already set
+      # repo1-retention-full-type: count.
+      global:
+        repo1-retention-full: "7"        # Local: 7 full backups (1 week)
+        repo2-retention-full: "30"       # S3 US: 30 full backups (30 days)
+        repo3-retention-full: "90"       # GCS: 90 full backups (90 days)
+
       manual:
         repoName: repo1
         options:
         - --type=incr
-        - --repo1-retention-full=7       # Local: 7 full backups (1 week)
-        - --repo2-retention-full=30      # S3 US: 30 full backups (30 days)
-        - --repo3-retention-full=90      # GCS: 90 full backups (90 days)
       
       # Cloud credentials for repo2 (S3) and repo3 (GCS), Percona PG Operator v2 style: a Secret
       # holding a pgBackRest config file (NOT loose aws-s3-key literals — that v1 format is
