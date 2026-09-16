@@ -5637,9 +5637,16 @@ cleanup_old_backups() {
     # -name 'cron-*' is load-bearing: it is what the wrapper itself matched, and without it this
     # sweep owns the whole directory — deleting anything an operator parked there (a saved copy
     # of a failed run's log kept for a postmortem is the obvious one) at the next backup.
+    #
+    # Guarded on the directory existing rather than letting find report its absence: every new
+    # install has no .logs, so each successful backup logged
+    # "find: /backups/.logs: No such file or directory" into its own run log, where it reads as
+    # a fault in a run that in fact succeeded.
+    if [ -d "${BACKUP_DIR}/.logs" ]; then
     find "${BACKUP_DIR}/.logs" -maxdepth 1 -type f \
         \( -name 'cron-*' -o -name 'inflight.pid' \) -mtime +${BACKUP_RETENTION} \
         -delete >> "${LOG_FILE}" 2>&1 || true
+    fi
 
     # The former `find ${BACKUP_DIR} -type d -name 'backup_*'` sweeps are gone: since the
     # layout became <component>/<id>/, there are no backup_<id>/ directories at the root for
