@@ -3120,6 +3120,21 @@ backup_victoriametrics() {
             fi
             log "INFO" "[VictoriaMetrics] ✓ Completed: ${backup_name}"
             log "INFO" "[VictoriaMetrics] Location: ${backup_dst}"
+            # vmbackup builds its own tree (metadata/, parts) INSIDE the destination, in the
+            # vmstorage container, under that container's umask - so pre-creating the
+            # destination group-writable is not enough: the subdirectories it makes are not.
+            # A peer namespace's vmrestore then dies with
+            #   cannot list src parts: cannot open directory: .../metadata: permission denied
+            # after the catalog has already shown the backup as complete. Widen group access
+            # once the tree exists; done from the pod that owns the files, so no cross-uid chmod
+            # is attempted. Best-effort - a target that refuses chmod loses the DR path, not the
+            # backup. s3 has no modes, so it is skipped there.
+            if [ "${BACKUP_TARGET}" = "shared" ]; then
+                _vm_tree="${backup_dst#fs://}"
+                pod_sh VictoriaMetrics "${pod}" vmbackup "${KUBECTL_EXEC_TIMEOUT}" \
+                    'chmod -R g+rX "$1" 2>/dev/null; find "$1" -type d -exec chmod g+s {} + 2>/dev/null; true' \
+                    "${_vm_tree}" >/dev/null 2>&1 || true
+            fi
             # Record the landed ref (strip vmbackup's fs:// / s3:// scheme noise to a plain URI)
             vm_objects="${vm_objects} ${backup_dst#fs://}"
             success_count=$((success_count + 1))
