@@ -61,9 +61,18 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  # CronJob names are capped at 52 chars (K8s appends a timestamp suffix to the Jobs it spawns);
-  # truncate so a long release name doesn't fail apply with a validation error.
-  name: {{ printf "%s-backup" .Release.Name | trunc 52 | trimSuffix "-" }}
+  # CronJob names are capped at 52 chars (K8s appends a timestamp suffix to the Jobs it spawns).
+  # Plain truncation was not enough: this chart supports two releases in one namespace, and two
+  # valid 53-char release names sharing their first 52 characters rendered the SAME CronJob, so
+  # the second install failed on Helm resource ownership. Over the limit, keep a prefix of the
+  # release and append a hash of the full name, which stays unique and stable across upgrades.
+  # Names that already fit are untouched, so the documented `cronjob/<release>-backup` holds
+  # for every release short enough to use it.
+  {{- $cjName := printf "%s-backup" .Release.Name }}
+  {{- if gt (len $cjName) 52 }}
+  {{- $cjName = printf "%s-%s-backup" (.Release.Name | trunc 35 | trimSuffix "-") (.Release.Name | sha256sum | trunc 8) }}
+  {{- end }}
+  name: {{ $cjName | trimSuffix "-" }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pmm.componentLabels" (list . "backup-cronjob") | nindent 4 }}
