@@ -566,13 +566,21 @@ kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh --hel
 
 The chart creates a ServiceAccount (`<release>-backup-sa`) with a Role granting:
 
-- `get`, `list`, `create`, `delete` on `pods`, `pods/log`, `pods/exec` (delete for VM pod restart on restore)
-- `get`, `list`, `create`, `update`, `patch` on `secrets` (patch for encryption key restore)
-- `get`, `list` on `persistentvolumeclaims`
-- `get`, `list` on `services`
-- `get` on `namespaces`
-- **Restore**: `get`, `list`, `patch` on `vmclusters` and `statefulsets` (scale down/up); `pods/exec` for `pg_restore` / `clickhouse-backup` / `vmrestore` / `/srv` tar. *(No `perconapgrestores`/`perconapgclusters` access needed — PostgreSQL restores via `pg_restore`.)*
-- **Scheduled backups**: `get`, `list` on `deployments` — the CronJob resolves `deploy/<release>-backup-tools` to a pod to `kubectl exec` into.
+| apiGroup | Resources | Verbs | Why |
+|---|---|---|---|
+| `""` | `pods`, `pods/log`, `pods/exec` | get, list, create, delete, watch, patch | `exec` is how every component is backed up and restored; `create`/`delete` for the temp vmrestore and `/srv` pods; `patch` to set `karpenter.sh/do-not-disrupt` on the pods a run execs into, so consolidation cannot evict them mid-write |
+| `coordination.k8s.io` | `leases` | get, list, create, update, patch, delete | the per-component locks (§4) — this is what stops two runs touching one component, including a laptop-run restore during a scheduled backup |
+| `""` | `secrets` | get, list, create, update, patch | read the PMM/ClickHouse credentials; `create`/`patch` to restore the PMM encryption key |
+| `""` | `persistentvolumeclaims` | get, list | resolve the `/srv` and vmstorage PVC names from the StatefulSets |
+| `""` | `services` | get, list | reach ClickHouse / PostgreSQL endpoints |
+| `""` | `namespaces` | get | preflight: the target namespace exists |
+| `""` | `serviceaccounts` | get | verify the restore temp pods' ServiceAccount exists before scheduling them (a missing SA is otherwise an admission failure mid-restore) |
+| `operator.victoriametrics.com` | `vmclusters` | get, list, patch | scale vmstorage/vminsert down and back up around a VictoriaMetrics restore |
+| `apps` | `statefulsets`, `statefulsets/scale` | get, list, patch (+ get, patch on `/scale`) | scale PMM down and back up around a restore, and read the `volumeClaimTemplate` for PVC names |
+
+No `perconapgrestores` / `perconapgclusters` access is needed — PostgreSQL restores through
+`pg_restore`, not the operator. No `deployments` access is needed either: a scheduled run is a
+Job that executes `pmm-backup.sh` itself and never resolves `deploy/<release>-backup-tools`.
 
 ---
 
@@ -987,8 +995,11 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `--s3-bucket BUCKET` | S3 bucket name (required for `s3`; chart-set via `S3_BUCKET`, so optional inside backup-tools) | |
 | `--s3-endpoint URL` | S3 endpoint (empty for AWS; set for S3-compatible/MinIO) | |
 | `--s3-region REGION` | S3 region | us-east-1 |
-| `--s3-prefix PREFIX` | Key namespace under the bucket | `<namespace>/pmm-ha` (matches what the chart projects) |
+| `--s3-prefix PREFIX` | Key namespace under the bucket. Point it at ANOTHER install's root for a cross-namespace/DR restore | `<namespace>/<release>` (matches what the chart projects) |
 | `--shared-mount-path PATH` | RWX mount path inside pods (`--target shared`) | /central |
+| `--release NAME` | Scope every destructive lookup to one Helm release (`app.kubernetes.io/instance`). Needed only when a namespace holds more than one pmm-ha install, where an unscoped lookup would refuse rather than guess | *(unscoped)* |
+| `--s3-service-account NAME` | ServiceAccount for the restore temp pods (restore only) | `S3_SERVICE_ACCOUNT` |
+| `--list` | Bare alias for the `list` subcommand | |
 
 ### Environment Variables
 
@@ -1010,10 +1021,16 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
 | `BACKUP_TARGET` | Target mode: `s3` or `shared` (set by Helm from `centralBackupStorage.mode`) | s3 |
 | `S3_BUCKET` | S3 bucket (required for `s3`; set by Helm) | |
-| `S3_REGION` / `S3_ENDPOINT` / `S3_PREFIX` | S3 region / endpoint / key prefix (set by Helm) | us-east-1 / / pmm-ha |
+| `S3_REGION` / `S3_ENDPOINT` / `S3_PREFIX` | S3 region / endpoint / key prefix (set by Helm) | us-east-1 / / `<namespace>/<release>` |
 | `SHARED_MOUNT_PATH` | RWX mount path inside pods (`shared` mode; set by Helm) | /central |
 | `RCLONE_REMOTE` | rclone remote name (configured via `RCLONE_CONFIG_*`) | s3 |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 static keys (required on non-AWS S3-compatible storage; on AWS, IRSA is the keyless alternative) | |
+| `TARGET_RELEASE` | Same as `--release`: scopes destructive lookups to one install | *(unscoped)* |
+| `PMM_SRV_PATH` | Path backed up from the PMM pods | /srv |
+| `CH_LIST_TIMEOUT` | Max seconds to list ClickHouse remote backups (restore preflight; a populated bucket is slow) | 120 |
+| `RCLONE_STREAM_IO_TIMEOUT` | Idle-IO bound for STREAMING rclone calls (the PostgreSQL dump pipe), separate from `RCLONE_IO_TIMEOUT` | 300 |
+| `VM_S3_ENDPOINT` | S3 endpoint for vmbackup/vmrestore only, when VictoriaMetrics must use a different endpoint from the rest | *(inherits `S3_ENDPOINT`)* |
+| `PMM_RESTORE_IMAGE` | Image for the `/srv` restore temp pods | *(read from the PMM StatefulSet)* |
 
 The chart also injects these into the backup-tools pod from `centralBackupStorage.s3.*`. They are
 consumed by **`pmm-backup.sh restore`** (its temp vmrestore / `/srv` pods), so a restore inside
@@ -1750,10 +1767,25 @@ vmrestore sidecars; the volume must be `ReadWriteMany`.
 
 ### OpenShift
 
-Not yet validated end-to-end. Nothing in the backup path hardcodes a privileged identity any
-more — the restore temp pods copy the workload's own `securityContext` rather than demanding
-root (DN-48) — and the tools image now carries what the orchestrator needs, so **no backup
-setting is required**. One caveat remains that is outside this feature's control.
+Validated end-to-end on ROSA under `restricted-v2`, with no backup-specific setting required:
+backup and cross-namespace restore in **both** `s3` and `shared` mode, a scheduled CronJob
+backup, and a restore run as a Job. Nothing in the backup path hardcodes a privileged identity
+— the restore temp pods copy the workload's own `securityContext` rather than demanding root
+(DN-48), which was observed doing the right thing across namespaces: the temp pods took the
+TARGET namespace's assigned UID (`runAsUser: 1000880000`), not the source's.
+
+Two OpenShift-specific things worth knowing:
+
+- **Arbitrary UIDs are why `shared` mode needs group-writable output.** A backup written by one
+  namespace's UID must be readable by another's for a cross-namespace restore; the orchestrator
+  creates its directories `2775`, writes `latest` `664` and the encryption key `640` in shared
+  mode for exactly that reason. Verified reading one namespace's backup from another's pod.
+- **OpenShift assigns SELinux MCS categories per NAMESPACE** (`openshift.io/sa.scc.mcs`), so all
+  pods of an install share one context. That makes it immune to the volume-relabelling problem
+  described under [Storage Options](#storage-options-shared-mode), which affects platforms that
+  assign categories per POD.
+
+One caveat remains that is outside this feature's control.
 
 **The default tools image ships the tools.** `centralBackupStorage.tools.image` defaults to
 `docker.io/tigercomputing/cloud-tools`, which carries kubectl, jq, rclone and BusyBox `nc`, so
