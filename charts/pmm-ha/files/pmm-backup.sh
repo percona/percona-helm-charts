@@ -6676,7 +6676,12 @@ main() {
     esac
 
     if [ -z "${S3_PREFIX}" ]; then
-        S3_PREFIX="${NAMESPACE}/pmm-ha"
+        # Mirrors the chart's pmm.backupS3Root, whose prefix defaults to the RELEASE name so two
+        # releases in one namespace do not share a catalog. Inside backup-tools S3_PREFIX arrives
+        # from the pod env and this is never reached; it matters only for a flag-less run started
+        # somewhere else, where --release is the one thing that can name the install. Falls back
+        # to the conventional "pmm-ha" when neither was given.
+        S3_PREFIX="${NAMESPACE}/${TARGET_RELEASE:-pmm-ha}"
     fi
 
     # The S3 settings, charset-gated like every store-derived name (DN-17) — "the operator can

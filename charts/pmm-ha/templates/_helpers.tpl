@@ -548,12 +548,20 @@ namespace cannot solve: the same namespace name on two DIFFERENT clusters sharin
 (namespaces are cluster-scoped, and no cluster identity is readable from the chart's
 namespaced RBAC). Set a distinct prefix per cluster for that topology.
 
+Why the prefix defaults to .Release.Name and not the literal "pmm-ha": two releases in ONE
+namespace is a topology this chart supports (the backup SA and the central PVC are both
+release-scoped for it, see pmm.backupS3SaName). A fixed literal gave both of them the same
+root, so they shared one catalog, one 'latest' pointer and one age-based retention sweep —
+and since ownership is recorded only by namespace, either release could promote or delete
+the other's backups. The release name is the identity that distinguishes them. For the
+conventional release name "pmm-ha" the rendered root is unchanged.
+
 Namespace first also keeps the bucket human-navigable and DR-discoverable: the path names the
 install, so a restore can be pointed at a source (--s3-prefix <ns>/<prefix>) without querying
 the source cluster, which in a real disaster may be gone.
 */}}
 {{- define "pmm.backupS3Root" -}}
-{{- $prefix := .Values.centralBackupStorage.s3.prefix | default "pmm-ha" | trimPrefix "/" | trimSuffix "/" -}}
+{{- $prefix := .Values.centralBackupStorage.s3.prefix | default .Release.Name | trimPrefix "/" | trimSuffix "/" -}}
 {{- printf "%s/%s" .Release.Namespace $prefix -}}
 {{- end -}}
 

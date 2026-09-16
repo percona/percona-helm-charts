@@ -736,7 +736,10 @@ centralBackupStorage:
     ## whose backup an id is, so two installs sharing a root delete each other's backups —
     ## irreversibly on a bucket without versioning. Because the namespace leads the path, two
     ## instances in different namespaces of the same cluster are safe even if both leave this
-    ## at the default.
+    ## at the default, and so are two releases in the SAME namespace — empty here means the
+    ## RELEASE NAME, which is what distinguishes them. A fixed literal would give both the same
+    ## root: one catalog, one 'latest', one age-based retention sweep, and either release able
+    ## to delete the other's backups.
     ##
     ## SET A DISTINCT VALUE PER CLUSTER if several CLUSTERS share one bucket: Kubernetes
     ## namespaces are cluster-scoped, so a `demo` namespace on two clusters would otherwise
@@ -745,7 +748,9 @@ centralBackupStorage:
     ##
     ## A DR/restore target keeps its OWN root here and names the source only at restore time:
     ##   pmm-backup.sh restore --s3-prefix <source-namespace>/<source-prefix>
-    prefix: "pmm-ha"
+    ##
+    ## Empty (the default) resolves to the release name, so the root is <namespace>/<release>.
+    prefix: ""
     ## Static credentials for the PMM rclone sidecar (pg_dump//srv/encryption-key/manifest
     ## uploads) and the restore temp pods. Required on non-AWS S3-compatible storage;
     ## optional on AWS when IRSA is used instead.
