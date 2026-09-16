@@ -686,25 +686,69 @@ component requires no change here.
 With metrics stored in VictoriaMetrics, create alerts for:
 
 ```
-# No backup in the last 24 hours
-time() - pmm_ha_backup_last_timestamp_seconds{component="postgresql"} > 86400
+# 1. THE METRICS THEMSELVES STOPPED. Deploy this one first.
+#    Every other alert below is a comparison on one of these series, and a
+#    comparison against a series that no longer exists matches nothing. Without
+#    this alert an exporter that has gone silent is indistinguishable from an
+#    install with no problems: the scrape still succeeds, the dashboards just
+#    empty out, and nothing fires.
+#
+#    Not hypothetical. If the backup-tools pod loses read access to the metrics
+#    directory, /metrics keeps answering 200 with the HELP/TYPE preamble and
+#    zero samples - see "Metrics dir ... is not writable" below. A Job that never
+#    gets scheduled produces the same silence, for a different reason.
+absent_over_time(pmm_ha_backup_last_timestamp_seconds[1h])
 
-# Last backup failed
+# 2. No backup in the last 24 hours.
+#    The absent() arm matters on its own: a component that has NEVER reported has
+#    no series to subtract from, so the comparison alone stays quiet forever - it
+#    would never warn about a backup that was configured but has not once run.
+absent(pmm_ha_backup_last_timestamp_seconds{component="postgresql"})
+  or time() - pmm_ha_backup_last_timestamp_seconds{component="postgresql"} > 86400
+
+# 3. The last backup ran and failed.
 pmm_ha_backup_last_success{component="postgresql"} == 0
 
-# Backup took too long (over 5 minutes)
+# 4. Quality signals. These are only meaningful while 1 and 2 are quiet -- they
+#    say something about a backup that happened, not about one that did not.
+#    Backup took too long (over 5 minutes):
 pmm_ha_backup_last_duration_seconds{component="victoriametrics"} > 300
-
-# Suspiciously small backup (possible empty/corrupt)
+#    Suspiciously small backup (possible empty/corrupt):
 pmm_ha_backup_last_size_bytes{component="clickhouse"} < 1000
 
-# Retention refused to prune -- the bucket is growing and the sweep still exits 0.
-# This is the alert that catches a silently stalled sweep; nothing else does.
+# 5. Retention refused to prune -- the bucket is growing and the sweep still
+#    exits 0. This is the alert that catches a silently stalled sweep; nothing
+#    else does.
 pmm_ha_prune_last_success == 0
 
-# No retention sweep in the last 48 hours
-time() - pmm_ha_prune_last_timestamp_seconds > 172800
+# 6. No retention sweep in the last 48 hours, including "never swept at all".
+absent(pmm_ha_prune_last_timestamp_seconds)
+  or time() - pmm_ha_prune_last_timestamp_seconds > 172800
 ```
+
+> **Caveat on 5 and 6 as of today:** `pmm_ha_prune_*` is written by `write_prune_metrics`,
+> which only `pmm-backup.sh prune` calls. `backup` runs the same retention sweep
+> (`cleanup_old_backups`) and it sets the same internal refusal flag, but it does not publish
+> the outcome — so an install whose CronJob runs `backup`, which is the default, never
+> produces these series at all. Rule 5 then cannot fire, and rule 6 fires immediately and
+> permanently on the `absent()` arm.
+>
+> Until that is addressed, either schedule a separate `prune` run so the series exist, or
+> treat rule 6 as the one that matters and drop rule 5. Verified on a live install: with only
+> scheduled `backup` runs, `count(pmm_ha_prune_last_timestamp_seconds)` returns empty.
+
+> **Why the `absent()` arms.** A PromQL/MetricsQL comparison filters a vector: given an
+> empty vector it returns an empty vector, which is not an alert. So every "is the value
+> bad?" rule is silently conditional on the series existing, and the one failure that removes
+> the series removes the alerting with it. `absent()` and `absent_over_time()` are what turn
+> "I see nothing wrong" into "I see nothing".
+>
+> The two arms are mutually exclusive by construction — `absent(x)` returns a sample only
+> when `x` is empty, and the comparison returns samples only when it is not — so the `or`
+> cannot double-fire, on either Prometheus or MetricsQL.
+>
+> Give rules 1, 2 and 6 a `for:` of a few minutes in the alert definition. A single missed
+> scrape should not page anyone; a backup exporter that has been quiet for an hour should.
 
 ---
 
