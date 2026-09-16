@@ -863,6 +863,62 @@ kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
   pmm-backup.sh backup --namespace <namespace>
 ```
 
+#### After a `helm upgrade`, wait for the operators before backing up
+
+`helm upgrade --wait` returns once the **Helm-managed** resources are ready. It does not
+wait for the PostgreSQL, ClickHouse and VictoriaMetrics operators, which roll their own
+StatefulSets asynchronously in response to the changed CRs. Immediately after an upgrade
+some pods can therefore be `Ready` while still belonging to the previous revision, or be
+seconds into the new one with a sidecar mount that has only just appeared.
+
+Starting a backup in that window fails on whichever pod has not rolled yet, for example:
+
+```
+[ERROR] [VictoriaMetrics] Backup creation failed for vmstorage-<cluster>-1
+[WARN]  ⚠ Backup partially completed: 2/3 pods — partial is failure (DN-21)
+[ERROR] Overall: ✗ Backup failed (3 succeeded, 1 failed)
+```
+
+This is safe — a partial backup is treated as a failure, `latest` is **not** advanced, and
+the run is catalogued as `partial`, so a later `--backup-id latest` cannot pick it up — but
+it wastes a backup window. Wait for the rollouts to finish first:
+
+```bash
+kubectl get sts -n <namespace> -o custom-columns='NAME:.metadata.name,GEN:.metadata.generation,OBSERVED:.status.observedGeneration,DESIRED:.spec.replicas,UPDATED:.status.updatedReplicas,READY:.status.readyReplicas'
+```
+
+Every rollout is finished when, for **every** row, `OBSERVED` == `GEN` and
+`UPDATED` == `READY` == `DESIRED`.
+
+> **Do not use `kubectl rollout status` here.** vmstorage, vmselect and the PostgreSQL
+> instance StatefulSets are created with `updateStrategy: OnDelete`, and against those
+> `kubectl rollout status` exits non-zero with
+> `error: rollout status is only available for RollingUpdate strategy type` — including for
+> vmstorage, the component most likely to be mid-roll. The field comparison above is
+> strategy-independent.
+
+> **Do not compare `.status.currentRevision` with `.status.updateRevision` either.** For the
+> `OnDelete` StatefulSets the controller never advances `currentRevision` — the PostgreSQL
+> instances sit with the two permanently different even when fully rolled and idle — so that
+> comparison reports a rollout that will never finish. `observedGeneration` and the replica
+> counts are the reliable signals.
+
+The command lists every StatefulSet in the namespace rather than naming them individually
+because the names depend on the release: Helm collapses the chart name when the release
+already contains it, so the PMM StatefulSet is `pmm-ha` under release `pmm-ha` but
+`pmm-dr-pmm-ha` under release `pmm-dr`, and vmstorage is correspondingly
+`vmstorage-pmm-ha-vmcluster` or `vmstorage-pmm-dr-pmm-ha-vmcluster`. There is also no single
+label that selects all of them — `app.kubernetes.io/instance` is set per operator
+(`pmm-ha-vmcluster`, `pmm-ha-pg-db`, ...) and the ClickHouse StatefulSets carry none.
+
+Upgrades that change `centralBackupStorage.mode` are the common case: switching between
+`s3` and `shared` changes the vmbackup sidecar's mounts **and** adds or removes the
+`pmm-backup` sidecar on the PMM StatefulSet, so both roll.
+
+A pod readiness count is not a sufficient check here — a pod on the old revision reports
+`Ready`. Use `kubectl rollout status` (or compare `.status.observedGeneration` against
+`.metadata.generation`), which is revision-aware.
+
 ### Log Locations
 
 All logs are written to the logs/ directory on the backup-tools volume:
