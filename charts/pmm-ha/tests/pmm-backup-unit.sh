@@ -2470,6 +2470,53 @@ ASSUME_YES=false
 unset -f catalog_ids 2>/dev/null || true
 
 #########################################################################################
+section "vm_report_incomplete_restore — name the marker, but only when it is the cause"
+#########################################################################################
+
+# vmrestore leaves /vmstorage-data/restore-in-progress when it dies mid-flight, and vmstorage
+# then refuses to start. Without this the operator sees three crash-looping pods and an error
+# saying only that they "did not return" - the actual cause lives in a pod log.
+NAMESPACE=testns
+BACKUP_NAME=backup_20260610-120000
+_vri_log=""
+kubectl() {
+    case "$1" in
+        get)  printf '%s' "vmstorage-0" ;;
+        logs) printf '%s' "${_vri_log}" ;;
+    esac
+}
+_cap=""
+log() { _cap="${_cap}
+[$1] $2"; }
+
+# The marker panic IS present -> say so, and name the re-run command.
+_vri_log='panic: FATAL: incomplete vmrestore run; run vmrestore again or remove lock file "/vmstorage-data/restore-in-progress"'
+_cap=""; vm_report_incomplete_restore
+case "${_cap}" in
+    *"restore-in-progress"*) ok ;;
+    *) bad "names the marker file" "restore-in-progress" "${_cap}" ;;
+esac
+case "${_cap}" in
+    *"restore --backup-id ${BACKUP_NAME} --yes"*) ok ;;
+    *) bad "gives the re-run command with this backup id" "restore --backup-id ${BACKUP_NAME}" "${_cap}" ;;
+esac
+
+# A vmstorage that is down for an UNRELATED reason must not be told to re-run a restore: that
+# advice would not help, and acting on it would scale a healthy-ish cluster down again.
+_vri_log='pod has unbound immediate PersistentVolumeClaims'
+_cap=""; vm_report_incomplete_restore
+assert_eq "silent when the marker is not the cause" "" "${_cap}"
+
+# No vmstorage pod at all (already scaled away, namespace draining) is not a marker problem.
+kubectl() { printf '%s' ""; }
+_cap=""; vm_report_incomplete_restore
+assert_eq "silent when there is no vmstorage pod" "" "${_cap}"
+
+unset -f kubectl 2>/dev/null || true
+log() { :; }
+NAMESPACE=""; BACKUP_NAME=""
+
+#########################################################################################
 section "resolve_one — restore must never guess which install it overwrites"
 #########################################################################################
 

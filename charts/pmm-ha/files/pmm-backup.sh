@@ -4746,6 +4746,32 @@ vm_original_replicas() {   # <spec-value> <live-pod-count> <floor>
     printf '%s' "${_vor_n}"
 }
 
+# Explain a vmstorage that will not come back, when the cause is vmrestore's own marker.
+#
+# vmrestore writes /vmstorage-data/restore-in-progress before it copies anything and removes it
+# on success, so a restore that dies mid-flight leaves it behind and vmstorage then REFUSES to
+# start - correctly, because the data directory holds a mix of old and new parts and serving it
+# would be silent corruption. The operator otherwise sees three crash-looping pods, plus
+# vmselect dying downstream with "missing -storageNode arg", and the only clue lives in a
+# crash-looping pod's log while this script says merely that the pods "did not return".
+#
+# Diagnostic only: it reads logs, changes nothing, and stays silent unless it actually finds the
+# marker panic - so a vmstorage that is Pending for an unrelated reason (no capacity, unbound
+# PVC) is not told to re-run a restore that would not help it.
+vm_report_incomplete_restore() {
+    _vri_pod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" \
+        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) || return 0
+    [ -n "${_vri_pod}" ] || return 0
+    kubectl logs -n "${NAMESPACE}" "${_vri_pod}" -c vmstorage --tail=50 2>/dev/null \
+        | grep -q 'incomplete vmrestore run' || return 0
+    log "ERROR" "[VictoriaMetrics] vmstorage is refusing to start: an earlier vmrestore did not finish,"
+    log "ERROR" "[VictoriaMetrics] so /vmstorage-data/restore-in-progress is still on its data volume(s)."
+    log "ERROR" "[VictoriaMetrics] That directory holds a PARTIAL restore, which vmstorage will not serve."
+    log "ERROR" "[VictoriaMetrics] Recover by re-running this restore once the original failure is fixed:"
+    log "ERROR" "[VictoriaMetrics]   $(basename "$0") restore --backup-id ${BACKUP_NAME} --yes"
+    log "ERROR" "[VictoriaMetrics] A successful vmrestore clears the marker and vmstorage starts normally."
+}
+
 restore_victoriametrics() {
     local vmstorage_pods vmcluster_name original_vminsert original_vmstorage first_vm_pod vmrestore_image
     local _vs_old="" vm_sec_ctx="" _vm_insert_live="" _vmi_old="" _vmi_inferred=false
@@ -4870,7 +4896,11 @@ restore_victoriametrics() {
     # is a component failure, checked at the final gate below.
     local vm_scaleback_ok=true
     kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge -p '{"spec":{"vmstorage":{"replicaCount":'${original_vmstorage}'}}}' 2>&1 | append_to_log || true
-    wait_for_pods_ready "${NAMESPACE}" "${LABEL_VM_STORAGE}" "${original_vmstorage}" 300 || { log "ERROR" "[VictoriaMetrics] vmstorage did not return to ${original_vmstorage} ready replica(s) after restore"; vm_scaleback_ok=false; }
+    wait_for_pods_ready "${NAMESPACE}" "${LABEL_VM_STORAGE}" "${original_vmstorage}" 300 || {
+        log "ERROR" "[VictoriaMetrics] vmstorage did not return to ${original_vmstorage} ready replica(s) after restore"
+        vm_scaleback_ok=false
+        vm_report_incomplete_restore
+    }
     kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge -p '{"spec":{"vminsert":{"replicaCount":'${original_vminsert}'}}}' 2>&1 | append_to_log || true
     # Verified now, for the reason in DN-50: this patch used to be `|| true` with nothing
     # checking the outcome, so a transient webhook failure left vminsert at 0 — NO INGESTION —
