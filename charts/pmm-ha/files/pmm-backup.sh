@@ -3371,7 +3371,19 @@ backup_encryption_key() {
     # umask, not chmod-after: the destination helper documents "mode set BEFORE content" and
     # the staging path must honour the same invariant — this is the key that decrypts
     # PostgreSQL, on a volume every component pod mounts.
-    if ! ( umask 077; kubectl get secret "${secret_name}" -n "${NAMESPACE}" -o json | \
+    #
+    # 077 (0600) in s3 mode, where BACKUP_DIR is pod-local scratch and nothing else ever reads
+    # it. 027 (0640, group root) in shared mode: 0600 makes the key unreadable by ANY other
+    # namespace, and a cross-namespace restore then fails preflight with "could not check key
+    # ... the check itself failed" before it touches anything - which is the F17 condition
+    # applied to a file rather than a directory. OpenShift gives each namespace its own uid but
+    # every arbitrary-uid pod carries gid 0, so group-read is the narrowest mode that lets the
+    # DR namespace read it. It is not a widening in practice: every other artifact on that
+    # volume is already group-readable, and the volume is only mountable by pods the cluster
+    # admin has granted the claim to.
+    _ek_umask=077
+    [ "${BACKUP_TARGET}" = "shared" ] && _ek_umask=027
+    if ! ( umask "${_ek_umask}"; kubectl get secret "${secret_name}" -n "${NAMESPACE}" -o json | \
         jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.namespace, .metadata.managedFields, .metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]) | if .metadata.annotations == {} then del(.metadata.annotations) else . end' \
         > "${key_file}" ); then
         # Reap the partial file. A redirection that failed PART WAY (apiserver 5xx mid-stream,
@@ -3388,7 +3400,7 @@ backup_encryption_key() {
     if [ -s "${key_file}" ]; then
         
         # Set restrictive permissions
-        chmod 600 "${key_file}"
+        chmod "$([ "${BACKUP_TARGET}" = "shared" ] && echo 640 || echo 600)" "${key_file}"
         
         # Calculate checksum
         local checksum; checksum=$(sha256_of "${key_file}")
