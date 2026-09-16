@@ -353,7 +353,14 @@ TEMP_POD_S3_KEYS_ENV="" ; TEMP_POD_SA_LINE=""
 # Requests/limits for the temp restore pods, as compact JSON (JSON is valid YAML, so it
 # splices straight into the manifest). Projected by the chart from
 # centralBackupStorage.tools.resources; the default is small on purpose — the pod sleeps.
-TEMP_POD_RESOURCES="${TEMP_POD_RESOURCES:-{\"requests\":{\"cpu\":\"50m\",\"memory\":\"64Mi\"}}}"
+# NOT `${TEMP_POD_RESOURCES:-{...}}`: a `}` inside the default of a ${VAR:-...} expansion closes
+# the expansion, so the rest of the JSON is appended as literal text and the value comes out with
+# trailing braces — `..."128Mi"}}}}` — which the apiserver rejects as malformed YAML. It breaks
+# even when the variable IS set, because the stray text is outside the expansion.
+TEMP_POD_RESOURCES="${TEMP_POD_RESOURCES:-}"
+if [ -z "${TEMP_POD_RESOURCES}" ]; then
+    TEMP_POD_RESOURCES='{"requests":{"cpu":"50m","memory":"64Mi"}}'
+fi
 # Proof that THIS run created a temp mounter pod. restore_cleanup's label-wide sweep is gated
 # on it, so an aborted run cannot delete a DIFFERENT run's live pod.
 #
@@ -1066,6 +1073,31 @@ resolve_one() {   # <tag> <what> <kind> [label-selector]
     log "ERROR" "[${_ro_tag}] Refusing to guess: ${NAMESPACE} holds $# ${_ro_what}s ($*)." >&9
     log "ERROR" "[${_ro_tag}] Restore scales this down and overwrites it, so the choice must be explicit." >&9
     log "ERROR" "[${_ro_tag}] Re-run with --release <name>." >&9
+    return 1
+}
+
+# Can this process actually CREATE a file in <dir>? A real write, not `test -w`.
+#
+# `[ -w ]` answers from the local kernel's view of uid/mode, and both halves of that lie here.
+# The backup-tools container runs as uid 0, and for root `-w` is true on a 0500 directory it
+# does not own; and on NFS — which is every shared target, and an EFS access point in s3 mode —
+# the SERVER decides, squashing to the access point's PosixUser. Measured in-cluster on EFS:
+#
+#   container uid: 0
+#   test -w on the 0500 dir says: WRITABLE
+#   an actual write says: DENIED
+#
+# So the guard that used `-w` passed and the redirection failed anyway, which is the whole
+# failure this fallback exists to prevent. Probe, then clean up.
+dir_writable() {   # <dir>
+    [ -d "$1" ] || return 1
+    _dw_probe="$1/.pmm-write-probe.$$"
+    # `touch`, not `: > "${_dw_probe}"`. `:` is a POSIX SPECIAL BUILTIN, and a redirection error
+    # on a special builtin is fatal to the shell — so the probe that exists to detect an
+    # unwritable directory KILLED the run instead, before the banner, with only the redirection
+    # error printed. Measured on EFS. `touch` is an external command, so a failure is an ordinary
+    # non-zero exit and its stderr is suppressible.
+    if touch "${_dw_probe}" 2>/dev/null; then rm -f "${_dw_probe}" 2>/dev/null || true; return 0; fi
     return 1
 }
 
@@ -6290,7 +6322,7 @@ cmd_backup() {
         # redirect fails the command being redirected (first run on a fresh volume has
         # no logs/ dir yet). Create it, or fall back to /dev/null.
         share_mkdir "${BACKUP_DIR}/logs" || true
-        [ -w "${BACKUP_DIR}/logs" ] || LOG_FILE="/dev/null"
+        dir_writable "${BACKUP_DIR}/logs" || LOG_FILE="/dev/null"
         # A dry run takes no locks, but release_locks is also the reaper for the retention sweep's
         # manifest cache (catalog_cache_clear), and cleanup_old_backups runs the sweep in dry run
         # too — that is the documented review gate. Without this trap every `backup --dry-run` left
@@ -7001,7 +7033,7 @@ main() {
         if [ "${COMMAND}" = "prune" ]; then
             LOG_FILE="${BACKUP_DIR}/logs/prune_${TIMESTAMP}.log"
             share_mkdir "${BACKUP_DIR}/logs" || true
-            [ -w "${BACKUP_DIR}/logs" ] || LOG_FILE="/tmp/prune_${TIMESTAMP}.log"
+            dir_writable "${BACKUP_DIR}/logs" || LOG_FILE="/tmp/prune_${TIMESTAMP}.log"
         elif [ "${COMMAND}" = "list" ]; then
             # 'list' is read-only and reports to stdout — cmd_list uses echo throughout and takes no
             # locks, so it has nothing to journal. It shared this branch with 'backup' and therefore
@@ -7022,7 +7054,7 @@ main() {
             # failure and retention every purge as failed — none of which is the cause. Observed
             # on a shared volume whose logs/ had been relabelled away from the pod.
             share_mkdir "${BACKUP_DIR}/logs" || true
-            if [ ! -w "${BACKUP_DIR}/logs" ]; then
+            if ! dir_writable "${BACKUP_DIR}/logs"; then
                 LOG_FILE="/tmp/backup_${TIMESTAMP}${COMPONENT_SUFFIX}.log"
                 _LOGDIR_FELL_BACK="${BACKUP_DIR}/logs"
             fi

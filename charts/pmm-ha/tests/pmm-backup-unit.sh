@@ -2061,6 +2061,19 @@ _tp_has "temp pod carries the workload's tolerations"     'tolerations: [{"key":
 _tp_has "temp pod carries the workload's imagePullSecrets" 'imagePullSecrets: [{"name":"dockerhub"}]'
 _tp_has "temp pod always declares resource requests"      'resources: {"requests"'
 
+# The resources value must be VALID JSON, whether it came from the chart or from the fallback.
+# It was neither: `${TEMP_POD_RESOURCES:-{...}}` closes the expansion on the first `}` of the
+# default, so the rest was appended as literal text and every rendered pod carried
+# `..."128Mi"}}}}`. The apiserver rejected the manifest outright -- caught only by a live
+# restore, because nothing in the render path parses the result.
+case "${_tp_yaml}" in
+    *'}}}}'*|*'}}}'*) bad "resources JSON is balanced" "valid JSON" "trailing braces" ;;
+    *) ok ;;
+esac
+_tp_res=$(printf '%s' "${_tp_yaml}" | sed -n 's/^ *resources: //p' | head -1)
+if printf '%s' "${_tp_res}" | jq -e . >/dev/null 2>&1; then ok
+else bad "resources value parses as JSON" "parseable" "${_tp_res}"; fi
+
 # Rendered as JSON on purpose: JSON is a subset of YAML, so a map or list drops in with no
 # indentation to get wrong and no newline to break the block. A multi-line YAML rendering here
 # would have to track the surrounding indent, which is how this kind of splice usually breaks.
