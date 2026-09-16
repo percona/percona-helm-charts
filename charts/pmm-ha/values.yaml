@@ -1765,11 +1765,11 @@ victoriaMetrics:
       
       ## @param victoriaMetrics.vmstorage.backup.image vmbackup image
       ## Pinned (not :latest) for reproducibility; keep in step with the vmstorage version.
-      image: victoriametrics/vmbackup:v1.149.0
+      image: victoriametrics/vmbackup:v1.151.0
 
       ## @param victoriaMetrics.vmstorage.backup.restoreImage vmrestore image (for restore from central backup)
       ## Keep the same version as backup.image.
-      restoreImage: victoriametrics/vmrestore:v1.149.0
+      restoreImage: victoriametrics/vmrestore:v1.151.0
       
       ## @param victoriaMetrics.vmstorage.backup.resources Resource requests and limits for vmbackup sidecar
       resources:
