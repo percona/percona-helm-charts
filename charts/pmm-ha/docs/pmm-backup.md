@@ -314,7 +314,7 @@ centralBackupStorage:
     region: "eu-central-1"
     endpoint: ""                 # empty for AWS; set for S3-compatible (e.g. http://minio.minio.svc:9000)
     provider: "AWS"              # rclone provider: AWS | Minio | Ceph | Other
-    prefix: "pmm-ha"             # key namespace under the bucket
+    prefix: ""                   # key namespace under the bucket; empty = the release name
 
     ## Credentials — set ONE of the two:
     ## (A) static keys (any S3-compatible storage): Secret with access-key/secret-key
@@ -548,13 +548,18 @@ On startup the container:
 
 Two operational notes:
 
-- The pod template carries `karpenter.sh/do-not-disrupt: "true"`: even though the
-  Deployment recreates an evicted pod, a disruption would still kill any backup/restore
-  running inside it — so consolidation-driven disruption (Karpenter / EKS Auto Mode) is
-  opted out; the annotation is harmless on other platforms.
+- The pod template deliberately carries **no** `karpenter.sh/do-not-disrupt`. It used to:
+  on an always-on Deployment the annotation is permanent, which pinned whatever node the pod
+  landed on and stalled every Karpenter / EKS-Auto-Mode node rollout. The protection moved to
+  the thing that actually needs it — each backup/restore **Job** pod carries the annotation for
+  exactly the run's lifetime and releases it on exit. The consequence for you: a long
+  `kubectl exec ... backup` **is** killable by consolidation, which is why §0 and §3a recommend
+  running long backups and restores as Jobs.
 - The orchestrator scripts require **jq** (manifest generation/merging/parsing, secret
-  export). Preflight checks it and auto-installs via `apk` on Alpine; other images must
-  ship it. `nc` (metrics listeners) likewise gets a fallback install at startup.
+  export), plus `rclone` in s3 mode and `nc` for the metrics listener. The default tools image
+  ships all of them, so the bootstrap only probes (see §9). An image that lacks one falls back
+  to `apk add`, which needs root — and backup Jobs run with `PMM_TOOLS_STRICT=true`, so on a
+  non-root platform a missing tool is a failed backup, not a slow one.
 
 Run the tools via the Deployment (the pod name is generated):
 
@@ -686,7 +691,7 @@ concurrent runs from clobbering each other.
 
 When running components concurrently, use `--backup-id` to group them into the same backup directory:
 
-`date -u`, not `date`: an auto-generated id is UTC (see §4), and `backup_id_epoch` converts any
+`date -u`, not `date`: an auto-generated id is UTC, and `backup_id_epoch` converts any
 id back as UTC. A local-time `--backup-id` is therefore mis-aged by your offset — west of UTC it
 looks *older* than it is and can be purged before its retention window is up.
 
@@ -799,14 +804,23 @@ Locks are always acquired in **alphabetical order** (clickhouse, pmm-server, pos
 After each backup run, Prometheus metrics are written to `/backups/.metrics/` on the PVC:
 
 ```
-/backups/.metrics/backup_metrics.prom     # every component, written by `backup`
+/backups/.metrics/backup/all.prom         # a full-scope run — every component, one file
+/backups/.metrics/backup/<component>.prom # a component-scoped run (e.g. postgresql.prom)
 /backups/.metrics/restore_metrics.prom    # written by `restore`
+/backups/.metrics/prune_metrics.prom      # written by `prune`
 ```
 
-Every component appears in `backup_metrics.prom`, distinguished by a `component` **label** --
-`postgresql`, `clickhouse`, `victoriametrics`, `pmm-server` and `encryption`. There is no
-per-component file: the component was already a label, and encoding it in the filename as well
-meant a listener, a container port and a scrape job per component (see DN-42).
+Backup metrics are keyed by **run scope**, not by component: a full run writes one
+`backup/all.prom` holding every component, distinguished by a `component` **label** —
+`postgresql`, `clickhouse`, `victoriametrics`, `pmm-server` and `encryption`. A
+component-scoped run writes `backup/<component>.prom` instead, so concurrent single-component
+runs do not overwrite each other (DN-42). A full-scope run removes the per-component files it
+supersedes, because the listener concatenates `backup/*.prom` into one exposition and the text
+format allows a series only once per exposition.
+
+What is NOT split per component is the serving side: one listener, one port, one scrape job,
+because the component was always a label. Splitting those is what let `pmm-server` metrics be
+written for months while nothing served them (DN-42).
 
 Files are written atomically (write to temp file, then `mv`) to prevent partial reads during scraping.
 
@@ -821,7 +835,7 @@ All metrics use the `pmm_ha_backup_` prefix:
 | `pmm_ha_backup_last_duration_seconds` | gauge | Backup duration in seconds |
 | `pmm_ha_backup_last_size_bytes` | gauge | Backup size in bytes |
 
-Each metric includes labels: `component` (postgresql/clickhouse/victoriametrics/pmm-server) and `namespace`. All four components, PMM `/srv` included, are served and scraped — see the port table below.
+Each metric includes labels: `component` (postgresql/clickhouse/victoriametrics/pmm-server/encryption) and `namespace`. All four components, PMM `/srv` included, are served and scraped — see the port table below.
 
 The retention sweep has its own family, written by the `prune` subcommand:
 
@@ -1222,7 +1236,7 @@ existing one is. See DN-41.
   logs/                                     # execution logs (backup_<id>.log, restore_<id>.log)
   .logs/                                    # legacy pre-Job scheduler markers; inert, and now aged out by the retention sweep
   .staging/                                 # transient per-run staging, reaped after each run
-  .metrics/                                 # Prometheus metrics (backup_metrics.prom, restore_metrics.prom)
+  .metrics/                                 # Prometheus metrics (backup/<scope>.prom, restore_metrics.prom, prune_metrics.prom)
 ```
 
 Locks are **not** on this volume: they are Kubernetes `Lease` objects, because the thing they
@@ -1315,19 +1329,19 @@ under `postgresql/<id>/` and restores with `pg_restore`.
 
 ```bash
 # All backup ids + the latest pointer
-aws s3 ls s3://my-bucket/<namespace>/pmm-ha/manifests/
-aws s3 cp s3://my-bucket/<namespace>/pmm-ha/latest -   # prints the newest id
+aws s3 ls s3://my-bucket/<namespace>/<release>/manifests/
+aws s3 cp s3://my-bucket/<namespace>/<release>/latest -   # prints the newest id
 
 # One backup: read the manifest, then list its objects
-aws s3 cp s3://my-bucket/<namespace>/pmm-ha/manifests/backup_20260610-120000.json -
-aws s3 ls --recursive s3://my-bucket/<namespace>/pmm-ha/postgresql/backup_20260610-120000/
+aws s3 cp s3://my-bucket/<namespace>/<release>/manifests/backup_20260610-120000.json -
+aws s3 ls --recursive s3://my-bucket/<namespace>/<release>/postgresql/backup_20260610-120000/
 
 # ClickHouse keeps its own layout outside the per-run prefix:
-aws s3 ls --recursive s3://my-bucket/<namespace>/pmm-ha/clickhouse/backup_20260610-120000/
+aws s3 ls --recursive s3://my-bucket/<namespace>/<release>/clickhouse/backup_20260610-120000/
 
 # rclone equivalents (remote 's3' configured for the bucket)
-rclone cat   s3:my-bucket/<namespace>/pmm-ha/manifests/backup_20260610-120000.json
-rclone lsl   s3:my-bucket/<namespace>/pmm-ha/postgresql/backup_20260610-120000/
+rclone cat   s3:my-bucket/<namespace>/<release>/manifests/backup_20260610-120000.json
+rclone lsl   s3:my-bucket/<namespace>/<release>/postgresql/backup_20260610-120000/
 ```
 
 > The manifest is the source of truth for *what belongs to a backup*. Restore should be
@@ -1375,8 +1389,8 @@ frozen and older than `leaseDurationSeconds`, the next run will take it over on 
 ### Checking Metrics
 
 ```bash
-# From inside the pod
-cat /backups/.metrics/backup_metrics.prom
+# From inside the pod (a full run writes backup/all.prom; a scoped run writes backup/<component>.prom)
+cat /backups/.metrics/backup/all.prom
 
 # Via HTTP (netcat server)
 wget -qO- http://localhost:9091/
@@ -1587,7 +1601,8 @@ PostgreSQL needs no options — databases come from the manifest.
 ##### Restore Flow
 
 1. **Preflight**: namespace exists, `kubectl`, `timeout` and `jq` available (jq parses the
-   manifest; auto-installed via `apk` on the Alpine backup-tools image).
+   manifest; the default tools image ships it — see §9 for what happens if a replacement
+   image does not).
 2. **S3 access is local to this process** (s3 mode): the orchestrator runs `rclone` itself, in
    the backup-tools pod, with that pod's own S3 credentials. All S3 reads (manifest, ordinal
    mapping, PG dump streaming) go through it. There is no temp S3 client pod any more, and the
@@ -1837,7 +1852,7 @@ UID at all is a question about the chart rather than about this feature.
 
 ### Metrics Persistence
 
-Metrics files are stored on the PVC (`/backups/.metrics/`), so they survive pod restarts. However, after an initial deployment (before any backup has run), the metrics files contain only a placeholder comment (`# Waiting for first backup run`). VMAgent will scrape these without error but no metrics will be available until the first backup completes.
+Metrics files are stored on the PVC (`/backups/.metrics/`), so they survive pod restarts. However, after an initial deployment (before any backup has run), the endpoint serves only a placeholder comment (`# no backup run yet`). VMAgent will scrape these without error but no metrics will be available until the first backup completes.
 
 ### netcat Serving Limitations
 
