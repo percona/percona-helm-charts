@@ -1152,7 +1152,18 @@ store_write_private() {
     if [ "${S3_ENABLED}" = "true" ]; then s3_rclone_rcat "$1"; else
         mkdir -p "$(dirname "$1")" || return 1
         : > "$1" || return 1
-        chmod 600 "$1" || return 1
+        # 0600 keeps the key private on a single-namespace volume, but it also locks out the DR
+        # namespace: OpenShift gives every namespace its own uid, so a cross-namespace restore
+        # cannot read the key it needs and dies in preflight with "could not check key ... the
+        # check itself failed" before touching anything. The one identity both namespaces share
+        # is gid 0, so shared mode uses 0640 group-root - readable by a peer namespace, still
+        # NOT world-readable, which is what this function exists to prevent. Same reasoning as
+        # share_mkdir's setgid, applied to a file.
+        if [ "${BACKUP_TARGET}" = "shared" ]; then
+            chmod 640 "$1" || return 1
+        else
+            chmod 600 "$1" || return 1
+        fi
         cat > "$1"
     fi
 }
