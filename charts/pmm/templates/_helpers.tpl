@@ -132,6 +132,13 @@ Name of the secret holding a copy of the PMM encryption key.
 {{- end }}
 
 {{/*
+Path of the PMM encryption key on the data volume, as PMM itself resolves it.
+*/}}
+{{- define "pmm.encryptionKeyPath" -}}
+{{- default "/srv/pmm-encryption.key" (dig "PMM_ENCRYPTION_KEY_PATH" "" (.Values.pmmEnv | default dict)) }}
+{{- end }}
+
+{{/*
 Create password if it does not exist or reuse existing one.
 */}}
 {{- define "pmm.password" -}}

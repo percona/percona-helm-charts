@@ -1,8 +1,9 @@
 {{- if .Values.encryptionKey.backupToSecret -}}
 {{/*
-Namespaced permissions for the encryption-key init container. The chart's ClusterRole already
-allows reading secrets; creating one is granted here so the extra permission stays scoped to the
-release namespace.
+Namespaced permissions for the encryption-key init container. With `serviceAccount.create` false
+- the default - these are granted to the namespace's `default` service account, so reads and
+writes are pinned to the key secret itself. `create` is the one verb that cannot be restricted by
+name, since the name of an object that does not exist yet is not known at authorization time.
 */}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -14,7 +15,11 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
-  verbs: ["get", "create"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["{{ include "pmm.encryptionKeySecretName" . }}"]
+  verbs: ["get", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
