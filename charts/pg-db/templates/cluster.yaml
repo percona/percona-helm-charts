@@ -590,6 +590,10 @@ spec:
     customClusterName: {{ .Values.pmm.customClusterName }}
     {{- end }}
     {{- include "pg-database.resources" .Values.pmm | indent 4 }}
+    {{- if .Values.pmm.containerSecurityContext }}
+    containerSecurityContext:
+{{ .Values.pmm.containerSecurityContext | toYaml | indent 6 }}
+    {{- end }}
 
   {{- if .Values.logcollector }}
   logcollector:

@@ -6,6 +6,12 @@
 ## The victoria-metrics-operator manages VictoriaMetrics resources
 victoria-metrics-operator:
   enabled: true
+  # The subchart already runs the operator as uid 1000 with no privilege escalation, dropped
+  # capabilities and a read-only root filesystem; the "restricted" Pod Security Standard also
+  # wants a seccomp profile.
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
   crds:
     enabled: true
   admissionWebhooks:
@@ -37,6 +43,18 @@ altinity-clickhouse-operator:
     env:
       - name: WATCH_NAMESPACES
         value: ".*"
+    # The image runs as `nobody` (65534) but declares nothing, so state it: this is what the
+    # "restricted" Pod Security Standard checks. The operator writes no files.
+    containerSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      seccompProfile:
+        type: RuntimeDefault
   # The metrics-exporter sidecar reads its own env, not the operator's, and uses the same
   # GetInformerNamespace() logic — so mirror the setting here, or a ClickHouseInstallation in a
   # non-operator namespace stays unmonitored until the next reconcile pushes it to the exporter.
@@ -44,6 +62,29 @@ altinity-clickhouse-operator:
     env:
       - name: WATCH_NAMESPACES
         value: ".*"
+    containerSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      seccompProfile:
+        type: RuntimeDefault
+  # The CRD installation hook runs kubectl once; same posture.
+  crdHook:
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
   # fullnameOverride: clickhouse-op  # Uncomment to shorten resource names if hitting 63-char limit
 
 ## @section PostgreSQL Operator Configuration

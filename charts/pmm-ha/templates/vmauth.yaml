@@ -70,6 +70,7 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: vmauth
 spec:
+  useStrictSecurity: {{ .Values.victoriaMetrics.useStrictSecurity }}
   {{- if .Values.victoriaMetrics.version }}
   # Pinned alongside the VMCluster - see victoriaMetrics.version in values.yaml.
   componentVersion: {{ .Values.victoriaMetrics.version | quote }}
