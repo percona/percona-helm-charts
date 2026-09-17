@@ -27,6 +27,7 @@ pmmEnv:
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
   # PMM_CLICKHOUSE_CLUSTER_NAME is set in statefulset.yaml
+  # PMM_DATA_RETENTION is derived from dataRetentionDays in statefulset.yaml
   # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmm-ha-pg-db-ha.pmm-ha.svc.cluster.local:5432"
@@ -63,6 +64,14 @@ pmmEnv:
 #  GF_AUTH_GENERIC_OAUTH_API_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: ''
 
+## The only way to set data retention in HA: PMM fixes the period when the replicas start,
+## so the Data retention field in its UI is read-only. Applied to metrics and Query
+## Analytics alike. Storage grows with it, see docs/SIZING.md before raising it.
+##
+## @param dataRetentionDays Data retention in whole days
+##
+dataRetentionDays: 30
+
 ## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) 
 ## requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/index.html)
 pmmResources:
@@ -82,33 +91,6 @@ pmmResources:
     memory: "8Gi"
     cpu: "4"
 # pmmResources: {}
-
-## @param dataRetentionDays Optional single retention value, in days, for BOTH metrics and Query Analytics
-##
-## Metrics and Query Analytics are retained by two independent mechanisms, and in
-## an HA deployment neither one knows about the other:
-##
-##   * metrics   - victoriaMetrics.vmstorage.retentionPeriod, enforced by the
-##                 VictoriaMetrics operator on the external vmcluster
-##   * QAN       - PMM's own data retention setting, enforced by qan-api2 against
-##                 ClickHouse, and changeable from the PMM settings page
-##
-## Left EMPTY (the default) the chart does not interfere with either: vmstorage
-## uses victoriaMetrics.vmstorage.retentionPeriod and PMM keeps its own setting.
-## This is the safe choice on upgrade, and it leaves retention adjustable in the
-## PMM UI.
-##
-## Set to a number of days to drive both from here, which is usually what you want
-## when the deployment is managed declaratively. Two consequences to be aware of:
-##
-##   * it takes precedence over victoriaMetrics.vmstorage.retentionPeriod
-##   * it sets PMM_DATA_RETENTION, and PMM refuses to change data retention from
-##     the UI or API while that variable is set
-##
-## Storage scales close to linearly with this value - it is the largest single
-## lever on the cluster's disk footprint. Lowering it deletes data older than the
-## new window on the next reconcile. See docs/SIZING.md before changing it.
-dataRetentionDays: ""
 
 ## Readiness probe Config
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
@@ -1157,15 +1139,9 @@ victoriaMetrics:
   vmstorage:
     ## @param victoriaMetrics.vmstorage.replicaCount Number of vmstorage replicas
     replicaCount: 3
-    ## @param victoriaMetrics.vmstorage.retentionPeriod Data retention period for metrics
-    ## Applies to metrics only. Query Analytics is retained separately by PMM's own
-    ## setting, so the two can differ - set the chart-wide dataRetentionDays instead
-    ## if you want one value to drive both.
-    ##
-    ## Note that the storage needed grows linearly with this: 90d of metrics needs
-    ## roughly three times the vmstorage PVC that storageSize below defaults to.
-    ## See docs/SIZING.md.
-    retentionPeriod: "90d"
+    # retentionPeriod comes from the top-level dataRetentionDays, so that metrics and Query
+    # Analytics keep data for the same period. Setting it here would let the two drift, so
+    # the chart rejects it.
     ## @param victoriaMetrics.vmstorage.resources Resource requests and limits for vmstorage
     ## Memory tracks ACTIVE SERIES, not ingest rate. VictoriaMetrics sizes its caches
     ## from the cgroup limit, so a very wide request/limit gap invites node
