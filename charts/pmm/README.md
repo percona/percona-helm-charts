@@ -71,10 +71,10 @@ PMM encrypts the credentials of monitored services with a key stored at `/srv/pm
 
 An existing key is never replaced. The key on the data volume takes precedence, and the secret is only used to restore it when the volume has none, so restarts, upgrades and reinstalls over retained data keep working.
 
-The secret is not owned by the Helm release, so it outlives `helm uninstall`. Back it up together with the rest of your PMM configuration:
+The secret is named `<fullname>-encryption-key` unless `encryptionKey.secretName` overrides it. It is not owned by the Helm release, so it outlives `helm uninstall`. Back it up together with the rest of your PMM configuration:
 
 ```sh
-kubectl get secret pmm-encryption-key -o yaml > pmm-encryption-key-backup.yaml
+kubectl get secret <fullname>-encryption-key -o yaml > pmm-encryption-key-backup.yaml
 ```
 
 To supply your own key, create the secret before installing the chart. The value must be a base64-encoded Tink keyset, as produced by `pmm-encryption-rotation --generate-key`; see [PMM data encryption](https://docs.percona.com/percona-monitoring-and-management/3/admin/security/data_encryption.html).

@@ -102,10 +102,13 @@ spec:
               # A failure to reach the API server must stop the pod. Continuing would let PMM
               # generate its own key without re-encrypting anything, leaving credentials that
               # were stored under the previous key unreadable.
-              if kubectl get secret "$SECRET" --namespace="$NAMESPACE" >/dev/null 2>&1; then
+              if ERROR=$(kubectl get secret "$SECRET" --namespace="$NAMESPACE" -o name 2>&1); then
                 SECRET_EXISTS=yes
-              else
+              elif echo "$ERROR" | grep -q NotFound; then
                 SECRET_EXISTS=no
+              else
+                echo "Error: cannot tell whether secret $SECRET exists: $ERROR" >&2
+                exit 1
               fi
 
               if [ -s "$KEY_FILE" ]; then
@@ -127,13 +130,13 @@ spec:
                   echo "Error: secret $SECRET holds no key" >&2
                   exit 1
                 fi
-                chmod 644 "$KEY_FILE"
+                chmod 600 "$KEY_FILE"
                 exit 0
               fi
 
               echo "No encryption key found, installing the generated one..."
               cp /shared/generated-key "$KEY_FILE"
-              chmod 644 "$KEY_FILE"
+              chmod 600 "$KEY_FILE"
               kubectl create secret generic "$SECRET" --namespace="$NAMESPACE" \
                 --from-file=key="$KEY_FILE"
           volumeMounts:
