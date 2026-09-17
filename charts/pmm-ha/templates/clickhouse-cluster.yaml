@@ -167,6 +167,8 @@ spec:
             prometheus.io/port: "9363"
             prometheus.io/path: "/metrics"
         spec:
+          securityContext:
+            {{- toYaml .Values.clickhouse.podSecurityContext | nindent 12 }}
           # Pod anti-affinity to spread replicas across different nodes
           # Using preferredDuringScheduling for soft anti-affinity (allows single-node deployments)
           # Weight 100 (max) makes this the highest priority soft constraint
@@ -184,12 +186,26 @@ spec:
             - name: clickhouse
               image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
               imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+              securityContext:
+                {{- toYaml .Values.clickhouse.securityContext | nindent 16 }}
               ports:
                 - name: metrics
                   containerPort: 9363
                   protocol: TCP
               resources:
                 {{- toYaml .Values.clickhouse.resources | nindent 16 }}
+              # Logs and the entrypoint's scratch files are the only writes outside the data
+              # volume; emptyDirs keep them off the (read-only) root filesystem.
+              volumeMounts:
+                - name: clickhouse-logs
+                  mountPath: /var/log/clickhouse-server
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: clickhouse-logs
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
     
     # Persistent volume configuration for ClickHouse data
     volumeClaimTemplates:

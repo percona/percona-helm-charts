@@ -547,8 +547,12 @@ clearing those keys is an escape hatch for anyone running with anyuid.
 {{- if not (kindIs "invalid" .Values.pmmClient.fsGroup) -}}
 {{- $pinned = append $pinned "pmmClient.fsGroup" -}}
 {{- end -}}
+{{- $cpsc := .Values.pmmClient.podSecurityContext | default dict -}}
+{{- range $k := (list "runAsUser" "runAsGroup" "fsGroup") -}}
+{{- if not (kindIs "invalid" (get $cpsc $k)) -}}{{- $pinned = append $pinned (printf "pmmClient.podSecurityContext.%s" $k) -}}{{- end -}}
+{{- end -}}
 {{- if $pinned -}}
-{{- fail (printf "This cluster exposes security.openshift.io/v1 (OpenShift), but openshift=false. %s would be rendered onto the PMM Server and PMM Client StatefulSets, and restricted-v2 rejects uids and groups outside the namespace's assigned ranges.\n\nThe pods are ADMITTED at apply time and only REPLACEMENT pods are refused, so the StatefulSet degrades silently later, and a failed upgrade leaves values that no subsequent upgrade can clear (Helm diffs against the last successful release).\n\nSet openshift=true, or install with -f examples/values-openshift.yaml. If you deliberately run with anyuid, clear those keys instead (podSecurityContext={} and pmmClient.fsGroup=null)." (join ", " $pinned)) -}}
+{{- fail (printf "This cluster exposes security.openshift.io/v1 (OpenShift), but openshift=false. %s would be rendered onto the PMM Server and PMM Client StatefulSets, and restricted-v2 rejects uids and groups outside the namespace's assigned ranges.\n\nThe pods are ADMITTED at apply time and only REPLACEMENT pods are refused, so the StatefulSet degrades silently later, and a failed upgrade leaves values that no subsequent upgrade can clear (Helm diffs against the last successful release).\n\nSet openshift=true, or install with -f examples/values-openshift.yaml. If you deliberately run with anyuid, clear those keys instead (podSecurityContext={}, pmmClient.fsGroup=null and pmmClient.podSecurityContext.runAsUser=null)." (join ", " $pinned)) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -744,16 +748,22 @@ securityContext: {}
 
 {{/*
 Pod security context for the PMM Client StatefulSet. Same reasoning as above; the client image
-runs as uid 1002 rather than 1000, and fsGroup is the only key the chart sets, so on OpenShift
-nothing is left to emit.
+runs as uid 1002 rather than 1000. `pmmClient.fsGroup` owns the group - the image user has to
+own the volume to write to it - and `pmmClient.podSecurityContext` carries the rest.
 */}}
 {{- define "pmm.client.podSecurityContext" -}}
+{{- $ctx := deepCopy (.Values.pmmClient.podSecurityContext | default dict) -}}
+{{- if not (kindIs "invalid" .Values.pmmClient.fsGroup) -}}
+{{- $_ := set $ctx "fsGroup" .Values.pmmClient.fsGroup -}}
+{{- end -}}
 {{- if .Values.openshift -}}
-securityContext: {}
-{{- else -}}
+{{- $ctx = omit $ctx "runAsUser" "runAsGroup" "fsGroup" -}}
+{{- end -}}
+{{- if $ctx -}}
 securityContext:
-  # The PMM Client image runs as this user, which has to own the volume to write to it.
-  fsGroup: {{ .Values.pmmClient.fsGroup }}
+  {{- toYaml $ctx | nindent 2 }}
+{{- else -}}
+securityContext: {}
 {{- end -}}
 {{- end -}}
 

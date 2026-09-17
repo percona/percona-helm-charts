@@ -34,6 +34,8 @@ spec:
             prometheus.io/port: "7000"
             prometheus.io/path: "/metrics"
         spec:
+          securityContext:
+            {{- toYaml .Values.clickhouse.keeper.podSecurityContext | nindent 12 }}
           # Pod anti-affinity to spread Keeper nodes across different hosts
           # Using preferredDuringScheduling for soft anti-affinity (allows single-node deployments)
           # Weight 100 (max) makes this the highest priority soft constraint
@@ -50,6 +52,8 @@ spec:
             - name: clickhouse-keeper
               image: {{ .Values.clickhouse.keeper.image.repository }}:{{ .Values.clickhouse.keeper.image.tag }}
               imagePullPolicy: {{ .Values.clickhouse.keeper.image.pullPolicy }}
+              securityContext:
+                {{- toYaml .Values.clickhouse.keeper.securityContext | nindent 16 }}
               ports:
                 - name: metrics
                   containerPort: 7000
