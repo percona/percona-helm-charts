@@ -207,8 +207,9 @@ jobs:
           grep -q 'password: "vmpass"' /tmp/smoke-creds.yaml
           ! grep -qE '^\s+- name: VMAGENT_' /tmp/smoke-creds.yaml
 
-          # A secret without those keys must say which key is missing instead of failing inside
-          # b64dec. Covers the pre-rename secrets Technical Preview installations still have.
+          # A secret without those keys must name them, and tell a Technical Preview installation
+          # to rename its pre-rename keys, instead of failing inside b64dec. pmm.validateSecret
+          # reports it; vmauth.yaml renders first and calls it before resolving the credential.
           cat <<'EOF' | kubectl apply -n "$NS" -f -
           apiVersion: v1
           kind: Secret
@@ -229,7 +230,7 @@ jobs:
             echo "::error::render should have failed on a secret without PMM_HA_VM_* keys"
             exit 1
           fi
-          grep -qF "is missing required key 'PMM_HA_VM_USERNAME'" <<<"$out"
+          grep -qF "required key(s): PMM_HA_VM_USERNAME, PMM_HA_VM_PASSWORD" <<<"$out"
           grep -qF "VMAGENT_remoteWrite_basicAuth_username" <<<"$out"
 
           kubectl delete secret pmm-secret-legacy -n "$NS"
