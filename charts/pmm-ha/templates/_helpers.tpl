@@ -395,6 +395,40 @@ Called from statefulset.yaml, which always renders.
 {{- if lt $httpsPort 1024 -}}
 {{- fail (printf "openshift=true requires haproxy.containerPorts.https above 1024, got %d: restricted-v2 runs the container as a non-root uid with all capabilities dropped and allowPrivilegeEscalation=false, so HAProxy cannot bind a privileged port (\"cannot bind socket (Permission denied) for [0.0.0.0:%d]\") and the only ingress to PMM crash-loops while Helm still reports STATUS: deployed. Install with -f examples/values-openshift.yaml." $httpsPort $httpsPort) -}}
 {{- end -}}
+{{- else -}}
+{{/*
+The inverse check: the cluster IS OpenShift but openshift=false, so the chart is about to pin
+uid/gid values restricted-v2 rejects. Worth failing the render over, because the failure it
+prevents is silent, delayed and NOT self-healing:
+
+  - the StatefulSets are accepted, and pods already running stay up, so nothing looks wrong;
+  - every REPLACEMENT pod is refused ("1000 is not an allowed group ... must be in the ranges:
+    [1000850000, 1000859999]"), so the set quietly degrades, 3 -> 2 -> ...;
+  - and it cannot be repaired by fixing the values and upgrading again. Helm diffs against the
+    last SUCCESSFUL release; a failed upgrade's manifest is not recorded, so the uid keys it
+    applied are invisible to every later upgrade. They have to be cleared by hand:
+      kubectl patch sts <sts> --type=merge \
+        -p '{"spec":{"template":{"spec":{"securityContext":null}}}}'
+
+Detection is .Capabilities, not `lookup`: it needs no RBAC, and a client-side `helm template`
+carries the default API list, so CI renders do not trip this.
+
+Narrow on purpose - it fires only when something restricted-v2 would actually reject is set, so
+clearing those keys is an escape hatch for anyone running with anyuid.
+*/}}
+{{- if .Capabilities.APIVersions.Has "security.openshift.io/v1" -}}
+{{- $psc := .Values.podSecurityContext | default dict -}}
+{{- $pinned := list -}}
+{{- range $k := (list "runAsUser" "runAsGroup" "fsGroup") -}}
+{{- if hasKey $psc $k -}}{{- $pinned = append $pinned (printf "podSecurityContext.%s" $k) -}}{{- end -}}
+{{- end -}}
+{{- if not (kindIs "invalid" .Values.pmmClient.fsGroup) -}}
+{{- $pinned = append $pinned "pmmClient.fsGroup" -}}
+{{- end -}}
+{{- if $pinned -}}
+{{- fail (printf "This cluster exposes security.openshift.io/v1 (OpenShift), but openshift=false. %s would be rendered onto the PMM Server and PMM Client StatefulSets, and restricted-v2 rejects uids and groups outside the namespace's assigned ranges.\n\nThe pods are ADMITTED at apply time and only REPLACEMENT pods are refused, so the StatefulSet degrades silently later, and a failed upgrade leaves values that no subsequent upgrade can clear (Helm diffs against the last successful release).\n\nSet openshift=true, or install with -f examples/values-openshift.yaml. If you deliberately run with anyuid, clear those keys instead (podSecurityContext={} and pmmClient.fsGroup=null)." (join ", " $pinned)) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
