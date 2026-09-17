@@ -174,6 +174,67 @@ kubectl get leases -n <namespace> | grep pmm-backup
 
 A run started before they expire is refused by design rather than stealing them.
 
+### Preparing a DR namespace (do this before installing)
+
+**Install the DR namespace with the SOURCE's `pmm-secret`.** It costs nothing at provisioning
+time and removes a whole class of post-restore surprises:
+
+```bash
+kubectl -n <source-ns> get secret pmm-secret -o yaml \
+  | sed 's/namespace: <source-ns>/namespace: <target-ns>/' \
+  | kubectl apply -f -
+# then install the target with secret.create=false
+```
+
+Why it has to be *before* the install, not restored afterwards: `pmm-secret` is an **input**. The
+PostgreSQL, ClickHouse and VictoriaMetrics operators read it at install time and create their
+users with those passwords. Overwriting it later changes only what PMM presents, not what those
+servers expect — you would break three working subsystems to fix one.
+
+Skipping this is recoverable but not free; see
+[After a cross-namespace restore](#after-a-cross-namespace-restore).
+
+### After a cross-namespace restore
+
+A restore across namespaces changes two things nothing else reports. The restore prints both at
+the end of its summary; they are repeated here with the reasoning.
+
+**1. The admin password is now the SOURCE's.** Grafana's `admin` row lives in the grafana
+database, which was just replaced. This install answers to the source's password while its own
+`pmm-secret` still holds the target's. The symptom appears somewhere unrelated:
+`<release>-pmm-token-init` cannot authenticate, so the PostgreSQL operand's `pmm-client` sidecars
+never get a token and CrashLoopBackOff with a generic 401.
+
+```bash
+kubectl -n <target-ns> patch secret pmm-secret --type=merge \
+  -p "{\"data\":{\"PMM_ADMIN_PASSWORD\":\"$(printf %s '<source-password>' | base64)\"}}"
+kubectl -n <target-ns> delete pod -l job-name=<release>-pmm-token-init-<hash>
+```
+
+Only `PMM_ADMIN_PASSWORD` drifts. The other keys stay correct precisely because neither side of
+them is restored — which is also why copying the whole secret after the fact is the wrong fix.
+
+**2. The `pmm-ha-client` agents are orphaned, silently.** Their agent id is persisted on their own
+PVC (`/usr/local/percona/pmm/config/pmm-agent.yaml`), which is not part of a backup, while
+`pmm-managed` — the registry that must recognise that id — was replaced by the source's. They log
+`No Agent with ID ...` and report nothing, while the pod stays `1/1 Running` with `0` restarts.
+Restarting does not help; the id outlives the pod.
+
+**The restore resets this for you** and says which clients it reset — the same "carry the data,
+reset the identity" rule it already applies to `/srv`'s raft state. They re-register on restart,
+which needs (1) done first: until the password matches they cannot register and will crash-loop.
+Any client the restore reports as *not* reset needs it by hand:
+
+```bash
+kubectl -n <target-ns> exec <release>-pmm-ha-client-N -c pmm-client -- \
+  rm -f /usr/local/percona/pmm/config/pmm-agent.yaml
+kubectl -n <target-ns> delete pod <release>-pmm-ha-client-N
+```
+
+Neither applies to a same-namespace restore, and neither affects **external** pmm-clients: their
+agent ids live in `pmm-managed`, which the restore brings across, so repointing them at the DR
+install works without any change.
+
 ### Restore another install's backup into this one (DR)
 
 Same as above plus `--s3-prefix`, pointing at the SOURCE install's root

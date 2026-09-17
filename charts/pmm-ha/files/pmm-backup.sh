@@ -123,6 +123,7 @@ LABEL_VM_INSERT="app.kubernetes.io/name=vminsert"
 # PMM server pods (HA StatefulSet); selector discovers all replicas (1, 3, 5, ...)
 LABEL_PMM_SERVER="app.kubernetes.io/component=pmm-server"
 LABEL_BACKUP_TOOLS="app.kubernetes.io/component=backup-tools"
+LABEL_PMM_CLIENT="app.kubernetes.io/component=pmm-client"
 # EVERY PostgreSQL instance, not just the current primary: Patroni can fail over mid-run, so a
 # hold placed on the primary alone protects the wrong pod a second later.
 LABEL_PG_INSTANCE="postgres-operator.crunchydata.com/instance"
@@ -5323,6 +5324,94 @@ restore_pmm_server() {
 
 # One summary row per component, from the table. The encryption key reads "Yes/No" rather than
 # "Yes/Failed" because a failed key aborts the run long before this point.
+# Re-register the chart's own pmm-ha-client agents after a CROSS-NAMESPACE restore.
+#
+# The same class of problem as the /srv HA raft reset, and handled the same way: carry the data,
+# reset the identity. A pmm-client's agent id is persisted on its OWN PVC
+# (config/pmm-agent.yaml), which no backup covers, while pmm-managed - the registry that has to
+# recognise that id - has just been replaced by the source's. The agent is then refused forever
+# with "No Agent with ID ...".
+#
+# Worth doing automatically because the failure is SILENT: the pod stays 1/1 Running with 0
+# restarts and simply reports nothing, so a DR install looks healthy while collecting no data
+# from its own clients. Deleting the config makes the init container register afresh.
+#
+# Best-effort throughout: a client that will not reset must never fail a restore that otherwise
+# succeeded. If admin credentials have not been reconciled yet (see cross_namespace_advisory)
+# re-registration fails and the pod crash-loops - which is strictly better than reporting nothing
+# while looking fine, and the advisory says how to fix it.
+reset_pmm_client_agents() {
+    [ "${DRY_RUN}" = "true" ] && return 0
+    _rpca_pods=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl get pods -n "${NAMESPACE}" \
+        -l "${LABEL_PMM_CLIENT}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+    [ -n "${_rpca_pods}" ] || return 0
+
+    _rpca_done=""
+    for _rpca_p in ${_rpca_pods}; do
+        if timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec "${_rpca_p}" -n "${NAMESPACE}" -c pmm-client -- \
+                rm -f /usr/local/percona/pmm/config/pmm-agent.yaml >>"${LOG_FILE}" 2>&1; then
+            timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl delete pod "${_rpca_p}" -n "${NAMESPACE}" \
+                >>"${LOG_FILE}" 2>&1 || true
+            _rpca_done="${_rpca_done} ${_rpca_p}"
+        else
+            log "WARN" "[PMMClient] could not reset ${_rpca_p}'s agent id; it will keep reporting 'No Agent with ID' until its config/pmm-agent.yaml is removed by hand"
+        fi
+    done
+    if [ -n "${_rpca_done}" ]; then
+        log "INFO" "[PMMClient] Agent identity reset so they re-register against the restored registry:${_rpca_done}"
+    fi
+    return 0
+}
+
+# Two things a CROSS-NAMESPACE restore changes that nothing else reports, said once, at the end,
+# where an operator is actually reading.
+#
+# 1. The admin credentials come from the SOURCE. Grafana's admin row lives in the grafana
+#    database, which was just replaced, so this install now answers to the source's password
+#    while its own pmm-secret still holds the target's. The visible symptom is somewhere else
+#    entirely: <release>-pmm-token-init cannot authenticate, so the PG operand's pmm-client
+#    sidecars never receive a token and CrashLoopBackOff with nothing pointing at the cause.
+#
+#    Only PMM_ADMIN_PASSWORD drifts. The other keys in pmm-secret (PG, ClickHouse, VMAgent) stay
+#    correct precisely BECAUSE neither side of them is restored - the operators created those
+#    users from this namespace's own secret, and a restore does not touch cluster roles, CH users
+#    or the vmauth config. Copying the whole secret across after the fact would break all three.
+#
+# 2. The chart's own pmm-ha-client agents are orphaned. Their agent id is persisted on their own
+#    PVC (config/pmm-agent.yaml), which is NOT part of a backup, while pmm-managed - the registry
+#    that has to recognise that id - was just replaced by the source's. The agent is refused with
+#    "No Agent with ID ...", and this one is SILENT: the pod stays 1/1 Running with 0 restarts and
+#    simply reports nothing. Restarting does not help; the id outlives the pod.
+#
+# Both are only true across namespaces, so say nothing on a same-namespace restore.
+cross_namespace_advisory() {
+    _cna_src=$(backup_id_owner "${BACKUP_NAME}" 2>/dev/null || true)
+    [ -n "${_cna_src}" ] || return 0
+    [ "${_cna_src}" != "${NAMESPACE}" ] || return 0
+
+    reset_pmm_client_agents
+
+    log "WARN" "This was a cross-namespace restore (${_cna_src} -> ${NAMESPACE}). Three things need attention:"
+    log "WARN" "  1) The admin password is now '${_cna_src}''s, not this namespace's. Until pmm-secret matches,"
+    log "WARN" "     ${RELEASE_NAME:-<release>}-pmm-token-init cannot authenticate and PostgreSQL monitoring gets no token:"
+    log "WARN" "       kubectl -n ${NAMESPACE} patch secret pmm-secret --type=merge \\"
+    log "WARN" "         -p \"{\\\"data\\\":{\\\"PMM_ADMIN_PASSWORD\\\":\\\"\$(printf %s '<source-password>' | base64)\\\"}}\""
+    log "WARN" "     Provisioning this namespace with the source's pmm-secret BEFORE installing avoids this entirely."
+    log "WARN" "  2) The pmm-ha-client agents held ids the restored pmm-managed does not know, so their"
+    log "WARN" "     identity was reset above and they will re-register on restart. That needs (1) to be"
+    log "WARN" "     done first: until the password matches they cannot register and will crash-loop."
+    log "WARN" "     Any client reported as not reset above needs it by hand:"
+    log "WARN" "       kubectl -n ${NAMESPACE} exec <pod> -c pmm-client -- rm -f /usr/local/percona/pmm/config/pmm-agent.yaml"
+    log "WARN" "       kubectl -n ${NAMESPACE} delete pod <pod>"
+    log "WARN" "  3) The PostgreSQL operand's PMM_SERVER_TOKEN was minted against the registry this restore"
+    log "WARN" "     just replaced, so it no longer authenticates and its pmm-client sidecars will restart."
+    log "WARN" "     It cannot be re-minted from here - pmm-token-init is a completed Job, and a completed"
+    log "WARN" "     Job does not re-run. Delete it and let Helm recreate it (a few seconds):"
+    log "WARN" "       kubectl -n ${NAMESPACE} delete job -l app.kubernetes.io/component=pmm-token-init"
+    log "WARN" "       helm upgrade ${RELEASE_NAME:-<release>} <chart> -n ${NAMESPACE} --reuse-values --wait=false"
+    return 0
+}
+
 restore_summary_rows() {
     _rsr_c="" _rsr_state=""
     for _rsr_c in ${RESTORE_COMPONENTS}; do
@@ -6829,6 +6918,7 @@ cmd_restore() {
         log "INFO" "Backup: ${BACKUP_NAME}   Namespace: ${NAMESPACE}   Target: ${BACKUP_TARGET}   Duration: ${duration}s"
         restore_summary_rows
         log "INFO" "Restore completed successfully in ${duration}s. PMM scaled back up to ${PMM_SAVED_REPLICAS:-unchanged}."
+        cross_namespace_advisory
         log "INFO" "==============================================================================="
         exit 0
     else
