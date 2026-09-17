@@ -4373,8 +4373,13 @@ pmm_replica_count() {   # <statefulset-name>
     _prc_n=$(kubectl get statefulset "$1" -n "${NAMESPACE}" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "")
     case "${_prc_n}" in ''|0|*[!0-9]*) _prc_n="" ;; esac
     if [ -z "${_prc_n}" ]; then
+        # Escaped-dot notation, NOT jsonpath's ['key'] bracket form: kubectl's jsonpath cannot
+        # address a key containing '/' through brackets and returns EMPTY without an error, on
+        # every version tried (1.34, 1.37). That silently defeated this whole fallback — an
+        # interrupted restore always dropped through to PMM_SERVER_REPLICAS instead of the count
+        # it had stashed, which is invisible on a default 3-replica install and wrong on any other.
         _prc_n=$(kubectl get statefulset "$1" -n "${NAMESPACE}" \
-            -o jsonpath="{.metadata.annotations['restore.pmm.percona.com/original-replicas']}" 2>/dev/null || echo "")
+            -o jsonpath='{.metadata.annotations.restore\.pmm\.percona\.com/original-replicas}' 2>/dev/null || echo "")
         case "${_prc_n}" in
             ''|0) _prc_n="" ;;
             *[!0-9]*)

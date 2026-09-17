@@ -124,6 +124,56 @@ kubectl logs -n <namespace> -f job/restore-<timestamp>
 again; `activeDeadlineSeconds: null` because the backup deadline is sized for backups and a
 large restore legitimately runs longer.
 
+A Job also removes the other hazard of `exec`: **a dropped connection is not a failed
+restore.** The orchestrator runs inside the backup-tools pod, so if the client's `exec`
+stream dies — laptop sleep, VPN flap, `error reading from error stream: ... read: can't
+assign requested address` — `kubectl` exits non-zero while the restore carries on and
+finishes normally. Re-running it at that point would scale PMM to 0 underneath a restore
+that is already half-applied. Read the outcome from the pod, never from the exit code:
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  sh -c 'tail -20 $(ls -t /backups/logs/restore_*.log | head -1)'
+```
+
+The run is finished only when that log ends in a `PMM-HA Restore Summary` block.
+
+### Recovering from a restore that was killed part-way
+
+A restore killed between its scale-down and its scale-up leaves the install **down**, not
+merely un-restored: PMM at 0 replicas and, if it had reached VictoriaMetrics, `vmstorage` and
+`vminsert` at 0 too. Observed on EKS Auto Mode as `Evicted pod: Underutilized` against the
+backup-tools pod, which deliberately carries no `karpenter.sh/do-not-disrupt` — the reason a
+real restore belongs in a Job.
+
+PMM comes back on its own: the run stashes the count on the StatefulSet before scaling down
+(`restore.pmm.percona.com/original-replicas`) and the next run reads it back. **The vmcluster
+does not** — its replica counts live only in the CR the run itself zeroed, so re-running is
+refused at validation:
+
+```
+[ERROR] [Preflight] victoriametrics: no vmstorage pods matching 'app.kubernetes.io/name=vmstorage'
+[ERROR] Pre-restore validation FAILED. Nothing was changed; PMM is still running.
+```
+
+Scale the tiers back to the values your install uses, then re-run the restore:
+
+```bash
+kubectl patch vmcluster <release>-vmcluster -n <namespace> --type=merge \
+  -p '{"spec":{"vmstorage":{"replicaCount":3},"vminsert":{"replicaCount":2}}}'
+```
+
+The defaults are `victoriaMetrics.vmstorage.replicaCount: 3` and
+`victoriaMetrics.vminsert.replicaCount: 2`; check your own values first, since a restore
+cannot infer them once they have been zeroed. Also check for leftover locks — a killed run's
+leases stay held until they expire (`LOCK_LEASE_SECONDS`, default 900):
+
+```bash
+kubectl get leases -n <namespace> | grep pmm-backup
+```
+
+A run started before they expire is refused by design rather than stealing them.
+
 ### Restore another install's backup into this one (DR)
 
 Same as above plus `--s3-prefix`, pointing at the SOURCE install's root

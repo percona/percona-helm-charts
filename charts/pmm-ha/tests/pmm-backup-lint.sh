@@ -278,6 +278,25 @@ for _fn in ("store_write", "store_write_private", "backup_clickhouse"):
         print("      restore possible in shared mode.")
         raise SystemExit(1)
 print("  ok: backup-store writers all create directories via share_mkdir")
+
+# kubectl's jsonpath CANNOT address a map key containing '/' through the ['key'] bracket form:
+# it returns EMPTY, with no error and exit 0, on every version tried (1.34, 1.37). Any lookup
+# written that way is dead code that silently yields "". It cost us the stashed
+# original-replicas fallback, where the failure mode was an interrupted restore quietly coming
+# back at PMM_SERVER_REPLICAS instead of the count it had saved. Use escaped-dot notation.
+_bad = [
+    (i + 1, ln.strip())
+    for i, ln in enumerate(src.splitlines())
+    if re.search(r"""jsonpath[^\n]*\[['"][^'"]*/[^'"]*['"]\]""", ln)
+]
+if _bad:
+    print("FAIL: jsonpath bracket lookup of a key containing '/' - always returns empty:")
+    for n, ln in _bad:
+        print("        line %d: %s" % (n, ln))
+    print("      Use escaped-dot notation instead, e.g.")
+    print("        -o jsonpath='{.metadata.annotations.restore\\.pmm\\.percona\\.com/original-replicas}'")
+    raise SystemExit(1)
+print("  ok: no jsonpath bracket lookups of slash-bearing keys")
 PY
 
 if [ "${FAIL}" -eq 0 ]; then echo "LINT OK"; exit 0; fi
