@@ -8,6 +8,23 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: victoria-metrics-cluster
 spec:
+  {{- if .Values.victoriaMetrics.version }}
+  # VictoriaMetrics version for vmselect/vminsert/vmstorage. Pinned so that bumping the
+  # operator does not silently move the data plane - see victoriaMetrics.version in values.yaml.
+  # VMCluster spells this `clusterVersion`; VMAgent/VMAuth use `componentVersion`. Do not
+  # "unify" these - `componentVersion` is absent from the VMCluster CRD and would be pruned
+  # by the API server, silently putting the cluster back on the operator's default version.
+  #
+  # The "-cluster" suffix is required and is added here, not in values.yaml. vmselect,
+  # vminsert and vmstorage ship under tags like v1.151.0-cluster, and the operator's own
+  # defaults are `${VM_METRICS_VERSION}-cluster`. Setting clusterVersion REPLACES that
+  # default and is used verbatim as the image tag, so a bare "v1.151.0" here resolves to
+  # victoriametrics/vmstorage:v1.151.0, which does not exist -> ImagePullBackOff.
+  # vmagent and vmauth take the unsuffixed tag, which is why victoriaMetrics.version holds
+  # the bare version and each template applies what its own components need.
+  clusterVersion: {{ printf "%s-cluster" .Values.victoriaMetrics.version | quote }}
+  {{- end }}
+
   # Metrics retention, rendered from the same dataRetentionDays as PMM_DATA_RETENTION on the
   # PMM replicas so that metrics and Query Analytics keep data for the same period. Always
   # declared, so an upgrade never drops the field and leaves vmstorage on the operator default.

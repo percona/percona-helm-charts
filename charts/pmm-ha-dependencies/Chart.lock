@@ -1,12 +1,12 @@
 dependencies:
 - name: victoria-metrics-operator
   repository: https://victoriametrics.github.io/helm-charts/
-  version: 0.56.4
+  version: 0.67.3
 - name: altinity-clickhouse-operator
   repository: https://helm.altinity.com
-  version: 0.25.4
+  version: 0.27.3
 - name: pg-operator
   repository: https://percona.github.io/percona-helm-charts/
-  version: 2.8.0
-digest: sha256:4aa066101ee10081ef558ca7f5f8e508d94647320e28953f7f04da8faf7f59d0
-generated: "2025-11-20T16:19:09.898309+01:00"
+  version: 3.1.0
+digest: sha256:01b4743833589ed4aceab1091f01ce5dece126a9a107bc8dd62ac5fe3f17db7b
+generated: "2026-09-14T12:29:31.431274+02:00"
