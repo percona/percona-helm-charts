@@ -312,6 +312,7 @@ The chart can be customized using the following configurable parameters:
 | `pmm.postgresParams`            | PMM custom postgres params.                                                                                                                                                              | ``                            |
 | `pmm.resources.requests.memory` | Container resource request for RAM                                                                                                                                                       | `200M`                        |
 | `pmm.resources.requests.cpu`    | Container resource request for CPU                                                                                                                                                       | `500m`                        |
+| `pmm.containerSecurityContext`  | Security context applied to the pmm-client sidecar (needed under the `restricted` Pod Security Standard)                                                                                 | `{}`                          |
 | |
 | `logcollector.enabled`                     | Enable the Fluent Bit log collector sidecar to gather PostgreSQL logs                                                                        | `true`                                             |
 | `logcollector.image`                       | Log collector (Fluent Bit) container image                                                                                                   | `docker.io/percona/fluentbit:5.1.1-1` |

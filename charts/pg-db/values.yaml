@@ -782,6 +782,18 @@ pmm:
 #    requests:
 #      memory: 200M
 #      cpu: 500m
+#  # Security context for the pmm-client sidecar. Without one the sidecar has no
+#  # securityContext at all and a namespace enforcing the "restricted" Pod Security
+#  # Standard rejects the PostgreSQL pods once PMM is enabled.
+#  containerSecurityContext:
+#    runAsUser: 1002
+#    runAsNonRoot: true
+#    allowPrivilegeEscalation: false
+#    capabilities:
+#      drop:
+#        - ALL
+#    seccompProfile:
+#      type: RuntimeDefault
 
 logcollector:
   enabled: true
