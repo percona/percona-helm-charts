@@ -125,7 +125,7 @@ accurate "Secret not found" message instead.
 */}}
 {{- if $found -}}
 {{- $data := $found.data | default dict -}}
-{{- $required := list "PMM_ADMIN_PASSWORD" "GF_PASSWORD" "PG_PASSWORD" "PMM_CLICKHOUSE_USER" "PMM_CLICKHOUSE_PASSWORD" "VMAGENT_remoteWrite_basicAuth_username" "VMAGENT_remoteWrite_basicAuth_password" -}}
+{{- $required := list "PMM_ADMIN_PASSWORD" "GF_PASSWORD" "PG_PASSWORD" "PMM_CLICKHOUSE_USER" "PMM_CLICKHOUSE_PASSWORD" "PMM_HA_VM_USERNAME" "PMM_HA_VM_PASSWORD" -}}
 {{- $missing := list -}}
 {{- range $key := $required -}}
 {{- if not (get $data $key) -}}
@@ -136,6 +136,9 @@ accurate "Secret not found" message instead.
 {{- $hint := "" -}}
 {{- if has "PMM_ADMIN_PASSWORD" $missing -}}
 {{- $hint = " PMM_ADMIN_PASSWORD sets the PMM/Grafana admin password." -}}
+{{- end -}}
+{{- if or (has "PMM_HA_VM_USERNAME" $missing) (has "PMM_HA_VM_PASSWORD" $missing) -}}
+{{- $hint = printf "%s Technical Preview installations stored the VictoriaMetrics credential as VMAGENT_remoteWrite_basicAuth_username and VMAGENT_remoteWrite_basicAuth_password: rename those keys rather than adding a second copy, because PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients. Alternatively set secret.create=true to have the chart generate the credential." $hint -}}
 {{- end -}}
 {{- fail (printf "Secret '%s' in namespace '%s' is missing, or has an empty value for, required key(s): %s.%s" .Values.secret.name .Release.Namespace (join ", " $missing) $hint) -}}
 {{- end -}}
@@ -521,47 +524,17 @@ secret does not carry the key. Takes a dict with "root" and "key".
 {{- end -}}
 
 {{/*
-Whether .Values.secret.name exists but does not carry the key, the one case the chart can call a
-misconfiguration. Takes a dict with "root" and "key".
-
-An empty lookup is not that case: it also means no cluster data, which is every `helm template`
-run, so failing on it would break rendering the chart offline. A secret that is genuinely absent at
-install time is reported by pg-user-credentials-secrets.yaml instead.
-*/}}
-{{- define "pmm.vm.secretMissesKey" -}}
-{{- if not .root.Values.secret.create -}}
-{{- $existing := (lookup "v1" "Secret" .root.Release.Namespace .root.Values.secret.name) -}}
-{{- if and $existing (not (and $existing.data (hasKey $existing.data .key))) -}}
-{{- "true" -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Fail wherever a VictoriaMetrics credential cannot be resolved from a user-managed secret. Takes a
-dict with "root", "key" and "previousKey".
-
-The rename matters beyond the key name: with secret.create false the statefulset mounts the whole
-secret with envFrom, so a VMAGENT_-prefixed key left behind becomes an environment variable that
-PMM Server forwards to every PMM Client's vmagent.
-*/}}
-{{- define "pmm.vm.failMissingKey" -}}
-{{- fail (printf "Secret '%s' is missing required key '%s'. Technical Preview installations stored this credential as '%s' - rename that key rather than adding a second one, because PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients. Alternatively set secret.create=true to have the chart generate the credential." .root.Values.secret.name .key .previousKey) -}}
-{{- end -}}
-
-{{/*
 Username vmauth validates incoming remote-write and query requests against.
 
 vmauth needs the plaintext in its own config while PMM Server and vmagent read it from
 .Values.secret.name, so both have to agree: resolving it in one place is what keeps the config
-secret and pmm-secret from drifting apart.
+secret and pmm-secret from drifting apart. A user-owned secret that lacks the key is reported by
+pmm.validateSecret, which vmauth.yaml and statefulset.yaml call before resolving it.
 */}}
 {{- define "pmm.vm.username" -}}
 {{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_USERNAME") -}}
 {{- if $existing -}}
 {{- $existing -}}
-{{- else if include "pmm.vm.secretMissesKey" (dict "root" . "key" "PMM_HA_VM_USERNAME") -}}
-{{- include "pmm.vm.failMissingKey" (dict "root" . "key" "PMM_HA_VM_USERNAME" "previousKey" "VMAGENT_remoteWrite_basicAuth_username") -}}
 {{- else -}}
 {{- .Values.secret.victoriametrics_user | default "victoriametrics_pmm" -}}
 {{- end -}}
@@ -578,8 +551,6 @@ PMM Server and vmagent authenticate with.
 {{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_PASSWORD") -}}
 {{- if $existing -}}
 {{- $existing -}}
-{{- else if include "pmm.vm.secretMissesKey" (dict "root" . "key" "PMM_HA_VM_PASSWORD") -}}
-{{- include "pmm.vm.failMissingKey" (dict "root" . "key" "PMM_HA_VM_PASSWORD" "previousKey" "VMAGENT_remoteWrite_basicAuth_password") -}}
 {{- else if .Values.secret.victoriametrics_password -}}
 {{- .Values.secret.victoriametrics_password -}}
 {{- else -}}
