@@ -297,12 +297,15 @@ The chart can be customized using the following configurable parameters:
 | `users.passwordSecretRef.key`    | Key in the Secret that corresponds to the value of the user's password | `password` |
 ||
 | `backup.enabled`                                | Enable backups                                                                              | `true`                       |
+| `backup.allowParallel`                          | Allow taking multiple backups in parallel                                                   | `false`                      |
 | `backup.sourcePod`                              | Specify backup source pod                                                                   | ``                           |
 | `backup.encryptionKeySecret.name`               | Name of the Kubernetes Secret with the backup encryption key                                | ``                           |
 | `backup.encryptionKeySecret.key`                | Key in the Secret that contains the backup encryption key                                   | `encryptionKey`              |
 | `backup.image.repository`                       | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
 | `backup.image.tag`                              | Backup Container image tag                                                                  | `8.4.0-6.1`                  |
 | `backup.backoffLimit`                           | The number of retries to make a backup                                                      | ``                           |
+| `backup.startingDeadlineSeconds`                | The maximum time in seconds for a backup to start                                           | `0`                          |
+| `backup.suspendedDeadlineSeconds`               | The maximum time in seconds for a backup to remain in a suspended state                     | `0`                          |
 | `backup.imagePullPolicy`                        | The policy used to update images                                                            | `Always`                     |
 | `backup.imagePullSecrets`                       | Backup Container pull secret                                                                | `[]`                         |
 | `backup.initContainer.image`                    | An alternative image for the initial Operator installation                                  | `""`                         |
