@@ -142,6 +142,23 @@ accurate "Secret not found" message instead.
 {{- end -}}
 {{- fail (printf "Secret '%s' in namespace '%s' is missing, or has an empty value for, required key(s): %s.%s" .Values.secret.name .Release.Namespace (join ", " $missing) $hint) -}}
 {{- end -}}
+{{- /*
+The renamed keys must replace the Technical Preview ones, not join them. Every key of a user-owned
+secret becomes a PMM Server environment variable through envFrom, and PMM Server forwards each
+VMAGENT_* variable to every PMM Client's vmagent as its remote-write credential, wherever the
+operator points those writes. A leftover copy therefore wins over the credential PMM Server derives
+from PMM_VM_URL and goes stale at the next rotation, when every client write starts failing with
+nothing in the render or the server log to explain it.
+*/ -}}
+{{- $legacy := list -}}
+{{- range $key := list "VMAGENT_remoteWrite_basicAuth_username" "VMAGENT_remoteWrite_basicAuth_password" -}}
+{{- if hasKey $data $key -}}
+{{- $legacy = append $legacy $key -}}
+{{- end -}}
+{{- end -}}
+{{- if $legacy -}}
+{{- fail (printf "Secret '%s' in namespace '%s' still carries the Technical Preview key(s) %s. Remove them: PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients as their remote-write credential, so a leftover copy overrides the PMM_HA_VM_* credential and breaks every client write once that credential is rotated." .Values.secret.name .Release.Namespace (join ", " $legacy)) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

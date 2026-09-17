@@ -589,6 +589,7 @@ Since `secret.create` is set to `false` by default, you need to create the `pmm-
 > Deleting the old keys is part of the rename, not tidying up: with `secret.create: false` the whole
 > secret is mounted into PMM Server with `envFrom`, so a leftover `VMAGENT_`-prefixed key becomes an
 > environment variable that PMM Server forwards to every PMM Client.
+> The chart refuses to render while either old key is still present.
 
 #### ClickHouse data source credentials
 

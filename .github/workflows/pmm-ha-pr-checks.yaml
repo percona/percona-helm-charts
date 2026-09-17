@@ -233,6 +233,18 @@ jobs:
           grep -qF "required key(s): PMM_HA_VM_USERNAME, PMM_HA_VM_PASSWORD" <<<"$out"
           grep -qF "VMAGENT_remoteWrite_basicAuth_username" <<<"$out"
 
+          # Adding the new keys without deleting the old ones is refused too: every key of the
+          # secret becomes a PMM Server environment variable, and PMM Server forwards VMAGENT_*
+          # to every PMM Client as its remote-write credential.
+          kubectl patch secret pmm-secret-legacy -n "$NS" --type merge \
+            -p '{"data":{"PMM_HA_VM_USERNAME":"dm11c2Vy","PMM_HA_VM_PASSWORD":"dm1wYXNz"}}'
+          if out=$(helm install smoke-mixed charts/pmm-ha -n "$NS" --dry-run=server \
+            --set secret.name=pmm-secret-legacy 2>&1); then
+            echo "::error::render should have failed on a secret that still carries the VMAGENT_ keys"
+            exit 1
+          fi
+          grep -qF "still carries the Technical Preview key(s) VMAGENT_remoteWrite_basicAuth_username, VMAGENT_remoteWrite_basicAuth_password" <<<"$out"
+
           kubectl delete secret pmm-secret-legacy -n "$NS"
 
       - name: Run chart-testing (install pmm-ha)
