@@ -73,10 +73,75 @@ Pod annotation
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ include "pmm.chart" . }}
 checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+{{/*
+Roll the pods when the data source credentials change. They arrive through secretKeyRef, and
+Kubernetes does not refresh environment variables in a running pod, so without this Grafana would
+keep the old password after ClickHouse has already switched to the new one.
+*/}}
+checksum/clickhouse-datasource: {{ include (print $.Template.BasePath "/clickhouse-datasource-secret.yaml") . | sha256sum }}
 {{- if .Values.podAnnotations }}
 {{ toYaml .Values.podAnnotations }}
 {{- end }}
 {{- end }}
+
+{{/*
+Validate the pmm-secret when the user owns it.
+
+statefulset.yaml mounts seven keys from this secret with no `optional`, so one missing key leaves
+every PMM pod in CreateContainerConfigError without naming what is wrong. Check them here and
+report all of the missing ones in a single message instead.
+
+The list is exactly what secret.yaml generates, which is why secret.create exempts all of it:
+demanding a key the chart is about to write would abort the install on its own output.
+
+PMM_ADMIN_PASSWORD is the key PMM-15400 is about - statefulset.yaml maps it to Grafana's
+GF_SECURITY_ADMIN_PASSWORD, and leaving that ref optional is what let it vanish silently.
+
+Included from statefulset.yaml and vmauth.yaml - both read these keys, and vmauth.yaml
+renders first, so it needs its own call to report the missing key rather than dying on a
+b64dec. Keep every consumer that decodes a key from this secret calling it.
+*/}}
+{{- define "pmm.validateSecret" -}}
+{{/*
+An empty secret.name is never a working configuration - statefulset.yaml drops both the envFrom
+secretRef and the GF_SECURITY_ADMIN_PASSWORD ref, and vmauth.yaml / pg-user-credentials-secrets.yaml
+/ clickhouse-cluster.yaml all read keys off a secret that was never named. Fail on it explicitly
+and first: `lookup` with an empty name does not come back empty, it returns a SecretList - truthy,
+with no .data - so the key loop below would otherwise report all seven keys as missing from a
+secret the operator never asked for, and simply skipping the loop would leave the render to die in
+vmauth.yaml on "index of untyped nil", naming neither the secret nor the setting.
+*/}}
+{{- if not .Values.secret.name -}}
+{{- fail "secret.name is empty. Set it to the name of the Kubernetes Secret that holds the PMM credentials (the chart default is 'pmm-secret')." -}}
+{{- end -}}
+{{- if not .Values.secret.create -}}
+{{- $found := lookup "v1" "Secret" .Release.Namespace .Values.secret.name -}}
+{{/*
+Only inspect keys once the Secret is actually in hand. `lookup` also comes back empty on every
+client-side render - helm template, --dry-run=client, a GitOps preview - where it says nothing
+about the secret's contents, and reporting all seven keys as missing there would be simply
+wrong. When the secret really is absent, pg-user-credentials-secrets.yaml fails with the
+accurate "Secret not found" message instead.
+*/}}
+{{- if $found -}}
+{{- $data := $found.data | default dict -}}
+{{- $required := list "PMM_ADMIN_PASSWORD" "GF_PASSWORD" "PG_PASSWORD" "PMM_CLICKHOUSE_USER" "PMM_CLICKHOUSE_PASSWORD" "VMAGENT_remoteWrite_basicAuth_username" "VMAGENT_remoteWrite_basicAuth_password" -}}
+{{- $missing := list -}}
+{{- range $key := $required -}}
+{{- if not (get $data $key) -}}
+{{- $missing = append $missing $key -}}
+{{- end -}}
+{{- end -}}
+{{- if $missing -}}
+{{- $hint := "" -}}
+{{- if has "PMM_ADMIN_PASSWORD" $missing -}}
+{{- $hint = " PMM_ADMIN_PASSWORD sets the PMM/Grafana admin password." -}}
+{{- end -}}
+{{- fail (printf "Secret '%s' in namespace '%s' is missing, or has an empty value for, required key(s): %s.%s" .Values.secret.name .Release.Namespace (join ", " $missing) $hint) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Override pg-database.fullname to ensure consistent naming
@@ -93,8 +158,15 @@ Generate PMM HA peer list dynamically based on replicas count
 {{- $peers := list }}
 {{- $serviceName := .Values.service.name | default "monitoring-service" }}
 {{- $replicas := int .Values.replicas }}
+{{- $fullname := include "pmm.fullname" . }}
 {{- range $i := until $replicas }}
-  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $.Release.Name $i $serviceName $.Release.Namespace }}
+  {{- /* Peers must use the StatefulSet name (pmm.fullname), not Release.Name: the pods are
+         <fullname>-<ordinal>. pmm.fullname equals Release.Name only when the release name
+         already contains the chart name (e.g. "pmm-ha" or "pmm-ha-2"); otherwise it is
+         "<release>-pmm-ha" (e.g. release "pmm-2" -> pods "pmm-2-pmm-ha-0"). Using
+         Release.Name for those releases yields peers that don't resolve and the HA
+         memberlist panics on startup. */}}
+  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $fullname $i $serviceName $.Release.Namespace }}
   {{- $peers = append $peers $peer }}
 {{- end }}
 {{- join "," $peers }}
@@ -152,4 +224,287 @@ Example output for 3 replicas:
 - host: chk-{{ $.Release.Name }}-keeper-{{ $keeperClusterName }}-0-{{ $replicaIndex }}.{{ $.Release.Namespace }}.svc.cluster.local
   port: 2181
 {{- end -}}
+{{- end -}}
+
+{{/*
+Name of the PMM Client StatefulSet
+*/}}
+{{- define "pmm.client.fullname" -}}
+{{- printf "%s-client" (include "pmm.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Selector labels of the PMM Client pods. They must differ from the PMM Server ones, otherwise the
+Client pods would be picked up by the PMM Server service and join the HA peer discovery.
+*/}}
+{{- define "pmm.client.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "pmm.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: pmm-client
+app.kubernetes.io/part-of: percona-platform
+{{- end -}}
+
+{{/*
+Common labels of the PMM Client resources
+*/}}
+{{- define "pmm.client.labels" -}}
+helm.sh/chart: {{ include "pmm.chart" . }}
+{{ include "pmm.client.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{/*
+PMM Server address reachable from inside the cluster. HAProxy routes to the current leader, so this
+stays valid across failovers.
+*/}}
+{{- define "pmm.client.serverAddress" -}}
+{{- $haproxy := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
+{{- printf "%s.%s.svc.cluster.local:443" $haproxy .Release.Namespace -}}
+{{- end -}}
+
+{{/*
+Base directory of the PMM Client installation inside the image. It holds the exporters and tools, so
+only the subdirectories which have to survive a restart are backed by a volume: "config" keeps the
+Agent identity, "tmp" keeps the on-disk queue vmagent fills while PMM Server is unreachable.
+*/}}
+{{- define "pmm.client.baseDir" -}}
+/usr/local/percona/pmm
+{{- end -}}
+
+{{/*
+Environment shared by the PMM Client container and the init container which registers it.
+Credentials are deliberately not part of it, see pmm-client-statefulset.yaml.
+The temporary directory is left at its default, which is "tmp" under the base directory.
+*/}}
+{{- define "pmm.client.env" -}}
+- name: POD_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: POD_NAMESPACE
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.namespace
+- name: POD_IP
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
+- name: PMM_AGENT_CONFIG_FILE
+  value: {{ include "pmm.client.baseDir" . }}/config/pmm-agent.yaml
+- name: PMM_AGENT_SERVER_ADDRESS
+  value: {{ include "pmm.client.serverAddress" . }}
+- name: PMM_AGENT_SERVER_INSECURE_TLS
+  value: "1"
+- name: PMM_AGENT_LISTEN_ADDRESS
+  value: 0.0.0.0
+- name: PMM_AGENT_LISTEN_PORT
+  value: "7777"
+- name: PMM_AGENT_SETUP_NODE_TYPE
+  value: container
+- name: PMM_AGENT_SETUP_NODE_NAME
+  value: $(POD_NAMESPACE)-$(POD_NAME)
+- name: PMM_AGENT_SETUP_NODE_ADDRESS
+  value: $(POD_IP)
+- name: PMM_AGENT_SETUP_METRICS_MODE
+  value: push
+{{- end -}}
+
+{{/*
+Volume mounts backing the PMM Client directories which have to survive a restart
+*/}}
+{{- define "pmm.client.volumeMounts" -}}
+- name: pmm-agent
+  mountPath: {{ include "pmm.client.baseDir" . }}/config
+  subPath: config
+- name: pmm-agent
+  mountPath: {{ include "pmm.client.baseDir" . }}/tmp
+  subPath: tmp
+{{- end -}}
+
+{{/*
+Whether the bundled kube-state-metrics Deployment will render ("true"/"false").
+Like Helm's `condition:`, only a boolean false disables the subchart.
+*/}}
+{{- define "pmm.kubeStateMetrics.bundledEnabled" -}}
+{{- $v := dig "enabled" true (default dict (index .Values "kube-state-metrics")) -}}
+{{- if and (kindIs "bool" $v) (not $v) }}false{{ else }}true{{ end }}
+{{- end -}}
+
+{{- define "pmm.nodeExporter.mode" -}}
+{{- (.Values.nodeExporter).mode | default "internal" -}}
+{{- end -}}
+
+{{/*
+Whether the bundled prometheus-node-exporter DaemonSet will render ("true"/"false").
+Like Helm's `condition:`, only a boolean false disables the subchart.
+*/}}
+{{- define "pmm.nodeExporter.bundledEnabled" -}}
+{{- $v := dig "enabled" true (default dict (index .Values "prometheus-node-exporter")) -}}
+{{- if and (kindIs "bool" $v) (not $v) }}false{{ else }}true{{ end }}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the internal/openshift node-exporter toggle.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.nodeExporter.validate" -}}
+{{- $mode := include "pmm.nodeExporter.mode" . -}}
+{{- if not (or (eq $mode "internal") (eq $mode "openshift")) -}}
+{{- fail (printf "nodeExporter.mode must be \"internal\" or \"openshift\", got %q" $mode) -}}
+{{- end -}}
+{{- if eq $mode "openshift" -}}
+{{- if eq (include "pmm.nodeExporter.bundledEnabled" .) "true" -}}
+{{- fail "nodeExporter.mode=openshift requires prometheus-node-exporter.enabled=false: the bundled DaemonSet would collide with OpenShift's node-exporter on host port 9100." -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Target labels shared by both node-exporter scrape jobs. PMM's OS dashboards filter on node_name
+and node_type ("generic" is PMM's type for a bare host), so without these the node is invisible there.
+Emitted unindented; callers nindent it to their relabel_configs item level.
+*/}}
+{{- define "pmm.nodeExporter.pmmRelabelConfigs" -}}
+- source_labels: [__meta_kubernetes_pod_node_name]
+  target_label: node
+- source_labels: [__meta_kubernetes_pod_node_name]
+  target_label: node_name
+- target_label: node_type
+  replacement: generic
+- source_labels: [__meta_kubernetes_namespace]
+  target_label: namespace
+- source_labels: [__meta_kubernetes_pod_name]
+  target_label: pod
+{{- end -}}
+
+{{/*
+OpenShift node-exporter scrape job for the VMAgent inlineScrapeConfig.
+Emits an unindented job (callers nindent it under inlineScrapeConfig). Only used
+when nodeExporter.mode == "openshift".
+*/}}
+{{- define "pmm.nodeExporter.openshiftScrapeJob" -}}
+# OpenShift platform node-exporter, scraped via its kube-rbac-proxy (SA-token auth).
+# server_name: the proxy's cert covers the service DNS name, not the node IP endpoints SD targets.
+- job_name: 'openshift-node-exporter'
+  scheme: https
+  bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+  tls_config:
+    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+    server_name: node-exporter.openshift-monitoring.svc
+  kubernetes_sd_configs:
+    - role: endpoints
+      namespaces:
+        names:
+          - openshift-monitoring
+  relabel_configs:
+    - source_labels: [__meta_kubernetes_service_name]
+      regex: 'node-exporter'
+      action: keep
+    - source_labels: [__meta_kubernetes_endpoint_port_name]
+      regex: 'https'
+      action: keep
+    {{- include "pmm.nodeExporter.pmmRelabelConfigs" . | nindent 4 }}
+{{- end -}}
+
+{{/*
+Name of the chart-managed secret holding the read-only ClickHouse data source credentials.
+
+Kept apart from .Values.secret.name because that secret is user-managed by default, and these
+credentials are internal: the chart creates the ClickHouse user itself, so nobody has to supply
+them.
+*/}}
+{{- define "pmm.clickhouse.datasourceSecretName" -}}
+{{- printf "%s-clickhouse-datasource" (include "pmm.fullname" .) -}}
+{{- end -}}
+
+{{/*
+Username of the read-only ClickHouse user backing the Grafana data source.
+
+Grafana runs data source queries on behalf of every signed-in user, including Viewers, so this
+must not be the user PMM writes Query Analytics data with.
+*/}}
+{{- define "pmm.clickhouse.datasourceUser" -}}
+{{- .Values.clickhouse.datasource.user | default "clickhouse_pmm_readonly" -}}
+{{- end -}}
+
+{{/*
+Password of the read-only ClickHouse data source user.
+
+The secret hands the plaintext to PMM while the ClickHouse drop-in needs its SHA-256, so both
+have to agree. A generated password is therefore memoised on .Values: randAlphaNum would
+otherwise return a different value to each caller and leave Grafana unable to authenticate.
+Once generated it is read back from the chart-managed secret, so upgrades keep the same value.
+*/}}
+{{- define "pmm.clickhouse.datasourcePassword" -}}
+{{- $existing := (lookup "v1" "Secret" .Release.Namespace (include "pmm.clickhouse.datasourceSecretName" .)) -}}
+{{- if .Values.clickhouse.datasource.password -}}
+{{- .Values.clickhouse.datasource.password -}}
+{{- else if and $existing (index $existing.data "PMM_CLICKHOUSE_DATASOURCE_PASSWORD") -}}
+{{- index $existing.data "PMM_CLICKHOUSE_DATASOURCE_PASSWORD" | b64dec -}}
+{{- else -}}
+{{- if not (hasKey .Values "generatedClickhouseDatasourcePassword") -}}
+{{- $_ := set .Values "generatedClickhouseDatasourcePassword" (randAlphaNum 32) -}}
+{{- end -}}
+{{- get .Values "generatedClickhouseDatasourcePassword" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Reject a ClickHouse identifier that would not survive being written into the users.d drop-in.
+
+The data source username becomes an XML element name and the database name goes into a GRANT
+statement, so neither may start with a digit nor carry characters outside the safe set. Takes a
+dict with "name" and "value".
+*/}}
+{{- define "pmm.clickhouse.validateIdentifier" -}}
+{{- if not (regexMatch "^[A-Za-z_][A-Za-z0-9_-]*$" .value) -}}
+{{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Name of the secret holding the PMM service account token the pg-db PMM client uses.
+
+Reproduces pg-db's own default expression - `pmm.secret | default (printf "%s-pmm-secret"
+(include "pg-database.fullname" .))` (charts/pg-db/templates/cluster.yaml) - rather than the
+string it happens to produce, so the two cannot drift: pmm-ha overrides pg-database.fullname
+above, and both sides pick that override up from the same place. Only the Job reads this
+helper; the subchart reaches pg-database.fullname directly.
+
+Release-scoped on purpose: the token is created imperatively by the token-init Job rather
+than owned by Helm, so `helm uninstall` cannot remove it. A fixed name therefore lets a NEW
+release inherit the previous install's dead token.
+*/}}
+{{- define "pmm.pgPmmSecretName" -}}
+{{- $explicit := index .Values "pg-db" "pmm" "secret" -}}
+{{- if $explicit -}}
+{{- $explicit -}}
+{{- else -}}
+{{- printf "%s-pmm-secret" (include "pg-database.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Name of the pg-db PMM token-init Job, suffixed with a hash of its own pod template.
+
+A Job's spec.template is immutable, and this Job carries no helm.sh/hook annotations, so Helm
+treats it as an ordinary release resource and patches it on upgrade. Any change to the script
+or to an env value would then fail the upgrade with `spec.template: field is immutable` for as
+long as the previous Job exists - ttlSecondsAfterFinished bounds that to 24h after it
+completed, so it only bites an upgrade that follows soon after an install, which is exactly
+what CI (fresh `ct install` only) never exercises. With the hash in the name such a change
+renames the resource instead, and Helm creates the new Job and prunes the old one.
+
+The release name is truncated, rather than the finished string, so the result stays within the
+63-character limit that applies to the `job-name` label Kubernetes puts on the Job's pods while
+keeping the "-pmm-token-init" part readable: 37 + "-pmm-token-init" + "-" + 8 = 61. Helm caps
+release names at 53, so the untruncated `<release>-pmm-token-init` this replaces could reach 68
+and be rejected outright.
+*/}}
+{{- define "pmm.pgTokenJobName" -}}
+{{- $base := .Release.Name | trunc 37 | trimSuffix "-" -}}
+{{- printf "%s-pmm-token-init-%s" $base (include "pmm.pgTokenJobPodTemplate" . | sha256sum | trunc 8) -}}
 {{- end -}}

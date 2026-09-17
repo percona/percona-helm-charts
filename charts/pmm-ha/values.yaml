@@ -14,7 +14,7 @@ image:
   repository: percona/pmm-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "3.9.0"
+  tag: "3.9.1"
   imagePullSecrets: []
 
 ## PMM environment variables
@@ -39,7 +39,8 @@ pmmEnv:
   PMM_HA_GOSSIP_PORT: "9096"
   PMM_HA_RAFT_PORT: "9097"
   PMM_HA_GRAFANA_GOSSIP_PORT: "9094"
-  # PMM_HA_PEERS: "{{ include "pmm.haPeers" . }}"
+  # PMM_HA_PEERS - set in statefulset.yaml
+  # PMM_INTERNAL_NODE_NAME_PREFIXES - set in statefulset.yaml
   GF_ANALYTICS_CHECK_FOR_UPDATES: "0"
   GF_ANALYTICS_ENABLE: "0"
   GF_ANALYTICS_REPORTING_ENABLE: "0"
@@ -50,6 +51,9 @@ pmmEnv:
   PMM_ENABLE_BACKUP_MANAGEMENT: "1"
   PMM_ENABLE_ALERTING: "1"
   PMM_ENABLE_ACCESS_CONTROL: "1"
+  # PMM-15301: QAN on PMM's own PostgreSQL is not supported in HA mode. Pinning it here makes
+  # the "QAN for PMM Server" toggle in Settings reject any attempt to switch it on.
+  PMM_ENABLE_INTERNAL_PG_QAN: "0"
 
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: "1"
@@ -62,14 +66,49 @@ pmmEnv:
 ## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) 
 ## requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/index.html)
 pmmResources:
-  # PMM server resource configuration
+  # PMM server resource configuration.
+  #
+  # Sized for the chart's default profile: ~100 monitored nodes. Only the
+  # HAProxy-elected leader serves traffic (UI, client remote_write, QAN), so the
+  # LIMIT has to cover the whole fleet while the REQUEST is also paid by the two
+  # idle standbys. Keeping the request at roughly half the limit leaves failover
+  # headroom without reserving three times the capacity actually in use.
+  #
+  # For 500- and 1000-node profiles see docs/SIZING.md.
   requests:
-    memory: "3Gi"
-    cpu: "2"
-  limits:
     memory: "4Gi"
     cpu: "2"
+  limits:
+    memory: "8Gi"
+    cpu: "4"
 # pmmResources: {}
+
+## @param dataRetentionDays Optional single retention value, in days, for BOTH metrics and Query Analytics
+##
+## Metrics and Query Analytics are retained by two independent mechanisms, and in
+## an HA deployment neither one knows about the other:
+##
+##   * metrics   - victoriaMetrics.vmstorage.retentionPeriod, enforced by the
+##                 VictoriaMetrics operator on the external vmcluster
+##   * QAN       - PMM's own data retention setting, enforced by qan-api2 against
+##                 ClickHouse, and changeable from the PMM settings page
+##
+## Left EMPTY (the default) the chart does not interfere with either: vmstorage
+## uses victoriaMetrics.vmstorage.retentionPeriod and PMM keeps its own setting.
+## This is the safe choice on upgrade, and it leaves retention adjustable in the
+## PMM UI.
+##
+## Set to a number of days to drive both from here, which is usually what you want
+## when the deployment is managed declaratively. Two consequences to be aware of:
+##
+##   * it takes precedence over victoriaMetrics.vmstorage.retentionPeriod
+##   * it sets PMM_DATA_RETENTION, and PMM refuses to change data retention from
+##     the UI or API while that variable is set
+##
+## Storage scales close to linearly with this value - it is the largest single
+## lever on the cluster's disk footprint. Lowering it deletes data older than the
+## new window on the next reconcile. See docs/SIZING.md before changing it.
+dataRetentionDays: ""
 
 ## Readiness probe Config
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
@@ -94,6 +133,61 @@ logStreamer:
     - /srv/logs/pmm-managed.log
     - /srv/logs/qan-api2.log
 
+## @section PMM Client
+## Pre-provisions PMM Client pods to carry the monitoring load that the PMM Server pods should stay
+## free of, such as remote databases, RDS and Azure instances. Each pod registers itself as a Node and can be
+## picked in the "Nodes" dropdown when adding a service.
+## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-client/index.html
+##
+pmmClient:
+  ## @param pmmClient.replicas Number of PMM Client pods carrying the delegated monitoring
+  ## Defaults to 3 to provide dedicated monitoring Nodes out of the box. You can scale it down if
+  ## one is enough to start with, or scale it up as more monitoring is delegated to them. Setting
+  ## it to 0 creates none, which leaves an HA deployment with no Node to add services to, since the
+  ## PMM Server Nodes are not offered for that.
+  ##
+  replicas: 3
+  ## @param pmmClient.image.repository PMM Client image repository
+  ## @param pmmClient.image.pullPolicy PMM Client image pull policy
+  ## @param pmmClient.image.tag PMM Client image tag, defaults to the chart appVersion
+  ##
+  image:
+    repository: percona/pmm-client
+    pullPolicy: IfNotPresent
+    tag: "3.9.1"
+  ## @param pmmClient.forceRegistration Register the Node even when one with the same name exists
+  ## Recovers a pod whose volume was lost while its Node is still registered in PMM. PMM Server then
+  ## removes that Node with every Service configured on it, so keep this disabled otherwise.
+  ##
+  forceRegistration: false
+  ## @param pmmClient.storage.size Size of the volume holding the Agent identity and metrics buffer
+  ## @param pmmClient.storage.storageClassName Storage class of that volume, cluster default if empty
+  ## The volume backs the canonical pmm-agent directories /usr/local/percona/pmm/config and
+  ## /usr/local/percona/pmm/tmp. The former keeps the pmm-agent configuration, so a restarted pod
+  ## keeps its Node and the Services configured on it; the latter keeps the 1Gi on-disk queue vmagent
+  ## fills while PMM Server is unreachable. Keep the size above that queue.
+  ##
+  storage:
+    size: 2Gi
+    storageClassName: ""
+  ## @param pmmClient.resources Resources requested for the PMM Client container
+  ## An idle Client only runs node_exporter; raise the limits as monitoring is delegated to it.
+  ##
+  resources:
+    requests:
+      memory: 200Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  ## @param pmmClient.nodeSelector Node labels for the PMM Client pods
+  ## @param pmmClient.tolerations Tolerations for the PMM Client pods
+  ## @param pmmClient.affinity Affinity rules for the PMM Client pods
+  ##
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
 ## @section PMM secrets
 ##
 secret:
@@ -105,12 +199,21 @@ secret:
   ## @param secret.create If true then secret will be generated by Helm chart. Otherwise it is expected to be created by user.
   ##
   create: false
-  ## @param secret.pmm_password Initial PMM password - it changes only on the first deployment, ignored if PMM was already provisioned. 
-  ## If PMM admin password is not set, it will be generated.
+  ## @param secret.pmm_password Initial PMM password - it changes only on the first deployment, ignored if PMM was already provisioned. Only used when secret.create is true; with a manually created secret the PMM_ADMIN_PASSWORD key is required instead.
+  ## If PMM admin password is not set, it will be generated - only when secret.create is true.
   ## E.g.
   ## pmm_password: admin
   ##
   ## To get password execute `kubectl get secret pmm-secret -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 --decode`
+  ##
+  ## With a manually created secret (secret.create: false, the default) this field is ignored:
+  ## the secret's own PMM_ADMIN_PASSWORD key is used, and the chart fails the install or upgrade
+  ## without it. Note that Grafana applies GF_SECURITY_ADMIN_PASSWORD only when it first creates
+  ## the admin user, so adding the key to an already-provisioned release does not change the
+  ## password - it has to be reset out of band. See README.md, "PMM admin password".
+  ## PMM_ADMIN_PASSWORD is the PMM web UI / API `admin` password - the chart maps it to Grafana's
+  ## GF_SECURITY_ADMIN_PASSWORD. Do not confuse it with secret.gf_password / GF_PASSWORD, which
+  ## is the Grafana PostgreSQL database user password.
   ##
   pmm_password: ""
   ##
@@ -383,21 +486,46 @@ extraVolumeMounts: []
 extraVolumes: []
 
 clickhouse:
-  # ClickHouse server image configuration
+  # ClickHouse server image configuration.
+  # Keep the server and the Keeper below on the SAME upstream ClickHouse release: they are
+  # built from two different repositories (Altinity Stable rebuilds vs upstream Keeper), so
+  # "latest" resolves differently for each and they only stay compatible if moved as a pair.
+  # Stay on the `altinitystable` line - `altinityantalya` tags are Altinity's feature fork,
+  # not the supported stable build, and sort newest on Docker Hub.
   image:
     repository: altinity/clickhouse-server
-    tag: 25.3.6.10034.altinitystable-alpine
+    tag: 25.8.28.10001.altinitystable-alpine
     pullPolicy: IfNotPresent
   
-  # ClickHouse server resource configuration
+  # ClickHouse server resource configuration.
+  # Holds Query Analytics. Memory is driven by QAN queries and background merges,
+  # not by ingest rate, so the limit is what matters; the CPU request is kept at 1
+  # because steady-state usage is low and three replicas each reserve it.
   resources:
     requests:
       memory: "4Gi"
-      cpu: "2"
+      cpu: "1"
     limits:
       memory: "8Gi"
       cpu: "4"
   
+  ## Read-only ClickHouse user backing the Grafana data source.
+  ## Grafana runs data source queries on behalf of every signed-in user, including Viewers, so this
+  ## account is kept separate from the one PMM writes Query Analytics data with. The chart creates
+  ## it in ClickHouse with SELECT on the Query Analytics database and nothing else, and stores its
+  ## credentials in a chart-managed secret, so neither field has to be set.
+  ##
+  ## @param clickhouse.datasource.user Username. Defaults to "clickhouse_pmm_readonly"
+  ## @param clickhouse.datasource.password Password. Generated when empty, and kept across upgrades
+  ##
+  ## To get the credentials after install:
+  ##   kubectl get secret -n <namespace> pmm-ha-clickhouse-datasource -o jsonpath='{.data.PMM_CLICKHOUSE_DATASOURCE_PASSWORD}' | base64 --decode && echo
+  ## The secret is named after the chart fullname, so adjust it if your release name differs.
+  ##
+  datasource:
+    user: ""
+    password: ""
+
   cluster:
     # Cluster name restrictions: alphanumeric only, max 15 chars, no underscores
     name: pmmdb
@@ -415,18 +543,21 @@ clickhouse:
   # ClickHouse Keeper configuration
   keeper:
     # ClickHouse Keeper image configuration
+    # Must track the ClickHouse server release above - see the note on clickhouse.image.
     image:
       repository: clickhouse/clickhouse-keeper
-      tag: "25.3.6.56"
+      tag: "25.8.28.1"
       pullPolicy: IfNotPresent
-    # ClickHouse Keeper resource configuration
+    # ClickHouse Keeper resource configuration.
+    # Coordination metadata only - does not scale with the monitored fleet, but a
+    # Keeper that is CPU-starved or OOM-killed stalls every ClickHouse write.
     resources:
       requests:
-        memory: "256Mi"
-        cpu: "100m"
-      limits:
         memory: "512Mi"
-        cpu: "500m"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1"
     # ClickHouse Keeper cluster configuration
     cluster:
       # Keeper cluster name (follows same restrictions as ClickHouse cluster)
@@ -442,10 +573,17 @@ clickhouse:
       # If empty, uses the cluster's default storage class
       storageClassName: ""
   
-  # Persistent storage configuration for ClickHouse data
+  # Persistent storage configuration for ClickHouse data.
+  #
+  # Each of the 3 replicas holds a FULL copy of Query Analytics - this is not
+  # sharded. 50Gi covers ~100 services at the default 30-day retention, with room
+  # for MergeTree merges and ClickHouse's own system.* log tables.
+  #
+  # NOTE: raising this on an existing install triggers a PVC expansion, which
+  # requires a storage class with allowVolumeExpansion: true.
   storage:
     # Size of persistent volume for each ClickHouse pod
-    size: 20Gi
+    size: 50Gi
     # Storage class for ClickHouse persistent volumes
     # If empty, uses the cluster's default storage class
     # storageClassName: ""
@@ -473,6 +611,22 @@ haproxy:
   enabled: true
   # Number of HAProxy replicas
   replicaCount: 3
+
+  ## @param haproxy.resources Resource requests and limits for the HAProxy container
+  ## Every client remote_write, QAN payload and UI request crosses HAProxy, and it
+  ## terminates TLS for all of them. The upstream subchart ships a request but no
+  ## limit at all, leaving the busiest pod in the ingest path unbounded.
+  ##
+  ## The gap between request and limit is deliberate: PMM clients buffer up to 1GB
+  ## on disk during an outage and replay it on reconnect, so a failover or rolling
+  ## upgrade produces a burst several times steady state.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 128Mi
+    limits:
+      cpu: 1
+      memory: 512Mi
   
   ## HAProxy Service configuration for external access
   ## @param haproxy.service.type Service type for HAProxy
@@ -495,41 +649,47 @@ haproxy:
   # so scaling up/down replicas does NOT require HAProxy restart.
   # Increment config-version only for other ConfigMap changes that require restart.
   podAnnotations:
-    pmm.percona.com/config-version: "3"
+    pmm.percona.com/config-version: "4"
 
-  # Pod anti-affinity for HAProxy pods
-  affinity:
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - topologyKey: kubernetes.io/hostname
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: haproxy
-  # Init container to wait for PMM instances to be ready
-  initContainers:
-    - name: wait-for-pmm-ready
-      image: "alpine:latest"
-      command:
-        - /bin/sh
-        - /scripts/wait-for-pmm.sh
-      volumeMounts:
-        - name: init-script
-          mountPath: /scripts
-          readOnly: true
-      resources:
-        requests:
-          cpu: 50m
-          memory: 32Mi
-        limits:
-          cpu: 100m
-          memory: 64Mi
+  # HAProxy pod spread across nodes.
+  #
+  # A required podAntiAffinity on kubernetes.io/hostname caps replicaCount at the
+  # worker-node count: every replica beyond it stays Pending forever while Helm
+  # still reports the release as successful (PMM-15393). A soft topology spread
+  # keeps one pod per node whenever there are enough nodes, and co-locates rather
+  # than failing to schedule when there are not.
+  #
+  # Replicas beyond the worker-node count buy HAProxy throughput, not fault
+  # tolerance - they share a failure domain with an existing replica.
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: haproxy
 
-  # Additional volumes for init container
-  extraVolumes:
-    - name: init-script
-      configMap:
-        name: pmm-ha-haproxy-init-script
-        defaultMode: 0755
+  # Serialize voluntary disruptions (node drains, upgrades) now that the soft
+  # topology spread above allows replicas to share a node: draining a node that
+  # hosts two replicas evicts them one at a time, so a replacement is up before
+  # the next eviction.
+  #
+  # maxUnavailable rather than minAvailable: at the default of 3 replicas it keeps
+  # 2 serving, and at replicaCount 1 the node stays drainable. minAvailable: 1
+  # would give allowedDisruptions = 0 there, wedging kubectl drain, the
+  # cluster-autoscaler and managed node-pool upgrades indefinitely. Draining the
+  # sole replica does interrupt traffic briefly - a single replica cannot be both
+  # drainable and always-up, and a stuck drain is the worse failure.
+  PodDisruptionBudget:
+    enable: true
+    maxUnavailable: 1
+
+  # No init container. HAProxy starts immediately and discovers PMM itself:
+  # server-template carries "init-addr last,libc,none", so a backend whose DNS name does
+  # not resolve yet is held with no address rather than aborting startup, and the
+  # /v1/server/leaderHealthCheck check brings it UP only once it is genuinely serving.
+  # Waiting for every replica first turned "HAProxy up, no backends yet" into "no HAProxy
+  # at all" - see PMM-15394.
   # Disable default ConfigMap creation - we create our own
   configMap:
     enabled: false
@@ -582,6 +742,18 @@ tls:
 ## @param pg-db Configuration values passed to the pg-db dependency chart
 ##
 pg-db:
+  ## PostgreSQL major version and image, pinned deliberately.
+  ## Left unset, these inherit the pg-db subchart's defaults, so bumping the pg-db dependency
+  ## also bumps PostgreSQL itself - the store holding pmm-managed, Grafana state and alert
+  ## rules - with no diff in this chart. pg-db 2.8.0 defaulted to PostgreSQL 17; 3.1.0
+  ## defaults to 18. Pinning keeps that a reviewable decision rather than a side effect.
+  ## crVersion must track the pg-operator version installed by pmm-ha-dependencies.
+  ## NOTE: changing postgresVersion on an existing cluster is a major upgrade, not an
+  ## in-place edit - it needs the operator's PerconaPGUpgrade flow.
+  crVersion: 3.1.0
+  postgresVersion: 18
+  image: docker.io/percona/percona-distribution-postgresql:18.6.1-1
+
   autoCreateUserSchema: true
   
   # PostgreSQL user configuration
@@ -616,6 +788,19 @@ pg-db:
   instances:
     - name: instance1
       replicas: 3
+      ## Without an explicit resources block every PostgreSQL container runs as
+      ## BestEffort, which makes the pods holding PMM's inventory, Grafana state and
+      ## alert rules the first thing the kubelet evicts under node pressure.
+      ##
+      ## PostgreSQL here scales with the number of agents and services, not with
+      ## metric volume, so these stay modest relative to the metrics tier.
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: 2
+          memory: 4Gi
       dataVolumeClaimSpec:
         # storageClassName: ""  # optional; inherit default if omitted
         accessModes:
@@ -633,6 +818,15 @@ pg-db:
                   postgres-operator.crunchydata.com/instance-set: instance1
   proxy:
     pgBouncer:
+      ## Connection pooler in front of PostgreSQL - inherits the same BestEffort
+      ## problem as the instances above if left unset.
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -669,18 +863,38 @@ pg-db:
     image:
       repository: docker.io/percona/pmm-client
       tag: "3"
-    ## @param pg-db.pmm.secret Name of the secret containing PMM_SERVER_TOKEN
-    ## This secret is automatically created by the pmm-token-init Job
-    ## The secret must contain a key named PMM_SERVER_TOKEN with the service account token
-    secret: pg-pmm-secret
+    ## @param pg-db.pmm.secret Name of the secret containing PMM_SERVER_TOKEN. Leave empty to derive "<release>-pg-db-pmm-secret"
+    ## Created automatically by the pmm-token-init Job. When this is unset the Job takes the
+    ## name from the pmm.pgPmmSecretName helper, which repeats pg-db's own fallback
+    ## expression - "<pg-database.fullname>-pmm-secret" - so both resolve identically.
+    ##
+    ## Left unset on purpose. The Job creates this secret with kubectl rather than through
+    ## Helm, so `helm uninstall` leaves it behind; a fixed name would let a new release
+    ## inherit the previous install's service account token, which authenticates against a
+    ## Grafana database that no longer exists. Set it only to adopt an existing secret.
+    secret: ""
     ## @param pg-db.pmm.serverHost PMM server hostname (via HAProxy for HA setup)
     ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
     serverHost: pmm-ha-haproxy
+    ## @param pg-db.pmm.postgresParams Extra flags appended to `pmm-admin add postgresql`
+    ## PMM-15301: Query Analytics must stay OFF for PMM's own PostgreSQL cluster - it is an
+    ## internal component, and the "QAN for PMM Server" setting in the UI cannot control it.
+    ## The operator always emits `--query-source=<querySource>`; postgresParams is appended
+    ## last, so repeating the flag here wins. Result: postgres_exporter (metrics) is still
+    ## registered, the QAN agent is not.
+    ## Set to "" to collect query analytics for the bundled PostgreSQL cluster.
+    ## NOTE: requires the pg-db chart >= 3.0.2 - earlier versions silently drop this value.
+    postgresParams: "--query-source=none"
     ## @param pg-db.pmm.resources Resource requests and limits for PMM client sidecar
-    # resources:
-    #   requests:
-    #     memory: 200M
-    #     cpu: 500m
+    ## Runs in every PostgreSQL pod; left unset it is BestEffort like the rest of
+    ## the pod's containers.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
 
 ## @section Kubernetes cluster metrics (kube-state-metrics + node-exporter)
 ## Installs kube-state-metrics and node-exporter by default and lets the
@@ -689,9 +903,35 @@ pg-db:
 ## ref: https://github.com/prometheus/node_exporter
 kube-state-metrics:
   enabled: true
+  ## Memory scales with the number of objects in the Kubernetes cluster, not with
+  ## the monitored database fleet. Left unset the subchart runs it as BestEffort.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 prometheus-node-exporter:
   enabled: true
+  ## Runs on every node in the cluster, so keep the request small.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+## @section Node exporter source
+## Bundled DaemonSet vs OpenShift's platform node-exporter.
+## "internal" deploys and scrapes the bundled prometheus-node-exporter. "openshift" scrapes the
+## node-exporter OpenShift's platform monitoring already runs, and requires
+## `prometheus-node-exporter.enabled: false`.
+nodeExporter:
+  ## @param nodeExporter.mode Node metrics source: "internal" (deploy + scrape prometheus-node-exporter) or "openshift"
+  mode: internal
 
 
 ## @section VictoriaMetrics Configuration
@@ -700,7 +940,7 @@ prometheus-node-exporter:
 ## before installing this chart. This section configures the VictoriaMetrics resources (not the operator itself).
 ## 
 ## Installation order:
-##   1. helm install pmm-operators charts/pmm-ha-dependencies -n <namespace>
+##   1. helm install pmm-ha-operators charts/pmm-ha-dependencies -n <namespace>
 ##   2. helm install pmm charts/pmm-ha -n <namespace>
 ## 
 ## This configuration uses VictoriaMetrics Operator CRDs (VMCluster, VMAuth, VMAgent, VMStorage)
@@ -708,6 +948,21 @@ victoriaMetrics:
   ## @param victoriaMetrics.enabled Enable VictoriaMetrics components via operator
   enabled: true
   
+  ## @param victoriaMetrics.version VictoriaMetrics version for VMCluster, VMAgent and VMAuth
+  ## Pinned deliberately. Left empty, every VM CR inherits whatever version the operator was
+  ## built with (VM_METRICS_VERSION), so bumping the operator silently moves the data plane
+  ## too - with no diff anywhere in this chart. For reference, operator v0.65.0 defaulted to
+  ## v1.128.0 and v0.74.1 defaults to v1.148.0.
+  ## Give the BARE version here, with no "-cluster" suffix. Each template applies what its
+  ## own components need: vmcluster.yaml renders `spec.clusterVersion` with "-cluster"
+  ## appended (vmselect/vminsert/vmstorage ship only under those tags), while VMAgent and
+  ## VMAuth render `spec.componentVersion` with the bare tag. The CRDs also spell the field
+  ## differently - VMCluster has no `componentVersion` at all.
+  ## Set to "" to go back to inheriting the operator's default.
+  ## NOTE: VictoriaMetrics storage upgrades are one-way. Do not lower this on a cluster that
+  ## has already run a newer version.
+  version: "v1.151.0"
+
   ## @param victoriaMetrics.replicationFactor Replication factor for VMCluster
   ## Defines how many copies of data to store across vmstorage nodes
   replicationFactor: 2
@@ -717,13 +972,16 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmselect.replicaCount Number of vmselect replicas
     replicaCount: 2
     ## @param victoriaMetrics.vmselect.resources Resource requests and limits for vmselect
+    ## Memory is driven by query fan-out (series touched per query), not by ingest.
+    ## A single wide dashboard query over a large fleet is the usual cause of an
+    ## vmselect OOM, which is why the limit sits well above the request.
     resources:
       requests:
-        memory: "512Mi"
-        cpu: "200m"
+        memory: "1Gi"
+        cpu: "500m"
       limits:
-        memory: "2Gi"
-        cpu: "1"
+        memory: "4Gi"
+        cpu: "2"
     ## @param victoriaMetrics.vmselect.affinity Pod affinity configuration for vmselect
     affinity:
       podAntiAffinity:
@@ -741,8 +999,37 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmselect.podAnnotations Annotations for vmselect pods
     podAnnotations: {}
     ## @param victoriaMetrics.vmselect.extraArgs Extra arguments for vmselect
-    extraArgs: {}
-  
+    ## A single-node PMM server starts VictoriaMetrics itself, with a set of --search.*
+    ## overrides baked into its supervisord template. In HA that program never starts - VM is
+    ## external - so vmselect would otherwise run on upstream defaults and behave noticeably
+    ## differently from the PMM everyone else is using. These keep the two in step.
+    ##
+    ## The one that breaks dashboards is maxQueryLen. PMM expands an "All" node/service
+    ## dashboard variable into a regex naming every node, so the query text grows with the
+    ## fleet; past roughly 120 monitored nodes it crosses the 16KiB upstream default and the
+    ## panel fails with "422: too long query" (PMM-15461).
+    extraArgs:
+      ## Upstream default 16KiB; PMM single-node uses 1MB.
+      search.maxQueryLen: "1MB"
+      ## Upstream default 30s; PMM single-node uses 5s. This is how long collected points stay
+      ## invisible to queries, so the default leaves "last value" stat panels empty.
+      search.latencyOffset: "5s"
+      ## Upstream default 30s; PMM single-node uses 90s.
+      search.maxQueryDuration: "90s"
+      ## Upstream default 10s; PMM single-node uses 30s. How long a query waits for a vmselect
+      ## slot before it is rejected with 429.
+      search.maxQueueDuration: "30s"
+      ## Upstream default 1000000000; PMM single-node uses 1500000000.
+      search.maxSamplesPerQuery: "1500000000"
+      ## Upstream default 5s; PMM single-node uses 30s. Purely log volume - PMM's dashboard
+      ## queries routinely take longer than 5s on a large fleet.
+      search.logSlowQueryDuration: "30s"
+    ## NOTE: search.maxUniqueTimeseries is deliberately NOT carried over, although PMM
+    ## single-node pins it to 100000000. On a cluster the effective limit is the one on
+    ## vmstorage, and vmselect's own value cannot exceed it; left at 0 vmstorage derives it
+    ## from search.maxConcurrentRequests and the memory actually available to the pod. Forcing
+    ## 100M would remove that guard while vmstorage still runs under a hard memory limit.
+
   ## VMInsert configuration - handles write requests
   vminsert:
     ## @param victoriaMetrics.vminsert.replicaCount Number of vminsert replicas
@@ -810,8 +1097,19 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmauth.podAnnotations Annotations for vmauth pods
     podAnnotations: {}
     ## @param victoriaMetrics.vmauth.extraArgs Extra arguments for vmauth
-    extraArgs: {}
-  
+    extraArgs:
+      ## vmauth's per-user concurrency limit exists to stop one tenant starving the others,
+      ## but PMM authenticates everything - browser dashboards, Grafana's alert scheduler,
+      ## vmalert and vmagent - as a single user, so that per-user bucket is simply the whole
+      ## cluster's read capacity. At fleet scale the alert scheduler alone exhausted it and
+      ## rule evaluation started failing with "429 cannot handle more than N concurrent
+      ## requests from user victoriametrics_pmm" (PMM-15461). Relying on the upstream default
+      ## is also a moving target - it was 300 up to v1.111.0 and is 100 as of v1.151.0, so
+      ## the ceiling tightens on its own as the operator moves the data plane forward. Pin it
+      ## to vmauth's global maxConcurrentRequests default instead, leaving that global limit -
+      ## which does protect vmauth itself from OOM - as the only ceiling.
+      maxConcurrentPerUserRequests: "1000"
+
   ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
   ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
   ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
@@ -821,13 +1119,16 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmagent.replicaCount Number of vmagent replicas
     replicaCount: 2
     ## @param victoriaMetrics.vmagent.resources Resource requests and limits for vmagent
+    ## This vmagent scrapes only the chart's own infrastructure (HAProxy, ClickHouse,
+    ## the VM components, kubelet/cAdvisor/apiserver). It therefore scales with the
+    ## size of the Kubernetes cluster, NOT with the number of monitored nodes.
     resources:
       requests:
-        memory: "256Mi"
-        cpu: "100m"
+        memory: "512Mi"
+        cpu: "250m"
       limits:
         memory: "1Gi"
-        cpu: "500m"
+        cpu: "1"
     ## @param victoriaMetrics.vmagent.affinity Pod affinity configuration for vmagent
     affinity:
       podAntiAffinity:
@@ -856,17 +1157,30 @@ victoriaMetrics:
   vmstorage:
     ## @param victoriaMetrics.vmstorage.replicaCount Number of vmstorage replicas
     replicaCount: 3
-    ## @param victoriaMetrics.vmstorage.retentionPeriod Data retention period
+    ## @param victoriaMetrics.vmstorage.retentionPeriod Data retention period for metrics
+    ## Applies to metrics only. Query Analytics is retained separately by PMM's own
+    ## setting, so the two can differ - set the chart-wide dataRetentionDays instead
+    ## if you want one value to drive both.
+    ##
+    ## Note that the storage needed grows linearly with this: 90d of metrics needs
+    ## roughly three times the vmstorage PVC that storageSize below defaults to.
+    ## See docs/SIZING.md.
     retentionPeriod: "90d"
     ## @param victoriaMetrics.vmstorage.resources Resource requests and limits for vmstorage
+    ## Memory tracks ACTIVE SERIES, not ingest rate. VictoriaMetrics sizes its caches
+    ## from the cgroup limit, so a very wide request/limit gap invites node
+    ## overcommit followed by an OOM kill - keep the two within ~2x of each other.
     resources:
       requests:
-        memory: "1Gi"
+        memory: "2Gi"
         cpu: "500m"
       limits:
         memory: "4Gi"
         cpu: "2"
     ## @param victoriaMetrics.vmstorage.storageSize Size of persistent volume for each vmstorage pod
+    ## 50Gi per pod covers ~100 monitored nodes at the default 30-day retention with
+    ## replicationFactor 2 across 3 pods. Metrics storage scales linearly with both
+    ## node count and retention - see docs/SIZING.md for the formula.
     storageSize: 50Gi
     ## @param victoriaMetrics.vmstorage.storageClassName Storage class for VictoriaMetrics persistent volumes
     ## If empty, uses the cluster's default storage class
