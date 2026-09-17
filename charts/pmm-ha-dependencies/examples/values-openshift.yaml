@@ -6,18 +6,41 @@
 # ids the charts pin for plain Kubernetes are unset here. Both operator images declare a
 # numeric non-root user, which is what runAsNonRoot needs once no uid is pinned.
 
+# Image names are fully qualified. CRI-O resolves unqualified names through its short-name
+# aliases first, and Red Hat ships one for `victoriametrics/operator` that points at
+# registry.connect.redhat.com, where the upstream tags do not exist - the pull fails instead of
+# falling back to Docker Hub.
 altinity-clickhouse-operator:
   operator:
+    image:
+      registry: docker.io
     containerSecurityContext:
       runAsUser: null
   metrics:
+    image:
+      registry: docker.io
     containerSecurityContext:
       runAsUser: null
   crdHook:
+    image:
+      repository: docker.io/bitnami/kubectl
     podSecurityContext:
       runAsUser: null
 
 victoria-metrics-operator:
+  image:
+    registry: docker.io
+  # The operator also names the images of the pods it creates; qualify those too. The
+  # config-reloader tag has to match the operator version pinned by this chart.
+  env:
+    - name: VM_CONFIG_RELOADER_IMAGE
+      value: docker.io/victoriametrics/operator:config-reloader-v0.74.1
+    - name: VM_VMAGENTDEFAULT_IMAGE
+      value: docker.io/victoriametrics/vmagent
+    - name: VM_VMAUTHDEFAULT_IMAGE
+      value: docker.io/victoriametrics/vmauth
+    - name: VM_VMALERTDEFAULT_IMAGE
+      value: docker.io/victoriametrics/vmalert
   podSecurityContext:
     runAsUser: null
     fsGroup: null
