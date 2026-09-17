@@ -15,9 +15,15 @@ metadata:
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
 rules:
+# `create` cannot be narrowed by resourceNames (the name is unknown at authorization time);
+# every other verb is limited to the one Secret this Job manages.
 - apiGroups: [""]
   resources: ["secrets"]
-  verbs: ["create", "get", "update", "patch"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["{{ include "pmm.pgPmmSecretName" . }}"]
+  verbs: ["get", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -66,10 +72,23 @@ embedded shell script is untouched.
     spec:
       serviceAccountName: {{ .Release.Name }}-pmm-token-generator
       restartPolicy: OnFailure
+      securityContext:
+        {{- toYaml .Values.jobs.podSecurityContext | nindent 8 }}
+      volumes:
+      - name: tmp
+        emptyDir: {}
       containers:
       - name: pmm-token-creator
-        image: alpine/kubectl:latest
+        image: "{{ .Values.kubectl.image.repository }}:{{ .Values.kubectl.image.tag }}"
+        securityContext:
+          {{- toYaml .Values.jobs.securityContext | nindent 10 }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
         env:
+        # kubectl keeps its discovery cache under $HOME; keep that off the root filesystem.
+        - name: HOME
+          value: /tmp
         - name: PMM_ADMIN_PASSWORD
           valueFrom:
             secretKeyRef:

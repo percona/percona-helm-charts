@@ -1,0 +1,23 @@
+# PMM HA operators on OpenShift under the default restricted-v2 SecurityContextConstraint.
+#
+#   helm install pmm-operators percona/pmm-ha-dependencies -n <project> -f examples/values-openshift.yaml
+#
+# restricted-v2 assigns user ids from the project's range and rejects pinned ones, so the
+# ids the charts pin for plain Kubernetes are unset here. Both operator images declare a
+# numeric non-root user, which is what runAsNonRoot needs once no uid is pinned.
+
+altinity-clickhouse-operator:
+  operator:
+    containerSecurityContext:
+      runAsUser: null
+  metrics:
+    containerSecurityContext:
+      runAsUser: null
+  crdHook:
+    podSecurityContext:
+      runAsUser: null
+
+victoria-metrics-operator:
+  podSecurityContext:
+    runAsUser: null
+    fsGroup: null
