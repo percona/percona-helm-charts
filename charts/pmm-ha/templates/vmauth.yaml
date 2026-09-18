@@ -1,26 +1,24 @@
 {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled -}}
 {{- /* Validate the pre-created secret here as well as in statefulset.yaml. Helm renders
        same-depth templates in reverse alphabetical order, so this file runs before
-       statefulset.yaml and would otherwise fail first, on the b64dec below, with a bare
-       "invalid value; expected string" naming neither the key nor the secret.
+       statefulset.yaml, and it is what reports a pre-created secret that is missing
+       VMAGENT_remoteWrite_basicAuth_username or _password: the helper below falls back to a
+       generated value rather than failing, so without this call a missing key would silently
+       give vmauth a password nothing else has. Keep it ahead of the two includes.
 
-       This is not a complete guard. pmm.validateSecret is a no-op when secret.create is
-       set, and the b64dec below still fails that way; clickhouse-cluster.yaml reads a key
-       the same unguarded way. PMM-15436 fixes both at the read site. */ -}}
+       This is not a complete guard for the rest of the secret. pmm.validateSecret is a no-op
+       when secret.create is set, and clickhouse-cluster.yaml still decodes a key unguarded.
+       PMM-15436 fixes that at the read site. */ -}}
 {{- include "pmm.validateSecret" . -}}
-{{- /* Lookup existing secret to avoid regenerating passwords on upgrade */ -}}
-{{- $existingSecret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
-{{- $vmuser := "" }}
-{{- $vmpass := "" }}
-{{- if $existingSecret }}
-  {{- /* Use existing credentials from secret */ -}}
-  {{- $vmuser = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_username" | b64dec }}
-  {{- $vmpass = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_password" | b64dec }}
-{{- else }}
-  {{- /* Use values or defaults (secret.yaml will create the secret) */ -}}
-  {{- $vmuser = .Values.secret.victoriametrics_user | default "victoriametrics_pmm" }}
-  {{- $vmpass = .Values.secret.victoriametrics_password | default (randAlphaNum 32) }}
-{{- end }}
+{{- /* Both keys go through pmm.secret.key so that this file and secret.yaml agree on them.
+       vmagent.yaml and statefulset.yaml read the pair out of pmm-secret with a secretKeyRef,
+       while the vmauth config below needs the same pair in plaintext to accept those requests.
+       Deriving them here the way this file used to - a lookup that comes back empty on a fresh
+       secret.create install, then randAlphaNum - handed vmauth a password vmagent never got, so
+       remote write failed authentication on every install that let the chart create the secret.
+       The helper returns base64, hence the b64dec. */ -}}
+{{- $vmuser := include "pmm.secret.key" (dict "ctx" $ "key" "VMAGENT_remoteWrite_basicAuth_username" "override" (.Values.secret.victoriametrics_user | default "victoriametrics_pmm")) | b64dec }}
+{{- $vmpass := include "pmm.secret.key" (dict "ctx" $ "key" "VMAGENT_remoteWrite_basicAuth_password" "override" .Values.secret.victoriametrics_password) | b64dec }}
 ---
 # Secret for VMAuth configuration
 # Note: VMAuth requires plaintext credentials in its config file to validate incoming requests
