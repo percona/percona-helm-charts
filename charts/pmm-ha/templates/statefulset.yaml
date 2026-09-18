@@ -2,6 +2,8 @@
 {{- include "pmm.validatePgCrd" . -}}
 {{- include "pmm.validateSecret" . -}}
 {{- include "pmm.validateBackupIrsaSa" . -}}
+{{- include "pmm.replicas.validate" . -}}
+{{- include "pmm.keeper.validate" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
