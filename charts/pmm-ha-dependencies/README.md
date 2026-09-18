@@ -219,9 +219,9 @@ This chart includes the following dependencies:
 
 | Repository | Name | Version |
 |------------|------|---------|
-| https://victoriametrics.github.io/helm-charts/ | victoria-metrics-operator | 0.56.4 |
-| https://helm.altinity.com | altinity-clickhouse-operator | 0.25.4 |
-| https://percona.github.io/percona-helm-charts/ | pg-operator | 2.8.0 |
+| https://victoriametrics.github.io/helm-charts/ | victoria-metrics-operator | 0.67.3 |
+| https://helm.altinity.com | altinity-clickhouse-operator | 0.27.3 |
+| https://percona.github.io/percona-helm-charts/ | pg-operator | 3.1.0 |
 
 ## Important Notes
 

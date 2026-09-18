@@ -42,9 +42,9 @@ This PMM HA deployment provides the following high availability features:
 - **Required Kubernetes Operators** (must be installed BEFORE this chart):
   - Install via `pmm-ha-dependencies` chart (recommended), OR
   - Install manually (advanced):
-    - VictoriaMetrics Operator (v0.56.4+)
-    - Altinity ClickHouse Operator (v0.25.4+)
-    - Percona PostgreSQL Operator (v2.8.0+)
+    - VictoriaMetrics Operator (v0.67.3+)
+    - Altinity ClickHouse Operator (v0.27.3+)
+    - Percona PostgreSQL Operator (v3.1.0+)
 
 ## Sizing
 
@@ -270,8 +270,19 @@ kubectl delete crds $(kubectl get crds -o name | grep victoriametrics)
 # Remove ClickHouse CRDs
 kubectl delete crds $(kubectl get crds -o name | grep clickhouse)
 
-# Remove PostgreSQL Operator CRDs
-kubectl delete crds $(kubectl get crds -o name | grep -E "(postgres-operator|perconapg)")
+# Remove PostgreSQL Operator CRDs.
+# Covers BOTH API groups: Operator 3.0.0 moved every Crunchy CRD from
+# `postgres-operator.crunchydata.com` to `upstream.pgv2.percona.com`, so a cluster that ever
+# ran 2.x carries both sets. Matching only "postgres-operator" or "perconapg" leaves the
+# renamed CRDs (postgresclusters/pgupgrades/pgadmins/crunchybridgeclusters under
+# upstream.pgv2.percona.com) behind, and a later "fresh" install then inherits them.
+kubectl delete crds $(kubectl get crds -o name | grep -E "(postgres-operator\.crunchydata\.com|pgv2\.percona\.com)")
+```
+
+Verify nothing is left before reinstalling:
+
+```sh
+kubectl get crds | grep -E "victoriametrics|clickhouse|pgv2|crunchydata"   # expect no output
 ```
 
 > **Warning**: This will remove all PMM data, including metrics, dashboards, and configuration. Make sure to backup any important data before uninstalling.
@@ -347,16 +358,6 @@ the Job creates `<release>-pg-db-pmm-secret`, and the PostgreSQL operator needs 
 to reconcile the new name into the instance StatefulSets. Leave `pg-pmm-secret` in place until
 the PostgreSQL pods have restarted against the new secret, then delete it.
 
-**Query Analytics (QAN) is intentionally disabled** for the bundled PostgreSQL cluster. PMM's own database
-is an internal component, and the `QAN for PMM Server` toggle in *Settings -> Advanced* cannot control it in
-HA mode (that toggle only ever applied to the single-container PMM deployment). QAN is switched off at the
-source instead, via `pg-db.pmm.postgresParams: "--query-source=none"`, so the PostgreSQL pods still push
-metrics but register no QAN agent. To collect query analytics for the bundled cluster anyway, set
-`pg-db.pmm.postgresParams: ""`.
-
-> Requires the `pg-db` chart >= 3.0.2. Earlier versions accept `pmm.postgresParams` but silently drop it,
-> so the QAN agents stay registered.
-
 ### Using Service Tokens for Automation
 
 Service tokens are recommended for automated deployments and CI/CD pipelines. To retrieve the auto-generated PostgreSQL monitoring token:
@@ -379,7 +380,6 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.1`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
-| `pmmEnv.PMM_ENABLE_INTERNAL_PG_QAN`     | Enable Query Analytics for PMM's own internal PostgreSQL database. Not supported in HA mode - pinning it to `0` makes the `QAN for PMM Server` toggle in Settings reject attempts to switch it on                                           | `0`                  |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
 | `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |
@@ -401,6 +401,8 @@ To create additional service tokens manually, see the [PMM documentation on serv
 
 | Name                              | Description                                                                                                                                    | Value                 |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `replicas`                        | Number of PMM server replicas. Must be an odd number and no greater than `maxReplicas`; the chart fails the render otherwise                    | `3`                   |
+| `maxReplicas`                     | HAProxy `server-template` slots, and therefore the ceiling on `replicas`. Raising it also needs an HAProxy restart                              | `10`                  |
 | `service.name`                    | Service name that is dns name monitoring services would send data to. `monitoring-service` used by default by pmm-client in Percona operators. | `monitoring-service`  |
 | `service.type`                    | Kubernetes Service type                                                                                                                        | `ClusterIP`            |
 | `service.ports[0].port`           | https port number                                                                                                                              | `8443`                 |
@@ -426,6 +428,30 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
 
 
+### Data-plane version pins
+
+The chart pins the version of every bundled data store explicitly. Left unpinned, these are
+inherited from the operator or the `pg-db` subchart, so bumping an operator dependency would
+also move the database or the metrics engine with no visible diff in this chart.
+
+| Name                        | Description                                                                                                   | Value                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `victoriaMetrics.version`   | VictoriaMetrics version for VMCluster, VMAgent and VMAuth. Empty string inherits the operator's built-in default | `v1.151.0`                                                     |
+| `clickhouse.image.tag`      | ClickHouse server image tag. Stay on the `altinitystable` line, not `altinityantalya`                          | `25.8.28.10001.altinitystable-alpine`                          |
+| `clickhouse.keeper.image.tag` | ClickHouse Keeper image tag. Must track the ClickHouse server release above                                  | `25.8.28.1`                                                    |
+| `pg-db.postgresVersion`     | PostgreSQL major version                                                                                      | `18`                                                           |
+| `pg-db.image`               | PostgreSQL server image                                                                                       | `docker.io/percona/percona-distribution-postgresql:18.6.1-1`   |
+| `pg-db.crVersion`           | PerconaPGCluster CR version. Must track the installed `pg-operator` version                                   | `3.1.0`                                                        |
+
+Two things to know before changing these:
+
+- **ClickHouse server and Keeper come from different repositories** (`altinity/clickhouse-server`
+  rebuilds vs upstream `clickhouse/clickhouse-keeper`), so "latest" resolves differently for
+  each. Move them together, onto the same upstream ClickHouse release.
+- **VictoriaMetrics storage upgrades are one-way**, and changing `pg-db.postgresVersion` on an
+  existing cluster is a major upgrade needing the operator's `PerconaPGUpgrade` flow - not an
+  in-place edit.
+
 ### PMM storage configuration
 
 | Name                       | Description                                                                                                                                                                             | Value         |
@@ -441,6 +467,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 
 | Name                         | Description                                                                                                         | Value                 |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `clickhouse.keeper.replicasCount` | Number of ClickHouse Keeper nodes. Must be an odd value from 1 to 9; the chart fails the render otherwise | `3` |
 | `nameOverride`               | String to partially override common.names.fullname template with a string (will prepend the release name)           | `""`                  |
 | `extraLabels`                | Labels to add to all deployed objects                                                                               | `{}`                  |
 | `serviceAccount.create`      | Specifies whether a ServiceAccount should be created                                                                | `true`                |
@@ -847,12 +874,38 @@ haproxy:
 | MetalLB | IP from pool via `spec.loadBalancerIP` |
 ### Scaling and Monitoring
 
+#### Supported scaling range
+
+| Component | Value | Supported range | Enforced |
+|---|---|---|---|
+| PMM server | `replicas` | any odd value from `1` to `maxReplicas`; `3` (default) and `5` are what QA certifies | Yes — the chart fails the render |
+| HAProxy | `haproxy.replicaCount` | `1` or higher; replicas past the worker-node count co-locate and add throughput, not fault tolerance | No |
+| ClickHouse | `clickhouse.cluster.replicas` | `3` (default) or higher; scaling up is supported and shown below | No |
+| ClickHouse Keeper | `clickhouse.keeper.replicasCount` | any odd value from `1` to `9`; `3` is the default | Yes — the chart fails the render |
+| VictoriaMetrics | `victoriaMetrics.*.replicaCount` | defaults, or higher for larger fleets; scale up only | No |
+
+`replicas` is an availability knob, not a capacity knob: more PMM servers buy
+tolerance of more simultaneous failures, not more monitored nodes. To monitor a
+larger fleet, raise the per-component `resources` and storage rather than adding
+PMM replicas.
+
+These constraints are covered under [Known Limitations](#known-limitations).
+
+> **Upgrade note (chart 1.7.0)**
+>
+> An even `replicas` (`2` or `4`) was previously accepted and now fails the render.
+> Set an odd value in the same `helm upgrade`. That changes `PMM_HA_PEERS`, so it
+> recreates every PMM pod.
+>
+> `clickhouse.keeper.replicasCount` is now capped at `9` as well as required to be odd.
+> Anything higher was previously accepted and now fails the render.
+
 #### Scaling PMM HA
 
 To scale the PMM HA deployment:
 
 ```sh
-# Scale PMM server replicas
+# Scale PMM server replicas (odd values only)
 helm upgrade pmm-ha --set replicas=5 --namespace pmm percona/pmm-ha
 
 # Scale HAProxy replicas
@@ -911,6 +964,58 @@ Common troubleshooting steps for PMM HA:
 5. **Check storage**: Verify persistent volumes are properly mounted and accessible
 
 ## Known Limitations
+
+### Scaling constraints
+
+- **`replicas` and `clickhouse.keeper.replicasCount` must be odd.** Both are Raft
+  ensembles, and Raft elects by majority: an even count adds a voter without adding
+  fault tolerance - it widens the majority a leader election needs while surviving no
+  more failures - and `2` survives none at all. The chart rejects even values.
+- **`clickhouse.keeper.replicasCount` must not exceed `9`.** Unlike `maxReplicas` this
+  is a supportability limit rather than a correctness one: every Keeper node is a full
+  Raft voter, so each extra pair widens the majority that every write waits on, and `9`
+  already survives 4 simultaneous losses.
+- **`replicas` must not exceed `maxReplicas`** (default `10`). HAProxy renders only
+  `maxReplicas` `server-template` slots and fills them from a headless-service DNS
+  answer in arbitrary order, and it marks a backend UP only when that pod answers
+  `/v1/server/leaderHealthCheck`. A pod left without a slot is therefore invisible to
+  HAProxy, and if the Raft leader lands on it every backend is DOWN and PMM serves
+  `503`. The chart rejects this combination.
+- **Raising `maxReplicas` needs an HAProxy restart.** It is rendered into the
+  `pmm-ha-haproxy` ConfigMap, which the chart does not roll on upgrade. Routing itself
+  is DNS-based, so changing `replicas` needs no restart. Bump
+  `haproxy.podAnnotations."pmm.percona.com/config-version"` in the same `helm upgrade`
+  so the pods restart and pick up the new `server-template`. It has to be a value the
+  release is not already running - the chart ships `"4"`, so the examples below use `"5"`:
+
+  ```sh
+  helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+    --set maxReplicas=20 \
+    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=5'
+  ```
+
+  Or in `values.yaml`:
+
+  ```yaml
+  maxReplicas: 20
+  haproxy:
+    podAnnotations:
+      pmm.percona.com/config-version: "5"
+  ```
+
+  Prefer this over `kubectl rollout restart`: the bump is part of the same declarative
+  upgrade, so the restart is reproducible from the chart alone. An out-of-band restart
+  also picks up the new config, but a GitOps controller strips the `restartedAt`
+  annotation on its next sync and triggers a second, pointless rollout.
+- **`haproxy.replicaCount` past the worker-node count buys throughput, not fault
+  tolerance.** HAProxy pods use a soft topology spread on `kubernetes.io/hostname`
+  (`whenUnsatisfiable: ScheduleAnyway`), so extra replicas co-locate rather than
+  staying `Pending` - but a co-located replica shares a failure domain with the one
+  already on that node. pgBouncer still uses required anti-affinity, so its replicas
+  do stay `Pending` past the node count while Helm reports success; the same holds for
+  the PostgreSQL instances in the sizing examples.
+- **`victoriaMetrics.vmstorage.replicaCount` should not be scaled down.** Data is
+  sharded across vmstorage pods and is not migrated off a removed pod.
 
 ### Scaling Down to Single Replica
 
