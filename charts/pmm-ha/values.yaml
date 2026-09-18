@@ -1757,9 +1757,11 @@ victoriaMetrics:
         memory: "4Gi"
         cpu: "2"
     ## @param victoriaMetrics.vmstorage.storageSize Size of persistent volume for each vmstorage pod
-    ## 50Gi per pod covers ~100 monitored nodes at the default 30-day retention with
-    ## replicationFactor 2 across 3 pods. Metrics storage scales linearly with both
-    ## node count and retention - see docs/SIZING.md for the formula.
+    ## 50Gi per pod covers ~100 monitored nodes at 30-DAY retention with
+    ## replicationFactor 2 across 3 pods. Note that retentionPeriod above defaults to
+    ## 90d, which needs roughly three times this - raise storageSize to ~150Gi, or
+    ## lower retention, before filling the disk. Metrics storage scales linearly with
+    ## both node count and retention - see docs/SIZING.md for the formula.
     storageSize: 50Gi
     ## @param victoriaMetrics.vmstorage.storageClassName Storage class for VictoriaMetrics persistent volumes
     ## If empty, uses the cluster's default storage class

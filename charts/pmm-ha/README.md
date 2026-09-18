@@ -446,10 +446,13 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
 | `pmmEnv.PMM_ENABLE_INTERNAL_PG_QAN`     | Enable Query Analytics for PMM's own internal PostgreSQL database. Not supported in HA mode - pinning it to `0` makes the `QAN for PMM Server` toggle in Settings reject attempts to switch it on                                           | `0`                  |
-| `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
-| `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
+| `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{requests: {memory: 4Gi, cpu: 2}, limits: {memory: 8Gi, cpu: 4}}` |
+| `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `10`                 |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |
 | `readyProbeConf.failureThreshold`    | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                                                               | `6`                  |
+| `dataRetentionDays`                  | Optional single retention value, in days, for BOTH metrics and Query Analytics. Left empty, metrics use `victoriaMetrics.vmstorage.retentionPeriod` and QAN keeps PMM's own setting. Setting it overrides the former and sets `PMM_DATA_RETENTION`, which makes retention read-only in the PMM UI. Largest single lever on disk usage — see [docs/SIZING.md](docs/SIZING.md) | `""`                 |
+| `logStreamer.enabled`                | Run a sidecar per entry in `logStreamer.logFiles` that tails the file to stdout, so `kubectl logs` can reach logs PMM writes to disk                                                                                                           | `false`              |
+| `logStreamer.logFiles`               | Log file paths to stream. Each gets its own `log-streamer-<index>` container                                                                                                                                                                  | `[/srv/logs/pmm-managed.log, /srv/logs/qan-api2.log]` |
 
 
 ### PMM secrets
@@ -522,7 +525,7 @@ Two things to know before changing these:
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `storage.name`             | name of PVC                                                                                                                                                                             | `pmm-storage` |
 | `storage.storageClassName` | optional PMM data Persistent Volume Storage Class                                                                                                                                       | `""`          |
-| `storage.size`             | size of storage [depends](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) on number of monitored services and data retention | `10Gi`        |
+| `storage.size`             | size of storage [depends](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) on number of monitored services and data retention. See [docs/SIZING.md](docs/SIZING.md) | `40Gi`        |
 | `storage.dataSource`       | VolumeSnapshot to start from                                                                                                                                                            | `{}`          |
 | `storage.selector`         | select existing PersistentVolume                                                                                                                                                        | `{}`          |
 
@@ -537,11 +540,13 @@ Two things to know before changing these:
 | `serviceAccount.annotations` | Annotations for service account. Evaluated as a template. Only used if `create` is `true`.                          | `{}`                  |
 | `serviceAccount.name`        | Name of the service account to use. If not set and create is true, a name is generated using the fullname template. | `pmm-service-account` |
 | `podAnnotations`             | Pod annotations                                                                                                     | `{}`                  |
-| `podSecurityContext`         | Configure Pods Security Context                                                                                     | `{}`                  |
+| `podSecurityContext`         | Configure Pods Security Context                                                                                     | `{runAsUser: 1000, fsGroup: 1000}` |
 | `securityContext`            | Configure Container Security Context                                                                                | `{}`                  |
 | `nodeSelector`               | Node labels for pod assignment                                                                                      | `{}`                  |
 | `tolerations`                | Tolerations for pod assignment                                                                                      | `[]`                  |
-| `affinity`                   | Affinity for pod assignment                                                                                         | `{}`                  |
+| `extraVolumes`               | Additional volumes to add to the PMM Server pods                                                                    | `[]`                  |
+| `extraVolumeMounts`          | Additional volumeMounts for the PMM Server container                                                                | `[]`                  |
+| `affinity`                   | Affinity for the PMM Server pods. The default spreads the replicas across nodes; setting this **replaces** that rule, so re-state the anti-affinity if you override it | `{podAntiAffinity: preferred, one PMM pod per node}` |
 
 
 ### Node exporter source parameters
@@ -968,7 +973,7 @@ Check the health of your PMM HA deployment:
 
 ```sh
 # Check PMM server pods
-kubectl get pods -l app.kubernetes.io/name=pmm -n pmm
+kubectl get pods -l app.kubernetes.io/component=pmm-server -n pmm
 
 # Check HAProxy pods
 kubectl get pods -l app.kubernetes.io/name=haproxy -n pmm

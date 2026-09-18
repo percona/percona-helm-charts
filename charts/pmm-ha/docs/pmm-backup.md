@@ -138,6 +138,26 @@ kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
 
 The run is finished only when that log ends in a `PMM-HA Restore Summary` block.
 
+**If the restore Job sits `Pending`, it is the RWO volume, not the cluster being busy.** In `s3`
+mode the Job co-schedules onto backup-tools' node by required `podAffinity`
+(see [Scheduled Backups](#3a-scheduled-backups-cronjob)), so a node with no headroom leaves it
+unschedulable indefinitely — and the scheduler blames the affinity rather than the memory:
+
+```
+0/22 nodes are available: 2 Insufficient memory, 4 Insufficient cpu,
+6 node(s) didn't match pod affinity rules
+... unsatisfiable topology constraint for pod affinity, key=kubernetes.io/hostname
+```
+
+This bites hardest during a real DR, when the cluster is already under pressure, and it pushes
+you back onto the `exec` form this section exists to avoid. Two ways out, cheapest first:
+
+- Free memory on that node. Scaling the target's PMM StatefulSet to `0` is usually enough and
+  costs nothing you were not about to lose anyway — the restore scales PMM to `0` itself, just
+  *after* the Job has been scheduled.
+- Use an RWX volume (`centralBackupStorage.accessMode: ReadWriteMany`), which drops the affinity
+  altogether. `shared`/NFS installs already mount from any node and never see this.
+
 ### Recovering from a restore that was killed part-way
 
 A restore killed between its scale-down and its scale-up leaves the install **down**, not
@@ -1145,6 +1165,8 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `CH_CREATE_TIMEOUT` / `CH_UPLOAD_TIMEOUT` | Max seconds to wait for clickhouse-backup create / upload | 300 / 600 |
 | `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
 | `BACKUP_TARGET` | Target mode: `s3` or `shared` (set by Helm from `centralBackupStorage.mode`) | s3 |
+| `PMM_SERVER_REPLICAS` | Replica count a restore scales PMM back up to, used **only** when the live `spec.replicas` is 0/unreadable *and* the count stashed on the StatefulSet (`restore.pmm.percona.com/original-replicas`) is unusable. Set it when re-running a restore against an install that does not run 3. | 3 |
+| `TEMP_POD_RESOURCES` | JSON `resources` for the temp pods a restore creates (`vm-restore-*`, `pmm-srv-restore-*`). Raise it if those pods are OOM-killed on large volumes; note that raising it also makes them harder to schedule on a full node. | `{"requests":{"cpu":"50m","memory":"64Mi"}}` |
 | `S3_BUCKET` | S3 bucket (required for `s3`; set by Helm) | |
 | `S3_REGION` / `S3_ENDPOINT` / `S3_PREFIX` | S3 region / endpoint / key prefix (set by Helm) | us-east-1 / / `<namespace>/<release>` |
 | `SHARED_MOUNT_PATH` | RWX mount path inside pods (`shared` mode; set by Helm) | /central |
@@ -1569,6 +1591,46 @@ wget -qO- "http://${POD_IP}:9091/"
   refused as a scale-back target rather than re-applied.
 - Fix: `kubectl patch vmcluster <release>-pmm-ha-vmcluster --type=merge -p '{"spec":{"vminsert":{"replicaCount":<N>}}}'`
   and re-run the restore if you need the run recorded as successful.
+
+**"PMMServer: archive missing or empty at ... after the upload reported success"**
+
+- The `/srv` tar ran and its uploader exited 0, but the object is absent or zero-length at the
+  destination. The run verifies the archive rather than trusting the exit code, which is why you
+  see this instead of a "successful" backup with nothing in it.
+- Usual causes, in order: S3 credentials that can write nowhere (an `existingSecret` whose keys
+  are named something other than `access-key` / `secret-key` produces a client with no
+  credentials at all), a bucket policy that denies `PutObject` for the prefix, or the node
+  hosting the PMM pod going away mid-upload.
+- Check the run log named in the error for the uploader's own output, then re-run the component
+  alone: `pmm-backup.sh backup --pmm-server`.
+
+**"PostgreSQL: No application databases found to dump"**
+
+- The PG cluster is up enough to answer, but `pmm-managed` and `grafana` do not exist yet. On a
+  fresh install this simply means the backup ran before the operator finished bootstrapping, and
+  it resolves itself; it is worth a second look only if it persists.
+- Confirm: `kubectl exec <pg-primary> -c database -- psql -U postgres -tAc \
+  "select datname from pg_database where datname not in ('template0','template1','postgres')"`.
+  Expect `pmm-managed` and `grafana`.
+
+**A ClickHouse restore completes but `pmm.metrics` has no rows**
+
+- Most often the backup is faithful and the table really was empty when it ran. QAN writes its
+  first rows only once a client has reported, so a backup taken minutes after an install captures
+  an empty table — correctly. A restore then reproduces exactly that.
+- Check the backup rather than guessing: the component metadata records the parts it captured.
+  An empty table shows `"parts": []` and the backup carries no `shadow/<db>/<table>/*.tar`:
+
+  ```bash
+  # s3 mode
+  aws s3 cp s3://<bucket>/<prefix>/clickhouse/<id>/metadata/pmm/metrics.json - | jq '.parts'
+  aws s3 ls --recursive s3://<bucket>/<prefix>/clickhouse/<id>/shadow/
+  ```
+
+- Compare with the source at the time the backup ran, not with now:
+  `SELECT countIf(period_start <= toDateTime('<backup time UTC>')) FROM pmm.metrics`.
+- Only if the source genuinely held rows the backup did not capture is this a fault worth
+  chasing.
 
 **Scripts in the pod look outdated after a chart change**
 - The scripts are mounted from the `<release>-backup-scripts` ConfigMap with `subPath`
