@@ -4,6 +4,12 @@ on:
     paths:
       - 'charts/pmm-ha/**'
       - 'charts/pmm-ha-dependencies/**'
+      # Without this a PR that only edits the assertions below runs no job at all.
+      - '.github/workflows/pmm-ha-pr-checks.yaml'
+      # Same reason: the helm unittest step below runs `make test-pmm-ha`, and
+      # unit-test.yaml's matrix covers only the pxc targets - so a Makefile-only
+      # PR that breaks this chart's target matches no workflow at all.
+      - 'Makefile'
 
 jobs:
   lint-test:
@@ -19,9 +25,9 @@ jobs:
             charts/pmm-ha-dependencies
 
       - name: Set up Helm
-        uses: azure/setup-helm@v4.2.0
+        uses: azure/setup-helm@v5.0.0
         with:
-          version: v3.15.4
+          version: v3.21.0
 
       - uses: azure/setup-kubectl@v4
 
@@ -70,10 +76,19 @@ jobs:
           assert_fails "$collision" --set nodeExporter.mode=openshift --set-string prometheus-node-exporter.enabled=false
           assert_fails 'nodeExporter.mode must be "internal" or "openshift"' --set nodeExporter.mode=bogus
 
+      # Value validation, peer addressing and the HAProxy server-template, asserted with
+      # helm unittest: no cluster, no dependency on Helm's template ordering, and runnable
+      # locally with `make test-pmm-ha`. Not gated on list-changed, so a PR that only edits
+      # these suites still runs them.
+      - name: Run helm unittest
+        run: |
+          make helm-unittest
+          make test-pmm-ha
+
       - name: Run chart-testing (list-changed)
         id: list-changed
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
+          changed=$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF")
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
@@ -111,6 +126,54 @@ jobs:
             PMM_CLICKHOUSE_USER: Y2h1c2Vy
             PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
           EOF
+
+      # Guards the release-name-sensitive names: `pmm.fullname` equals `Release.Name` only
+      # when the release name already contains the chart name, so a release like `pmm-2`
+      # (fullname `pmm-2-pmm-ha`) is the case that regresses. `ct install` generates a
+      # `pmm-ha`-prefixed release name, so the normal install cannot catch this.
+      # Needs the cluster: templates/pg-user-credentials-secrets.yaml does an unconditional
+      # `lookup` + `fail` on pmm-secret, so an offline `helm template` cannot render the chart.
+      - name: Check release-name-sensitive names render correctly
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          NS="${{ env.NS }}"
+          out=$(helm template pmm-2 charts/pmm-ha --namespace "$NS" --dry-run=server)
+
+          assert_has() {  # $1 = expected substring, $2 = what it guards
+            if ! grep -qF -- "$1" <<<"$out"; then
+              echo "::error::missing from render ($2): $1"
+              exit 1
+            fi
+          }
+          assert_lacks() {
+            if grep -qF -- "$1" <<<"$out"; then
+              echo "::error::render regressed ($2): found $1"
+              exit 1
+            fi
+          }
+
+          # The HA peer list must use the StatefulSet name, not Release.Name.
+          # HAProxy has no per-pod names to check: it discovers backends through the
+          # headless service via server-template, with no init script (PMM-15394).
+          assert_has "value: \"pmm-2-pmm-ha-0.monitoring-service.${NS}.svc.cluster.local" "PMM_HA_PEERS"
+          assert_lacks "pmm-2-0.monitoring-service" "PMM_HA_PEERS uses Release.Name"
+
+          # ClickHouse/Keeper scrape jobs match the chi/chk pod label, which carries Release.Name.
+          assert_has "regex: 'pmm-2'" "clickhouse scrape job selector"
+          assert_has "regex: 'pmm-2-keeper'" "keeper scrape job selector"
+
+          # ...and that is only correct while the CRs are still named from Release.Name.
+          chi=$(helm template pmm-2 charts/pmm-ha --namespace "$NS" --dry-run=server \
+                  -s templates/clickhouse-cluster.yaml | grep -m1 '^  name:')
+          [[ "$chi" == "  name: pmm-2" ]] || { echo "::error::CHI name changed: $chi"; exit 1; }
+
+          # Release names are not regex-safe: a dot in the name must not widen an anchored regex.
+          helm template 'pmm.ha' charts/pmm-ha --namespace "$NS" --dry-run=server \
+            | grep -qF "regex: 'pmm\\.ha'" \
+            || { echo "::error::Release.Name is not regex-escaped in vmagent scrape configs"; exit 1; }
+
+          echo "Release-name-sensitive names render correctly."
 
       - name: Install pmm-ha-dependencies chart
         if: steps.list-changed.outputs.changed == 'true'
@@ -154,7 +217,7 @@ jobs:
 
       - name: Build chart packages
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
+          changed=$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF")
           if [[ -n "$changed" ]]; then
             for chart in $changed; do
               echo "Packaging $chart..."
