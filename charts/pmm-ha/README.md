@@ -344,9 +344,13 @@ kubectl logs -n <namespace> \
 Name the release as well as the component: a namespace can hold more than one release, and more
 than one token-init pod can be running at once - Helm schedules the new Job before pruning the
 old one, and a Job created by a revision that then failed is never pruned at all. That is
-expected and safe. The secret, not the Job, decides which token is live: whichever pod creates
-it wins, and a pod that loses the race revokes the token it had minted and defers to the one in
-the secret. A `withdrawing this one` line in a Job log is that happening, not an error.
+expected and safe. The secret, not the Job, decides which token is live, and the write to it is
+what settles the race rather than a read taken beforehand: a pod creates the secret if it is
+absent, and otherwise patches it under a `test` on the resourceVersion it read the token at, so
+exactly one of two pods holding the same version lands its write. The pod whose write is
+rejected re-reads, finds a token other than the one it meant to replace, revokes the token it
+had minted and defers. A `withdrawing this one` line in a Job log is that happening, not an
+error.
 
 A Job's `spec.template` is immutable, so any chart change that touches the script or its
 environment would otherwise fail `helm upgrade` with `spec.template: field is immutable` while
