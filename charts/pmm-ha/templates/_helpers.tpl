@@ -85,6 +85,65 @@ checksum/clickhouse-datasource: {{ include (print $.Template.BasePath "/clickhou
 {{- end }}
 
 {{/*
+Validate the pmm-secret when the user owns it.
+
+statefulset.yaml mounts seven keys from this secret with no `optional`, so one missing key leaves
+every PMM pod in CreateContainerConfigError without naming what is wrong. Check them here and
+report all of the missing ones in a single message instead.
+
+The list is exactly what secret.yaml generates, which is why secret.create exempts all of it:
+demanding a key the chart is about to write would abort the install on its own output.
+
+PMM_ADMIN_PASSWORD is the key PMM-15400 is about - statefulset.yaml maps it to Grafana's
+GF_SECURITY_ADMIN_PASSWORD, and leaving that ref optional is what let it vanish silently.
+
+Included from statefulset.yaml and vmauth.yaml - both read these keys, and vmauth.yaml
+renders first, so it needs its own call to report the missing key rather than dying on a
+b64dec. Keep every consumer that decodes a key from this secret calling it.
+*/}}
+{{- define "pmm.validateSecret" -}}
+{{/*
+An empty secret.name is never a working configuration - statefulset.yaml drops both the envFrom
+secretRef and the GF_SECURITY_ADMIN_PASSWORD ref, and vmauth.yaml / pg-user-credentials-secrets.yaml
+/ clickhouse-cluster.yaml all read keys off a secret that was never named. Fail on it explicitly
+and first: `lookup` with an empty name does not come back empty, it returns a SecretList - truthy,
+with no .data - so the key loop below would otherwise report all seven keys as missing from a
+secret the operator never asked for, and simply skipping the loop would leave the render to die in
+vmauth.yaml on "index of untyped nil", naming neither the secret nor the setting.
+*/}}
+{{- if not .Values.secret.name -}}
+{{- fail "secret.name is empty. Set it to the name of the Kubernetes Secret that holds the PMM credentials (the chart default is 'pmm-secret')." -}}
+{{- end -}}
+{{- if not .Values.secret.create -}}
+{{- $found := lookup "v1" "Secret" .Release.Namespace .Values.secret.name -}}
+{{/*
+Only inspect keys once the Secret is actually in hand. `lookup` also comes back empty on every
+client-side render - helm template, --dry-run=client, a GitOps preview - where it says nothing
+about the secret's contents, and reporting all seven keys as missing there would be simply
+wrong. When the secret really is absent, pg-user-credentials-secrets.yaml fails with the
+accurate "Secret not found" message instead.
+*/}}
+{{- if $found -}}
+{{- $data := $found.data | default dict -}}
+{{- $required := list "PMM_ADMIN_PASSWORD" "GF_PASSWORD" "PG_PASSWORD" "PMM_CLICKHOUSE_USER" "PMM_CLICKHOUSE_PASSWORD" "VMAGENT_remoteWrite_basicAuth_username" "VMAGENT_remoteWrite_basicAuth_password" -}}
+{{- $missing := list -}}
+{{- range $key := $required -}}
+{{- if not (get $data $key) -}}
+{{- $missing = append $missing $key -}}
+{{- end -}}
+{{- end -}}
+{{- if $missing -}}
+{{- $hint := "" -}}
+{{- if has "PMM_ADMIN_PASSWORD" $missing -}}
+{{- $hint = " PMM_ADMIN_PASSWORD sets the PMM/Grafana admin password." -}}
+{{- end -}}
+{{- fail (printf "Secret '%s' in namespace '%s' is missing, or has an empty value for, required key(s): %s.%s" .Values.secret.name .Release.Namespace (join ", " $missing) $hint) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Override pg-database.fullname to ensure consistent naming
 This overrides the function from the pg-db subchart
 */}}
@@ -304,6 +363,117 @@ Called from statefulset.yaml, which always renders.
 {{- end -}}
 
 {{/*
+The number of HAProxy server-template slots, and therefore the ceiling on replicas.
+Shared by haproxy-configmap.yaml (which renders it) and pmm.replicas.validate (which
+enforces it) so the two can never disagree about the default.
+
+kindIs "invalid" rather than `default`, because sprig's `default` treats 0 as empty:
+with it, maxReplicas=0 would silently become 10 and the range check below could never
+see it.
+*/}}
+{{- define "pmm.maxReplicas" -}}
+{{- if kindIs "invalid" .Values.maxReplicas -}}10{{- else -}}{{- .Values.maxReplicas -}}{{- end -}}
+{{- end -}}
+
+{{/*
+Shared parity check for the chart's two Raft ensembles - PMM itself and ClickHouse
+Keeper. Raft elects a leader by majority, so an even count needs more votes to elect
+one without surviving more failures (4 tolerates a single loss, exactly like 3), and a
+count of 2 tolerates none at all.
+
+Takes a dict of:
+  name     - the values key, used verbatim in every message
+  value    - the raw value, validated before it is parsed
+  ceiling  - largest permitted value, or 0 for unbounded. The "use N instead" hint is
+             clamped to it so it never names a value a later check would reject.
+  ceilingName - the values key the ceiling comes from, so the hint can name it.
+
+The regex is deliberately strict. sprig's `int` parses base 0, so "010" would silently
+become 8; and anything wider than int64 overflows to 0. Either way the message would
+quote a number the user never typed, so both are rejected as malformed input instead.
+*/}}
+{{- define "pmm.validate.oddCount" -}}
+{{- $name := .name -}}
+{{- $raw := .value -}}
+{{- if not (regexMatch "^[1-9][0-9]{0,3}$" (toString $raw)) -}}
+{{- fail (printf "%s must be a whole number between 1 and 9999, got %v." $name $raw) -}}
+{{- end -}}
+{{- $n := int $raw -}}
+{{- if eq (mod $n 2) 0 -}}
+{{- $ceiling := int (.ceiling | default 0) -}}
+{{- $lower := sub $n 1 -}}
+{{- $upper := add $n 1 -}}
+{{- $hint := printf "Use %d or %d." $lower $upper -}}
+{{- if gt $ceiling 0 -}}
+{{- $maxOdd := $ceiling -}}
+{{- if eq (mod $ceiling 2) 0 -}}
+{{- $maxOdd = sub $ceiling 1 -}}
+{{- end -}}
+{{- if gt $upper $maxOdd -}}
+{{- if le $lower $maxOdd -}}
+{{- $hint = printf "Use %d." $lower -}}
+{{- else -}}
+{{- $hint = printf "%s is %d, so the largest supported value is %d." (.ceilingName | default "The ceiling") $ceiling $maxOdd -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- fail (printf "%s must be odd, got %d: an even count adds a Raft voter without adding fault tolerance - it widens the majority a leader election needs while surviving no more failures. %s" $name $n $hint) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the PMM replica count.
+Called from statefulset.yaml, which always renders and reaches these checks before the
+lookup in pg-user-credentials-secrets.yaml, so a plain `helm template` reports the real
+problem rather than a missing secret.
+
+HAProxy discovers PMM through a server-template with maxReplicas slots
+(haproxy-configmap.yaml), fills them from a headless-service DNS answer in arbitrary
+order, and marks a backend UP only when it answers /v1/server/leaderHealthCheck with
+200. Going above maxReplicas is therefore not merely under-routing: if the Raft leader
+lands on a pod that got no slot, every backend is DOWN and PMM serves 503.
+*/}}
+{{- define "pmm.replicas.validate" -}}
+{{- $maxRaw := include "pmm.maxReplicas" . -}}
+{{- if not (regexMatch "^([1-9][0-9]?|100)$" $maxRaw) -}}
+{{- fail (printf "maxReplicas must be a whole number between 1 and 100, got %v: it is rendered verbatim into the HAProxy server-template, and every slot is a backend server allocated at startup." $maxRaw) -}}
+{{- end -}}
+{{- $maxReplicas := int $maxRaw -}}
+{{- include "pmm.validate.oddCount" (dict "name" "replicas" "value" .Values.replicas "ceiling" $maxReplicas "ceilingName" "maxReplicas") -}}
+{{- $replicas := int .Values.replicas -}}
+{{- if gt $replicas $maxReplicas -}}
+{{- fail (printf "replicas (%d) exceeds maxReplicas (%d): HAProxy renders only %d server-template slots and fills them from DNS in arbitrary order, so a pod left without a slot is invisible to it. Because HAProxy marks a backend UP only when it answers /v1/server/leaderHealthCheck, a Raft leader on that pod leaves every backend DOWN and PMM serves 503. Lower replicas, or raise maxReplicas and bump haproxy.podAnnotations \"pmm.percona.com/config-version\" in the same upgrade so HAProxy restarts with the new server-template." $replicas $maxReplicas $maxReplicas) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the ClickHouse Keeper node count.
+Called from statefulset.yaml alongside the other value checks, for the same ordering
+reason described above.
+
+The parenthesised lookup matches pmm.nodeExporter.mode: without it, a nulled clickhouse
+or clickhouse.keeper key aborts with a raw Go nil-pointer error instead of the message
+this validator exists to produce.
+
+Unlike replicas there is no HAProxy-style hard constraint here, so the ceiling is a
+supportability limit rather than a correctness one: every Keeper node is a full Raft
+voter, so each extra pair widens the majority that every write waits on while buying
+fault tolerance nobody asked for - 9 already survives 4 simultaneous losses. The bound
+is enforced here rather than in pmm.validate.oddCount, which only clamps the hint: adding
+a rejection there would fire ahead of the maxReplicas check in pmm.replicas.validate and
+swallow its far more specific message.
+*/}}
+{{- define "pmm.keeper.validate" -}}
+{{- $ceiling := 9 -}}
+{{- $raw := ((.Values.clickhouse).keeper).replicasCount -}}
+{{- include "pmm.validate.oddCount" (dict "name" "clickhouse.keeper.replicasCount" "value" $raw "ceiling" $ceiling "ceilingName" "The supported maximum") -}}
+{{- $n := int $raw -}}
+{{- if gt $n $ceiling -}}
+{{- fail (printf "clickhouse.keeper.replicasCount (%d) exceeds the supported maximum (%d): every Keeper node is a full Raft voter, so each extra pair widens the majority every write waits on without buying fault tolerance the cluster needs - %d already survives 4 simultaneous losses." $n $ceiling $ceiling) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Target labels shared by both node-exporter scrape jobs. PMM's OS dashboards filter on node_name
 and node_type ("generic" is PMM's type for a bare host), so without these the node is invisible there.
 Emitted unindented; callers nindent it to their relabel_configs item level.
@@ -404,4 +574,48 @@ dict with "name" and "value".
 {{- if not (regexMatch "^[A-Za-z_][A-Za-z0-9_-]*$" .value) -}}
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Name of the secret holding the PMM service account token the pg-db PMM client uses.
+
+Reproduces pg-db's own default expression - `pmm.secret | default (printf "%s-pmm-secret"
+(include "pg-database.fullname" .))` (charts/pg-db/templates/cluster.yaml) - rather than the
+string it happens to produce, so the two cannot drift: pmm-ha overrides pg-database.fullname
+above, and both sides pick that override up from the same place. Only the Job reads this
+helper; the subchart reaches pg-database.fullname directly.
+
+Release-scoped on purpose: the token is created imperatively by the token-init Job rather
+than owned by Helm, so `helm uninstall` cannot remove it. A fixed name therefore lets a NEW
+release inherit the previous install's dead token.
+*/}}
+{{- define "pmm.pgPmmSecretName" -}}
+{{- $explicit := index .Values "pg-db" "pmm" "secret" -}}
+{{- if $explicit -}}
+{{- $explicit -}}
+{{- else -}}
+{{- printf "%s-pmm-secret" (include "pg-database.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Name of the pg-db PMM token-init Job, suffixed with a hash of its own pod template.
+
+A Job's spec.template is immutable, and this Job carries no helm.sh/hook annotations, so Helm
+treats it as an ordinary release resource and patches it on upgrade. Any change to the script
+or to an env value would then fail the upgrade with `spec.template: field is immutable` for as
+long as the previous Job exists - ttlSecondsAfterFinished bounds that to 24h after it
+completed, so it only bites an upgrade that follows soon after an install, which is exactly
+what CI (fresh `ct install` only) never exercises. With the hash in the name such a change
+renames the resource instead, and Helm creates the new Job and prunes the old one.
+
+The release name is truncated, rather than the finished string, so the result stays within the
+63-character limit that applies to the `job-name` label Kubernetes puts on the Job's pods while
+keeping the "-pmm-token-init" part readable: 37 + "-pmm-token-init" + "-" + 8 = 61. Helm caps
+release names at 53, so the untruncated `<release>-pmm-token-init` this replaces could reach 68
+and be rejected outright.
+*/}}
+{{- define "pmm.pgTokenJobName" -}}
+{{- $base := .Release.Name | trunc 37 | trimSuffix "-" -}}
+{{- printf "%s-pmm-token-init-%s" $base (include "pmm.pgTokenJobPodTemplate" . | sha256sum | trunc 8) -}}
 {{- end -}}
