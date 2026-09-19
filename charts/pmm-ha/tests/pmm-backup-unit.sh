@@ -2455,7 +2455,11 @@ section "the consolidation hold covers pods we exec into, and only our own holds
 # lifetime, because those are restored by exec rather than by a temp pod we create. The part
 # worth pinning is the ownership rule: a hold someone else placed must survive our exit.
 _do_save_ns="${NAMESPACE}"; _do_save_dry="${DRY_RUN}"; _do_save_holder="${LOCK_HOLDER}"
+_do_save_bpg="${BACKUP_POSTGRESQL}"; _do_save_bch="${BACKUP_CLICKHOUSE}"
 NAMESPACE=ns; DRY_RUN=false; LOCK_HOLDER=run-1
+# Both selected: the hold now covers only the components the run actually execs into, so an
+# unselected one would simply not be visited (see the selection test at the end of this section).
+BACKUP_POSTGRESQL=true; BACKUP_CLICKHOUSE=true
 _do_log=$(mktemp)
 # The production code bounds every call with `timeout`, which would exec the real binary and
 # never see the stub below.
@@ -2482,6 +2486,7 @@ assert_eq "a foreign hold is left alone"              "no"  "$(_do_held pg-1)"
 assert_eq "...and is never annotated"                 "no"  "$(_do_logged 'pod pg-1')"
 assert_eq "a hold from a dead run of ours is retaken" "yes" "$(_do_held ch-0)"
 assert_eq "the hold records its owner"                "yes" "$(_do_logged 'disruption-hold=run-1')"
+
 : > "${_do_log}"
 unprotect_operand_pods
 assert_eq "exit strips the holds we placed"           "2"   "$(grep -c 'do-not-disrupt-' "${_do_log}")"
@@ -2493,9 +2498,20 @@ assert_eq "a second strip pass is a no-op"            "0"   "$(grep -c . "${_do_
 : > "${_do_log}"; DRY_RUN=true; DISRUPTION_HELD_PODS=""
 protect_operand_pods >/dev/null 2>&1
 assert_eq "a dry run places no holds"                 "0"   "$(grep -c . "${_do_log}")"
+# A component this run did NOT select is never held: its scope was never resolved, so its
+# selector would be the bare component-type match and the hold would reach every install in the
+# namespace — and a SIGKILLed run leaves those annotations on pods it never owned.
+DRY_RUN=false; DISRUPTION_HELD_PODS=""; : > "${_do_log}"
+BACKUP_CLICKHOUSE=false
+protect_operand_pods 4 >/dev/null 2>&1
+assert_eq "an unselected component is not held" "no" "$(_do_held ch-0)"
+assert_eq "…while the selected one still is"    "yes" "$(_do_held pg-0)"
+DISRUPTION_HELD_PODS=""
+
 rm -f "${_do_log}"
 unset -f kubectl timeout _do_held _do_logged
 NAMESPACE="${_do_save_ns}"; DRY_RUN="${_do_save_dry}"; LOCK_HOLDER="${_do_save_holder}"
+BACKUP_POSTGRESQL="${_do_save_bpg}"; BACKUP_CLICKHOUSE="${_do_save_bch}"
 DISRUPTION_HELD_PODS=""
 
 
@@ -2610,14 +2626,20 @@ assert_eq "exactly one resolves"  "pmm-ha-vmcluster" "$(resolve_one VM VMCluster
 
 # Two matches must ABORT, not pick one. Empty output plus non-zero, so every caller's
 # `|| true` leaves the name empty and the component fails loudly instead of proceeding.
+#
+# The CODE distinguishes the two failures: 1 = none, 2 = several. Callers act on the
+# difference — scale_down_pmm may carry on when a namespace simply has no PMM StatefulSet, but
+# must refuse when it cannot tell WHICH one to scale down, and resolve_component_scope fails
+# the whole run only on the ambiguous case. Collapsing both into 1 is what let that refusal be
+# swallowed into a WARN while the restore carried on against a live PMM.
 _ro_out="pmm-ha-vmcluster other-vmcluster "
 assert_eq "two matches resolve to nothing" "" "$(resolve_one VM VMCluster vmcluster 2>/dev/null)"
 resolve_one VM VMCluster vmcluster >/dev/null 2>&1
-assert_rc "two matches return non-zero" 1 $?
+assert_rc "two matches return 2 (ambiguous)" 2 $?
 
 _ro_out=""
 resolve_one VM VMCluster vmcluster >/dev/null 2>&1
-assert_rc "no match returns non-zero" 1 $?
+assert_rc "no match returns 1 (absent)" 1 $?
 
 # --release is the tie-break. It narrows the SELECTOR, so the stub sees a single name again.
 kubectl() {
@@ -2718,6 +2740,253 @@ assert_eq "component run keeps all.prom"           "yes" "$([ -f "${_md}/backup/
 
 COMPONENT_SUFFIX=""
 rm -rf "${_md}" 2>/dev/null || true
+
+#########################################################################################
+section "install scope — one namespace, two releases, no crossed wires"
+#########################################################################################
+# The operand pods carry NO release label: each operator stamps them with the name of the CR it
+# built them from. So every selector is built from a RESOLVED owner, and with the owner unknown
+# it must degrade to exactly the component-type match it always was — never to a wrong guess.
+_sc_save_pg="${SCOPE_PG_CLUSTER}"; _sc_save_ch="${SCOPE_CH_CHI}"
+_sc_save_vm="${SCOPE_VM_CLUSTER}"; _sc_save_pmm="${SCOPE_PMM_INSTANCE}"
+_sc_save_sts="${SCOPE_PMM_STS}"; _sc_save_res="${SCOPE_RESOLVED}"
+_sc_save_ns="${NAMESPACE}"; _sc_save_rel="${TARGET_RELEASE}"
+_sc_save_bpg="${BACKUP_POSTGRESQL}"; _sc_save_bch="${BACKUP_CLICKHOUSE}"
+_sc_save_bvm="${BACKUP_VICTORIAMETRICS}"; _sc_save_bpmm="${BACKUP_PMM_SERVER}"
+_sc_save_rpmm="${RESTORE_PMM_SERVER}"; _sc_save_rch="${RESTORE_CLICKHOUSE}"
+_sc_save_stsname="${PMM_STATEFULSET_NAME}"
+
+SCOPE_PG_CLUSTER=""; SCOPE_CH_CHI=""; SCOPE_VM_CLUSTER=""; SCOPE_PMM_INSTANCE=""
+assert_eq "unscoped pg is the bare role label" \
+    "postgres-operator.crunchydata.com/role=primary" "$(comp_pod_selector postgresql)"
+assert_eq "unscoped ch is the bare chi KEY" \
+    "clickhouse.altinity.com/chi" "$(comp_pod_selector clickhouse)"
+assert_eq "unscoped vm is the bare name label" \
+    "app.kubernetes.io/name=vmstorage" "$(comp_pod_selector victoriametrics)"
+assert_eq "unscoped pmm is the bare component label" \
+    "app.kubernetes.io/component=pmm-server" "$(comp_pod_selector pmm-server)"
+
+SCOPE_PG_CLUSTER="pmm-dr-pg-db"; SCOPE_CH_CHI="pmm-dr"
+SCOPE_VM_CLUSTER="pmm-dr-pmm-ha-vmcluster"; SCOPE_PMM_INSTANCE="pmm-dr"
+assert_eq "scoped pg names the PostgresCluster" \
+    "postgres-operator.crunchydata.com/role=primary,postgres-operator.crunchydata.com/cluster=pmm-dr-pg-db" \
+    "$(comp_pod_selector postgresql)"
+# The bare KEY becomes an equality — this is the one selector whose shape changes, and getting
+# it wrong would match every CHI in the namespace exactly as before.
+assert_eq "scoped ch becomes an equality on the chi" \
+    "clickhouse.altinity.com/chi=pmm-dr" "$(comp_pod_selector clickhouse)"
+assert_eq "scoped vm names the VMCluster" \
+    "app.kubernetes.io/name=vmstorage,app.kubernetes.io/instance=pmm-dr-pmm-ha-vmcluster" \
+    "$(comp_pod_selector victoriametrics)"
+assert_eq "scoped pmm names the release" \
+    "app.kubernetes.io/component=pmm-server,app.kubernetes.io/instance=pmm-dr" \
+    "$(comp_pod_selector pmm-server)"
+
+# vmselect and vminsert are DELETED by a restore, so they need the scope as much as vmstorage.
+assert_eq "vmselect is scoped to the same VMCluster" \
+    "app.kubernetes.io/name=vmselect,app.kubernetes.io/instance=pmm-dr-pmm-ha-vmcluster" \
+    "$(vm_role_selector vmselect)"
+assert_eq "vminsert is scoped to the same VMCluster" \
+    "app.kubernetes.io/name=vminsert,app.kubernetes.io/instance=pmm-dr-pmm-ha-vmcluster" \
+    "$(vm_role_selector vminsert)"
+assert_eq "pmm clients follow the pmm-server scope" \
+    "app.kubernetes.io/component=pmm-client,app.kubernetes.io/instance=pmm-dr" \
+    "$(pmm_client_selector)"
+# The consolidation hold covers EVERY PG instance pod, and must be scoped the same way — it is
+# the one selector that used to be spelled inline instead of through a helper.
+assert_eq "the PG consolidation hold is scoped too" \
+    "postgres-operator.crunchydata.com/instance,postgres-operator.crunchydata.com/cluster=pmm-dr-pg-db" \
+    "$(pg_all_selector)"
+
+#########################################################################################
+section "resolve_one — 'could not look' is NOT 'does not exist'"
+#########################################################################################
+# An RBAC 403, a missing CRD or an apiserver timeout used to be swallowed into an empty result,
+# which reads as "absent" — and absent is tolerated, so every selector silently reverted to the
+# unscoped match this whole mechanism exists to remove. Failing OPEN is the one unacceptable
+# outcome, so a failed lookup has its own code.
+NAMESPACE=testns; TARGET_RELEASE=""
+kubectl() { return 1; }   # 403 / timeout / no such CRD
+resolve_one VM VMCluster vmcluster >/dev/null 2>&1
+assert_rc "a failed lookup returns 3, not 1" 3 $?
+
+# ...and with --release set, objects that exist but carry no instance label are NOT 'absent'
+# either: they belong to a release installed by an older chart, and treating them as missing
+# would make --release silently stop meaning anything.
+TARGET_RELEASE="wanted"
+kubectl() { case "$*" in *"app.kubernetes.io/instance=wanted"*) printf '' ;; *) printf 'legacy-chi ' ;; esac; }
+resolve_one CH ClickHouseInstallation chi >/dev/null 2>&1
+assert_rc "unlabelled objects under --release return 3" 3 $?
+# Genuinely nothing there is still a plain 'absent'.
+kubectl() { printf ''; }
+resolve_one CH ClickHouseInstallation chi >/dev/null 2>&1
+assert_rc "nothing at all is still 1" 1 $?
+TARGET_RELEASE=""
+
+#########################################################################################
+section "resolve_component_scope — ambiguity and 403 stop the run, absence does not"
+#########################################################################################
+BACKUP_POSTGRESQL=true; BACKUP_CLICKHOUSE=false
+BACKUP_VICTORIAMETRICS=false; BACKUP_PMM_SERVER=false
+
+kubectl() { printf '%s' "pmm-ha-pg-db "; }
+SCOPE_RESOLVED="false"; SCOPE_PG_CLUSTER=""
+resolve_component_scope 4 >/dev/null 2>&1
+assert_rc "one owner resolves"            0 $?
+assert_eq "…and is cached as the scope"   "pmm-ha-pg-db" "${SCOPE_PG_CLUSTER}"
+
+# TWO: the case `.items[0]` used to answer silently. It must fail the whole run, before a single
+# pod is read — a backup would otherwise dump the other install into this release's catalog.
+kubectl() { printf '%s' "pmm-ha-pg-db pmm-dr-pg-db "; }
+SCOPE_RESOLVED="false"; SCOPE_PG_CLUSTER=""
+resolve_component_scope 4 >/dev/null 2>&1
+assert_rc "two owners abort the run"      1 $?
+assert_eq "…and leave no scope behind"    "" "${SCOPE_PG_CLUSTER}"
+
+# A lookup that could not be answered is equally fatal, for the same reason.
+kubectl() { return 1; }
+SCOPE_RESOLVED="false"; SCOPE_PG_CLUSTER=""
+resolve_component_scope 4 >/dev/null 2>&1
+assert_rc "an unanswerable lookup aborts the run" 1 $?
+
+# NONE is a different answer: the component's own lookup reports it far better than this can.
+kubectl() { printf '%s' ""; }
+SCOPE_RESOLVED="false"; SCOPE_PG_CLUSTER=""
+resolve_component_scope 4 >/dev/null 2>&1
+assert_rc "no owner is not fatal here"    0 $?
+
+# A component this run did not select is never resolved, so an unrelated second ClickHouse in
+# the namespace cannot block a PostgreSQL-only backup.
+kubectl() { printf '%s' "a b "; }
+SCOPE_RESOLVED="false"; SCOPE_PG_CLUSTER=""; SCOPE_CH_CHI=""
+BACKUP_POSTGRESQL=false
+resolve_component_scope 4 >/dev/null 2>&1
+assert_rc "unselected components are not resolved" 0 $?
+
+# ...and the caller can narrow it further. The retention sweep touches ClickHouse ONLY, so an
+# ambiguous VMCluster or PostgresCluster in the namespace must not fail the nightly prune.
+BACKUP_POSTGRESQL=true; BACKUP_CLICKHOUSE=false
+BACKUP_VICTORIAMETRICS=true; BACKUP_PMM_SERVER=true
+SCOPE_RESOLVED="false"; SCOPE_PG_CLUSTER=""; SCOPE_CH_CHI=""; SCOPE_VM_CLUSTER=""
+resolve_component_scope 4 clickhouse >/dev/null 2>&1
+assert_rc "an 'only clickhouse' scope ignores the others" 0 $?
+assert_eq "…and resolves none of them"    "" "${SCOPE_PG_CLUSTER}${SCOPE_VM_CLUSTER}"
+
+# PMM is scaled down and its clients re-registered on EVERY restore, selected or not, so its
+# scope must be resolved on the restore path unconditionally. Leaving it empty made
+# scale_down_pmm's wait match another release's live pods and reset_pmm_client_agents wipe that
+# release's agent identities.
+RESTORE_PMM_SERVER=false; RESTORE_CLICKHOUSE=true
+kubectl() { printf '%s' "pmm-a-pmm-ha "; }
+SCOPE_RESOLVED="false"; SCOPE_PMM_STS=""; SCOPE_PMM_INSTANCE=""
+resolve_component_scope 5 >/dev/null 2>&1
+assert_eq "restore resolves PMM even when unselected" "pmm-a-pmm-ha" "${SCOPE_PMM_STS}"
+# A BACKUP has no such rule: nothing there scales PMM.
+BACKUP_PMM_SERVER=false
+SCOPE_RESOLVED="false"; SCOPE_PMM_STS=""
+resolve_component_scope 4 >/dev/null 2>&1
+assert_eq "backup does not resolve an unselected PMM" "" "${SCOPE_PMM_STS}"
+
+#########################################################################################
+section "scale_down_pmm — a refusal must not decay into a WARN"
+#########################################################################################
+# resolve_one's "refusing to guess" was swallowed by `|| true` into "not found, skipping scale
+# down", so in the ambiguous namespace the restore carried on with PMM SERVING and rewrote /srv
+# underneath it. None is still fine; several is fatal.
+SCOPE_PMM_STS=""   # force the live-resolve fallback this guard lives on
+kubectl() { printf '%s' "pmm-ha-pmm-ha other-pmm-ha "; }
+scale_down_pmm >/dev/null 2>&1
+assert_rc "two StatefulSets refuse to scale down" 1 $?
+
+kubectl() { printf '%s' ""; }
+scale_down_pmm >/dev/null 2>&1
+assert_rc "no StatefulSet is skipped, not fatal"  0 $?
+
+#########################################################################################
+section "the admission probe is the REAL pod, not a lookalike"
+#########################################################################################
+# The probe used to render its own two-field pod with only the data PVC. In shared mode the pod
+# that actually gets created also mounts the central backup volume, so a missing claim or a
+# policy that rejects that volume passed pre-flight and failed with PMM already at zero.
+_ap_save_e="${S3_ENABLED}"; _ap_save_pvc="${CENTRAL_BACKUP_PVC}"; _ap_save_mp="${SHARED_MOUNT_PATH}"
+_ap_save_sal="${TEMP_POD_SA_LINE}"
+S3_ENABLED=false; CENTRAL_BACKUP_PVC="pmm-ha-central-backup"; SHARED_MOUNT_PATH="/backup"
+
+# `case` inside $( ) trips the parser on its own `)`, so the membership test is a function.
+_ap_in() { case "$2" in *"$1"*) echo yes ;; *) echo no ;; esac; }
+
+# What each path actually SENDS TO THE APISERVER, captured from a kubectl stub. Comparing two
+# calls to the one renderer could only ever be equal; this compares the bytes the pre-flight
+# probe submits against the bytes the restore creates, which is the drift being guarded.
+_ap_cap=$(mktemp); _ap_a=$(mktemp); _ap_b=$(mktemp)
+kubectl() { cat > "${_ap_cap}"; return 0; }
+clear_leftover_temp_pod() { :; }
+
+validate_temp_pod_admission pmm pmm-storage-pmm-0 img:1 "" "" >/dev/null 2>&1
+sed 's/pmm-restore-admission-probe/NAME/' "${_ap_cap}" > "${_ap_a}"
+_ap_probe=$(cat "${_ap_a}")
+assert_eq "shared-mode probe mounts the central volume" "yes" \
+    "$(_ap_in "claimName: pmm-ha-central-backup" "${_ap_probe}")"
+assert_eq "shared-mode probe mounts it where the pod does" "yes" \
+    "$(_ap_in "mountPath: /backup" "${_ap_probe}")"
+
+TEMP_PODS_MARKER="" create_temp_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 img:1 pmm PMM "" "" >/dev/null 2>&1
+sed 's/pmm-srv-restore-pmm-0/NAME/' "${_ap_cap}" > "${_ap_b}"
+assert_eq "probe and CREATED pod are identical but for the name" "" "$(diff "${_ap_a}" "${_ap_b}" 2>&1)"
+rm -f "${_ap_cap}" "${_ap_a}" "${_ap_b}"
+
+# s3 mode carries the ServiceAccount instead, and no central volume at all.
+S3_ENABLED=true; TEMP_POD_SA_LINE="  serviceAccountName: pmm-ha-backup-s3"
+_ap_s3=$(render_temp_restore_pod probe pmm-storage-pmm-0 img:1 pmm "" "")
+assert_eq "s3-mode probe has no central volume" "no" \
+    "$(_ap_in "central-backup-storage" "${_ap_s3}")"
+assert_eq "s3-mode probe carries the ServiceAccount instead" "yes" \
+    "$(_ap_in "serviceAccountName" "${_ap_s3}")"
+S3_ENABLED="${_ap_save_e}"; CENTRAL_BACKUP_PVC="${_ap_save_pvc}"; SHARED_MOUNT_PATH="${_ap_save_mp}"
+TEMP_POD_SA_LINE="${_ap_save_sal}"
+
+#########################################################################################
+section "store_write_private — an unwritable target must be CATCHABLE"
+#########################################################################################
+# `: > "$1"` is a redirection on a POSIX SPECIAL BUILTIN: a failure there kills the shell
+# outright, so `|| return 1` never ran and the orchestrator died before recording the failed
+# encryption-key result.
+_swp_save_e="${S3_ENABLED}"; _swp_save_t="${BACKUP_TARGET}"
+S3_ENABLED=false; BACKUP_TARGET=shared
+# A REAL read-only directory, so share_mkdir succeeds (the directory is already there) and the
+# failure lands exactly where it used to be fatal: the file-creating redirection. A path whose
+# PARENT cannot be created would return from share_mkdir instead and prove nothing.
+_swp_dir=$(mktemp -d)
+chmod 500 "${_swp_dir}"
+_swp_src=$(mktemp); printf 'secret' > "${_swp_src}"
+_swp_rc=0
+printf 'secret' | store_write_private "${_swp_dir}/key.bin" >/dev/null 2>&1 || _swp_rc=$?
+assert_rc "an unwritable dir returns 1, it does not kill the shell" 1 ${_swp_rc}
+
+# The PRODUCTION call shape is a plain REDIRECT, not a pipeline:
+#     if store_write_private "${key_dest}" < "${key_file}"; then
+# which runs in the CURRENT shell — so `: > "$1"` did not merely fail a subshell, it took the
+# whole orchestrator down, before the failed encryption-key result or the manifest was written.
+# Run it in an explicit subshell that prints a sentinel afterwards: the sentinel arriving at all
+# is the proof the shell was still alive to carry on.
+_swp_sentinel=$( ( store_write_private "${_swp_dir}/key.bin" < "${_swp_src}" >/dev/null 2>&1 || true
+                   printf 'survived' ) 2>/dev/null )
+assert_eq "the shell survives an unwritable key destination" "survived" "${_swp_sentinel}"
+rm -f "${_swp_src}"
+assert_eq "…and no key file was left behind" "no" \
+    "$([ -f "${_swp_dir}/key.bin" ] && echo yes || echo no)"
+chmod 700 "${_swp_dir}"; rm -rf "${_swp_dir}"
+S3_ENABLED="${_swp_save_e}"; BACKUP_TARGET="${_swp_save_t}"
+
+unset -f kubectl clear_leftover_temp_pod 2>/dev/null || true
+NAMESPACE="${_sc_save_ns}"; TARGET_RELEASE="${_sc_save_rel}"
+SCOPE_PG_CLUSTER="${_sc_save_pg}"; SCOPE_CH_CHI="${_sc_save_ch}"
+SCOPE_VM_CLUSTER="${_sc_save_vm}"; SCOPE_PMM_INSTANCE="${_sc_save_pmm}"
+SCOPE_PMM_STS="${_sc_save_sts}"; SCOPE_RESOLVED="${_sc_save_res}"
+BACKUP_POSTGRESQL="${_sc_save_bpg}"; BACKUP_CLICKHOUSE="${_sc_save_bch}"
+BACKUP_VICTORIAMETRICS="${_sc_save_bvm}"; BACKUP_PMM_SERVER="${_sc_save_bpmm}"
+RESTORE_PMM_SERVER="${_sc_save_rpmm}"; RESTORE_CLICKHOUSE="${_sc_save_rch}"
+PMM_STATEFULSET_NAME="${_sc_save_stsname}"
 
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then

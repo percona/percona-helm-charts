@@ -713,10 +713,22 @@ The chart creates a ServiceAccount (`<release>-backup-sa`) with a Role granting:
 | `""` | `serviceaccounts` | get | verify the restore temp pods' ServiceAccount exists before scheduling them (a missing SA is otherwise an admission failure mid-restore) |
 | `operator.victoriametrics.com` | `vmclusters` | get, list, patch | scale vmstorage/vminsert down and back up around a VictoriaMetrics restore |
 | `apps` | `statefulsets`, `statefulsets/scale` | get, list, patch (+ get, patch on `/scale`) | scale PMM down and back up around a restore, and read the `volumeClaimTemplate` for PVC names |
+| `pgv2.percona.com` | `perconapgclusters` | get, list | **read only** — resolve which PostgreSQL install owns the pods, so a namespace with two releases cannot be backed up or restored into the wrong one |
+| `clickhouse.altinity.com` | `clickhouseinstallations` | get, list | **read only** — the same, for ClickHouse |
 
-No `perconapgrestores` / `perconapgclusters` access is needed — PostgreSQL restores through
-`pg_restore`, not the operator. No `deployments` access is needed either: a scheduled run is a
-Job that executes `pmm-backup.sh` itself and never resolves `deploy/<release>-backup-tools`.
+The last two are ownership lookups, not operator calls: the operand pods carry no Helm release
+label, so `pmm-backup.sh` resolves the CR that owns them and scopes every pod selector to it (§
+"Two releases in one namespace"). They are **required** — without them the lookup returns 403,
+which the orchestrator refuses to treat as "no such object", and the run aborts rather than fall
+back to matching every install in the namespace.
+
+No `perconapgrestores` access is needed — PostgreSQL restores through `pg_restore`, not the
+operator. No `deployments` access is needed either: a scheduled run is a Job that executes
+`pmm-backup.sh` itself and never resolves `deploy/<release>-backup-tools`.
+
+> **Hand-built RBAC for a DR namespace:** a cross-namespace restore needs this same Role in the
+> **target** namespace. Copy the table above in full — omitting the two ownership rules is the
+> one mistake that stops a restore before it starts.
 
 ---
 

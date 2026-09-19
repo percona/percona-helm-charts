@@ -75,13 +75,31 @@ spec:
             # nc ships with BusyBox on alpine-based images, but don't rely on it: the
             # metrics listeners below need it, so install a fallback if it's missing.
             command -v nc >/dev/null 2>&1 || apk add --no-cache netcat-openbsd >/dev/null 2>&1 || true
-            # The two nc families spell "listen on this port" INCOMPATIBLY, and the fallback
-            # above installs the other one: BusyBox needs `-l -p PORT`, while OpenBSD nc wants
-            # `-l PORT` and rejects -p alongside -l. Hardcoding either silently kills every
-            # metrics listener on the image that has the other, so pick the form from the
-            # binary that is actually present rather than from an assumption about the image.
-            if nc --help 2>&1 | grep -qi busybox; then NC_LISTEN="-l -p"; else NC_LISTEN="-l"; fi
-            echo "metrics listener: nc ${NC_LISTEN} <port>"
+            # Whether the metrics endpoint can be served AT ALL. Kept separate from readiness on
+            # purpose: nc is needed only for the /metrics listener, never for a backup or a
+            # restore, and failing the readinessProbe on it would leave an air-gapped image whose
+            # backups work perfectly stuck at 0 available replicas with `helm --wait` timing out.
+            # A missing listener is still observable — the metrics scrape target simply goes down,
+            # which is what an alert keys on — and it is stated once, loudly, right here.
+            NC_OK=true
+            command -v nc >/dev/null 2>&1 || NC_OK=false
+            if [ "${NC_OK}" = "true" ]; then
+              # The two nc families spell "listen on this port" INCOMPATIBLY, and the fallback
+              # above installs the other one: BusyBox needs `-l -p PORT`, while OpenBSD nc wants
+              # `-l PORT` and rejects -p alongside -l. Hardcoding either silently kills every
+              # metrics listener on the image that has the other, so pick the form from the
+              # binary that is actually present rather than from an assumption about the image.
+              if nc --help 2>&1 | grep -qi busybox; then NC_LISTEN="-l -p"; else NC_LISTEN="-l"; fi
+              echo "metrics listener: nc ${NC_LISTEN} <port>"
+            else
+              NC_LISTEN=""
+              echo "ERROR: netcat (nc) is not present and could not be installed."
+              echo "ERROR:   Backup and restore are UNAFFECTED — they never use it."
+              echo "ERROR:   The metrics endpoint on :9091 will NOT be served, so every"
+              echo "ERROR:   pmm_ha_backup_* / pmm_ha_restore_* series stops updating and the"
+              echo "ERROR:   scrape target for this pod goes down. Use an image that ships netcat"
+              echo "ERROR:   (centralBackupStorage.tools.image) or give the pod an Alpine mirror."
+            fi
             METRICS_PATH="{{ .Values.centralBackupStorage.mountPath }}/.metrics"
             mkdir -p "${METRICS_PATH}"
             # Two writers, two files, ONE endpoint. This used to be one file per COMPONENT and
@@ -157,7 +175,10 @@ spec:
                 [ "$(( _t1 - _t0 ))" -lt 1 ] && sleep 1
               done
             }
-            serve_metrics 9091 &
+            # Not started at all when there is no nc: the loop below would otherwise spin on a
+            # command that is not there for the life of the pod. The 1/s guard inside bounds that
+            # to a wasted syscall per second, but there is nothing to be gained by running it.
+            if [ "${NC_OK}" = "true" ]; then serve_metrics 9091 & fi
             sleep infinity
         readinessProbe:
           # Not Ready until the tools actually run. This is what an init container was standing
@@ -167,7 +188,12 @@ spec:
           exec:
             {{- /* jq always; rclone ONLY in s3 mode — the same condition preflight_checks and
                    backup-entrypoint.sh apply. Requiring rclone unconditionally reported a
-                   perfectly functional shared-mode install as permanently NotReady. */}}
+                   perfectly functional shared-mode install as permanently NotReady.
+                   Deliberately NOT netcat: nc serves the /metrics endpoint and nothing else, so
+                   requiring it here would hold an air-gapped image whose backups and restores
+                   work at 0 available replicas and time out `helm --wait`. The start-up script
+                   reports a missing nc loudly and skips the listener instead, and the absent
+                   scrape target is the signal an alert keys on. */}}
             {{- if eq .Values.centralBackupStorage.mode "s3" }}
             command: ["sh", "-c", "jq --version >/dev/null && rclone version >/dev/null"]
             {{- else }}
@@ -281,6 +307,17 @@ rules:
   - apiGroups: ["apps"]
     resources: ["statefulsets/scale"]
     verbs: ["get", "patch"]
+  # Which INSTALL owns each component's pods. The operand pods carry no release label — each
+  # operator stamps them with the name of the CR it built them from — so the orchestrator
+  # resolves that CR first and scopes every pod selector to it. READ ONLY: it never writes these.
+  # Without these rules the lookup 403s, the scope comes back empty, and a namespace holding two
+  # pmm-ha releases silently falls back to `.items[0]` — the failure the scoping exists to stop.
+  - apiGroups: ["pgv2.percona.com"]
+    resources: ["perconapgclusters"]
+    verbs: ["get", "list"]
+  - apiGroups: ["clickhouse.altinity.com"]
+    resources: ["clickhouseinstallations"]
+    verbs: ["get", "list"]
 ---
 # RoleBinding for backup operations
 apiVersion: rbac.authorization.k8s.io/v1

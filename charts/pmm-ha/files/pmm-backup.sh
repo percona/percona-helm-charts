@@ -118,8 +118,10 @@ numeric_env KUBECTL_STATUS_TIMEOUT 30
 # Kubernetes label selectors (one definition for both operations)
 LABEL_PG_PRIMARY="postgres-operator.crunchydata.com/role=primary"
 LABEL_CH_POD="clickhouse.altinity.com/chi"
-LABEL_VM_STORAGE="app.kubernetes.io/name=vmstorage"
-LABEL_VM_INSERT="app.kubernetes.io/name=vminsert"
+# The three VMCluster tiers differ only in this key's value, so it is the KEY that is named
+# here and vm_role_selector appends the role. (Two full selector constants used to sit here and
+# became dead the moment every call site moved to that helper.)
+LABEL_VM_NAME_KEY="app.kubernetes.io/name"
 # PMM server pods (HA StatefulSet); selector discovers all replicas (1, 3, 5, ...)
 LABEL_PMM_SERVER="app.kubernetes.io/component=pmm-server"
 LABEL_BACKUP_TOOLS="app.kubernetes.io/component=backup-tools"
@@ -127,6 +129,31 @@ LABEL_PMM_CLIENT="app.kubernetes.io/component=pmm-client"
 # EVERY PostgreSQL instance, not just the current primary: Patroni can fail over mid-run, so a
 # hold placed on the primary alone protects the wrong pod a second later.
 LABEL_PG_INSTANCE="postgres-operator.crunchydata.com/instance"
+# The keys that tie a pod back to the ONE install that owns it (see resolve_component_scope).
+# Each operator stamps its pods with the NAME OF THE CR it built them from, under its own key.
+LABEL_PG_CLUSTER="postgres-operator.crunchydata.com/cluster"
+LABEL_INSTANCE="app.kubernetes.io/instance"
+
+# The install each component's pods belong to, resolved ONCE per run by
+# resolve_component_scope() and cached here. Empty = not resolved (or nothing to resolve), and
+# every selector below then degrades to the component-TYPE match it used to be.
+#
+# WHY a resolved name and not RELEASE_NAME: the operand pods carry no Helm release label at
+# all, only the name of the CR that owns them — and that name is NOT the release name. Measured
+# on release `pmm-dr`: PostgresCluster `pmm-dr-pg-db`, VMCluster `pmm-dr-pmm-ha-vmcluster`,
+# ClickHouseInstallation `pmm-dr`. Deriving those patterns from RELEASE_NAME would also
+# reintroduce exactly what resolve_one refuses to do: RELEASE_NAME is the SOURCE release baked
+# into the backup-tools pod, while a cross-namespace restore runs against a target whose release
+# is named differently. So the owner is RESOLVED in the target namespace, with --release as the
+# operator's tie-break, and every pod selector is built from what came back.
+SCOPE_PG_CLUSTER=""
+SCOPE_CH_CHI=""
+SCOPE_VM_CLUSTER=""
+SCOPE_PMM_INSTANCE=""
+# The resolved owner NAMES, cached so the destructive paths below read the same answer the scope
+# was computed from instead of re-resolving (which could disagree mid-restore, after PMM is at 0).
+SCOPE_PMM_STS=""
+SCOPE_RESOLVED="false"
 
 # The consolidation hold this run places on pods it writes into but does not create.
 # Two annotations, because one cannot answer "did WE set this?": the first is what Karpenter
@@ -140,14 +167,63 @@ DISRUPTION_JSONPATH='{.metadata.annotations.karpenter\.sh/do-not-disrupt}|{.meta
 
 # The selector that finds a component's pods, by component key. Lets the generic per-component
 # loops (pre-flight discovery, the restore gate) reach the right pods without a branch each.
+#
+# THE one place a pod selector is built. Every lookup, backup and restore alike, goes through
+# here so that the install scope resolved once per run cannot be applied to some call sites and
+# forgotten at others — which is what made a namespace with two pmm-ha releases dump, and then
+# overwrite, an arbitrary one of them.
 comp_pod_selector() {
     case "$1" in
-        postgresql)      printf '%s' "${LABEL_PG_PRIMARY}" ;;
-        clickhouse)      printf '%s' "${LABEL_CH_POD}" ;;
-        victoriametrics) printf '%s' "${LABEL_VM_STORAGE}" ;;
-        pmm-server)      printf '%s' "${LABEL_PMM_SERVER}" ;;
+        postgresql)      printf '%s%s' "${LABEL_PG_PRIMARY}" "${SCOPE_PG_CLUSTER:+,${LABEL_PG_CLUSTER}=${SCOPE_PG_CLUSTER}}" ;;
+        # LABEL_CH_POD is a bare KEY ("has a chi label"); the scope turns it into an equality.
+        clickhouse)      printf '%s%s' "${LABEL_CH_POD}" "${SCOPE_CH_CHI:+=${SCOPE_CH_CHI}}" ;;
+        victoriametrics) vm_role_selector vmstorage ;;
+        pmm-server)      printf '%s%s' "${LABEL_PMM_SERVER}" "${SCOPE_PMM_INSTANCE:+,${LABEL_INSTANCE}=${SCOPE_PMM_INSTANCE}}" ;;
         *) return 1 ;;
     esac
+}
+
+# The three VMCluster tiers share one owner, so they share one scope. vmselect and vminsert are
+# BOUNCED by a restore (deleted, waited for), which is why they need the scope as much as
+# vmstorage does: an unscoped `kubectl delete pod -l name=vmselect` takes out every other
+# install's query tier in the namespace too.
+vm_role_selector() {   # <vmstorage|vmselect|vminsert>
+    printf '%s=%s%s' "${LABEL_VM_NAME_KEY}" "$1" "${SCOPE_VM_CLUSTER:+,${LABEL_INSTANCE}=${SCOPE_VM_CLUSTER}}"
+}
+
+# EVERY PostgreSQL instance pod of THIS install, not just the current primary (see
+# LABEL_PG_INSTANCE). A helper rather than an inline expansion at its one call site: the PG scope
+# then has a single spelling, which is the whole point of routing selectors through one place.
+pg_all_selector() {
+    printf '%s%s' "${LABEL_PG_INSTANCE}" "${SCOPE_PG_CLUSTER:+,${LABEL_PG_CLUSTER}=${SCOPE_PG_CLUSTER}}"
+}
+
+# The pmm-client pods of the SAME install as the PMM server being restored — they are chart
+# rendered, so unlike the operand pods they do carry the release as app.kubernetes.io/instance.
+pmm_client_selector() {
+    printf '%s%s' "${LABEL_PMM_CLIENT}" "${SCOPE_PMM_INSTANCE:+,${LABEL_INSTANCE}=${SCOPE_PMM_INSTANCE}}"
+}
+
+# Exactly ONE pod for <selector>, or empty plus a refusal — the pod-level counterpart of
+# resolve_one, for the lookups that feed an exec that writes. The run's resolved scope already
+# narrows these to a single install; this catches what scoping cannot: a PostgreSQL failover
+# caught in flight, where two pods can briefly carry role=primary and `.items[0]` would pick the
+# one about to be demoted. Logs to fd 9 for the same reason resolve_one does — it is called
+# inside $( ), where a plain log would be captured into the value instead of reaching anyone.
+one_pod() {   # <tag> <what> <selector>
+    _op_tag="$1"; _op_what="$2"; _op_sel="$3"
+    _op_names=$(kubectl get pods -n "${NAMESPACE}" -l "${_op_sel}" \
+        -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}' 2>/dev/null || true)
+    # shellcheck disable=SC2086
+    set -- ${_op_names}
+    if [ $# -eq 1 ]; then printf '%s' "$1"; return 0; fi
+    if [ $# -eq 0 ]; then
+        log "ERROR" "[${_op_tag}] No ${_op_what} found in ${NAMESPACE} (selector: ${_op_sel})" >&9
+        return 1
+    fi
+    log "ERROR" "[${_op_tag}] Refusing to guess: ${NAMESPACE} holds $# ${_op_what}s ($*) matching ${_op_sel}." >&9
+    log "ERROR" "[${_op_tag}] Re-run with --release <name>, or retry once a failover has settled." >&9
+    return 2
 }
 
 # ClickHouse credentials secret (both operations)
@@ -1048,33 +1124,139 @@ comp_inpod()   { comp_at inpod   "$1" "${2:-}"; }
 #
 # Logs to fd 9: it is called inside $( ), where a plain log would be captured into the value
 # instead of reaching the operator (same reason pod_sh does it).
+# The names of every <kind> matching <selector>, or a NON-ZERO status. Split out of resolve_one
+# so that "the lookup failed" stays distinguishable from "it found nothing": `2>/dev/null || true`
+# conflated them, so an RBAC 403, a missing CRD or an apiserver timeout read as "no such object" —
+# which resolve_component_scope tolerates, leaving every selector unscoped. Failing OPEN is the
+# one outcome install scoping must never have.
+resolve_one_names() {   # <kind> [selector]
+    if [ -n "${2:-}" ]; then
+        kubectl get "$1" -n "${NAMESPACE}" -l "$2" \
+            -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}' 2>/dev/null
+    else
+        kubectl get "$1" -n "${NAMESPACE}" \
+            -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}' 2>/dev/null
+    fi
+}
+
 resolve_one() {   # <tag> <what> <kind> [label-selector]
-    _ro_tag="$1"; _ro_what="$2"; _ro_kind="$3"; _ro_sel="${4:-}"
+    _ro_tag="$1"; _ro_what="$2"; _ro_kind="$3"; _ro_base="${4:-}"
+    _ro_sel="${_ro_base}"
     if [ -n "${TARGET_RELEASE}" ]; then
         if [ -n "${_ro_sel}" ]; then
-            _ro_sel="${_ro_sel},app.kubernetes.io/instance=${TARGET_RELEASE}"
+            _ro_sel="${_ro_sel},${LABEL_INSTANCE}=${TARGET_RELEASE}"
         else
-            _ro_sel="app.kubernetes.io/instance=${TARGET_RELEASE}"
+            _ro_sel="${LABEL_INSTANCE}=${TARGET_RELEASE}"
         fi
     fi
-    if [ -n "${_ro_sel}" ]; then
-        _ro_names=$(kubectl get "${_ro_kind}" -n "${NAMESPACE}" -l "${_ro_sel}" \
-            -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}' 2>/dev/null || true)
-    else
-        _ro_names=$(kubectl get "${_ro_kind}" -n "${NAMESPACE}" \
-            -o jsonpath='{range .items[*]}{.metadata.name}{" "}{end}' 2>/dev/null || true)
+    _ro_rc=0
+    _ro_names=$(resolve_one_names "${_ro_kind}" "${_ro_sel}") || _ro_rc=$?
+    if [ "${_ro_rc}" -ne 0 ]; then
+        log "ERROR" "[${_ro_tag}] Could NOT look up ${_ro_what}s in ${NAMESPACE} (kubectl rc ${_ro_rc})." >&9
+        log "ERROR" "[${_ro_tag}] Usually RBAC (the ServiceAccount needs get/list on ${_ro_kind}), a missing CRD, or an apiserver timeout." >&9
+        log "ERROR" "[${_ro_tag}] NOT treating it as 'none exist': the pod selector built from this would then match EVERY install in the namespace." >&9
+        return 3
     fi
     # shellcheck disable=SC2086
     set -- ${_ro_names}
     if [ $# -eq 1 ]; then printf '%s' "$1"; return 0; fi
+    # 1 = none, 2 = several, 3 = could not look. All three are DIFFERENT answers and callers act
+    # on the difference: a namespace that simply does not run a component is an ordinary
+    # per-component failure, while two of them — or an unanswerable lookup — stops the whole run.
+    # (A distinct code, not a global: every caller invokes this inside $( ), i.e. a subshell,
+    # so an assignment made in here could never reach them — only the exit status can.)
     if [ $# -eq 0 ]; then
+        if [ -n "${TARGET_RELEASE}" ]; then
+            # Did they exist, but simply carry no instance label? Objects created by a release
+            # running an OLDER chart do not (the ClickHouseInstallation gained its labels only
+            # now), and reading that as "absent" fails open: the caller's selector degrades to the
+            # component-TYPE match and --release silently stops meaning anything.
+            _ro_any=$(resolve_one_names "${_ro_kind}" "${_ro_base}") || _ro_any=""
+            if [ -n "${_ro_any}" ]; then
+                log "ERROR" "[${_ro_tag}] No ${_ro_what} here carries ${LABEL_INSTANCE}=${TARGET_RELEASE}, but ${NAMESPACE} does hold: ${_ro_any}" >&9
+                log "ERROR" "[${_ro_tag}] --release cannot tell those apart, and continuing would match EVERY install in the namespace." >&9
+                log "ERROR" "[${_ro_tag}] They predate the label — run 'helm upgrade' on that release first, then retry." >&9
+                return 3
+            fi
+        fi
         log "ERROR" "[${_ro_tag}] No ${_ro_what} found in namespace ${NAMESPACE}${TARGET_RELEASE:+ for release ${TARGET_RELEASE}}" >&9
         return 1
     fi
     log "ERROR" "[${_ro_tag}] Refusing to guess: ${NAMESPACE} holds $# ${_ro_what}s ($*)." >&9
     log "ERROR" "[${_ro_tag}] Restore scales this down and overwrites it, so the choice must be explicit." >&9
     log "ERROR" "[${_ro_tag}] Re-run with --release <name>." >&9
-    return 1
+    return 2
+}
+
+# Resolve, ONCE, the install that owns each component this run will touch, and cache the scope
+# every pod selector is then built from. <col> is the component-table column that says whether
+# this operation selected the component (4 = backup, 5 = restore), mirroring preflight_checks.
+#
+# Ambiguity is FATAL; absence is not. Two owners of a kind in one namespace is exactly the case
+# the old `.items[0]` lookups resolved silently — and a backup would then dump the other
+# install's databases into this release's catalog, or a restore overwrite them — so the run
+# stops here, before anything is read or scaled down. Zero owners is left to the component's own
+# lookup, which says far more about it than this could: backup WARNs and marks the component
+# failed, restore's gate errors out.
+# Should this run resolve <component>'s owner? Selected for the operation, and — when the caller
+# narrowed the set — one of the components it named.
+scope_wants() {   # <component> <column> <only-list-or-empty>
+    if [ -n "$3" ]; then
+        case " $3 " in *" $1 "*) ;; *) return 1 ;; esac
+    fi
+    comp_on "$1" "$2"
+}
+
+resolve_component_scope() {   # <selected-column> [only-these-components]
+    [ "${SCOPE_RESOLVED}" = "true" ] && return 0
+    _rcs_col="${1:-4}"
+    _rcs_only="${2:-}"
+    _rcs_fail=0 _rcs_n="" _rcs_rc=0
+
+    if scope_wants postgresql "${_rcs_col}" "${_rcs_only}"; then
+        _rcs_rc=0; _rcs_n=$(resolve_one PostgreSQL "PostgreSQL cluster" perconapgcluster) || _rcs_rc=$?
+        if [ "${_rcs_rc}" -ge 2 ]; then _rcs_fail=1; fi
+        SCOPE_PG_CLUSTER="${_rcs_n}"
+    fi
+    if scope_wants clickhouse "${_rcs_col}" "${_rcs_only}"; then
+        _rcs_rc=0; _rcs_n=$(resolve_one ClickHouse "ClickHouseInstallation" chi) || _rcs_rc=$?
+        if [ "${_rcs_rc}" -ge 2 ]; then _rcs_fail=1; fi
+        SCOPE_CH_CHI="${_rcs_n}"
+    fi
+    if scope_wants victoriametrics "${_rcs_col}" "${_rcs_only}"; then
+        _rcs_rc=0; _rcs_n=$(resolve_one VictoriaMetrics "VMCluster" vmcluster) || _rcs_rc=$?
+        if [ "${_rcs_rc}" -ge 2 ]; then _rcs_fail=1; fi
+        SCOPE_VM_CLUSTER="${_rcs_n}"
+    fi
+    # On a RESTORE this is resolved even when pmm-server is NOT a selected component: every
+    # restore scales the PMM StatefulSet down and back up, and re-registers the pmm-client agents
+    # on success. Both drive off this scope, so leaving it empty for, say, `restore --clickhouse`
+    # made scale_down_pmm's wait match ANOTHER release's live PMM pods — the restore then timed
+    # out with this release's PMM stranded at 0 — and made reset_pmm_client_agents delete the
+    # other release's agent config and pods.
+    if [ "${_rcs_col}" = "5" ] || scope_wants pmm-server "${_rcs_col}" "${_rcs_only}"; then
+        _rcs_rc=0; SCOPE_PMM_STS=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}") || _rcs_rc=$?
+        if [ "${_rcs_rc}" -ge 2 ]; then _rcs_fail=1; fi
+        if [ -n "${SCOPE_PMM_STS}" ]; then
+            # Escaped dots, NOT the ['key'] bracket form: jsonpath reads a '/' inside brackets as
+            # a path separator and returns EMPTY for these keys without erroring.
+            SCOPE_PMM_INSTANCE=$(kubectl get statefulset "${SCOPE_PMM_STS}" -n "${NAMESPACE}" \
+                -o jsonpath='{.metadata.labels.app\.kubernetes\.io/instance}' 2>/dev/null || true)
+            if [ -z "${SCOPE_PMM_INSTANCE}" ]; then
+                log "WARN" "[Scope] StatefulSet ${SCOPE_PMM_STS} carries no ${LABEL_INSTANCE} label; PMM pod lookups stay unscoped"
+            fi
+        fi
+    fi
+
+    if [ "${_rcs_fail}" -ne 0 ]; then
+        log "ERROR" "[Scope] Refusing to continue: this namespace holds more than one install of a selected component,"
+        log "ERROR" "[Scope] or its owner could not be looked up at all (see above)."
+        log "ERROR" "[Scope] Name the one to operate on with --release <name>, or fix the RBAC the message names."
+        return 1
+    fi
+    SCOPE_RESOLVED="true"
+    log "INFO" "[Scope] Install scope:${SCOPE_PG_CLUSTER:+ postgresql=${SCOPE_PG_CLUSTER}}${SCOPE_CH_CHI:+ clickhouse=${SCOPE_CH_CHI}}${SCOPE_VM_CLUSTER:+ victoriametrics=${SCOPE_VM_CLUSTER}}${SCOPE_PMM_INSTANCE:+ pmm-server=${SCOPE_PMM_INSTANCE}}"
+    return 0
 }
 
 # Can this process actually CREATE a file in <dir>? A real write, not `test -w`.
@@ -1189,7 +1371,14 @@ store_write() {  # <path> <- stdin
 store_write_private() {
     if [ "${S3_ENABLED}" = "true" ]; then s3_rclone_rcat "$1"; else
         share_mkdir "$(dirname "$1")" || return 1
-        : > "$1" || return 1
+        # `touch`, NOT `: > "$1"`. `:` is a POSIX SPECIAL BUILTIN, and a redirection error on a
+        # special builtin is fatal to the shell — `|| return 1` never runs, the orchestrator dies
+        # right here with nothing but the redirection error, and the failed encryption-key result
+        # and the manifest are never recorded. That is the identical trap dir_writable() above
+        # documents and measured on EFS. `touch` is an external command, so a read-only or
+        # exhausted shared volume comes back as an ordinary non-zero exit this can act on.
+        # (The file must exist before chmod, so the mode is set BEFORE any content is written.)
+        touch "$1" || return 1
         # 0600 keeps the key private on a single-namespace volume, but it also locks out the DR
         # namespace: OpenShift gives every namespace its own uid, so a cross-namespace restore
         # cannot read the key it needs and dies in preflight with "could not check key ... the
@@ -1928,10 +2117,17 @@ release_locks() {
 # failure to annotate must never abort a backup or a restore (`|| true` throughout). What it is
 # NOT is a substitute for a PodDisruptionBudget — it stops voluntary consolidation, not a node
 # going away.
-protect_operand_pods() {
-    local _sel _pod _pair _held _owner
+# <selected-column> is 4 for a backup, 5 for a restore — the SAME column resolve_component_scope
+# was given, because the two must agree: a component this run did not select has no resolved
+# scope, and holding it anyway would build its selector from an empty scope and reach every
+# install in the namespace. It is also simply wrong to pin pods this run never execs into: a
+# `backup --postgresql` held all three ClickHouse pods of every release here.
+protect_operand_pods() {   # <selected-column>
+    local _sel _pod _pair _held _owner _pop_c _pop_col="${1:-4}"
     [ "${DRY_RUN}" = "true" ] && return 0
-    for _sel in "${LABEL_PG_INSTANCE}" "${LABEL_CH_POD}"; do
+    for _pop_c in postgresql clickhouse; do
+        comp_on "${_pop_c}" "${_pop_col}" || continue
+        if [ "${_pop_c}" = "postgresql" ]; then _sel=$(pg_all_selector); else _sel=$(comp_pod_selector clickhouse); fi
         for _pod in $(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl get pods -n "${NAMESPACE}" -l "${_sel}" \
                         -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true); do
             # Both annotations in ONE call, split on the '|' the jsonpath emits between them.
@@ -2582,11 +2778,7 @@ backup_postgresql() {
     local start_time=$(date +%s)
 
     local pg_pod
-    pg_pod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PG_PRIMARY}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-    if [ -z "${pg_pod}" ]; then
-        log "ERROR" "[PostgreSQL] Primary pod not found (label: ${LABEL_PG_PRIMARY})"
-        return 1
-    fi
+    pg_pod=$(one_pod PostgreSQL "primary pod" "$(comp_pod_selector postgresql)") || return 1
 
     # Application databases to dump: everything except templates and the empty 'postgres'
     # maintenance db. pg_dump uses local peer auth as the postgres superuser.
@@ -2717,7 +2909,7 @@ CH_PASS=""
 
 # The pod that runs clickhouse-client and hosts the clickhouse-backup sidecar.
 ch_resolve_pod() {
-    CH_POD=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_CH_POD}" \
+    CH_POD=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" \
         -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
     if [ -z "${CH_POD}" ]; then
         log "ERROR" "[ClickHouse] No pods found in namespace: ${NAMESPACE}"
@@ -3068,7 +3260,7 @@ backup_victoriametrics() {
 
     # Get list of vmstorage pods
     local vmstorage_pods=$(kubectl get pods -n "${NAMESPACE}" \
-        -l "${LABEL_VM_STORAGE}" \
+        -l "$(comp_pod_selector victoriametrics)" \
         -o jsonpath='{.items[*].metadata.name}')
     
     if [ -z "${vmstorage_pods}" ]; then
@@ -3242,12 +3434,12 @@ backup_pmm_server() {
 
     # Discover all PMM server pods (HA StatefulSet: 1, 3, 5, ... replicas)
     local pmm_pods=$(kubectl get pods -n "${NAMESPACE}" \
-        -l "${LABEL_PMM_SERVER}" \
+        -l "$(comp_pod_selector pmm-server)" \
         -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
 
     if [ -z "${pmm_pods}" ]; then
         log "ERROR" "[PMMServer] No PMM server pods found in namespace: ${NAMESPACE}"
-        log "ERROR" "[PMMServer] Check label: ${LABEL_PMM_SERVER}"
+        log "ERROR" "[PMMServer] Check label: $(comp_pod_selector pmm-server)"
         return 1
     fi
 
@@ -3762,7 +3954,12 @@ resolve_pmm_restore_security_context() {   # <statefulset-name>
 pmm_restore_security_context() { printf '%s' "${PMM_RESTORE_SEC_CTX}"; }
 
 # Find the central backup PVC (shared mode VM restore pod mounts it).
-resolve_central_backup_pvc() {
+# <tag> is the log prefix, because this is called from the VictoriaMetrics restore, the PMM
+# Server restore AND the shared pre-flight gate — a hardcoded [VictoriaMetrics] told an operator
+# running `restore --pmm-server` to "skip this component with --skip-victoriametrics", naming a
+# component that was not even part of the run and a flag that could not clear the error.
+resolve_central_backup_pvc() {   # [tag]
+    _rcbp_tag="${1:-CentralVolume}"
     [ -n "${CENTRAL_BACKUP_PVC}" ] && return 0
     local bt_pod="" bt_sel=""
     # Prefer THIS release's pod. Two pmm-ha releases can share a namespace, and `.items[0]` of
@@ -3790,14 +3987,14 @@ resolve_central_backup_pvc() {
         # create_temp_restore_pod can only render a persistentVolumeClaim — so this is not a
         # lookup failure, it is an unsupported shape, and the operator needs to hear which.
         if [ -n "${bt_pod}" ] && [ -n "$(kubectl get pod -n "${NAMESPACE}" "${bt_pod}" -o jsonpath='{.spec.volumes[?(@.name=="central-backup-storage")].nfs.server}' 2>/dev/null || true)" ]; then
-            log "ERROR" "[VictoriaMetrics] The central backup volume is a direct NFS mount, not a PVC."
-            log "ERROR" "  The vmrestore temp pod can only mount a PersistentVolumeClaim, so a VictoriaMetrics"
-            log "ERROR" "  restore needs the shared volume exposed as one: create a PV/PVC for the same export"
-            log "ERROR" "  and set centralBackupStorage.existingClaim instead of centralBackupStorage.nfs, or"
-            log "ERROR" "  skip this component with --skip-victoriametrics."
+            log "ERROR" "[${_rcbp_tag}] The central backup volume is a direct NFS mount, not a PVC."
+            log "ERROR" "  The temp restore pod can only mount a PersistentVolumeClaim, so this restore needs the"
+            log "ERROR" "  shared volume exposed as one: create a PV/PVC for the same export and set"
+            log "ERROR" "  centralBackupStorage.existingClaim instead of centralBackupStorage.nfs — or drop the"
+            log "ERROR" "  components that need it (--skip-victoriametrics / --skip-pmm-server)."
             return 1
         fi
-        log "ERROR" "[VictoriaMetrics] Central backup PVC not found (set CENTRAL_BACKUP_PVC or run from backup-tools)"
+        log "ERROR" "[${_rcbp_tag}] Central backup PVC not found (set CENTRAL_BACKUP_PVC or run from backup-tools)"
         return 1
     fi
     return 0
@@ -3884,38 +4081,14 @@ select_default_components() {
 validate_temp_pod_admission() {   # <role> <pvc> <image> <sec-ctx> <sched>
     local _vtpa_role="$1" _vtpa_pvc="$2" _vtpa_image="$3" _vtpa_sec="${4:-}" _vtpa_sched="${5:-}"
     local _vtpa_out _vtpa_rc=0 _vtpa_name="pmm-restore-admission-probe"
-    local _vtpa_ctr _vtpa_vol _vtpa_mnt
-    case "${_vtpa_role}" in
-        vm)  _vtpa_ctr=vmrestore;   _vtpa_vol=vmstorage-db; _vtpa_mnt=/vmstorage-data ;;
-        *)   _vtpa_ctr=srv-restore; _vtpa_vol=pmm-storage;  _vtpa_mnt=/srv ;;
-    esac
-    _vtpa_out=$(kubectl create --dry-run=server -f - -n "${NAMESPACE}" 2>&1 <<EOF
-apiVersion: v1
-kind: Pod
-metadata:
-  name: ${_vtpa_name}
-  labels:
-    app.kubernetes.io/component: ${_vtpa_role}-restore-temp
-spec:
-  restartPolicy: Never
-${TEMP_POD_SA_LINE}
-${_vtpa_sec}
-${_vtpa_sched}
-  containers:
-    - name: ${_vtpa_ctr}
-      image: ${_vtpa_image}
-      imagePullPolicy: IfNotPresent
-      command: ["sleep", "infinity"]
-      resources: ${TEMP_POD_RESOURCES}
-      volumeMounts:
-        - name: ${_vtpa_vol}
-          mountPath: ${_vtpa_mnt}
-  volumes:
-    - name: ${_vtpa_vol}
-      persistentVolumeClaim:
-        claimName: ${_vtpa_pvc}
-EOF
-) || _vtpa_rc=$?
+    # The REAL pod spec, from the ONE renderer create_temp_restore_pod uses — same volumes (in
+    # shared mode that includes the central backup volume the probe used to omit entirely), same
+    # service account, same resources, same securityContext, same scheduling. A probe that is
+    # merely similar to the pod proves nothing about the pod: the apiserver admits or rejects
+    # what it is actually shown.
+    _vtpa_out=$(render_temp_restore_pod "${_vtpa_name}" "${_vtpa_pvc}" "${_vtpa_image}" "${_vtpa_role}" \
+                    "${_vtpa_sec}" "${_vtpa_sched}" \
+                | kubectl create --dry-run=server -f - -n "${NAMESPACE}" 2>&1) || _vtpa_rc=$?
     if [ "${_vtpa_rc}" -ne 0 ]; then
         log "ERROR" "[Preflight] the ${_vtpa_role} restore pod would be REJECTED by this namespace; nothing has been changed"
         printf '%s\n' "${_vtpa_out}" | while IFS= read -r _vtpa_l; do
@@ -4006,9 +4179,9 @@ validate_restore_encryption() {
 validate_restore_postgresql() {
     local fail=0
     local _pgpod="" _db
-    _pgpod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PG_PRIMARY}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    _pgpod=$(one_pod PostgreSQL "primary pod" "$(comp_pod_selector postgresql)" || true)
     if [ -z "${_pgpod}" ]; then
-        log "ERROR" "[Preflight] postgresql: no primary pod matching '${LABEL_PG_PRIMARY}' (--skip-postgresql to drop it)"
+        log "ERROR" "[Preflight] postgresql: no single primary pod matching '$(comp_pod_selector postgresql)' (--skip-postgresql to drop it)"
         fail=1
     fi
     if [ -z "${MF_PG_DBS}" ]; then
@@ -4031,9 +4204,9 @@ validate_restore_postgresql() {
 validate_restore_clickhouse() {
     local fail=0
     local _chpod=""
-    _chpod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_CH_POD}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    _chpod=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -z "${_chpod}" ]; then
-        log "ERROR" "[Preflight] clickhouse: no pod matching '${LABEL_CH_POD}' (--skip-clickhouse to drop it)"
+        log "ERROR" "[Preflight] clickhouse: no pod matching '$(comp_pod_selector clickhouse)' (--skip-clickhouse to drop it)"
         fail=1
     elif [ -z "${MF_CH_NAME}" ]; then
         log "ERROR" "[Preflight] clickhouse: manifest records no backup name"
@@ -4090,10 +4263,16 @@ validate_restore_clickhouse() {
 validate_restore_victoriametrics() {
     local fail=0
     local _vmpods="" _vmcluster="" _vmtarget="" _vmsrc="" _p _ord="" _sub="" _vmname="" _vmimg=""
-    _vmpods=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
-    _vmcluster=$(resolve_one VictoriaMetrics "VMCluster" vmcluster || true)
+    _vmpods=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector victoriametrics)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+    # The scope's cached answer, not a fresh lookup: resolve_component_scope already resolved this
+    # object for the run, and re-resolving it here is both an extra round trip and a second source
+    # of truth — one that can DISAGREE (an object created since would make this call ambiguous and
+    # abort mid-restore, with PMM already at 0). Falls back to a live resolve only when the scope
+    # was never computed, which is the unit tests' path.
+    _vmcluster="${SCOPE_VM_CLUSTER}"
+    [ -n "${_vmcluster}" ] || _vmcluster=$(resolve_one VictoriaMetrics "VMCluster" vmcluster || true)
     if [ -z "${_vmpods}" ]; then
-        log "ERROR" "[Preflight] victoriametrics: no vmstorage pods matching '${LABEL_VM_STORAGE}' (--skip-victoriametrics to drop it)"
+        log "ERROR" "[Preflight] victoriametrics: no vmstorage pods matching '$(comp_pod_selector victoriametrics)' (--skip-victoriametrics to drop it)"
         fail=1
     fi
     if [ -z "${_vmcluster}" ]; then
@@ -4186,7 +4365,8 @@ validate_restore_victoriametrics() {
 validate_restore_pmm_server() {
     local fail=0
     local _sts="" _replicas="" _i=0 _sub="" _pexp=""
-    _sts=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}" || true)
+    _sts="${SCOPE_PMM_STS}"
+    [ -n "${_sts}" ] || _sts=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}" || true)
     if [ -z "${_sts}" ]; then
         log "ERROR" "[Preflight] pmm-server: no StatefulSet matching '${LABEL_PMM_SERVER}' (--skip-pmm-server to drop it)"
         fail=1
@@ -4237,10 +4417,18 @@ validate_restore_pmm_server() {
             # Ask the apiserver whether the pod we are about to build is admissible HERE, while
             # PMM is still up. Quota, LimitRange, pod-security and SCC all reject at admission,
             # i.e. after scale_down_pmm, and the ordinal loop below only proves the PVC exists.
-            local _pprobe=""
+            local _pprobe="" _pimg=""
             _pprobe=$(pmm_storage_pvc_name "${_sts}" 0 2>/dev/null) || _pprobe=""
-            if [ -n "${_pprobe}" ] && [ -n "${PMM_RESTORE_IMAGE}" ]; then
-                validate_temp_pod_admission pmm "${_pprobe}" "${PMM_RESTORE_IMAGE}" \
+            # The RESOLVED image, not the override. PMM_RESTORE_IMAGE is the operator's escape
+            # hatch and is EMPTY on every chart install; resolve_pmm_restore_image (called just
+            # above) caches what it discovered in PMM_RESTORE_IMAGE_RESOLVED, and pmm_restore_image
+            # is the accessor that returns whichever is in force. Testing the override meant this
+            # condition was false on the default path, so the whole admission gate never ran and
+            # SCC / PodSecurity / quota rejections were still found only after PMM was at zero —
+            # the one thing it exists to prevent.
+            _pimg=$(pmm_restore_image)
+            if [ -n "${_pprobe}" ] && [ -n "${_pimg}" ]; then
+                validate_temp_pod_admission pmm "${_pprobe}" "${_pimg}" \
                     "${PMM_RESTORE_SEC_CTX}" "${PMM_RESTORE_SCHED}" || fail=1
             fi
         fi
@@ -4290,13 +4478,45 @@ validate_restore_pmm_server() {
 # One per-component gate each, dispatched off the component table, so a component cannot be
 # added to the restore and silently left unvalidated.
 validate_restore_targets() {
-    local fail=0 _vrt_c="" _vrt_fn=""
+    local fail=0 _vrt_c="" _vrt_fn="" _vrt_st=0
 
     log "INFO" "Validating restore targets for ${BACKUP_NAME} (nothing has been changed yet)..."
 
     # No "checks skipped" degradation: the object checks used to run through a client pod that a
     # --dry-run against a scaled-down PMM did not have, so a dry run silently validated nothing.
     # rclone is local now — the checks either run, or preflight_checks already refused the run.
+    # The central backup volume, resolved HERE rather than inside restore_victoriametrics /
+    # restore_pmm_server — which both run AFTER scale_down_pmm. In shared mode the real temp pods
+    # mount it, so a missing claim, a direct-NFS backup-tools pod (explicitly unsupported for
+    # these restores) or a policy that rejects that second volume has to surface while PMM is
+    # still up. It also has to happen before the per-component gates below, because their
+    # admission probes render the very same pod spec and need the claim name in it.
+    # restore_do, not the raw RESTORE_* flags: every other gate in this function is dispatched on
+    # "selected AND present in this backup", and a component that is selected but absent has both
+    # its gate and its restore function skipped. Keying off the flag alone could fail the whole
+    # restore over a claim no temp pod was ever going to mount.
+    if [ "${S3_ENABLED}" != "true" ] \
+       && { restore_do victoriametrics || restore_do pmm-server; }; then
+        if ! resolve_central_backup_pvc Preflight; then
+            fail=1
+        else
+            # And that the claim is really there. Admission does NOT check this — a pod naming a
+            # PVC that does not exist is admitted and then sits Pending until the readiness wait
+            # gives up, with PMM already at zero — so the probe above cannot speak for it. Same
+            # check, and the same "a failed lookup is not an absent object" distinction, the
+            # per-ordinal data PVCs already get below.
+            _vrt_st=0; k8s_object_state persistentvolumeclaim "${CENTRAL_BACKUP_PVC}" || _vrt_st=$?
+            if [ "${_vrt_st}" -eq 1 ]; then
+                log "ERROR" "[Preflight] central backup volume: PVC '${CENTRAL_BACKUP_PVC}' does not exist in ${NAMESPACE},"
+                log "ERROR" "[Preflight]   so every temp restore pod would stay Pending — with PMM already scaled to 0."
+                log "ERROR" "[Preflight]   Set CENTRAL_BACKUP_PVC, or run from a backup-tools pod that mounts the right claim."
+                fail=1
+            elif [ "${_vrt_st}" -ne 0 ]; then
+                log "ERROR" "[Preflight] central backup volume: could not check PVC '${CENTRAL_BACKUP_PVC}' (403/timeout?); NOT treating this as 'absent'"
+                fail=1
+            fi
+        fi
+    fi
     validate_temp_pod_credentials || fail=1
     for _vrt_c in ${RESTORE_COMPONENTS}; do
         # Only what this restore will actually touch. A component that is selected but absent
@@ -4402,7 +4622,23 @@ pmm_replica_count() {   # <statefulset-name>
 }
 
 scale_down_pmm() {
-    PMM_STATEFULSET_NAME=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}" || true)
+    local _sdp_rc=0
+    # Same cached answer the rest of the restore uses (see validate_restore_pmm_server); the live
+    # resolve below is the fallback for a call with no scope computed, e.g. the unit tests.
+    PMM_STATEFULSET_NAME="${SCOPE_PMM_STS}"
+    if [ -z "${PMM_STATEFULSET_NAME}" ]; then
+        PMM_STATEFULSET_NAME=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}") || _sdp_rc=$?
+    fi
+    # "None" and "several" are NOT the same answer, and collapsing both into this WARN was how
+    # resolve_one's refusal got swallowed: in the very namespace it refused to guess about, the
+    # restore carried on with PMM still SERVING, and then rewrote /srv underneath it — the exact
+    # corruption scaling down exists to prevent. No StatefulSet at all is still fine (a data-tier
+    # only restore); more than one is fatal.
+    if [ "${_sdp_rc}" -eq 2 ]; then
+        log "ERROR" "Refusing to restore: cannot tell which PMM StatefulSet to scale down (see above)."
+        log "ERROR" "Re-run with --release <name>."
+        return 1
+    fi
     if [ -z "${PMM_STATEFULSET_NAME}" ]; then log "WARN" "PMM StatefulSet not found, skipping scale down"; return 0; fi
     # pmm_replica_count warns for itself when it has to fall back; do NOT try to detect that
     # here by comparing against PMM_SERVER_REPLICAS (see the note in the resolver).
@@ -4415,7 +4651,7 @@ scale_down_pmm() {
     kubectl annotate statefulset "${PMM_STATEFULSET_NAME}" -n "${NAMESPACE}" "restore.pmm.percona.com/original-replicas=${PMM_SAVED_REPLICAS}" --overwrite >> "${LOG_FILE}" 2>&1 || true
     kubectl scale statefulset "${PMM_STATEFULSET_NAME}" -n "${NAMESPACE}" --replicas=0 >> "${LOG_FILE}" 2>&1 || { log "ERROR" "Failed to scale down PMM"; return 1; }
     log "INFO" "Scaled down PMM ${PMM_STATEFULSET_NAME} to 0 (restore to ${PMM_SAVED_REPLICAS} on success)"
-    wait_for_pods_gone "${NAMESPACE}" "${LABEL_PMM_SERVER}" || { log "ERROR" "PMM pods did not terminate"; return 1; }
+    wait_for_pods_gone "${NAMESPACE}" "$(comp_pod_selector pmm-server)" || { log "ERROR" "PMM pods did not terminate"; return 1; }
     return 0
 }
 
@@ -4424,7 +4660,7 @@ scale_up_pmm() {
     if [ "${DRY_RUN}" = "true" ]; then log "INFO" "[DRY RUN] kubectl scale statefulset ${PMM_STATEFULSET_NAME} --replicas=${PMM_SAVED_REPLICAS}"; return 0; fi
     kubectl scale statefulset "${PMM_STATEFULSET_NAME}" -n "${NAMESPACE}" --replicas="${PMM_SAVED_REPLICAS}" >> "${LOG_FILE}" 2>&1 || { log "ERROR" "Failed to scale up PMM"; return 1; }
     log "INFO" "Scaled up PMM ${PMM_STATEFULSET_NAME} to ${PMM_SAVED_REPLICAS}; waiting for ready..."
-    wait_for_pods_ready "${NAMESPACE}" "${LABEL_PMM_SERVER}" "${PMM_SAVED_REPLICAS}" || log "WARN" "PMM pods not ready in time (may still be starting)"
+    wait_for_pods_ready "${NAMESPACE}" "$(comp_pod_selector pmm-server)" "${PMM_SAVED_REPLICAS}" || log "WARN" "PMM pods not ready in time (may still be starting)"
     return 0
 }
 
@@ -4504,8 +4740,8 @@ restore_encryption_key() {
 ################################################################################
 restore_postgresql() {
     local pg_pod dbs db rc fail=0
-    pg_pod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PG_PRIMARY}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-    if [ -z "${pg_pod}" ]; then log "ERROR" "[PostgreSQL] Primary pod not found"; return 1; fi
+    pg_pod=$(one_pod PostgreSQL "primary pod" "$(comp_pod_selector postgresql)" || true)
+    if [ -z "${pg_pod}" ]; then log "ERROR" "[PostgreSQL] Primary pod not resolved; refusing to restore"; return 1; fi
     dbs="${MF_PG_DBS}"
     if [ -z "${dbs}" ]; then log "ERROR" "[PostgreSQL] No databases recorded in the manifest"; return 1; fi
 
@@ -4556,7 +4792,7 @@ restore_postgresql() {
 ################################################################################
 restore_clickhouse() {
     local ch_pod name
-    ch_pod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_CH_POD}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    ch_pod=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -z "${ch_pod}" ]; then log "ERROR" "[ClickHouse] No pod found"; return 1; fi
     name="${MF_CH_NAME}"
     if [ -z "${name}" ]; then log "ERROR" "[ClickHouse] No backup name in manifest"; return 1; fi
@@ -4769,19 +5005,20 @@ sched_oneline() {   # <rendered-block>
     printf '%s' "$1" | sed 's/^  //' | tr '\n' ' ' | sed 's/  */ /g; s/^/ /'
 }
 
-# ONE creator for both temp restore pods: they differ in six values and shared every other line.
-# Both hold an RWO data PVC while its owner is scaled to 0, so a fix applied to one and not the
-# other strands a real volume and wedges the owner on Multi-Attach at scale-up (DN-46).
+# THE temp restore pod spec, rendered in ONE place — so what the pre-flight gate validates and
+# what the restore actually creates cannot drift. They had drifted: the probe built a pod holding
+# only the data PVC, while the real shared-mode pod ALSO mounts the central backup volume, so a
+# missing claim, a direct-NFS backup-tools pod or a policy that rejects that second volume sailed
+# through pre-flight and failed at creation — with PMM already scaled to zero, which is precisely
+# the point of no return the gate exists to stay in front of.
 #
-#   create_temp_restore_pod <pod> <pvc> <image> <role> <tag> [sec-ctx]
-#
-# <role> is 'vm' or 'pmm'; <tag> is the log prefix. [sec-ctx] is a rendered securityContext block
-# (security_context_of) — omitted means none, which is the safe default: the platform or the
-# image's own user decides (DN-48).
-create_temp_restore_pod() {
-    local restore_pod="$1" pvc="$2" image="$3" role="$4" tag="$5" sec_ctx="${6:-}" sched="${7:-}"
-    local sa_line="" central_mount="" central_vol="" env_block="" apply_out
-    local label="" ctr="" mount_path="" vol_name=""
+# <role> is 'vm' or 'pmm'. [sec-ctx] is a rendered securityContext block (security_context_of);
+# omitted means none, which is the safe default: the platform or the image's own user decides
+# (DN-48).
+render_temp_restore_pod() {   # <pod-name> <pvc> <image> <role> [sec-ctx] [sched]
+    local restore_pod="$1" pvc="$2" image="$3" role="$4" sec_ctx="${5:-}" sched="${6:-}"
+    local sa_line="" central_mount="" central_vol="" env_block=""
+    local label="" ctr="" mount_path="" vol_name="" res_block=""
     if [ "${role}" = "vm" ]; then
         label="vm-restore-temp"; ctr="vmrestore"; vol_name="vmstorage-db"; mount_path="/vmstorage-data"
         # No endpoint env: vmrestore does not read endpoint env vars, it takes
@@ -4809,26 +5046,8 @@ $(render_rclone_s3_env)"
     # i.e. with the tier already at 0. Value comes from centralBackupStorage.tools.resources,
     # projected by the chart, so an operator tunes it in one place; the fallback is deliberately
     # tiny because the pod only sleeps while another process execs into it.
-    local res_block
     res_block="      resources: ${TEMP_POD_RESOURCES}"
-
-    clear_leftover_temp_pod "${restore_pod}" "${tag}"
-    apply_out=$(mktemp /tmp/podapply.XXXXXX 2>/dev/null || echo "/tmp/podapply.$$")
-    # Record the exact pod NAME, appended, BEFORE the create. Two separate things depend on it:
-    #   - Appended, not `: >`: that truncated, so a run restoring both VictoriaMetrics and PMM
-    #     Server kept only the pod written last and leaked the other on an interrupt.
-    #   - Names, not the label the sweep used to delete by: per-component locks let disjoint
-    #     restores run at once (docs, "What Can Run Concurrently") and two releases can share a
-    #     namespace, so a label-wide delete from THIS run's cleanup killed a DIFFERENT live
-    #     run's temp pod mid-write, while it held that ordinal's RWO data PVC.
-    # Written before `kubectl create` so a pod that is created and then interrupted is still
-    # recorded; a name for a pod that never appeared is harmless (--ignore-not-found).
-    # The names are release-scoped by construction (they embed the target StatefulSet name).
-    [ -n "${TEMP_PODS_MARKER}" ] && printf '%s\n' "${restore_pod}" >> "${TEMP_PODS_MARKER}" 2>/dev/null || true
-    # karpenter.sh/do-not-disrupt: this pod holds an RWO data PVC while its owner is scaled
-    # down, and a consolidation eviction mid-restore truncates that ordinal's data. Harmless
-    # outside Karpenter / EKS Auto Mode.
-    if ! kubectl create -f - -n "${NAMESPACE}" >"${apply_out}" 2>&1 <<EOF
+    cat <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -4859,6 +5078,37 @@ ${central_mount}
         claimName: ${pvc}
 ${central_vol}
 EOF
+}
+
+# ONE creator for both temp restore pods: they differ in six values and shared every other line.
+# Both hold an RWO data PVC while its owner is scaled to 0, so a fix applied to one and not the
+# other strands a real volume and wedges the owner on Multi-Attach at scale-up (DN-46). The spec
+# itself comes from render_temp_restore_pod above; <tag> is this function's own log prefix.
+#
+#   create_temp_restore_pod <pod> <pvc> <image> <role> <tag> [sec-ctx] [sched]
+create_temp_restore_pod() {
+    local restore_pod="$1" pvc="$2" image="$3" role="$4" tag="$5" sec_ctx="${6:-}" sched="${7:-}"
+    local apply_out
+
+    clear_leftover_temp_pod "${restore_pod}" "${tag}"
+    apply_out=$(mktemp /tmp/podapply.XXXXXX 2>/dev/null || echo "/tmp/podapply.$$")
+    # Record the exact pod NAME, appended, BEFORE the create. Two separate things depend on it:
+    #   - Appended, not `: >`: that truncated, so a run restoring both VictoriaMetrics and PMM
+    #     Server kept only the pod written last and leaked the other on an interrupt.
+    #   - Names, not the label the sweep used to delete by: per-component locks let disjoint
+    #     restores run at once (docs, "What Can Run Concurrently") and two releases can share a
+    #     namespace, so a label-wide delete from THIS run's cleanup killed a DIFFERENT live
+    #     run's temp pod mid-write, while it held that ordinal's RWO data PVC.
+    # Written before `kubectl create` so a pod that is created and then interrupted is still
+    # recorded; a name for a pod that never appeared is harmless (--ignore-not-found).
+    # The names are release-scoped by construction (they embed the target StatefulSet name).
+    [ -n "${TEMP_PODS_MARKER}" ] && printf '%s\n' "${restore_pod}" >> "${TEMP_PODS_MARKER}" 2>/dev/null || true
+    # karpenter.sh/do-not-disrupt: this pod holds an RWO data PVC while its owner is scaled
+    # down, and a consolidation eviction mid-restore truncates that ordinal's data. Harmless
+    # outside Karpenter / EKS Auto Mode. (Rendered by render_temp_restore_pod, which the
+    # pre-flight admission probe runs against the apiserver before any of this.)
+    if ! render_temp_restore_pod "${restore_pod}" "${pvc}" "${image}" "${role}" "${sec_ctx}" "${sched}" \
+            | kubectl create -f - -n "${NAMESPACE}" >"${apply_out}" 2>&1
     then
         cat "${apply_out}" | append_to_log; rm -f "${apply_out}"
         log "ERROR" "[${tag}] Failed to create restore pod ${restore_pod} (PVC: ${pvc})"; return 1
@@ -4988,7 +5238,7 @@ vm_original_replicas() {   # <spec-value> <live-pod-count> <floor>
 # marker panic - so a vmstorage that is Pending for an unrelated reason (no capacity, unbound
 # PVC) is not told to re-run a restore that would not help it.
 vm_report_incomplete_restore() {
-    _vri_pod=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" \
+    _vri_pod=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector victoriametrics)" \
         -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) || return 0
     [ -n "${_vri_pod}" ] || return 0
     kubectl logs -n "${NAMESPACE}" "${_vri_pod}" -c vmstorage --tail=50 2>/dev/null \
@@ -5004,9 +5254,10 @@ vm_report_incomplete_restore() {
 restore_victoriametrics() {
     local vmstorage_pods vmcluster_name original_vminsert original_vmstorage first_vm_pod vmrestore_image
     local _vs_old="" vm_sec_ctx="" _vm_insert_live="" _vmi_old="" _vmi_inferred=false
-    vmstorage_pods=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+    vmstorage_pods=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector victoriametrics)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     if [ -z "${vmstorage_pods}" ]; then log "ERROR" "[VictoriaMetrics] No vmstorage pods found"; return 1; fi
-    vmcluster_name=$(resolve_one VictoriaMetrics "VMCluster" vmcluster || true)
+    vmcluster_name="${SCOPE_VM_CLUSTER}"
+    [ -n "${vmcluster_name}" ] || vmcluster_name=$(resolve_one VictoriaMetrics "VMCluster" vmcluster || true)
     if [ -z "${vmcluster_name}" ]; then log "ERROR" "[VictoriaMetrics] No VMCluster found; cannot scale safely"; return 1; fi
 
     # Fail fast on a shard-count mismatch, BEFORE scaling anything down (VM restore is
@@ -5038,7 +5289,7 @@ restore_victoriametrics() {
     case "${original_vmstorage}" in
         ''|0) log "WARN" "[VictoriaMetrics] vmcluster spec.vmstorage.replicaCount is '${original_vmstorage:-unset}' — same refusal as vminsert above; using the live pod count instead" ;;
     esac
-    _vm_insert_live=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_INSERT}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | wc -w | tr -d ' ')
+    _vm_insert_live=$(kubectl get pods -n "${NAMESPACE}" -l "$(vm_role_selector vminsert)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | wc -w | tr -d ' ')
     original_vminsert=$(vm_original_replicas "${original_vminsert}" "${_vm_insert_live}" 1)
     original_vmstorage=$(vm_original_replicas "${original_vmstorage}" "${vm_target_count}" 1)
     first_vm_pod=$(echo "${vmstorage_pods}" | awk '{print $1}')
@@ -5050,7 +5301,7 @@ restore_victoriametrics() {
         log "ERROR" "[VictoriaMetrics]   Set victoriaMetrics.vmstorage.backup.restoreImage, or VMRESTORE_IMAGE=<image>. Aborting before any scale-down."
         return 1
     fi
-    [ "${S3_ENABLED}" = "true" ] || resolve_central_backup_pvc || return 1
+    [ "${S3_ENABLED}" = "true" ] || resolve_central_backup_pvc VictoriaMetrics || return 1
     # Read from a LIVE vmstorage pod, not from its StatefulSet — the opposite source to PMM's, and
     # for a reason worth stating: vmstorage pods are still up at this point (the scale-down is
     # below), and where a cluster assigns identities the POD carries the assigned ones while the
@@ -5086,15 +5337,15 @@ restore_victoriametrics() {
     # wait_for_pods_ready — the weaker check DN-29 exists to avoid, since a Terminating pod
     # keeps Ready=True for its whole grace period. The strength of a verification must not
     # depend on losing a race.
-    _vmi_old=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_INSERT}" -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}' 2>/dev/null) || _vmi_old=""
+    _vmi_old=$(kubectl get pods -n "${NAMESPACE}" -l "$(vm_role_selector vminsert)" -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}' 2>/dev/null) || _vmi_old=""
 
     log "INFO" "[VictoriaMetrics] Scaling vminsert+vmstorage to 0 (vmrestore needs exclusive PVC access)..."
     kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge \
         -p '{"spec":{"vminsert":{"replicaCount":0},"vmstorage":{"replicaCount":0}}}' 2>&1 | append_to_log || true
     # Soft wait: vminsert holds no PVCs — it is only scaled down to stop ingestion, and a
     # pod stuck Terminating cannot write once vmstorage (strict wait below) is gone.
-    wait_for_pods_gone "${NAMESPACE}" "${LABEL_VM_INSERT}" 120 soft || log "WARN" "[VictoriaMetrics] vminsert not gone in time, continuing (non-blocking)"
-    if ! wait_for_pods_gone "${NAMESPACE}" "${LABEL_VM_STORAGE}" 300; then
+    wait_for_pods_gone "${NAMESPACE}" "$(vm_role_selector vminsert)" 120 soft || log "WARN" "[VictoriaMetrics] vminsert not gone in time, continuing (non-blocking)"
+    if ! wait_for_pods_gone "${NAMESPACE}" "$(comp_pod_selector victoriametrics)" 300; then
         log "ERROR" "[VictoriaMetrics] vmstorage did not terminate; restoring replica counts and aborting"
         kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge -p '{"spec":{"vmstorage":{"replicaCount":'${original_vmstorage}'},"vminsert":{"replicaCount":'${original_vminsert}'}}}' 2>&1 | append_to_log || true
         return 1
@@ -5137,7 +5388,7 @@ restore_victoriametrics() {
     # is a component failure, checked at the final gate below.
     local vm_scaleback_ok=true
     kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge -p '{"spec":{"vmstorage":{"replicaCount":'${original_vmstorage}'}}}' 2>&1 | append_to_log || true
-    wait_for_pods_ready "${NAMESPACE}" "${LABEL_VM_STORAGE}" "${original_vmstorage}" 300 || {
+    wait_for_pods_ready "${NAMESPACE}" "$(comp_pod_selector victoriametrics)" "${original_vmstorage}" 300 || {
         log "ERROR" "[VictoriaMetrics] vmstorage did not return to ${original_vmstorage} ready replica(s) after restore"
         vm_scaleback_ok=false
         vm_report_incomplete_restore
@@ -5157,13 +5408,13 @@ restore_victoriametrics() {
     # good data restore on it: an operator who deliberately parked vminsert at 0 gets a warning,
     # not a red run.
     if [ -n "${_vmi_old}" ]; then
-        wait_for_pods_replaced "${NAMESPACE}" "${LABEL_VM_INSERT}" "${_vmi_old}" "${original_vminsert}" 300 \
+        wait_for_pods_replaced "${NAMESPACE}" "$(vm_role_selector vminsert)" "${_vmi_old}" "${original_vminsert}" 300 \
             || { log "ERROR" "[VictoriaMetrics] vminsert did not return to ${original_vminsert} ready replica(s) after restore"; vm_scaleback_ok=false; }
     elif [ "${_vmi_inferred}" != "true" ]; then
-        wait_for_pods_ready "${NAMESPACE}" "${LABEL_VM_INSERT}" "${original_vminsert}" 300 \
+        wait_for_pods_ready "${NAMESPACE}" "$(vm_role_selector vminsert)" "${original_vminsert}" 300 \
             || { log "ERROR" "[VictoriaMetrics] vminsert did not reach ${original_vminsert} ready replica(s) after restore"; vm_scaleback_ok=false; }
     else
-        wait_for_pods_ready "${NAMESPACE}" "${LABEL_VM_INSERT}" "${original_vminsert}" 300 \
+        wait_for_pods_ready "${NAMESPACE}" "$(vm_role_selector vminsert)" "${original_vminsert}" 300 \
             || log "WARN" "[VictoriaMetrics] vminsert did not reach ${original_vminsert} ready replica(s); it had none before this restore and the count was inferred, so this is reported rather than failed — check that ingestion is running"
     fi
 
@@ -5182,14 +5433,14 @@ restore_victoriametrics() {
     # A failed read here would yield an EMPTY old-set, which every later poll trivially
     # satisfies — disabling the guard entirely. Fall back to the plain readiness wait instead,
     # which is what this replaced and is still better than a wait that cannot fail.
-    _vs_old=$(kubectl get pods -n "${NAMESPACE}" -l app.kubernetes.io/name=vmselect -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}' 2>/dev/null) || _vs_old=""
-    kubectl delete pod -n "${NAMESPACE}" -l app.kubernetes.io/name=vmselect 2>&1 | append_to_log || true
+    _vs_old=$(kubectl get pods -n "${NAMESPACE}" -l "$(vm_role_selector vmselect)" -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}' 2>/dev/null) || _vs_old=""
+    kubectl delete pod -n "${NAMESPACE}" -l "$(vm_role_selector vmselect)" 2>&1 | append_to_log || true
     if [ -n "${_vs_old}" ]; then
-        wait_for_pods_replaced "${NAMESPACE}" "app.kubernetes.io/name=vmselect" "${_vs_old}" "${original_vmselect}" 180 \
+        wait_for_pods_replaced "${NAMESPACE}" "$(vm_role_selector vmselect)" "${_vs_old}" "${original_vmselect}" 180 \
             || log "WARN" "[VictoriaMetrics] vmselect not replaced/ready in time after bounce"
     else
         log "WARN" "[VictoriaMetrics] Could not read the pre-bounce vmselect pods; falling back to a plain readiness wait"
-        wait_for_pods_ready "${NAMESPACE}" "app.kubernetes.io/name=vmselect" "${original_vmselect}" 180 \
+        wait_for_pods_ready "${NAMESPACE}" "$(vm_role_selector vmselect)" "${original_vmselect}" 180 \
             || log "WARN" "[VictoriaMetrics] vmselect not ready in time after bounce"
     fi
 
@@ -5233,13 +5484,14 @@ restore_pmm_server() {
     # would abort with "parameter not set".
     local sts="" replicas="" image="" sec_ctx="" i ord pvc src_subdir restore_pod rc restored=0 count=0
     sts="${PMM_STATEFULSET_NAME:-}"
+    if [ -z "${sts}" ]; then sts="${SCOPE_PMM_STS}"; fi
     if [ -z "${sts}" ]; then sts=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}" || true); fi
     if [ -z "${sts}" ]; then log "ERROR" "[PMMServer] PMM StatefulSet not found"; return 1; fi
     # scale_down_pmm's value if it ran (PMM is at 0 by now, so the live spec would read 0),
     # otherwise the shared resolver. Either way the result is guaranteed numeric.
     replicas="${PMM_SAVED_REPLICAS:-}"
     case "${replicas}" in ''|0|*[!0-9]*) replicas=$(pmm_replica_count "${sts}") ;; esac
-    [ "${S3_ENABLED}" = "true" ] || resolve_central_backup_pvc || return 1
+    [ "${S3_ENABLED}" = "true" ] || resolve_central_backup_pvc PMMServer || return 1
 
     # Both resolved in the parent, before the loop: the accessors inside it cannot log or query.
     # Normally no-ops, because validate_restore_targets already resolved both for this run — which
@@ -5343,7 +5595,7 @@ restore_pmm_server() {
 reset_pmm_client_agents() {
     [ "${DRY_RUN}" = "true" ] && return 0
     _rpca_pods=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl get pods -n "${NAMESPACE}" \
-        -l "${LABEL_PMM_CLIENT}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+        -l "$(pmm_client_selector)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     [ -n "${_rpca_pods}" ] || return 0
 
     _rpca_done=""
@@ -5458,7 +5710,7 @@ _backup_child() {   # <component-key> <tmpdir>
 restore_verification() {
     log "INFO" "Verifying restore..."
     if [ "${RESTORE_POSTGRESQL}" = "true" ]; then
-        local pg; pg=$(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PG_PRIMARY}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+        local pg; pg=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector postgresql)" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
         if [ -n "${pg}" ]; then
             timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${pg}" -c database -- pg_isready -U postgres >> "${LOG_FILE}" 2>&1 \
                 && log "INFO" "[PostgreSQL] Primary ready" || log "WARN" "[PostgreSQL] Primary not ready yet"
@@ -5466,9 +5718,9 @@ restore_verification() {
     fi
     # grep -c already prints 0 on no match (while exiting 1) — an '|| echo 0' fallback
     # would print a SECOND zero and split the log line. '|| true' only pacifies set -e.
-    [ "${RESTORE_CLICKHOUSE}" = "true" ] && log "INFO" "[ClickHouse] $(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_CH_POD}" --no-headers 2>/dev/null | grep -c Running || true) pod(s) running"
-    [ "${RESTORE_VICTORIAMETRICS}" = "true" ] && log "INFO" "[VictoriaMetrics] $(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_VM_STORAGE}" --no-headers 2>/dev/null | wc -l | tr -d ' ') vmstorage pod(s)"
-    [ "${RESTORE_PMM_SERVER}" = "true" ] && log "INFO" "[PMMServer] $(kubectl get pods -n "${NAMESPACE}" -l "${LABEL_PMM_SERVER}" --no-headers 2>/dev/null | grep -c Running || true) PMM pod(s) running"
+    [ "${RESTORE_CLICKHOUSE}" = "true" ] && log "INFO" "[ClickHouse] $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" --no-headers 2>/dev/null | grep -c Running || true) pod(s) running"
+    [ "${RESTORE_VICTORIAMETRICS}" = "true" ] && log "INFO" "[VictoriaMetrics] $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector victoriametrics)" --no-headers 2>/dev/null | wc -l | tr -d ' ') vmstorage pod(s)"
+    [ "${RESTORE_PMM_SERVER}" = "true" ] && log "INFO" "[PMMServer] $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector pmm-server)" --no-headers 2>/dev/null | grep -c Running || true) PMM pod(s) running"
     return 0
 }
 
@@ -6081,7 +6333,7 @@ cleanup_old_backups() {
     if [ "${BACKUP_CLICKHOUSE}" = "true" ]; then
         log "INFO" "[ClickHouse] Cleaning up old backups..."
         local ch_pod=$(kubectl get pods -n "${NAMESPACE}" \
-            -l "${LABEL_CH_POD}" \
+            -l "$(comp_pod_selector clickhouse)" \
             -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
         
         if [ -n "${ch_pod}" ]; then
@@ -6407,10 +6659,17 @@ cmd_backup() {
         trap 'release_locks; exit 130' INT
         trap 'release_locks; exit 143' TERM
         acquire_locks
+        # BEFORE protect_operand_pods, which annotates the PostgreSQL and ClickHouse pods this
+        # run will exec into: those selectors are install-scoped, so with the scope still empty
+        # the hold reached every release's PG and ClickHouse pods in the namespace — and a
+        # SIGKILLed run then leaves karpenter.sh/do-not-disrupt on pods it never owned, where
+        # nothing will ever strip it. (A no-op at the pre-flight call below, which is where the
+        # dry-run path — that never annotates anything — resolves it instead.)
+        if ! resolve_component_scope 4; then exit 1; fi
         # AFTER the traps, so an interrupt between here and the first component still strips the
         # holds; after acquire_locks, so a run that loses the lock race never touches a live
         # run's pods.
-        protect_operand_pods
+        protect_operand_pods 4
     else
         # Dry-run also appends tool stderr to ${LOG_FILE}, and in POSIX sh a failed
         # redirect fails the command being redirected (first run on a fresh volume has
@@ -6432,6 +6691,11 @@ cmd_backup() {
     [ "${DRY_RUN}" != "true" ] && log "INFO" "Log file: ${LOG_FILE}"
     
     # Run pre-flight checks
+    # Already done on the non-dry-run path (before protect_operand_pods); this is where a DRY RUN
+    # resolves it. Either way it has to precede pre-flight, whose discovery loop builds its
+    # selectors with comp_pod_selector and would otherwise check unscoped pods and pass on a
+    # namespace this run must refuse.
+    if ! resolve_component_scope 4; then exit 1; fi
     if ! preflight_checks backup; then
         exit 1
     fi
@@ -6658,6 +6922,11 @@ cmd_prune() {
     log "INFO" "================================================================================"
     log "INFO" "Namespace: ${NAMESPACE}  Target: ${BACKUP_TARGET}  Retention: ${BACKUP_RETENTION}d  Log: ${LOG_FILE}"
 
+    # ClickHouse ONLY: the sweep's one cluster-side action is `clickhouse-backup clean` in a live
+    # pod; everything else it does is object-store work. Resolving all four here made an unrelated
+    # second VMCluster or PostgresCluster in the namespace — components the sweep never touches —
+    # fail the nightly prune on ambiguity, and the bucket would grow with nothing to show why.
+    if ! resolve_component_scope 4 clickhouse; then exit 1; fi
     if ! preflight_checks prune; then exit 1; fi
 
     # cleanup_old_backups does more than the S3 sweep: it also execs `clickhouse-backup clean
@@ -6736,6 +7005,14 @@ cmd_restore() {
 
     log "INFO" "Components:$(restore_plan_line)"
 
+    # HERE, not before pre-flight: which components a restore touches is not settled until
+    # select_default_components has read them off the manifest, so resolving the scope any
+    # earlier asked "is this component selected?" of variables that were all still false — and
+    # came back having resolved nothing at all, leaving every pod selector unscoped for the rest
+    # of the run. It must still land BEFORE validate_restore_targets, which builds its lookups
+    # (and its admission probes) from those selectors.
+    if ! resolve_component_scope 5; then exit 1; fi
+
     # An explicitly requested component that this backup does not carry as 'success' is a hard
     # error BEFORE anything is touched: silently skipping it scaled PMM down/up and exited 0
     # without restoring the one thing the operator asked for.
@@ -6791,7 +7068,7 @@ cmd_restore() {
         # so they need the same consolidation hold the temp pods already carry.
         # In the PARENT, before the component subshells fork — a subshell cannot record what it
         # annotated for the parent's EXIT trap to strip.
-        protect_operand_pods
+        protect_operand_pods 5
     fi
     RESTORE_START_TIME=$(date +%s)
 

@@ -17,6 +17,18 @@ apiVersion: "clickhouse.altinity.com/v1"
 kind: ClickHouseInstallation
 metadata:
   name: {{ .Release.Name }}
+  {{- /* Ownership labels, which this CR alone was missing. pmm-backup.sh resolves the ONE
+         ClickHouseInstallation in the namespace before it will touch ClickHouse, and --release
+         tie-breaks that lookup on app.kubernetes.io/instance — without which a namespace holding
+         two pmm-ha releases has no way to say which ClickHouse is meant.
+         Deliberately NOT the full "pmm.labels" set: that carries the PMM SERVER's selector
+         labels (component: pmm-server), which have no business on a ClickHouse object.
+         Metadata-only — verified on the Altinity operator against a live 3-replica CHI: the
+         cluster is not rolled and nothing is propagated to its StatefulSets or pods. */}}
+  labels:
+    helm.sh/chart: {{ include "pmm.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   configuration:
     # ClickHouse Keeper coordination
