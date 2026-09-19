@@ -2991,6 +2991,66 @@ BACKUP_VICTORIAMETRICS="${_sc_save_bvm}"; BACKUP_PMM_SERVER="${_sc_save_bpmm}"
 RESTORE_PMM_SERVER="${_sc_save_rpmm}"; RESTORE_CLICKHOUSE="${_sc_save_rch}"
 PMM_STATEFULSET_NAME="${_sc_save_stsname}"
 
+#########################################################################################
+section "shared target — each install owns a subpath, like s3 owns a prefix"
+#########################################################################################
+# Without this every install mounting one RWX export wrote into ONE catalog: one `latest`, one
+# manifests/ directory, one age-based retention sweep. Two releases in a namespace could promote
+# each other's backups, and the ownership guard could not separate them (it records the
+# NAMESPACE, which they share).
+_ss_e="${S3_ENABLED}"; _ss_bd="${BACKUP_DIR}"; _ss_smp="${SHARED_MOUNT_PATH}"; _ss_sp="${SHARED_SUBPATH}"
+_ss_pfx="${S3_PREFIX}"; _ss_bkt="${S3_BUCKET}"; _ss_rr="${RCLONE_REMOTE}"
+S3_ENABLED=false; BACKUP_DIR=/backups; SHARED_MOUNT_PATH=/central
+
+SHARED_SUBPATH=""
+assert_eq "no subpath is the flat layout"        "/backups"  "$(backup_root)"
+assert_eq "…and the in-pod view matches"         "/central"  "$(backup_root inpod)"
+
+SHARED_SUBPATH="ns1/pmm-ha"
+assert_eq "the install's own path is scoped"     "/backups/ns1/pmm-ha" "$(backup_root)"
+assert_eq "…and so is what component pods see"   "/central/ns1/pmm-ha" "$(backup_root inpod)"
+# Everything downstream is built from backup_root, so the catalog moves with it.
+assert_eq "manifests follow the subpath"         "/backups/ns1/pmm-ha/manifests" "$(manifests_dir)"
+assert_eq "latest follows the subpath"           "/backups/ns1/pmm-ha/latest"    "$(latest_path)"
+# comp_path carries the backup id too; assert the prefix rather than restating the whole shape.
+assert_eq "components follow the subpath"        "/backups/ns1/pmm-ha/postgresql" "$(comp_path postgresql | cut -d/ -f1-5)"
+
+# A second install in the SAME namespace gets a different root — the case the namespace-only
+# ownership guard cannot catch.
+SHARED_SUBPATH="ns1/pmm-two"
+assert_eq "a second release does not collide"    "/backups/ns1/pmm-two/latest" "$(latest_path)"
+
+# ...and the DR read: point at the SOURCE's subpath, exactly as --s3-prefix points at a source
+# bucket prefix. This is what --shared-source-path sets.
+SHARED_SUBPATH="ns-source/pmm-ha"
+assert_eq "DR reads the source's catalog"        "/backups/ns-source/pmm-ha/manifests" "$(manifests_dir)"
+
+# s3 is untouched by any of it.
+S3_ENABLED=true; S3_BUCKET=bkt; S3_PREFIX="ns1/pmm-ha"; RCLONE_REMOTE=s3
+assert_eq "s3 still keys off S3_PREFIX alone"    "s3:bkt/ns1/pmm-ha" "$(backup_root)"
+S3_ENABLED="${_ss_e}"; BACKUP_DIR="${_ss_bd}"; SHARED_MOUNT_PATH="${_ss_smp}"; SHARED_SUBPATH="${_ss_sp}"
+S3_PREFIX="${_ss_pfx}"; S3_BUCKET="${_ss_bkt}"; RCLONE_REMOTE="${_ss_rr}"
+
+#########################################################################################
+section "share_mkdir opens the whole chain, not just the leaf"
+#########################################################################################
+# The install subpath is created by `mkdir -p` at 0755 under the creating pod's uid. A DR
+# namespace is a different uid on OpenShift, so if the PARENTS stay 0755 it cannot traverse in
+# to read the catalog it was pointed at — the leaf being group-writable does not help.
+_sc_bd="${BACKUP_DIR}"; _sc_t="${BACKUP_TARGET}"
+BACKUP_DIR=$(mktemp -d 2>/dev/null || echo "/tmp/sctest.$$")
+BACKUP_TARGET=shared
+share_mkdir "${BACKUP_DIR}/ns1/pmm-ha/manifests"
+_sc_bad=""
+for _sc_d in "${BACKUP_DIR}/ns1" "${BACKUP_DIR}/ns1/pmm-ha" "${BACKUP_DIR}/ns1/pmm-ha/manifests"; do
+    _sc_m=$(ls -ld "${_sc_d}" | cut -c1-10)
+    [ "$(printf '%s' "${_sc_m}" | cut -c6)" = "w" ] || _sc_bad="${_sc_bad} ${_sc_d}(not-g+w)"
+    [ "$(printf '%s' "${_sc_m}" | cut -c7)" = "s" ] || _sc_bad="${_sc_bad} ${_sc_d}(no-setgid)"
+done
+assert_eq "every level of the chain is group-writable+setgid" "" "${_sc_bad}"
+rm -rf "${BACKUP_DIR}" 2>/dev/null || true
+BACKUP_DIR="${_sc_bd}"; BACKUP_TARGET="${_sc_t}"
+
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then
     echo "OK: ${PASS} assertion(s) passed"

@@ -585,15 +585,17 @@ Central backup RWX/NFS volume (shared mode). Renders a single pod-spec volume en
 backup straight to the shared volume. Call with the root context: {{- include "pmm.centralBackupVolume" . }}
 */}}
 {{- define "pmm.centralBackupVolume" -}}
+{{- /* ALWAYS a PersistentVolumeClaim. A PVC-less `nfs:` volume was offered here and is gone:
+       the VictoriaMetrics and /srv restores run in temp pods this chart does not render -
+       pmm-backup.sh builds them at restore time and can only mount a claim - so that shortcut
+       backed up fine and then could not restore half the components. It also cannot express
+       mountOptions (an inline NFSVolumeSource has only server/path/readOnly), and `hard` /
+       `nfsvers` are not optional on a volume holding backup archives. An NFS export is still
+       fully supported: declare a PersistentVolume for it, with the mount options, and point
+       existingClaim at its claim. */}}
 - name: central-backup-storage
-{{- if .Values.centralBackupStorage.nfs.enabled }}
-  nfs:
-    server: {{ .Values.centralBackupStorage.nfs.server }}
-    path: {{ .Values.centralBackupStorage.nfs.path }}
-{{- else }}
   persistentVolumeClaim:
     claimName: {{ .Values.centralBackupStorage.existingClaim | default (printf "%s-central-backup" .Release.Name) }}
-{{- end }}
 {{- end -}}
 
 {{/*
@@ -700,6 +702,15 @@ the source cluster, which in a real disaster may be gone.
 {{- end -}}
 
 {{/*
+The same identity as a path segment, for the SHARED target, which has no s3.prefix to override
+with. Kept separate from pmm.backupS3Root rather than reusing it so that an s3.prefix override
+cannot silently move the shared layout too - the two targets are configured independently.
+*/}}
+{{- define "pmm.backupInstallPath" -}}
+{{- printf "%s/%s" .Release.Namespace .Release.Name -}}
+{{- end -}}
+
+{{/*
 The relabel rules that scope a backup-metrics scrape job to THIS release's backup-tools pod.
 Kept as a named template even though one job uses it today: the rule is subtle (an unescaped
 release name in a regex silently keeps another release's pods) and it belongs somewhere a second
@@ -768,6 +779,15 @@ about. Call with the root context and nindent to the env list's indent:
 {{- if eq .Values.centralBackupStorage.mode "shared" }}
 - name: SHARED_MOUNT_PATH
   value: {{ .Values.centralBackupStorage.sharedMountPath | quote }}
+{{- /* The install's own subdirectory under that mount: <namespace>/<release>, the shared-target
+       counterpart of S3_PREFIX and deliberately the same string. Without it every install
+       mounting one RWX export wrote into a single catalog - one `latest`, one manifests/, one
+       age-based retention sweep - and two releases in a namespace could promote each other's
+       backups (ownership is recorded per namespace, which they share). A DR restore reads the
+       SOURCE's subpath with --shared-source-path, exactly as it reads a source bucket prefix
+       with --s3-prefix. */}}
+- name: SHARED_SUBPATH
+  value: {{ include "pmm.backupInstallPath" . | quote }}
 {{- else }}
 - name: S3_BUCKET
   value: {{ .Values.centralBackupStorage.s3.bucket | quote }}
@@ -824,6 +844,28 @@ about. Call with the root context and nindent to the env list's indent:
 {{- if and $vmEndpoint (ne $vmEndpoint .Values.centralBackupStorage.s3.endpoint) }}
 - name: VM_S3_ENDPOINT
   value: {{ $vmEndpoint | quote }}
+{{- end }}
+{{- /* Same argument for the REGION and the CREDENTIALS, and for the same reason the endpoint
+       needed it: vmbackup runs as a sidecar the chart wires from
+       victoriaMetrics.vmstorage.backup.s3 (vmcluster.yaml), but vmRESTORE runs in a temp pod
+       THIS process renders. Projecting only the endpoint meant a VM-only region or secret was
+       honoured when the backup was written and ignored when it was read back, so the override
+       produced backups vmrestore could not authenticate to. Resolved with the SAME precedence
+       vmcluster.yaml uses, and emitted only when it actually differs from the central value -
+       the orchestrator falls back to S3_REGION / S3_SECRET_NAME otherwise. */}}
+{{- $vmS3 := .Values.victoriaMetrics.vmstorage.backup.s3 }}
+{{- $vmRegion := $vmS3.region | default .Values.centralBackupStorage.s3.region }}
+{{- if and $vmRegion (ne $vmRegion .Values.centralBackupStorage.s3.region) }}
+- name: VM_S3_REGION
+  value: {{ $vmRegion | quote }}
+{{- end }}
+{{- if and $vmS3.existingSecret (ne $vmS3.existingSecret .Values.centralBackupStorage.s3.existingSecret) }}
+- name: VM_S3_SECRET_NAME
+  value: {{ $vmS3.existingSecret | quote }}
+- name: VM_S3_SECRET_ACCESS_KEY_KEY
+  value: {{ include "pmm.s3SecretKeyName" (dict "keys" $vmS3.existingSecretKeys "which" "access") | quote }}
+- name: VM_S3_SECRET_SECRET_KEY_KEY
+  value: {{ include "pmm.s3SecretKeyName" (dict "keys" $vmS3.existingSecretKeys "which" "secret") | quote }}
 {{- end }}
 {{- with .Values.centralBackupStorage.s3.existingSecret }}
 - name: S3_SECRET_NAME

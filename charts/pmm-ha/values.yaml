@@ -940,15 +940,6 @@ centralBackupStorage:
   ## sibling sub-path PV) lands in the SAME filesystem tree. Empty = dynamic provisioning.
   volumeName: ""
 
-  ## @param centralBackupStorage.nfs Mount NFS directly without PVC/PV
-  ## When enabled, existingClaim and PVC creation options are ignored.
-  nfs:
-    enabled: false
-    ## @param centralBackupStorage.nfs.server NFS server IP or hostname
-    server: ""
-    ## @param centralBackupStorage.nfs.path NFS export path
-    path: ""
-  
   ## @param centralBackupStorage.mountPath Mount path in backup orchestrator pod
   ## This is where all component backups will be consolidated
   mountPath: /backups

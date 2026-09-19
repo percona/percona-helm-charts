@@ -71,6 +71,13 @@ TARGET_RELEASE="${TARGET_RELEASE:-}"
 # Where the RWX/NFS central volume is mounted INSIDE the component pods (shared mode).
 # Must match the chart's centralBackupStorage mount path.
 SHARED_MOUNT_PATH="${SHARED_MOUNT_PATH:-/central}"
+# The install's subdirectory under the shared mount: <namespace>/<release>, the exact counterpart
+# of S3_PREFIX. Without it every install mounting one RWX export shared a single catalog - one
+# `latest`, one manifests/ directory and one age-based retention sweep - so two releases in a
+# namespace could promote each other's backups, and the retention guard could not tell them apart
+# (ownership is recorded per NAMESPACE, and they share one). Empty = the flat layout, which is
+# also how you deliberately point at a catalog someone else wrote: --shared-source-path.
+SHARED_SUBPATH=$(echo "${SHARED_SUBPATH:-}" | sed 's|^/||; s|/$||')
 
 # S3 settings (target=s3)
 S3_BUCKET="${S3_BUCKET:-}"
@@ -358,6 +365,14 @@ S3_PROVIDER="${S3_PROVIDER:-AWS}"
 # AWS_ENDPOINT env var on the vmbackup sidecar, which no tool reads, so the override was
 # silently ignored. Empty means "same endpoint as everything else".
 VM_S3_ENDPOINT="${VM_S3_ENDPOINT:-}"
+# Same story for the REGION and the CREDENTIALS. vmbackup gets these from the sidecar env the
+# chart wires; vmRESTORE runs in a temp pod THIS process renders, so a VM-only override has to
+# reach here or the restore authenticates with the central credentials against a bucket written
+# with different ones. Empty means "same as everything else" - the accessors below fall back.
+VM_S3_REGION="${VM_S3_REGION:-}"
+VM_S3_SECRET_NAME="${VM_S3_SECRET_NAME:-}"
+VM_S3_SECRET_ACCESS_KEY_KEY="${VM_S3_SECRET_ACCESS_KEY_KEY:-access-key}"
+VM_S3_SECRET_SECRET_KEY_KEY="${VM_S3_SECRET_SECRET_KEY_KEY:-secret-key}"
 # Static S3 credentials (k8s Secret) for the temp pods (vmrestore + s3 client). Required on
 # non-AWS S3-compatible storage; on AWS with IRSA leave empty (SA credential chain).
 S3_SECRET_NAME="${S3_SECRET_NAME:-}"
@@ -426,7 +441,7 @@ PMM_SAVED_REPLICAS="" ; PMM_STATEFULSET_NAME=""
 # Initialised here because the whole point of this block is that `set -u` aborts on any
 # read-before-assignment, and these two are dereferenced bare by render_rclone_s3_env,
 # create_vm_restore_pod, create_pmm_restore_pod and validate_restore_targets.
-TEMP_POD_S3_KEYS_ENV="" ; TEMP_POD_SA_LINE=""
+TEMP_POD_S3_KEYS_ENV="" ; TEMP_POD_VM_S3_KEYS_ENV="" ; TEMP_POD_SA_LINE=""
 # Requests/limits for the temp restore pods, as compact JSON (JSON is valid YAML, so it
 # splices straight into the manifest). Projected by the chart from
 # centralBackupStorage.tools.resources; the default is small on purpose — the pod sleeps.
@@ -507,6 +522,10 @@ Common options:
   --s3-prefix PREFIX        Key namespace under the bucket (default: <namespace>/pmm-ha,
                             matching what the chart projects). Components
                             land under <prefix>/<component>/<id>/...
+  --shared-source-path PATH Subdirectory of the shared mount to read/write (default:
+                            <namespace>/<release>, matching what the chart projects).
+                            The shared-target twin of --s3-prefix: point it at ANOTHER
+                            install's subpath to restore that install's backup (DR).
   --shared-mount-path PATH  Mount path of the shared volume in the pods (default: /central)
   --ch-secret NAME          Kubernetes secret for CH credentials (default: pmm-secret)
 
@@ -849,6 +868,9 @@ parse_args() {
             --s3-prefix)
                 require_value "$1" $#; S3_PREFIX=$(echo "$2" | sed 's|^/||; s|/$||'); shift
                 ;;
+            --shared-source-path)
+                require_value "$1" $#; SHARED_SUBPATH=$(echo "$2" | sed 's|^/||; s|/$||'); shift
+                ;;
             --ch-secret)
                 require_value "$1" $#; CH_SECRET_NAME="$2"; shift
                 ;;
@@ -1069,7 +1091,8 @@ ensure_rclone() {
 #   <root>/<component>/<id>/...    component data
 #
 # Every component sits at the same depth in the same shape, ClickHouse included, and the
-# namespace leads <root> so two installs cannot share it by default (DN-08).
+# namespace leads <root> so two installs cannot share it by default (DN-08) — on BOTH targets:
+# s3 gets it from S3_PREFIX, shared from SHARED_SUBPATH, and both default to <namespace>/<release>.
 #
 # A backup is a correlation across component paths sharing an id, NOT a directory: atomicity is
 # retention's job, not the layout's (DN-06).
@@ -1087,8 +1110,8 @@ backup_root() {   # [view]
         esac
     else
         case "${1:-path}" in
-            inpod) echo "${SHARED_MOUNT_PATH}" ;;
-            *)     echo "${BACKUP_DIR}" ;;
+            inpod) echo "${SHARED_MOUNT_PATH}${SHARED_SUBPATH:+/${SHARED_SUBPATH}}" ;;
+            *)     echo "${BACKUP_DIR}${SHARED_SUBPATH:+/${SHARED_SUBPATH}}" ;;
         esac
     fi
 }
@@ -1293,6 +1316,24 @@ dir_writable() {   # <dir>
 
 share_mkdir() {   # <dir>
     mkdir -p "$1" 2>/dev/null || return 1
+    # Every level below the mount root, not just the leaf. The install subpath
+    # (<namespace>/<release>) is created by `mkdir -p` at 0755 under the creating pod's uid, and
+    # a DR namespace - a different uid on OpenShift - then cannot even TRAVERSE into it to read
+    # the catalog it was pointed at with --shared-source-path. chmod'ing only the leaf left the
+    # parents shut.
+    _sm_rest=""
+    case "$1" in
+        "${BACKUP_DIR}"/*) _sm_rest="${1#"${BACKUP_DIR}"/}" ;;
+    esac
+    if [ -n "${_sm_rest}" ]; then
+        _sm_cur="${BACKUP_DIR}"
+        while [ -n "${_sm_rest}" ]; do
+            _sm_cur="${_sm_cur}/${_sm_rest%%/*}"
+            chmod g+rwxs "${_sm_cur}" 2>/dev/null || true
+            case "${_sm_rest}" in *"/"*) _sm_rest="${_sm_rest#*/}" ;; *) _sm_rest="" ;; esac
+        done
+        return 0
+    fi
     # NOT gated on the backup target. Every directory this creates lives on the CENTRAL VOLUME,
     # and that volume is mounted in s3 mode too — the run log and the metrics files go there
     # whatever the target is. Gating the group bits on `shared` meant that two namespaces sharing
@@ -1658,6 +1699,28 @@ s3_rclone_deletefile() {
 # chart projected one, else the shared endpoint. Empty output means "pass no flag" (AWS).
 vm_s3_endpoint() {
     if [ -n "${VM_S3_ENDPOINT}" ]; then printf '%s' "${VM_S3_ENDPOINT}"; else printf '%s' "${S3_ENDPOINT}"; fi
+}
+
+# The region vmrestore should use: the VictoriaMetrics-specific override if the chart projected
+# one, else the shared region. Same precedence vmcluster.yaml gives the vmbackup sidecar.
+vm_s3_region() {
+    if [ -n "${VM_S3_REGION}" ]; then printf '%s' "${VM_S3_REGION}"; else printf '%s' "${S3_REGION}"; fi
+}
+
+# The static-credential env block for the VM temp pod: the VM-specific secret when the chart
+# projected one, else the central secret. Rendered separately from the shared block because the
+# secret NAME and both KEY names move together - taking the name from one secret and the key
+# names from another would read a key that is not in it.
+render_temp_pod_vm_s3_keys_env() {
+    if [ -n "${VM_S3_SECRET_NAME}" ]; then
+        printf '%s' "
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom: { secretKeyRef: { name: ${VM_S3_SECRET_NAME}, key: ${VM_S3_SECRET_ACCESS_KEY_KEY} } }
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom: { secretKeyRef: { name: ${VM_S3_SECRET_NAME}, key: ${VM_S3_SECRET_SECRET_KEY_KEY} } }"
+        return 0
+    fi
+    render_temp_pod_s3_keys_env
 }
 
 # vmbackup/vmrestore take the custom endpoint as a FLAG, not an env var. Expands to nothing on
@@ -3996,14 +4059,16 @@ resolve_central_backup_pvc() {   # [tag]
         CENTRAL_BACKUP_PVC=$(kubectl get pod -n "${NAMESPACE}" "${bt_pod}" -o jsonpath='{.spec.volumes[?(@.name=="central-backup-storage")].persistentVolumeClaim.claimName}' 2>/dev/null || true)
     fi
     if [ -z "${CENTRAL_BACKUP_PVC}" ]; then
-        # An `nfs:` central volume (centralBackupStorage.nfs.enabled) has no claimName, and
-        # create_temp_restore_pod can only render a persistentVolumeClaim — so this is not a
-        # lookup failure, it is an unsupported shape, and the operator needs to hear which.
+        # A PVC-less `nfs:` central volume has no claimName, and create_temp_restore_pod can
+        # only render a persistentVolumeClaim — so this is not a lookup failure, it is an
+        # unsupported shape, and the operator needs to hear which. The chart no longer produces
+        # it (the option was removed for exactly this reason), but a hand-built backup-tools pod
+        # still can, so the diagnosis stays.
         if [ -n "${bt_pod}" ] && [ -n "$(kubectl get pod -n "${NAMESPACE}" "${bt_pod}" -o jsonpath='{.spec.volumes[?(@.name=="central-backup-storage")].nfs.server}' 2>/dev/null || true)" ]; then
             log "ERROR" "[${_rcbp_tag}] The central backup volume is a direct NFS mount, not a PVC."
             log "ERROR" "  The temp restore pod can only mount a PersistentVolumeClaim, so this restore needs the"
             log "ERROR" "  shared volume exposed as one: create a PV/PVC for the same export and set"
-            log "ERROR" "  centralBackupStorage.existingClaim instead of centralBackupStorage.nfs — or drop the"
+            log "ERROR" "  centralBackupStorage.existingClaim pointed at its claim — or drop the"
             log "ERROR" "  components that need it (--skip-victoriametrics / --skip-pmm-server)."
             return 1
         fi
@@ -5036,9 +5101,12 @@ render_temp_restore_pod() {   # <pod-name> <pvc> <image> <role> [sec-ctx] [sched
         label="vm-restore-temp"; ctr="vmrestore"; vol_name="vmstorage-db"; mount_path="/vmstorage-data"
         # No endpoint env: vmrestore does not read endpoint env vars, it takes
         # -customS3Endpoint as a flag.
+        # The VM-effective region and credentials, not the central ones: vmbackup wrote this
+        # data with whatever victoriaMetrics.vmstorage.backup.s3 resolved to, so vmrestore has
+        # to read it back with the same. Both fall back to the central value.
         [ "${S3_ENABLED}" = "true" ] && env_block="      env:
         - name: AWS_REGION
-          value: \"${S3_REGION}\"${TEMP_POD_S3_KEYS_ENV}"
+          value: \"$(vm_s3_region)\"${TEMP_POD_VM_S3_KEYS_ENV}"
     else
         label="pmm-srv-restore-temp"; ctr="srv-restore"; vol_name="pmm-storage"; mount_path="/srv"
         [ "${S3_ENABLED}" = "true" ] && env_block="      env:
@@ -6180,7 +6248,11 @@ prune_expired_backups() {
         fi
         if [ "${_owner}" != "${NAMESPACE}" ]; then
             log "ERROR" "[Retention] Skipping '${id}': it belongs to namespace '${_owner}', not '${NAMESPACE}'."
-            log "ERROR" "[Retention]   Prefix '${S3_PREFIX}' is shared with another PMM-HA install. Give each install its own centralBackupStorage.s3.prefix — a shared prefix means each install's retention would delete the others' backups."
+            if [ "${S3_ENABLED}" = "true" ]; then
+                log "ERROR" "[Retention]   Prefix '${S3_PREFIX}' is shared with another PMM-HA install. Give each install its own centralBackupStorage.s3.prefix — a shared prefix means each install's retention would delete the others' backups."
+            else
+                log "ERROR" "[Retention]   Shared path '$(backup_root)' is shared with another PMM-HA install. Each install writes under its own <namespace>/<release> subpath by default; a run reading someone else's (--shared-source-path) must not prune it."
+            fi
             skipped=$((skipped + 1)); continue
         fi
         expired_ids="${expired_ids} ${id}"
@@ -7308,6 +7380,12 @@ main() {
         # to the conventional "pmm-ha" when neither was given.
         S3_PREFIX="${NAMESPACE}/${TARGET_RELEASE:-pmm-ha}"
     fi
+    if [ "${BACKUP_TARGET}" = "shared" ] && [ -z "${SHARED_SUBPATH}" ]; then
+        # Same rule, same reason, for the shared target: inside backup-tools this arrives from the
+        # pod env, so this only fires for a flag-less run started elsewhere. --shared-source-path
+        # overrides it to read ANOTHER install's catalog, exactly as --s3-prefix does on s3.
+        SHARED_SUBPATH="${NAMESPACE}/${TARGET_RELEASE:-pmm-ha}"
+    fi
 
     # The S3 settings, charset-gated like every store-derived name (DN-17) — "the operator can
     # only hurt himself" stops being true the moment a values.yaml is templated by anything but
@@ -7366,6 +7444,7 @@ main() {
         # functions (see their definitions) because their leading whitespace is YAML content,
         # not shell formatting, and the unit tests assert those columns.
         TEMP_POD_S3_KEYS_ENV=$(render_temp_pod_s3_keys_env)
+        TEMP_POD_VM_S3_KEYS_ENV=$(render_temp_pod_vm_s3_keys_env)
         TEMP_POD_SA_LINE=$(render_temp_pod_sa_line)
         init_log
     else

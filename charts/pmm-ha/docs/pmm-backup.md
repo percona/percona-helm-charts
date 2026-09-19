@@ -266,9 +266,18 @@ kubectl exec -n <target-namespace> deploy/<target-release>-backup-tools -- \
     --s3-prefix <source-namespace>/<source-release> --yes
 ```
 
-In `shared` mode both installs already see one directory, so no flag is needed — just run the
-restore in the target namespace. Full detail, including what is and is not carried across, is
-in [§8.2](#82-cross-namespace--dr-restore).
+In `shared` mode the equivalent flag is `--shared-source-path`: both installs mount the same
+export, but each writes under its own `<namespace>/<release>` subpath, so the target still has
+to be told whose catalog to read.
+
+```bash
+kubectl exec -n <target-namespace> deploy/<target-release>-backup-tools -- \
+  pmm-backup.sh restore --backup-id latest \
+    --shared-source-path <source-namespace>/<source-release> --yes
+```
+
+Full detail, including what is and is not carried across, is in
+[§8.2](#82-cross-namespace--dr-restore).
 
 ### When something is wrong
 
@@ -596,19 +605,55 @@ centralBackupStorage:
   existingClaim: "my-rwx-backup-pvc"   # a ReadWriteMany PVC you created
 ```
 
-**Option 2: Direct NFS mount**
+**Option 2: An NFS export — declare a PV for it, then use Option 1**
+
+There is deliberately no PVC-less `nfs:` shortcut. The VictoriaMetrics and `/srv` restores run
+in temporary pods that `pmm-backup.sh` builds at restore time, and those can only mount a
+claim — so a bare `nfs:` volume backs up fine and then cannot restore half the components. An
+inline NFS volume also cannot carry `mountOptions` (a pod's `NFSVolumeSource` has only
+`server`, `path` and `readOnly`), and `hard` / `nfsvers` are not optional on a volume holding
+backup archives: a soft mount turns a server hiccup into a short read, i.e. a silently
+truncated archive you discover at restore time.
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pmm-central-backup-nfs
+spec:
+  capacity: { storage: 100Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions: [nfsvers=4.1, hard, timeo=600, retrans=2]
+  nfs:
+    server: 10.0.1.50
+    path: /exports/pmm-backups
+  claimRef: { namespace: <namespace>, name: pmm-central-backup-shared }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pmm-central-backup-shared
+  namespace: <namespace>
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: pmm-central-backup-nfs
+  resources: { requests: { storage: 100Gi } }
+```
+
+then point the chart at that claim exactly as in Option 1:
 
 ```yaml
 centralBackupStorage:
   enabled: true
   mode: shared
-  nfs:
-    enabled: true
-    server: "10.0.1.50"
-    path: "/exports/pmm-backups"
+  existingClaim: pmm-central-backup-shared
 ```
 
-When `nfs.enabled` is true, both PVC creation and `existingClaim` are ignored.
+`claimRef` pre-binds the PV so nothing else can take it, and `Retain` keeps the data if the
+claim is ever deleted. A DR namespace gets its own PV/PVC pair onto the **same export** — see
+[Cross-namespace / DR restore](#82-cross-namespace--dr-restore).
 
 **Option 3: Chart-created PVC (only with an RWX storage class)**
 
@@ -624,7 +669,7 @@ centralBackupStorage:
 The chart creates a PVC named `<release>-central-backup`; only works if the storage class
 provisions RWX volumes.
 
-**Priority**: `nfs.enabled` > `existingClaim` > chart-created PVC.
+**Priority**: `existingClaim` > chart-created PVC.
 
 **`accessMode` / `storageClassName` defaults.** Leave `accessMode` empty and the chart derives
 it from `mode`: `ReadWriteMany` for `shared`, `ReadWriteOnce` for `s3` (where the volume only holds
@@ -1018,7 +1063,7 @@ a `/srv` backup failing on **every** PMM pod was invisible in Prometheus. See DN
 
 One scrape job is defined in `vmagent.yaml` (conditionally enabled when `centralBackupStorage.enabled`):
 
-- `backup-metrics` -- scrapes port 9091 every 60s
+- `backup-metrics` -- scrapes port 9091 every 30s
 
 It uses `kubernetes_sd_configs` with `role: pod`, filtering on label
 `app.kubernetes.io/component: backup-tools`, on `app.kubernetes.io/instance` (so two releases
@@ -1153,6 +1198,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `--s3-endpoint URL` | S3 endpoint (empty for AWS; set for S3-compatible/MinIO) | |
 | `--s3-region REGION` | S3 region | us-east-1 |
 | `--s3-prefix PREFIX` | Key namespace under the bucket. Point it at ANOTHER install's root for a cross-namespace/DR restore | `<namespace>/<release>` (matches what the chart projects) |
+| `--shared-source-path PATH` | The shared-target twin of `--s3-prefix`: subdirectory of the shared mount to read/write. Point it at ANOTHER install's subpath for a cross-namespace/DR restore | `<namespace>/<release>` (matches what the chart projects) |
 | `--shared-mount-path PATH` | RWX mount path inside pods (`--target shared`) | /central |
 | `--release NAME` | Scope every destructive lookup to one Helm release (`app.kubernetes.io/instance`). Needed only when a namespace holds more than one pmm-ha install, where an unscoped lookup would refuse rather than guess | *(unscoped)* |
 | `--s3-service-account NAME` | ServiceAccount for the restore temp pods (restore only) | `S3_SERVICE_ACCOUNT` |
@@ -1181,6 +1227,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `TEMP_POD_RESOURCES` | JSON `resources` for the temp pods a restore creates (`vm-restore-*`, `pmm-srv-restore-*`). Raise it if those pods are OOM-killed on large volumes; note that raising it also makes them harder to schedule on a full node. | `{"requests":{"cpu":"50m","memory":"64Mi"}}` |
 | `S3_BUCKET` | S3 bucket (required for `s3`; set by Helm) | |
 | `S3_REGION` / `S3_ENDPOINT` / `S3_PREFIX` | S3 region / endpoint / key prefix (set by Helm) | us-east-1 / / `<namespace>/<release>` |
+| `SHARED_SUBPATH` | Shared-target equivalent of `S3_PREFIX`: the install's subdirectory under the shared mount (set by Helm) | `<namespace>/<release>` |
 | `SHARED_MOUNT_PATH` | RWX mount path inside pods (`shared` mode; set by Helm) | /central |
 | `RCLONE_REMOTE` | rclone remote name (configured via `RCLONE_CONFIG_*`) | s3 |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 static keys (required on non-AWS S3-compatible storage; on AWS, IRSA is the keyless alternative) | |
@@ -1849,7 +1896,7 @@ Written to `/backups/.metrics/restore_metrics.prom` and served on port 9091:
   DR-readiness alert fire over components nobody asked to restore. The run-level verdict is
   `pmm_ha_restore_last_success`; use that, not a per-component sum, to ask "did the restore work".
 
-The backup-tools pod exposes port 9091 and VMAgent's single `backup-metrics` scrape job (60s interval) collects these alongside the backup metrics.
+The backup-tools pod exposes port 9091 and VMAgent's single `backup-metrics` scrape job (30s interval, `templates/vmagent.yaml`) collects these alongside the backup metrics.
 
 ---
 
@@ -1868,6 +1915,21 @@ kubectl exec -n <target-ns> deploy/<target-release>-backup-tools -- \
   --s3-bucket <bucket> --s3-prefix <SOURCE-prefix> --s3-region <region> \
   --backup-id <backup_id-or-latest> --yes
 ```
+
+In `shared` mode the same idea applies to the one flag that differs. Both installs mount the
+same RWX export, but each writes under its own `<namespace>/<release>` subpath — so the target
+is told whose catalog to read with `--shared-source-path` instead of `--s3-prefix`:
+
+```bash
+kubectl exec -n <target-ns> deploy/<target-release>-backup-tools -- \
+  pmm-backup.sh restore --namespace <target-ns> --target shared \
+  --shared-source-path <SOURCE-ns>/<SOURCE-release> \
+  --backup-id <backup_id-or-latest> --yes
+```
+
+The subpath is what keeps two installs on one export from sharing a `latest` pointer, a
+`manifests/` directory and an age-based retention sweep. The target's own subpath is untouched
+by the restore; only the source's is read.
 
 Prerequisites for the target namespace: the PMM-HA instance installed (distinct release
 name; see the multi-namespace section of the chart README), `pmm-secret` present, and —

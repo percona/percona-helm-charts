@@ -6,7 +6,7 @@
        switching centralBackupStorage.mode on an EXISTING chart-created PVC will fail `helm upgrade`
        (accessModes are immutable) — delete/recreate the PVC (data is disposable in s3 mode; in
        shared mode migrate the volume) or set an explicit accessMode that doesn't change. */}}
-{{- if and .Values.centralBackupStorage.enabled (not .Values.centralBackupStorage.nfs.enabled) (not .Values.centralBackupStorage.existingClaim) }}
+{{- if and .Values.centralBackupStorage.enabled (not .Values.centralBackupStorage.existingClaim) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

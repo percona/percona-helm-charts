@@ -31,7 +31,7 @@
        it on a claim that is really RWO would lift the affinity wrongly and produce Multi-Attach.
        values.yaml states this contract. */}}
 {{- $rwxAccess := eq ($cbs.accessMode | default "") "ReadWriteMany" }}
-{{- $needsColocation := and (eq $cbs.mode "s3") (not $cbs.nfs.enabled) (not $rwxAccess) }}
+{{- $needsColocation := and (eq $cbs.mode "s3") (not $rwxAccess) }}
 ---
 # Scheduled full backup. The Job pod RUNS pmm-backup.sh itself — it is not a trigger that
 # execs into the backup-tools Deployment. That exec design (and cron-backup.sh, its

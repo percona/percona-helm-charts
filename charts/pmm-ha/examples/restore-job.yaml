@@ -149,15 +149,13 @@ spec:
         # verbatim from the running Deployment, which is always right for your values:
         #   kubectl get deploy <RELEASE>-backup-tools -n <NAMESPACE> \
         #     -o jsonpath='{.spec.template.spec.volumes}' | jq
-        # It is one of three shapes:
+        # It is always a PersistentVolumeClaim, in one of two shapes:
         #   centralBackupStorage.existingClaim set  -> claimName: <that claim>
         #   chart-created PVC (default)             -> claimName: <RELEASE>-central-backup
-        #   centralBackupStorage.nfs.enabled        -> an nfs: {server, path} block, no PVC
-        # NOTE on that third shape: the Job itself mounts an nfs: block fine, but a
-        # VictoriaMetrics restore ALSO needs a PVC — vmrestore runs in a temp pod that the
-        # orchestrator can only give a persistentVolumeClaim, so it refuses with a message
-        # saying so. Expose the same export as a PV/PVC and use existingClaim, or restore VM
-        # separately with --skip-victoriametrics on this run.
+        # An NFS export is used by declaring a PV for it (with mountOptions) and pointing
+        # existingClaim at its claim — see docs/pmm-backup.md, "Central backup storage". There
+        # is no PVC-less nfs: shape any more: vmrestore and the /srv restore run in temp pods
+        # the orchestrator builds, and those can only mount a claim.
         - name: central-backup-storage
           persistentVolumeClaim:
             claimName: <CENTRAL_VOLUME>
