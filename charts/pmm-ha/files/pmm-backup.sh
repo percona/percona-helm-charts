@@ -953,9 +953,16 @@ log() {
 init_log() {
     _il_ts=$(date -u +%Y%m%d-%H%M%S)
     LOG_FILE="${BACKUP_DIR}/logs/restore_${_il_ts}.log"
-    if ! share_mkdir "${BACKUP_DIR}/logs" || ! : >>"${LOG_FILE}" 2>/dev/null; then
+    # `touch`, NOT `: >>`. `:` is a POSIX SPECIAL BUILTIN and a redirection failure on one is
+    # fatal to the shell, so on a shared volume this process cannot write to — a peer namespace's
+    # logs/ directory on NFS, where OpenShift gives every namespace a different uid — the whole
+    # run died HERE, before the banner, with a raw "can't create ... Permission denied" and the
+    # /tmp fallback two lines down never ran. Measured on ROSA. Same trap as dir_writable() and
+    # store_write_private(); `touch` is an external command, so its failure is an ordinary
+    # non-zero exit this can act on. (`touch` also appends-in-spirit: it never truncates.)
+    if ! share_mkdir "${BACKUP_DIR}/logs" || ! touch "${LOG_FILE}" 2>/dev/null; then
         LOG_FILE="/tmp/restore_${_il_ts}.log"
-        : >>"${LOG_FILE}" 2>/dev/null || true
+        touch "${LOG_FILE}" 2>/dev/null || true
     fi
 }
 
@@ -1286,7 +1293,13 @@ dir_writable() {   # <dir>
 
 share_mkdir() {   # <dir>
     mkdir -p "$1" 2>/dev/null || return 1
-    [ "${BACKUP_TARGET}" = "shared" ] || return 0
+    # NOT gated on the backup target. Every directory this creates lives on the CENTRAL VOLUME,
+    # and that volume is mounted in s3 mode too — the run log and the metrics files go there
+    # whatever the target is. Gating the group bits on `shared` meant that two namespaces sharing
+    # one RWX volume in s3 mode could not write each other's logs/ directory: OpenShift gives
+    # every namespace its own uid, the first namespace created logs/ 0755 under its own, and the
+    # second died trying to open a log file in it. Measured on ROSA. Best-effort as before — a
+    # target that refuses chmod (many NFS exports, read-only mounts) must not fail the run.
     chmod g+rwxs "$1" 2>/dev/null || true
     return 0
 }

@@ -299,5 +299,18 @@ if _bad:
 print("  ok: no jsonpath bracket lookups of slash-bearing keys")
 PY
 
+# A redirection failure on a POSIX SPECIAL BUILTIN is fatal to the shell: the `|| fallback` next
+# to it never runs and the process dies where it stood, often before any log exists. This has now
+# shipped twice - store_write_private's encryption-key write (measured on EFS) and init_log's log
+# file on a peer namespace's shared volume (measured on ROSA) - so it gets a rule rather than a
+# third comment. Use `touch`, which is external, so a failure is an ordinary non-zero exit.
+if grep -nE '(^|[[:space:]]|!)[[:space:]]*:[[:space:]]*>' "${TARGET}" | grep -vE '^[0-9]+:[[:space:]]*#' | grep -q .; then
+    echo "  FAIL: a redirection onto the special builtin ':' - a failure there kills the shell"
+    grep -nE '(^|[[:space:]]|!)[[:space:]]*:[[:space:]]*>' "${TARGET}" | grep -vE '^[0-9]+:[[:space:]]*#' | head -5
+    FAIL=$((FAIL+1))
+else
+    echo "  ok: no redirection onto the POSIX special builtin ':' (use touch)"
+fi
+
 if [ "${FAIL}" -eq 0 ]; then echo "LINT OK"; exit 0; fi
 echo "LINT FAILED"; exit 1

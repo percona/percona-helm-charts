@@ -2685,15 +2685,18 @@ _mode=$(ls -ld "${_sd}/shared/logs" | cut -c1-10)
 assert_eq "shared: group-writable"       "w" "$(printf '%s' "${_mode}" | cut -c6)"
 assert_eq "shared: setgid is set"        "s" "$(printf '%s' "${_mode}" | cut -c7)"
 
-# s3's BACKUP_DIR is pod-local scratch nobody else reads, so it must NOT be widened.
+# s3 gets the SAME treatment, and this assertion used to say the opposite. The premise behind
+# that - "s3's BACKUP_DIR is pod-local scratch nobody else reads" - is simply untrue: BACKUP_DIR
+# is the mount of centralBackupStorage, which is mounted in s3 mode too, because the run log and
+# the metrics files live there whatever the target is. Measured on ROSA: two namespaces sharing
+# one RWX volume in s3 mode, the first created logs/ 0755 under its own uid, and the second -
+# OpenShift gives it a different uid - could not open a log file in it at all.
 BACKUP_TARGET=s3
 share_mkdir "${_sd}/s3/logs"
 assert_eq "s3: directory is created"     "yes" "$([ -d "${_sd}/s3/logs" ] && echo yes || echo no)"
-_s3mode=$(ls -ld "${_sd}/s3/logs" | cut -c7)
-_s3sgid=no
-[ "${_s3mode}" = "s" ] && _s3sgid=yes
-[ "${_s3mode}" = "S" ] && _s3sgid=yes
-assert_eq "s3: setgid NOT set"           "no"  "${_s3sgid}"
+_s3full=$(ls -ld "${_sd}/s3/logs" | cut -c1-10)
+assert_eq "s3: group-writable too"       "w" "$(printf '%s' "${_s3full}" | cut -c6)"
+assert_eq "s3: setgid set too"           "s" "$(printf '%s' "${_s3full}" | cut -c7)"
 
 # A path that cannot be created is a failure the caller must see (it falls back to /tmp).
 share_mkdir "/proc/nonexistent-f17/logs" 2>/dev/null
