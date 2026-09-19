@@ -57,9 +57,173 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.initContainers }}
+      {{- if or .Values.encryptionKey.backupToSecret .Values.initContainers }}
       initContainers:
+        {{- with .Values.initContainers }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.encryptionKey.backupToSecret }}
+        # Generates a key only when the data volume has none. Which key is actually installed is
+        # decided by the next init container, which can also see the secret.
+        - name: encryption-key-generate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- with .Values.encryptionKey.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              KEY_FILE={{ include "pmm.encryptionKeyPath" . }}
+
+              if [ -s "$KEY_FILE" ]; then
+                echo "Encryption key already present on the data volume."
+                exit 0
+              fi
+
+              echo "Generating a candidate encryption key..."
+              /usr/sbin/pmm-encryption-rotation --generate-key > /shared/generated-key
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+            - name: encryption-key-workdir
+              mountPath: /shared
+        # Keeps the key on the data volume and the copy in the secret in sync. The data volume
+        # wins: its key is the one PMM encrypted with, so restarts, upgrades and reinstalls over
+        # retained data keep decrypting the credentials already stored.
+        - name: encryption-key-reconcile
+          image: "{{ .Values.encryptionKey.image.repository }}:{{ .Values.encryptionKey.image.tag }}"
+          imagePullPolicy: {{ .Values.encryptionKey.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- with .Values.encryptionKey.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              SECRET={{ include "pmm.encryptionKeySecretName" . }}
+              NAMESPACE={{ include "pmm.namespace" . }}
+              KEY_FILE={{ include "pmm.encryptionKeyPath" . }}
+
+              # Renders the key in $1 as a secret manifest. The secret is labelled like the rest
+              # of the release, but deliberately not owned by it, so that backup tooling finds it
+              # while `helm uninstall` leaves it behind.
+              key_secret_manifest() {
+                cat <<EOF
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: $SECRET
+                namespace: $NAMESPACE
+                labels:
+                  {{- include "pmm.labels" . | nindent 18 }}
+              data:
+                key: $(base64 < "$1" | tr -d '\n')
+              EOF
+              }
+
+              # Writes the key held by the secret to /shared/secret-key, failing when the secret
+              # cannot be read or holds nothing.
+              fetch_secret_key() {
+                kubectl get secret "$SECRET" --namespace="$NAMESPACE" \
+                  -o jsonpath='{.data.key}' > /shared/secret-key.b64 &&
+                  base64 -d < /shared/secret-key.b64 > /shared/secret-key &&
+                  [ -s /shared/secret-key ]
+              }
+
+              # Echoes yes, no or error; NotFound is the only answer that means "no".
+              secret_state() {
+                if ERROR=$(kubectl get secret "$SECRET" --namespace="$NAMESPACE" -o name 2>&1); then
+                  echo yes
+                elif echo "$ERROR" | grep -q NotFound; then
+                  echo no
+                else
+                  echo "cannot tell whether secret $SECRET exists: $ERROR" >&2
+                  echo error
+                fi
+              }
+
+              if [ -s "$KEY_FILE" ]; then
+                # PMM will use the key that is already on the data volume, so failing to keep the
+                # secret in step with it must not keep the pod from starting.
+                set +e
+                case "$(secret_state)" in
+                  no)
+                    echo "Backing up the encryption key from the data volume into secret $SECRET..."
+                    key_secret_manifest "$KEY_FILE" | kubectl create -f - ||
+                      echo "Warning: could not back up the encryption key" >&2
+                    ;;
+                  yes)
+                    if ! fetch_secret_key; then
+                      echo "Warning: could not read secret $SECRET, leaving it untouched" >&2
+                    elif cmp -s "$KEY_FILE" /shared/secret-key; then
+                      echo "Encryption key present on the data volume and already backed up."
+                    else
+                      # The key was rotated. PMM re-encrypted the data with the key now on the
+                      # volume, so the copy has to follow or a later restore would undo that.
+                      echo "Secret $SECRET holds an outdated key, refreshing it..."
+                      key_secret_manifest "$KEY_FILE" | kubectl replace -f - ||
+                        echo "Warning: could not refresh the encryption key backup" >&2
+                    fi
+                    ;;
+                  error)
+                    echo "Warning: could not check the encryption key backup" >&2
+                    ;;
+                esac
+                exit 0
+              fi
+
+              # From here on the data volume has no key. Letting PMM generate one instead of
+              # restoring the stored one would leave every credential encrypted with the previous
+              # key unreadable, so uncertainty about the secret is fatal.
+              STATE=$(secret_state)
+
+              if [ "$STATE" = "error" ]; then
+                echo "Error: refusing to start without knowing whether secret $SECRET holds a key" >&2
+                exit 1
+              fi
+
+              if [ "$STATE" = "yes" ]; then
+                echo "Restoring the encryption key from secret $SECRET onto the data volume..."
+                if ! fetch_secret_key; then
+                  echo "Error: secret $SECRET holds no readable key" >&2
+                  exit 1
+                fi
+                cp /shared/secret-key "$KEY_FILE"
+                # Same mode PMM uses when it writes the key itself, so the PMM container can read
+                # it whatever uid it runs as.
+                chmod 644 "$KEY_FILE"
+                exit 0
+              fi
+
+              if [ ! -s /shared/generated-key ]; then
+                echo "Error: no encryption key was generated" >&2
+                exit 1
+              fi
+
+              # Stored first: if this fails the data volume is left untouched, so the next attempt
+              # starts from the same state instead of finding a key that has no backup.
+              echo "No encryption key found, installing the generated one..."
+              key_secret_manifest /shared/generated-key | kubectl create -f -
+              cp /shared/generated-key "$KEY_FILE"
+              chmod 644 "$KEY_FILE"
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+            - name: encryption-key-workdir
+              mountPath: /shared
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
@@ -145,6 +309,12 @@ spec:
                   - path: "annotations"
                     fieldRef:
                       fieldPath: metadata.annotations
+      {{- if .Values.encryptionKey.backupToSecret }}
+        # The encryption key passes through this volume in the clear, so keep it off the node's disk.
+        - name: encryption-key-workdir
+          emptyDir:
+            medium: Memory
+      {{- end }}
       {{- if .Values.certs.name }}
         - name: {{ .Values.certs.name }}
           secret:
