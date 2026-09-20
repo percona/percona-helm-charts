@@ -2029,6 +2029,25 @@ _tp_has "vm pod carries its sweep label"   "component: vm-restore-temp"
 _tp_has "vm pod never restarts"            "restartPolicy: Never"
 _tp_has "vm pod gets the region"           "AWS_REGION"
 
+# Static S3 keys, on the VM pod specifically. This was the hole: the assertion above only proved
+# AWS_REGION was present, so an empty TEMP_POD_VM_S3_KEYS_ENV - the variable the VM pod switched
+# to when the VictoriaMetrics-specific credentials were wired in - would have passed every test
+# here while leaving vmrestore with no credentials at all on a static-key install.
+_tp_save_sec2="${S3_SECRET_NAME}"; _tp_save_vmkeys="${TEMP_POD_VM_S3_KEYS_ENV}"
+S3_SECRET_NAME="central-creds"; S3_SECRET_ACCESS_KEY_KEY="access-key"; S3_SECRET_SECRET_KEY_KEY="secret-key"
+VM_S3_SECRET_NAME=""
+TEMP_POD_VM_S3_KEYS_ENV=$(render_temp_pod_vm_s3_keys_env)
+_tp_capture create_vm_restore_pod vm-restore-vmstorage-0 vmstorage-db-vmstorage-0 vmrestore:v1
+_tp_has "vm pod carries static S3 keys"    "AWS_ACCESS_KEY_ID"
+_tp_has "…from the central secret"         "name: central-creds"
+# ...and a VictoriaMetrics-only secret reaches the VM pod instead.
+VM_S3_SECRET_NAME="vm-creds"; VM_S3_SECRET_ACCESS_KEY_KEY="vm-access"; VM_S3_SECRET_SECRET_KEY_KEY="vm-secret"
+TEMP_POD_VM_S3_KEYS_ENV=$(render_temp_pod_vm_s3_keys_env)
+_tp_capture create_vm_restore_pod vm-restore-vmstorage-0 vmstorage-db-vmstorage-0 vmrestore:v1
+_tp_has "a VM-only secret reaches the VM pod" "name: vm-creds"
+_tp_hasnt "…and the central one does not"     "name: central-creds"
+VM_S3_SECRET_NAME=""; S3_SECRET_NAME="${_tp_save_sec2}"; TEMP_POD_VM_S3_KEYS_ENV="${_tp_save_vmkeys}"
+
 _tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 percona/pmm-server:3
 _tp_has "pmm pod is a Pod"                 "kind: Pod"
 _tp_has "pmm pod mounts the data PVC"      "claimName: pmm-storage-pmm-0"
