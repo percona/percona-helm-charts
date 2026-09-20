@@ -4605,7 +4605,20 @@ validate_restore_targets() {
     done
 
     if [ "${fail}" -ne 0 ]; then
-        log "ERROR" "Pre-restore validation FAILED. Nothing was changed; PMM is still running."
+        # "this run changed nothing", NOT "PMM is running" — the gate also fails on the RECOVERY
+        # path, where an earlier killed restore already left PMM at 0 and the vmcluster zeroed.
+        # Telling an operator mid-incident that PMM is still up when it is not is the one thing
+        # this message must never do, so state what it can actually vouch for and read the real
+        # replica count back for the rest.
+        _vrt_live=$(kubectl get statefulset "${SCOPE_PMM_STS:-}" -n "${NAMESPACE}" \
+            -o jsonpath='{.spec.replicas}' 2>/dev/null || true)
+        log "ERROR" "Pre-restore validation FAILED. This run changed nothing."
+        case "${_vrt_live}" in
+            ''|*[!0-9]*) ;;
+            0) log "ERROR" "  PMM is at 0 replicas — an earlier run scaled it down and did not finish."
+               log "ERROR" "  See \"Recovering from a restore that was killed part-way\" in docs/pmm-backup.md." ;;
+            *) log "ERROR" "  PMM is still running (${_vrt_live} replica(s))." ;;
+        esac
         return 1
     fi
     log "INFO" "Pre-restore validation passed — every selected component's source and target are present"
@@ -6105,7 +6118,9 @@ prune_expired_backups() {
 
     if [ "${BACKUP_RETENTION}" -lt 1 ]; then
         PRUNE_REFUSED=1
-        log "WARN" "[Retention] --retention ${BACKUP_RETENTION} would expire every backup including this run; refusing to prune S3"
+        # "the backup store", not "S3": this guard fires on the shared target too, where the
+        # message named a target the install does not use.
+        log "WARN" "[Retention] --retention ${BACKUP_RETENTION} would expire every backup including this run; refusing to prune $(backup_root_display)"
         return 0
     fi
 

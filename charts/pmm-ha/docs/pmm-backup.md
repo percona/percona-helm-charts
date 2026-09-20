@@ -173,7 +173,8 @@ refused at validation:
 
 ```
 [ERROR] [Preflight] victoriametrics: no vmstorage pods matching 'app.kubernetes.io/name=vmstorage'
-[ERROR] Pre-restore validation FAILED. Nothing was changed; PMM is still running.
+[ERROR] Pre-restore validation FAILED. This run changed nothing.
+[ERROR]   PMM is at 0 replicas — an earlier run scaled it down and did not finish.
 ```
 
 Scale the tiers back to the values your install uses, then re-run the restore:
