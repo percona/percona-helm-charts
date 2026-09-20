@@ -3051,6 +3051,42 @@ assert_eq "every level of the chain is group-writable+setgid" "" "${_sc_bad}"
 rm -rf "${BACKUP_DIR}" 2>/dev/null || true
 BACKUP_DIR="${_sc_bd}"; BACKUP_TARGET="${_sc_t}"
 
+#########################################################################################
+section "VictoriaMetrics S3 overrides reach the RESTORE, not just the backup"
+#########################################################################################
+# vmbackup is a sidecar the chart wires from victoriaMetrics.vmstorage.backup.s3; vmrestore runs
+# in a temp pod this script renders. Only the ENDPOINT used to be projected, so a VM-only region
+# or credentials secret was honoured writing the backup and ignored reading it back - successful
+# backups vmrestore could not authenticate to.
+_vo_r="${VM_S3_REGION}"; _vo_sr="${S3_REGION}"; _vo_sn="${VM_S3_SECRET_NAME}"; _vo_csn="${S3_SECRET_NAME}"
+_vo_ak="${VM_S3_SECRET_ACCESS_KEY_KEY}"; _vo_sk="${VM_S3_SECRET_SECRET_KEY_KEY}"
+_vo_cak="${S3_SECRET_ACCESS_KEY_KEY}"; _vo_csk="${S3_SECRET_SECRET_KEY_KEY}"
+
+S3_REGION="eu-north-1"; VM_S3_REGION=""
+assert_eq "no VM region falls back to the central one" "eu-north-1" "$(vm_s3_region)"
+VM_S3_REGION="us-east-2"
+assert_eq "a VM region override wins"                  "us-east-2"  "$(vm_s3_region)"
+
+# The secret NAME and both KEY names move together: taking the name from one secret and the key
+# names from the other would read a key that is not in it.
+S3_SECRET_NAME="central-creds"; S3_SECRET_ACCESS_KEY_KEY="access-key"; S3_SECRET_SECRET_KEY_KEY="secret-key"
+VM_S3_SECRET_NAME=""
+# `case` inside $( ) trips the parser on its own `)`, so the membership test is a function.
+_vo_in() { case "$2" in *"$1"*) echo yes ;; *) echo no ;; esac; }
+
+_vo_out=$(render_temp_pod_vm_s3_keys_env)
+assert_eq "no VM secret falls back to the central one" "yes" "$(_vo_in central-creds "${_vo_out}")"
+VM_S3_SECRET_NAME="vm-creds"; VM_S3_SECRET_ACCESS_KEY_KEY="vm-access"; VM_S3_SECRET_SECRET_KEY_KEY="vm-secret"
+_vo_out=$(render_temp_pod_vm_s3_keys_env)
+assert_eq "a VM secret override wins"                  "yes" "$(_vo_in vm-creds "${_vo_out}")"
+assert_eq "…and its access KEY name comes with it"     "yes" "$(_vo_in vm-access "${_vo_out}")"
+assert_eq "…and its secret KEY name too"               "yes" "$(_vo_in vm-secret "${_vo_out}")"
+assert_eq "…without mixing in the central secret"      "no"  "$(_vo_in central-creds "${_vo_out}")"
+
+VM_S3_REGION="${_vo_r}"; S3_REGION="${_vo_sr}"; VM_S3_SECRET_NAME="${_vo_sn}"; S3_SECRET_NAME="${_vo_csn}"
+VM_S3_SECRET_ACCESS_KEY_KEY="${_vo_ak}"; VM_S3_SECRET_SECRET_KEY_KEY="${_vo_sk}"
+S3_SECRET_ACCESS_KEY_KEY="${_vo_cak}"; S3_SECRET_SECRET_KEY_KEY="${_vo_csk}"
+
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then
     echo "OK: ${PASS} assertion(s) passed"
