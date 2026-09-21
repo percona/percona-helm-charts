@@ -577,13 +577,25 @@ Since `secret.create` is set to `false` by default, you need to create the `pmm-
 >   .data.PMM_HA_VM_USERNAME = .data.VMAGENT_remoteWrite_basicAuth_username
 >   | .data.PMM_HA_VM_PASSWORD = .data.VMAGENT_remoteWrite_basicAuth_password
 >   | del(.data.VMAGENT_remoteWrite_basicAuth_username, .data.VMAGENT_remoteWrite_basicAuth_password)
-> ' | kubectl apply -f -
+> ' | kubectl replace -f -
 > ```
+>
+> Then confirm the old keys are gone, because `helm upgrade` refuses to render while either is
+> still present:
+>
+> ```sh
+> kubectl get secret pmm-secret -n pmm -o json | jq -r '.data | keys[]'
+> ```
+>
+> Use `kubectl replace`, not `kubectl apply`. A three-way merge computes deletions by diffing the
+> `kubectl.kubernetes.io/last-applied-configuration` annotation, which a secret created with
+> `kubectl create secret generic`, created by Helm, or created from a `stringData` manifest does
+> not carry in a form that covers `data`. `apply` therefore adds the two new keys and silently
+> keeps the two old ones. `kubectl apply --server-side` does not delete them either.
 >
 > Deleting the old keys is part of the rename, not tidying up: with `secret.create: false` the whole
 > secret is mounted into PMM Server with `envFrom`, so a leftover `VMAGENT_`-prefixed key becomes an
 > environment variable that PMM Server forwards to every PMM Client.
-> The chart refuses to render while either old key is still present.
 
 #### ClickHouse data source credentials
 

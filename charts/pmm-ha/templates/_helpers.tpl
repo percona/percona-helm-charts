@@ -175,7 +175,7 @@ nothing in the render or the server log to explain it.
 {{- end -}}
 {{- end -}}
 {{- if $legacy -}}
-{{- fail (printf "Secret '%s' in namespace '%s' still carries the Technical Preview key(s) %s. Remove them: PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients as their remote-write credential, so a leftover copy overrides the PMM_HA_VM_* credential and breaks every client write once that credential is rotated." .Values.secret.name .Release.Namespace (join ", " $legacy)) -}}
+{{- fail (printf "Secret '%s' in namespace '%s' still carries the Technical Preview key(s) %s. PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients as their remote-write credential, so a leftover copy overrides the PMM_HA_VM_* credential and breaks every client write once that credential is rotated. Remove them with: kubectl get secret %s -n %s -o json | jq 'del(.data.VMAGENT_remoteWrite_basicAuth_username, .data.VMAGENT_remoteWrite_basicAuth_password)' | kubectl replace -f - (kubectl apply does not delete them; see 'Creating PMM Secret Manually' in the chart README for the full rename)." .Values.secret.name .Release.Namespace (join ", " $legacy) .Values.secret.name .Release.Namespace) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
