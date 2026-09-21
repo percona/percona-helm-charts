@@ -349,6 +349,27 @@ n=$(render_rclone_s3_env | grep -c '^        - name: ')
 if [ "${n}" -ge 6 ]; then ok; else bad "env block carries the rclone settings + keys" ">=6 entries" "${n}"; fi
 rm -f "${_indent_check}"
 
+# The endpoint entry is the only env line that renders CONDITIONALLY — non-AWS storage sets an
+# endpoint, plain AWS does not — so everything above, which runs with S3_ENDPOINT="", never saw
+# it. That is precisely how it shipped emitting `value: \"https://…\"`, backslashes and all
+# (DN-51): still valid YAML, so the apiserver and the server-side dry-run gate both admitted it,
+# and only rclone refused it — after the wipe had emptied /srv. So pin the VALUE, not the column.
+S3_ENDPOINT="https://in-maa-1.linodeobjects.com"
+_ep_line=$(render_rclone_s3_env | sed -n '/RCLONE_CONFIG_S3_ENDPOINT/{n;p;}')
+assert_eq "endpoint value carries no shell escaping" \
+    '          value: "https://in-maa-1.linodeobjects.com"' "${_ep_line}"
+# Same defect, stated as the property rather than the string: nothing the shell was supposed to
+# strip may reach the manifest, whatever the endpoint looks like.
+case "${_ep_line}" in
+    *'\'*) bad "no backslash survives into the endpoint value" "no backslash" "${_ep_line}" ;;
+    *)     ok ;;
+esac
+# ...and on plain AWS the entry must still be absent entirely: an empty endpoint means "the
+# provider's default", and an empty RCLONE_CONFIG_S3_ENDPOINT is not the same thing.
+S3_ENDPOINT=""
+assert_eq "no endpoint configured emits no entry" "0" \
+    "$(render_rclone_s3_env | grep -c 'RCLONE_CONFIG_S3_ENDPOINT')"
+
 # The SA line sits at pod-spec level: exactly two leading spaces.
 S3_SERVICE_ACCOUNT="pmm-ha-backup-s3"; S3_SA_EXPLICIT=false
 S3_SECRET_NAME=""            # IRSA path: no static keys, so the SA carries the credentials

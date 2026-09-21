@@ -1121,3 +1121,57 @@ mistake that once warned "spec.replicas is 0" on every healthy restore).
 The vminsert patch is now readiness-verified like vmstorage's, and the failure message names
 both targets and spells out what vminsert at 0 actually means, because "restore succeeded" plus
 a silently empty ingestion path is the worst outcome this file can produce.
+
+## DN-51 — A value that survives YAML is not a value that survives its consumer
+
+The first restore against S3-compatible (non-AWS) object storage emptied `/srv` on all three PMM
+ordinals and restored nothing. One line was responsible:
+
+```sh
+printf '\n        - name: RCLONE_CONFIG_S3_ENDPOINT\n          value: \"%s\"' "${S3_ENDPOINT}"
+```
+
+The format string is **single-quoted**, so the shell never touches those backslashes and BusyBox
+printf emits them literally. The block above it is double-quoted, where the shell strips them —
+which is why exactly one entry in `render_rclone_s3_env` was wrong, and why it read as correct.
+The temp pod received `RCLONE_CONFIG_S3_ENDPOINT=\"https://…\"`, rclone prepended a scheme to
+something that already had one, and the AWS SDK rejected it:
+
+```
+CRITICAL: Failed to create file system for "s3:…/srv.tar.gz": resolve endpoint: endpoint rule
+error, Custom endpoint `https://\"https://in-maa-1.linodeobjects.com\"` was not a valid URI
+```
+
+Three gates had a chance to catch it and none could:
+
+1. **The admission probe** renders the real pod and submits it with `kubectl create
+   --dry-run=server`. But a plain YAML scalar is allowed to begin with a backslash, so the
+   manifest is *valid* — the apiserver has no opinion about whether a string is a URL. Structural
+   validation cannot see a value-level defect.
+2. **The object check** proves `srv.tar.gz` exists and matches the manifest's size — truthfully,
+   from the **tools pod**, whose `RCLONE_CONFIG_S3_*` env comes from the chart and was correct.
+   The broken value only ever existed in the temp pod. A gate that exercises a different
+   credential path than the operation it guards is not guarding that operation.
+3. **The unit tests** pin the indentation of every env entry, and they run with `S3_ENDPOINT=""`
+   — the one setting under which the faulty line does not render at all. The endpoint entry only
+   appears for non-AWS storage, so every AWS-based run, test and live restore skipped it.
+
+Two rules come out of this, and both are now enforced in `restore_pmm_server`:
+
+**The destructive step must not precede the step that can fail.** `/srv` was wiped first and
+downloaded second, so any failure to read the source destroyed the target. It now proves the
+object is readable *from the pod that will read it* (`rclone lsjson`, a HeadObject, no transfer)
+and only then wipes. That probe exits 3, so the operator is told `/srv` was left untouched rather
+than being handed a bare `exit 1`.
+
+**A failure the operator cannot see is a failure they cannot fix.** The `kubectl exec` output was
+redirected with `>>"${LOG_FILE}"` — file only — while `log()` writes to both and `append_to_log`
+tees to both. So the console showed `[ERROR] /srv restore failed for ord 0 (exit 1)` and nothing
+else, at the point of no return, while the four lines naming the cause sat in a file inside a
+pod. The output is now captured and replayed through `log()` on failure.
+
+A third defect surfaced while reproducing it: `ls -A | grep -vxF lost+found | xargs -r rm -rf`
+under `set -o pipefail` exits **1 on an empty directory**, because grep reports "no lines
+selected". After the wipe above, a re-run therefore failed with the identical `exit 1` before
+reaching rclone at all — and so does a first restore into a DR target whose PMM has never booted.
+The grep now forgives status 1 and only status 1.

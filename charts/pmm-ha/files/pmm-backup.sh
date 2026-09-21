@@ -3891,7 +3891,17 @@ render_rclone_s3_env() {
           value: \"${S3_REGION}\"
         - name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET
           value: \"true\""
-    [ -n "${S3_ENDPOINT}" ] && printf '\n        - name: RCLONE_CONFIG_S3_ENDPOINT\n          value: \"%s\"' "${S3_ENDPOINT}"
+    # `value: "%s"`, NOT `value: \"%s\"`. This printf's format is SINGLE-quoted, so the shell
+    # leaves those backslashes alone and BusyBox printf emits them verbatim — the block above is
+    # double-quoted, where the shell strips them, which is why this was the only line to carry
+    # the bug. The pod then got RCLONE_CONFIG_S3_ENDPOINT=\"https://…\", backslashes and all.
+    #
+    # Nothing upstream could see it: a plain YAML scalar may begin with a backslash, so the
+    # manifest is valid, `kubectl create --dry-run=server` admits it (DN-51), and the value only
+    # falls over inside rclone — "Custom endpoint `https://\"https://…\"` was not a valid URI".
+    # The line renders only when an endpoint is configured, i.e. never on plain AWS S3, so no
+    # amount of AWS testing reaches it. First S3-compatible restore hit it on every ordinal.
+    [ -n "${S3_ENDPOINT}" ] && printf '\n        - name: RCLONE_CONFIG_S3_ENDPOINT\n          value: "%s"' "${S3_ENDPOINT}"
     printf '%s' "${TEMP_POD_S3_KEYS_ENV}"
 }
 
@@ -5577,6 +5587,7 @@ restore_pmm_server() {
     # NB: all locals initialised — script runs under `set -u`, so a bare `local x` then `[ -z "$x" ]`
     # would abort with "parameter not set".
     local sts="" replicas="" image="" sec_ctx="" i ord pvc src_subdir restore_pod rc restored=0 count=0
+    local out=""
     sts="${PMM_STATEFULSET_NAME:-}"
     if [ -z "${sts}" ]; then sts="${SCOPE_PMM_STS}"; fi
     if [ -z "${sts}" ]; then sts=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}" || true); fi
@@ -5614,6 +5625,9 @@ restore_pmm_server() {
         restore_pod="pmm-srv-restore-${sts}-${ord}"
         if ! create_pmm_restore_pod "${restore_pod}" "${pvc}" "${image}" "${sec_ctx}" "${PMM_RESTORE_SCHED}"; then delete_temp_restore_pod "${restore_pod}"; continue; fi
         rc=0
+        # Captured, not redirected into the log file: see the replay below. mktemp rather than a
+        # fixed name, as everywhere else here — /tmp is world-writable and this redirects onto it.
+        out=$(mktemp /tmp/srvrestore.XXXXXX 2>/dev/null || echo "/tmp/srvrestore.$$")
         # The source path is passed as a POSITIONAL ARGUMENT to `sh -c`, never interpolated into
         # the script text. src_subdir_for_ord already refuses names outside [A-Za-z0-9_.-], so
         # this is defence in depth — but it is the cheap kind: the script body becomes a fixed
@@ -5636,23 +5650,69 @@ restore_pmm_server() {
             # what is restored. lost+found must survive: it is root-owned on ext4 and recreating
             # it is not ours to do.
             #
+            # PROVE THE SOURCE IS READABLE BEFORE THE WIPE, from THIS pod. The wipe used to run
+            # first and the download second, so anything that stopped rclone — a 403, a typo in
+            # the endpoint, a bucket policy — emptied /srv on every ordinal and left the install
+            # with no /srv at all (DN-51). The pre-flight gate cannot stand in for this: it reads
+            # the object from the TOOLS pod, whose credentials and endpoint come from the chart,
+            # while the temp pod's come from render_rclone_s3_env — the two can differ, and when
+            # they did the gate passed and the restore still destroyed the target. lsjson is a
+            # HeadObject: no transfer, and it exercises exactly the endpoint/credential/object
+            # path `rclone cat` is about to use. Exit 3 is this probe's own code, so the caller
+            # can say "/srv untouched" rather than "exit 1" (nothing downstream returns 3: a
+            # truncated stream fails in tar, which exits 1).
+            #
+            # `grep || [ $? -eq 1 ]`: under `set -o pipefail` an empty /srv makes grep exit 1
+            # ("no lines selected") and takes the whole chain down with it, before rclone is
+            # ever reached — so a re-run after a failed restore, or a first restore into a DR
+            # target whose PMM has never booted, failed with the same "exit 1" for an entirely
+            # different reason. Only 1 is forgiven; a real grep error (2) still fails the run.
+            #
             # If the extract fails after the wipe /srv is empty — but PMM is already scaled to 0
             # and the run exits non-zero leaving it there, so nothing serves a half-state. A
             # silent merge of two releases is the worse outcome.
             local uri="$(comp_path pmm-server)/${src_subdir}/srv.tar.gz"
             log "INFO" "[PMMServer] Restoring /srv (ord ${ord}) -> ${pvc} from S3..."
             pod_sh PMMServer "${restore_pod}" - "${KUBECTL_EXEC_TIMEOUT}" \
-                'set -o pipefail; cd /srv && ls -A | grep -vxF lost+found | xargs -r rm -rf && rclone cat --s3-no-check-bucket "$1" | tar -xzf - -C /srv --no-same-owner && rm -rf /srv/ha' \
-                "${uri}" >>"${LOG_FILE}" 2>&1 || rc=$?
+                'set -o pipefail; rclone lsjson --s3-no-check-bucket "$1" >/dev/null || exit 3; cd /srv && { ls -A | { grep -vxF lost+found || [ $? -eq 1 ]; } | xargs -r rm -rf; } && rclone cat --s3-no-check-bucket "$1" | tar -xzf - -C /srv --no-same-owner && rm -rf /srv/ha' \
+                "${uri}" >"${out}" 2>&1 || rc=$?
         else
+            # Same order, same reason: the tarball lives on the mounted central volume, where a
+            # missing file, a bad mount or a permission error is just as capable of failing the
+            # extract after /srv has been emptied.
             local tb="$(comp_inpod pmm-server)/${src_subdir}/srv.tar.gz"
             log "INFO" "[PMMServer] Restoring /srv (ord ${ord}) -> ${pvc} from ${tb}..."
             pod_sh PMMServer "${restore_pod}" - "${KUBECTL_EXEC_TIMEOUT}" \
-                'cd /srv && ls -A | grep -vxF lost+found | xargs -r rm -rf && tar -xzf "$1" -C /srv --no-same-owner && rm -rf /srv/ha' \
-                "${tb}" >>"${LOG_FILE}" 2>&1 || rc=$?
+                '[ -r "$1" ] || exit 3; cd /srv && { ls -A | { grep -vxF lost+found || [ $? -eq 1 ]; } | xargs -r rm -rf; } && tar -xzf "$1" -C /srv --no-same-owner && rm -rf /srv/ha' \
+                "${tb}" >"${out}" 2>&1 || rc=$?
         fi
         delete_temp_restore_pod "${restore_pod}"
-        if [ ${rc} -eq 0 ]; then log "INFO" "[PMMServer] ✓ ord ${ord} /srv restored (HA raft reset)"; restored=$((restored + 1)); else log "ERROR" "[PMMServer] /srv restore failed for ord ${ord} (exit ${rc})"; fi
+        # The pod's own output. It used to be appended straight to the log FILE, so the console —
+        # the only place an operator is actually watching — carried nothing but "(exit 1)" at the
+        # point of no return, while the lines naming the cause sat in a file inside a pod. Every
+        # other component reports through append_to_log, which reaches both; this one now does
+        # too. Tail-limited because a failed extract can print thousands of lines (DN-51).
+        if [ ${rc} -eq 0 ]; then
+            cat "${out}" >>"${LOG_FILE}" 2>/dev/null || true
+            rm -f "${out}"
+            log "INFO" "[PMMServer] ✓ ord ${ord} /srv restored (HA raft reset)"
+            restored=$((restored + 1))
+        else
+            if [ ${rc} -eq 3 ]; then
+                log "ERROR" "[PMMServer] ord ${ord}: the backup could not be READ from the restore pod — /srv was left untouched"
+                log "ERROR" "[PMMServer]   The pre-flight reads it from this pod; the restore pod carries its own"
+                log "ERROR" "[PMMServer]   credentials and endpoint, so check those before the bucket."
+            else
+                log "ERROR" "[PMMServer] /srv restore failed for ord ${ord} (exit ${rc})"
+            fi
+            if [ -s "${out}" ]; then
+                log "ERROR" "[PMMServer]   the restore pod said:"
+                tail -n 20 "${out}" | while IFS= read -r _prs_l; do
+                    if [ -n "${_prs_l}" ]; then log "ERROR" "[PMMServer]   ${_prs_l}"; fi
+                done
+            fi
+            rm -f "${out}"
+        fi
     done
     [ "${DRY_RUN}" = "true" ] && return 0
 

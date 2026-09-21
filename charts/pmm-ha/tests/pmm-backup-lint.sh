@@ -297,6 +297,42 @@ if _bad:
     print("        -o jsonpath='{.metadata.annotations.restore\\.pmm\\.percona\\.com/original-replicas}'")
     raise SystemExit(1)
 print("  ok: no jsonpath bracket lookups of slash-bearing keys")
+
+# The /srv wipe runs as a pipeline under `set -o pipefail`, where `grep -vxF lost+found` exits 1
+# on an EMPTY directory ("no lines selected") and takes the whole chain down with it — before the
+# download it guards is ever reached. That is not a corner case: it is what a re-run after a
+# failed restore does, and what a first restore into a DR target whose PMM has never booted does.
+# Both then fail with the same bare "exit 1" the original defect produced (DN-51). Only status 1
+# may be forgiven; a real grep error (2) must still fail the run.
+_wipe = [(i + 1, ln.strip()) for i, ln in enumerate(src.splitlines())
+         if 'xargs -r rm -rf' in ln and '|| [ $? -eq 1 ]' not in ln]
+if _wipe:
+    print("FAIL: a /srv wipe pipeline without the empty-directory guard:")
+    for n, ln in _wipe:
+        print("        line %d: %s" % (n, ln))
+    print("      grep exits 1 on empty input and pipefail propagates it. Write:")
+    print("        { ls -A | { grep -vxF lost+found || [ $? -eq 1 ]; } | xargs -r rm -rf; }")
+    raise SystemExit(1)
+print("  ok: every /srv wipe pipeline forgives grep's empty-input status")
+
+# A single-quoted printf FORMAT is not processed by the shell, so a `\"` inside one survives into
+# the output — and whether it then survives printf is a property of the SHELL: bash silently
+# drops the backslash, dash and BusyBox emit it. So the same line renders correctly on a
+# developer's Mac and wrongly in the pod, which is exactly how RCLONE_CONFIG_S3_ENDPOINT shipped
+# as \"https://…\" and emptied /srv on every ordinal (DN-51). The unit suite cannot be the gate
+# here — it passes under bash — so the rule is on the source text. Quote with "%s" inside a
+# single-quoted format; if a literal backslash is genuinely wanted, pass it as an argument.
+_escfmt = [(i + 1, ln.strip()) for i, ln in enumerate(src.splitlines())
+           if re.search(r"""printf\s+'[^']*\\"[^']*'""", ln)]
+if _escfmt:
+    print("FAIL: a single-quoted printf format containing \\\" — the backslash is emitted")
+    print("      verbatim by dash/BusyBox printf and swallowed by bash's, so this renders")
+    print("      differently in CI and in the pod:")
+    for n, ln in _escfmt:
+        print("        line %d: %s" % (n, ln))
+    print("      Inside single quotes the shell strips nothing: write value: \"%s\".")
+    raise SystemExit(1)
+print("  ok: no single-quoted printf format smuggles a backslash-escaped quote")
 PY
 
 # A redirection failure on a POSIX SPECIAL BUILTIN is fatal to the shell: the `|| fallback` next
