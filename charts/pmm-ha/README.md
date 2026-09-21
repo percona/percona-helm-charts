@@ -853,6 +853,28 @@ cannot write. On CSI volumes the kubelet re-owns the data on mount through `fsGr
 (`fsGroupChangePolicy: Always`); on hostPath or `local` volumes nothing does, and the ownership
 has to be fixed by hand.
 
+**Upgrading from 1.8.x or older.** The VictoriaMetrics pods change from root to uid 65534
+(`victoriaMetrics.useStrictSecurity`), and `vmstorage` keeps data on a volume that root wrote.
+On CSI storage that supports `fsGroup` (most cloud and Ceph drivers) the kubelet re-owns that
+data on the first mount and the upgrade needs nothing from you. On hostPath, `local` and most
+NFS volumes nothing does, and `vmstorage` crash-loops with
+`cannot create lock file "/vmstorage-data/flock.lock": permission denied`; the operator then
+holds vmselect and vminsert back, and vmagent buffers the incoming samples on disk. Fix the
+ownership on the node once and restart the pod, or opt out first:
+
+```bash
+# on the node hosting the vmstorage volume
+chown -R 65534:65534 /path/to/vmstorage-db-vmstorage-<release>-vmcluster-0
+kubectl -n <namespace> delete pod vmstorage-<release>-vmcluster-0
+# or keep the old identity for an existing install
+helm upgrade ... --set victoriaMetrics.useStrictSecurity=false
+```
+
+Verified in place on kind's hostPath volumes: vmagent replayed its buffer after the fix and no
+samples were lost. PMM Server, PMM Client, HAProxy, PostgreSQL and the operators need nothing;
+ClickHouse and Keeper move to uid 101, but their entrypoint had already chowned the data to
+101 while running as root, so they restart cleanly.
+
 **Read-only root filesystem for PMM Server** is off because the image still writes generated
 configuration under `/etc` at start (`/etc/supervisord.d/*.ini` and
 `/etc/victoriametrics-promscrape.yml`). Setting `securityContext.readOnlyRootFilesystem: true`

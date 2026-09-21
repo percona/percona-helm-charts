@@ -1130,7 +1130,8 @@ victoriaMetrics:
   ## (vmagent, vmauth, vmselect, vminsert, vmstorage and their config reloaders) with a
   ## "restricted"-compliant security context: non-root (65534), no privilege escalation, all
   ## capabilities dropped, RuntimeDefault seccomp and a read-only root filesystem. The images
-  ## declare no user and run as root otherwise.
+  ## declare no user and run as root otherwise. Upgrading an existing install moves vmstorage's
+  ## data to a new owner: see "Upgrading from 1.8.x" under Pod security in the README.
   useStrictSecurity: true
   
   ## VMSelect configuration - handles read queries
