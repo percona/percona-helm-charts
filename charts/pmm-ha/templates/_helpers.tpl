@@ -85,6 +85,23 @@ checksum/clickhouse-datasource: {{ include (print $.Template.BasePath "/clickhou
 {{- end }}
 
 {{/*
+The pmm-secret as `lookup` returns it, resolved once per render and memoised on .Values the same
+way the generated VictoriaMetrics password is. pmm.validateSecret, secret.yaml and the two
+pmm.vm.* helpers all need the same object, and `lookup` is a live API call every time it is
+evaluated, so the same Secret was being fetched five or six times per render depending on
+secret.create - on every CI --dry-run=server render too.
+
+The whole object is cached rather than just .data, because pmm.validateSecret has to tell a
+secret that is absent (or a client-side render, where lookup says nothing) apart from one that
+exists carrying no data at all.
+*/}}
+{{- define "pmm.secret.cached" -}}
+{{- if not (hasKey .Values "cachedPmmSecret") -}}
+{{- $_ := set .Values "cachedPmmSecret" (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Validate the pmm-secret when the user owns it.
 
 statefulset.yaml mounts seven keys from this secret with no `optional`, so one missing key leaves
@@ -115,7 +132,8 @@ vmauth.yaml on "index of untyped nil", naming neither the secret nor the setting
 {{- fail "secret.name is empty. Set it to the name of the Kubernetes Secret that holds the PMM credentials (the chart default is 'pmm-secret')." -}}
 {{- end -}}
 {{- if not .Values.secret.create -}}
-{{- $found := lookup "v1" "Secret" .Release.Namespace .Values.secret.name -}}
+{{- include "pmm.secret.cached" . -}}
+{{- $found := get .Values "cachedPmmSecret" -}}
 {{/*
 Only inspect keys once the Secret is actually in hand. `lookup` also comes back empty on every
 client-side render - helm template, --dry-run=client, a GitOps preview - where it says nothing
@@ -534,9 +552,14 @@ Value of one VictoriaMetrics credential already stored in .Values.secret.name, e
 secret does not carry the key. Takes a dict with "root" and "key".
 */}}
 {{- define "pmm.vm.existingCredential" -}}
-{{- $existing := (lookup "v1" "Secret" .root.Release.Namespace .root.Values.secret.name) -}}
-{{- if and $existing $existing.data (hasKey $existing.data .key) -}}
-{{- index $existing.data .key | b64dec -}}
+{{- include "pmm.secret.cached" .root -}}
+{{- $existing := get .root.Values "cachedPmmSecret" -}}
+{{- $data := dict -}}
+{{- if $existing -}}
+{{- $data = $existing.data | default dict -}}
+{{- end -}}
+{{- if hasKey $data .key -}}
+{{- index $data .key | b64dec -}}
 {{- end -}}
 {{- end -}}
 
