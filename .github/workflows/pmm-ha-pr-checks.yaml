@@ -245,7 +245,25 @@ jobs:
           fi
           grep -qF "still carries the Technical Preview key(s) VMAGENT_remoteWrite_basicAuth_username, VMAGENT_remoteWrite_basicAuth_password" <<<"$out"
 
-          kubectl delete secret pmm-secret-legacy -n "$NS"
+          # A credential PMM_VM_URL cannot carry is refused at render time. PMM Server reads it
+          # back with url.Parse, which percent-decodes it, so a password like this one would
+          # otherwise reach vmauth as "pAss" and 401 every write and query with nothing naming it.
+          kubectl create secret generic pmm-secret-badvmcred -n "$NS" \
+            --from-literal=PMM_ADMIN_PASSWORD=admin \
+            --from-literal=PG_PASSWORD=pgpass \
+            --from-literal=GF_PASSWORD=gfpass \
+            --from-literal=PMM_CLICKHOUSE_USER=chuser \
+            --from-literal=PMM_CLICKHOUSE_PASSWORD=chpass \
+            --from-literal=PMM_HA_VM_USERNAME=vmuser \
+            --from-literal=PMM_HA_VM_PASSWORD='p%41ss'
+          if out=$(helm install smoke-badvmcred charts/pmm-ha -n "$NS" --dry-run=server \
+            --set secret.name=pmm-secret-badvmcred 2>&1); then
+            echo "::error::render should have failed on a VictoriaMetrics password containing %"
+            exit 1
+          fi
+          grep -qF "The VictoriaMetrics password is not usable in PMM_VM_URL" <<<"$out"
+
+          kubectl delete secret pmm-secret-legacy pmm-secret-badvmcred -n "$NS"
 
       - name: Run chart-testing (install pmm-ha)
         if: steps.list-changed.outputs.changed == 'true'

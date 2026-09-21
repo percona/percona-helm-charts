@@ -587,6 +587,32 @@ A generated password is memoised on .Values, the same way the ClickHouse data so
 randAlphaNum would otherwise hand vmauth a different password than the one written to the secret
 PMM Server and vmagent authenticate with.
 */}}
+{{/*
+Refuse a VictoriaMetrics credential that PMM_VM_URL cannot carry.
+
+statefulset.yaml composes PMM_VM_URL as http://$(user):$(password)@host and PMM Server reads the
+credential back out with url.Parse and User.Password(). A few characters change the value, or the
+split, on the way through, and each one ends as 401 on every metric write and query with nothing
+naming the credential: '%' is percent-decoded, so %41 arrives as A; '/', '?' and '#' end the
+authority, so the credential is silently dropped or the URL is rejected; whitespace makes the
+userinfo invalid; and a ':' in the username moves the boundary, so the rest of the username
+becomes the start of the password. '@' is safe in both halves, because url.Parse splits the
+authority on the last one.
+
+Only what the chart can see is checked. A generated password is alphanumeric, and a user-owned
+secret is read here through the same memoised lookup every other consumer uses.
+*/}}
+{{- define "pmm.vm.validateCredential" -}}
+{{- $username := include "pmm.vm.username" . -}}
+{{- $password := include "pmm.vm.password" . -}}
+{{- if regexMatch "[%/?#:\\s]" $username -}}
+{{- fail (printf "The VictoriaMetrics username is not usable in PMM_VM_URL: %%, /, ?, #, ':' and whitespace either change it or drop it when PMM Server parses that URL, and every metric write and query then fails with 401. Set it to a value without them, in the PMM_HA_VM_USERNAME key of secret '%s' or in secret.victoriametrics_user." .Values.secret.name) -}}
+{{- end -}}
+{{- if regexMatch "[%/?#\\s]" $password -}}
+{{- fail (printf "The VictoriaMetrics password is not usable in PMM_VM_URL: %%, /, ?, # and whitespace either change it or drop it when PMM Server parses that URL, and every metric write and query then fails with 401. Set it to a value without them, in the PMM_HA_VM_PASSWORD key of secret '%s' or in secret.victoriametrics_password." .Values.secret.name) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "pmm.vm.password" -}}
 {{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_PASSWORD") -}}
 {{- if $existing -}}
