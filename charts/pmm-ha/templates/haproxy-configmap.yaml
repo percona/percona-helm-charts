@@ -74,7 +74,8 @@ data:
         # vmauth expects the bare VictoriaMetrics path. Clients authenticate to it with the
         # VictoriaMetrics credentials from the PMM secret; HAProxy passes the request through.
         http-request set-path /api/v1/write
-        option httpchk GET /health
+        option httpchk
+        http-check send meth GET uri /health ver HTTP/1.1 hdr Host vmauth
         http-check expect status 200
         server vmauth {{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427 check resolvers k8s init-addr last,libc,none
     {{- end }}
