@@ -649,7 +649,7 @@ haproxy:
   # so scaling up/down replicas does NOT require HAProxy restart.
   # Increment config-version only for other ConfigMap changes that require restart.
   podAnnotations:
-    pmm.percona.com/config-version: "4"
+    pmm.percona.com/config-version: "5"
 
   # HAProxy pod spread across nodes.
   #
