@@ -1,6 +1,8 @@
 {{- include "pmm.nodeExporter.validate" . -}}
 {{- include "pmm.validateSecret" . -}}
 {{- include "pmm.vm.validateCredential" . -}}
+{{- include "pmm.replicas.validate" . -}}
+{{- include "pmm.keeper.validate" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
