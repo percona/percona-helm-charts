@@ -150,6 +150,9 @@ spec:
     {{- if .Values.pmm.mongosParams }}
     mongosParams: {{ tpl .Values.pmm.mongosParams $ }}
     {{- end }}
+    {{- if .Values.pmm.querySource }}
+    querySource: {{ .Values.pmm.querySource }}
+    {{- end }}
     {{- if .Values.pmm.resources }}
     resources:
 {{ .Values.pmm.resources | toYaml | indent 6 }}
