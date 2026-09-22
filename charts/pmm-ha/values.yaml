@@ -32,9 +32,6 @@ pmmEnv:
   # PMM_POSTGRES_ADDR: "pmm-ha-pg-db-ha.pmm-ha.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
   GF_DATABASE_SSL_MODE: "require"
-  # PMM_VM_URL: "http://:@:8427/"
-  # VMAGENT_remoteWrite_basicAuth_username: ""
-  # VMAGENT_remoteWrite_basicAuth_password: ""
   PMM_HA_ENABLE: "1"
   PMM_HA_GOSSIP_PORT: "9096"
   PMM_HA_RAFT_PORT: "9097"
@@ -51,9 +48,6 @@ pmmEnv:
   PMM_ENABLE_BACKUP_MANAGEMENT: "1"
   PMM_ENABLE_ALERTING: "1"
   PMM_ENABLE_ACCESS_CONTROL: "1"
-  # PMM-15301: QAN on PMM's own PostgreSQL is not supported in HA mode. Pinning it here makes
-  # the "QAN for PMM Server" toggle in Settings reject any attempt to switch it on.
-  PMM_ENABLE_INTERNAL_PG_QAN: "0"
 
 #  optional variables to integrate Grafana with internal iDP, see also secret part
 #  GF_AUTH_GENERIC_OAUTH_ENABLED: "1"
@@ -249,7 +243,7 @@ secret:
   ## If creating the secret manually (secret.create: false), this field is ignored.
   ##
   ## To get username after install:
-  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_HA_VM_USERNAME}' | base64 --decode
   ## E.g.
   ## victoriametrics_user: my_victoriametrics_user
   ##
@@ -260,7 +254,7 @@ secret:
   ## If creating the secret manually (secret.create: false), this field is ignored.
   ##
   ## To get password after install:
-  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_HA_VM_PASSWORD}' | base64 --decode
   ## E.g.
   ## victoriametrics_password: my_secure_password
   ##
@@ -328,12 +322,26 @@ service:
       ## @param service.ports[0].name port name
       name: https
 
+## @param replicas Number of PMM server replicas. Must be odd and no greater than maxReplicas; the chart fails the render otherwise
+## Must be an ODD number and no greater than maxReplicas - the chart fails the render
+## otherwise. Raft elects a leader by majority, so an even count needs more votes to
+## elect without surviving more failures (4 tolerates one loss, exactly like 3), and
+## replicas=2 tolerates none at all.
+##
+## This controls availability, not capacity: more replicas survive more simultaneous
+## failures, they do not raise how many nodes you can monitor. Size the components up
+## for a larger fleet instead.
 replicas: 3
 
-## @param maxReplicas Maximum number of PMM replicas for HAProxy server-template
+## @param maxReplicas HAProxy server-template slots, and therefore the ceiling on replicas. Raising it also needs an HAProxy restart
 ## HAProxy uses DNS-based discovery with server-template. This value sets the
-## maximum number of server slots HAProxy will create. Adjust if you plan to
-## scale beyond 10 replicas.
+## maximum number of server slots HAProxy will create, and therefore the ceiling on
+## replicas - the chart rejects a replicas above it.
+##
+## Raising this alone is not enough: it is rendered into the HAProxy ConfigMap, which
+## the chart does not roll on upgrade. Bump haproxy.podAnnotations
+## "pmm.percona.com/config-version" in the same upgrade so HAProxy restarts and picks
+## up the new server-template.
 maxReplicas: 10
 
 ## Ingress controller configuration
@@ -508,10 +516,15 @@ extraVolumeMounts: []
 extraVolumes: []
 
 clickhouse:
-  # ClickHouse server image configuration
+  # ClickHouse server image configuration.
+  # Keep the server and the Keeper below on the SAME upstream ClickHouse release: they are
+  # built from two different repositories (Altinity Stable rebuilds vs upstream Keeper), so
+  # "latest" resolves differently for each and they only stay compatible if moved as a pair.
+  # Stay on the `altinitystable` line - `altinityantalya` tags are Altinity's feature fork,
+  # not the supported stable build, and sort newest on Docker Hub.
   image:
     repository: altinity/clickhouse-server
-    tag: 25.3.6.10034.altinitystable-alpine
+    tag: 25.8.28.10001.altinitystable-alpine
     pullPolicy: IfNotPresent
   
   # ClickHouse server resource configuration.
@@ -560,9 +573,10 @@ clickhouse:
   # ClickHouse Keeper configuration
   keeper:
     # ClickHouse Keeper image configuration
+    # Must track the ClickHouse server release above - see the note on clickhouse.image.
     image:
       repository: clickhouse/clickhouse-keeper
-      tag: "25.3.6.56"
+      tag: "25.8.28.1"
       pullPolicy: IfNotPresent
     # ClickHouse Keeper resource configuration.
     # Coordination metadata only - does not scale with the monitored fleet, but a
@@ -579,7 +593,13 @@ clickhouse:
       # Keeper cluster name (follows same restrictions as ClickHouse cluster)
       # Regex: ^[a-zA-Z0-9-]{0,15}$
       name: keeper
-    # Number of Keeper nodes (should be odd number: 1, 3, 5, etc.)
+    ## @param clickhouse.keeper.replicasCount Number of ClickHouse Keeper nodes. Must be an odd value from 1 to 9; the chart fails the render otherwise
+    ## Must be an ODD number - the chart fails the render otherwise. Keeper is a Raft
+    ## ensemble like PMM's own, so an even count adds a voter without adding fault
+    ## tolerance, and 2 tolerates no losses at all.
+    ##
+    ## Capped at 9. Every node is a full Raft voter, so each extra pair widens the
+    ## majority that every write waits on; 9 already survives 4 simultaneous losses.
     replicasCount: 3
     # Persistent storage configuration for Keeper data
     storage:
@@ -669,9 +689,15 @@ haproxy:
     annotations: {}
   
   # Pod annotations
-  # Note: HAProxy uses DNS-based discovery (server-template) for PMM backends,
-  # so scaling up/down replicas does NOT require HAProxy restart.
-  # Increment config-version only for other ConfigMap changes that require restart.
+  #
+  # pmm-ha-haproxy is rendered from values - haproxy.cfg embeds `maxReplicas` as the
+  # server-template slot count - and this chart does not roll the HAProxy pods when it
+  # changes.
+  #
+  # Routing itself is DNS-based, so changing `replicas` needs no restart to take effect.
+  # Changing `maxReplicas` does: without one, HAProxy keeps serving the old slot count.
+  # Increment config-version in the same upgrade for that, and for any other ConfigMap
+  # change that requires a restart.
   podAnnotations:
     pmm.percona.com/config-version: "5"
 
@@ -766,6 +792,18 @@ tls:
 ## @param pg-db Configuration values passed to the pg-db dependency chart
 ##
 pg-db:
+  ## PostgreSQL major version and image, pinned deliberately.
+  ## Left unset, these inherit the pg-db subchart's defaults, so bumping the pg-db dependency
+  ## also bumps PostgreSQL itself - the store holding pmm-managed, Grafana state and alert
+  ## rules - with no diff in this chart. pg-db 2.8.0 defaulted to PostgreSQL 17; 3.1.0
+  ## defaults to 18. Pinning keeps that a reviewable decision rather than a side effect.
+  ## crVersion must track the pg-operator version installed by pmm-ha-dependencies.
+  ## NOTE: changing postgresVersion on an existing cluster is a major upgrade, not an
+  ## in-place edit - it needs the operator's PerconaPGUpgrade flow.
+  crVersion: 3.1.0
+  postgresVersion: 18
+  image: docker.io/percona/percona-distribution-postgresql:18.6.1-1
+
   autoCreateUserSchema: true
   
   # PostgreSQL user configuration
@@ -888,15 +926,6 @@ pg-db:
     ## @param pg-db.pmm.serverHost PMM server hostname (via HAProxy for HA setup)
     ## Uses the fixed "pmm-ha-haproxy" service (HAProxy with fullnameOverride)
     serverHost: pmm-ha-haproxy
-    ## @param pg-db.pmm.postgresParams Extra flags appended to `pmm-admin add postgresql`
-    ## PMM-15301: Query Analytics must stay OFF for PMM's own PostgreSQL cluster - it is an
-    ## internal component, and the "QAN for PMM Server" setting in the UI cannot control it.
-    ## The operator always emits `--query-source=<querySource>`; postgresParams is appended
-    ## last, so repeating the flag here wins. Result: postgres_exporter (metrics) is still
-    ## registered, the QAN agent is not.
-    ## Set to "" to collect query analytics for the bundled PostgreSQL cluster.
-    ## NOTE: requires the pg-db chart >= 3.0.2 - earlier versions silently drop this value.
-    postgresParams: "--query-source=none"
     ## @param pg-db.pmm.resources Resource requests and limits for PMM client sidecar
     ## Runs in every PostgreSQL pod; left unset it is BestEffort like the rest of
     ## the pod's containers.
@@ -960,6 +989,21 @@ victoriaMetrics:
   ## @param victoriaMetrics.enabled Enable VictoriaMetrics components via operator
   enabled: true
   
+  ## @param victoriaMetrics.version VictoriaMetrics version for VMCluster, VMAgent and VMAuth
+  ## Pinned deliberately. Left empty, every VM CR inherits whatever version the operator was
+  ## built with (VM_METRICS_VERSION), so bumping the operator silently moves the data plane
+  ## too - with no diff anywhere in this chart. For reference, operator v0.65.0 defaulted to
+  ## v1.128.0 and v0.74.1 defaults to v1.148.0.
+  ## Give the BARE version here, with no "-cluster" suffix. Each template applies what its
+  ## own components need: vmcluster.yaml renders `spec.clusterVersion` with "-cluster"
+  ## appended (vmselect/vminsert/vmstorage ship only under those tags), while VMAgent and
+  ## VMAuth render `spec.componentVersion` with the bare tag. The CRDs also spell the field
+  ## differently - VMCluster has no `componentVersion` at all.
+  ## Set to "" to go back to inheriting the operator's default.
+  ## NOTE: VictoriaMetrics storage upgrades are one-way. Do not lower this on a cluster that
+  ## has already run a newer version.
+  version: "v1.151.0"
+
   ## @param victoriaMetrics.replicationFactor Replication factor for VMCluster
   ## Defines how many copies of data to store across vmstorage nodes
   replicationFactor: 2
@@ -1060,7 +1104,7 @@ victoriaMetrics:
       maxLabelsPerTimeseries: "50"
   
   ## VMAuth configuration - authentication proxy
-  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  ## Credentials are read from pmm-secret (PMM_HA_VM_USERNAME/PMM_HA_VM_PASSWORD)
   ## If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
   ## Default username: victoriametrics_pmm
   ## Default password: randomly generated 32-character string
@@ -1109,7 +1153,7 @@ victoriaMetrics:
 
   ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
   ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
-  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  ## Credentials are read from pmm-secret (PMM_HA_VM_USERNAME/PMM_HA_VM_PASSWORD)
   vmagent:
     ## @param victoriaMetrics.vmagent.enabled Enable VMAgent for metrics scraping
     enabled: true

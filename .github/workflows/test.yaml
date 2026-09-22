@@ -36,13 +36,13 @@ jobs:
       - name: Run chart-testing (list-changed)
         id: list-changed
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
+          changed=$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF")
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Run chart-testing (lint)
-        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=pmm-ha,pmm-ha-dependencies
+        run: ct lint --config .github/ct.yaml --lint-conf .github/lintconf.yaml --excluded-charts=pmm-ha,pmm-ha-dependencies --target-branch "$GITHUB_BASE_REF"
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.14.0
@@ -54,8 +54,8 @@ jobs:
           echo "Base branch is $GITHUB_BASE_REF"
           excluded_charts=("pmm-ha" "pmm-ha-dependencies")
           # Exclude -operator-crds; they are installed in the next step with --take-ownership
-          while IFS= read -r crd; do [[ -n "$crd" ]] && excluded_charts+=("$crd"); done <<< "$(ct list-changed --config .github/ct.yaml | sed 's:^charts/::' | grep '\-operator-crds$' || true)"
-          OPERATOR_INSTALL=$(ct list-changed --config .github/ct.yaml | sed -E 's:charts/::' | awk '/(-db|-operator)$/ { sub(/-db$/, "-operator"); print }' | sort -u)
+          while IFS= read -r crd; do [[ -n "$crd" ]] && excluded_charts+=("$crd"); done <<< "$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF" | sed 's:^charts/::' | grep '\-operator-crds$' || true)"
+          OPERATOR_INSTALL=$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF" | sed -E 's:charts/::' | awk '/(-db|-operator)$/ { sub(/-db$/, "-operator"); print }' | sort -u)
           echo "The charts to install: $OPERATOR_INSTALL"
 
           if [ -n "$OPERATOR_INSTALL" ]; then
@@ -84,7 +84,7 @@ jobs:
             done
           fi
 
-          ct install --config .github/ct.yaml --excluded-charts=$(IFS=,; echo "${excluded_charts[*]}")
+          ct install --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF" --excluded-charts=$(IFS=,; echo "${excluded_charts[*]}")
 
           if [ -n "$OPERATOR_INSTALL" ]; then
             for operator in $OPERATOR_INSTALL; do helm uninstall --namespace default $operator; done
@@ -92,7 +92,7 @@ jobs:
       
       - name: Run crd-chart-testing (install)
         run: |
-          CRD_INSTALL="$(ct list-changed --config .github/ct.yaml | sed 's:^charts/::' | grep '\-operator-crds$' || true)"
+          CRD_INSTALL="$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF" | sed 's:^charts/::' | grep '\-operator-crds$' || true)"
           if [ -n "$CRD_INSTALL" ]; then
             for crd in $CRD_INSTALL; do 
               helm install --namespace default $crd charts/$crd/. --take-ownership
@@ -102,7 +102,7 @@ jobs:
 
       - name: Build chart package
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
+          changed=$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF")
           [ $(echo -n "$changed" | grep -c '^') == 1 ] && helm package $changed || echo "skipping package"
 
       - name: Upload helm chart
