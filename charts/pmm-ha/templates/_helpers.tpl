@@ -702,13 +702,20 @@ PMM Server and vmagent authenticate with.
 Refuse a VictoriaMetrics credential that PMM_VM_URL cannot carry.
 
 statefulset.yaml composes PMM_VM_URL as http://$(user):$(password)@host and PMM Server reads the
-credential back out with url.Parse and User.Password(). A few characters change the value, or the
-split, on the way through, and each one ends as 401 on every metric write and query with nothing
-naming the credential: '%' is percent-decoded, so %41 arrives as A; '/', '?' and '#' end the
-authority, so the credential is silently dropped or the URL is rejected; whitespace makes the
-userinfo invalid; and a ':' in the username moves the boundary, so the rest of the username
-becomes the start of the password. '@' is safe in both halves, because url.Parse splits the
-authority on the last one.
+credential back out with url.Parse and User.Password(). Each half is checked against the character
+set url.Parse returns unchanged there, because everything outside it ends as a failed write path
+with nothing naming the credential: '"', '<', '>', '[', '\', ']', '^', '`', '{', '|', '}' and any
+non-ASCII character make url.Parse reject the whole URL; '/', '?' and '#' end the authority, so the
+credential is silently dropped or the URL is rejected; whitespace makes the userinfo invalid; and a
+':' in the username moves the boundary, so the rest of the username becomes the start of the
+password. '@' is safe in both halves, because url.Parse splits the authority on the last one.
+
+The set is Go's validUserinfo minus '%': url.Parse accepts a percent escape and then decodes it, so
+a password of %41 is stored as %41 and arrives at vmauth as A.
+
+An allowlist rather than an enumeration of rejected characters: the two agree with url.Parse on
+every printable ASCII character in both halves, but only the allowlist also covers non-ASCII and
+the empty string.
 
 Only what the chart can see is checked. A generated password is alphanumeric, and a user-owned
 secret is read here through the same memoised lookup every other consumer uses.
@@ -716,11 +723,11 @@ secret is read here through the same memoised lookup every other consumer uses.
 {{- define "pmm.vm.validateCredential" -}}
 {{- $username := include "pmm.vm.username" . -}}
 {{- $password := include "pmm.vm.password" . -}}
-{{- if regexMatch "[%/?#:\\s]" $username -}}
-{{- fail (printf "The VictoriaMetrics username is not usable in PMM_VM_URL: %%, /, ?, #, ':' and whitespace either change it or drop it when PMM Server parses that URL, and every metric write and query then fails with 401. Set it to a value without them, in the PMM_HA_VM_USERNAME key of secret '%s' or in secret.victoriametrics_user." .Values.secret.name) -}}
+{{- if not (regexMatch "^[A-Za-z0-9._~!$&'()*+,;=@-]+$" $username) -}}
+{{- fail (printf "The VictoriaMetrics username is not usable in PMM_VM_URL: PMM Server parses that URL with url.Parse, which returns the username unchanged only when it is built from letters, digits and the punctuation -._~!$&'()*+,;=@ . Any other character, '%%', ':' and whitespace included, changes the credential, drops it, or fails the parse, and every metric write and query then fails with 401. Set it to a value from that set, in the PMM_HA_VM_USERNAME key of secret '%s' or in secret.victoriametrics_user." .Values.secret.name) -}}
 {{- end -}}
-{{- if regexMatch "[%/?#\\s]" $password -}}
-{{- fail (printf "The VictoriaMetrics password is not usable in PMM_VM_URL: %%, /, ?, # and whitespace either change it or drop it when PMM Server parses that URL, and every metric write and query then fails with 401. Set it to a value without them, in the PMM_HA_VM_PASSWORD key of secret '%s' or in secret.victoriametrics_password." .Values.secret.name) -}}
+{{- if not (regexMatch "^[A-Za-z0-9._~!$&'()*+,;=:@-]+$" $password) -}}
+{{- fail (printf "The VictoriaMetrics password is not usable in PMM_VM_URL: PMM Server parses that URL with url.Parse, which returns the password unchanged only when it is built from letters, digits and the punctuation -._~!$&'()*+,;=:@ . Any other character, '%%' and whitespace included, changes the credential, drops it, or fails the parse, and every metric write and query then fails with 401. Set it to a value from that set, in the PMM_HA_VM_PASSWORD key of secret '%s' or in secret.victoriametrics_password." .Values.secret.name) -}}
 {{- end -}}
 {{- end -}}
 

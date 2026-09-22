@@ -58,3 +58,19 @@ tests:
           path: spec.template.spec.containers[0].env[?(@.name=="PMM_HA_PEERS")].value
           value: "pmm-ha-0.monitoring-service.pmm.svc.cluster.local,pmm-ha-1.monitoring-service.pmm.svc.cluster.local,pmm-ha-2.monitoring-service.pmm.svc.cluster.local"
         template: templates/statefulset.yaml
+
+  # The credential validator allowlists what url.Parse returns unchanged from PMM_VM_URL's
+  # userinfo, so it must not reject the two characters that do survive: url.Parse splits the
+  # authority on the LAST '@' and the userinfo on the FIRST ':'.
+  - it: "accepts a VictoriaMetrics password containing @ and :"
+    set: {secret.victoriametrics_password: "p@ss:w0rd"}
+    asserts:
+      - notFailedTemplate: {}
+
+  # Every punctuation character the allowlist names, in the half that allows it.
+  - it: accepts the full allowed credential character set
+    set:
+      secret.victoriametrics_user: "aZ09-._~!$&'()*+,;=@"
+      secret.victoriametrics_password: "aZ09-._~!$&'()*+,;=:@"
+    asserts:
+      - notFailedTemplate: {}
