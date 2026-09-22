@@ -85,6 +85,23 @@ checksum/clickhouse-datasource: {{ include (print $.Template.BasePath "/clickhou
 {{- end }}
 
 {{/*
+The pmm-secret as `lookup` returns it, resolved once per render and memoised on .Values the same
+way the generated VictoriaMetrics password is. pmm.validateSecret, secret.yaml and the two
+pmm.vm.* helpers all need the same object, and `lookup` is a live API call every time it is
+evaluated, so the same Secret was being fetched five or six times per render depending on
+secret.create - on every CI --dry-run=server render too.
+
+The whole object is cached rather than just .data, because pmm.validateSecret has to tell a
+secret that is absent (or a client-side render, where lookup says nothing) apart from one that
+exists carrying no data at all.
+*/}}
+{{- define "pmm.secret.cached" -}}
+{{- if not (hasKey .Values "cachedPmmSecret") -}}
+{{- $_ := set .Values "cachedPmmSecret" (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Validate the pmm-secret when the user owns it.
 
 statefulset.yaml mounts seven keys from this secret with no `optional`, so one missing key leaves
@@ -115,7 +132,8 @@ vmauth.yaml on "index of untyped nil", naming neither the secret nor the setting
 {{- fail "secret.name is empty. Set it to the name of the Kubernetes Secret that holds the PMM credentials (the chart default is 'pmm-secret')." -}}
 {{- end -}}
 {{- if not .Values.secret.create -}}
-{{- $found := lookup "v1" "Secret" .Release.Namespace .Values.secret.name -}}
+{{- include "pmm.secret.cached" . -}}
+{{- $found := get .Values "cachedPmmSecret" -}}
 {{/*
 Only inspect keys once the Secret is actually in hand. `lookup` also comes back empty on every
 client-side render - helm template, --dry-run=client, a GitOps preview - where it says nothing
@@ -125,7 +143,7 @@ accurate "Secret not found" message instead.
 */}}
 {{- if $found -}}
 {{- $data := $found.data | default dict -}}
-{{- $required := list "PMM_ADMIN_PASSWORD" "GF_PASSWORD" "PG_PASSWORD" "PMM_CLICKHOUSE_USER" "PMM_CLICKHOUSE_PASSWORD" "VMAGENT_remoteWrite_basicAuth_username" "VMAGENT_remoteWrite_basicAuth_password" -}}
+{{- $required := list "PMM_ADMIN_PASSWORD" "GF_PASSWORD" "PG_PASSWORD" "PMM_CLICKHOUSE_USER" "PMM_CLICKHOUSE_PASSWORD" "PMM_HA_VM_USERNAME" "PMM_HA_VM_PASSWORD" -}}
 {{- $missing := list -}}
 {{- range $key := $required -}}
 {{- if not (get $data $key) -}}
@@ -137,7 +155,27 @@ accurate "Secret not found" message instead.
 {{- if has "PMM_ADMIN_PASSWORD" $missing -}}
 {{- $hint = " PMM_ADMIN_PASSWORD sets the PMM/Grafana admin password." -}}
 {{- end -}}
+{{- if or (has "PMM_HA_VM_USERNAME" $missing) (has "PMM_HA_VM_PASSWORD" $missing) -}}
+{{- $hint = printf "%s Technical Preview installations stored the VictoriaMetrics credential as VMAGENT_remoteWrite_basicAuth_username and VMAGENT_remoteWrite_basicAuth_password: rename those keys rather than adding a second copy, because PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients. Alternatively set secret.create=true to have the chart generate the credential." $hint -}}
+{{- end -}}
 {{- fail (printf "Secret '%s' in namespace '%s' is missing, or has an empty value for, required key(s): %s.%s" .Values.secret.name .Release.Namespace (join ", " $missing) $hint) -}}
+{{- end -}}
+{{- /*
+The renamed keys must replace the Technical Preview ones, not join them. Every key of a user-owned
+secret becomes a PMM Server environment variable through envFrom, and PMM Server forwards each
+VMAGENT_* variable to every PMM Client's vmagent as its remote-write credential, wherever the
+operator points those writes. A leftover copy therefore wins over the credential PMM Server derives
+from PMM_VM_URL and goes stale at the next rotation, when every client write starts failing with
+nothing in the render or the server log to explain it.
+*/ -}}
+{{- $legacy := list -}}
+{{- range $key := list "VMAGENT_remoteWrite_basicAuth_username" "VMAGENT_remoteWrite_basicAuth_password" -}}
+{{- if hasKey $data $key -}}
+{{- $legacy = append $legacy $key -}}
+{{- end -}}
+{{- end -}}
+{{- if $legacy -}}
+{{- fail (printf "Secret '%s' in namespace '%s' still carries the Technical Preview key(s) %s. PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients as their remote-write credential, so a leftover copy overrides the PMM_HA_VM_* credential and breaks every client write once that credential is rotated. Remove them with: kubectl get secret %s -n %s -o json | jq 'del(.data.VMAGENT_remoteWrite_basicAuth_username, .data.VMAGENT_remoteWrite_basicAuth_password)' | kubectl replace -f - (kubectl apply does not delete them; see 'Creating PMM Secret Manually' in the chart README for the full rename)." .Values.secret.name .Release.Namespace (join ", " $legacy) .Values.secret.name .Release.Namespace) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -363,6 +401,117 @@ Called from statefulset.yaml, which always renders.
 {{- end -}}
 
 {{/*
+The number of HAProxy server-template slots, and therefore the ceiling on replicas.
+Shared by haproxy-configmap.yaml (which renders it) and pmm.replicas.validate (which
+enforces it) so the two can never disagree about the default.
+
+kindIs "invalid" rather than `default`, because sprig's `default` treats 0 as empty:
+with it, maxReplicas=0 would silently become 10 and the range check below could never
+see it.
+*/}}
+{{- define "pmm.maxReplicas" -}}
+{{- if kindIs "invalid" .Values.maxReplicas -}}10{{- else -}}{{- .Values.maxReplicas -}}{{- end -}}
+{{- end -}}
+
+{{/*
+Shared parity check for the chart's two Raft ensembles - PMM itself and ClickHouse
+Keeper. Raft elects a leader by majority, so an even count needs more votes to elect
+one without surviving more failures (4 tolerates a single loss, exactly like 3), and a
+count of 2 tolerates none at all.
+
+Takes a dict of:
+  name     - the values key, used verbatim in every message
+  value    - the raw value, validated before it is parsed
+  ceiling  - largest permitted value, or 0 for unbounded. The "use N instead" hint is
+             clamped to it so it never names a value a later check would reject.
+  ceilingName - the values key the ceiling comes from, so the hint can name it.
+
+The regex is deliberately strict. sprig's `int` parses base 0, so "010" would silently
+become 8; and anything wider than int64 overflows to 0. Either way the message would
+quote a number the user never typed, so both are rejected as malformed input instead.
+*/}}
+{{- define "pmm.validate.oddCount" -}}
+{{- $name := .name -}}
+{{- $raw := .value -}}
+{{- if not (regexMatch "^[1-9][0-9]{0,3}$" (toString $raw)) -}}
+{{- fail (printf "%s must be a whole number between 1 and 9999, got %v." $name $raw) -}}
+{{- end -}}
+{{- $n := int $raw -}}
+{{- if eq (mod $n 2) 0 -}}
+{{- $ceiling := int (.ceiling | default 0) -}}
+{{- $lower := sub $n 1 -}}
+{{- $upper := add $n 1 -}}
+{{- $hint := printf "Use %d or %d." $lower $upper -}}
+{{- if gt $ceiling 0 -}}
+{{- $maxOdd := $ceiling -}}
+{{- if eq (mod $ceiling 2) 0 -}}
+{{- $maxOdd = sub $ceiling 1 -}}
+{{- end -}}
+{{- if gt $upper $maxOdd -}}
+{{- if le $lower $maxOdd -}}
+{{- $hint = printf "Use %d." $lower -}}
+{{- else -}}
+{{- $hint = printf "%s is %d, so the largest supported value is %d." (.ceilingName | default "The ceiling") $ceiling $maxOdd -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- fail (printf "%s must be odd, got %d: an even count adds a Raft voter without adding fault tolerance - it widens the majority a leader election needs while surviving no more failures. %s" $name $n $hint) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the PMM replica count.
+Called from statefulset.yaml, which always renders and reaches these checks before the
+lookup in pg-user-credentials-secrets.yaml, so a plain `helm template` reports the real
+problem rather than a missing secret.
+
+HAProxy discovers PMM through a server-template with maxReplicas slots
+(haproxy-configmap.yaml), fills them from a headless-service DNS answer in arbitrary
+order, and marks a backend UP only when it answers /v1/server/leaderHealthCheck with
+200. Going above maxReplicas is therefore not merely under-routing: if the Raft leader
+lands on a pod that got no slot, every backend is DOWN and PMM serves 503.
+*/}}
+{{- define "pmm.replicas.validate" -}}
+{{- $maxRaw := include "pmm.maxReplicas" . -}}
+{{- if not (regexMatch "^([1-9][0-9]?|100)$" $maxRaw) -}}
+{{- fail (printf "maxReplicas must be a whole number between 1 and 100, got %v: it is rendered verbatim into the HAProxy server-template, and every slot is a backend server allocated at startup." $maxRaw) -}}
+{{- end -}}
+{{- $maxReplicas := int $maxRaw -}}
+{{- include "pmm.validate.oddCount" (dict "name" "replicas" "value" .Values.replicas "ceiling" $maxReplicas "ceilingName" "maxReplicas") -}}
+{{- $replicas := int .Values.replicas -}}
+{{- if gt $replicas $maxReplicas -}}
+{{- fail (printf "replicas (%d) exceeds maxReplicas (%d): HAProxy renders only %d server-template slots and fills them from DNS in arbitrary order, so a pod left without a slot is invisible to it. Because HAProxy marks a backend UP only when it answers /v1/server/leaderHealthCheck, a Raft leader on that pod leaves every backend DOWN and PMM serves 503. Lower replicas, or raise maxReplicas and bump haproxy.podAnnotations \"pmm.percona.com/config-version\" in the same upgrade so HAProxy restarts with the new server-template." $replicas $maxReplicas $maxReplicas) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the ClickHouse Keeper node count.
+Called from statefulset.yaml alongside the other value checks, for the same ordering
+reason described above.
+
+The parenthesised lookup matches pmm.nodeExporter.mode: without it, a nulled clickhouse
+or clickhouse.keeper key aborts with a raw Go nil-pointer error instead of the message
+this validator exists to produce.
+
+Unlike replicas there is no HAProxy-style hard constraint here, so the ceiling is a
+supportability limit rather than a correctness one: every Keeper node is a full Raft
+voter, so each extra pair widens the majority that every write waits on while buying
+fault tolerance nobody asked for - 9 already survives 4 simultaneous losses. The bound
+is enforced here rather than in pmm.validate.oddCount, which only clamps the hint: adding
+a rejection there would fire ahead of the maxReplicas check in pmm.replicas.validate and
+swallow its far more specific message.
+*/}}
+{{- define "pmm.keeper.validate" -}}
+{{- $ceiling := 9 -}}
+{{- $raw := ((.Values.clickhouse).keeper).replicasCount -}}
+{{- include "pmm.validate.oddCount" (dict "name" "clickhouse.keeper.replicasCount" "value" $raw "ceiling" $ceiling "ceilingName" "The supported maximum") -}}
+{{- $n := int $raw -}}
+{{- if gt $n $ceiling -}}
+{{- fail (printf "clickhouse.keeper.replicasCount (%d) exceeds the supported maximum (%d): every Keeper node is a full Raft voter, so each extra pair widens the majority every write waits on without buying fault tolerance the cluster needs - %d already survives 4 simultaneous losses." $n $ceiling $ceiling) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Target labels shared by both node-exporter scrape jobs. PMM's OS dashboards filter on node_name
 and node_type ("generic" is PMM's type for a bare host), so without these the node is invisible there.
 Emitted unindented; callers nindent it to their relabel_configs item level.
@@ -510,6 +659,93 @@ and be rejected outright.
 {{- end -}}
 
 {{/*
+Value of one VictoriaMetrics credential already stored in .Values.secret.name, empty when the
+secret does not carry the key. Takes a dict with "root" and "key".
+*/}}
+{{- define "pmm.vm.existingCredential" -}}
+{{- include "pmm.secret.cached" .root -}}
+{{- $existing := get .root.Values "cachedPmmSecret" -}}
+{{- $data := dict -}}
+{{- if $existing -}}
+{{- $data = $existing.data | default dict -}}
+{{- end -}}
+{{- if hasKey $data .key -}}
+{{- index $data .key | b64dec -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Username vmauth validates incoming remote-write and query requests against.
+
+vmauth needs the plaintext in its own config while PMM Server and vmagent read it from
+.Values.secret.name, so both have to agree: resolving it in one place is what keeps the config
+secret and pmm-secret from drifting apart. A user-owned secret that lacks the key is reported by
+pmm.validateSecret, which vmauth.yaml and statefulset.yaml call before resolving it.
+*/}}
+{{- define "pmm.vm.username" -}}
+{{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_USERNAME") -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else -}}
+{{- .Values.secret.victoriametrics_user | default "victoriametrics_pmm" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Password vmauth validates incoming remote-write and query requests against.
+
+A generated password is memoised on .Values, the same way the ClickHouse data source password is:
+randAlphaNum would otherwise hand vmauth a different password than the one written to the secret
+PMM Server and vmagent authenticate with.
+*/}}
+{{/*
+Refuse a VictoriaMetrics credential that PMM_VM_URL cannot carry.
+
+statefulset.yaml composes PMM_VM_URL as http://$(user):$(password)@host and PMM Server reads the
+credential back out with url.Parse and User.Password(). Each half is checked against the character
+set url.Parse returns unchanged there, because everything outside it ends as a failed write path
+with nothing naming the credential: '"', '<', '>', '[', '\', ']', '^', '`', '{', '|', '}' and any
+non-ASCII character make url.Parse reject the whole URL; '/', '?' and '#' end the authority, so the
+credential is silently dropped or the URL is rejected; whitespace makes the userinfo invalid; and a
+':' in the username moves the boundary, so the rest of the username becomes the start of the
+password. '@' is safe in both halves, because url.Parse splits the authority on the last one.
+
+The set is Go's validUserinfo minus '%': url.Parse accepts a percent escape and then decodes it, so
+a password of %41 is stored as %41 and arrives at vmauth as A.
+
+An allowlist rather than an enumeration of rejected characters: the two agree with url.Parse on
+every printable ASCII character in both halves, but only the allowlist also covers non-ASCII and
+the empty string.
+
+Only what the chart can see is checked. A generated password is alphanumeric, and a user-owned
+secret is read here through the same memoised lookup every other consumer uses.
+*/}}
+{{- define "pmm.vm.validateCredential" -}}
+{{- $username := include "pmm.vm.username" . -}}
+{{- $password := include "pmm.vm.password" . -}}
+{{- if not (regexMatch "^[A-Za-z0-9._~!$&'()*+,;=@-]+$" $username) -}}
+{{- fail (printf "The VictoriaMetrics username is not usable in PMM_VM_URL: PMM Server parses that URL with url.Parse, which returns the username unchanged only when it is built from letters, digits and the punctuation -._~!$&'()*+,;=@ . Any other character, '%%', ':' and whitespace included, changes the credential, drops it, or fails the parse, and every metric write and query then fails with 401. Set it to a value from that set, in the PMM_HA_VM_USERNAME key of secret '%s' or in secret.victoriametrics_user." .Values.secret.name) -}}
+{{- end -}}
+{{- if not (regexMatch "^[A-Za-z0-9._~!$&'()*+,;=:@-]+$" $password) -}}
+{{- fail (printf "The VictoriaMetrics password is not usable in PMM_VM_URL: PMM Server parses that URL with url.Parse, which returns the password unchanged only when it is built from letters, digits and the punctuation -._~!$&'()*+,;=:@ . Any other character, '%%' and whitespace included, changes the credential, drops it, or fails the parse, and every metric write and query then fails with 401. Set it to a value from that set, in the PMM_HA_VM_PASSWORD key of secret '%s' or in secret.victoriametrics_password." .Values.secret.name) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "pmm.vm.password" -}}
+{{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_PASSWORD") -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else if .Values.secret.victoriametrics_password -}}
+{{- .Values.secret.victoriametrics_password -}}
+{{- else -}}
+{{- if not (hasKey .Values "generatedVictoriaMetricsPassword") -}}
+{{- $_ := set .Values "generatedVictoriaMetricsPassword" (randAlphaNum 32) -}}
+{{- end -}}
+{{- get .Values "generatedVictoriaMetricsPassword" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Resolve one key of the PMM secret to its base64 value, for the keys that more than one template
 needs to agree on.
 
@@ -519,7 +755,9 @@ reads. Under secret.create the secret does not exist yet at render time - Helm r
 template before it applies the pre-install hook that creates it - so the second template cannot
 read the value back and has to derive it the same way. Deriving it with a second randAlphaNum
 would hand Grafana a password PostgreSQL never got, so the generated value is cached on .Values
-and every caller gets the same one, the way pmm.clickhouse.datasourcePassword already does.
+and every caller gets the same one, the way pmm.clickhouse.datasourcePassword and
+pmm.vm.password already do. The secret itself is read through pmm.secret.cached, like every
+other consumer, so this adds no lookup of its own.
 
 Precedence: the key already in the secret (upgrades keep their password), then the explicit
 value from values.yaml, then a generated one. Takes a dict with "ctx" (the root context), "key"
@@ -527,7 +765,8 @@ and "override". Returns base64 - the callers write it straight into a Secret's d
 */}}
 {{- define "pmm.secret.key" -}}
 {{- $ctx := .ctx -}}
-{{- $existing := (lookup "v1" "Secret" $ctx.Release.Namespace $ctx.Values.secret.name) -}}
+{{- include "pmm.secret.cached" $ctx -}}
+{{- $existing := get $ctx.Values "cachedPmmSecret" -}}
 {{- $current := "" -}}
 {{/* An empty secret.name makes lookup return a SecretList, which has no .data. */}}
 {{- if and $existing $existing.data -}}
