@@ -90,6 +90,7 @@ The chart can be customized using the following configurable parameters:
 | `podDisruptionBudget.minAvailable` | PDB minAvailable. Do not set together with maxUnavailable                                          | unset                                       |
 | `revisionHistoryLimit`       | Quantity of old ReplicaSets to retain for rollback purposes                                                  | `10`                                        |
 | `tolerations`                | List of node taints to tolerate                                                                              | `[]`                                        |
+| `hostAliases`                | Pod host aliases added to the operator Pod's /etc/hosts                                                      | `[]`                                        |
 | `annotations`                | PSMDB Operator Deployment annotations                                                                        | `{}`                                        |
 | `podAnnotations`             | PSMDB Operator Pod annotations                                                                               | `{}`                                        |
 | `labels`                     | PSMDB Operator Deployment labels                                                                             | `{}`                                        |
