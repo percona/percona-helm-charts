@@ -163,3 +163,42 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "got 12.*The supported maximum is 9, so the largest supported value is 9\\."
+
+  # statefulset.yaml composes PMM_VM_URL as http://$(user):$(password)@host and PMM Server reads
+  # the credential back with url.Parse, so the validator allowlists what url.Parse returns
+  # unchanged there. The cases below are the shapes that fail differently.
+
+  # Silently rewritten: url.Parse decodes the escape, so vmauth is handed "pAss".
+  - it: rejects a VictoriaMetrics password that url.Parse percent-decodes
+    set: {secret.victoriametrics_password: "p%41ss"}
+    asserts:
+      - failedTemplate:
+          errorPattern: "The VictoriaMetrics password is not usable in PMM_VM_URL"
+
+  # Rejected outright by url.Parse. An enumeration of the characters that change the value lets
+  # these through, and the render then ships a PMM Server that cannot reach VictoriaMetrics.
+  - it: rejects a VictoriaMetrics password that url.Parse refuses outright
+    set: {secret.victoriametrics_password: "p[ass"}
+    asserts:
+      - failedTemplate:
+          errorPattern: "The VictoriaMetrics password is not usable in PMM_VM_URL"
+
+  # Non-ASCII fails url.Parse the same way, and no list of bad ASCII characters reaches it.
+  - it: rejects a non-ASCII VictoriaMetrics password
+    set: {secret.victoriametrics_password: "pässwörd"}
+    asserts:
+      - failedTemplate:
+          errorPattern: "The VictoriaMetrics password is not usable in PMM_VM_URL"
+
+  # ':' splits the userinfo, so the rest of the username arrives as the start of the password.
+  - it: rejects a VictoriaMetrics username carrying a colon
+    set: {secret.victoriametrics_user: "us:er"}
+    asserts:
+      - failedTemplate:
+          errorPattern: "The VictoriaMetrics username is not usable in PMM_VM_URL"
+
+  - it: rejects a VictoriaMetrics username that url.Parse refuses outright
+    set: {secret.victoriametrics_user: "us|er"}
+    asserts:
+      - failedTemplate:
+          errorPattern: "The VictoriaMetrics username is not usable in PMM_VM_URL"

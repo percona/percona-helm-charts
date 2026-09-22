@@ -32,9 +32,6 @@ pmmEnv:
   # PMM_POSTGRES_ADDR: "pmm-ha-pg-db-ha.pmm-ha.svc.cluster.local:5432"
   PMM_POSTGRES_SSL_MODE: "require"
   GF_DATABASE_SSL_MODE: "require"
-  # PMM_VM_URL: "http://:@:8427/"
-  # VMAGENT_remoteWrite_basicAuth_username: ""
-  # VMAGENT_remoteWrite_basicAuth_password: ""
   PMM_HA_ENABLE: "1"
   PMM_HA_GOSSIP_PORT: "9096"
   PMM_HA_RAFT_PORT: "9097"
@@ -157,16 +154,6 @@ pmmClient:
   ## removes that Node with every Service configured on it, so keep this disabled otherwise.
   ##
   forceRegistration: false
-  ## @param pmmClient.registerWaitAttempts How many times the register init container polls PMM Server before registering anyway
-  ## @param pmmClient.registerWaitSeconds Seconds between those polls
-  ## On a fresh install the Clients come up with the Server, so registration would otherwise run
-  ## against an HAProxy with no healthy backend and fail with "503 Service Unavailable" — leaving
-  ## every Client pod in Init:CrashLoopBackOff for the first minutes of a perfectly healthy
-  ## install. The defaults give PMM Server 5 minutes (60 x 5s), which covers a cold start on a
-  ## cluster that has to pull the image first. After the budget the init container registers
-  ## anyway rather than failing, so a real problem still surfaces as the real error.
-  registerWaitAttempts: 60
-  registerWaitSeconds: 5
   ## @param pmmClient.storage.size Size of the volume holding the Agent identity and metrics buffer
   ## @param pmmClient.storage.storageClassName Storage class of that volume, cluster default if empty
   ## The volume backs the canonical pmm-agent directories /usr/local/percona/pmm/config and
@@ -251,7 +238,7 @@ secret:
   ## If creating the secret manually (secret.create: false), this field is ignored.
   ##
   ## To get username after install:
-  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_HA_VM_USERNAME}' | base64 --decode
   ## E.g.
   ## victoriametrics_user: my_victoriametrics_user
   ##
@@ -262,7 +249,7 @@ secret:
   ## If creating the secret manually (secret.create: false), this field is ignored.
   ##
   ## To get password after install:
-  ##   kubectl get secret pmm-secret -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode
+  ##   kubectl get secret pmm-secret -o jsonpath='{.data.PMM_HA_VM_PASSWORD}' | base64 --decode
   ## E.g.
   ## victoriametrics_password: my_secure_password
   ##
@@ -1072,7 +1059,7 @@ haproxy:
   # Increment config-version in the same upgrade for that, and for any other ConfigMap
   # change that requires a restart.
   podAnnotations:
-    pmm.percona.com/config-version: "4"
+    pmm.percona.com/config-version: "5"
 
   # HAProxy pod spread across nodes.
   #
@@ -1647,7 +1634,7 @@ victoriaMetrics:
       maxLabelsPerTimeseries: "50"
   
   ## VMAuth configuration - authentication proxy
-  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  ## Credentials are read from pmm-secret (PMM_HA_VM_USERNAME/PMM_HA_VM_PASSWORD)
   ## If pmm-secret doesn't exist, credentials are auto-generated (see templates/secret.yaml)
   ## Default username: victoriametrics_pmm
   ## Default password: randomly generated 32-character string
@@ -1696,7 +1683,7 @@ victoriaMetrics:
 
   ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
   ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
-  ## Credentials are read from pmm-secret (VMAGENT_remoteWrite_basicAuth_username/password)
+  ## Credentials are read from pmm-secret (PMM_HA_VM_USERNAME/PMM_HA_VM_PASSWORD)
   vmagent:
     ## @param victoriaMetrics.vmagent.enabled Enable VMAgent for metrics scraping
     enabled: true
