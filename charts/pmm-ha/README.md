@@ -66,7 +66,7 @@ For larger fleets:
 ```bash
 helm install pmm-ha percona/pmm-ha -f examples/values-500-nodes.yaml
 helm install pmm-ha percona/pmm-ha -f examples/values-1000-nodes.yaml
-# OpenShift (restricted-v2 SCC): unpins the user ids, see "Pod security"
+# OpenShift (restricted-v2 SCC), see "Installing on OpenShift"
 helm install pmm-ha percona/pmm-ha -f examples/values-openshift.yaml
 ```
 
@@ -918,19 +918,12 @@ seccomp profile, so that namespace can enforce `baseline` only (see
 [Pod security](../pmm-ha-dependencies/README.md#pod-security) in the pmm-ha-dependencies README).
 
 **OpenShift.** The `restricted-v2` SCC assigns the user id itself and rejects pods that pin
-one outside the project's range. Unset the pinned ids and let the SCC fill them in - the
-ready-made overlay is [`examples/values-openshift.yaml`](examples/values-openshift.yaml), which
-also turns `victoriaMetrics.useStrictSecurity` off (the operator would pin uid 65534) and
-switches to the platform node-exporter:
+one outside the project's range. Install with [`examples/values-openshift.yaml`](examples/values-openshift.yaml)
+(see [Installing on OpenShift](#installing-on-openshift)). Its `openshift: true` drops the ids
+from the PMM Server and PMM Client pods; for everything else the chart pins, the overlay unsets
+them itself and turns `victoriaMetrics.useStrictSecurity` off (the operator would pin uid 65534):
 
 ```yaml
-podSecurityContext:            # PMM Server: fsGroup is range-assigned too
-  runAsUser: null
-  fsGroup: null
-pmmClient:
-  podSecurityContext:
-    runAsUser: null
-    fsGroup: null
 haproxy:
   podSecurityContext:
     runAsUser: null
@@ -947,16 +940,12 @@ clickhouse:
 jobs:
   podSecurityContext:
     runAsUser: null
-kube-state-metrics:
-  securityContext:
-    runAsUser: null
-    fsGroup: null
 victoriaMetrics:
   useStrictSecurity: false
 ```
 
-`victoriaMetrics.useStrictSecurity` pins uid 65534 inside the operator; if the SCC rejects the
-VictoriaMetrics pods, set it to `false` and let the SCC supply the security context instead.
+The SCC then injects runAsNonRoot, no privilege escalation, dropped capabilities and
+RuntimeDefault seccomp in their place.
 
 Decide this before the first install. Changing the user id of a running installation - moving
 from the pinned ids to arbitrary ones or back - means every persistent volume still belongs to
@@ -1040,7 +1029,8 @@ helm install pmm-ha percona/pmm-ha -n pmm -f examples/values-openshift.yaml
 It sets `openshift: true` (PMM Server and PMM Client let the cluster assign uid and fsGroup),
 disables the bundled node-exporter in favour of OpenShift's, turns off the kube-state-metrics
 securityContext, moves the HAProxy port to 8443, and points the bundled PostgreSQL cluster's PMM
-sidecar at that port.
+sidecar at that port. It also unsets the uids the chart pins for HAProxy, ClickHouse, Keeper and
+the helper Jobs, and turns `victoriaMetrics.useStrictSecurity` off (see [Pod security](#pod-security)).
 
 `openshift: true` governs the PMM Server and PMM Client pod securityContexts only. Setting it on
 its own is refused: the chart fails to render unless `nodeExporter.mode`, the kube-state-metrics

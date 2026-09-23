@@ -549,7 +549,7 @@ clearing those keys is an escape hatch for anyone running with anyuid.
 {{- end -}}
 {{- $cpsc := .Values.pmmClient.podSecurityContext | default dict -}}
 {{- range $k := (list "runAsUser" "runAsGroup" "fsGroup") -}}
-{{- if not (kindIs "invalid" (get $cpsc $k)) -}}{{- $pinned = append $pinned (printf "pmmClient.podSecurityContext.%s" $k) -}}{{- end -}}
+{{- if hasKey $cpsc $k -}}{{- $pinned = append $pinned (printf "pmmClient.podSecurityContext.%s" $k) -}}{{- end -}}
 {{- end -}}
 {{- if $pinned -}}
 {{- fail (printf "This cluster exposes security.openshift.io/v1 (OpenShift), but openshift=false. %s would be rendered onto the PMM Server and PMM Client StatefulSets, and restricted-v2 rejects uids and groups outside the namespace's assigned ranges.\n\nThe pods are ADMITTED at apply time and only REPLACEMENT pods are refused, so the StatefulSet degrades silently later, and a failed upgrade leaves values that no subsequent upgrade can clear (Helm diffs against the last successful release).\n\nSet openshift=true, or install with -f examples/values-openshift.yaml. If you deliberately run with anyuid, clear those keys instead (podSecurityContext={}, pmmClient.fsGroup=null and pmmClient.podSecurityContext.runAsUser=null)." (join ", " $pinned)) -}}
