@@ -690,7 +690,8 @@ Example: dataRetentionDays: 90 -> PMM_DATA_RETENTION "2160h" and retentionPeriod
     {{- fail "pmmEnv.PMM_DATA_RETENTION is derived by this chart from the top-level `dataRetentionDays`, and a value declared here would let Query Analytics keep data for a different period than metrics. Set `dataRetentionDays` (whole days) instead." }}
   {{- end }}
 {{- end }}
-{{- if kindIs "invalid" .Values.dataRetentionDays }}
+{{- /* "" is unset too: it was this chart's own default when dataRetentionDays was optional. */}}
+{{- if or (kindIs "invalid" .Values.dataRetentionDays) (eq (toString .Values.dataRetentionDays | trim) "") }}
   {{- fail "dataRetentionDays must be set to a whole number of days. It is the only way to set data retention in HA, because PMM fixes the period when the replicas start and refuses to change it at runtime, so leaving it unset gives a cluster whose retention nothing can set." }}
 {{- end }}
 {{- if kindIs "bool" .Values.dataRetentionDays }}

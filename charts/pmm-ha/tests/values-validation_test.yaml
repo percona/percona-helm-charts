@@ -189,6 +189,15 @@ tests:
       - failedTemplate:
           errorPattern: "dataRetentionDays must be set to a whole number of days"
 
+  # The shipped default when dataRetentionDays was optional, so values files carried over from
+  # that chart still have it. Without its own check it fell through to the range check and
+  # failed with an empty "got".
+  - it: rejects an empty dataRetentionDays as unset
+    set: {dataRetentionDays: ""}
+    asserts:
+      - failedTemplate:
+          errorPattern: "dataRetentionDays must be set to a whole number of days"
+
   - it: rejects dataRetentionDays 0
     set: {dataRetentionDays: 0}
     asserts:
