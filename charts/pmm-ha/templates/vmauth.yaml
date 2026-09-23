@@ -1,26 +1,18 @@
 {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled -}}
 {{- /* Validate the pre-created secret here as well as in statefulset.yaml. Helm renders
-       same-depth templates in reverse alphabetical order, so this file runs before
-       statefulset.yaml and would otherwise fail first, on the b64dec below, with a bare
-       "invalid value; expected string" naming neither the key nor the secret.
+       same-depth templates in reverse alphabetical order, so this file runs first, and a
+       user-owned secret that lacks one of the keys has to be named here rather than quietly
+       resolving to something else further down.
 
-       This is not a complete guard. pmm.validateSecret is a no-op when secret.create is
-       set, and the b64dec below still fails that way; clickhouse-cluster.yaml reads a key
-       the same unguarded way. PMM-15436 fixes both at the read site. */ -}}
+       This is not a complete guard. pmm.validateSecret is a no-op when secret.create is set,
+       and there a pmm-secret that predates the PMM_HA_VM_* keys resolves to a freshly
+       generated credential instead of failing. clickhouse-cluster.yaml still reads a key
+       straight out of the secret with no guard at all; PMM-15436 fixes that at the read
+       site. */ -}}
 {{- include "pmm.validateSecret" . -}}
-{{- /* Lookup existing secret to avoid regenerating passwords on upgrade */ -}}
-{{- $existingSecret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
-{{- $vmuser := "" }}
-{{- $vmpass := "" }}
-{{- if $existingSecret }}
-  {{- /* Use existing credentials from secret */ -}}
-  {{- $vmuser = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_username" | b64dec }}
-  {{- $vmpass = index $existingSecret.data "VMAGENT_remoteWrite_basicAuth_password" | b64dec }}
-{{- else }}
-  {{- /* Use values or defaults (secret.yaml will create the secret) */ -}}
-  {{- $vmuser = .Values.secret.victoriametrics_user | default "victoriametrics_pmm" }}
-  {{- $vmpass = .Values.secret.victoriametrics_password | default (randAlphaNum 32) }}
-{{- end }}
+{{- /* Resolved centrally so vmauth's config and pmm-secret cannot end up with different credentials */ -}}
+{{- $vmuser := include "pmm.vm.username" . }}
+{{- $vmpass := include "pmm.vm.password" . }}
 ---
 # Secret for VMAuth configuration
 # Note: VMAuth requires plaintext credentials in its config file to validate incoming requests
