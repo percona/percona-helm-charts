@@ -202,13 +202,20 @@ tests:
     set: {dataRetentionDays: 0}
     asserts:
       - failedTemplate:
-          errorPattern: "must be a whole number of days greater than or equal to 1, got 0"
+          errorPattern: "must be a whole number of days between 1 and 36500, got 0"
+
+  # 36500 days is VictoriaMetrics' own maximum, and the bound keeps days * 24 from overflowing.
+  - it: rejects a dataRetentionDays above 36500
+    set: {dataRetentionDays: 36501}
+    asserts:
+      - failedTemplate:
+          errorPattern: "must be a whole number of days between 1 and 36500, got 36501"
 
   - it: rejects a fractional dataRetentionDays
     set: {dataRetentionDays: 1.5}
     asserts:
       - failedTemplate:
-          errorPattern: "must be a whole number of days greater than or equal to 1, got 1.5"
+          errorPattern: "must be a whole number of days between 1 and 36500, got 1.5"
 
   # int true == 1, so the range check alone would accept a bool and silently mean one day.
   - it: rejects a boolean dataRetentionDays

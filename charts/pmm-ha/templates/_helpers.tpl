@@ -680,13 +680,14 @@ Example: dataRetentionDays: 90 -> PMM_DATA_RETENTION "2160h" and retentionPeriod
 {{- define "pmm.dataRetention.validate" -}}
 {{- if .Values.victoriaMetrics.enabled }}
   {{- with .Values.victoriaMetrics.vmstorage }}
-    {{- if hasKey . "retentionPeriod" }}
+    {{- /* A null is Helm's way to delete a key, so it counts as removed rather than declared. */}}
+    {{- if not (kindIs "invalid" (index . "retentionPeriod")) }}
       {{- fail "victoriaMetrics.vmstorage.retentionPeriod is no longer used: this chart renders the VMCluster retention period from the top-level `dataRetentionDays`, and a value declared here would let metrics keep data for a different period than Query Analytics. Set `dataRetentionDays` (whole days) instead." }}
     {{- end }}
   {{- end }}
 {{- end }}
 {{- with .Values.pmmEnv }}
-  {{- if hasKey . "PMM_DATA_RETENTION" }}
+  {{- if not (kindIs "invalid" (index . "PMM_DATA_RETENTION")) }}
     {{- fail "pmmEnv.PMM_DATA_RETENTION is derived by this chart from the top-level `dataRetentionDays`, and a value declared here would let Query Analytics keep data for a different period than metrics. Set `dataRetentionDays` (whole days) instead." }}
   {{- end }}
 {{- end }}
@@ -697,8 +698,9 @@ Example: dataRetentionDays: 90 -> PMM_DATA_RETENTION "2160h" and retentionPeriod
 {{- if kindIs "bool" .Values.dataRetentionDays }}
   {{- fail (printf "dataRetentionDays must be a whole number of days, got the boolean %v" .Values.dataRetentionDays) }}
 {{- end }}
-{{- if or (lt (int .Values.dataRetentionDays) 1) (ne (float64 .Values.dataRetentionDays) (float64 (int .Values.dataRetentionDays))) }}
-  {{- fail (printf "dataRetentionDays must be a whole number of days greater than or equal to 1, got %v" .Values.dataRetentionDays) }}
+{{- /* 36500 days is VictoriaMetrics' own 100-year maximum, and it keeps days * 24 far from overflowing. */}}
+{{- if or (lt (int .Values.dataRetentionDays) 1) (gt (int .Values.dataRetentionDays) 36500) (ne (float64 .Values.dataRetentionDays) (float64 (int .Values.dataRetentionDays))) }}
+  {{- fail (printf "dataRetentionDays must be a whole number of days between 1 and 36500, got %v" .Values.dataRetentionDays) }}
 {{- end }}
 {{- end -}}
 

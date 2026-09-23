@@ -83,3 +83,30 @@ tests:
       victoriaMetrics.vmstorage.retentionPeriod: 90d
     asserts:
       - notFailedTemplate: {}
+
+  - it: accepts the maximum dataRetentionDays
+    set: {dataRetentionDays: 36500}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_DATA_RETENTION")].value
+          value: "876000h"
+        template: templates/statefulset.yaml
+
+  # A null is how --set deletes a key, so it removes the retired keys rather than declaring
+  # them, and must not be rejected.
+  - it: accepts a null vmstorage retentionPeriod
+    set: {victoriaMetrics.vmstorage.retentionPeriod: null}
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: accepts a null PMM_DATA_RETENTION in pmmEnv
+    set: {pmmEnv.PMM_DATA_RETENTION: null}
+    asserts:
+      - notFailedTemplate: {}
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_DATA_RETENTION")].value
+          value: "720h"
+        template: templates/statefulset.yaml
+      - notExists:
+          path: data.PMM_DATA_RETENTION
+        template: templates/configmap.yaml
