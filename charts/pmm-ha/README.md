@@ -373,6 +373,24 @@ kubectl get secret <release>-pg-db-pmm-secret -n <namespace> \
 
 To create additional service tokens manually, see the [PMM documentation on service accounts](https://docs.percona.com/percona-monitoring-and-management/api/authentication.html).
 
+### How client metrics reach VictoriaMetrics
+
+PMM Clients push metrics with a `vmagent` that PMM Server configures for them. Starting with the PMM
+Server release that pairs with this chart, PMM Server tells every client to write to the address the
+client already uses, `https://<pmm-ha-haproxy>/victoriametrics/api/v1/write`, authenticated with the
+VictoriaMetrics credentials from `pmm-secret`. HAProxy routes exactly that path to the in-cluster
+`vmauth` service (`templates/haproxy-configmap.yaml`), so metric writes never pass through the PMM
+Server pods, and clients outside the cluster can write although `vmauth` itself is not exposed.
+Every other path, including VictoriaMetrics queries, keeps going to the PMM Server pods behind PMM's
+own authentication. PMM Server's own agents, which run inside the pods, write to `vmauth` directly.
+
+Consequences:
+
+- The route lives in HAProxy, which is how PMM HA is exposed. The chart's `ingress.*` values are not a supported alternative for this deployment: they do not render against its single-port `service`, and an Ingress would send the write path to the PMM Server pods, which reject the VictoriaMetrics credential.
+- The write endpoint is reachable wherever HAProxy is reachable (see [External access to PMM HA](#external-access-to-pmm-ha)) and is protected by HTTP basic auth with the shared VictoriaMetrics credentials. Revoking one client's write access means rotating that credential.
+- Upgrading from a Technical Preview installation renames the VictoriaMetrics credential keys in `pmm-secret`. With `secret.create: false` (the default) the chart refuses to render until you rename them yourself, see [Creating PMM Secret Manually](#creating-pmm-secret-manually). With `secret.create: true` the chart writes a **new, randomly generated** credential under the new names: the Technical Preview value is not carried over. Anything outside the chart that authenticated to `vmauth` with the old credential (your own `vmagent`, a Grafana or Prometheus data source, a script) has to be pointed at the new one, which `kubectl get secret pmm-secret -n <namespace> -o jsonpath='{.data.PMM_HA_VM_PASSWORD}' | base64 --decode` prints. PMM HA is Technical Preview until the release that carries this change, so the credential is renamed and regenerated once here rather than carried forward.
+- Upgrade this chart before upgrading PMM Server to a release that expects the route. A PMM Server that expects it, behind a chart without it, cannot deliver client metrics: the PMM Server pods reject every write with `401 Unauthorized`, because the VictoriaMetrics credential the clients present is not a PMM credential. A chart with the route, running an older PMM Server, is harmless: the older server still tells clients to write to `vmauth` directly, so clients outside the cluster cannot deliver metrics, which is the limitation this route removes.
+
 ## Parameters
 
 ### Percona Monitoring and Management (PMM) parameters
@@ -388,6 +406,23 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |
 | `readyProbeConf.failureThreshold`    | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                                                               | `6`                  |
+
+
+### PMM Client
+
+| Name                                 | Description                                                      | Value                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `pmmClient.replicas`                 | Number of PMM Client pods carrying the delegated monitoring      | `3`                                                                                            |
+| `pmmClient.image.repository`         | PMM Client image repository                                      | `percona/pmm-client`                                                                           |
+| `pmmClient.image.pullPolicy`         | PMM Client image pull policy                                     | `IfNotPresent`                                                                                 |
+| `pmmClient.image.tag`                | PMM Client image tag, defaults to the chart appVersion           | `3.9.1`                                                                                        |
+| `pmmClient.forceRegistration`        | Register the Node even when one with the same name exists (WARNING: PMM Server may remove the existing Node and its configured Services) | `false`                                                                                        |
+| `pmmClient.storage.size`             | Size of the volume holding the Agent identity and metrics buffer | `2Gi`                                                                                          |
+| `pmmClient.storage.storageClassName` | Storage class of that volume, cluster default if empty           | `""`                                                                                           |
+| `pmmClient.resources`                | Resources requested for the PMM Client container                 | `{"requests": {"memory": "200Mi", "cpu": "100m"}, "limits": {"memory": "1Gi", "cpu": "500m"}}` |
+| `pmmClient.nodeSelector`             | Node labels for the PMM Client pods                              | `{}`                                                                                           |
+| `pmmClient.tolerations`              | Tolerations for the PMM Client pods                              | `[]`                                                                                           |
+| `pmmClient.affinity`                 | Affinity rules for the PMM Client pods                           | `{}`                                                                                           |
 
 
 ### PMM secrets
@@ -559,6 +594,38 @@ kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | 
 
 Since `secret.create` is set to `false` by default, you need to create the `pmm-secret` manually before installing the chart. Here are examples of how to create it:
 
+> **Note**: The VictoriaMetrics credential keys are `PMM_HA_VM_USERNAME` and `PMM_HA_VM_PASSWORD`.
+> Do not store this credential under `VMAGENT_`-prefixed names: PMM Server forwards every `VMAGENT_*`
+> variable it finds to all PMM Clients, including to any endpoint an operator redirects their writes
+> to. Technical Preview installations that used
+> `VMAGENT_remoteWrite_basicAuth_username` and `VMAGENT_remoteWrite_basicAuth_password` must rename
+> those two keys in `pmm-secret` before upgrading:
+>
+> ```sh
+> kubectl get secret pmm-secret -n pmm -o json | jq '
+>   .data.PMM_HA_VM_USERNAME = .data.VMAGENT_remoteWrite_basicAuth_username
+>   | .data.PMM_HA_VM_PASSWORD = .data.VMAGENT_remoteWrite_basicAuth_password
+>   | del(.data.VMAGENT_remoteWrite_basicAuth_username, .data.VMAGENT_remoteWrite_basicAuth_password)
+> ' | kubectl replace -f -
+> ```
+>
+> Then confirm the old keys are gone, because `helm upgrade` refuses to render while either is
+> still present:
+>
+> ```sh
+> kubectl get secret pmm-secret -n pmm -o json | jq -r '.data | keys[]'
+> ```
+>
+> Use `kubectl replace`, not `kubectl apply`. A three-way merge computes deletions by diffing the
+> `kubectl.kubernetes.io/last-applied-configuration` annotation, which a secret created with
+> `kubectl create secret generic`, created by Helm, or created from a `stringData` manifest does
+> not carry in a form that covers `data`. `apply` therefore adds the two new keys and silently
+> keeps the two old ones. `kubectl apply --server-side` does not delete them either.
+>
+> Deleting the old keys is part of the rename, not tidying up: with `secret.create: false` the whole
+> secret is mounted into PMM Server with `envFrom`, so a leftover `VMAGENT_`-prefixed key becomes an
+> environment variable that PMM Server forwards to every PMM Client.
+
 #### ClickHouse data source credentials
 
 The Grafana ClickHouse data source connects as a **read-only** ClickHouse account, separate from
@@ -587,8 +654,8 @@ kubectl create secret generic pmm-secret \
   --from-literal=PMM_ADMIN_PASSWORD="your-secure-password" \
   --from-literal=PMM_CLICKHOUSE_USER="clickhouse_pmm" \
   --from-literal=PMM_CLICKHOUSE_PASSWORD="your-clickhouse-password" \
-  --from-literal=VMAGENT_remoteWrite_basicAuth_username="victoriametrics_pmm" \
-  --from-literal=VMAGENT_remoteWrite_basicAuth_password="your-victoriametrics-password" \
+  --from-literal=PMM_HA_VM_USERNAME="victoriametrics_pmm" \
+  --from-literal=PMM_HA_VM_PASSWORD="your-victoriametrics-password" \
   --from-literal=PG_PASSWORD="your-pmm-postgres-password" \
   --from-literal=GF_PASSWORD="your-grafana-postgres-password" \
   --namespace pmm
@@ -614,8 +681,8 @@ stringData:
   PMM_ADMIN_PASSWORD: "your-secure-password"
   PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   PMM_CLICKHOUSE_PASSWORD: "your-clickhouse-password"
-  VMAGENT_remoteWrite_basicAuth_username: "victoriametrics_pmm"
-  VMAGENT_remoteWrite_basicAuth_password: "your-victoriametrics-password"
+  PMM_HA_VM_USERNAME: "victoriametrics_pmm"
+  PMM_HA_VM_PASSWORD: "your-victoriametrics-password"
   PG_PASSWORD: "your-pmm-postgres-password"
   GF_PASSWORD: "your-grafana-postgres-password"
 ```
@@ -641,8 +708,8 @@ kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' |
 kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' | base64 --decode && echo
 
 # Get VictoriaMetrics credentials
-kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode && echo
-kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_HA_VM_USERNAME}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_HA_VM_PASSWORD}' | base64 --decode && echo
 
 # Get PostgreSQL passwords
 kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PG_PASSWORD}' | base64 --decode && echo
