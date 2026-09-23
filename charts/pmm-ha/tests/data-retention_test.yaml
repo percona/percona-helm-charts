@@ -1,0 +1,85 @@
+# dataRetentionDays is rendered into two places so that metrics and Query Analytics cannot
+# drift apart: PMM_DATA_RETENTION on every PMM replica, and VMCluster.spec.retentionPeriod.
+# Both must always be present - a replica without the variable falls back to whatever period
+# is already stored, and a VMCluster without the field falls back to the operator default.
+#
+# The PMM half is asserted here. The VMCluster half cannot be: vmcluster.yaml renders
+# app.kubernetes.io/component twice, once from pmm.selectorLabels and once of its own, and
+# helm unittest rejects the duplicate key before any assertion runs. Helm's own parser takes
+# the last value, so the manifest installs - the same pattern is in six other templates -
+# but until that is fixed chart-wide the VMCluster field is covered by the
+# "Check data retention renders" step in .github/workflows/pmm-ha-pr-checks.yaml.
+#
+# Rejection cases live in values-validation_test.yaml. configmap.yaml and
+# clickhouse-datasource-secret.yaml are listed because statefulset.yaml checksums them;
+# see the note at the top of that suite.
+suite: pmm-ha data retention
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/clickhouse-datasource-secret.yaml
+  - templates/clusterrole.yaml
+release:
+  name: smoke
+  namespace: pmm
+tests:
+  # PMM requires a whole multiple of 24h and refuses to start otherwise, which is why the
+  # chart takes days and does the conversion rather than accepting a free-form duration.
+  - it: renders the retention as whole hours
+    set: {dataRetentionDays: 30}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_DATA_RETENTION")].value
+          value: "720h"
+        template: templates/statefulset.yaml
+
+  - it: converts any supported number of days
+    set: {dataRetentionDays: 7}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_DATA_RETENTION")].value
+          value: "168h"
+        template: templates/statefulset.yaml
+
+  # A stock install must not be left unset either, whatever the shipped default becomes.
+  - it: renders the chart default
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_DATA_RETENTION")].value
+          pattern: "^[0-9]+h$"
+        template: templates/statefulset.yaml
+
+  # Declared in statefulset.yaml rather than in pmmEnv so that it always wins over the
+  # ConfigMap, which is applied first and would otherwise be able to set a second value.
+  - it: renders the retention outside the pmmEnv ConfigMap
+    asserts:
+      - notExists:
+          path: data.PMM_DATA_RETENTION
+        template: templates/configmap.yaml
+
+  # The earlier attempt had PMM patch the VMCluster itself, which needed the cluster's name
+  # in the environment and get/patch on vmclusters in RBAC. Retention is a chart value now,
+  # so PMM does not talk to the Kubernetes API about it and neither may come back.
+  - it: does not address the VMCluster from PMM
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_VM_CLUSTER_NAME")]
+        template: templates/statefulset.yaml
+      - notExists:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_VM_CLUSTER_NAMESPACE")]
+        template: templates/statefulset.yaml
+      - notContains:
+          path: rules
+          content:
+            apiGroups: ["operator.victoriametrics.com"]
+          any: true
+        template: templates/clusterrole.yaml
+
+  # With an external VictoriaMetrics the chart renders no VMCluster, so vmstorage's own
+  # retentionPeriod is inert rather than conflicting: it must not be rejected there.
+  - it: accepts vmstorage retentionPeriod when VictoriaMetrics is external
+    set:
+      victoriaMetrics.enabled: false
+      victoriaMetrics.vmstorage.retentionPeriod: 90d
+    asserts:
+      - notFailedTemplate: {}

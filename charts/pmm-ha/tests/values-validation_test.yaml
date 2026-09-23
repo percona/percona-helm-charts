@@ -4,14 +4,16 @@
 # a validator, so nothing downstream matters - and keeping pg-user-credentials-secrets.yaml
 # out means these run with no cluster and no dependency on Helm's template ordering.
 #
-# That scoping only works because every case here fails on lines 1-3. A `notFailedTemplate`
-# case added to THIS suite errors instead of passing:
+# That scoping only works because every case here fails in the validator block at the top
+# of statefulset.yaml. A `notFailedTemplate` case added to THIS suite errors instead of
+# passing:
 #
 #   error calling include: template: no template "pmm-ha/templates/configmap.yaml"
 #   associated with template "gotpl"
 #
-# because statefulset.yaml:21 includes pmm.podAnnotations, which checksums configmap.yaml.
-# Positive cases belong in ha-peers_test.yaml, which lists the extra templates.
+# because statefulset.yaml includes pmm.podAnnotations, which checksums configmap.yaml.
+# Positive cases belong in ha-peers_test.yaml or data-retention_test.yaml, which list the
+# extra templates.
 suite: pmm-ha value validation
 templates:
   - templates/statefulset.yaml
@@ -163,3 +165,45 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "got 12.*The supported maximum is 9, so the largest supported value is 9\\."
+
+  # Data retention. dataRetentionDays is the only place the period is set, so the two keys
+  # that used to set it are rejected rather than silently ignored: either one would let
+  # metrics and Query Analytics keep data for different periods.
+  - it: rejects the retired vmstorage retentionPeriod
+    set: {victoriaMetrics.vmstorage.retentionPeriod: 90d}
+    asserts:
+      - failedTemplate:
+          errorPattern: "victoriaMetrics.vmstorage.retentionPeriod is no longer used"
+
+  - it: rejects PMM_DATA_RETENTION in pmmEnv
+    set: {pmmEnv.PMM_DATA_RETENTION: 2160h}
+    asserts:
+      - failedTemplate:
+          errorPattern: "pmmEnv.PMM_DATA_RETENTION is derived by this chart"
+
+  # Unset must fail rather than render a cluster whose retention nothing can set: PMM fixes
+  # the period at start-up, so there is no runtime path to correct it afterwards.
+  - it: rejects an unset dataRetentionDays
+    set: {dataRetentionDays: null}
+    asserts:
+      - failedTemplate:
+          errorPattern: "dataRetentionDays must be set to a whole number of days"
+
+  - it: rejects dataRetentionDays 0
+    set: {dataRetentionDays: 0}
+    asserts:
+      - failedTemplate:
+          errorPattern: "must be a whole number of days greater than or equal to 1, got 0"
+
+  - it: rejects a fractional dataRetentionDays
+    set: {dataRetentionDays: 1.5}
+    asserts:
+      - failedTemplate:
+          errorPattern: "must be a whole number of days greater than or equal to 1, got 1.5"
+
+  # int true == 1, so the range check alone would accept a bool and silently mean one day.
+  - it: rejects a boolean dataRetentionDays
+    set: {dataRetentionDays: true}
+    asserts:
+      - failedTemplate:
+          errorPattern: "must be a whole number of days, got the boolean true"
