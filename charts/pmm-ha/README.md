@@ -766,6 +766,22 @@ The chart renders this one value into two places, so both stores keep data for t
 
 Retention cannot be changed from the PMM UI in HA. For how to change it, how to check the period a replica is using, and what shortening it does to existing data, see [Adjust data retention](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-HA-clustered.html#adjust-data-retention-and-other-settings) in the PMM documentation.
 
+> **Upgrade note (from a Technical Preview installation)**
+>
+> `dataRetentionDays` now always sets retention for both stores, and it defaults to `30`.
+> Technical Preview versions kept metrics for `90d` by default, through
+> `victoriaMetrics.vmstorage.retentionPeriod`, and left Query Analytics retention to the
+> PMM UI. A shorter period takes effect in the same `helm upgrade` and deletes older data,
+> which cannot be recovered. Before upgrading, check the periods the release is using:
+>
+> - Metrics: `kubectl get vmcluster -n <namespace> -o jsonpath='{.items[*].spec.retentionPeriod}'`
+> - Query Analytics: **Data retention** under *PMM Configuration > Settings > Advanced Settings*
+>
+> Then set `dataRetentionDays` to the period you want to keep, for example `90` to keep the
+> earlier metrics default. If the two periods differ, the shorter store gains data over time
+> and needs more storage, see [docs/SIZING.md](docs/SIZING.md). Remove
+> `victoriaMetrics.vmstorage.retentionPeriod` from your values, which the chart now rejects.
+
 ### [PMM environment variables](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables)
 
 In case you want to add extra environment variables (useful for advanced operations like custom init scripts), you can use the `pmmEnv` property.
