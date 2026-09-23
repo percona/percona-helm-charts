@@ -332,13 +332,25 @@ rejected - PMM unreachable, a 5xx, or a leader change mid-check - is not treated
 token: the Job fails and retries instead of minting a second token behind the running pods.
 
 The Job's name ends in a hash of its own pod template, so find it by label rather than by a
-fixed name:
+fixed name. The Job and its pods carry `app.kubernetes.io/component: pmm-token-init`:
 
 ```bash
-JOB=$(kubectl get jobs -n <namespace> -l app.kubernetes.io/instance=<release> \
-  -o name | grep pmm-token-init)
-kubectl logs -n <namespace> "$JOB"
+kubectl get job -n <namespace> \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=pmm-token-init
+kubectl logs -n <namespace> \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=pmm-token-init
 ```
+
+Name the release as well as the component: a namespace can hold more than one release, and more
+than one token-init pod can be running at once - Helm schedules the new Job before pruning the
+old one, and a Job created by a revision that then failed is never pruned at all. That is
+expected and safe. The secret, not the Job, decides which token is live, and the write to it is
+what settles the race rather than a read taken beforehand: a pod creates the secret if it is
+absent, and otherwise patches it under a `test` on the resourceVersion it read the token at, so
+exactly one of two pods holding the same version lands its write. The pod whose write is
+rejected re-reads, finds a token other than the one it meant to replace, revokes the token it
+had minted and defers. A `withdrawing this one` line in a Job log is that happening, not an
+error.
 
 A Job's `spec.template` is immutable, so any chart change that touches the script or its
 environment would otherwise fail `helm upgrade` with `spec.template: field is immutable` while
