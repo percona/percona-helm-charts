@@ -293,12 +293,19 @@ embedded shell script is untouched.
           # Withdraw the token minted by THIS run. Only ever this run's own token: revoking every
           # token on the service account would pull the rug out from under PostgreSQL pods that
           # already have the live one mounted.
+          # Check the status code rather than curl's exit code: without -f curl exits 0 on any
+          # HTTP response, so a 503 from HAProxy while there is no healthy leader would leave
+          # the token live and log nothing. A transport failure reports "000" and warns too.
+          # The warning names the token, because PMM's service account page lists tokens by
+          # name, not by id.
           revoke_own_token() {
             if [ -n "$TOKEN_ID" ]; then
-              curl -sk -X DELETE \
+              DEL_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -X DELETE \
                 -u "admin:${PMM_ADMIN_PASSWORD}" \
-                "${PMM_URL}/graph/api/serviceaccounts/${SA_UID}/tokens/${TOKEN_ID}" >/dev/null 2>&1 \
-                || echo "WARNING: could not delete token ${TOKEN_ID}; remove it from PMM by hand"
+                "${PMM_URL}/graph/api/serviceaccounts/${SA_UID}/tokens/${TOKEN_ID}" 2>/dev/null) || true
+              if [ "$DEL_CODE" != "200" ]; then
+                echo "WARNING: could not delete token '${TOKEN_NAME}' (id ${TOKEN_ID}, HTTP ${DEL_CODE}); remove it from PMM by hand"
+              fi
             fi
           }
 
