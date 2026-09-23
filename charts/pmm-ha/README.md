@@ -35,6 +35,9 @@ This PMM HA deployment provides the following high availability features:
 - PV provisioner support in the underlying infrastructure
 - A StorageClass with `allowVolumeExpansion: true` — every capacity correction on
   a running install is a PVC expansion, which is impossible without it
+- A StorageClass that applies the pod's `fsGroup` to new volumes, or creates them
+  world-writable (as kind's and k3s's `local-path` does) - every PMM HA pod runs as a non-root
+  user and writes its data through that group, see [Storage](#pod-security) under Pod security
 - `amd64` nodes available for the PMM and ClickHouse pods — Query Analytics
   requires SSE4.2 and PMM Server has no native ARM64 build, so on clusters with
   mixed or auto-provisioned nodes (Karpenter, EKS Auto Mode, Graviton pools)
@@ -880,6 +883,29 @@ Secret its Job manages (`pg-encryption-key` and `<release>-pg-db-pmm-secret`) pl
 Secrets, which Kubernetes cannot narrow by name. kube-state-metrics keeps the cluster-wide
 read-only ClusterRole its subchart ships.
 
+**Storage.** Every pod with a persistent volume runs as a non-root user: PMM Server (1000),
+PMM Client (1002), ClickHouse and Keeper (101) and vmstorage (65534). A new volume is
+root-owned and `0755`, so each of them can write its data only because the kubelet applies
+the pod's `fsGroup` to the volume on mount. PMM Server and PMM Client have always depended on
+this; ClickHouse, Keeper and vmstorage used to run as root and did not. Most block-storage
+CSI drivers (EBS, GCE PD, Azure Disk, Ceph RBD, Longhorn) apply `fsGroup`. For a
+file-storage driver, check what its CSIDriver declares:
+
+```bash
+kubectl get csidriver <provisioner> -o jsonpath='{.spec.fsGroupPolicy}'
+```
+
+`File` works. `ReadWriteOnceWithFSType` (the default when the field is unset) applies
+`fsGroup` only to volumes that have an `fsType`, which NFS, EFS and Azure Files volumes do not,
+and `None` never applies it. On such a class, a fresh install leaves PMM Server, PMM Client,
+ClickHouse, Keeper and vmstorage unable to write their volumes (`Permission denied`); use a
+class that applies `fsGroup` for all of them. Checked on kind with csi-driver-nfs:
+
+| `fsGroupPolicy`  | PMM Server, PMM Client                     | ClickHouse, Keeper, vmstorage                              |
+| ---------------- | ------------------------------------------ | ---------------------------------------------------------- |
+| `File`           | writes                                     | writes                                                     |
+| unset or `None`  | `Permission denied`, as in earlier releases | `Permission denied`; earlier releases ran them as root     |
+
 **Bundled node-exporter.** It needs `hostNetwork`, `hostPID`, hostPath mounts and a hostPort,
 which fail even the `baseline` standard. In a `restricted` namespace either disable it
 (`prometheus-node-exporter.enabled=false`), use the platform exporter on OpenShift
@@ -942,8 +968,8 @@ has to be fixed by hand.
 **Upgrading from 1.8.x or older.** The VictoriaMetrics pods change from root to uid 65534
 (`victoriaMetrics.useStrictSecurity`), and `vmstorage` keeps data on a volume that root wrote.
 On CSI storage that supports `fsGroup` (most cloud and Ceph drivers) the kubelet re-owns that
-data on the first mount and the upgrade needs nothing from you. On hostPath, `local` and most
-NFS volumes nothing does, and `vmstorage` crash-loops with
+data on the first mount and the upgrade needs nothing from you. On hostPath and `local` volumes,
+and on file storage whose driver does not apply `fsGroup` (see Storage above), nothing does, and `vmstorage` crash-loops with
 `cannot create lock file "/vmstorage-data/flock.lock": permission denied`; the operator then
 holds vmselect and vminsert back, and vmagent buffers the incoming samples on disk. Fix the
 ownership on the node once and restart the pod, or opt out first:
