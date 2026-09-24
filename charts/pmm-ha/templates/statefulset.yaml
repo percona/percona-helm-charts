@@ -301,6 +301,29 @@ spec:
           ports:
             - name: https
               containerPort: 8443
+          # Liveness checks Grafana through nginx, the path the UI's Grafana requests take, rather
+          # than /v1/readyz: readyz also covers VictoriaMetrics, vmalert and QAN, which all
+          # replicas share, so an outage there would restart every replica at once. Grafana's own
+          # check still depends on the shared PostgreSQL, so a database outage does restart every
+          # replica until it recovers. Restarting a replica whose Grafana is gone is what moves
+          # Raft leadership off it - pmm-managed hands leadership to a peer on shutdown - because
+          # HAProxy routes all traffic to the leader. Setting a *ProbeConf to null drops the probe.
+          {{- with .Values.startupProbeConf }}
+          startupProbe:
+            httpGet:
+              path: /graph/api/health
+              port: https
+              scheme: HTTPS
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbeConf }}
+          livenessProbe:
+            httpGet:
+              path: /graph/api/health
+              port: https
+              scheme: HTTPS
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /v1/readyz
