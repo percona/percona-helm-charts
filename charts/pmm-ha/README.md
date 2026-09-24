@@ -52,11 +52,10 @@ The chart's resource defaults target roughly **100 monitored nodes** and need
 about 17 CPU, 40Gi of memory and 465Gi of storage in requests — three workers of
 8 vCPU / 32Gi.
 
-Retention is the single largest lever on the footprint. Metrics and Query
-Analytics are retained separately — `victoriaMetrics.vmstorage.retentionPeriod`
-(90 days) and PMM's own setting (30 days) — and the optional `dataRetentionDays`
-drives both from one value. Note that the default 50Gi vmstorage volume holds
-roughly 30 days at 100 nodes, not 90.
+Retention is the single largest lever on the footprint. `dataRetentionDays`
+(30 days by default) sets it for metrics and Query Analytics alike, see
+[Data retention](#data-retention). The default 50Gi vmstorage volume holds
+roughly those 30 days at 100 nodes, so longer retention needs a larger volume.
 
 For larger fleets:
 
@@ -402,6 +401,7 @@ Consequences:
 | `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.1`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
+| `dataRetentionDays`                  | Data retention in whole days, applied to metrics and Query Analytics alike. The only way to set retention in HA. See [Data retention](#data-retention)                                                                                         | `30`                 |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
 | `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |
@@ -766,6 +766,34 @@ helm upgrade pmm-ha -f values.yaml --namespace pmm percona/pmm-ha
 
 This will check updates in the repo and upgrade deployment if the updates are available. The rolling update strategy ensures zero-downtime upgrades.
 
+### Data retention
+
+Set retention with the top-level `dataRetentionDays`, in whole days:
+
+```yaml
+dataRetentionDays: 30
+```
+
+The chart renders this one value into two places, so both stores keep data for the same period: `PMM_DATA_RETENTION` on every PMM replica, which governs Query Analytics data in ClickHouse, and `retentionPeriod` on the `VMCluster` resource, which governs metrics. Setting either directly, through `pmmEnv.PMM_DATA_RETENTION` or `victoriaMetrics.vmstorage.retentionPeriod`, is rejected at render time.
+
+Retention cannot be changed from the PMM UI in HA. For how to change it, how to check the period a replica is using, and what shortening it does to existing data, see [Adjust data retention](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-HA-clustered.html#adjust-data-retention-and-other-settings) in the PMM documentation.
+
+> **Upgrade note (from a Technical Preview installation)**
+>
+> `dataRetentionDays` now always sets retention for both stores, and it defaults to `30`.
+> Technical Preview versions kept metrics for `90d` by default, through
+> `victoriaMetrics.vmstorage.retentionPeriod`, and left Query Analytics retention to the
+> PMM UI. A shorter period takes effect in the same `helm upgrade` and deletes older data,
+> which cannot be recovered. Before upgrading, check the periods the release is using:
+>
+> - Metrics: `kubectl get vmcluster -n <namespace> -o jsonpath='{.items[*].spec.retentionPeriod}'`
+> - Query Analytics: **Data retention** under *PMM Configuration > Settings > Advanced Settings*
+>
+> Then set `dataRetentionDays` to the period you want to keep, for example `90` to keep the
+> earlier metrics default. If the two periods differ, the shorter store gains data over time
+> and needs more storage, see [docs/SIZING.md](docs/SIZING.md). Remove
+> `victoriaMetrics.vmstorage.retentionPeriod` from your values, which the chart now rejects.
+
 ### [PMM environment variables](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables)
 
 In case you want to add extra environment variables (useful for advanced operations like custom init scripts), you can use the `pmmEnv` property.
@@ -773,8 +801,9 @@ In case you want to add extra environment variables (useful for advanced operati
 ```yaml
 pmmEnv:
   PMM_ENABLE_UPDATES: "0"
-  PMM_DATA_RETENTION: "2160h" # 90 days
 ```
+
+Variables that the chart derives from other values, such as `PMM_DATA_RETENTION`, `PMM_VM_URL` and `PMM_CLICKHOUSE_ADDR`, are set on the container directly and cannot be overridden through `pmmEnv`.
 
 ### Kubernetes cluster metrics
 

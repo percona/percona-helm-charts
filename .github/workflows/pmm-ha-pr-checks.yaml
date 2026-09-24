@@ -228,6 +228,31 @@ jobs:
           # The point of openshift mode: the bundled DaemonSet must not be deployed.
           ! grep -q 'kind: DaemonSet' /tmp/smoke.yaml
 
+      # Only the VMCluster half of dataRetentionDays. The PMM half is asserted without a
+      # cluster in charts/pmm-ha/tests/data-retention_test.yaml, but vmcluster.yaml renders
+      # app.kubernetes.io/component twice - once from pmm.selectorLabels, once of its own -
+      # and helm unittest rejects the duplicate key before any assertion runs. Same
+      # --dry-run=server reason as the step above.
+      - name: Check data retention renders
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+
+          vmcluster() {  # isolate the VMCluster document; retentionPeriod also appears in a comment
+            awk '/^# Source: pmm-ha\/templates\/vmcluster.yaml/,/^---/'
+          }
+
+          # The same value the PMM replicas get as PMM_DATA_RETENTION, in the unit VMCluster takes.
+          helm install smoke charts/pmm-ha -n "${{ env.NS }}" --dry-run=server \
+            --set dataRetentionDays=30 > /tmp/retention.yaml
+          vmcluster < /tmp/retention.yaml | grep -q 'retentionPeriod: "30d"'
+
+          # The chart default has to render it too, so a stock install is never left on the
+          # operator default.
+          helm install smoke charts/pmm-ha -n "${{ env.NS }}" --dry-run=server \
+            > /tmp/retention-default.yaml
+          vmcluster < /tmp/retention-default.yaml | grep -qE 'retentionPeriod: "[0-9]+d"'
+
       - name: Check VictoriaMetrics credential resolution
         if: steps.list-changed.outputs.changed == 'true'
         run: |
