@@ -77,7 +77,7 @@ tests:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].readinessProbe
 
   # Helm merges a user's {} into the chart defaults, so only null turns a probe off.
-  - it: keeps the default timings when the conf is empty
+  - it: documents that Helm merges an empty conf into the defaults
     template: templates/statefulset.yaml
     set:
       livenessProbeConf: {}

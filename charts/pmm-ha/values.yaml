@@ -116,11 +116,12 @@ readyProbeConf:
   failureThreshold: 6
 
 ## Startup probe Config
-## Holds off the liveness and readiness probes until the container has started, so a slow first
-## start is not restarted mid-boot. The budget comes from failureThreshold (about 6 minutes)
-## rather than a long initial delay, which would also delay readiness and hold every replica out
-## of a rolling restart for that long. Set to null to drop the probe; drop the liveness probe
-## too, or it restarts replicas that are still booting.
+## Holds off the liveness and readiness probes until this probe first passes, so a slow first
+## start is not restarted mid-boot. The budget is failureThreshold x periodSeconds (about 6
+## minutes with the defaults) rather than a long initialDelaySeconds, which would keep every
+## restarted replica unready for that long and slow each step of a rolling update by the same
+## amount. Set to null to drop the probe; drop the liveness probe too, or it restarts replicas
+## that are still booting.
 ## @param startupProbeConf.initialDelaySeconds Number of seconds after the container has started before startup probes is initiated
 ## @param startupProbeConf.periodSeconds How often (in seconds) to perform the probe
 ## @param startupProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up
@@ -134,7 +135,7 @@ startupProbeConf:
 
 ## Liveness probe Config
 ## Restarts a replica that stops serving the UI. On the Raft leader that restart moves
-## leadership to a healthy replica. With the defaults a replica is restarted after 60s (6 x 10s)
+## leadership to another replica. With the defaults a replica is restarted after 60s (6 x 10s)
 ## of failed checks. The check depends on the shared PostgreSQL, so a database outage restarts
 ## every replica until it recovers. Set to null to drop the probe and turn these restarts off.
 ## @param livenessProbeConf.initialDelaySeconds Number of seconds after the container has started before liveness probes is initiated

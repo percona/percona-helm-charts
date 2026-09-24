@@ -305,10 +305,10 @@ spec:
           # than /v1/readyz: readyz also checks QAN, whose health check pings the shared
           # ClickHouse, so a ClickHouse outage would restart every replica at once. Grafana's own
           # check still depends on the shared PostgreSQL, so a database outage does restart every
-          # replica until it recovers. Restarting a replica whose Grafana is gone is what moves
-          # Raft leadership off it - pmm-managed hands leadership to a peer on shutdown - because
-          # HAProxy routes all traffic to the leader. Setting startupProbeConf or livenessProbeConf
-          # to null drops that probe.
+          # replica until it recovers. HAProxy routes all traffic to the Raft leader, so a leader
+          # whose Grafana is gone breaks the UI for everyone; restarting it moves leadership off
+          # it, because pmm-managed hands leadership to a peer on shutdown. Setting
+          # startupProbeConf or livenessProbeConf to null drops that probe.
           {{- with .Values.startupProbeConf }}
           startupProbe:
             httpGet:
