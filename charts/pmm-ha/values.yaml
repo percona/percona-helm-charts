@@ -1120,6 +1120,13 @@ victoriaMetrics:
       ## to vmauth's global maxConcurrentRequests default instead, leaving that global limit -
       ## which does protect vmauth itself from OOM - as the only ceiling.
       maxConcurrentPerUserRequests: "1000"
+      ## vmauth reads -auth.config at startup and then only on SIGHUP or /-/reload. The
+      ## operator mounts the chart's config Secret but does not watch it, so a helm upgrade
+      ## that adds a route or changes the credentials updates the file, not the running
+      ## process. In practice vmauth only picked a change up when pmm-managed happened to
+      ## reload its VictoriaMetrics URL - which in HA is vmauth - after an inventory change
+      ## (PMM-15556). Re-read the file on a timer instead; an unchanged file is a no-op.
+      configCheckInterval: "30s"
 
   ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
   ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
