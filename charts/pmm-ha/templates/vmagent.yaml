@@ -17,7 +17,13 @@ spec:
 
   # Number of VMAgent replicas
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
-  
+
+  {{- if .Values.serviceAccount.create }}
+  # Use PMM's service account so vmagent can scrape the kubelet/cAdvisor through
+  # the apiserver proxy (requires the nodes/proxy permission granted in clusterrole.yaml).
+  serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+  {{- end }}
+
   # Remote write configuration - forwards metrics to VMAuth with secure basicAuth
   remoteWrite:
     - url: "http://{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/api/v1/write"
