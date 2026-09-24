@@ -23,15 +23,27 @@ tests:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].readinessProbe.httpGet.path
           value: /v1/readyz
 
-  - it: restarts after 60s of failed liveness checks by default
+  # Pins every default timing: a lost timeoutSeconds falls back to Kubernetes' 1s, and a
+  # smaller startup budget restarts replicas mid-boot.
+  - it: restarts after 60s of failed liveness checks by default, with a boot budget ahead of it
     template: templates/statefulset.yaml
     asserts:
       - equal:
-          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.periodSeconds
-          value: 10
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe
+          value:
+            httpGet: {path: /graph/api/health, port: https, scheme: HTTPS}
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            failureThreshold: 6
+            timeoutSeconds: 5
       - equal:
-          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.failureThreshold
-          value: 6
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].startupProbe
+          value:
+            httpGet: {path: /graph/api/health, port: https, scheme: HTTPS}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 36
+            timeoutSeconds: 10
 
   - it: takes probe timings from values
     template: templates/statefulset.yaml
