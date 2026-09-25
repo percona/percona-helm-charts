@@ -85,6 +85,103 @@ checksum/clickhouse-datasource: {{ include (print $.Template.BasePath "/clickhou
 {{- end }}
 
 {{/*
+The pmm-secret as `lookup` returns it, resolved once per render and memoised on .Values the same
+way the generated VictoriaMetrics password is. pmm.validateSecret, secret.yaml and the two
+pmm.vm.* helpers all need the same object, and `lookup` is a live API call every time it is
+evaluated, so the same Secret was being fetched five or six times per render depending on
+secret.create - on every CI --dry-run=server render too.
+
+The whole object is cached rather than just .data, because pmm.validateSecret has to tell a
+secret that is absent (or a client-side render, where lookup says nothing) apart from one that
+exists carrying no data at all.
+*/}}
+{{- define "pmm.secret.cached" -}}
+{{- if not (hasKey .Values "cachedPmmSecret") -}}
+{{- $_ := set .Values "cachedPmmSecret" (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Validate the pmm-secret when the user owns it.
+
+statefulset.yaml mounts seven keys from this secret with no `optional`, so one missing key leaves
+every PMM pod in CreateContainerConfigError without naming what is wrong. Check them here and
+report all of the missing ones in a single message instead.
+
+The list is exactly what secret.yaml generates, which is why secret.create exempts all of it:
+demanding a key the chart is about to write would abort the install on its own output.
+
+PMM_ADMIN_PASSWORD is the key PMM-15400 is about - statefulset.yaml maps it to Grafana's
+GF_SECURITY_ADMIN_PASSWORD, and leaving that ref optional is what let it vanish silently.
+
+Included from statefulset.yaml and vmauth.yaml - both read these keys, and vmauth.yaml
+renders first, so it needs its own call to report the missing key rather than dying on a
+b64dec. Keep every consumer that decodes a key from this secret calling it.
+*/}}
+{{- define "pmm.validateSecret" -}}
+{{/*
+An empty secret.name is never a working configuration - statefulset.yaml drops both the envFrom
+secretRef and the GF_SECURITY_ADMIN_PASSWORD ref, and vmauth.yaml / pg-user-credentials-secrets.yaml
+/ clickhouse-cluster.yaml all read keys off a secret that was never named. Fail on it explicitly
+and first: `lookup` with an empty name does not come back empty, it returns a SecretList - truthy,
+with no .data - so the key loop below would otherwise report all seven keys as missing from a
+secret the operator never asked for, and simply skipping the loop would leave the render to die in
+vmauth.yaml on "index of untyped nil", naming neither the secret nor the setting.
+*/}}
+{{- if not .Values.secret.name -}}
+{{- fail "secret.name is empty. Set it to the name of the Kubernetes Secret that holds the PMM credentials (the chart default is 'pmm-secret')." -}}
+{{- end -}}
+{{- if not .Values.secret.create -}}
+{{- include "pmm.secret.cached" . -}}
+{{- $found := get .Values "cachedPmmSecret" -}}
+{{/*
+Only inspect keys once the Secret is actually in hand. `lookup` also comes back empty on every
+client-side render - helm template, --dry-run=client, a GitOps preview - where it says nothing
+about the secret's contents, and reporting all seven keys as missing there would be simply
+wrong. When the secret really is absent, pg-user-credentials-secrets.yaml fails with the
+accurate "Secret not found" message instead.
+*/}}
+{{- if $found -}}
+{{- $data := $found.data | default dict -}}
+{{- $required := list "PMM_ADMIN_PASSWORD" "GF_PASSWORD" "PG_PASSWORD" "PMM_CLICKHOUSE_USER" "PMM_CLICKHOUSE_PASSWORD" "PMM_HA_VM_USERNAME" "PMM_HA_VM_PASSWORD" -}}
+{{- $missing := list -}}
+{{- range $key := $required -}}
+{{- if not (get $data $key) -}}
+{{- $missing = append $missing $key -}}
+{{- end -}}
+{{- end -}}
+{{- if $missing -}}
+{{- $hint := "" -}}
+{{- if has "PMM_ADMIN_PASSWORD" $missing -}}
+{{- $hint = " PMM_ADMIN_PASSWORD sets the PMM/Grafana admin password." -}}
+{{- end -}}
+{{- if or (has "PMM_HA_VM_USERNAME" $missing) (has "PMM_HA_VM_PASSWORD" $missing) -}}
+{{- $hint = printf "%s Technical Preview installations stored the VictoriaMetrics credential as VMAGENT_remoteWrite_basicAuth_username and VMAGENT_remoteWrite_basicAuth_password: rename those keys rather than adding a second copy, because PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients. Alternatively set secret.create=true to have the chart generate the credential." $hint -}}
+{{- end -}}
+{{- fail (printf "Secret '%s' in namespace '%s' is missing, or has an empty value for, required key(s): %s.%s" .Values.secret.name .Release.Namespace (join ", " $missing) $hint) -}}
+{{- end -}}
+{{- /*
+The renamed keys must replace the Technical Preview ones, not join them. Every key of a user-owned
+secret becomes a PMM Server environment variable through envFrom, and PMM Server forwards each
+VMAGENT_* variable to every PMM Client's vmagent as its remote-write credential, wherever the
+operator points those writes. A leftover copy therefore wins over the credential PMM Server derives
+from PMM_VM_URL and goes stale at the next rotation, when every client write starts failing with
+nothing in the render or the server log to explain it.
+*/ -}}
+{{- $legacy := list -}}
+{{- range $key := list "VMAGENT_remoteWrite_basicAuth_username" "VMAGENT_remoteWrite_basicAuth_password" -}}
+{{- if hasKey $data $key -}}
+{{- $legacy = append $legacy $key -}}
+{{- end -}}
+{{- end -}}
+{{- if $legacy -}}
+{{- fail (printf "Secret '%s' in namespace '%s' still carries the Technical Preview key(s) %s. PMM Server forwards every VMAGENT_* key in this secret to all PMM Clients as their remote-write credential, so a leftover copy overrides the PMM_HA_VM_* credential and breaks every client write once that credential is rotated. Remove them with: kubectl get secret %s -n %s -o json | jq 'del(.data.VMAGENT_remoteWrite_basicAuth_username, .data.VMAGENT_remoteWrite_basicAuth_password)' | kubectl replace -f - (kubectl apply does not delete them; see 'Creating PMM Secret Manually' in the chart README for the full rename)." .Values.secret.name .Release.Namespace (join ", " $legacy) .Values.secret.name .Release.Namespace) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Override pg-database.fullname to ensure consistent naming
 This overrides the function from the pg-db subchart
 */}}
@@ -99,8 +196,15 @@ Generate PMM HA peer list dynamically based on replicas count
 {{- $peers := list }}
 {{- $serviceName := .Values.service.name | default "monitoring-service" }}
 {{- $replicas := int .Values.replicas }}
+{{- $fullname := include "pmm.fullname" . }}
 {{- range $i := until $replicas }}
-  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $.Release.Name $i $serviceName $.Release.Namespace }}
+  {{- /* Peers must use the StatefulSet name (pmm.fullname), not Release.Name: the pods are
+         <fullname>-<ordinal>. pmm.fullname equals Release.Name only when the release name
+         already contains the chart name (e.g. "pmm-ha" or "pmm-ha-2"); otherwise it is
+         "<release>-pmm-ha" (e.g. release "pmm-2" -> pods "pmm-2-pmm-ha-0"). Using
+         Release.Name for those releases yields peers that don't resolve and the HA
+         memberlist panics on startup. */}}
+  {{- $peer := printf "%s-%d.%s.%s.svc.cluster.local" $fullname $i $serviceName $.Release.Namespace }}
   {{- $peers = append $peers $peer }}
 {{- end }}
 {{- join "," $peers }}
@@ -160,6 +264,121 @@ Example output for 3 replicas:
 {{- end -}}
 {{- end -}}
 
+{{/*
+Name of the PMM Client StatefulSet
+*/}}
+{{- define "pmm.client.fullname" -}}
+{{- printf "%s-client" (include "pmm.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/*
+Selector labels of the PMM Client pods. They must differ from the PMM Server ones, otherwise the
+Client pods would be picked up by the PMM Server service and join the HA peer discovery.
+*/}}
+{{- define "pmm.client.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "pmm.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: pmm-client
+app.kubernetes.io/part-of: percona-platform
+{{- end -}}
+
+{{/*
+Common labels of the PMM Client resources
+*/}}
+{{- define "pmm.client.labels" -}}
+helm.sh/chart: {{ include "pmm.chart" . }}
+{{ include "pmm.client.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{/*
+Port HAProxy binds for PMM traffic. The HAProxy Service publishes this same value, so every
+in-cluster consumer of PMM has to follow it rather than assume 443.
+*/}}
+{{- define "pmm.haproxy.httpsPort" -}}
+{{- (.Values.haproxy.containerPorts).https | default 443 -}}
+{{- end -}}
+
+{{/*
+PMM Server address reachable from inside the cluster. HAProxy routes to the current leader, so this
+stays valid across failovers.
+*/}}
+{{- define "pmm.client.serverAddress" -}}
+{{- $haproxy := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
+{{- $port := include "pmm.haproxy.httpsPort" . -}}
+{{- printf "%s.%s.svc.cluster.local:%v" $haproxy .Release.Namespace $port -}}
+{{- end -}}
+
+{{/*
+Base directory of the PMM Client installation inside the image. It holds the exporters and tools, so
+only the subdirectories which have to survive a restart are backed by a volume: "config" keeps the
+Agent identity, "tmp" keeps the on-disk queue vmagent fills while PMM Server is unreachable.
+*/}}
+{{- define "pmm.client.baseDir" -}}
+/usr/local/percona/pmm
+{{- end -}}
+
+{{/*
+Environment shared by the PMM Client container and the init container which registers it.
+Credentials are deliberately not part of it, see pmm-client-statefulset.yaml.
+The temporary directory is left at its default, which is "tmp" under the base directory.
+*/}}
+{{- define "pmm.client.env" -}}
+- name: POD_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: POD_NAMESPACE
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.namespace
+- name: POD_IP
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
+- name: PMM_AGENT_CONFIG_FILE
+  value: {{ include "pmm.client.baseDir" . }}/config/pmm-agent.yaml
+- name: PMM_AGENT_SERVER_ADDRESS
+  value: {{ include "pmm.client.serverAddress" . }}
+- name: PMM_AGENT_SERVER_INSECURE_TLS
+  value: "1"
+- name: PMM_AGENT_LISTEN_ADDRESS
+  value: 0.0.0.0
+- name: PMM_AGENT_LISTEN_PORT
+  value: "7777"
+- name: PMM_AGENT_SETUP_NODE_TYPE
+  value: container
+- name: PMM_AGENT_SETUP_NODE_NAME
+  value: $(POD_NAMESPACE)-$(POD_NAME)
+- name: PMM_AGENT_SETUP_NODE_ADDRESS
+  value: $(POD_IP)
+- name: PMM_AGENT_SETUP_METRICS_MODE
+  value: push
+{{- end -}}
+
+{{/*
+Volume mounts backing the PMM Client directories which have to survive a restart
+*/}}
+{{- define "pmm.client.volumeMounts" -}}
+- name: pmm-agent
+  mountPath: {{ include "pmm.client.baseDir" . }}/config
+  subPath: config
+- name: pmm-agent
+  mountPath: {{ include "pmm.client.baseDir" . }}/tmp
+  subPath: tmp
+{{- end -}}
+
+{{/*
+Whether the bundled kube-state-metrics Deployment will render ("true"/"false").
+Like Helm's `condition:`, only a boolean false disables the subchart.
+*/}}
+{{- define "pmm.kubeStateMetrics.bundledEnabled" -}}
+{{- $v := dig "enabled" true (default dict (index .Values "kube-state-metrics")) -}}
+{{- if and (kindIs "bool" $v) (not $v) }}false{{ else }}true{{ end }}
+{{- end -}}
 
 {{- define "pmm.nodeExporter.mode" -}}
 {{- (.Values.nodeExporter).mode | default "internal" -}}
@@ -186,6 +405,210 @@ Called from statefulset.yaml, which always renders.
 {{- if eq $mode "openshift" -}}
 {{- if eq (include "pmm.nodeExporter.bundledEnabled" .) "true" -}}
 {{- fail "nodeExporter.mode=openshift requires prometheus-node-exporter.enabled=false: the bundled DaemonSet would collide with OpenShift's node-exporter on host port 9100." -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+The number of HAProxy server-template slots, and therefore the ceiling on replicas.
+Shared by haproxy-configmap.yaml (which renders it) and pmm.replicas.validate (which
+enforces it) so the two can never disagree about the default.
+
+kindIs "invalid" rather than `default`, because sprig's `default` treats 0 as empty:
+with it, maxReplicas=0 would silently become 10 and the range check below could never
+see it.
+*/}}
+{{- define "pmm.maxReplicas" -}}
+{{- if kindIs "invalid" .Values.maxReplicas -}}10{{- else -}}{{- .Values.maxReplicas -}}{{- end -}}
+{{- end -}}
+
+{{/*
+Shared parity check for the chart's two Raft ensembles - PMM itself and ClickHouse
+Keeper. Raft elects a leader by majority, so an even count needs more votes to elect
+one without surviving more failures (4 tolerates a single loss, exactly like 3), and a
+count of 2 tolerates none at all.
+
+Takes a dict of:
+  name     - the values key, used verbatim in every message
+  value    - the raw value, validated before it is parsed
+  ceiling  - largest permitted value, or 0 for unbounded. The "use N instead" hint is
+             clamped to it so it never names a value a later check would reject.
+  ceilingName - the values key the ceiling comes from, so the hint can name it.
+
+The regex is deliberately strict. sprig's `int` parses base 0, so "010" would silently
+become 8; and anything wider than int64 overflows to 0. Either way the message would
+quote a number the user never typed, so both are rejected as malformed input instead.
+*/}}
+{{- define "pmm.validate.oddCount" -}}
+{{- $name := .name -}}
+{{- $raw := .value -}}
+{{- if not (regexMatch "^[1-9][0-9]{0,3}$" (toString $raw)) -}}
+{{- fail (printf "%s must be a whole number between 1 and 9999, got %v." $name $raw) -}}
+{{- end -}}
+{{- $n := int $raw -}}
+{{- if eq (mod $n 2) 0 -}}
+{{- $ceiling := int (.ceiling | default 0) -}}
+{{- $lower := sub $n 1 -}}
+{{- $upper := add $n 1 -}}
+{{- $hint := printf "Use %d or %d." $lower $upper -}}
+{{- if gt $ceiling 0 -}}
+{{- $maxOdd := $ceiling -}}
+{{- if eq (mod $ceiling 2) 0 -}}
+{{- $maxOdd = sub $ceiling 1 -}}
+{{- end -}}
+{{- if gt $upper $maxOdd -}}
+{{- if le $lower $maxOdd -}}
+{{- $hint = printf "Use %d." $lower -}}
+{{- else -}}
+{{- $hint = printf "%s is %d, so the largest supported value is %d." (.ceilingName | default "The ceiling") $ceiling $maxOdd -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- fail (printf "%s must be odd, got %d: an even count adds a Raft voter without adding fault tolerance - it widens the majority a leader election needs while surviving no more failures. %s" $name $n $hint) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the PMM replica count.
+Called from statefulset.yaml, which always renders and reaches these checks before the
+lookup in pg-user-credentials-secrets.yaml, so a plain `helm template` reports the real
+problem rather than a missing secret.
+
+HAProxy discovers PMM through a server-template with maxReplicas slots
+(haproxy-configmap.yaml), fills them from a headless-service DNS answer in arbitrary
+order, and marks a backend UP only when it answers /v1/server/leaderHealthCheck with
+200. Going above maxReplicas is therefore not merely under-routing: if the Raft leader
+lands on a pod that got no slot, every backend is DOWN and PMM serves 503.
+*/}}
+{{- define "pmm.replicas.validate" -}}
+{{- $maxRaw := include "pmm.maxReplicas" . -}}
+{{- if not (regexMatch "^([1-9][0-9]?|100)$" $maxRaw) -}}
+{{- fail (printf "maxReplicas must be a whole number between 1 and 100, got %v: it is rendered verbatim into the HAProxy server-template, and every slot is a backend server allocated at startup." $maxRaw) -}}
+{{- end -}}
+{{- $maxReplicas := int $maxRaw -}}
+{{- include "pmm.validate.oddCount" (dict "name" "replicas" "value" .Values.replicas "ceiling" $maxReplicas "ceilingName" "maxReplicas") -}}
+{{- $replicas := int .Values.replicas -}}
+{{- if gt $replicas $maxReplicas -}}
+{{- fail (printf "replicas (%d) exceeds maxReplicas (%d): HAProxy renders only %d server-template slots and fills them from DNS in arbitrary order, so a pod left without a slot is invisible to it. Because HAProxy marks a backend UP only when it answers /v1/server/leaderHealthCheck, a Raft leader on that pod leaves every backend DOWN and PMM serves 503. Lower replicas, or raise maxReplicas and bump haproxy.podAnnotations \"pmm.percona.com/config-version\" in the same upgrade so HAProxy restarts with the new server-template." $replicas $maxReplicas $maxReplicas) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the `openshift` flag.
+
+It only governs the PMM Server and PMM Client pod securityContexts. The bundled
+kube-state-metrics and prometheus-node-exporter carry their own `restricted-v2` violations, and
+left at their defaults they reproduce the very failure the flag exists to remove: Helm reports
+`STATUS: deployed` while those workloads are rejected at admission and produce zero pods. So the
+flag requires the rest of the overlay rather than silently delivering half of it.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.openshift.validate" -}}
+{{- if .Values.openshift -}}
+{{- if ne (include "pmm.nodeExporter.mode" .) "openshift" -}}
+{{- fail "openshift=true requires nodeExporter.mode=openshift: the bundled prometheus-node-exporter needs hostNetwork, hostPID, hostPath volumes and host port 9100, none of which restricted-v2 permits. Install with -f examples/values-openshift.yaml." -}}
+{{- end -}}
+{{- if eq (include "pmm.kubeStateMetrics.bundledEnabled" .) "true" -}}
+{{- if dig "securityContext" "enabled" true (default dict (index .Values "kube-state-metrics")) -}}
+{{- fail "openshift=true requires kube-state-metrics.securityContext.enabled=false: the subchart pins uid/gid/fsGroup 65534, outside the namespace's assigned ranges. Install with -f examples/values-openshift.yaml." -}}
+{{- end -}}
+{{- end -}}
+{{- $httpsPort := int (include "pmm.haproxy.httpsPort" .) -}}
+{{- if lt $httpsPort 1024 -}}
+{{- fail (printf "openshift=true requires haproxy.containerPorts.https above 1024, got %d: restricted-v2 runs the container as a non-root uid with all capabilities dropped and allowPrivilegeEscalation=false, so HAProxy cannot bind a privileged port (\"cannot bind socket (Permission denied) for [0.0.0.0:%d]\") and the only ingress to PMM crash-loops while Helm still reports STATUS: deployed. Install with -f examples/values-openshift.yaml." $httpsPort $httpsPort) -}}
+{{- end -}}
+{{- else -}}
+{{/*
+The inverse check: the cluster IS OpenShift but openshift=false, so the chart is about to pin
+uid/gid values restricted-v2 rejects. Worth failing the render over, because the failure it
+prevents is silent, delayed and NOT self-healing:
+
+  - the StatefulSets are accepted, and pods already running stay up, so nothing looks wrong;
+  - every REPLACEMENT pod is refused ("1000 is not an allowed group ... must be in the ranges:
+    [1000850000, 1000859999]"), so the set quietly degrades, 3 -> 2 -> ...;
+  - and it cannot be repaired by fixing the values and upgrading again. Helm diffs against the
+    last SUCCESSFUL release; a failed upgrade's manifest is not recorded, so the uid keys it
+    applied are invisible to every later upgrade. They have to be cleared by hand:
+      kubectl patch sts <sts> --type=merge \
+        -p '{"spec":{"template":{"spec":{"securityContext":null}}}}'
+
+Detection is .Capabilities, not `lookup`: it needs no RBAC, and a client-side `helm template`
+carries the default API list, so CI renders do not trip this.
+
+Narrow on purpose - it fires only when something restricted-v2 would actually reject is set, so
+clearing those keys is an escape hatch for anyone running with anyuid.
+*/}}
+{{- if .Capabilities.APIVersions.Has "security.openshift.io/v1" -}}
+{{- $psc := .Values.podSecurityContext | default dict -}}
+{{- $pinned := list -}}
+{{- range $k := (list "runAsUser" "runAsGroup" "fsGroup") -}}
+{{- if hasKey $psc $k -}}{{- $pinned = append $pinned (printf "podSecurityContext.%s" $k) -}}{{- end -}}
+{{- end -}}
+{{- if not (kindIs "invalid" .Values.pmmClient.fsGroup) -}}
+{{- $pinned = append $pinned "pmmClient.fsGroup" -}}
+{{- end -}}
+{{- if $pinned -}}
+{{- fail (printf "This cluster exposes security.openshift.io/v1 (OpenShift), but openshift=false. %s would be rendered onto the PMM Server and PMM Client StatefulSets, and restricted-v2 rejects uids and groups outside the namespace's assigned ranges.\n\nThe pods are ADMITTED at apply time and only REPLACEMENT pods are refused, so the StatefulSet degrades silently later, and a failed upgrade leaves values that no subsequent upgrade can clear (Helm diffs against the last successful release).\n\nSet openshift=true, or install with -f examples/values-openshift.yaml. If you deliberately run with anyuid, clear those keys instead (podSecurityContext={} and pmmClient.fsGroup=null)." (join ", " $pinned)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation for the ClickHouse Keeper node count.
+Called from statefulset.yaml alongside the other value checks, for the same ordering
+reason described above.
+
+The parenthesised lookup matches pmm.nodeExporter.mode: without it, a nulled clickhouse
+or clickhouse.keeper key aborts with a raw Go nil-pointer error instead of the message
+this validator exists to produce.
+
+Unlike replicas there is no HAProxy-style hard constraint here, so the ceiling is a
+supportability limit rather than a correctness one: every Keeper node is a full Raft
+voter, so each extra pair widens the majority that every write waits on while buying
+fault tolerance nobody asked for - 9 already survives 4 simultaneous losses. The bound
+is enforced here rather than in pmm.validate.oddCount, which only clamps the hint: adding
+a rejection there would fire ahead of the maxReplicas check in pmm.replicas.validate and
+swallow its far more specific message.
+*/}}
+{{- define "pmm.keeper.validate" -}}
+{{- $ceiling := 9 -}}
+{{- $raw := ((.Values.clickhouse).keeper).replicasCount -}}
+{{- include "pmm.validate.oddCount" (dict "name" "clickhouse.keeper.replicasCount" "value" $raw "ceiling" $ceiling "ceilingName" "The supported maximum") -}}
+{{- $n := int $raw -}}
+{{- if gt $n $ceiling -}}
+{{- fail (printf "clickhouse.keeper.replicasCount (%d) exceeds the supported maximum (%d): every Keeper node is a full Raft voter, so each extra pair widens the majority every write waits on without buying fault tolerance the cluster needs - %d already survives 4 simultaneous losses." $n $ceiling $ceiling) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation that the bundled PostgreSQL cluster still reaches HAProxy.
+
+`haproxy.containerPorts.https` moves the HAProxy bind and the Service port together, and the
+chart's own consumers follow it. `pg-db.pmm.serverHost` does not: the PostgreSQL operator copies
+it verbatim into PMM_AGENT_SERVER_ADDRESS, and pmm-agent appends :443 to an address that carries
+no port. Left behind, the sidecar dials a port HAProxy no longer publishes while every pod stays
+Running and the PMM inventory stays empty - the same silent half-install the openshift validator
+exists to prevent, and reachable on plain Kubernetes.
+Only checked when serverHost actually points at this chart's HAProxy; an external PMM is the
+user's business.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.haproxy.validate" -}}
+{{- $port := int (include "pmm.haproxy.httpsPort" .) -}}
+{{- $pg := default dict (index .Values "pg-db") -}}
+{{- if dig "pmm" "enabled" false $pg -}}
+{{- $host := dig "pmm" "serverHost" "" $pg -}}
+{{- $svc := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
+{{- $parts := splitList ":" $host -}}
+{{- if hasPrefix $svc (first $parts) -}}
+{{- $declared := 443 -}}
+{{- if gt (len $parts) 1 -}}
+{{- $declared = int (last $parts) -}}
+{{- end -}}
+{{- if ne $declared $port -}}
+{{- fail (printf "pg-db.pmm.serverHost is %q, which resolves to port %d, but haproxy.containerPorts.https is %d. The PostgreSQL operator copies serverHost verbatim into PMM_AGENT_SERVER_ADDRESS and pmm-agent appends :443 to an address with no port, so the PMM sidecar would dial a port HAProxy does not publish - silently, while every pod stays Running and the PMM inventory stays empty. Set pg-db.pmm.serverHost to %q." $host $declared $port (printf "%s:%d" $svc $port)) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -290,5 +713,217 @@ dict with "name" and "value".
 {{- define "pmm.clickhouse.validateIdentifier" -}}
 {{- if not (regexMatch "^[A-Za-z_][A-Za-z0-9_-]*$" .value) -}}
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Pod security context for the PMM Server StatefulSet.
+
+On OpenShift the namespace owns the identity: `restricted-v2` requires runAsUser to be inside
+the namespace's assigned uid-range and fsGroup inside its supplemental-group range, and rejects
+the pod outright otherwise. Dropping just those three keys lets OpenShift assign the identity
+while everything else the user set - seccompProfile, supplementalGroups, fsGroupChangePolicy -
+survives, since `restricted-v2` permits all of them.
+
+On plain Kubernetes fsGroup is load-bearing - it is what makes the PVC group-writable for the
+image's uid - so it must stay. runAsUser is not: the PMM Server image already declares
+`USER 1000`, and its entrypoint supports an arbitrary assigned uid via the NSS wrapper.
+*/}}
+{{- define "pmm.podSecurityContext" -}}
+{{- $ctx := .Values.podSecurityContext | default dict -}}
+{{- if .Values.openshift -}}
+{{- $ctx = omit $ctx "runAsUser" "runAsGroup" "fsGroup" -}}
+{{- end -}}
+{{- if $ctx -}}
+securityContext:
+  {{- toYaml $ctx | nindent 2 }}
+{{- else -}}
+securityContext: {}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Pod security context for the PMM Client StatefulSet. Same reasoning as above; the client image
+runs as uid 1002 rather than 1000, and fsGroup is the only key the chart sets, so on OpenShift
+nothing is left to emit.
+*/}}
+{{- define "pmm.client.podSecurityContext" -}}
+{{- if .Values.openshift -}}
+securityContext: {}
+{{- else -}}
+securityContext:
+  # The PMM Client image runs as this user, which has to own the volume to write to it.
+  fsGroup: {{ .Values.pmmClient.fsGroup }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Name of the secret holding the PMM service account token the pg-db PMM client uses.
+
+Reproduces pg-db's own default expression - `pmm.secret | default (printf "%s-pmm-secret"
+(include "pg-database.fullname" .))` (charts/pg-db/templates/cluster.yaml) - rather than the
+string it happens to produce, so the two cannot drift: pmm-ha overrides pg-database.fullname
+above, and both sides pick that override up from the same place. Only the Job reads this
+helper; the subchart reaches pg-database.fullname directly.
+
+Release-scoped on purpose: the token is created imperatively by the token-init Job rather
+than owned by Helm, so `helm uninstall` cannot remove it. A fixed name therefore lets a NEW
+release inherit the previous install's dead token.
+*/}}
+{{- define "pmm.pgPmmSecretName" -}}
+{{- $explicit := index .Values "pg-db" "pmm" "secret" -}}
+{{- if $explicit -}}
+{{- $explicit -}}
+{{- else -}}
+{{- printf "%s-pmm-secret" (include "pg-database.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Name of the pg-db PMM token-init Job, suffixed with a hash of its own pod template.
+
+A Job's spec.template is immutable, and this Job carries no helm.sh/hook annotations, so Helm
+treats it as an ordinary release resource and patches it on upgrade. Any change to the script
+or to an env value would then fail the upgrade with `spec.template: field is immutable` for as
+long as the previous Job exists - ttlSecondsAfterFinished bounds that to 24h after it
+completed, so it only bites an upgrade that follows soon after an install, which is exactly
+what CI (fresh `ct install` only) never exercises. With the hash in the name such a change
+renames the resource instead, and Helm creates the new Job and prunes the old one.
+
+The release name is truncated, rather than the finished string, so the result stays within the
+63-character limit that applies to the `job-name` label Kubernetes puts on the Job's pods while
+keeping the "-pmm-token-init" part readable: 37 + "-pmm-token-init" + "-" + 8 = 61. Helm caps
+release names at 53, so the untruncated `<release>-pmm-token-init` this replaces could reach 68
+and be rejected outright.
+*/}}
+{{- define "pmm.pgTokenJobName" -}}
+{{- $base := .Release.Name | trunc 37 | trimSuffix "-" -}}
+{{- printf "%s-pmm-token-init-%s" $base (include "pmm.pgTokenJobPodTemplate" . | sha256sum | trunc 8) -}}
+{{- end -}}
+
+{{/*
+Value of one VictoriaMetrics credential already stored in .Values.secret.name, empty when the
+secret does not carry the key. Takes a dict with "root" and "key".
+*/}}
+{{- define "pmm.vm.existingCredential" -}}
+{{- include "pmm.secret.cached" .root -}}
+{{- $existing := get .root.Values "cachedPmmSecret" -}}
+{{- $data := dict -}}
+{{- if $existing -}}
+{{- $data = $existing.data | default dict -}}
+{{- end -}}
+{{- if hasKey $data .key -}}
+{{- index $data .key | b64dec -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Username vmauth validates incoming remote-write and query requests against.
+
+vmauth needs the plaintext in its own config while PMM Server and vmagent read it from
+.Values.secret.name, so both have to agree: resolving it in one place is what keeps the config
+secret and pmm-secret from drifting apart. A user-owned secret that lacks the key is reported by
+pmm.validateSecret, which vmauth.yaml and statefulset.yaml call before resolving it.
+*/}}
+{{- define "pmm.vm.username" -}}
+{{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_USERNAME") -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else -}}
+{{- .Values.secret.victoriametrics_user | default "victoriametrics_pmm" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Password vmauth validates incoming remote-write and query requests against.
+
+A generated password is memoised on .Values, the same way the ClickHouse data source password is:
+randAlphaNum would otherwise hand vmauth a different password than the one written to the secret
+PMM Server and vmagent authenticate with.
+*/}}
+{{/*
+Refuse a VictoriaMetrics credential that PMM_VM_URL cannot carry.
+
+statefulset.yaml composes PMM_VM_URL as http://$(user):$(password)@host and PMM Server reads the
+credential back out with url.Parse and User.Password(). Each half is checked against the character
+set url.Parse returns unchanged there, because everything outside it ends as a failed write path
+with nothing naming the credential: '"', '<', '>', '[', '\', ']', '^', '`', '{', '|', '}' and any
+non-ASCII character make url.Parse reject the whole URL; '/', '?' and '#' end the authority, so the
+credential is silently dropped or the URL is rejected; whitespace makes the userinfo invalid; and a
+':' in the username moves the boundary, so the rest of the username becomes the start of the
+password. '@' is safe in both halves, because url.Parse splits the authority on the last one.
+
+The set is Go's validUserinfo minus '%': url.Parse accepts a percent escape and then decodes it, so
+a password of %41 is stored as %41 and arrives at vmauth as A.
+
+An allowlist rather than an enumeration of rejected characters: the two agree with url.Parse on
+every printable ASCII character in both halves, but only the allowlist also covers non-ASCII and
+the empty string.
+
+Only what the chart can see is checked. A generated password is alphanumeric, and a user-owned
+secret is read here through the same memoised lookup every other consumer uses.
+*/}}
+{{- define "pmm.vm.validateCredential" -}}
+{{- $username := include "pmm.vm.username" . -}}
+{{- $password := include "pmm.vm.password" . -}}
+{{- if not (regexMatch "^[A-Za-z0-9._~!$&'()*+,;=@-]+$" $username) -}}
+{{- fail (printf "The VictoriaMetrics username is not usable in PMM_VM_URL: PMM Server parses that URL with url.Parse, which returns the username unchanged only when it is built from letters, digits and the punctuation -._~!$&'()*+,;=@ . Any other character, '%%', ':' and whitespace included, changes the credential, drops it, or fails the parse, and every metric write and query then fails with 401. Set it to a value from that set, in the PMM_HA_VM_USERNAME key of secret '%s' or in secret.victoriametrics_user." .Values.secret.name) -}}
+{{- end -}}
+{{- if not (regexMatch "^[A-Za-z0-9._~!$&'()*+,;=:@-]+$" $password) -}}
+{{- fail (printf "The VictoriaMetrics password is not usable in PMM_VM_URL: PMM Server parses that URL with url.Parse, which returns the password unchanged only when it is built from letters, digits and the punctuation -._~!$&'()*+,;=:@ . Any other character, '%%' and whitespace included, changes the credential, drops it, or fails the parse, and every metric write and query then fails with 401. Set it to a value from that set, in the PMM_HA_VM_PASSWORD key of secret '%s' or in secret.victoriametrics_password." .Values.secret.name) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "pmm.vm.password" -}}
+{{- $existing := include "pmm.vm.existingCredential" (dict "root" . "key" "PMM_HA_VM_PASSWORD") -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else if .Values.secret.victoriametrics_password -}}
+{{- .Values.secret.victoriametrics_password -}}
+{{- else -}}
+{{- if not (hasKey .Values "generatedVictoriaMetricsPassword") -}}
+{{- $_ := set .Values "generatedVictoriaMetricsPassword" (randAlphaNum 32) -}}
+{{- end -}}
+{{- get .Values "generatedVictoriaMetricsPassword" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Resolve one key of the PMM secret to its base64 value, for the keys that more than one template
+needs to agree on.
+
+secret.yaml generates GF_PASSWORD and PG_PASSWORD, and pg-user-credentials-secrets.yaml has to
+write those same two passwords into the per-user credentials secrets the PostgreSQL operator
+reads. Under secret.create the secret does not exist yet at render time - Helm renders every
+template before it applies the pre-install hook that creates it - so the second template cannot
+read the value back and has to derive it the same way. Deriving it with a second randAlphaNum
+would hand Grafana a password PostgreSQL never got, so the generated value is cached on .Values
+and every caller gets the same one, the way pmm.clickhouse.datasourcePassword and
+pmm.vm.password already do. The secret itself is read through pmm.secret.cached, like every
+other consumer, so this adds no lookup of its own.
+
+Precedence: the key already in the secret (upgrades keep their password), then the explicit
+value from values.yaml, then a generated one. Takes a dict with "ctx" (the root context), "key"
+and "override". Returns base64 - the callers write it straight into a Secret's data.
+*/}}
+{{- define "pmm.secret.key" -}}
+{{- $ctx := .ctx -}}
+{{- include "pmm.secret.cached" $ctx -}}
+{{- $existing := get $ctx.Values "cachedPmmSecret" -}}
+{{- $current := "" -}}
+{{/* An empty secret.name makes lookup return a SecretList, which has no .data. */}}
+{{- if and $existing $existing.data -}}
+{{- $current = get $existing.data .key -}}
+{{- end -}}
+{{- if $current -}}
+{{- $current -}}
+{{- else if .override -}}
+{{- .override | b64enc -}}
+{{- else -}}
+{{- $cache := printf "generated_%s" .key -}}
+{{- if not (hasKey $ctx.Values $cache) -}}
+{{- $_ := set $ctx.Values $cache (randAlphaNum 32 | b64enc) -}}
+{{- end -}}
+{{- get $ctx.Values $cache -}}
 {{- end -}}
 {{- end -}}

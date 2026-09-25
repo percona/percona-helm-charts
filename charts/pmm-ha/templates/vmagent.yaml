@@ -10,19 +10,30 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: vmagent
 spec:
+  {{- if .Values.victoriaMetrics.version }}
+  # Pinned alongside the VMCluster - see victoriaMetrics.version in values.yaml.
+  componentVersion: {{ .Values.victoriaMetrics.version | quote }}
+  {{- end }}
+
   # Number of VMAgent replicas
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
-  
+
+  {{- if .Values.serviceAccount.create }}
+  # Use PMM's service account so vmagent can scrape the kubelet/cAdvisor through
+  # the apiserver proxy (requires the nodes/proxy permission granted in clusterrole.yaml).
+  serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+  {{- end }}
+
   # Remote write configuration - forwards metrics to VMAuth with secure basicAuth
   remoteWrite:
     - url: "http://{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/api/v1/write"
       basicAuth:
         username:
           name: {{ .Values.secret.name }}
-          key: VMAGENT_remoteWrite_basicAuth_username
+          key: PMM_HA_VM_USERNAME
         password:
           name: {{ .Values.secret.name }}
-          key: VMAGENT_remoteWrite_basicAuth_password
+          key: PMM_HA_VM_PASSWORD
       {{- if .Values.victoriaMetrics.vmagent.remoteWrite }}
       {{- toYaml .Values.victoriaMetrics.vmagent.remoteWrite | nindent 6 }}
       {{- end }}
@@ -64,9 +75,14 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # Keep only ClickHouse pods from this release
+        {{- /* Keep only ClickHouse pods from this release. The label carries the
+               ClickHouseInstallation name, which clickhouse-cluster.yaml sets from Release.Name
+               (NOT pmm.fullname) - they differ whenever the release name does not already
+               contain the chart name, e.g. release "pmm-2" -> CHI "pmm-2", fullname "pmm-2-pmm-ha".
+               regexQuoteMeta: the value lands in a fully-anchored RE2 regex and Helm permits "."
+               in release names, so an unescaped name could match a different CHI. */}}
         - source_labels: [__meta_kubernetes_pod_label_clickhouse_altinity_com_chi]
-          regex: '{{ include "pmm.fullname" . }}'
+          regex: '{{ .Release.Name | regexQuoteMeta }}'
           action: keep
         # Target the metrics port (9363)
         - source_labels: [__meta_kubernetes_pod_container_port_number]
@@ -96,9 +112,10 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # Keep only ClickHouse Keeper pods from this release
+        {{- /* Keep only ClickHouse Keeper pods from this release. As above, the label carries the
+               ClickHouseKeeperInstallation name, which clickhouse-keeper.yaml sets from Release.Name. */}}
         - source_labels: [__meta_kubernetes_pod_label_clickhouse_keeper_altinity_com_chk]
-          regex: '{{ include "pmm.fullname" . }}-keeper'
+          regex: '{{ .Release.Name | regexQuoteMeta }}-keeper'
           action: keep
         # Target the metrics port (7000)
         - source_labels: [__meta_kubernetes_pod_container_port_number]
@@ -127,7 +144,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: 'vmselect-{{ include "pmm.fullname" . }}-vmcluster'
+          regex: 'vmselect-{{ include "pmm.fullname" . | regexQuoteMeta }}-vmcluster'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -149,7 +166,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: 'vminsert-{{ include "pmm.fullname" . }}-vmcluster'
+          regex: 'vminsert-{{ include "pmm.fullname" . | regexQuoteMeta }}-vmcluster'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -171,7 +188,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: 'vmstorage-{{ include "pmm.fullname" . }}-vmcluster'
+          regex: 'vmstorage-{{ include "pmm.fullname" . | regexQuoteMeta }}-vmcluster'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -193,7 +210,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: '{{ include "pmm.fullname" . }}-vmauth'
+          regex: '{{ include "pmm.fullname" . | regexQuoteMeta }}-vmauth'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -215,7 +232,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: '{{ include "pmm.fullname" . }}-vmagent'
+          regex: '{{ include "pmm.fullname" . | regexQuoteMeta }}-vmagent'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -228,6 +245,7 @@ spec:
           target_label: service
         - target_label: __metrics_path__
           replacement: /metrics
+    {{- if eq (include "pmm.kubeStateMetrics.bundledEnabled" .) "true" }}
     # Scrape kube-state-metrics for Kubernetes object state
     - job_name: 'kube-state-metrics'
       kubernetes_sd_configs:
@@ -246,7 +264,8 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
-    {{- if eq (include "pmm.nodeExporter.mode" .) "internal" }}
+    {{- end }}
+    {{- if and (eq (include "pmm.nodeExporter.mode" .) "internal") (eq (include "pmm.nodeExporter.bundledEnabled" .) "true") }}
     # Scrape node-exporter for node-level metrics (bundled prometheus-node-exporter DaemonSet)
     - job_name: 'node-exporter'
       kubernetes_sd_configs:

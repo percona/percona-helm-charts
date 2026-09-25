@@ -1,4 +1,10 @@
 {{- include "pmm.nodeExporter.validate" . -}}
+{{- include "pmm.openshift.validate" . -}}
+{{- include "pmm.haproxy.validate" . -}}
+{{- include "pmm.validateSecret" . -}}
+{{- include "pmm.vm.validateCredential" . -}}
+{{- include "pmm.replicas.validate" . -}}
+{{- include "pmm.keeper.validate" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -27,8 +33,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- include "pmm.podSecurityContext" . | nindent 6 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -168,6 +173,35 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: PMM_HA_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{/*
+            Grafana reads the admin password from GF_SECURITY_ADMIN_PASSWORD, but the secret
+            stores it under PMM_ADMIN_PASSWORD. With a user-created secret (secret.create: false,
+            the documented default) the envFrom secretRef above injects that secret's keys
+            verbatim and cannot rename one, so the mapping has to be emitted here; with
+            secret.create there is no envFrom secretRef at all and this is the only source.
+            Either way it must not be gated on secret.create - that gate is what caused
+            PMM-15400, leaving PMM on its built-in admin password. charts/pmm guards the same
+            env on secret.name.
+
+            Where envFrom does apply, env wins over it, so a GF_SECURITY_ADMIN_PASSWORD key also
+            placed in the secret is overridden - PMM_ADMIN_PASSWORD is the single source of truth.
+
+            Required, not optional: pmm.validateSecret refuses to render without the key, so an
+            optional ref would only serve to let a key deleted after install silently drop the
+            env var again. Note charts/pmm still uses optional: true for its copy of this ref.
+            */}}
+            {{ if .Values.secret.name }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+                  optional: false
+            {{ end }}
             {{ if .Values.secret.create }}
             # additional secrets that could be used for Grafana iDP
             - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
@@ -181,12 +215,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
-                  optional: true
-            - name: GF_SECURITY_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: PMM_ADMIN_PASSWORD
                   optional: true
             {{ end }}
             - name: PMM_POSTGRES_USERNAME
@@ -209,16 +237,19 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_PASSWORD
-            - name: VMAGENT_remoteWrite_basicAuth_username
+            # VictoriaMetrics (vmauth) credentials. Named PMM_HA_* on purpose: PMM Server reads them only
+            # through PMM_VM_URL below, and the PMM_HA_ prefix keeps them out of the VMAGENT_* passthrough
+            # that PMM forwards to every PMM Client's vmagent.
+            - name: PMM_HA_VM_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
-                  key: VMAGENT_remoteWrite_basicAuth_username
-            - name: VMAGENT_remoteWrite_basicAuth_password
+                  key: PMM_HA_VM_USERNAME
+            - name: PMM_HA_VM_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
-                  key: VMAGENT_remoteWrite_basicAuth_password
+                  key: PMM_HA_VM_PASSWORD
             - name: PMM_CLICKHOUSE_USER
               valueFrom:
                 secretKeyRef:
@@ -242,7 +273,7 @@ spec:
                   name: {{ include "pmm.clickhouse.datasourceSecretName" . }}
                   key: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
             - name: PMM_VM_URL
-              value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
+              value: "http://$(PMM_HA_VM_USERNAME):$(PMM_HA_VM_PASSWORD)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
             - name: PMM_CLICKHOUSE_ADDR
               value: "{{ include "pmm.fullname" . }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
@@ -251,10 +282,23 @@ spec:
               value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
             - name: PMM_HA_PEERS
               value: "{{ include "pmm.haPeers" . }}"
+            {{- if index .Values "pg-db" "pmm" "enabled" }}
+            # Let PMM know of dedicated nodes that must not be used for monitoring other services.
+            - name: PMM_INTERNAL_NODE_NAME_PREFIXES
+              value: "{{ .Release.Namespace }}-{{ include "pg-database.fullname" . }}-"
+            {{- end }}
             - name: PMM_CLICKHOUSE_NODES
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
             - name: PMM_ENCRYPTION_KEY_PATH
               value: /etc/secrets/key
+            {{- /* Only emitted when dataRetentionDays is set. PMM refuses to change data
+                   retention from the UI or API while PMM_DATA_RETENTION is present, so the
+                   chart stays out of the way unless retention is managed declaratively.
+                   PMM takes a Go duration and requires a whole number of days. */}}
+            {{- if .Values.dataRetentionDays }}
+            - name: PMM_DATA_RETENTION
+              value: "{{ mul (int .Values.dataRetentionDays) 24 }}h"
+            {{- end }}
           ports:
             - name: https
               containerPort: 8443

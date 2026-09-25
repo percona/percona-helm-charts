@@ -4,6 +4,12 @@ on:
     paths:
       - 'charts/pmm-ha/**'
       - 'charts/pmm-ha-dependencies/**'
+      # Without this a PR that only edits the assertions below runs no job at all.
+      - '.github/workflows/pmm-ha-pr-checks.yaml'
+      # Same reason: the helm unittest step below runs `make test-pmm-ha`, and
+      # unit-test.yaml's matrix covers only the pxc targets - so a Makefile-only
+      # PR that breaks this chart's target matches no workflow at all.
+      - 'Makefile'
 
 jobs:
   lint-test:
@@ -19,9 +25,9 @@ jobs:
             charts/pmm-ha-dependencies
 
       - name: Set up Helm
-        uses: azure/setup-helm@v4.2.0
+        uses: azure/setup-helm@v5.0.0
         with:
-          version: v3.15.4
+          version: v3.21.0
 
       - uses: azure/setup-kubectl@v4
 
@@ -37,9 +43,9 @@ jobs:
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts/
           helm repo update
 
-      # Renders only - no cluster needed. Every case hits the fail in
-      # pmm.nodeExporter.validate before the lookup in pg-user-credentials-secrets.yaml.
-      - name: Check node-exporter mode validation
+      # Renders only - no cluster needed. Every case hits a fail in pmm.nodeExporter.validate
+      # or pmm.openshift.validate before the lookup in pg-user-credentials-secrets.yaml.
+      - name: Check node-exporter mode and openshift validation
         run: |
           set -euo pipefail
           helm dependency build charts/pmm-ha
@@ -70,10 +76,53 @@ jobs:
           assert_fails "$collision" --set nodeExporter.mode=openshift --set-string prometheus-node-exporter.enabled=false
           assert_fails 'nodeExporter.mode must be "internal" or "openshift"' --set nodeExporter.mode=bogus
 
+          # `openshift: true` only covers the PMM Server and PMM Client securityContexts. On its
+          # own it leaves kube-state-metrics and prometheus-node-exporter rejected by restricted-v2
+          # with Helm still reporting success, so it must refuse to render without the rest of
+          # examples/values-openshift.yaml.
+          assert_fails "openshift=true requires nodeExporter.mode=openshift" --set openshift=true
+          assert_fails "openshift=true requires kube-state-metrics.securityContext.enabled=false" \
+            --set openshift=true \
+            --set nodeExporter.mode=openshift \
+            --set prometheus-node-exporter.enabled=false
+          # HAProxy is the only ingress to PMM, and restricted-v2 leaves it without
+          # NET_BIND_SERVICE, so a privileged bind is a crash-loop behind a successful install -
+          # the same half-delivered overlay as the two checks above. Any port below 1024 fails,
+          # not just the 443 default.
+          openshift_base=(
+            --set openshift=true
+            --set nodeExporter.mode=openshift
+            --set prometheus-node-exporter.enabled=false
+            --set kube-state-metrics.securityContext.enabled=false
+          )
+          port_msg="openshift=true requires haproxy.containerPorts.https above 1024"
+          assert_fails "$port_msg" "${openshift_base[@]}"
+          assert_fails "$port_msg" "${openshift_base[@]}" --set haproxy.containerPorts.https=80
+          assert_fails "$port_msg" "${openshift_base[@]}" --set haproxy.containerPorts.https=1023
+
+          # Moving the port is not OpenShift-specific, and neither is this failure: the PGO
+          # sidecar address is the one consumer the chart cannot rewrite, because the operator
+          # copies it verbatim. A mismatch must fail rather than register nothing.
+          host_msg="but haproxy.containerPorts.https is 8443"
+          assert_fails "$host_msg" --set haproxy.containerPorts.https=8443
+          assert_fails "$host_msg" --set haproxy.containerPorts.https=8443 \
+            --set pg-db.pmm.serverHost=pmm-ha-haproxy:9999
+          assert_fails "$host_msg" --set haproxy.containerPorts.https=8443 \
+            --set pg-db.pmm.serverHost=pmm-ha-haproxy.pmm.svc.cluster.local
+
+      # Value validation, peer addressing and the HAProxy server-template, asserted with
+      # helm unittest: no cluster, no dependency on Helm's template ordering, and runnable
+      # locally with `make test-pmm-ha`. Not gated on list-changed, so a PR that only edits
+      # these suites still runs them.
+      - name: Run helm unittest
+        run: |
+          make helm-unittest
+          make test-pmm-ha
+
       - name: Run chart-testing (list-changed)
         id: list-changed
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
+          changed=$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF")
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
@@ -106,11 +155,78 @@ jobs:
             PMM_ADMIN_PASSWORD: YWRtaW4=
             PG_PASSWORD: cG1tcGFzcw==
             GF_PASSWORD: Z2ZwYXNz
-            VMAGENT_remoteWrite_basicAuth_username: dm11c2Vy
-            VMAGENT_remoteWrite_basicAuth_password: dm1wYXNz
+            PMM_HA_VM_USERNAME: dm11c2Vy
+            PMM_HA_VM_PASSWORD: dm1wYXNz
             PMM_CLICKHOUSE_USER: Y2h1c2Vy
             PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
           EOF
+
+      # Guards the release-name-sensitive names: `pmm.fullname` equals `Release.Name` only
+      # when the release name already contains the chart name, so a release like `pmm-2`
+      # (fullname `pmm-2-pmm-ha`) is the case that regresses. `ct install` generates a
+      # `pmm-ha`-prefixed release name, so the normal install cannot catch this.
+      # Needs the cluster: templates/pg-user-credentials-secrets.yaml does an unconditional
+      # `lookup` + `fail` on pmm-secret, so an offline `helm template` cannot render the chart.
+      - name: Check release-name-sensitive names render correctly
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          NS="${{ env.NS }}"
+          out=$(helm template pmm-2 charts/pmm-ha --namespace "$NS" --dry-run=server)
+
+          assert_has() {  # $1 = expected substring, $2 = what it guards
+            if ! grep -qF -- "$1" <<<"$out"; then
+              echo "::error::missing from render ($2): $1"
+              exit 1
+            fi
+          }
+          assert_lacks() {
+            if grep -qF -- "$1" <<<"$out"; then
+              echo "::error::render regressed ($2): found $1"
+              exit 1
+            fi
+          }
+
+          # The HA peer list must use the StatefulSet name, not Release.Name.
+          # HAProxy has no per-pod names to check: it discovers backends through the
+          # headless service via server-template, with no init script (PMM-15394).
+          assert_has "value: \"pmm-2-pmm-ha-0.monitoring-service.${NS}.svc.cluster.local" "PMM_HA_PEERS"
+          assert_lacks "pmm-2-0.monitoring-service" "PMM_HA_PEERS uses Release.Name"
+
+          # ClickHouse/Keeper scrape jobs match the chi/chk pod label, which carries Release.Name.
+          assert_has "regex: 'pmm-2'" "clickhouse scrape job selector"
+          assert_has "regex: 'pmm-2-keeper'" "keeper scrape job selector"
+
+          # ...and that is only correct while the CRs are still named from Release.Name.
+          chi=$(helm template pmm-2 charts/pmm-ha --namespace "$NS" --dry-run=server \
+                  -s templates/clickhouse-cluster.yaml | grep -m1 '^  name:')
+          [[ "$chi" == "  name: pmm-2" ]] || { echo "::error::CHI name changed: $chi"; exit 1; }
+
+          # Release names are not regex-safe: a dot in the name must not widen an anchored regex.
+          helm template 'pmm.ha' charts/pmm-ha --namespace "$NS" --dry-run=server \
+            | grep -qF "regex: 'pmm\\.ha'" \
+            || { echo "::error::Release.Name is not regex-escaped in vmagent scrape configs"; exit 1; }
+
+          # The token-init Job name must carry a hash of its pod spec. A fixed name makes any
+          # upgrade that touches that pod spec fail on spec.template immutability (PMM-15445).
+          base=$(grep -oE '^  name: pmm-2-pmm-token-init-[0-9a-f]{8}$' <<<"$out" | awk '{print $2}')
+          [[ -n "$base" ]] \
+            || { echo "::error::pmm-token-init Job name lost its pod-spec hash"; exit 1; }
+
+          # The shape alone proves nothing - hashing a constant passes it too. What has to hold is
+          # that the suffix tracks the pod spec: it moves for a value that feeds the pod spec, and
+          # holds still for one that does not.
+          job_name() {
+            helm template pmm-2 charts/pmm-ha --namespace "$NS" --dry-run=server \
+              -s templates/pg-pmm-token-job.yaml "$@" \
+              | awk '/^kind: Job/{f=1} f && /^  name:/{print $2; exit}'
+          }
+          [[ "$(job_name --set pg-db.pmm.secret=hash-probe)" != "$base" ]] \
+            || { echo "::error::Job name did not move when the pod spec changed"; exit 1; }
+          [[ "$(job_name --set replicaCount=5)" == "$base" ]] \
+            || { echo "::error::Job name churns on a value outside the pod spec"; exit 1; }
+
+          echo "Release-name-sensitive names render correctly."
 
       - name: Install pmm-ha-dependencies chart
         if: steps.list-changed.outputs.changed == 'true'
@@ -146,6 +262,133 @@ jobs:
           # The point of openshift mode: the bundled DaemonSet must not be deployed.
           ! grep -q 'kind: DaemonSet' /tmp/smoke.yaml
 
+      # Nothing else exercises examples/values-openshift.yaml - there is no OpenShift in CI, but
+      # every mechanical part of the overlay is a render and can be pinned here.
+      # --dry-run=server for the same reason as the step above: the pmm-secret lookup.
+      - name: Check OpenShift overlay renders
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          NS="${{ env.NS }}"
+          OVERLAY=charts/pmm-ha/examples/values-openshift.yaml
+
+          render() {  # rest = extra helm args (-s <template>, -f <values>)
+            helm template smoke charts/pmm-ha -n "$NS" --dry-run=server "$@"
+          }
+
+          assert_has() {  # $1 = haystack, $2 = pattern, $3 = what it guards
+            if ! grep -qE -- "$2" <<<"$1"; then
+              echo "::error::missing from render ($3): $2"
+              exit 1
+            fi
+          }
+          assert_lacks() {
+            if grep -qE -- "$2" <<<"$1"; then
+              echo "::error::render regressed ($3): found $2"
+              grep -nE -- "$2" <<<"$1"
+              exit 1
+            fi
+          }
+
+          identity='^[[:space:]]*(runAsUser|runAsGroup|fsGroup):'
+
+          # The keys restricted-v2 rejects are gone from both PMM StatefulSets under the overlay...
+          for tpl in templates/statefulset.yaml templates/pmm-client-statefulset.yaml; do
+            assert_lacks "$(render -s "$tpl" -f "$OVERLAY")" "$identity" "$tpl under the overlay"
+          done
+
+          # ...and still there without it, so the flag cannot quietly take plain Kubernetes with it.
+          assert_has "$(render -s templates/statefulset.yaml)" 'fsGroup: 1000' "PMM Server default fsGroup"
+          assert_has "$(render -s templates/pmm-client-statefulset.yaml)" 'fsGroup: 1002' "PMM Client default fsGroup"
+
+          full=$(render -f "$OVERLAY")
+
+          # HAProxy binds above 1024, since restricted-v2 drops NET_BIND_SERVICE...
+          assert_has "$full" 'bind \*:8443 ' "HAProxy bind port"
+
+          # ...and every consumer of that port follows it. pmm-agent appends :443 to an address
+          # carrying no port, so a bare serverHost leaves the PGO sidecar dialling a closed port.
+          assert_has "$full" 'serverHost: pmm-ha-haproxy:8443' "pg-db PMM sidecar"
+          assert_has "$full" 'pmm-ha-haproxy\.'"$NS"'\.svc\.cluster\.local:8443' "pmm.client.serverAddress"
+          assert_has "$(grep -A1 'name: PMM_PORT' <<<"$full")" 'value: "8443"' "pg-pmm-token-job PMM_PORT"
+
+          # The two subcharts restricted-v2 rejects outright are off.
+          assert_lacks "$full" '^kind: DaemonSet' "bundled node-exporter"
+          assert_lacks "$full" 'runAsUser: 65534' "kube-state-metrics securityContext"
+
+          echo "OpenShift overlay renders correctly."
+
+      - name: Check VictoriaMetrics credential resolution
+        if: steps.list-changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          NS="${{ env.NS }}"
+
+          # The credential resolves to the current keys, and no VMAGENT_-prefixed environment
+          # variable reaches PMM Server: it forwards those to every PMM Client's vmagent.
+          helm install smoke-creds charts/pmm-ha -n "$NS" --dry-run=server > /tmp/smoke-creds.yaml
+          grep -q 'key: PMM_HA_VM_PASSWORD' /tmp/smoke-creds.yaml
+          grep -q 'password: "vmpass"' /tmp/smoke-creds.yaml
+          ! grep -qE '^\s+- name: VMAGENT_' /tmp/smoke-creds.yaml
+
+          # A secret without those keys must name them, and tell a Technical Preview installation
+          # to rename its pre-rename keys, instead of failing inside b64dec. pmm.validateSecret
+          # reports it; vmauth.yaml renders first and calls it before resolving the credential.
+          cat <<'EOF' | kubectl apply -n "$NS" -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: pmm-secret-legacy
+          type: Opaque
+          data:
+            PMM_ADMIN_PASSWORD: YWRtaW4=
+            PG_PASSWORD: cG1tcGFzcw==
+            GF_PASSWORD: Z2ZwYXNz
+            VMAGENT_remoteWrite_basicAuth_username: dm11c2Vy
+            VMAGENT_remoteWrite_basicAuth_password: dm1wYXNz
+            PMM_CLICKHOUSE_USER: Y2h1c2Vy
+            PMM_CLICKHOUSE_PASSWORD: Y2hwYXNz
+          EOF
+          if out=$(helm install smoke-legacy charts/pmm-ha -n "$NS" --dry-run=server \
+            --set secret.name=pmm-secret-legacy 2>&1); then
+            echo "::error::render should have failed on a secret without PMM_HA_VM_* keys"
+            exit 1
+          fi
+          grep -qF "required key(s): PMM_HA_VM_USERNAME, PMM_HA_VM_PASSWORD" <<<"$out"
+          grep -qF "VMAGENT_remoteWrite_basicAuth_username" <<<"$out"
+
+          # Adding the new keys without deleting the old ones is refused too: every key of the
+          # secret becomes a PMM Server environment variable, and PMM Server forwards VMAGENT_*
+          # to every PMM Client as its remote-write credential.
+          kubectl patch secret pmm-secret-legacy -n "$NS" --type merge \
+            -p '{"data":{"PMM_HA_VM_USERNAME":"dm11c2Vy","PMM_HA_VM_PASSWORD":"dm1wYXNz"}}'
+          if out=$(helm install smoke-mixed charts/pmm-ha -n "$NS" --dry-run=server \
+            --set secret.name=pmm-secret-legacy 2>&1); then
+            echo "::error::render should have failed on a secret that still carries the VMAGENT_ keys"
+            exit 1
+          fi
+          grep -qF "still carries the Technical Preview key(s) VMAGENT_remoteWrite_basicAuth_username, VMAGENT_remoteWrite_basicAuth_password" <<<"$out"
+
+          # A credential PMM_VM_URL cannot carry is refused at render time. PMM Server reads it
+          # back with url.Parse, which percent-decodes it, so a password like this one would
+          # otherwise reach vmauth as "pAss" and 401 every write and query with nothing naming it.
+          kubectl create secret generic pmm-secret-badvmcred -n "$NS" \
+            --from-literal=PMM_ADMIN_PASSWORD=admin \
+            --from-literal=PG_PASSWORD=pgpass \
+            --from-literal=GF_PASSWORD=gfpass \
+            --from-literal=PMM_CLICKHOUSE_USER=chuser \
+            --from-literal=PMM_CLICKHOUSE_PASSWORD=chpass \
+            --from-literal=PMM_HA_VM_USERNAME=vmuser \
+            --from-literal=PMM_HA_VM_PASSWORD='p%41ss'
+          if out=$(helm install smoke-badvmcred charts/pmm-ha -n "$NS" --dry-run=server \
+            --set secret.name=pmm-secret-badvmcred 2>&1); then
+            echo "::error::render should have failed on a VictoriaMetrics password containing %"
+            exit 1
+          fi
+          grep -qF "The VictoriaMetrics password is not usable in PMM_VM_URL" <<<"$out"
+
+          kubectl delete secret pmm-secret-legacy pmm-secret-badvmcred -n "$NS"
+
       - name: Run chart-testing (install pmm-ha)
         if: steps.list-changed.outputs.changed == 'true'
         run: |
@@ -154,7 +397,7 @@ jobs:
 
       - name: Build chart packages
         run: |
-          changed=$(ct list-changed --config .github/ct.yaml)
+          changed=$(ct list-changed --config .github/ct.yaml --target-branch "$GITHUB_BASE_REF")
           if [[ -n "$changed" ]]; then
             for chart in $changed; do
               echo "Packaging $chart..."

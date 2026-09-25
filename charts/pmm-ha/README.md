@@ -20,7 +20,7 @@ PMM HA uses a **two-chart architecture**:
 This PMM HA deployment provides the following high availability features:
 
 - **Multiple PMM Server Replicas**: Deploy 3 PMM server instances for redundancy
-- **HAProxy Load Balancing**: 3 HAProxy replicas with anti-affinity for traffic distribution
+- **HAProxy Load Balancing**: 3 HAProxy replicas spread one per node for traffic distribution
 - **Operator-Managed ClickHouse Cluster**: Dedicated ClickHouse cluster with 3 replicas and ClickHouse Keeper (managed by Altinity ClickHouse Operator)
 - **Operator-Managed VictoriaMetrics Cluster**: Distributed metrics storage with multiple replicas (managed by VictoriaMetrics Operator)
 - **Operator-Managed PostgreSQL Cluster**: HA PostgreSQL cluster for Grafana metadata (managed by Percona PostgreSQL Operator)
@@ -33,12 +33,40 @@ This PMM HA deployment provides the following high availability features:
 - Kubernetes 1.22+
 - Helm 3.2.0+
 - PV provisioner support in the underlying infrastructure
+- A StorageClass with `allowVolumeExpansion: true` — every capacity correction on
+  a running install is a PVC expansion, which is impossible without it
+- `amd64` nodes available for the PMM and ClickHouse pods — Query Analytics
+  requires SSE4.2 and PMM Server has no native ARM64 build, so on clusters with
+  mixed or auto-provisioned nodes (Karpenter, EKS Auto Mode, Graviton pools)
+  those pods need `kubernetes.io/arch: amd64`
 - **Required Kubernetes Operators** (must be installed BEFORE this chart):
   - Install via `pmm-ha-dependencies` chart (recommended), OR
   - Install manually (advanced):
-    - VictoriaMetrics Operator (v0.56.4+)
-    - Altinity ClickHouse Operator (v0.25.4+)
-    - Percona PostgreSQL Operator (v2.8.0+)
+    - VictoriaMetrics Operator (v0.67.3+)
+    - Altinity ClickHouse Operator (v0.27.3+)
+    - Percona PostgreSQL Operator (v3.1.0+)
+
+## Sizing
+
+The chart's resource defaults target roughly **100 monitored nodes** and need
+about 17 CPU, 40Gi of memory and 465Gi of storage in requests — three workers of
+8 vCPU / 32Gi.
+
+Retention is the single largest lever on the footprint. Metrics and Query
+Analytics are retained separately — `victoriaMetrics.vmstorage.retentionPeriod`
+(90 days) and PMM's own setting (30 days) — and the optional `dataRetentionDays`
+drives both from one value. Note that the default 50Gi vmstorage volume holds
+roughly 30 days at 100 nodes, not 90.
+
+For larger fleets:
+
+```bash
+helm install pmm-ha percona/pmm-ha -f examples/values-500-nodes.yaml
+helm install pmm-ha percona/pmm-ha -f examples/values-1000-nodes.yaml
+```
+
+See [docs/SIZING.md](docs/SIZING.md) for the model behind these numbers, the
+per-component tables, and how to measure the constants on your own install.
 
 ## Installing the Chart
 
@@ -55,7 +83,7 @@ helm repo add percona https://percona.github.io/percona-helm-charts/
 helm repo update
 
 # Install the operators
-helm install pmm-operators percona/pmm-ha-dependencies --namespace pmm --create-namespace
+helm install pmm-ha-operators percona/pmm-ha-dependencies --namespace pmm --create-namespace
 
 # Wait for operators to be ready
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=victoria-metrics-operator -n pmm --timeout=300s
@@ -125,6 +153,67 @@ The command deploys PMM HA on the Kubernetes cluster with the default high avail
 
 > **Important**: For production deployments, you must create the `pmm-secret` manually before installation since `secret.create` is set to `false` by default. See the [Creating PMM Secret Manually](#creating-pmm-secret-manually) section for detailed examples.
 
+### Installing into multiple namespaces
+
+You can run more than one PMM-HA instance on the same cluster (e.g. a disaster-recovery /
+restore target, or an isolated test instance). Install the operators **once** and give each
+instance a distinct Helm release name — see
+[Multi-namespace support](../pmm-ha-dependencies/README.md#multi-namespace-support) in the
+`pmm-ha-dependencies` chart for the operator side and the release-name requirement.
+
+This section covers the per-instance settings that are specific to the `pmm-ha` chart.
+
+**Monitoring sub-charts.** `kube-state-metrics` and `prometheus-node-exporter` behave
+differently here, so they need separate decisions:
+
+1. **`prometheus-node-exporter` — disable on additional instances.** It uses host networking
+   on port 9100, so only one set can run per node; a second DaemonSet's pods fail to start.
+   Install it with the *first* instance only.
+2. **`kube-state-metrics` — optional.** Its resources are named after the release, so a second
+   instance can run its own copy without colliding. Keep it if you want object-state metrics in
+   the secondary instance, or disable it to save a small Deployment.
+
+Whatever you disable is simply not collected by that instance: each instance's vmagent scrapes
+only its own namespace, so a secondary instance does **not** reuse the first's agents — those
+metrics live only in the first instance's VictoriaMetrics. (Basic node/container metrics from
+the `kubelet` and `cadvisor` scrape jobs are still collected either way, since those discover
+nodes cluster-wide.) For a DR / restore target this is usually fine, since cluster-level metrics
+aren't part of the restored data.
+
+> **OpenShift**: with `nodeExporter.mode: openshift` (see [Using OpenShift's node exporter](#using-openshifts-node-exporter))
+> the node-exporter scrape job targets the platform exporter in the `openshift-monitoring`
+> namespace rather than the release namespace, so **every** instance still collects node metrics.
+> Set that mode on each instance. In this mode `prometheus-node-exporter.enabled: false` is
+> required on **every** instance — including the first — since the bundled DaemonSet would collide
+> with OpenShift's platform node-exporter on host port 9100; the chart fails fast otherwise. The
+> kube-state-metrics choice above is then the only one left.
+
+```bash
+# First instance (full stack, in namespace "pmm"):
+kubectl create namespace pmm
+# create the pmm-secret in this namespace first — see "Creating PMM Secret Manually"
+helm install pmm-ha percona/pmm-ha -n pmm
+
+# Additional instance (e.g. a restore/DR target in namespace "pmm-dr"):
+#   - distinct release name (pmm-dr)
+#   - node-exporter off (required: only one set can run per node)
+#   - kube-state-metrics off (optional: drop this flag to keep object-state
+#     metrics in this instance)
+kubectl create namespace pmm-dr
+# create the pmm-secret in pmm-dr too — see "Creating PMM Secret Manually"
+helm install pmm-dr percona/pmm-ha -n pmm-dr \
+  --set prometheus-node-exporter.enabled=false \
+  --set kube-state-metrics.enabled=false
+```
+
+> **Note**: `helm install -n <namespace>` does not create the namespace. Create it first
+> (as shown) so the `pmm-secret` can be created there before installing.
+
+Per-namespace resources (PMM server, PostgreSQL, ClickHouse, VictoriaMetrics, HAProxy) are
+namespaced and do not collide across namespaces. Remember the usual prerequisites in **each**
+namespace: create the `pmm-secret` (see [Creating PMM Secret Manually](#creating-pmm-secret-manually))
+before installing, and ensure the namespace has access to whatever backup storage you use.
+
 ## Uninstalling the Chart
 
 **IMPORTANT**: You must uninstall PMM HA first, then the operators. Uninstalling in the wrong order may leave orphaned resources.
@@ -157,7 +246,7 @@ Choose the appropriate method based on how you installed the operators:
 #### If Using pmm-ha-dependencies Chart:
 
 ```sh
-helm uninstall pmm-operators --namespace pmm
+helm uninstall pmm-ha-operators --namespace pmm
 ```
 
 #### If Installed Operators Manually:
@@ -181,8 +270,19 @@ kubectl delete crds $(kubectl get crds -o name | grep victoriametrics)
 # Remove ClickHouse CRDs
 kubectl delete crds $(kubectl get crds -o name | grep clickhouse)
 
-# Remove PostgreSQL Operator CRDs
-kubectl delete crds $(kubectl get crds -o name | grep -E "(postgres-operator|perconapg)")
+# Remove PostgreSQL Operator CRDs.
+# Covers BOTH API groups: Operator 3.0.0 moved every Crunchy CRD from
+# `postgres-operator.crunchydata.com` to `upstream.pgv2.percona.com`, so a cluster that ever
+# ran 2.x carries both sets. Matching only "postgres-operator" or "perconapg" leaves the
+# renamed CRDs (postgresclusters/pgupgrades/pgadmins/crunchybridgeclusters under
+# upstream.pgv2.percona.com) behind, and a later "fresh" install then inherits them.
+kubectl delete crds $(kubectl get crds -o name | grep -E "(postgres-operator\.crunchydata\.com|pgv2\.percona\.com)")
+```
+
+Verify nothing is left before reinstalling:
+
+```sh
+kubectl get crds | grep -E "victoriametrics|clickhouse|pgv2|crunchydata"   # expect no output
 ```
 
 > **Warning**: This will remove all PMM data, including metrics, dashboards, and configuration. Make sure to backup any important data before uninstalling.
@@ -195,17 +295,21 @@ PMM HA provides the following service endpoints for clients to connect:
 
 | Service | Description | Port |
 |---------|-------------|------|
-| `pmm-ha-haproxy` | **Recommended** - HAProxy load balancer that routes to the active PMM leader | 443 (HTTPS) |
+| `pmm-ha-haproxy` | **Recommended** - HAProxy load balancer that routes to the active PMM leader | `haproxy.containerPorts.https`, 443 by default (HTTPS) |
 | `monitoring-service` | Headless service for direct PMM pod access (used internally) | 8443 (HTTPS) |
 
 **For all external clients and Percona Operators, use `pmm-ha-haproxy` as the PMM server endpoint.**
+
+The HAProxy port is not fixed: the Service publishes whatever `haproxy.containerPorts.https` is
+set to, and the OpenShift overlay moves it to 8443 because `restricted-v2` cannot bind below 1024.
+Substitute that port for 443 everywhere below if you changed it.
 
 ### Connecting PMM Clients
 
 To connect a PMM client to the HA cluster:
 
 ```sh
-# From within the Kubernetes cluster
+# From within the Kubernetes cluster (use 8443 instead of 443 on OpenShift)
 pmm-admin config --server-url=https://admin:<password>@pmm-ha-haproxy:443 --server-insecure-tls
 
 # Or using the service token (recommended for automation)
@@ -216,21 +320,80 @@ pmm-admin config --server-url=https://service_token:<token>@pmm-ha-haproxy:443 -
 
 When `pg-db.pmm.enabled: true` (default), PostgreSQL metrics are automatically pushed to PMM:
 
-1. A **service account token** is automatically created in PMM by the `pmm-token-init` Job
-2. The token is stored in the `pg-pmm-secret` Kubernetes secret
+1. A **service account token** is automatically created in PMM by the `<release>-pmm-token-init-<hash>` Job
+2. The token is stored in the `<release>-pg-db-pmm-secret` Kubernetes secret
 3. PostgreSQL pods use this token to authenticate and push metrics to PMM via the `pmm-ha-haproxy` endpoint
 
 No manual configuration is required - the Percona PostgreSQL Operator handles the integration automatically.
+
+The Job creates that secret with `kubectl`, so Helm does not own it and `helm uninstall`
+leaves it behind. On every run the Job checks whether the stored token still authenticates
+and re-mints it if not, so a reinstall into a namespace that still holds the old secret
+recovers on its own. If PostgreSQL monitoring is missing, check the `pmm-client` container
+in a PostgreSQL pod: `Auth method is not service account token` means the token was rejected,
+and the Job's log will say whether it re-minted. A probe that is inconclusive rather than
+rejected - PMM unreachable, a 5xx, or a leader change mid-check - is not treated as a dead
+token: the Job fails and retries instead of minting a second token behind the running pods.
+
+The Job's name ends in a hash of its own pod template, so find it by label rather than by a
+fixed name. The Job and its pods carry `app.kubernetes.io/component: pmm-token-init`:
+
+```bash
+kubectl get job -n <namespace> \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=pmm-token-init
+kubectl logs -n <namespace> \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=pmm-token-init
+```
+
+Name the release as well as the component: a namespace can hold more than one release, and more
+than one token-init pod can be running at once - Helm schedules the new Job before pruning the
+old one, and a Job created by a revision that then failed is never pruned at all. That is
+expected and safe. The secret, not the Job, decides which token is live, and the write to it is
+what settles the race rather than a read taken beforehand: a pod creates the secret if it is
+absent, and otherwise patches it under a `test` on the resourceVersion it read the token at, so
+exactly one of two pods holding the same version lands its write. The pod whose write is
+rejected re-reads, finds a token other than the one it meant to replace, revokes the token it
+had minted and defers. A `withdrawing this one` line in a Job log is that happening, not an
+error.
+
+A Job's `spec.template` is immutable, so any chart change that touches the script or its
+environment would otherwise fail `helm upgrade` with `spec.template: field is immutable` while
+the previous Job still exists. With the hash in the name, Helm creates the new Job and prunes
+the old one instead.
+
+Upgrading from a chart version that used the old fixed `pg-pmm-secret` name: after the upgrade
+the Job creates `<release>-pg-db-pmm-secret`, and the PostgreSQL operator needs a few minutes
+to reconcile the new name into the instance StatefulSets. Leave `pg-pmm-secret` in place until
+the PostgreSQL pods have restarted against the new secret, then delete it.
 
 ### Using Service Tokens for Automation
 
 Service tokens are recommended for automated deployments and CI/CD pipelines. To retrieve the auto-generated PostgreSQL monitoring token:
 
 ```sh
-kubectl get secret pg-pmm-secret -n <namespace> -o jsonpath='{.data.PMM_SERVER_TOKEN}' | base64 -d
+kubectl get secret <release>-pg-db-pmm-secret -n <namespace> \
+  -o jsonpath='{.data.PMM_SERVER_TOKEN}' | base64 -d
 ```
 
 To create additional service tokens manually, see the [PMM documentation on service accounts](https://docs.percona.com/percona-monitoring-and-management/api/authentication.html).
+
+### How client metrics reach VictoriaMetrics
+
+PMM Clients push metrics with a `vmagent` that PMM Server configures for them. Starting with the PMM
+Server release that pairs with this chart, PMM Server tells every client to write to the address the
+client already uses, `https://<pmm-ha-haproxy>/victoriametrics/api/v1/write`, authenticated with the
+VictoriaMetrics credentials from `pmm-secret`. HAProxy routes exactly that path to the in-cluster
+`vmauth` service (`templates/haproxy-configmap.yaml`), so metric writes never pass through the PMM
+Server pods, and clients outside the cluster can write although `vmauth` itself is not exposed.
+Every other path, including VictoriaMetrics queries, keeps going to the PMM Server pods behind PMM's
+own authentication. PMM Server's own agents, which run inside the pods, write to `vmauth` directly.
+
+Consequences:
+
+- The route lives in HAProxy, which is how PMM HA is exposed. The chart's `ingress.*` values are not a supported alternative for this deployment: they do not render against its single-port `service`, and an Ingress would send the write path to the PMM Server pods, which reject the VictoriaMetrics credential.
+- The write endpoint is reachable wherever HAProxy is reachable (see [External access to PMM HA](#external-access-to-pmm-ha)) and is protected by HTTP basic auth with the shared VictoriaMetrics credentials. Revoking one client's write access means rotating that credential.
+- Upgrading from a Technical Preview installation renames the VictoriaMetrics credential keys in `pmm-secret`. With `secret.create: false` (the default) the chart refuses to render until you rename them yourself, see [Creating PMM Secret Manually](#creating-pmm-secret-manually). With `secret.create: true` the chart writes a **new, randomly generated** credential under the new names: the Technical Preview value is not carried over. Anything outside the chart that authenticated to `vmauth` with the old credential (your own `vmagent`, a Grafana or Prometheus data source, a script) has to be pointed at the new one, which `kubectl get secret pmm-secret -n <namespace> -o jsonpath='{.data.PMM_HA_VM_PASSWORD}' | base64 --decode` prints. PMM HA is Technical Preview until the release that carries this change, so the credential is renamed and regenerated once here rather than carried forward.
+- Upgrade this chart before upgrading PMM Server to a release that expects the route. A PMM Server that expects it, behind a chart without it, cannot deliver client metrics: the PMM Server pods reject every write with `401 Unauthorized`, because the VictoriaMetrics credential the clients present is not a PMM credential. A chart with the route, running an older PMM Server, is harmless: the older server still tells clients to write to `vmauth` directly, so clients outside the cluster cannot deliver metrics, which is the limitation this route removes.
 
 ## Parameters
 
@@ -249,6 +412,24 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `readyProbeConf.failureThreshold`    | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                                                               | `6`                  |
 
 
+### PMM Client
+
+| Name                                 | Description                                                      | Value                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `pmmClient.replicas`                 | Number of PMM Client pods carrying the delegated monitoring      | `3`                                                                                            |
+| `pmmClient.fsGroup`                  | Group that owns the PMM Client data volume. Ignored when `openshift` is `true` | `1002`                                                                                         |
+| `pmmClient.image.repository`         | PMM Client image repository                                      | `percona/pmm-client`                                                                           |
+| `pmmClient.image.pullPolicy`         | PMM Client image pull policy                                     | `IfNotPresent`                                                                                 |
+| `pmmClient.image.tag`                | PMM Client image tag, defaults to the chart appVersion           | `3.9.1`                                                                                        |
+| `pmmClient.forceRegistration`        | Register the Node even when one with the same name exists (WARNING: PMM Server may remove the existing Node and its configured Services) | `false`                                                                                        |
+| `pmmClient.storage.size`             | Size of the volume holding the Agent identity and metrics buffer | `2Gi`                                                                                          |
+| `pmmClient.storage.storageClassName` | Storage class of that volume, cluster default if empty           | `""`                                                                                           |
+| `pmmClient.resources`                | Resources requested for the PMM Client container                 | `{"requests": {"memory": "200Mi", "cpu": "100m"}, "limits": {"memory": "1Gi", "cpu": "500m"}}` |
+| `pmmClient.nodeSelector`             | Node labels for the PMM Client pods                              | `{}`                                                                                           |
+| `pmmClient.tolerations`              | Tolerations for the PMM Client pods                              | `[]`                                                                                           |
+| `pmmClient.affinity`                 | Affinity rules for the PMM Client pods                           | `{}`                                                                                           |
+
+
 ### PMM secrets
 
 | Name                  | Description                                                                                                                                                                        | Value        |
@@ -256,7 +437,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | `secret.name`         | Defines the name of the k8s secret that holds passwords and other secrets                                                                                                          | `pmm-secret` |
 | `secret.annotations`  | Defines the annotations of the k8s secret that holds passwords and other secrets                                                                                                   | `{}`         |
 | `secret.create`       | If true then secret will be generated by Helm chart. Otherwise it is expected to be created by user and all of its keys will be mounted as env vars.                                                                               | `false`       |
-| `secret.pmm_password` | Initial PMM password - it changes only on the first deployment, ignored if PMM was already provisioned and just restarted. If PMM admin password is not set, it will be generated. | `""`         |
+| `secret.pmm_password` | Initial PMM password - it changes only on the first deployment, ignored if PMM was already provisioned. Only used when secret.create is true; with a manually created secret the PMM_ADMIN_PASSWORD key is required instead. | `""`         |
 | `certs`               | Optional certificates, if not provided PMM would use generated self-signed certificates,                                                                                           | `{}`         |
 
 
@@ -264,6 +445,8 @@ To create additional service tokens manually, see the [PMM documentation on serv
 
 | Name                              | Description                                                                                                                                    | Value                 |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `replicas`                        | Number of PMM server replicas. Must be an odd number and no greater than `maxReplicas`; the chart fails the render otherwise                    | `3`                   |
+| `maxReplicas`                     | HAProxy `server-template` slots, and therefore the ceiling on `replicas`. Raising it also needs an HAProxy restart                              | `10`                  |
 | `service.name`                    | Service name that is dns name monitoring services would send data to. `monitoring-service` used by default by pmm-client in Percona operators. | `monitoring-service`  |
 | `service.type`                    | Kubernetes Service type                                                                                                                        | `ClusterIP`            |
 | `service.ports[0].port`           | https port number                                                                                                                              | `8443`                 |
@@ -287,7 +470,32 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------- |
 | `haproxy.service.type`        | Service type for HAProxy: ClusterIP (internal), LoadBalancer (external via LB), or NodePort (external via node) | `ClusterIP` |
 | `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
+| `haproxy.containerPorts.https` | Port HAProxy binds for PMM traffic; the Service publishes the same port. Must be above 1024 on OpenShift        | `443`       |
 
+
+### Data-plane version pins
+
+The chart pins the version of every bundled data store explicitly. Left unpinned, these are
+inherited from the operator or the `pg-db` subchart, so bumping an operator dependency would
+also move the database or the metrics engine with no visible diff in this chart.
+
+| Name                        | Description                                                                                                   | Value                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `victoriaMetrics.version`   | VictoriaMetrics version for VMCluster, VMAgent and VMAuth. Empty string inherits the operator's built-in default | `v1.151.0`                                                     |
+| `clickhouse.image.tag`      | ClickHouse server image tag. Stay on the `altinitystable` line, not `altinityantalya`                          | `25.8.28.10001.altinitystable-alpine`                          |
+| `clickhouse.keeper.image.tag` | ClickHouse Keeper image tag. Must track the ClickHouse server release above                                  | `25.8.28.1`                                                    |
+| `pg-db.postgresVersion`     | PostgreSQL major version                                                                                      | `18`                                                           |
+| `pg-db.image`               | PostgreSQL server image                                                                                       | `docker.io/percona/percona-distribution-postgresql:18.6.1-1`   |
+| `pg-db.crVersion`           | PerconaPGCluster CR version. Must track the installed `pg-operator` version                                   | `3.1.0`                                                        |
+
+Two things to know before changing these:
+
+- **ClickHouse server and Keeper come from different repositories** (`altinity/clickhouse-server`
+  rebuilds vs upstream `clickhouse/clickhouse-keeper`), so "latest" resolves differently for
+  each. Move them together, onto the same upstream ClickHouse release.
+- **VictoriaMetrics storage upgrades are one-way**, and changing `pg-db.postgresVersion` on an
+  existing cluster is a major upgrade needing the operator's `PerconaPGUpgrade` flow - not an
+  in-place edit.
 
 ### PMM storage configuration
 
@@ -304,13 +512,15 @@ To create additional service tokens manually, see the [PMM documentation on serv
 
 | Name                         | Description                                                                                                         | Value                 |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `clickhouse.keeper.replicasCount` | Number of ClickHouse Keeper nodes. Must be an odd value from 1 to 9; the chart fails the render otherwise | `3` |
 | `nameOverride`               | String to partially override common.names.fullname template with a string (will prepend the release name)           | `""`                  |
 | `extraLabels`                | Labels to add to all deployed objects                                                                               | `{}`                  |
 | `serviceAccount.create`      | Specifies whether a ServiceAccount should be created                                                                | `true`                |
 | `serviceAccount.annotations` | Annotations for service account. Evaluated as a template. Only used if `create` is `true`.                          | `{}`                  |
 | `serviceAccount.name`        | Name of the service account to use. If not set and create is true, a name is generated using the fullname template. | `pmm-service-account` |
 | `podAnnotations`             | Pod annotations                                                                                                     | `{}`                  |
-| `podSecurityContext`         | Configure Pods Security Context                                                                                     | `{}`                  |
+| `podSecurityContext`         | Configure Pods Security Context. `runAsUser`/`runAsGroup`/`fsGroup` are dropped when `openshift` is `true`          | `{runAsUser: 1000, fsGroup: 1000}` |
+| `openshift`                  | Set to `true` on OpenShift so the cluster assigns the uid/fsGroup. Requires the rest of `examples/values-openshift.yaml` | `false`               |
 | `securityContext`            | Configure Container Security Context                                                                                | `{}`                  |
 | `nodeSelector`               | Node labels for pod assignment                                                                                      | `{}`                  |
 | `tolerations`                | Tolerations for pod assignment                                                                                      | `[]`                  |
@@ -354,7 +564,10 @@ The PMM HA chart deploys the following components:
 4. **VictoriaMetrics Cluster**: Distributed metrics storage with multiple replicas (managed by VictoriaMetrics Operator)
 5. **PostgreSQL Cluster**: HA PostgreSQL cluster for Grafana metadata storage (managed by Percona PostgreSQL Operator)
 
-All components are configured with pod anti-affinity to ensure distribution across different nodes for maximum resilience.
+All components are scheduled to spread across different nodes for maximum resilience. The stateful
+components (PMM, ClickHouse, VictoriaMetrics, PostgreSQL) use pod anti-affinity; HAProxy uses a soft
+topology spread constraint, so it can be scaled beyond the number of worker nodes at the cost of
+co-locating replicas.
 
 > **Important**: The three Kubernetes operators (VictoriaMetrics, ClickHouse, PostgreSQL) must be installed before deploying PMM HA. They manage the lifecycle of their respective resources through Custom Resource Definitions (CRDs).
 
@@ -368,7 +581,15 @@ Percona will release a new chart updating its containers if a new version of the
 
 PMM admin password would be set only on the first deployment. That setting is ignored if PMM was already provisioned and just restarted and/or updated. In real-life situations it is recommended to create the `pmm-secret` secret manually before the release and set `secret.create` to false. The chart then won't overwrite secret during install or upgrade and values.yaml won't contain any secret.
 
-If PMM admin password is not set explicitly (default), it will be generated.
+If PMM admin password is not set explicitly, it will be generated - but only when
+`secret.create: true`. With a manually created `pmm-secret` (the default), `secret.pmm_password`
+is ignored and the secret's `PMM_ADMIN_PASSWORD` key is required: the chart fails the install or
+upgrade if it is missing, because without it PMM would silently keep its built-in admin password.
+
+For a release that was already installed without the key, adding it and upgrading is not enough:
+Grafana applies `GF_SECURITY_ADMIN_PASSWORD` only when it first creates the `admin` user, so the
+password has to be reset out of band (`change-admin-password` in the PMM container, or the Grafana
+API) before `<release>-pmm-token-init` stops getting 401.
 
 To get admin password execute:
 
@@ -379,6 +600,38 @@ kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | 
 ### Creating PMM Secret Manually
 
 Since `secret.create` is set to `false` by default, you need to create the `pmm-secret` manually before installing the chart. Here are examples of how to create it:
+
+> **Note**: The VictoriaMetrics credential keys are `PMM_HA_VM_USERNAME` and `PMM_HA_VM_PASSWORD`.
+> Do not store this credential under `VMAGENT_`-prefixed names: PMM Server forwards every `VMAGENT_*`
+> variable it finds to all PMM Clients, including to any endpoint an operator redirects their writes
+> to. Technical Preview installations that used
+> `VMAGENT_remoteWrite_basicAuth_username` and `VMAGENT_remoteWrite_basicAuth_password` must rename
+> those two keys in `pmm-secret` before upgrading:
+>
+> ```sh
+> kubectl get secret pmm-secret -n pmm -o json | jq '
+>   .data.PMM_HA_VM_USERNAME = .data.VMAGENT_remoteWrite_basicAuth_username
+>   | .data.PMM_HA_VM_PASSWORD = .data.VMAGENT_remoteWrite_basicAuth_password
+>   | del(.data.VMAGENT_remoteWrite_basicAuth_username, .data.VMAGENT_remoteWrite_basicAuth_password)
+> ' | kubectl replace -f -
+> ```
+>
+> Then confirm the old keys are gone, because `helm upgrade` refuses to render while either is
+> still present:
+>
+> ```sh
+> kubectl get secret pmm-secret -n pmm -o json | jq -r '.data | keys[]'
+> ```
+>
+> Use `kubectl replace`, not `kubectl apply`. A three-way merge computes deletions by diffing the
+> `kubectl.kubernetes.io/last-applied-configuration` annotation, which a secret created with
+> `kubectl create secret generic`, created by Helm, or created from a `stringData` manifest does
+> not carry in a form that covers `data`. `apply` therefore adds the two new keys and silently
+> keeps the two old ones. `kubectl apply --server-side` does not delete them either.
+>
+> Deleting the old keys is part of the rename, not tidying up: with `secret.create: false` the whole
+> secret is mounted into PMM Server with `envFrom`, so a leftover `VMAGENT_`-prefixed key becomes an
+> environment variable that PMM Server forwards to every PMM Client.
 
 #### ClickHouse data source credentials
 
@@ -408,12 +661,17 @@ kubectl create secret generic pmm-secret \
   --from-literal=PMM_ADMIN_PASSWORD="your-secure-password" \
   --from-literal=PMM_CLICKHOUSE_USER="clickhouse_pmm" \
   --from-literal=PMM_CLICKHOUSE_PASSWORD="your-clickhouse-password" \
-  --from-literal=VMAGENT_remoteWrite_basicAuth_username="victoriametrics_pmm" \
-  --from-literal=VMAGENT_remoteWrite_basicAuth_password="your-victoriametrics-password" \
+  --from-literal=PMM_HA_VM_USERNAME="victoriametrics_pmm" \
+  --from-literal=PMM_HA_VM_PASSWORD="your-victoriametrics-password" \
   --from-literal=PG_PASSWORD="your-pmm-postgres-password" \
   --from-literal=GF_PASSWORD="your-grafana-postgres-password" \
   --namespace pmm
 ```
+
+> **Note**: `PMM_ADMIN_PASSWORD` is the password for the PMM web UI / API `admin` user - the
+> chart maps it to Grafana's `GF_SECURITY_ADMIN_PASSWORD`. It is required: the chart refuses to
+> install or upgrade if a pre-created secret does not contain it. `GF_PASSWORD` is unrelated to
+> the UI login - it is the password of the Grafana **PostgreSQL** database user.
 
 #### Option 2: Create Secret from YAML
 
@@ -430,8 +688,8 @@ stringData:
   PMM_ADMIN_PASSWORD: "your-secure-password"
   PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   PMM_CLICKHOUSE_PASSWORD: "your-clickhouse-password"
-  VMAGENT_remoteWrite_basicAuth_username: "victoriametrics_pmm"
-  VMAGENT_remoteWrite_basicAuth_password: "your-victoriametrics-password"
+  PMM_HA_VM_USERNAME: "victoriametrics_pmm"
+  PMM_HA_VM_PASSWORD: "your-victoriametrics-password"
   PG_PASSWORD: "your-pmm-postgres-password"
   GF_PASSWORD: "your-grafana-postgres-password"
 ```
@@ -457,8 +715,8 @@ kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_USER}' |
 kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_CLICKHOUSE_PASSWORD}' | base64 --decode && echo
 
 # Get VictoriaMetrics credentials
-kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_username}' | base64 --decode && echo
-kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.VMAGENT_remoteWrite_basicAuth_password}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_HA_VM_USERNAME}' | base64 --decode && echo
+kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PMM_HA_VM_PASSWORD}' | base64 --decode && echo
 
 # Get PostgreSQL passwords
 kubectl get secret pmm-secret -n pmm -o jsonpath='{.data.PG_PASSWORD}' | base64 --decode && echo
@@ -553,6 +811,36 @@ victoriaMetrics:
       maxLabelsPerTimeseries: "60"
 ```
 
+### Installing on OpenShift
+
+OpenShift's `restricted-v2` SCC gives every namespace its own uid and supplemental-group ranges
+and rejects any pod asking for values outside them, and it runs containers without
+`NET_BIND_SERVICE`. Install with the bundled overlay, which covers all of it:
+
+```bash
+helm install pmm-ha percona/pmm-ha -n pmm -f examples/values-openshift.yaml
+```
+
+It sets `openshift: true` (PMM Server and PMM Client let the cluster assign uid and fsGroup),
+disables the bundled node-exporter in favour of OpenShift's, turns off the kube-state-metrics
+securityContext, moves the HAProxy port to 8443, and points the bundled PostgreSQL cluster's PMM
+sidecar at that port.
+
+`openshift: true` governs the PMM Server and PMM Client pod securityContexts only. Setting it on
+its own is refused: the chart fails to render unless `nodeExporter.mode`, the kube-state-metrics
+securityContext and `haproxy.containerPorts.https` are set with it. Left at their defaults those
+three would be rejected at admission or crash-loop while Helm still reported `STATUS: deployed` -
+a green install with no metrics and no reachable UI.
+
+`haproxy.containerPorts.https` is also checked on plain Kubernetes: the HAProxy Service publishes
+whatever the container binds, and `pg-db.pmm.serverHost` is the one consumer the chart cannot
+rewrite, because the PostgreSQL operator copies it verbatim into `PMM_AGENT_SERVER_ADDRESS`.
+Move the port and the chart requires the port in `serverHost` too.
+
+To reach PMM from outside the cluster, create an OpenShift Route pointing at the `pmm-ha-haproxy`
+Service. Do not use the chart's own `ingress.enabled` for this - it targets `monitoring-service`
+and bypasses HAProxy, which pins you to a single PMM pod with no leader routing.
+
 ### Using OpenShift's node exporter
 
 By default (`nodeExporter.mode: internal`) the chart deploys its own `prometheus-node-exporter`
@@ -612,7 +900,8 @@ After deployment, get the external endpoint:
 kubectl get svc -n pmm -l app.kubernetes.io/name=haproxy
 ```
 
-The `EXTERNAL-IP` column shows the public access point. Connect via `https://<EXTERNAL-IP>:443`.
+The `EXTERNAL-IP` column shows the public access point. Connect via `https://<EXTERNAL-IP>:443`,
+or on the port `haproxy.containerPorts.https` is set to (8443 under the OpenShift overlay).
 
 #### Using NodePort (For bare-metal or when LoadBalancer is unavailable)
 
@@ -694,27 +983,60 @@ haproxy:
 | MetalLB | IP from pool via `spec.loadBalancerIP` |
 ### Scaling and Monitoring
 
+#### Supported scaling range
+
+| Component | Value | Supported range | Enforced |
+|---|---|---|---|
+| PMM server | `replicas` | any odd value from `1` to `maxReplicas`; `3` (default) and `5` are what QA certifies | Yes — the chart fails the render |
+| HAProxy | `haproxy.replicaCount` | `1` or higher; replicas past the worker-node count co-locate and add throughput, not fault tolerance | No |
+| ClickHouse | `clickhouse.cluster.replicas` | `3` (default) or higher; scaling up is supported and shown below | No |
+| ClickHouse Keeper | `clickhouse.keeper.replicasCount` | any odd value from `1` to `9`; `3` is the default | Yes — the chart fails the render |
+| VictoriaMetrics | `victoriaMetrics.*.replicaCount` | defaults, or higher for larger fleets; scale up only | No |
+
+`replicas` is an availability knob, not a capacity knob: more PMM servers buy
+tolerance of more simultaneous failures, not more monitored nodes. To monitor a
+larger fleet, raise the per-component `resources` and storage rather than adding
+PMM replicas.
+
+These constraints are covered under [Known Limitations](#known-limitations).
+
 #### Scaling PMM HA
+
+`helm upgrade` with `--set` and no values flag rebuilds the release from the chart
+defaults plus that one `--set`, so every other value set at install time is reverted:
+a `LoadBalancer` service goes back to `ClusterIP`, and scaling HAProxy resets
+`replicas` to `3`. The commands below pass `--reuse-values` to keep them; with a
+values file, change the count there and pass `-f values.yaml` instead. They also pin
+`--version` to the chart already running (the `CHART` column of
+`helm list --namespace pmm`), because `percona/pmm-ha` alone resolves to the newest
+chart in the repository and scaling would upgrade the chart too.
 
 To scale the PMM HA deployment:
 
 ```sh
-# Scale PMM server replicas
-helm upgrade pmm-ha --set replicas=5 --namespace pmm percona/pmm-ha
+# Scale PMM server replicas (odd values only)
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
+  --set replicas=5
 
 # Scale HAProxy replicas
-helm upgrade pmm-ha --set haproxy.replicaCount=5 --namespace pmm percona/pmm-ha
+# HAProxy replicas beyond the worker-node count are co-located rather than left
+# Pending, so they add throughput but not an extra failure domain.
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
+  --set haproxy.replicaCount=5
 
 # Scale ClickHouse replicas
-helm upgrade pmm-ha --set clickhouse.cluster.replicas=5 --namespace pmm percona/pmm-ha
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
+  --set clickhouse.cluster.replicas=5
 
 # Scale VictoriaMetrics components
-helm upgrade pmm-ha \
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
   --set victoriaMetrics.vmselect.replicaCount=3 \
   --set victoriaMetrics.vminsert.replicaCount=3 \
-  --set victoriaMetrics.vmstorage.replicaCount=5 \
-  --namespace pmm \
-  percona/pmm-ha
+  --set victoriaMetrics.vmstorage.replicaCount=5
 ```
 
 #### Monitoring PMM HA Health
@@ -757,17 +1079,83 @@ Common troubleshooting steps for PMM HA:
 
 ## Known Limitations
 
+### Scaling constraints
+
+- **`replicas` and `clickhouse.keeper.replicasCount` must be odd.** Both are Raft
+  ensembles, and Raft elects by majority: an even count adds a voter without adding
+  fault tolerance - it widens the majority a leader election needs while surviving no
+  more failures - and `2` survives none at all. The chart rejects even values.
+- **`clickhouse.keeper.replicasCount` must not exceed `9`.** Unlike `maxReplicas` this
+  is a supportability limit rather than a correctness one: every Keeper node is a full
+  Raft voter, so each extra pair widens the majority that every write waits on, and `9`
+  already survives 4 simultaneous losses.
+- **`replicas` must not exceed `maxReplicas`** (default `10`). HAProxy renders only
+  `maxReplicas` `server-template` slots and fills them from a headless-service DNS
+  answer in arbitrary order, and it marks a backend UP only when that pod answers
+  `/v1/server/leaderHealthCheck`. A pod left without a slot is therefore invisible to
+  HAProxy, and if the Raft leader lands on it every backend is DOWN and PMM serves
+  `503`. The chart rejects this combination.
+- **Raising `maxReplicas` needs an HAProxy restart.** It is rendered into the
+  `pmm-ha-haproxy` ConfigMap, which the chart does not roll on upgrade. Routing itself
+  is DNS-based, so changing `replicas` needs no restart. Bump
+  `haproxy.podAnnotations."pmm.percona.com/config-version"` in the same `helm upgrade`
+  so the pods restart and pick up the new `server-template`. It has to be a value the
+  release is not already running - the chart ships `"5"`, so the examples below use `"6"`:
+
+  ```sh
+  helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+    --version <chart-version> --reuse-values \
+    --set maxReplicas=20 \
+    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=6'
+  ```
+
+  Or in `values.yaml`:
+
+  ```yaml
+  maxReplicas: 20
+  haproxy:
+    podAnnotations:
+      pmm.percona.com/config-version: "6"
+  ```
+
+  Prefer this over `kubectl rollout restart`: the bump is part of the same declarative
+  upgrade, so the restart is reproducible from the chart alone. An out-of-band restart
+  also picks up the new config, but a GitOps controller strips the `restartedAt`
+  annotation on its next sync and triggers a second, pointless rollout.
+- **`haproxy.replicaCount` past the worker-node count buys throughput, not fault
+  tolerance.** HAProxy pods use a soft topology spread on `kubernetes.io/hostname`
+  (`whenUnsatisfiable: ScheduleAnyway`), so extra replicas co-locate rather than
+  staying `Pending` - but a co-located replica shares a failure domain with the one
+  already on that node. pgBouncer still uses required anti-affinity, so its replicas
+  do stay `Pending` past the node count while Helm reports success; the same holds for
+  the PostgreSQL instances in the sizing examples.
+- **`victoriaMetrics.vmstorage.replicaCount` should not be scaled down.** Data is
+  sharded across vmstorage pods and is not migrated off a removed pod.
+
 ### Scaling Down to Single Replica
 
-When scaling down to a single PMM replica, ensure the **Raft leader is on pmm-0** before scaling. Kubernetes StatefulSets remove pods in reverse ordinal order (highest first), so:
+When scaling down to a single PMM replica, ensure the **Raft leader is on pmm-ha-0** before scaling. Kubernetes StatefulSets remove pods in reverse ordinal order (highest first), so:
 
-- Scaling from 3→1 removes pmm-2 and pmm-1, keeping only pmm-0
-- If the Raft leader is on pmm-1 or pmm-2 when you scale down, **PMM will become unreachable**
+- Scaling from 3→1 removes pmm-ha-2 and pmm-ha-1, keeping only pmm-ha-0
+- If the Raft leader is on pmm-ha-1 or pmm-ha-2 when you scale down, **PMM can become unreachable**
 
-Only after confirming pmm-0 is the leader, scale down:
+Check which pod is the leader first. Only the leader answers `200`:
    ```sh
-   helm upgrade <release-name> percona/pmm-ha --namespace <namespace> --set replicas=1
+   for i in 0 1 2; do
+     printf 'pmm-ha-%s: ' "$i"
+     kubectl exec pmm-ha-$i -n pmm -c pmm-ha -- \
+       curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/v1/server/leaderHealthCheck
+   done
    ```
+
+Only after confirming pmm-ha-0 is the leader, scale down:
+   ```sh
+   helm upgrade <release-name> percona/pmm-ha --namespace <namespace> \
+     --version <chart-version> --reuse-values --set replicas=1
+   ```
+
+Even with the leader on pmm-ha-0, expect PMM to be unavailable for about a minute: the
+change to `PMM_HA_PEERS` also recreates pmm-ha-0, which is by then the only PMM server.
 
 # Need help?
 

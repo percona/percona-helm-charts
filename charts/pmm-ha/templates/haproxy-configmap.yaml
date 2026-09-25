@@ -16,7 +16,11 @@ data:
         daemon
     
     resolvers k8s
-        nameserver dns1 kube-dns.kube-system.svc.cluster.local:53
+        # Read the cluster DNS server from the pod's own /etc/resolv.conf rather than naming
+        # a service. The vanilla-Kubernetes name kube-dns.kube-system does not exist on
+        # OpenShift (it is dns-default.openshift-dns), and HAProxy rejects an unresolvable
+        # nameserver at config-parse time, so hardcoding either name breaks the other platform.
+        parse-resolv-conf
         resolve_retries 5
         timeout resolve 2s
         timeout retry   1s
@@ -49,7 +53,21 @@ data:
     {{- end }}
     
     frontend https_front
-        bind *:443 ssl crt /etc/haproxy/certs/pmm.pem
+        # Bind port follows haproxy.containerPorts.https so it can be moved above 1024.
+        # OpenShift's restricted-v2 runs the container as a non-root uid with all
+        # capabilities dropped and allowPrivilegeEscalation=false, so NET_BIND_SERVICE is
+        # unavailable and binding 443 fails with EACCES. The Service port follows the same
+        # value, so expose 443 externally with an OpenShift Route or an Ingress that points at
+        # this Service.
+        bind *:{{ include "pmm.haproxy.httpsPort" . }} ssl crt /etc/haproxy/certs/pmm.pem
+        {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled }}
+        # Metrics written by PMM Clients go to VictoriaMetrics (vmauth) directly, not to the PMM
+        # Server pods: pmm-managed tells every client vmagent to write to this address, and the
+        # pods run no VictoriaMetrics of their own in HA. Only this exact path is
+        # routed; every other path, including VictoriaMetrics queries, stays behind PMM's own
+        # authentication on the pods.
+        use_backend vmauth_write if { path /victoriametrics/api/v1/write }
+        {{- end }}
         default_backend https_back
 
     backend https_back
@@ -59,5 +77,15 @@ data:
         # Use server-template for dynamic DNS-based discovery of PMM pods
         # This automatically discovers pods when scaling up/down without requiring HAProxy restart
         # HAProxy will re-resolve DNS based on 'hold valid' setting in the resolver (10s)
-        server-template pmm 1-{{ $.Values.maxReplicas | default 10 }} {{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none resolvers k8s init-addr last,libc,none
-    
+        server-template pmm 1-{{ include "pmm.maxReplicas" $ }} {{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none resolvers k8s init-addr last,libc,none
+    {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled }}
+
+    backend vmauth_write
+        # vmauth expects the bare VictoriaMetrics path. Clients authenticate to it with the
+        # VictoriaMetrics credentials from the PMM secret; HAProxy passes the request through.
+        http-request set-path /api/v1/write
+        option httpchk
+        http-check send meth GET uri /health ver HTTP/1.1 hdr Host vmauth
+        http-check expect status 200
+        server vmauth {{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427 check resolvers k8s init-addr last,libc,none
+    {{- end }}
