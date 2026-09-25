@@ -1,0 +1,87 @@
+# HAProxy sends every request to the Raft leader, so a leader whose Grafana is gone serves 502
+# until something moves leadership off it. The liveness probe does that by restarting the
+# replica; these cases pin what it checks and that readiness keeps its own, wider check.
+suite: pmm-ha probes
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/clickhouse-datasource-secret.yaml
+release:
+  name: smoke
+  namespace: pmm
+tests:
+  - it: checks liveness through nginx to Grafana, not readyz
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.httpGet
+          value: {path: /graph/api/health, port: https, scheme: HTTPS}
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].startupProbe.httpGet
+          value: {path: /graph/api/health, port: https, scheme: HTTPS}
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].readinessProbe.httpGet.path
+          value: /v1/readyz
+
+  # Pins every default timing: a lost timeoutSeconds falls back to Kubernetes' 1s, and a
+  # smaller startup budget restarts replicas mid-boot.
+  - it: restarts after 60s of failed liveness checks by default, with a boot budget ahead of it
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe
+          value:
+            httpGet: {path: /graph/api/health, port: https, scheme: HTTPS}
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            failureThreshold: 6
+            timeoutSeconds: 5
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].startupProbe
+          value:
+            httpGet: {path: /graph/api/health, port: https, scheme: HTTPS}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 36
+            timeoutSeconds: 10
+
+  - it: takes probe timings from values
+    template: templates/statefulset.yaml
+    set:
+      livenessProbeConf: {periodSeconds: 30, failureThreshold: 4}
+      startupProbeConf: {failureThreshold: 40}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.periodSeconds
+          value: 30
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.failureThreshold
+          value: 4
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].startupProbe.failureThreshold
+          value: 40
+
+  # Without `with`, a null conf rendered the probe with Kubernetes' defaults (1s timeout,
+  # 3 failures), which kills replicas mid-boot instead of turning the probe off.
+  - it: drops a probe whose conf is null
+    template: templates/statefulset.yaml
+    set:
+      livenessProbeConf: null
+      startupProbeConf: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe
+      - notExists:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].startupProbe
+      - exists:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].readinessProbe
+
+  # Helm merges a user's {} into the chart defaults, so only null turns a probe off.
+  - it: documents that Helm merges an empty conf into the defaults
+    template: templates/statefulset.yaml
+    set:
+      livenessProbeConf: {}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.failureThreshold
+          value: 6
