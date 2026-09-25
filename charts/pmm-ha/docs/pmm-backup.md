@@ -1,0 +1,2107 @@
+# PMM-HA Backup & Restore (`pmm-backup.sh`)
+
+One tool, four subcommands, documented in one place:
+
+```
+pmm-backup.sh backup  [OPTIONS]                          # back up components
+pmm-backup.sh restore --backup-id <id|latest> [OPTIONS]  # restore from a backup (§8)
+pmm-backup.sh list    [BACKUP_ID]                        # list / inspect backups
+pmm-backup.sh prune   [OPTIONS]                          # run the retention sweep only
+```
+
+Sections 1–7 cover backup (architecture, per-component methods, chart integration,
+scheduling, concurrency, metrics, CLI, operations); §8 covers restore end-to-end;
+§9 lists known limitations. **§0 below is the copy-paste version** — everything else is
+the explanation behind it.
+
+---
+
+## 0. Quick Start
+
+Every command below is copy-paste ready: substitute `<namespace>` and `<release>` and run it
+from wherever your `kubectl` is. Nothing here needs `--target` or `--s3-*` flags — the chart
+projects the target and every S3 setting into the pod as environment, so the tool already
+knows where your backups live. Pass those flags only to override for an ad-hoc run.
+
+Assumed done once: `centralBackupStorage.enabled: true` and a configured target
+(§3 for `s3`, §3 *Storage Options* for `shared`).
+
+### Take a backup now
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh backup
+```
+
+It prints a summary per component and exits non-zero if any of them failed. A partial backup
+is a failure: `latest` is not advanced and the run is catalogued `partial`, so a later
+`--backup-id latest` cannot pick it up.
+
+Long backups are better run as a Job, which survives node consolidation — see
+*Run it as a Job* below.
+
+### See what you have
+
+```bash
+# every backup, newest last, with the 'latest' pointer marked
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh list
+
+# every file belonging to one backup
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh list backup_20260916-143054
+```
+
+### Back up on a schedule
+
+In your values, then `helm upgrade`:
+
+```yaml
+centralBackupStorage:
+  schedule:
+    enabled: true
+    cron: "0 2 * * *"      # daily at 02:00, cluster timezone
+    retentionDays: 7
+```
+
+Check it landed, and watch a run:
+
+```bash
+kubectl get cronjob -n <namespace>
+kubectl get jobs -n <namespace> -w
+kubectl logs -n <namespace> job/<release>-backup-<timestamp> -f
+```
+
+### Run it as a Job, off-schedule
+
+The CronJob exists on every install with backups enabled (suspended when you have not set a
+schedule), so its `jobTemplate` is always there to clone. This is the recommended way to run a
+long backup, because the Job pod carries `karpenter.sh/do-not-disrupt` for exactly the run's
+lifetime and an interactive `kubectl exec` does not:
+
+```bash
+kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <namespace>
+```
+
+### Restore the latest backup, in place
+
+**Destructive.** This scales PMM and vmstorage to 0, replaces PostgreSQL, ClickHouse,
+VictoriaMetrics and `/srv`, and scales back up. Expect roughly 8–10 minutes. `--yes` is the
+consent gate and is required non-interactively.
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  pmm-backup.sh restore --backup-id latest --yes
+```
+
+Check what it *would* do first, changing nothing:
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  pmm-backup.sh restore --backup-id latest --dry-run --yes
+```
+
+The dry run is worth using on its own: it validates that every component's objects are
+actually present and readable — including testing the ClickHouse tarball and resolving the
+VictoriaMetrics ordinal mapping — without touching anything.
+
+### Restore as a Job (recommended for a real restore)
+
+An interactive `exec` restore can be killed by node consolidation part-way through, which
+leaves PMM scaled to 0. A Job cannot. Clone the jobTemplate and swap `args` — never
+`command`, which carries the tool bootstrap:
+
+```bash
+kubectl create job --from=cronjob/<release>-backup restore-$(date +%s) \
+    -n <namespace> --dry-run=client -o yaml \
+  | yq '.spec.template.spec.containers[0].args =
+          ["restore","--backup-id","latest","--yes"]
+        | .spec.backoffLimit = 0
+        | .spec.activeDeadlineSeconds = null' \
+  | kubectl apply -f -
+
+kubectl logs -n <namespace> -f job/restore-<timestamp>
+```
+
+`backoffLimit: 0` because a failed restore needs a human before anything touches the data
+again; `activeDeadlineSeconds: null` because the backup deadline is sized for backups and a
+large restore legitimately runs longer.
+
+A Job also removes the other hazard of `exec`: **a dropped connection is not a failed
+restore.** The orchestrator runs inside the backup-tools pod, so if the client's `exec`
+stream dies — laptop sleep, VPN flap, `error reading from error stream: ... read: can't
+assign requested address` — `kubectl` exits non-zero while the restore carries on and
+finishes normally. Re-running it at that point would scale PMM to 0 underneath a restore
+that is already half-applied. Read the outcome from the pod, never from the exit code:
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  sh -c 'tail -20 $(ls -t /backups/logs/restore_*.log | head -1)'
+```
+
+The run is finished only when that log ends in a `PMM-HA Restore Summary` block.
+
+**If the restore Job sits `Pending`, it is the RWO volume, not the cluster being busy.** In `s3`
+mode the Job co-schedules onto backup-tools' node by required `podAffinity`
+(see [Scheduled Backups](#3a-scheduled-backups-cronjob)), so a node with no headroom leaves it
+unschedulable indefinitely — and the scheduler blames the affinity rather than the memory:
+
+```
+0/22 nodes are available: 2 Insufficient memory, 4 Insufficient cpu,
+6 node(s) didn't match pod affinity rules
+... unsatisfiable topology constraint for pod affinity, key=kubernetes.io/hostname
+```
+
+This bites hardest during a real DR, when the cluster is already under pressure, and it pushes
+you back onto the `exec` form this section exists to avoid. Two ways out, cheapest first:
+
+- Free memory on that node. Scaling the target's PMM StatefulSet to `0` is usually enough and
+  costs nothing you were not about to lose anyway — the restore scales PMM to `0` itself, just
+  *after* the Job has been scheduled.
+- Use an RWX volume (`centralBackupStorage.accessMode: ReadWriteMany`), which drops the affinity
+  altogether. `shared`/NFS installs already mount from any node and never see this.
+
+### Recovering from a restore that was killed part-way
+
+A restore killed between its scale-down and its scale-up leaves the install **down**, not
+merely un-restored: PMM at 0 replicas and, if it had reached VictoriaMetrics, `vmstorage` and
+`vminsert` at 0 too. Observed on EKS Auto Mode as `Evicted pod: Underutilized` against the
+backup-tools pod, which deliberately carries no `karpenter.sh/do-not-disrupt` — the reason a
+real restore belongs in a Job.
+
+PMM comes back on its own: the run stashes the count on the StatefulSet before scaling down
+(`restore.pmm.percona.com/original-replicas`) and the next run reads it back. **The vmcluster
+does not** — its replica counts live only in the CR the run itself zeroed, so re-running is
+refused at validation:
+
+```
+[ERROR] [Preflight] victoriametrics: no vmstorage pods matching 'app.kubernetes.io/name=vmstorage'
+[ERROR] Pre-restore validation FAILED. This run changed nothing.
+[ERROR]   PMM is at 0 replicas — an earlier run scaled it down and did not finish.
+```
+
+Scale the tiers back to the values your install uses, then re-run the restore:
+
+```bash
+kubectl patch vmcluster <release>-vmcluster -n <namespace> --type=merge \
+  -p '{"spec":{"vmstorage":{"replicaCount":3},"vminsert":{"replicaCount":2}}}'
+```
+
+The defaults are `victoriaMetrics.vmstorage.replicaCount: 3` and
+`victoriaMetrics.vminsert.replicaCount: 2`; check your own values first, since a restore
+cannot infer them once they have been zeroed. Also check for leftover locks — a killed run's
+leases stay held until they expire (`LOCK_LEASE_SECONDS`, default 900):
+
+```bash
+kubectl get leases -n <namespace> | grep pmm-backup
+```
+
+A run started before they expire is refused by design rather than stealing them.
+
+### Preparing a DR namespace (do this before installing)
+
+**Install the DR namespace with the SOURCE's `pmm-secret`.** It costs nothing at provisioning
+time and removes a whole class of post-restore surprises:
+
+```bash
+kubectl -n <source-ns> get secret pmm-secret -o yaml \
+  | sed 's/namespace: <source-ns>/namespace: <target-ns>/' \
+  | kubectl apply -f -
+# then install the target with secret.create=false
+```
+
+Why it has to be *before* the install, not restored afterwards: `pmm-secret` is an **input**. The
+PostgreSQL, ClickHouse and VictoriaMetrics operators read it at install time and create their
+users with those passwords. Overwriting it later changes only what PMM presents, not what those
+servers expect — you would break three working subsystems to fix one.
+
+Skipping this is recoverable but not free; see
+[After a cross-namespace restore](#after-a-cross-namespace-restore).
+
+### After a cross-namespace restore
+
+A restore across namespaces changes two things nothing else reports. The restore prints both at
+the end of its summary; they are repeated here with the reasoning.
+
+**1. The admin password is now the SOURCE's.** Grafana's `admin` row lives in the grafana
+database, which was just replaced. This install answers to the source's password while its own
+`pmm-secret` still holds the target's. The symptom appears somewhere unrelated:
+`<release>-pmm-token-init` cannot authenticate, so the PostgreSQL operand's `pmm-client` sidecars
+never get a token and CrashLoopBackOff with a generic 401.
+
+```bash
+kubectl -n <target-ns> patch secret pmm-secret --type=merge \
+  -p "{\"data\":{\"PMM_ADMIN_PASSWORD\":\"$(printf %s '<source-password>' | base64)\"}}"
+kubectl -n <target-ns> delete pod -l job-name=<release>-pmm-token-init-<hash>
+```
+
+Only `PMM_ADMIN_PASSWORD` drifts. The other keys stay correct precisely because neither side of
+them is restored — which is also why copying the whole secret after the fact is the wrong fix.
+
+**2. The `pmm-ha-client` agents are orphaned, silently.** Their agent id is persisted on their own
+PVC (`/usr/local/percona/pmm/config/pmm-agent.yaml`), which is not part of a backup, while
+`pmm-managed` — the registry that must recognise that id — was replaced by the source's. They log
+`No Agent with ID ...` and report nothing, while the pod stays `1/1 Running` with `0` restarts.
+Restarting does not help; the id outlives the pod.
+
+**The restore resets this for you** and says which clients it reset — the same "carry the data,
+reset the identity" rule it already applies to `/srv`'s raft state. They re-register on restart,
+which needs (1) done first: until the password matches they cannot register and will crash-loop.
+Any client the restore reports as *not* reset needs it by hand:
+
+```bash
+kubectl -n <target-ns> exec <release>-pmm-ha-client-N -c pmm-client -- \
+  rm -f /usr/local/percona/pmm/config/pmm-agent.yaml
+kubectl -n <target-ns> delete pod <release>-pmm-ha-client-N
+```
+
+Neither applies to a same-namespace restore, and neither affects **external** pmm-clients: their
+agent ids live in `pmm-managed`, which the restore brings across, so repointing them at the DR
+install works without any change.
+
+### Restore another install's backup into this one (DR)
+
+Same as above plus `--s3-prefix`, pointing at the SOURCE install's root
+(`<source-namespace>/<source-release>` by default). Run it from the TARGET namespace:
+
+```bash
+kubectl exec -n <target-namespace> deploy/<target-release>-backup-tools -- \
+  pmm-backup.sh restore --backup-id latest \
+    --s3-prefix <source-namespace>/<source-release> --yes
+```
+
+In `shared` mode the equivalent flag is `--shared-source-path`: both installs mount the same
+export, but each writes under its own `<namespace>/<release>` subpath, so the target still has
+to be told whose catalog to read.
+
+```bash
+kubectl exec -n <target-namespace> deploy/<target-release>-backup-tools -- \
+  pmm-backup.sh restore --backup-id latest \
+    --shared-source-path <source-namespace>/<source-release> --yes
+```
+
+Full detail, including what is and is not carried across, is in
+[§8.2](#82-cross-namespace--dr-restore).
+
+### When something is wrong
+
+```bash
+# the run's own log, inside the pod
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- sh -c 'ls -t /backups/logs | head'
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- tail -50 /backups/logs/backup_<id>.log
+
+# is a lock still held by a dead run?
+kubectl get leases -n <namespace> | grep pmm-backup
+
+# what the metrics endpoint is actually serving
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  wget -qO- http://127.0.0.1:9091/metrics
+```
+
+If that last command returns `# HELP`/`# TYPE` lines and **no samples**, the backup metrics
+are not reaching Prometheus and every alert in [Alerting Examples](#alerting-examples) has
+silently stopped evaluating. See the RWX callout under
+[Storage Options](#storage-options-shared-mode).
+
+---
+
+## 1. Overview
+
+`pmm-backup.sh backup` orchestrates backups across all PMM-HA components using their
+**native backup tools**, writing to a configurable **target** (`--target`):
+
+- **`s3`** (default, recommended): each component uploads **directly** to any
+  S3-compatible object storage (AWS S3, MinIO, Ceph RGW, ...). Credentials are either
+  **static keys** in a Kubernetes Secret (works everywhere) or **IRSA** (AWS EKS only,
+  keyless) — see §3. Implemented and validated end-to-end for all components.
+- **`shared`**: a user-provided RWX/NFS volume is mounted into the component pods and each
+  lands its backup with an in-pod write (no API-server streaming). Implemented and validated.
+
+In `s3` mode each tool writes straight to object storage — the data does not transit the
+Kubernetes API server.
+
+| Component | Tool | s3 mechanism |
+|---|---|---|
+| PostgreSQL | pg_dump | logical dump per database, streamed `pg_dump -Fc \| rclone rcat` to S3 |
+| ClickHouse | clickhouse-backup | `upload` to S3 (`REMOTE_STORAGE=s3`, configured credentials) |
+| VictoriaMetrics | vmbackup | `-dst=s3://…` direct (writes its own `backup_complete.ignore`) |
+| PMM server `/srv` | tar + rclone | `pmm-backup` sidecar streams `tar -czf - /srv \| rclone rcat` to S3 |
+| Encryption key | kubectl + rclone | Secret exported and uploaded to S3 |
+
+**S3 layout** — PostgreSQL, PMM `/srv`, VictoriaMetrics and the encryption key all land under
+one per-run prefix; only clickhouse-backup keeps its own native remote layout:
+
+```
+s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump                     (pg_dump, custom format)
+s3://<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz
+s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>/…  (+ backup_complete.ignore)
+s3://<bucket>/<prefix>/encryption/<id>/pg-encryption-key.yaml
+s3://<bucket>/<prefix>/manifests/<id>.json                           (per-run index)
+s3://<bucket>/<prefix>/clickhouse/backup_<id>/…                          (clickhouse-backup layout)
+```
+
+A run only marks itself complete when **every selected component fully succeeds**
+(fail-on-partial): a partial multi-pod backup (e.g. one vmstorage pod down) records
+`status: partial` in the manifest and never moves the `latest` pointer, so a half-empty
+backup can never masquerade as good (and `restore --backup-id latest` can never pick it up).
+
+### Architecture (s3 mode)
+
+```
+        orchestrator (run manually, or on a schedule via the <release>-backup CronJob — §3a)
+        ┌───────────────────────────┐
+        │  pmm-backup.sh backup     │   kubectl exec carries COMMANDS only,
+        └─┬────┬────┬────┬───────────┘   never bulk data
+          │    │    │    │  (trigger native tools / sidecars via exec)
+   ┌──────┘    │    │    └───────────────┐
+   ▼           ▼    ▼                    ▼
+ PG primary  CH pod  vmstorage-0/1/2   pmm-ha-0/1/2
+ pg_dump     ch-     vmbackup          pmm-backup
+ (-Fc|rclone) backup (-dst=s3)         (rclone) sidecar
+   │           │       │                 │
+   │  each authenticates with the configured credentials (static keys or IRSA)
+   └───────────┴───────┴─────────────────┘
+                       │  direct PUT (multipart, retries)
+                       ▼
+            ┌───────────────────────┐
+            │   S3 bucket / prefix   │
+            └───────────────────────┘
+```
+
+Authentication — the target is **any S3-compatible object storage** (AWS S3, MinIO, Ceph
+RGW, ...); pick one of two credential models (see §3 for setup):
+
+- **Static keys** (works everywhere): an access/secret key pair stored in a Kubernetes
+  Secret and injected into every uploading pod. The only option on non-AWS storage.
+- **IRSA** (AWS EKS only, keyless): each uploading pod runs under a ServiceAccount
+  annotated with an IAM role (`eks.amazonaws.com/role-arn`); the EKS pod-identity webhook
+  injects a web-identity token that the AWS SDK credential chain picks up.
+
+For non-AWS endpoints set `centralBackupStorage.s3.endpoint` (and `provider` for the
+rclone-based clients); the orchestrator passes the endpoint through to every tool,
+including `-customS3Endpoint` for vmbackup/vmrestore.
+
+---
+
+## 2. Components and Backup Methods
+
+### PostgreSQL
+
+- **Tool**: `pg_dump` (logical backup). PMM's PostgreSQL holds config/inventory/Grafana
+  metadata only (the metrics live in VictoriaMetrics/ClickHouse), so it's small and a
+  logical dump is the right fit — and unlike a physical pgBackRest repo it is **not tied to
+  a cluster identity/stanza**, so it restores into any namespace/cluster trivially.
+- **How**: `kubectl exec` into the primary pod (container `database`), discover the
+  application databases (everything except templates and the empty `postgres` db), and run
+  `pg_dump -Fc` per database via local peer auth as the `postgres` superuser.
+- **Where stored**: one custom-format file per database under this component's prefix —
+  `s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump` (s3, streamed `pg_dump | rclone rcat`
+  by the backup-tools pod's own rclone) or `<central>/postgresql/<id>/<db>.dump`
+  (shared, `pg_dump` streamed onto the mounted volume). For PMM that's typically
+  `pmm-managed` + `grafana`.
+- **Operator pgBackRest**: untouched. The Percona/Crunchy operator keeps its own local
+  `repo1` for replica bootstrap / HA — the orchestrator does **not** use or require it.
+- **Trade-off**: no point-in-time recovery (you restore to the last dump). Acceptable for
+  PMM's config database.
+
+### ClickHouse
+
+- **Tool**: clickhouse-backup (Altinity sidecar)
+- **How**: `kubectl exec` into the ClickHouse pod, issues SQL commands against the `system.backup_actions` table to trigger `clickhouse-backup create`
+- **Where stored** (s3): `clickhouse-backup create` makes near-zero-space hardlinks on the pod, then `upload` pushes them to S3 (`REMOTE_STORAGE=s3`, `S3_PATH=<prefix>/clickhouse`, configured credentials — static keys or IRSA), then `delete local`. Objects land at `s3://<bucket>/<prefix>/clickhouse/backup_<id>/…`.
+- **Incremental** (`--ch-backup-type incremental`): the local `create` is always a full
+  hardlink snapshot; the diff happens at **upload** time — `upload
+  --diff-from-remote=<previous-remote-backup> <name>` (flags before the positional name).
+  Only changed parts are uploaded; `list remote` shows the linkage as `+<prev>`. Verified
+  against clickhouse-backup 2.8.0 (`create --diff-from-remote` applies only to
+  embedded/object-disk backups, which we don't use). Incremental runs do NOT move the
+  `latest` pointer (single-component scope).
+- **Prerequisite**: The `clickhouse-backup` sidecar must be running (check for `system.backup_actions` table)
+
+### VictoriaMetrics
+
+- **Tool**: vmbackup (sidecar in vmstorage pods)
+- **How**: For each vmstorage pod, `kubectl exec` into the `vmbackup` sidecar, creates a snapshot and runs `vmbackup-prod -dst=<target>`
+- **Where stored** (s3): `vmbackup -dst=s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>` uploads the snapshot **directly to S3** (configured credentials, `AWS_REGION` from the pod env; custom endpoints via `-customS3Endpoint`). vmbackup writes `backup_complete.ignore` at the destination as its **final** step, so the completion marker that `vmrestore` requires is always present.
+- **Note**: per-pod backups; the run is only marked complete if **every** vmstorage pod succeeds.
+
+### PMM Server `/srv`
+
+- **Tool**: `tar` + `rclone` in the `pmm-backup` sidecar
+- **How**: PMM pods are discovered by label (`app.kubernetes.io/component=pmm-server`); for each, `kubectl exec` into the `pmm-backup` sidecar and run `tar -czf - -C / srv | rclone rcat --s3-no-check-bucket s3:<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz`. The exec carries only the command; the tarball streams sidecar→S3.
+- **Where stored** (s3): `s3://<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz`. After upload the script verifies the object exists (`rclone size`) and treats an empty/missing result as a failure.
+- **Prerequisite**: the `pmm-backup` rclone sidecar (added by the chart in `s3` mode) running in the PMM pods.
+
+### Encryption Key
+
+- **Tool**: `kubectl get secret` + rclone
+- **How**: Exports the `pg-encryption-key` Kubernetes Secret to clean YAML
+- **Tied to**: Only backed up when `--postgresql` is selected (it's a PostgreSQL encryption key)
+- **Where stored** (s3): uploaded to `s3://<bucket>/<prefix>/encryption/<id>/pg-encryption-key.yaml` (SHA256 recorded). Note: the key is stored in the **same bucket** as the data — tighten with a separate prefix/restricted IAM if required.
+
+---
+
+## 3. Helm Chart Integration
+
+The backup infrastructure is provisioned by the PMM-HA Helm chart when
+`centralBackupStorage.enabled: true` in `values.yaml`. The target mode is set with
+`centralBackupStorage.mode` (`s3` default, or `shared`).
+
+### Backup Target & S3 Configuration
+
+```yaml
+centralBackupStorage:
+  enabled: true
+  mode: s3                       # s3 (default) | shared
+  s3:
+    bucket: "my-bucket"
+    region: "eu-central-1"
+    endpoint: ""                 # empty for AWS; set for S3-compatible (e.g. http://minio.minio.svc:9000)
+    provider: "AWS"              # rclone provider: AWS | Minio | Ceph | Other
+    prefix: ""                   # key namespace under the bucket; empty = the release name
+
+    ## Credentials — set ONE of the two:
+    ## (A) static keys (any S3-compatible storage): Secret with access-key/secret-key
+    existingSecret: ""           # e.g. "pmm-s3-secret"
+    # existingSecretKeys:        # which keys inside the Secret hold the credentials
+    #   accessKey: "access-key"
+    #   secretKey: "secret-key"
+    ## (B) IRSA (AWS EKS only, keyless):
+    irsaRoleArn: ""              # e.g. arn:aws:iam::<acct>:role/pmm-ha-backup-s3
+    serviceAccountName: "pmm-ha-backup-s3"   # SA for operator-managed pods (IRSA-annotated on AWS)
+  client:
+    image:                       # rclone — PMM /srv sidecar + ad-hoc orchestrator uploads
+      registry: docker.io
+      repository: rclone/rclone
+      tag: "1.74.3"
+  tools:
+    image:                       # backup-tools + every backup/restore Job pod
+      registry: docker.io        # must carry kubectl, jq and rclone — see §9
+      repository: tigercomputing/cloud-tools
+      tag: "20260831175138"      # timestamp tags only, never :latest; see values.yaml
+```
+
+**Configure `centralBackupStorage.s3` once.** ClickHouse and VictoriaMetrics have their own
+`backup.s3` blocks (`clickhouse.backup.s3`, `victoriaMetrics.vmstorage.backup.s3`), but their
+`existingSecret` (+ `existingSecretKeys`), `endpoint`, and `region` all **fall back to the
+central `centralBackupStorage.s3` values when left empty**. So on a MinIO/Ceph (or any static-key)
+install you set the credentials, endpoint, and region ONCE centrally; each component block only
+needs `enabled: true` (plus an optional per-component `bucket`/`path` — those are the only
+per-component settings). Set a value in a component block only to point that component at a
+different secret/endpoint/region. See the simplified example under *S3 Authentication Setup* below.
+
+In `s3` mode the chart wires each component's credentials — static keys (`existingSecret`)
+or, on AWS, IRSA:
+
+| Component | Chart wiring |
+|---|---|
+| PMM `/srv` | adds the `pmm-backup` rclone sidecar to the PMM StatefulSet; creds via `centralBackupStorage.s3.existingSecret` or the PMM SA's `irsaRoleArn` annotation |
+| VictoriaMetrics | `VMCluster.spec.serviceAccountName` = backup SA; vmbackup gets `AWS_REGION` + creds (`existingSecret` or IRSA chain) |
+| ClickHouse | CHI pod-template `serviceAccountName` = backup SA; clickhouse-backup gets `REMOTE_STORAGE=s3` + `S3_PATH` + creds (`existingSecret` or IRSA chain) |
+| PostgreSQL | nothing PG-specific — `pg_dump` streams through the `pmm-backup` rclone sidecar, which already has the S3 credentials. No pgBackRest S3 repo wiring. |
+
+### S3 Authentication Setup (one-time, per cluster)
+
+**Option A — static keys (any S3-compatible storage: MinIO, Ceph RGW, Wasabi, AWS, ...).**
+No IAM roles or cloud-specific identity involved: the storage admin creates a bucket and
+an access-key/secret-key pair with read/write/list/delete on it, and you store the pair in
+a Kubernetes Secret in the PMM namespace:
+
+```bash
+kubectl create secret generic pmm-s3-secret -n <namespace> \
+  --from-literal=access-key=<ACCESS_KEY> --from-literal=secret-key=<SECRET_KEY>
+```
+
+```yaml
+centralBackupStorage:
+  s3:
+    bucket: "pmm-backups"
+    endpoint: "http://minio.minio.svc:9000"   # empty for AWS S3
+    provider: "Minio"                         # AWS | Minio | Ceph | Other
+    region: "us-east-1"                       # many S3-compatibles accept any value
+    existingSecret: "pmm-s3-secret"           # credentials — inherited by CH & VM below
+clickhouse:
+  backup:
+    s3: { enabled: true }        # bucket/path optional; secret+endpoint+region inherited from central
+victoriaMetrics:
+  vmstorage:
+    backup:
+      s3: { enabled: true }      # secret+endpoint+region inherited from central
+```
+
+The ClickHouse and VictoriaMetrics blocks need only `enabled: true` — their credentials,
+endpoint, and region come from `centralBackupStorage.s3` (see *Configure once* above). Add a
+`bucket`/`endpoint`/`existingSecret` there only to override for that component.
+
+For restores you normally pass nothing extra — inside the backup-tools pod the chart already
+exports the secret name, endpoint, provider and region as env (see *Flag-less operation*), so
+`pmm-backup.sh restore --backup-id latest` just works. Pass `--s3-secret` / `--s3-endpoint` /
+`--s3-provider` explicitly only for an ad-hoc or cross-prefix run that differs from the install.
+
+**Option B — IRSA (AWS EKS only): keyless.** Pods authenticate via an IAM role assumed
+through the cluster's OIDC provider — **no access keys in the cluster**:
+
+1. **IAM policy** granting the bucket `s3:ListBucket`/`GetObject`/`PutObject`/`DeleteObject`
+   (no `CreateBucket` needed).
+2. **IAM role** whose trust policy allows the cluster OIDC provider for the backup
+   ServiceAccounts (`system:serviceaccount:<ns>:pmm-ha-backup*` and the PMM server SA;
+   scope tighter for prod).
+3. Set `centralBackupStorage.s3.irsaRoleArn`. The chart annotates the SAs
+   (`eks.amazonaws.com/role-arn`); the EKS pod-identity webhook injects a web-identity
+   token that the AWS SDK / rclone pick up automatically.
+4. The STS regional endpoint must be ACTIVE in the cluster's region (IAM console →
+   Account settings) — a deactivated region fails every credential exchange with
+   `403 RegionDisabledException`.
+
+> rclone is invoked with `--s3-no-check-bucket` (works without bucket-creation rights).
+> PostgreSQL needs no credentials of its own — its `pg_dump` is streamed to S3 through the
+> `pmm-backup` rclone sidecar.
+
+### Helm Template Files
+
+| File | Purpose |
+|---|---|
+| `templates/backup-tools.yaml` | backup-tools Deployment, ServiceAccount, Role, RoleBinding; projects target + S3 settings into the pod env |
+| `templates/backup-scripts-configmap.yaml` | the orchestrator (`pmm-backup.sh`) and the tool bootstrap (`backup-entrypoint.sh`) rendered into a ConfigMap, mounted at `/usr/local/bin` in the Deployment and every backup/restore Job pod |
+| `templates/backup-cronjob.yaml` | CronJob `<release>-backup` — each run is a Job executing `pmm-backup.sh`. Always rendered when `centralBackupStorage.enabled`, **suspended** unless `schedule.enabled`, so its jobTemplate is always available to `kubectl create job --from` (see §3a) |
+| `examples/restore-job.yaml` | restore as a Job (disruption-protected); documents the clone-and-swap invocation |
+| `templates/backup-s3-serviceaccount.yaml` | IRSA SA for operator-managed pods (created when `irsaRoleArn` is set) |
+| `templates/statefulset.yaml` | PMM StatefulSet — `pmm-backup` rclone sidecar + S3 credentials wiring (s3 mode) |
+| `templates/vmcluster.yaml` | VMCluster — backup `serviceAccountName` + vmbackup s3 env/creds |
+| `templates/clickhouse-cluster.yaml` | CHI — backup `serviceAccountName` + clickhouse-backup s3 env/creds |
+| `templates/central-backup-pvc.yaml` | PVC for the `shared` target (conditional) |
+| `templates/vmagent.yaml` | VMAgent scrape jobs for backup metrics |
+| `pg-db` values | `repo1` (local, operator HA only) — no pgBackRest S3/RWX repo; PG is backed up with `pg_dump` |
+
+### Storage Options (`shared` mode)
+
+These apply to **`mode: shared`** only. In **`s3` mode no shared volume is needed** —
+backups go straight to the bucket; the backup-tools pod keeps only a small volume for
+logs/metrics.
+
+The shared volume is mounted into the component pods that write directly (vmstorage, the
+clickhouse-backup sidecar, PMM) **and** the backup-tools pod simultaneously, so it **must be
+`ReadWriteMany` (RWX)**. (PostgreSQL needs no mount — its `pg_dump` is streamed through the
+orchestrator onto the backup-tools mount.) EBS / `gp3` (ReadWriteOnce) cannot be used. Provide an RWX backend
+yourself — EFS, an NFS server, `nfs-subdir-external-provisioner`, etc.; the chart does not
+provision RWX storage for you.
+
+> **The export must be group-writable if you will restore into a second namespace.**
+> OpenShift assigns every namespace its own uid range, so the DR namespace's pods run as a
+> different uid from the source's and cannot write anything the source created `0755`. The one
+> identity both carry is **gid 0**. The orchestrator therefore creates its directories
+> group-writable and `setgid` (so children keep gid 0), and pre-creates vmbackup's destination
+> the same way — vmbackup would otherwise make it `0700` and the peer namespace could not even
+> list it.
+>
+> A **pre-existing** export still has to allow this: make its root group-writable and setgid
+> once, e.g. `chmod -R g+rwX,g+s /exports/pmm-central-backup`. This is not OpenShift-specific —
+> any shared filesystem that does not pin uids (NFS, CephFS, hostPath, EFS *without* access
+> points) behaves the same. EFS access points that force a single `PosixUser` sidestep it
+> entirely, because both namespaces are then squashed to the same uid.
+
+**Option 1: Bring-your-own RWX PVC (recommended)**
+
+```yaml
+centralBackupStorage:
+  enabled: true
+  mode: shared
+  existingClaim: "my-rwx-backup-pvc"   # a ReadWriteMany PVC you created
+```
+
+**Option 2: An NFS export — declare a PV for it, then use Option 1**
+
+There is deliberately no PVC-less `nfs:` shortcut. The VictoriaMetrics and `/srv` restores run
+in temporary pods that `pmm-backup.sh` builds at restore time, and those can only mount a
+claim — so a bare `nfs:` volume backs up fine and then cannot restore half the components. An
+inline NFS volume also cannot carry `mountOptions` (a pod's `NFSVolumeSource` has only
+`server`, `path` and `readOnly`), and `hard` / `nfsvers` are not optional on a volume holding
+backup archives: a soft mount turns a server hiccup into a short read, i.e. a silently
+truncated archive you discover at restore time.
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pmm-central-backup-nfs
+spec:
+  capacity: { storage: 100Gi }
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions: [nfsvers=4.1, hard, timeo=600, retrans=2]
+  nfs:
+    server: 10.0.1.50
+    path: /exports/pmm-backups
+  claimRef: { namespace: <namespace>, name: pmm-central-backup-shared }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pmm-central-backup-shared
+  namespace: <namespace>
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: pmm-central-backup-nfs
+  resources: { requests: { storage: 100Gi } }
+```
+
+then point the chart at that claim exactly as in Option 1:
+
+```yaml
+centralBackupStorage:
+  enabled: true
+  mode: shared
+  existingClaim: pmm-central-backup-shared
+```
+
+`claimRef` pre-binds the PV so nothing else can take it, and `Retain` keeps the data if the
+claim is ever deleted. A DR namespace gets its own PV/PVC pair onto the **same export** — see
+[Cross-namespace / DR restore](#82-cross-namespace--dr-restore).
+
+**Option 3: Chart-created PVC (only with an RWX storage class)**
+
+```yaml
+centralBackupStorage:
+  enabled: true
+  mode: shared
+  storageSize: 100Gi
+  storageClassName: "efs-sc"     # MUST support ReadWriteMany
+  accessMode: ReadWriteMany
+```
+
+The chart creates a PVC named `<release>-central-backup`; only works if the storage class
+provisions RWX volumes.
+
+**Priority**: `existingClaim` > chart-created PVC.
+
+**`accessMode` / `storageClassName` defaults.** Leave `accessMode` empty and the chart derives
+it from `mode`: `ReadWriteMany` for `shared`, `ReadWriteOnce` for `s3` (where the volume only holds
+the backup-tools logs/metrics). Set it explicitly to override. An empty `storageClassName` uses the
+cluster's default storage class; set one that actually exists (a non-existent class leaves the PVC
+`Pending` and blocks the install).
+
+> **In `s3` mode, prefer an RWX volume where each POD gets its own SELinux MCS categories** —
+> EKS Auto Mode / Bottlerocket, and SELinux-enforcing hosts generally:
+>
+> ```yaml
+> centralBackupStorage:
+>   mode: s3
+>   accessMode: ReadWriteMany      # e.g. an EFS-backed claim
+> ```
+>
+> The RWO default is correct in the narrow sense — the volume really is only the backup-tools
+> logs and metrics — but it costs two things on those platforms, and both are silent:
+>
+> 1. **Schedulability.** An RWO volume can only be mounted from one node, so the backup
+>    CronJob's jobTemplate carries a *required* podAffinity onto the backup-tools pod. If that
+>    node has no headroom the Job sits `Pending` until `schedule.activeDeadlineSeconds` (6h by
+>    default) kills it — with no log, no metric and no alert in between. Restarting
+>    backup-tools does not move it either: the volume is already attached to that node.
+> 2. **Metric continuity.** The Deployment and each Job pod get different MCS categories, and
+>    mounting relabels the volume to the mounting pod. After any Job runs, backup-tools can no
+>    longer read `/backups/.metrics`, and `/metrics` answers **200 with the HELP/TYPE preamble
+>    and zero samples** — so the scrape keeps succeeding while every alert in
+>    [Alerting Examples](#alerting-examples) quietly stops evaluating.
+>    `kubectl rollout restart deploy/<release>-backup-tools` restores it until the next Job.
+>
+> An NFS/EFS mount takes a single mount-wide SELinux context rather than per-file labels, so
+> nothing relabels it; setting `accessMode: ReadWriteMany` also removes the affinity, so one
+> setting addresses both. **OpenShift is unaffected by (2)** — it assigns MCS per *namespace*,
+> so every pod of an install shares one context — but (1) still applies.
+
+### Pod Startup
+
+backup-tools runs as a **Deployment** (`replicas: 1`, `strategy: Recreate` — the
+logs/metrics volume is typically RWO) using a pinned image that carries kubectl, jq and
+rclone (`centralBackupStorage.tools.image`, default tag pinned in values.yaml). The orchestrator
+(`pmm-backup.sh`) is **shipped by the chart** (`files/pmm-backup.sh`), rendered into the
+`<release>-backup-scripts` ConfigMap and mounted into `/usr/local/bin/` — in this
+Deployment and in every backup/restore Job pod alike; no manual copying, and a checksum
+annotation rolls the Deployment pod whenever the script changes.
+On startup the container:
+
+1. Creates the metrics directory (`/backups/.metrics/`)
+2. Initializes placeholder `.prom` files for each component
+3. Starts one netcat listener in the background (port 9091) serving every `.prom` file in the metrics directory
+4. Sleeps indefinitely, waiting for backup or restore script invocations
+
+Two operational notes:
+
+- The pod template deliberately carries **no** `karpenter.sh/do-not-disrupt`. It used to:
+  on an always-on Deployment the annotation is permanent, which pinned whatever node the pod
+  landed on and stalled every Karpenter / EKS-Auto-Mode node rollout. The protection moved to
+  the thing that actually needs it — each backup/restore **Job** pod carries the annotation for
+  exactly the run's lifetime and releases it on exit. The consequence for you: a long
+  `kubectl exec ... backup` **is** killable by consolidation, which is why §0 and §3a recommend
+  running long backups and restores as Jobs.
+- The orchestrator scripts require **jq** (manifest generation/merging/parsing, secret
+  export), plus `rclone` in s3 mode and `nc` for the metrics listener. The default tools image
+  ships all of them, so the bootstrap only probes (see §9). An image that lacks one falls back
+  to `apk add`, which needs root — and backup Jobs run with `PMM_TOOLS_STRICT=true`, so on a
+  non-root platform a missing tool is a failed backup, not a slow one.
+
+Run the tools via the Deployment (the pod name is generated):
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh --help
+```
+
+### RBAC
+
+The chart creates a ServiceAccount (`<release>-backup-sa`) with a Role granting:
+
+| apiGroup | Resources | Verbs | Why |
+|---|---|---|---|
+| `""` | `pods`, `pods/log`, `pods/exec` | get, list, create, delete, watch, patch | `exec` is how every component is backed up and restored; `create`/`delete` for the temp vmrestore and `/srv` pods; `patch` to set `karpenter.sh/do-not-disrupt` on the pods a run execs into, so consolidation cannot evict them mid-write |
+| `coordination.k8s.io` | `leases` | get, list, create, update, patch, delete | the per-component locks (§4) — this is what stops two runs touching one component, including a laptop-run restore during a scheduled backup |
+| `""` | `secrets` | get, list, create, update, patch | read the PMM/ClickHouse credentials; `create`/`patch` to restore the PMM encryption key |
+| `""` | `persistentvolumeclaims` | get, list | resolve the `/srv` and vmstorage PVC names from the StatefulSets |
+| `""` | `services` | get, list | reach ClickHouse / PostgreSQL endpoints |
+| `""` | `namespaces` | get | preflight: the target namespace exists |
+| `""` | `serviceaccounts` | get | verify the restore temp pods' ServiceAccount exists before scheduling them (a missing SA is otherwise an admission failure mid-restore) |
+| `operator.victoriametrics.com` | `vmclusters` | get, list, patch | scale vmstorage/vminsert down and back up around a VictoriaMetrics restore |
+| `apps` | `statefulsets`, `statefulsets/scale` | get, list, patch (+ get, patch on `/scale`) | scale PMM down and back up around a restore, and read the `volumeClaimTemplate` for PVC names |
+| `pgv2.percona.com` | `perconapgclusters` | get, list | **read only** — resolve which PostgreSQL install owns the pods, so a namespace with two releases cannot be backed up or restored into the wrong one |
+| `clickhouse.altinity.com` | `clickhouseinstallations` | get, list | **read only** — the same, for ClickHouse |
+
+The last two are ownership lookups, not operator calls: the operand pods carry no Helm release
+label, so `pmm-backup.sh` resolves the CR that owns them and scopes every pod selector to it (§
+"Two releases in one namespace"). They are **required** — without them the lookup returns 403,
+which the orchestrator refuses to treat as "no such object", and the run aborts rather than fall
+back to matching every install in the namespace.
+
+No `perconapgrestores` access is needed — PostgreSQL restores through `pg_restore`, not the
+operator. No `deployments` access is needed either: a scheduled run is a Job that executes
+`pmm-backup.sh` itself and never resolves `deploy/<release>-backup-tools`.
+
+> **Hand-built RBAC for a DR namespace:** a cross-namespace restore needs this same Role in the
+> **target** namespace. Copy the table above in full — omitting the two ownership rules is the
+> one mistake that stops a restore before it starts.
+
+---
+
+## 3a. Scheduled Backups (CronJob)
+
+Backups can run on a schedule via a Kubernetes CronJob — **disabled by default**. Enable it under
+`centralBackupStorage.schedule`. Restore is never scheduled; it stays a deliberate manual action.
+
+```yaml
+centralBackupStorage:
+  schedule:
+    enabled: false            # create the <release>-backup CronJob
+    cron: "0 2 * * *"         # cron expression, cluster timezone (default: daily 02:00)
+    retentionDays: 7          # prune backups older than N days (passed as --retention)
+    components: []            # [] = all four; or e.g. ["--postgresql","--clickhouse"] or ["--skip-victoriametrics"]
+    extraArgs: []             # extra `pmm-backup.sh backup` args
+    startingDeadlineSeconds: 600    # skip a run that can't start within N seconds
+    activeDeadlineSeconds: 21600    # hard cap on the run — the Job IS the backup (6h default)
+    terminationGracePeriodSeconds: 300  # time the run gets to release locks on TERM
+    backoffLimit: 1                 # retries; only helps if the killed attempt released its locks
+    ttlSecondsAfterFinished: 604800 # delete finished Jobs after 7d (null to disable; 0 = at once)
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
+```
+
+The chart renders a CronJob `<release>-backup` whenever `centralBackupStorage.enabled` is true,
+**suspended** when `schedule.enabled` is false. It is rendered even with no schedule on purpose:
+its `jobTemplate` is the canonical, fully-wired run definition that `kubectl create job --from`
+clones for an ad-hoc backup *and* for a restore, so every install has one. Target and all S3
+settings reach the run as environment (via the shared `pmm.backupRunEnv` helper), not as repeated
+CLI flags — only `--retention`, `components` and `extraArgs` are schedule-specific. In `s3` mode
+the bucket is required whenever `mode` is `s3`, **independently of `schedule.enabled`** — the
+chart fails the render on an empty `centralBackupStorage.s3.bucket`. The CronJob is always
+rendered (suspended without a schedule) because its jobTemplate is the documented clone source
+for manual backups and restores, so rendering one with no bucket would hand operators an
+artifact that dies on `--target s3 requires --s3-bucket` the first time they use it.
+
+The Job pod's `command` is `backup-entrypoint.sh` (the shared tool bootstrap, which probes for
+jq/rclone and installs them only if the image lacks them) and its `args` are the operation. That split
+is what makes a clone-and-swap safe: rewrite `args`, never `command`, or the clone loses the
+bootstrap and fails its own preflight.
+
+**How a run executes.** Each tick spawns a **Job whose pod runs `pmm-backup.sh backup` itself** —
+there is no exec into the backup-tools Deployment and no detached process. Kubernetes provides
+what the former `cron-backup.sh` wrapper hand-rolled around the exec stream: the exit code (Job
+status), the run log (`kubectl logs job/...`), retry (`backoffLimit`), overlap prevention
+(`concurrencyPolicy: Forbid` — a run still going at the next tick makes that tick skip), and a
+real bound on the run (`activeDeadlineSeconds`). The pod carries `karpenter.sh/do-not-disrupt`
+for exactly the run's lifetime: consolidation cannot kill a backup, and nothing pins a node once
+the run ends. (On the always-on Deployment that annotation was permanent and stalled node
+rollouts — which is why the run moved into a Job.)
+
+**Volume access.** In `s3` mode the central volume (logs/metrics, RWO) is held by the
+backup-tools Deployment, so the Job co-schedules with it via required `podAffinity` — RWO is
+*node*-scoped, so two pods on one node share the volume without a Multi-Attach error. The
+consequence: the Job cannot schedule while backup-tools is unschedulable, and it does not fail
+when that happens — it sits `Pending` until `activeDeadlineSeconds` (6h by default), writing no
+log and no metric, so nothing alerts in between. On a node with no headroom that is a backup
+that silently never runs. Set `centralBackupStorage.accessMode: ReadWriteMany` on an RWX volume
+to drop the affinity entirely — see the callout under
+[Storage Options](#storage-options-shared-mode), which also covers a second reason to prefer RWX
+on SELinux hosts. `shared`/NFS modes mount from any node and render no affinity.
+
+A **retry re-runs the whole backup** — there is no in-flight run to re-attach to. That is safe
+(locks release on TERM; an interrupted run writes no manifest, so restore never sees it) but not
+free: `schedule.backoffLimit` (default 1) absorbs one transient failure, then the schedule itself
+is the retry loop. `activeDeadlineSeconds` now bounds the **actual backup** — hitting it kills the
+run, and a `DeadlineExceeded` Job is **not** retried by `backoffLimit`. It also counts from the
+Job's start, which includes time the pod spends `Pending` (image pull, node scale-up, and in s3
+mode waiting for room on backup-tools' node), so budget scheduling overhead on top of the real
+backup duration (default 6h; raise for multi-TB installs).
+
+`schedule.ttlSecondsAfterFinished` (default 7 days) sweeps finished Jobs, which is what cleans up
+manual `--from` clones — the history limits only ever prune the CronJob's own Jobs. It is
+independent of `failedJobsHistoryLimit`: on a weekly or monthly schedule a TTL shorter than the
+interval deletes a failed Job, and its pod log, before anyone looks — set it to `null` there.
+
+The orchestrator's per-component locks remain the second line of defense against any other
+overlap (e.g. a manual run during a scheduled one — the later run declines the busy component,
+and they also exclude a laptop-run restore, which no Job setting can). See §4.
+
+Trigger a full run off-schedule (clones the jobTemplate verbatim — args cannot be changed on the
+CLI; for component-scoped runs use the `kubectl exec` form in [Quick Start](#0-quick-start)):
+
+```bash
+kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <namespace>
+```
+
+For **long restores**, use a Job as well — the Deployment carries no disruption protection, so an
+interactive `kubectl exec ... restore` can be killed by node consolidation. `examples/restore-job.yaml`
+documents the recommended clone-and-swap invocation and a standalone shared-mode manifest.
+
+---
+
+## 4. Concurrency Model
+
+The script supports running separate component backups in parallel — e.g. a manual
+`--postgresql` run alongside another that does `--clickhouse`. The chart's scheduled CronJob runs
+a single **full** backup (all components); per-component locks + `concurrencyPolicy: Forbid` keep
+concurrent runs from clobbering each other.
+
+### Backup ID Grouping
+
+When running components concurrently, use `--backup-id` to group them into the same backup directory:
+
+`date -u`, not `date`: an auto-generated id is UTC, and `backup_id_epoch` converts any
+id back as UTC. A local-time `--backup-id` is therefore mis-aged by your offset — west of UTC it
+looks *older* than it is and can be purged before its retention window is up.
+
+```bash
+BACKUP_ID=$(date -u +%Y%m%d-%H%M%S)
+pmm-backup.sh backup --postgresql      --backup-id "$BACKUP_ID" &
+pmm-backup.sh backup --clickhouse      --backup-id "$BACKUP_ID" &
+pmm-backup.sh backup --victoriametrics --backup-id "$BACKUP_ID" &
+wait
+```
+
+Without `--backup-id`, each process auto-generates its own timestamp, resulting in separate directories. With `--backup-id`, all three write under the same backup id (e.g. `/backups/postgresql/backup_20260223-150001/`, `/backups/clickhouse/backup_20260223-150001/`, …), and one shared `manifests/backup_20260223-150001.json` records the set. This makes it clear which backups belong together for a coordinated restore.
+
+In concurrent mode (single component with `--backup-id`), each process writes its own
+per-component log file (`logs/backup_<id>_postgresql.log`) to avoid conflicts; run status
+is consolidated in the shared `manifest.json` via the merge below.
+
+**Manifest merging**: each finishing process performs a read-merge-write of
+`manifests/<id>.json`, serialized by a `Lease` named `pmm-backup-manifest-<id>`: it fetches
+the manifest written so far, carries over the component entries it does not own, and
+recomputes the overall status from the merged set. The last finisher therefore
+produces a manifest listing ALL components of the group — no last-writer-wins clobbering.
+The merge is jq-based; manifests are plain JSON with no format/indentation contract.
+
+If that lease cannot be taken within 60s the manifest is still written, unmerged — the data is
+already uploaded at that point, and refusing to write the index would be worse. A run that
+cannot read the existing manifest and cannot positively prove it absent refuses to overwrite
+it instead, so a sibling's entries are never erased.
+
+### Per-Component Locking
+
+Each component's lock is a Kubernetes `Lease` in the release namespace:
+
+```
+kubectl get leases -n <ns> -l app.kubernetes.io/component=pmm-backup-lock
+
+pmm-backup-clickhouse
+pmm-backup-pmm-server
+pmm-backup-postgresql
+pmm-backup-victoriametrics
+pmm-backup-manifest-<backup-id>     # only while a manifest merge is in flight
+```
+
+The locks are **cluster-wide in reach** — that is the point. (The Lease objects themselves are
+namespaced, and live in the release namespace; they serialize every client that can reach *this*
+namespace's API, not runs in other namespaces.) They used to be a
+`mkdir /backups/.backup_<component>.lock` plus a `kill -0 <pid>` liveness check, and that only
+excludes processes sharing both a filesystem and a PID namespace — while the thing being
+protected (a database in the cluster) is shared by everything with `kubectl` access. A restore
+run from a laptop and the CronJob's backup in the pod could therefore write the same database
+at the same time, which is exactly what the locking exists to prevent.
+
+A `Lease` is the mechanism Kubernetes provides for this:
+
+| Concern | How |
+|---|---|
+| Acquisition | `kubectl create` — atomic; `AlreadyExists` is the contention signal. Never `apply`, which would take over a live lock. |
+| Liveness | `spec.renewTime` is refreshed every `LOCK_RENEW_SECONDS` (60) by a background renewer for as long as the run lives. |
+| Expiry | A lease is takeable only once `renewTime` is older than `leaseDurationSeconds` (`LOCK_LEASE_SECONDS`, 900). |
+| Takeover | `kubectl replace` with the `resourceVersion` that was observed — optimistic concurrency, so exactly one of two racing takeovers wins. |
+| Release | `kubectl delete`, but only if `holderIdentity` is still ours: a run that aborted *because* someone else holds the lock must not delete that live lock. |
+| Unknown age | If `renewTime` cannot be parsed, the answer is "cannot tell", not "expired" — the lock is left alone. Stealing a live lock means two writers on one database. |
+
+All timestamps are UTC and are converted arithmetically rather than through `date -d`, which
+has no portable way to parse a string as UTC and does not exist in that form on BSD/macOS at
+all. A local-time conversion made a lease written a second ago look 3 hours stale in
+`TZ=Europe/Bucharest` (instant, silent takeover of a live lock) and made every lease
+un-expirable west of UTC.
+
+The renewer stops when the orchestrator does, including when the orchestrator is killed
+abruptly: it re-checks that its parent process is alive before every renewal, and has a
+`LOCK_RENEWER_MAX_SECONDS` (86400) backstop. Without that check a SIGKILL'd or OOM-killed run
+left a renewer patching `renewTime` for the life of the backup-tools pod, and every later
+backup and restore aborted on a lock whose holder no longer existed.
+
+### Lock Acquisition Order
+
+Locks are always acquired in **alphabetical order** (clickhouse, pmm-server, postgresql, victoriametrics) to prevent deadlocks when invocations select components in different orders. The restore orchestrator acquires the **same** lock names, so a restore can't race a backup of the same component. (Restore also always holds the `pmm-server` lock, since it scales PMM down/up.)
+
+### What Can Run Concurrently
+
+| Scenario | Allowed? |
+|---|---|
+| `--postgresql` + `--clickhouse` | Yes |
+| `--postgresql` + `--victoriametrics` | Yes |
+| `--clickhouse` + `--victoriametrics` | Yes |
+| All three as separate processes | Yes |
+| Two `--postgresql` runs | No (second is blocked) |
+| `--postgresql` + full backup (no flags) | No (full backup acquires all locks) |
+
+### Shared Resource Safety
+
+- **Log files**: When using `--backup-id` with a single component, each process gets a component-suffixed log file (`backup_<id>_postgresql.log`). Without `--backup-id`, each run uses a unique timestamp so logs never collide.
+- **Backup subdirectories**: With `--backup-id`, concurrent processes share the same `backup_<id>/` parent directory but write only to their own component subdirectory (`postgresql/`, `clickhouse/`, etc.). `mkdir -p` is safe for concurrent use.
+- **No consolidation**: each component writes its payload to the final target from inside its own pod; per-run status is consolidated only in the merged `manifest.json`.
+- **Metrics**: Each component writes to its own `.prom` file atomically (write to `.tmp`, then `mv`).
+- **Manifest / latest pointer**: written once at the end of a run under the
+  `pmm-backup-manifest-<id>` `Lease` (concurrent `--backup-id` processes merge, see §4). The `latest` pointer only moves
+  when the (merged) manifest is a **complete, full-scope** backup — all four core
+  components present and successful. Single-component or partial runs never move it, so
+  `restore --backup-id latest` cannot silently resolve to (e.g.) an ad-hoc ClickHouse-only
+  incremental run.
+
+---
+
+## 5. Metrics and Monitoring
+
+### Metric Files
+
+After each backup run, Prometheus metrics are written to `/backups/.metrics/` on the PVC:
+
+```
+/backups/.metrics/backup/all.prom         # a full-scope run — every component, one file
+/backups/.metrics/backup/<component>.prom # a component-scoped run (e.g. postgresql.prom)
+/backups/.metrics/restore_metrics.prom    # written by `restore`
+/backups/.metrics/prune_metrics.prom      # written by `prune`
+```
+
+Backup metrics are keyed by **run scope**, not by component: a full run writes one
+`backup/all.prom` holding every component, distinguished by a `component` **label** —
+`postgresql`, `clickhouse`, `victoriametrics`, `pmm-server` and `encryption`. A
+component-scoped run writes `backup/<component>.prom` instead, so concurrent single-component
+runs do not overwrite each other (DN-42). A full-scope run removes the per-component files it
+supersedes, because the listener concatenates `backup/*.prom` into one exposition and the text
+format allows a series only once per exposition.
+
+What is NOT split per component is the serving side: one listener, one port, one scrape job,
+because the component was always a label. Splitting those is what let `pmm-server` metrics be
+written for months while nothing served them (DN-42).
+
+Files are written atomically (write to temp file, then `mv`) to prevent partial reads during scraping.
+
+### Metric Names
+
+All metrics use the `pmm_ha_backup_` prefix:
+
+| Metric | Type | Description |
+|---|---|---|
+| `pmm_ha_backup_last_success` | gauge | Whether the last backup succeeded (1=yes, 0=no) |
+| `pmm_ha_backup_last_timestamp_seconds` | gauge | Unix timestamp of backup completion |
+| `pmm_ha_backup_last_duration_seconds` | gauge | Backup duration in seconds |
+| `pmm_ha_backup_last_size_bytes` | gauge | Backup size in bytes |
+
+Each metric includes labels: `component` (postgresql/clickhouse/victoriametrics/pmm-server/encryption) and `namespace`. All four components, PMM `/srv` included, are served and scraped — see the port table below.
+
+The retention sweep has its own family, written by the `prune` subcommand:
+
+| Metric | Type | Description |
+|---|---|---|
+| `pmm_ha_prune_last_success` | gauge | Whether the last retention sweep actually swept (1=yes, 0=no) |
+| `pmm_ha_prune_last_timestamp_seconds` | gauge | Unix timestamp of the last retention sweep |
+
+`pmm_ha_prune_last_success` is 0 when the sweep **declined** to delete — no full-scope survivor,
+an unverifiable ClickHouse incremental chain, an unreadable catalog, a non-numeric retention. The
+sweep exits 0 in all of those cases (it must not fail a backup run that already succeeded), so
+this gauge is the only thing that distinguishes them from a healthy no-op. Labelled by
+`namespace` only: a prune run has no components.
+
+### HTTP Serving
+
+The backup-tools pod runs **one** netcat listener on port **9091**. The three writers use disjoint
+metric families (`pmm_ha_backup_*`, `pmm_ha_restore_*`, `pmm_ha_prune_*`), so each `HELP`/`TYPE`
+pair still appears once in the concatenated exposition.
+
+| Port | Serves |
+|---|---|
+| 9091 | `backup/*.prom` (per run scope) + `restore_metrics.prom` + `prune_metrics.prom` |
+
+The listener enumerates those paths **explicitly** — it is not a glob over `${METRICS_DIR}`.
+That matters: `prune_metrics.prom` was written by `pmm-backup.sh prune` and served by nothing,
+so the one signal that separates "retention swept and found nothing expired" from "retention
+refused and the bucket is growing" existed on the volume and reached no scrape. Adding a `.prom`
+family to the writer means adding a line to the listener in `templates/backup-tools.yaml`.
+
+This was five listeners on five ports, one per metrics file. The split bought nothing (the
+component is a label either way) and cost a four-file edit per component -- which is how
+`pmm-server_metrics.prom` came to be written for months while nothing served or scraped it, so
+a `/srv` backup failing on **every** PMM pod was invisible in Prometheus. See DN-42.
+
+### VMAgent Scrape Configuration
+
+One scrape job is defined in `vmagent.yaml` (conditionally enabled when `centralBackupStorage.enabled`):
+
+- `backup-metrics` -- scrapes port 9091 every 30s
+
+It uses `kubernetes_sd_configs` with `role: pod`, filtering on label
+`app.kubernetes.io/component: backup-tools`, on `app.kubernetes.io/instance` (so two releases
+in one namespace do not scrape each other) and on the container port number. Adding a backup
+component requires no change here.
+
+### Alerting Examples
+
+With metrics stored in VictoriaMetrics, create alerts for:
+
+```
+# 1. THE METRICS THEMSELVES STOPPED. Deploy this one first.
+#    Every other alert below is a comparison on one of these series, and a
+#    comparison against a series that no longer exists matches nothing. Without
+#    this alert an exporter that has gone silent is indistinguishable from an
+#    install with no problems: the scrape still succeeds, the dashboards just
+#    empty out, and nothing fires.
+#
+#    Not hypothetical. If the backup-tools pod loses read access to the metrics
+#    directory, /metrics keeps answering 200 with the HELP/TYPE preamble and
+#    zero samples - see "Metrics dir ... is not writable" below. A Job that never
+#    gets scheduled produces the same silence, for a different reason.
+absent_over_time(pmm_ha_backup_last_timestamp_seconds[1h])
+
+# 2. No backup in the last 24 hours.
+#    The absent() arm matters on its own: a component that has NEVER reported has
+#    no series to subtract from, so the comparison alone stays quiet forever - it
+#    would never warn about a backup that was configured but has not once run.
+absent(pmm_ha_backup_last_timestamp_seconds{component="postgresql"})
+  or time() - pmm_ha_backup_last_timestamp_seconds{component="postgresql"} > 86400
+
+# 3. The last backup ran and failed.
+pmm_ha_backup_last_success{component="postgresql"} == 0
+
+# 4. Quality signals. These are only meaningful while 1 and 2 are quiet -- they
+#    say something about a backup that happened, not about one that did not.
+#    Backup took too long (over 5 minutes):
+pmm_ha_backup_last_duration_seconds{component="victoriametrics"} > 300
+#    Suspiciously small backup (possible empty/corrupt):
+pmm_ha_backup_last_size_bytes{component="clickhouse"} < 1000
+
+# 5. Retention refused to prune -- the bucket is growing and the sweep still
+#    exits 0. This is the alert that catches a silently stalled sweep; nothing
+#    else does.
+pmm_ha_prune_last_success == 0
+
+# 6. No retention sweep in the last 48 hours, including "never swept at all".
+absent(pmm_ha_prune_last_timestamp_seconds)
+  or time() - pmm_ha_prune_last_timestamp_seconds > 172800
+```
+
+> **Caveat on 5 and 6 as of today:** `pmm_ha_prune_*` is written by `write_prune_metrics`,
+> which only `pmm-backup.sh prune` calls. `backup` runs the same retention sweep
+> (`cleanup_old_backups`) and it sets the same internal refusal flag, but it does not publish
+> the outcome — so an install whose CronJob runs `backup`, which is the default, never
+> produces these series at all. Rule 5 then cannot fire, and rule 6 fires immediately and
+> permanently on the `absent()` arm.
+>
+> Until that is addressed, either schedule a separate `prune` run so the series exist, or
+> treat rule 6 as the one that matters and drop rule 5. Verified on a live install: with only
+> scheduled `backup` runs, `count(pmm_ha_prune_last_timestamp_seconds)` returns empty.
+
+> **Why the `absent()` arms.** A PromQL/MetricsQL comparison filters a vector: given an
+> empty vector it returns an empty vector, which is not an alert. So every "is the value
+> bad?" rule is silently conditional on the series existing, and the one failure that removes
+> the series removes the alerting with it. `absent()` and `absent_over_time()` are what turn
+> "I see nothing wrong" into "I see nothing".
+>
+> The two arms are mutually exclusive by construction — `absent(x)` returns a sample only
+> when `x` is empty, and the comparison returns samples only when it is not — so the `or`
+> cannot double-fire, on either Prometheus or MetricsQL.
+>
+> Give rules 1, 2 and 6 a `for:` of a few minutes in the alert definition. A single missed
+> scrape should not page anyone; a backup exporter that has been quiet for an hour should.
+
+---
+
+## 6. CLI Reference
+
+### Usage
+
+```
+pmm-backup.sh <COMMAND> [OPTIONS]
+```
+
+A subcommand is **required** — there is deliberately no default operation, because a bare
+invocation carrying restore-shaped flags would otherwise run a destructive backup over the
+id being restored.
+
+Commands:
+
+| Command | Description |
+|---|---|
+| `backup` | Back up the selected components. |
+| `restore` | Restore the selected components from a backup (see §8). |
+| `list [BACKUP_ID]` | List backups, or — given a `BACKUP_ID` — show every file/location belonging to that one backup (read from its `manifest.json`). Reuses the same `--s3-bucket` / `--s3-prefix` / `--namespace` flags. |
+| `prune` | Run the retention sweep on its own, deleting nothing else. `backup` also sweeps when it finishes; this is the same sweep with its own trigger, so retention keeps working while backups are being fixed. It refuses to delete unless a retained backup is still marked `complete` (see [Retention](#retention)). |
+
+With no component flags, all four components are backed up (PostgreSQL, ClickHouse, VictoriaMetrics, PMM server `/srv`). Specifying any `--postgresql`, `--clickhouse`, `--victoriametrics`, or `--pmm-server` flag switches to selective mode (only specified components run).
+
+See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details.
+
+### Flags
+
+> **Flag-less by default.** Inside the backup-tools pod the chart pre-populates the target and
+> every S3 setting from `values.yaml` as env (see *Environment Variables* below), so
+> `pmm-backup.sh backup` runs with **no `--s3-*`/`--target` flags** — they default to the
+> install. Pass a flag only to override for an ad-hoc run.
+
+| Flag | Description | Default |
+|---|---|---|
+| `-h`, `--help` | Show help message | |
+| `-v`, `--verbose` | Show detailed backup tool output | false |
+| `--dry-run` | Print the commands that would run, without executing them | false |
+| `-n`, `--namespace NS` | Kubernetes namespace | demo |
+| `-d`, `--backup-dir DIR` | Backup directory for logs/metadata | /backups |
+| `-r`, `--retention DAYS` | Number of days to retain backups | 7 |
+| `--backup-id ID` | Shared identifier for grouping concurrent runs | auto (timestamp) |
+| `--postgresql` | Include PostgreSQL in backup | |
+| `--clickhouse` | Include ClickHouse in backup | |
+| `--victoriametrics` | Include VictoriaMetrics in backup | |
+| `--pmm-server` | Include PMM server `/srv` in backup | |
+| `--skip-postgresql` | Exclude PostgreSQL from all-component run | |
+| `--skip-clickhouse` | Exclude ClickHouse from all-component run | |
+| `--skip-victoriametrics` | Exclude VictoriaMetrics from all-component run | |
+| `--skip-pmm-server` | Exclude PMM server `/srv` from all-component run | |
+| `--skip-encryption-key` | Skip the PMM encryption key (captured with PostgreSQL by default) | |
+| `--ch-backup-type TYPE` | ClickHouse backup type: full or incremental | full |
+| `--ch-secret NAME` | Kubernetes secret for ClickHouse credentials | pmm-secret |
+| `--target MODE` | Backup target: `s3` or `shared` | s3 |
+| `--s3-bucket BUCKET` | S3 bucket name (required for `s3`; chart-set via `S3_BUCKET`, so optional inside backup-tools) | |
+| `--s3-endpoint URL` | S3 endpoint (empty for AWS; set for S3-compatible/MinIO) | |
+| `--s3-region REGION` | S3 region | us-east-1 |
+| `--s3-prefix PREFIX` | Key namespace under the bucket. Point it at ANOTHER install's root for a cross-namespace/DR restore | `<namespace>/<release>` (matches what the chart projects) |
+| `--shared-source-path PATH` | The shared-target twin of `--s3-prefix`: subdirectory of the shared mount to read/write. Point it at ANOTHER install's subpath for a cross-namespace/DR restore | `<namespace>/<release>` (matches what the chart projects) |
+| `--shared-mount-path PATH` | RWX mount path inside pods (`--target shared`) | /central |
+| `--release NAME` | Scope every destructive lookup to one Helm release (`app.kubernetes.io/instance`). Needed only when a namespace holds more than one pmm-ha install, where an unscoped lookup would refuse rather than guess | *(unscoped)* |
+| `--s3-service-account NAME` | ServiceAccount for the restore temp pods (restore only) | `S3_SERVICE_ACCOUNT` |
+| `--list` | Bare alias for the `list` subcommand | |
+
+### Environment Variables
+
+| Variable | Description | Default |
+|---|---|---|
+| `BACKUP_DIR` | Backup directory | /backups |
+| `BACKUP_RETENTION` | Retention in days | 7 |
+| `CENTRAL_BACKUP_PATH` | Central storage path (set by Helm) | |
+| `METRICS_DIR` | Directory for .prom metrics files | /backups/.metrics |
+| `KUBECTL_EXEC_TIMEOUT` | Timeout (seconds) for backup commands | 600 |
+| `KUBECTL_STATUS_TIMEOUT` | Timeout (seconds) for status queries | 30 |
+| `RCLONE_TIMEOUT` | Wall clock (seconds) for one rclone read or delete | `KUBECTL_STATUS_TIMEOUT` |
+| `RCLONE_PURGE_TIMEOUT` | Wall clock (seconds) for one recursive rclone purge | 300 |
+| `RCLONE_IO_TIMEOUT` / `RCLONE_CONNECT_TIMEOUT` | rclone's own idle-IO / connect bounds, applied to every call including streams | 60 / 15 |
+| `LOCK_LEASE_SECONDS` / `LOCK_RENEW_SECONDS` | Component lock lease duration / renewal interval | 900 / 60 |
+| `LOCK_RENEWER_MAX_SECONDS` | Backstop lifetime for the lease renewer | 86400 |
+| `CH_SECRET_NAME` | Kubernetes secret for ClickHouse | pmm-secret |
+| `CH_CREATE_TIMEOUT` / `CH_UPLOAD_TIMEOUT` | Max seconds to wait for clickhouse-backup create / upload | 300 / 600 |
+| `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
+| `BACKUP_TARGET` | Target mode: `s3` or `shared` (set by Helm from `centralBackupStorage.mode`) | s3 |
+| `PMM_SERVER_REPLICAS` | Replica count a restore scales PMM back up to, used **only** when the live `spec.replicas` is 0/unreadable *and* the count stashed on the StatefulSet (`restore.pmm.percona.com/original-replicas`) is unusable. Set it when re-running a restore against an install that does not run 3. | 3 |
+| `TEMP_POD_RESOURCES` | JSON `resources` for the temp pods a restore creates (`vm-restore-*`, `pmm-srv-restore-*`). Raise it if those pods are OOM-killed on large volumes; note that raising it also makes them harder to schedule on a full node. | `{"requests":{"cpu":"50m","memory":"64Mi"}}` |
+| `S3_BUCKET` | S3 bucket (required for `s3`; set by Helm) | |
+| `S3_REGION` / `S3_ENDPOINT` / `S3_PREFIX` | S3 region / endpoint / key prefix (set by Helm) | us-east-1 / / `<namespace>/<release>` |
+| `SHARED_SUBPATH` | Shared-target equivalent of `S3_PREFIX`: the install's subdirectory under the shared mount (set by Helm) | `<namespace>/<release>` |
+| `SHARED_MOUNT_PATH` | RWX mount path inside pods (`shared` mode; set by Helm) | /central |
+| `RCLONE_REMOTE` | rclone remote name (configured via `RCLONE_CONFIG_*`) | s3 |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 static keys (required on non-AWS S3-compatible storage; on AWS, IRSA is the keyless alternative) | |
+| `TARGET_RELEASE` | Same as `--release`: scopes destructive lookups to one install | *(unscoped)* |
+| `PMM_SRV_PATH` | Path backed up from the PMM pods | /srv |
+| `CH_LIST_TIMEOUT` | Max seconds to list ClickHouse remote backups (restore preflight; a populated bucket is slow) | 120 |
+| `RCLONE_STREAM_IO_TIMEOUT` | Idle-IO bound for STREAMING rclone calls (the PostgreSQL dump pipe), separate from `RCLONE_IO_TIMEOUT` | 300 |
+| `VM_S3_ENDPOINT` | S3 endpoint for vmbackup/vmrestore only, when VictoriaMetrics must use a different endpoint from the rest | *(inherits `S3_ENDPOINT`)* |
+| `PMM_RESTORE_IMAGE` | Image for the `/srv` restore temp pods | *(read from the PMM StatefulSet)* |
+
+The chart also injects these into the backup-tools pod from `centralBackupStorage.s3.*`. They are
+consumed by **`pmm-backup.sh restore`** (its temp vmrestore / `/srv` pods), so a restore inside
+the pod needs no flags:
+
+| Variable | Description | Default |
+|---|---|---|
+| `S3_PROVIDER` | rclone provider profile (`AWS`/`Minio`/`Ceph`/`Other`) projected into the restore temp pods' rclone config | AWS |
+| `S3_SECRET_NAME` | Static-key Secret name injected into restore temp pods (empty ⇒ IRSA / SA credential chain) | |
+| `S3_SECRET_ACCESS_KEY_KEY` / `S3_SECRET_SECRET_KEY_KEY` | Keys within that Secret | access-key / secret-key |
+| `S3_SERVICE_ACCOUNT` | ServiceAccount for restore temp pods (IRSA SA, or one carrying imagePullSecrets) | pmm-ha-backup-s3 |
+| `PMM_STORAGE_PVC_PREFIX` | Override the PMM `/srv` PVC name prefix. **Normally leave unset** — the name is read from the PMM StatefulSet's `volumeClaimTemplate`, so it follows `storage.name` automatically (DN-39) | *(derived)* |
+| `VM_STORAGE_PVC_PREFIX` | Override the vmstorage PVC name prefix (the VictoriaMetrics operator's convention) | vmstorage-db- |
+| `VMRESTORE_IMAGE` | vmrestore image override | *(auto-detected from the vmstorage pod)* |
+| `CENTRAL_BACKUP_PVC` | Central backup PVC name for a `shared`-mode restore | *(auto-detected from backup-tools)* |
+
+### Examples
+
+> These are the CLI as invoked **inside** the backup-tools pod, which is why they name
+> `--namespace` explicitly. From outside, wrap them in
+> `kubectl exec -n <namespace> deploy/<release>-backup-tools -- ...`, where `--namespace` is
+> already supplied by the pod environment and can be dropped —
+> see [Quick Start](#0-quick-start) for the ready-to-run forms.
+
+```bash
+# Full backup of all components
+pmm-backup.sh backup --namespace demo
+
+# PostgreSQL only
+pmm-backup.sh backup --namespace demo --postgresql
+
+# PostgreSQL and ClickHouse together
+pmm-backup.sh backup --namespace demo --postgresql --clickhouse
+
+# Run all three concurrently, grouped into the same backup directory.
+# date -u: ids are UTC and are aged as UTC, so a local-time id is mis-aged by your offset.
+BACKUP_ID=$(date -u +%Y%m%d-%H%M%S)
+pmm-backup.sh backup --namespace demo --postgresql      --backup-id "$BACKUP_ID" &
+pmm-backup.sh backup --namespace demo --clickhouse      --backup-id "$BACKUP_ID" &
+pmm-backup.sh backup --namespace demo --victoriametrics --backup-id "$BACKUP_ID" &
+wait
+
+# Skip VictoriaMetrics (faster backup)
+pmm-backup.sh backup --namespace demo --skip-victoriametrics
+
+# Custom retention and verbose output
+pmm-backup.sh backup --namespace demo --retention 14 --verbose
+
+# List all backups in the bucket
+pmm-backup.sh list --namespace demo --s3-bucket my-bucket --s3-prefix demo/pmm-ha
+
+# Show all files belonging to one backup (manifest + objects)
+pmm-backup.sh list backup_20260610-120000 --namespace demo --s3-bucket my-bucket
+```
+
+---
+
+## 7. Operations Guide
+
+### Running a Backup
+
+**From inside the backup-tools pod** (via K9s shell or `kubectl exec`):
+
+```bash
+# Shell into the pod (Deployment — the pod name is generated)
+kubectl exec -it -n <namespace> deploy/<release>-backup-tools -- sh
+
+# Run backup
+pmm-backup.sh backup --namespace <namespace>
+```
+
+**Remotely via kubectl exec**:
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  pmm-backup.sh backup --namespace <namespace>
+```
+
+#### After a `helm upgrade`, wait for the operators before backing up
+
+`helm upgrade --wait` returns once the **Helm-managed** resources are ready. It does not
+wait for the PostgreSQL, ClickHouse and VictoriaMetrics operators, which roll their own
+StatefulSets asynchronously in response to the changed CRs. Immediately after an upgrade
+some pods can therefore be `Ready` while still belonging to the previous revision, or be
+seconds into the new one with a sidecar mount that has only just appeared.
+
+Starting a backup in that window fails on whichever pod has not rolled yet, for example:
+
+```
+[ERROR] [VictoriaMetrics] Backup creation failed for vmstorage-<cluster>-1
+[WARN]  ⚠ Backup partially completed: 2/3 pods — partial is failure (DN-21)
+[ERROR] Overall: ✗ Backup failed (3 succeeded, 1 failed)
+```
+
+This is safe — a partial backup is treated as a failure, `latest` is **not** advanced, and
+the run is catalogued as `partial`, so a later `--backup-id latest` cannot pick it up — but
+it wastes a backup window. Wait for the rollouts to finish first:
+
+```bash
+kubectl get sts -n <namespace> -o custom-columns='NAME:.metadata.name,GEN:.metadata.generation,OBSERVED:.status.observedGeneration,DESIRED:.spec.replicas,UPDATED:.status.updatedReplicas,READY:.status.readyReplicas'
+```
+
+Every rollout is finished when, for **every** row, `OBSERVED` == `GEN` and
+`UPDATED` == `READY` == `DESIRED`.
+
+> **Do not use `kubectl rollout status` here.** vmstorage, vmselect and the PostgreSQL
+> instance StatefulSets are created with `updateStrategy: OnDelete`, and against those
+> `kubectl rollout status` exits non-zero with
+> `error: rollout status is only available for RollingUpdate strategy type` — including for
+> vmstorage, the component most likely to be mid-roll. The field comparison above is
+> strategy-independent.
+
+> **Do not compare `.status.currentRevision` with `.status.updateRevision` either.** For the
+> `OnDelete` StatefulSets the controller never advances `currentRevision` — the PostgreSQL
+> instances sit with the two permanently different even when fully rolled and idle — so that
+> comparison reports a rollout that will never finish. `observedGeneration` and the replica
+> counts are the reliable signals.
+
+The command lists every StatefulSet in the namespace rather than naming them individually
+because the names depend on the release: Helm collapses the chart name when the release
+already contains it, so the PMM StatefulSet is `pmm-ha` under release `pmm-ha` but
+`pmm-dr-pmm-ha` under release `pmm-dr`, and vmstorage is correspondingly
+`vmstorage-pmm-ha-vmcluster` or `vmstorage-pmm-dr-pmm-ha-vmcluster`. There is also no single
+label that selects all of them — `app.kubernetes.io/instance` is set per operator
+(`pmm-ha-vmcluster`, `pmm-ha-pg-db`, ...) and the ClickHouse StatefulSets carry none.
+
+Upgrades that change `centralBackupStorage.mode` are the common case: switching between
+`s3` and `shared` changes the vmbackup sidecar's mounts **and** adds or removes the
+`pmm-backup` sidecar on the PMM StatefulSet, so both roll.
+
+A pod readiness count is not a sufficient check here either — a pod still on the OLD revision
+reports `Ready` quite happily. Only the generation and replica fields above are revision-aware.
+
+### Log Locations
+
+All logs are written to the logs/ directory on the backup-tools volume:
+
+```
+/backups/logs/backup_<id>.log              # Single-process mode
+/backups/logs/backup_<id>_postgresql.log   # Concurrent mode (per-component)
+/backups/logs/backup_<id>_clickhouse.log
+/backups/logs/backup_<id>_victoriametrics.log
+/backups/logs/restore_<id>.log             # Restore runs
+```
+
+### Central Storage Layout (`shared` mode)
+
+> In **`s3` mode there is no central directory tree** — each tool writes straight to the
+> bucket (see §1 for the S3 object layout). The directory structure below applies to the
+> **`shared`** (RWX/NFS) target. The backup-tools pod still keeps logs/metrics locally.
+
+After a backup run, the shared volume (mounted at `/central` in the pods, `/backups` in
+backup-tools — same volume) contains one directory **per component**, each holding one
+subdirectory per backup id. There is no single per-run directory: a backup is a *correlation*
+of per-component paths tied together by its manifest (see §4 and DN-06), which is why the
+manifest is deleted last during retention.
+
+The manifest carries a `schema` field (absent means `1`). It is the tool's on-storage contract,
+read back by whatever version of `pmm-backup.sh` is running at DR time — often an *older* one,
+since a DR cluster is stood up from an earlier chart release. A reader that meets a **newer**
+schema refuses rather than guesses: `restore` aborts, `prune` defers the id, and `list` shows it
+as `vN-too-new`. Adding a new optional field is not a version bump; moving or repurposing an
+existing one is. See DN-41.
+
+```text
+/backups/
+  latest                                    # text pointer -> backup_<id> (what `list` reads)
+  manifests/
+    backup_20260223-150001.json             # THE index: schema + status + per-component coordinates
+  postgresql/
+    backup_20260223-150001/
+      pmm-managed.dump                      # pg_dump custom format, one file per database
+      grafana.dump
+  clickhouse/
+    backup_20260223-150001/
+      backup_20260223-150001.tar.gz         # in-pod tar of the clickhouse-backup FREEZE
+  victoriametrics/
+    backup_20260223-150001/
+      vmstorage-...-0/vm_backup_<id>/       # vmbackup fs:// output, per pod (+ backup_complete.ignore)
+      vmstorage-...-1/vm_backup_<id>/
+      vmstorage-...-2/vm_backup_<id>/
+  pmm-server/
+    backup_20260223-150001/
+      pmm-ha-0/srv.tar.gz                   # per pod
+      pmm-ha-1/srv.tar.gz
+  encryption/
+    backup_20260223-150001/
+      pg-encryption-key.yaml                # Kubernetes Secret YAML
+  logs/                                     # execution logs (backup_<id>.log, restore_<id>.log)
+  .logs/                                    # legacy pre-Job scheduler markers; inert, and now aged out by the retention sweep
+  .staging/                                 # transient per-run staging, reaped after each run
+  .metrics/                                 # Prometheus metrics (backup/<scope>.prom, restore_metrics.prom, prune_metrics.prom)
+```
+
+Locks are **not** on this volume: they are Kubernetes `Lease` objects, because the thing they
+protect is a database in the cluster rather than a file on a disk (see §4).
+
+### Retention
+
+The sweep deletes every component path of a backup id older than `--retention` days, then that
+id's `manifests/<id>.json` **last** — the manifest is the only record of what an id held, so
+losing it first would strand whatever a partial failure left behind. Age comes from the
+timestamp in the id itself, never from object mtimes (DN-07).
+
+**Two triggers, one sweep.** `backup` runs it when it finishes, and `pmm-backup.sh prune` runs
+it on its own. Use `prune` on its own schedule when you want reclamation to keep working
+independently of whether backups are currently green.
+
+```sh
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  pmm-backup.sh prune --retention 7
+```
+
+It used to run **only** after a fully successful backup. That made "should anything be deleted?"
+a property of the calling run rather than of the catalog, so a single chronically failing
+component — a ClickHouse sidecar that was never deployed, say — silently stopped retention for
+the whole install while the other components kept landing bytes. See DN-40.
+
+**What stops a delete** (each is fail-closed, and each says so in the log):
+
+| Guard | Refuses when |
+|---|---|
+| Known-good survivor | No retained backup is marked `complete` — pruning would leave nothing restorable |
+| `latest` protection | The id is what `latest` points at, even if past the cutoff |
+| Ownership | The manifest's `namespace` is not this install's — two installs sharing a prefix |
+| Unreadable manifest | What the id holds is unknown; it is not deleted on a guess |
+| Schema too new | The manifest is a newer version than this binary understands (DN-41) |
+| ClickHouse chain | The id's ClickHouse backup is still an incremental base a retained backup needs (DN-09) |
+| Out-of-root ClickHouse | The id's ClickHouse data sits outside this install's root (DN-43) |
+| Budgets | `S3_PRUNE_MAX_PER_RUN` deletions or `S3_PRUNE_MAX_SECONDS` elapsed — the rest waits for the next run |
+
+The last two guards keep `clickhouse/` **and** the manifest, purge the components nothing
+depends on, and mark those `pruned` in the index so nothing tries to restore them.
+
+Use `--dry-run` to see the exact delete list before it runs for the first time — the preview
+prints real paths against real storage, and is deliberately not truncated by the per-run cap.
+
+### Listing Backups (`s3` mode)
+
+Most of a backup now lives under one per-run prefix; only ClickHouse keeps its own native
+remote layout (its remote path is fixed at deploy time and it names the folder by backup
+name, so it is uploaded by clickhouse-backup itself, so its directory contents are tool-managed):
+
+| Component | Object location |
+|-----------|-----------------|
+| PostgreSQL | `s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump` *(pg_dump per database)* |
+| PMM `/srv` | `s3://<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz` |
+| VictoriaMetrics | `s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>/` |
+| Encryption key | `s3://<bucket>/<prefix>/encryption/<id>/pg-encryption-key.yaml` |
+| ClickHouse | `s3://<bucket>/<prefix>/clickhouse/backup_<id>/` *(clickhouse-backup's own layout)* |
+
+To tie them together (and to record where ClickHouse landed), **every run writes one
+index**:
+
+```
+s3://<bucket>/<prefix>/manifests/<id>.json   # per component: status + how to locate/restore it
+s3://<bucket>/<prefix>/latest               # text pointer -> newest backup id
+```
+
+**List with the orchestrator** (reads the manifests with the backup-tools pod's own rclone):
+
+```bash
+# All backups (newest manifests), '*latest' marks the latest pointer
+pmm-backup.sh list --namespace demo --s3-bucket my-bucket --s3-prefix demo/pmm-ha
+
+#   BACKUP ID                      STATUS    COMPONENTS
+#   backup_20260610-120000         complete  postgresql,clickhouse,victoriametrics,pmm-server,encryption *latest
+#   backup_20260609-120000         partial   postgresql,clickhouse,victoriametrics,pmm-server,encryption
+#   * latest -> backup_20260610-120000
+
+# Everything belonging to ONE backup: prints its manifest.json + the objects under <component>/<id>/
+pmm-backup.sh list backup_20260610-120000 --namespace demo --s3-bucket my-bucket
+```
+
+The single-backup view prints a per-component table (status + location + a ready-to-run
+`restore` hint, PostgreSQL and ClickHouse inline) and a size listing of `<component>/<id>/`.
+Only ClickHouse lives outside that prefix; the manifest records its name
+(`components.clickhouse.name` → `clickhouse-backup restore_remote <name>`). PostgreSQL is
+under `postgresql/<id>/` and restores with `pg_restore`.
+
+**List with raw AWS CLI / rclone** (e.g. from a workstation, no sidecar needed):
+
+```bash
+# All backup ids + the latest pointer
+aws s3 ls s3://my-bucket/<namespace>/<release>/manifests/
+aws s3 cp s3://my-bucket/<namespace>/<release>/latest -   # prints the newest id
+
+# One backup: read the manifest, then list its objects
+aws s3 cp s3://my-bucket/<namespace>/<release>/manifests/backup_20260610-120000.json -
+aws s3 ls --recursive s3://my-bucket/<namespace>/<release>/postgresql/backup_20260610-120000/
+
+# ClickHouse keeps its own layout outside the per-run prefix:
+aws s3 ls --recursive s3://my-bucket/<namespace>/<release>/clickhouse/backup_20260610-120000/
+
+# rclone equivalents (remote 's3' configured for the bucket)
+rclone cat   s3:my-bucket/<namespace>/<release>/manifests/backup_20260610-120000.json
+rclone lsl   s3:my-bucket/<namespace>/<release>/postgresql/backup_20260610-120000/
+```
+
+> The manifest is the source of truth for *what belongs to a backup*. Restore should be
+> driven by the coordinates it records, not by guessing prefixes.
+
+### Checking Latest Backups (`shared` mode)
+
+`latest` is a small **text file** holding the newest backup id (the same mechanism as s3
+mode). Use the `list` command, or read it directly:
+
+```bash
+# Newest backup id
+cat /backups/latest                                  # -> backup_20260610-120000
+
+# Per-component summary of the latest backup (PG/CH inline with restore commands)
+pmm-backup.sh list "$(cat /backups/latest)" --target shared
+
+# Size of the latest backup's PostgreSQL dumps (component first, then the id)
+du -sh /backups/postgresql/"$(cat /backups/latest)"/
+```
+
+The pointer is overwritten atomically at the end of each successful **full-scope** run (single-component or partial runs never move it — see §4).
+
+### Checking Lock State
+
+Locks are `Lease` objects in the release namespace, not files on the backup volume:
+
+```bash
+# List the locks currently held
+kubectl get leases -n <namespace> -l app.kubernetes.io/component=pmm-backup-lock
+
+# Who holds one, and when it was last renewed (a live run renews every 60s)
+kubectl get lease pmm-backup-victoriametrics -n <namespace> \
+  -o jsonpath='{.spec.holderIdentity}{"  renewed: "}{.spec.renewTime}{"  duration: "}{.spec.leaseDurationSeconds}{"\n"}'
+
+# Manually release a stale lock (only if you are sure no backup or restore is running).
+# You should rarely need this: a lease whose holder is gone stops being renewed and the next
+# run takes it over automatically once it is older than leaseDurationSeconds (900s default).
+kubectl delete lease pmm-backup-victoriametrics -n <namespace>
+```
+
+If `renewTime` is still advancing, a run really is holding it — do not delete it. If it is
+frozen and older than `leaseDurationSeconds`, the next run will take it over on its own.
+
+### Checking Metrics
+
+```bash
+# From inside the pod (a full run writes backup/all.prom; a scoped run writes backup/<component>.prom)
+cat /backups/.metrics/backup/all.prom
+
+# Via HTTP (netcat server)
+wget -qO- http://localhost:9091/
+
+# From another pod in the cluster — backup-tools has NO Service, so target the pod IP directly
+# (VMAgent scrapes these the same way, via pod discovery, not a Service DNS name):
+POD_IP=$(kubectl get pod -n <namespace> -l app.kubernetes.io/component=backup-tools -o jsonpath='{.items[0].status.podIP}')
+wget -qO- "http://${POD_IP}:9091/"
+```
+
+### Troubleshooting
+
+**"Cannot connect to Kubernetes cluster"**
+- The pre-flight check runs `kubectl get namespace <ns>`. If RBAC is missing the `namespaces` permission, this fails.
+- Fix: Ensure the backup Role includes `get` on `namespaces`.
+
+**"Another backup/restore holds the &lt;component&gt; lock"**
+- A concurrent run holds that component's `Lease`. Backup and restore share the lock names, so
+  this also fires when a restore is running.
+- Check whether it is live: `kubectl get lease pmm-backup-<component> -n <ns> -o yaml`. A live
+  holder's `renewTime` advances every 60s.
+- If it is live, wait. If it is frozen, no action is needed either — the next run takes it over
+  once it is older than `leaseDurationSeconds` (900s). Only if you need to proceed immediately:
+  `kubectl delete lease pmm-backup-<component> -n <ns>`.
+
+**"...its expiry could not be determined; refusing to steal it"**
+- The lease's `renewTime` could not be converted to a time, so the orchestrator cannot tell
+  whether the holder is alive — and it will not guess, because stealing a live lock means two
+  processes writing one database.
+- Inspect the object; if `renewTime` is missing or malformed (only possible if something other
+  than this script wrote it), delete the lease.
+
+**PostgreSQL backup fails with "localhost:8080 connection refused"**
+- This is a bug in `kubectl exec --request-timeout` (kubectl v1.35.x) when running inside a pod. The `--request-timeout` flag breaks in-cluster API server discovery.
+- The script works around this by using the `timeout` command wrapper instead. Ensure the `timeout` binary is available (included in Alpine/BusyBox).
+
+**ClickHouse backup fails with "system.backup_actions table not found"**
+- The `clickhouse-backup` sidecar container is not running in the ClickHouse pod.
+- Enable it in the Helm chart: `clickhouse.backup.enabled: true`
+
+**"Failed to create restore pod" / "is forbidden: unable to validate against any security context constraint"**
+- A restore mounts each data PVC into a temp pod of its own while the owning workload is at 0
+  replicas. That pod takes its identity — `runAsUser` / `runAsGroup` / `fsGroup` — from the
+  workload it is standing in for: the PMM StatefulSet's pod template for `/srv`, a live
+  vmstorage pod for `vmstorage-db` (DN-48). It sets nothing of its own.
+- So this error means the *workload's* identity is one the cluster will not accept for a bare
+  Pod. On OpenShift that is what an explicit `runAsUser: 0` in `podSecurityContext` produces:
+  `restricted-v2` validates it against the namespace's `openshift.io/sa.scc.uid-range`.
+- Fix: leave `podSecurityContext.runAsUser` unset so the SCC assigns it (the same guidance
+  `values.yaml` already gives for PMM itself) — the temp pod then renders no
+  `securityContext` either and is assigned the identical UID. Setting a value inside the
+  namespace's range works too.
+- Note the timing: `/srv` is restored last, so this surfaces with the other components already
+  written and PMM at 0. Scale PMM back up (`kubectl scale statefulset <pmm-sts> --replicas=N`)
+  before retrying.
+
+**A restore reported success but no new metrics are appearing**
+
+- Check the ingestion tier: `kubectl get vmcluster <release>-pmm-ha-vmcluster -o jsonpath='{.spec.vminsert.replicaCount}'`.
+  A restore scales vminsert to 0 and back; if the scale-back patch failed (a VMOperator webhook
+  being momentarily unavailable is enough) the tier stays at 0. The data is intact and `readyz`
+  returns 200, but nothing is being written.
+- Since DN-50 this is caught: the vminsert scale-back is readiness-verified, so the restore fails
+  the VictoriaMetrics component instead of reporting success, and a `0` found in the spec is
+  refused as a scale-back target rather than re-applied.
+- Fix: `kubectl patch vmcluster <release>-pmm-ha-vmcluster --type=merge -p '{"spec":{"vminsert":{"replicaCount":<N>}}}'`
+  and re-run the restore if you need the run recorded as successful.
+
+**"PMMServer: archive missing or empty at ... after the upload reported success"**
+
+- The `/srv` tar ran and its uploader exited 0, but the object is absent or zero-length at the
+  destination. The run verifies the archive rather than trusting the exit code, which is why you
+  see this instead of a "successful" backup with nothing in it.
+- Usual causes, in order: S3 credentials that can write nowhere (an `existingSecret` whose keys
+  are named something other than `access-key` / `secret-key` produces a client with no
+  credentials at all), a bucket policy that denies `PutObject` for the prefix, or the node
+  hosting the PMM pod going away mid-upload.
+- Check the run log named in the error for the uploader's own output, then re-run the component
+  alone: `pmm-backup.sh backup --pmm-server`.
+
+**"PostgreSQL: No application databases found to dump"**
+
+- The PG cluster is up enough to answer, but `pmm-managed` and `grafana` do not exist yet. On a
+  fresh install this simply means the backup ran before the operator finished bootstrapping, and
+  it resolves itself; it is worth a second look only if it persists.
+- Confirm: `kubectl exec <pg-primary> -c database -- psql -U postgres -tAc \
+  "select datname from pg_database where datname not in ('template0','template1','postgres')"`.
+  Expect `pmm-managed` and `grafana`.
+
+**A ClickHouse restore completes but `pmm.metrics` has no rows**
+
+- Most often the backup is faithful and the table really was empty when it ran. QAN writes its
+  first rows only once a client has reported, so a backup taken minutes after an install captures
+  an empty table — correctly. A restore then reproduces exactly that.
+- Check the backup rather than guessing: the component metadata records the parts it captured.
+  An empty table shows `"parts": []` and the backup carries no `shadow/<db>/<table>/*.tar`:
+
+  ```bash
+  # s3 mode
+  aws s3 cp s3://<bucket>/<prefix>/clickhouse/<id>/metadata/pmm/metrics.json - | jq '.parts'
+  aws s3 ls --recursive s3://<bucket>/<prefix>/clickhouse/<id>/shadow/
+  ```
+
+- Compare with the source at the time the backup ran, not with now:
+  `SELECT countIf(period_start <= toDateTime('<backup time UTC>')) FROM pmm.metrics`.
+- Only if the source genuinely held rows the backup did not capture is this a fault worth
+  chasing.
+
+**Scripts in the pod look outdated after a chart change**
+- The scripts are mounted from the `<release>-backup-scripts` ConfigMap with `subPath`
+  (no live updates); a checksum annotation rolls the Deployment automatically on
+  `helm upgrade`. If in doubt: `kubectl rollout restart deploy/<release>-backup-tools`.
+
+---
+
+## 8. Restore
+
+Restore is the `restore` subcommand of the same tool. It is **manifest-driven** and
+supports the same two targets as the backup. Run it via kubectl exec (the pod name is
+generated, so target the Deployment):
+
+```bash
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  pmm-backup.sh restore --namespace <namespace> --target s3 \
+  --s3-bucket <bucket> --s3-region <region> --backup-id latest --dry-run
+```
+
+Contents: per-component mechanics, the automated restore flow, cross-namespace / DR
+restore, what to expect during a run, and post-restore steps.
+
+---
+
+### 8.1 Per-Component Mechanics and Orchestrated Flow
+
+> **Status:** `pmm-backup.sh restore` (see *Restore subcommand (Automated)* below) is **manifest-driven** and supports **both
+> targets** (`--target s3|shared`). It restores PostgreSQL (`pg_restore`), ClickHouse,
+> VictoriaMetrics, PMM `/srv`, and the encryption key, discovering each piece from the
+> per-run `manifest.json`. The per-component commands below show what it does under the hood
+> (and serve ad-hoc single-component restores).
+
+#### PostgreSQL
+
+PostgreSQL is backed up with `pg_dump` (one custom-format file per database), so restore is a
+`pg_restore` into the running primary. Scale PMM down first so nothing writes the DBs.
+
+```bash
+# shared: the dump is on the central volume (backup-tools mount)
+kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- \
+  pg_restore --clean --if-exists --no-owner -U postgres -d <db> \
+  < /backups/postgresql/backup_<id>/<db>.dump
+
+# s3: stream it from the bucket with the backup-tools pod's own rclone
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
+  rclone cat --s3-no-check-bucket s3:<bucket>/<prefix>/postgresql/<id>/<db>.dump \
+  | kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- \
+    pg_restore --clean --if-exists --no-owner -U postgres -d <db>
+```
+
+Repeat per database (PMM: `pmm-managed`, `grafana`). `--clean --if-exists` drops existing
+objects first; the target databases must already exist (operator/chart create them on
+deploy), which is exactly why this restores cleanly into a fresh cluster in **any** namespace.
+No pgBackRest, stanza, or `PerconaPGRestore` involved.
+
+#### ClickHouse
+
+ClickHouse restores in the live `clickhouse-backup` sidecar (with PMM scaled down):
+
+```bash
+# s3: download + restore from the bucket directly. The --env overrides point the tool at
+# the SOURCE backup's bucket/prefix — restore_remote has no source-path argument and would
+# otherwise only look under the S3_PATH baked into THIS sidecar's env, which is wrong for
+# cross-namespace/cross-prefix (DR) restores. The orchestrator always passes them.
+kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
+  clickhouse-backup restore_remote \
+  --env S3_BUCKET=<source-bucket> --env S3_PATH=<source-prefix>/clickhouse \
+  --rm <backup-name>
+
+# shared: untar the archive into the backup dir, then restore
+kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- sh -c \
+  "tar -xzf /central/clickhouse/backup_<id>/<backup-name>.tar.gz -C /var/lib/clickhouse/backup \
+   && clickhouse-backup restore --rm <backup-name>"
+```
+
+#### VictoriaMetrics
+
+`vmrestore` writes the vmstorage data PVC, so it runs in a temp pod that mounts the PVC while
+the cluster is scaled to 0 (the orchestrator does this per pod). The `-src` is the backup's
+own location:
+
+```bash
+# in a temp pod that mounts vmstorage-db-<pod> at /vmstorage-data:
+vmrestore -src=s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id> \
+  -storageDataPath=/vmstorage-data          # s3
+vmrestore -src=fs:///central/victoriametrics/backup_<id>/<pod>/vm_backup_<id> \
+  -storageDataPath=/vmstorage-data          # shared
+```
+
+Refer to [VictoriaMetrics vmrestore documentation](https://docs.victoriametrics.com/vmrestore/) for details.
+
+#### Encryption Key
+
+The encryption key is a Kubernetes Secret exported to YAML:
+
+```bash
+# Restore the encryption key secret
+kubectl apply -f /backups/encryption/backup_<timestamp>/pg-encryption-key.yaml
+
+# Verify
+kubectl get secret pg-encryption-key -n <namespace>
+```
+
+#### Restore subcommand (Automated)
+
+`pmm-backup.sh restore` automates full restore from central backup storage. It runs in the backup-tools pod (or any host with `kubectl` and read access to the backup directory).
+
+##### Usage
+
+Pass the same `--target` the backup used (`s3` requires `--s3-bucket`; `shared` reads the
+central mount). Discovery is from the manifest.
+
+> **Flag-less inside backup-tools.** The chart exports the target and all S3 settings
+> (`BACKUP_TARGET`, `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_PROVIDER`, `S3_SECRET_NAME`,
+> `S3_SERVICE_ACCOUNT`, …) into the backup-tools pod from your values, so a same-install restore
+> needs none of the `--target`/`--s3-*` flags — e.g. `pmm-backup.sh restore --backup-id latest
+> --yes`. Pass the flags below only to override for a **cross-namespace / cross-prefix** restore
+> (point `--s3-prefix` at the source instance) or an S3-compatible endpoint different from the install.
+> The examples below show the flags explicitly for clarity.
+
+| Action | Example |
+|--------|--------|
+| List backups (s3) | `pmm-backup.sh list -n demo --target s3 --s3-bucket my-bucket` |
+| List backups (shared) | `pmm-backup.sh list -n demo --target shared` |
+| Inspect one backup | `pmm-backup.sh list backup_<id> -n demo --target s3 --s3-bucket my-bucket` |
+| Restore latest (s3) | `pmm-backup.sh restore -n demo --target s3 --s3-bucket my-bucket --backup-id latest` |
+| Restore specific ID | `pmm-backup.sh restore -n demo --target shared --backup-id 20260224-085602` |
+| Restore into another ns | `pmm-backup.sh restore -n demo-dr --target s3 --s3-bucket my-bucket --backup-id latest` |
+| Dry run | `pmm-backup.sh restore ... --backup-id latest --dry-run` |
+| Skip confirmation | `pmm-backup.sh restore ... --yes` (`--force` is a deprecated alias) |
+
+**Component selection**: `--postgresql`, `--clickhouse`, `--victoriametrics`, `--pmm-server`,
+`--encryption-key` (plus `--skip-<component>` to drop components from the default set).
+If none are set, every component the manifest marks `success` is restored; explicitly
+requesting a component the manifest does NOT mark `success` is a hard error.
+PostgreSQL needs no options — databases come from the manifest.
+
+**Orchestration**: `--parallel` (default) or `--sequential`.
+
+##### Restore Flow
+
+1. **Preflight**: namespace exists, `kubectl`, `timeout` and `jq` available (jq parses the
+   manifest; the default tools image ships it — see §9 for what happens if a replacement
+   image does not).
+2. **S3 access is local to this process** (s3 mode): the orchestrator runs `rclone` itself, in
+   the backup-tools pod, with that pod's own S3 credentials. All S3 reads (manifest, ordinal
+   mapping, PG dump streaming) go through it. There is no temp S3 client pod any more, and the
+   `pmm-backup` sidecar is not used either — it rides on the PMM pods, which this restore
+   scales to 0 (and a re-run after a failed restore starts with PMM already down). Every rclone
+   call is time-bounded (`RCLONE_TIMEOUT` for reads and deletes, `RCLONE_PURGE_TIMEOUT` for a
+   prefix purge, plus rclone's own idle/connect bounds on all of them), so a wedged or
+   throttled endpoint fails the operation instead of hanging it.
+3. If `list`: enumerate backups from their manifests and exit.
+4. **Load manifest**: resolve `--backup-id` (incl. `latest`), validate it is JSON, and read
+   each component's status + coordinates (PG databases, CH name, …). Components default to
+   whatever the manifest marks `success`; explicitly requesting a component the manifest
+   does not carry as `success` is a hard error before anything is touched.
+5. If `--dry-run`: print the per-component plan and exit.
+6. **Confirm** (unless `--yes`; required when there's no TTY). `--yes` answers the prompt only — it never disables a safety check, so e.g. a failed encryption-key restore still aborts the run.
+7. **Encryption key**: fetch from the backup and `kubectl apply` (namespace rewritten to
+   the target). Aborts the restore if it fails (data can't be decrypted otherwise).
+8. **Scale down PMM** to 0 — nothing may write the DBs during restore, and the
+   pmm-storage PVCs must be free for the `/srv` restore.
+9. **Restore DB components** (parallel by default): PostgreSQL (`pg_restore --clean
+   --if-exists` per database, streamed from the dump; missing/empty dumps and pg_restore
+   error lines are hard failures), ClickHouse (s3: `restore_remote --rm` with
+   `--env S3_BUCKET/S3_PATH` pointing at the SOURCE `--s3-bucket`/`--s3-prefix`, which
+   makes cross-namespace/cross-prefix restores work; shared: untar + `restore --rm`),
+   VictoriaMetrics (scale vmstorage+vminsert to 0 — vminsert wait is soft/non-blocking,
+   vmstorage wait is strict — then `vmrestore` per ordinal in a temp pod, ordinal-mapped
+   to the SOURCE release's directory names, then scale back and bounce vmselect).
+   A failed ordinal-map lookup is a hard error (no fallback guessing); partial restores
+   (some ordinals failed) fail the component.
+10. **PMM `/srv`**: per ordinal, a temp pod mounts the pmm-storage PVC and extracts the
+    backup's tarball (`/srv/ha` dropped so the HA raft re-bootstraps). PMM is still at 0.
+11. **Verify**: pg_isready, pod presence for ClickHouse/VictoriaMetrics.
+12. **Scale up PMM** (LAST, so it boots against fully-restored data): only if all restores
+    succeeded; otherwise leave PMM at 0 and exit non-zero with the manual scale-up command.
+13. **Metrics**: write `restore_metrics.prom` under `METRICS_DIR` (atomic); served on port 9091, scraped by VMAgent.
+
+Expect ~6 temp pods per full s3 restore (1 vmrestore per vmstorage ordinal +
+1 /srv-restore per PMM ordinal; there is no S3 client pod). They are required: the data PVCs are RWO and their owner
+pods must be down while data is written, so a short-lived mounter pod per PVC is the only
+way in — each is deleted immediately so the real pod can re-attach on scale-up.
+
+##### Restore Metrics
+
+Written to `/backups/.metrics/restore_metrics.prom` and served on port 9091:
+
+- `pmm_ha_restore_in_progress` — 1 while a restore is running
+- `pmm_ha_restore_phase` — current phase (encryption_key, scale_down_pmm, postgresql, clickhouse, victoriametrics, verification, scale_up_pmm, idle)
+- `pmm_ha_restore_last_success` — 1 if last restore succeeded
+- `pmm_ha_restore_last_timestamp_seconds`, `pmm_ha_restore_last_duration_seconds`
+- `pmm_ha_restore_component_success{component="postgresql|clickhouse|victoriametrics|pmm-server|encryption"}` — 1 per component on success
+
+  The label values are the manifest's component keys, identical to the ones on
+  `pmm_ha_backup_last_success`, so the two families can be filtered and joined with one
+  expression. They used to be spelled `pmm_server` and `encryption_key` here and `pmm-server` /
+  `encryption` on the backup side — one tool, one directory, one scrape, two spellings.
+
+  A component that was **not part of this restore** reports **1**, not 0. `--skip-postgresql` or a
+  narrower `--clickhouse` selection is not a PostgreSQL failure, and reporting 0 for it made a
+  DR-readiness alert fire over components nobody asked to restore. The run-level verdict is
+  `pmm_ha_restore_last_success`; use that, not a per-component sum, to ask "did the restore work".
+
+The backup-tools pod exposes port 9091 and VMAgent's single `backup-metrics` scrape job (30s interval, `templates/vmagent.yaml`) collects these alongside the backup metrics.
+
+---
+
+### 8.2 Cross-Namespace / DR Restore
+
+Restore one instance's backup into a DIFFERENT namespace (e.g. production `pmm` into a DR
+namespace) on the same cluster. Run the restore in the **target** namespace's backup-tools
+pod and point `--s3-prefix` at the **source** instance's prefix — IAM/bucket access is the
+same, and the orchestrator passes every tool the full source location (including a
+per-invocation `--env S3_BUCKET/S3_PATH` override for `clickhouse-backup`, whose
+`restore_remote` otherwise only looks under the target sidecar's own configured path):
+
+```bash
+kubectl exec -n <target-ns> deploy/<target-release>-backup-tools -- \
+  pmm-backup.sh restore --namespace <target-ns> --target s3 \
+  --s3-bucket <bucket> --s3-prefix <SOURCE-prefix> --s3-region <region> \
+  --backup-id <backup_id-or-latest> --yes
+```
+
+In `shared` mode the same idea applies to the one flag that differs. Both installs mount the
+same RWX export, but each writes under its own `<namespace>/<release>` subpath — so the target
+is told whose catalog to read with `--shared-source-path` instead of `--s3-prefix`:
+
+```bash
+kubectl exec -n <target-ns> deploy/<target-release>-backup-tools -- \
+  pmm-backup.sh restore --namespace <target-ns> --target shared \
+  --shared-source-path <SOURCE-ns>/<SOURCE-release> \
+  --backup-id <backup_id-or-latest> --yes
+```
+
+The subpath is what keeps two installs on one export from sharing a `latest` pointer, a
+`manifests/` directory and an age-based retention sweep. The target's own subpath is untouched
+by the restore; only the source's is read.
+
+Prerequisites for the target namespace: the PMM-HA instance installed (distinct release
+name; see the multi-namespace section of the chart README), `pmm-secret` present, and —
+for s3 — credentials for the target namespace: with IRSA (AWS), extend the role's trust
+policy with the target namespace's ServiceAccounts; with static keys (any S3-compatible
+storage), create the credentials Secret in the target namespace and pass `--s3-secret`.
+
+#### S3-compatible storage (MinIO, Ceph RGW, ...)
+
+Add the endpoint (and creds Secret) to every restore invocation — the orchestrator passes
+them through to all tools: `-customS3Endpoint` for vmrestore, its own rclone config for the
+reads it does itself, and the `RCLONE_CONFIG_S3_*` env it projects into the temp `/srv`
+restore pod (there is no separate S3 client pod):
+
+```bash
+pmm-backup.sh restore ... \
+  --s3-endpoint http://minio.minio.svc:9000 \
+  --s3-provider Minio \
+  --s3-secret pmm-s3-secret
+```
+
+VM and PMM `/srv` restores are **ordinal-mapped**: the source release's directory names
+are translated to the target's pods (`vmstorage-<source>-N` → `vmstorage-<target>-N`), so
+release names do not need to match. The restored encryption key is rewritten to the
+target namespace before being applied.
+
+This REPLACES the target's PG/CH/VM//srv data and encryption key with the source's — the
+target becomes a clone of the source's monitoring state.
+
+### 8.3 What To Expect During a Run
+
+A full s3 restore takes minutes even for small data — most of it is pod lifecycle, not
+data transfer:
+
+- **~6 temp pods appear and disappear**: one `vm-restore-*` per vmstorage ordinal and
+  one `pmm-srv-restore-*` per PMM ordinal (the data PVCs are RWO and their owner pods
+  must be down while data is written — a short-lived mounter pod per PVC is the only way
+  in; each is deleted immediately so the real pod can re-attach on scale-up). S3 itself
+  needs no pod: the orchestrator runs `rclone` in-process, in the backup-tools pod.
+- A **soft WARN** if vminsert pods are still terminating after 120s is non-blocking
+  (vminsert holds no PVCs; the strict wait is on vmstorage).
+- **PMM's final boot back to full replica count is the longest phase** (several minutes).
+- On any component failure the run exits non-zero and **PMM is left scaled down** (nothing
+  boots against half-restored data); the output includes the manual scale-up command.
+  Fix the cause and re-run — a re-run works even with PMM already at 0.
+
+### 8.4 Post-Restore Steps
+
+- **Admin password**: Grafana users live in the restored `grafana` database, so after a
+  cross-instance restore the admin password is the SOURCE instance's
+  `PMM_ADMIN_PASSWORD`, not the target's secret. Either update the target's PMM secret
+  to match, or reset PMM to the target's value — `<secret-name>` is the chart's
+  `secret.name` (default `pmm-secret`):
+  ```bash
+  kubectl exec -n <ns> <pmm-pod-0> -c pmm-ha -- change-admin-password \
+    "$(kubectl get secret <secret-name> -n <ns> -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 -d)"
+  ```
+- **PG monitoring token**: the target's `pg-pmm-secret` service token was minted in the
+  (now overwritten) Grafana DB — re-run the token-init **Job** if PG-side monitoring shows
+  401s. It is a regular Job, not a bare pod, so deleting its pods does nothing (a completed
+  Job never recreates pods). Delete the Job and let Helm recreate it:
+  ```bash
+  kubectl delete job -n <ns> <release>-pmm-token-init --ignore-not-found
+  helm upgrade <release> charts/pmm-ha -n <ns> --reuse-values --no-hooks
+  ```
+
+
+---
+
+## 9. Known Limitations and Caveats
+
+### kubectl --request-timeout Bug
+
+In kubectl v1.35.x, using `--request-timeout` with `kubectl exec` when running inside a Kubernetes pod breaks in-cluster API server discovery. kubectl falls back to `localhost:8080` instead of using the ServiceAccount token and the cluster API server address. The script works around this by using the `timeout` command from coreutils/BusyBox instead of `--request-timeout`.
+
+### S3 Backup Support
+
+S3 is the **default and recommended target** (`--target s3`), implemented and validated
+end-to-end for all components — credentials via static keys (any S3-compatible storage) or
+IRSA on AWS, see §1 and §3. ClickHouse,
+VictoriaMetrics and PMM `/srv` write directly to the bucket from their own pods
+(clickhouse-backup `upload`, vmbackup `-dst=s3://`, and for `/srv` an in-pod
+`tar | rclone rcat` in the `pmm-backup` sidecar); PostgreSQL `pg_dump` and the encryption key
+are streamed up by the **backup-tools pod's own rclone**, because `pg_dump` cannot write S3 and
+the PostgreSQL pod has no rclone (see DN-26). Credentials per
+component come from `existingSecret` values (static keys) or the IRSA credential chain
+(AWS). Custom endpoints (`endpoint` value / `--s3-endpoint`) reach every tool, including
+vmbackup/vmrestore via `-customS3Endpoint`.
+
+### Shared (RWX/NFS) Target
+
+`--target shared` mounts a user-provided RWX volume (`/central`) into the component pods so
+each lands its backup with an in-pod write (no API-server streaming for VM/CH/PMM).
+PostgreSQL `pg_dump` is streamed through the orchestrator onto the same volume. The chart
+mounts `/central` into the PMM StatefulSet, the clickhouse-backup sidecar, and the vmbackup/
+vmrestore sidecars; the volume must be `ReadWriteMany`.
+
+### OpenShift
+
+Validated end-to-end on ROSA under `restricted-v2`, with no backup-specific setting required:
+backup and cross-namespace restore in **both** `s3` and `shared` mode, a scheduled CronJob
+backup, and a restore run as a Job. Nothing in the backup path hardcodes a privileged identity
+— the restore temp pods copy the workload's own `securityContext` rather than demanding root
+(DN-48), which was observed doing the right thing across namespaces: the temp pods took the
+TARGET namespace's assigned UID (`runAsUser: 1000880000`), not the source's.
+
+Two OpenShift-specific things worth knowing:
+
+- **Arbitrary UIDs are why `shared` mode needs group-writable output.** A backup written by one
+  namespace's UID must be readable by another's for a cross-namespace restore; the orchestrator
+  creates its directories `2775`, writes `latest` `664` and the encryption key `640` in shared
+  mode for exactly that reason. Verified reading one namespace's backup from another's pod.
+- **OpenShift assigns SELinux MCS categories per NAMESPACE** (`openshift.io/sa.scc.mcs`), so all
+  pods of an install share one context. That makes it immune to the volume-relabelling problem
+  described under [Storage Options](#storage-options-shared-mode), which affects platforms that
+  assign categories per POD.
+
+One caveat remains that is outside this feature's control.
+
+**The default tools image ships the tools.** `centralBackupStorage.tools.image` defaults to
+`docker.io/tigercomputing/cloud-tools`, which carries kubectl, jq, rclone and BusyBox `nc`, so
+`files/backup-entrypoint.sh` probes, finds them, and never runs its `apk add` fallback. Verified
+on a live cluster under an assigned non-root UID: a full backup completed with the bootstrap
+logging only `tools: jq-1.8.1, rclone v1.75.0` and no install step.
+
+**If you override it, the replacement must carry them too.** An image without jq (and rclone in
+s3 mode) falls back to `apk add`, which needs root and therefore fails here:
+
+```
+ERROR: Unable to open log: Permission denied
+```
+
+Backup Jobs run with `PMM_TOOLS_STRICT=true`, so that is a failed backup on every schedule —
+and unlike DN-48's restore problem it breaks *backup*. DN-49 records the four alternatives
+measured against depending on the image (chart-shipped binaries, `apk --usermode`, downloading
+verified static binaries, and mounting the official images as OCI volumes).
+
+Three conditions come with this default, and they are not optional:
+
+- **Pin a timestamp tag, never `:latest`.** That image bumps `kubectl` on its own schedule, and
+  kubectl versions have broken this orchestrator before (`kubectl exec --request-timeout` broke
+  in-cluster API discovery in v1.35.x — the reason every call is wrapped in `timeout`).
+- **Re-run a backup _and_ a restore whenever you move the tag**, for the same reason.
+- **Give the backup pods a pull secret, or mirror the image.** Docker Hub rate limits are a
+  real failure mode, and this image is 255 MB against the 21.5 MB of the kubectl-only one it
+  replaced. Set `centralBackupStorage.tools.imagePullSecrets` — it is rendered onto the backup
+  ServiceAccount, so it covers the Deployment, every Job and the s3-mode temp restore pods.
+  Do **not** use `image.imagePullSecrets` for this: that key is chart-wide and also lands on the
+  PMM StatefulSet, rolling every PMM replica.
+
+It is a third-party general-purpose CI toolbox, so it also carries aws-cli, helm, ssh and
+python3 that this chart never uses — extra surface in a pod that holds the backup
+ServiceAccount's credentials and can exec into every database pod. Any image with
+kubectl+jq+rclone works, and a minimal one built in-house (Alpine, `apk add jq`, plus
+`COPY --from` for kubectl and rclone) is the smaller long-term answer.
+
+> **Revisit when OpenShift ships ImageVolume (OCP 4.20+ / Kubernetes 1.33+).** Mounting the
+> official upstream `jq` and `rclone` images as read-only OCI volumes needs no bundled-tools
+> image at all, and no install, shell, copy or egress — it is verified working on Kubernetes
+> 1.36 under an assigned non-root UID. It is blocked today only by availability: this chart
+> supports Kubernetes 1.22+, and `ImageVolumeWithDigest` (pinning by digest rather than tag) is
+> still alpha. DN-49 carries the full comparison and the values snippet.
+
+The other open item is not specific to backup: the chart sets no `securityContext` on
+ClickHouse, vmstorage or backup-tools, so whether those components come up under an assigned
+UID at all is a question about the chart rather than about this feature.
+
+### Metrics Persistence
+
+Metrics files are stored on the PVC (`/backups/.metrics/`), so they survive pod restarts. However, after an initial deployment (before any backup has run), the endpoint serves only a placeholder comment (`# no backup run yet`). VMAgent will scrape these without error but no metrics will be available until the first backup completes.
+
+### netcat Serving Limitations
+
+The metrics HTTP server uses BusyBox `nc` (netcat) which handles one connection at a time per port. If VMAgent and a manual `wget` hit the same port simultaneously, one will get a connection refused. This is acceptable given the 60-second scrape interval and the low-traffic nature of backup metrics.

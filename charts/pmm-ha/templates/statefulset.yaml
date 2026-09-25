@@ -1,8 +1,10 @@
 {{- include "pmm.nodeExporter.validate" . -}}
+{{- include "pmm.validatePgCrd" . -}}
 {{- include "pmm.openshift.validate" . -}}
 {{- include "pmm.haproxy.validate" . -}}
 {{- include "pmm.validateSecret" . -}}
 {{- include "pmm.vm.validateCredential" . -}}
+{{- include "pmm.validateBackupIrsaSa" . -}}
 {{- include "pmm.replicas.validate" . -}}
 {{- include "pmm.keeper.validate" . -}}
 apiVersion: apps/v1
@@ -324,6 +326,11 @@ spec:
               mountPath: /srv/nginx
               readOnly: true
             {{- end }}
+            {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+            # shared mode: orchestrator runs an in-pod `tar -czf <sharedMountPath>/backup_<id>/pmm-server/<pod>/srv.tar.gz`
+            - name: central-backup-storage
+              mountPath: {{ .Values.centralBackupStorage.sharedMountPath }}
+            {{- end }}
             {{- if .Values.extraVolumeMounts }}
             {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
             {{- end }}
@@ -355,6 +362,48 @@ spec:
               readOnly: true
         {{- end }}
         {{- end }}
+        {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "s3") }}
+        # Backup sidecar: archives /srv and streams it to S3 via rclone.
+        # Passive agent (sleeps); the backup orchestrator execs into it to run the upload.
+        - name: pmm-backup
+          image: "{{ .Values.centralBackupStorage.client.image.registry }}/{{ .Values.centralBackupStorage.client.image.repository }}:{{ .Values.centralBackupStorage.client.image.tag }}"
+          command: ["sleep", "infinity"]
+          env:
+            - { name: RCLONE_CONFIG_S3_TYPE, value: "s3" }
+            - { name: RCLONE_CONFIG_S3_PROVIDER, value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }} }
+            - { name: RCLONE_CONFIG_S3_ENV_AUTH, value: "true" }
+            - { name: RCLONE_CONFIG_S3_REGION, value: {{ .Values.centralBackupStorage.s3.region | quote }} }
+            # IAM policy has no CreateBucket; bucket already exists -> don't check/create it
+            - { name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET, value: "true" }
+            {{- with .Values.centralBackupStorage.s3.endpoint }}
+            - { name: RCLONE_CONFIG_S3_ENDPOINT, value: {{ . | quote }} }
+            {{- end }}
+            {{- if .Values.centralBackupStorage.s3.existingSecret }}
+            # Static credentials (any S3-compatible storage). On AWS with IRSA, leave
+            # existingSecret empty — the SDK credential chain uses the web-identity token.
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.centralBackupStorage.s3.existingSecret }}
+                  key: {{ include "pmm.s3SecretKeyName" (dict "keys" .Values.centralBackupStorage.s3.existingSecretKeys "which" "access") }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.centralBackupStorage.s3.existingSecret }}
+                  key: {{ include "pmm.s3SecretKeyName" (dict "keys" .Values.centralBackupStorage.s3.existingSecretKeys "which" "secret") }}
+            {{- end }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: {{ .Values.storage.name }}
+              mountPath: /srv
+              readOnly: true
+        {{- end }}
       volumes:
         - name: annotations
           projected:
@@ -372,6 +421,9 @@ spec:
           secret:
             secretName: {{ .Values.certs.name }}
             optional: false
+      {{- end }}
+      {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+        {{- include "pmm.centralBackupVolume" . | nindent 8 }}
       {{- end }}
       {{- if .Values.extraVolumes }}
         {{- toYaml .Values.extraVolumes | nindent 8 }}

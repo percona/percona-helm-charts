@@ -214,6 +214,69 @@ namespaced and do not collide across namespaces. Remember the usual prerequisite
 namespace: create the `pmm-secret` (see [Creating PMM Secret Manually](#creating-pmm-secret-manually))
 before installing, and ensure the namespace has access to whatever backup storage you use.
 
+## Backup and Restore
+
+The chart ships a complete backup/restore solution for the whole PMM-HA installation
+(PostgreSQL, ClickHouse, VictoriaMetrics, PMM `/srv`, and the PMM encryption key). The
+orchestrator scripts are installed with the chart (mounted into the `backup-tools`
+Deployment — no manual copying) and support two targets, selected via
+`centralBackupStorage.mode`:
+
+- **`s3`** (default): every component uploads directly to any S3-compatible object storage
+  (AWS S3, MinIO, Ceph RGW, ...), authenticated with either static access keys (a
+  Kubernetes Secret — works everywhere) or IRSA (AWS EKS only, keyless).
+- **`shared`**: every component writes to a user-provided volume — any PVC, NFS export,
+  or pre-created PV the cluster can mount (must be RWX on multi-node clusters). The chart
+  never provisions cloud storage itself; AWS/EFS prerequisites are documented as manual
+  steps.
+
+Quick start (after configuring `centralBackupStorage` in values). Inside the backup-tools
+pod the chart already exports the target and all S3 settings from your values, so no
+`--target`/`--s3-*` flags are needed — pass them only to override for an ad-hoc run.
+For the fuller copy-paste set — scheduling, running a backup or restore as a Job, a
+cross-namespace DR restore, and what to check when something is wrong — see
+[docs/pmm-backup.md §0 Quick Start](docs/pmm-backup.md#0-quick-start):
+
+```bash
+# Full backup
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh backup
+
+# List backups
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh list
+
+# Restore the latest backup (DESTRUCTIVE — scales PMM/VM down; see docs/pmm-backup.md §8)
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh restore --backup-id latest --yes
+```
+
+Scheduled backups (Kubernetes CronJob, disabled by default — enable once the target is
+configured; restore stays manual):
+
+```yaml
+centralBackupStorage:
+  schedule:
+    enabled: true
+    cron: "0 2 * * *"     # daily at 02:00
+    retentionDays: 7
+    # components: ["--skip-victoriametrics"]   # empty = all four
+```
+
+Each scheduled run is a Kubernetes **Job** that executes `pmm-backup.sh` directly — its
+exit code is the Job status, `kubectl logs job/...` is the run log, and the pod carries
+`karpenter.sh/do-not-disrupt` for exactly the run's lifetime (nothing pins a node once the
+run ends). `concurrencyPolicy: Forbid` plus the orchestrator's per-component locks prevent
+overlapping runs. The CronJob is rendered on every install with backups enabled (suspended when no schedule is
+configured), so its jobTemplate is always available to clone: trigger the same run manually with
+`kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <namespace>`;
+for long restores use a Job too (see `examples/restore-job.yaml`) — see the *Scheduled
+Backups* section of [docs/pmm-backup.md](docs/pmm-backup.md).
+
+Full documentation:
+
+- [docs/pmm-backup.md](docs/pmm-backup.md) — architecture, per-component backup
+  methods, chart integration, IRSA setup, scheduling, metrics, CLI reference,
+  operations guide, the restore flow (incl. cross-namespace / disaster-recovery
+  restore and post-restore steps), and known limitations.
+
 ## Uninstalling the Chart
 
 **IMPORTANT**: You must uninstall PMM HA first, then the operators. Uninstalling in the wrong order may leave orphaned resources.
@@ -406,10 +469,13 @@ Consequences:
 | `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.1`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
-| `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
-| `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
+| `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{requests: {memory: 4Gi, cpu: 2}, limits: {memory: 8Gi, cpu: 4}}` |
+| `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `10`                 |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |
 | `readyProbeConf.failureThreshold`    | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                                                               | `6`                  |
+| `dataRetentionDays`                  | Optional single retention value, in days, for BOTH metrics and Query Analytics. Left empty, metrics use `victoriaMetrics.vmstorage.retentionPeriod` and QAN keeps PMM's own setting. Setting it overrides the former and sets `PMM_DATA_RETENTION`, which makes retention read-only in the PMM UI. Largest single lever on disk usage — see [docs/SIZING.md](docs/SIZING.md) | `""`                 |
+| `logStreamer.enabled`                | Run a sidecar per entry in `logStreamer.logFiles` that tails the file to stdout, so `kubectl logs` can reach logs PMM writes to disk                                                                                                           | `false`              |
+| `logStreamer.logFiles`               | Log file paths to stream. Each gets its own `log-streamer-<index>` container                                                                                                                                                                  | `[/srv/logs/pmm-managed.log, /srv/logs/qan-api2.log]` |
 
 
 ### PMM Client
@@ -503,7 +569,7 @@ Two things to know before changing these:
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | `storage.name`             | name of PVC                                                                                                                                                                             | `pmm-storage` |
 | `storage.storageClassName` | optional PMM data Persistent Volume Storage Class                                                                                                                                       | `""`          |
-| `storage.size`             | size of storage [depends](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) on number of monitored services and data retention | `10Gi`        |
+| `storage.size`             | size of storage [depends](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) on number of monitored services and data retention. See [docs/SIZING.md](docs/SIZING.md) | `40Gi`        |
 | `storage.dataSource`       | VolumeSnapshot to start from                                                                                                                                                            | `{}`          |
 | `storage.selector`         | select existing PersistentVolume                                                                                                                                                        | `{}`          |
 
@@ -524,7 +590,9 @@ Two things to know before changing these:
 | `securityContext`            | Configure Container Security Context                                                                                | `{}`                  |
 | `nodeSelector`               | Node labels for pod assignment                                                                                      | `{}`                  |
 | `tolerations`                | Tolerations for pod assignment                                                                                      | `[]`                  |
-| `affinity`                   | Affinity for pod assignment                                                                                         | `{}`                  |
+| `extraVolumes`               | Additional volumes to add to the PMM Server pods                                                                    | `[]`                  |
+| `extraVolumeMounts`          | Additional volumeMounts for the PMM Server container                                                                | `[]`                  |
+| `affinity`                   | Affinity for the PMM Server pods. The default spreads the replicas across nodes; setting this **replaces** that rule, so re-state the anti-affinity if you override it | `{podAntiAffinity: preferred, one PMM pod per node}` |
 
 
 ### Node exporter source parameters
@@ -1045,7 +1113,7 @@ Check the health of your PMM HA deployment:
 
 ```sh
 # Check PMM server pods
-kubectl get pods -l app.kubernetes.io/name=pmm -n pmm
+kubectl get pods -l app.kubernetes.io/component=pmm-server -n pmm
 
 # Check HAProxy pods
 kubectl get pods -l app.kubernetes.io/name=haproxy -n pmm
