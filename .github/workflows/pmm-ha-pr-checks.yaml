@@ -207,6 +207,25 @@ jobs:
             | grep -qF "regex: 'pmm\\.ha'" \
             || { echo "::error::Release.Name is not regex-escaped in vmagent scrape configs"; exit 1; }
 
+          # The token-init Job name must carry a hash of its pod spec. A fixed name makes any
+          # upgrade that touches that pod spec fail on spec.template immutability (PMM-15445).
+          base=$(grep -oE '^  name: pmm-2-pmm-token-init-[0-9a-f]{8}$' <<<"$out" | awk '{print $2}')
+          [[ -n "$base" ]] \
+            || { echo "::error::pmm-token-init Job name lost its pod-spec hash"; exit 1; }
+
+          # The shape alone proves nothing - hashing a constant passes it too. What has to hold is
+          # that the suffix tracks the pod spec: it moves for a value that feeds the pod spec, and
+          # holds still for one that does not.
+          job_name() {
+            helm template pmm-2 charts/pmm-ha --namespace "$NS" --dry-run=server \
+              -s templates/pg-pmm-token-job.yaml "$@" \
+              | awk '/^kind: Job/{f=1} f && /^  name:/{print $2; exit}'
+          }
+          [[ "$(job_name --set pg-db.pmm.secret=hash-probe)" != "$base" ]] \
+            || { echo "::error::Job name did not move when the pod spec changed"; exit 1; }
+          [[ "$(job_name --set replicaCount=5)" == "$base" ]] \
+            || { echo "::error::Job name churns on a value outside the pod spec"; exit 1; }
+
           echo "Release-name-sensitive names render correctly."
 
       - name: Install pmm-ha-dependencies chart
