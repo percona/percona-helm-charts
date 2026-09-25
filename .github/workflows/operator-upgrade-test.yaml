@@ -141,28 +141,31 @@ jobs:
           helm install ${{ matrix.operator }} percona/${{ matrix.operator }} --version "$op_ver" --wait --timeout 10m
           helm install ${{ matrix.db }} percona/${{ matrix.db }} --version "$db_ver" --wait --timeout 10m
           kubectl wait --for=jsonpath='{.status.state}'=ready ${{ matrix.cr }}/${{ matrix.db }} --timeout=15m
-          kubectl wait --for=condition=Ready pod --all --timeout=5m
+          kubectl wait --for=condition=Ready pod --all --field-selector='status.phase!=Succeeded' --timeout=5m
 
       - name: Upgrade to PR charts
         run: |
           set -euo pipefail
 
           wait_for_reconciliation() {
-            local resource="$1" name="$2" generation="$3" deadline status state observed
+            local resource="$1" name="$2" generation="$3" deadline status state observed pods unready
             deadline=$((SECONDS + 900))
 
             while (( SECONDS < deadline )); do
               status=$(kubectl get "$resource/$name" -o json)
               state=$(jq -r '.status.state // ""' <<< "$status")
               observed=$(jq '[.status.observedGeneration // 0, (.status.conditions[]?.observedGeneration // 0)] | max' <<< "$status")
-              if [ "$state" = ready ] && (( observed >= generation )); then
+              pods=$(kubectl get pods -o json)
+              unready=$(jq '[.items[] | select(.status.phase != "Succeeded") | select(any(.status.conditions[]?; .type == "Ready" and .status == "True") | not)] | length' <<< "$pods")
+              if [ "$state" = ready ] && (( observed >= generation )) && (( unready == 0 )); then
                 return
               fi
               sleep 10
             done
 
-            echo "$resource/$name did not reconcile generation $generation"
+            echo "$resource/$name or its active pods did not become ready for generation $generation"
             kubectl get "$resource/$name" -o yaml
+            kubectl get pods -o wide
             return 1
           }
 
@@ -184,7 +187,6 @@ jobs:
             exit 1
           fi
           wait_for_reconciliation ${{ matrix.cr }} ${{ matrix.db }} "$generation"
-          kubectl wait --for=condition=Ready pod --all --timeout=5m
 
       - name: Dump cluster on failure
         if: failure()
