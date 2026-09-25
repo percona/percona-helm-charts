@@ -41,7 +41,12 @@ stringData:
              response. query_exemplars and status/buildinfo were missing, so each panel with
              exemplars enabled logged a parse failure on every refresh (PMM-15461). vmselect
              serves both: exemplars return an empty placeholder, buildinfo the Prometheus
-             version Grafana uses to pick its API dialect. */}}
+             version Grafana uses to pick its API dialect.
+
+             Once buildinfo answered, Grafana's Alert rules page started asking this data
+             source for its rules too, and failed with "Errors loading rules" (PMM-15556).
+             vmselect answers rules and alerts with empty placeholders, as single-node
+             VictoriaMetrics does, because PMM sets no -vmalert.proxyURL. */}}
       - src_paths:
         - "/api/v1/query"
         - "/api/v1/query_range"
@@ -50,6 +55,8 @@ stringData:
         - "/api/v1/label/.+/values"
         - "/api/v1/query_exemplars"
         - "/api/v1/status/buildinfo"
+        - "/api/v1/rules"
+        - "/api/v1/alerts"
         url_prefix: "http://vmselect-{{ include "pmm.fullname" . }}-vmcluster.{{ .Release.Namespace }}.svc.cluster.local:8481/select/0/prometheus/"
 ---
 # VMAuth CRD managed by VictoriaMetrics operator

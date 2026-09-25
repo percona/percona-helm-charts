@@ -332,13 +332,25 @@ rejected - PMM unreachable, a 5xx, or a leader change mid-check - is not treated
 token: the Job fails and retries instead of minting a second token behind the running pods.
 
 The Job's name ends in a hash of its own pod template, so find it by label rather than by a
-fixed name:
+fixed name. The Job and its pods carry `app.kubernetes.io/component: pmm-token-init`:
 
 ```bash
-JOB=$(kubectl get jobs -n <namespace> -l app.kubernetes.io/instance=<release> \
-  -o name | grep pmm-token-init)
-kubectl logs -n <namespace> "$JOB"
+kubectl get job -n <namespace> \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=pmm-token-init
+kubectl logs -n <namespace> \
+  -l app.kubernetes.io/instance=<release>,app.kubernetes.io/component=pmm-token-init
 ```
+
+Name the release as well as the component: a namespace can hold more than one release, and more
+than one token-init pod can be running at once - Helm schedules the new Job before pruning the
+old one, and a Job created by a revision that then failed is never pruned at all. That is
+expected and safe. The secret, not the Job, decides which token is live, and the write to it is
+what settles the race rather than a read taken beforehand: a pod creates the secret if it is
+absent, and otherwise patches it under a `test` on the resourceVersion it read the token at, so
+exactly one of two pods holding the same version lands its write. The pod whose write is
+rejected re-reads, finds a token other than the one it meant to replace, revokes the token it
+had minted and defers. A `withdrawing this one` line in a Job log is that happening, not an
+error.
 
 A Job's `spec.template` is immutable, so any chart change that touches the script or its
 environment would otherwise fail `helm upgrade` with `spec.template: field is immutable` while
@@ -950,38 +962,43 @@ PMM replicas.
 
 These constraints are covered under [Known Limitations](#known-limitations).
 
-> **Upgrade note (chart 1.7.0)**
->
-> An even `replicas` (`2` or `4`) was previously accepted and now fails the render.
-> Set an odd value in the same `helm upgrade`. That changes `PMM_HA_PEERS`, so it
-> recreates every PMM pod.
->
-> `clickhouse.keeper.replicasCount` is now capped at `9` as well as required to be odd.
-> Anything higher was previously accepted and now fails the render.
-
 #### Scaling PMM HA
+
+`helm upgrade` with `--set` and no values flag rebuilds the release from the chart
+defaults plus that one `--set`, so every other value set at install time is reverted:
+a `LoadBalancer` service goes back to `ClusterIP`, and scaling HAProxy resets
+`replicas` to `3`. The commands below pass `--reuse-values` to keep them; with a
+values file, change the count there and pass `-f values.yaml` instead. They also pin
+`--version` to the chart already running (the `CHART` column of
+`helm list --namespace pmm`), because `percona/pmm-ha` alone resolves to the newest
+chart in the repository and scaling would upgrade the chart too.
 
 To scale the PMM HA deployment:
 
 ```sh
 # Scale PMM server replicas (odd values only)
-helm upgrade pmm-ha --set replicas=5 --namespace pmm percona/pmm-ha
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
+  --set replicas=5
 
 # Scale HAProxy replicas
 # HAProxy replicas beyond the worker-node count are co-located rather than left
 # Pending, so they add throughput but not an extra failure domain.
-helm upgrade pmm-ha --set haproxy.replicaCount=5 --namespace pmm percona/pmm-ha
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
+  --set haproxy.replicaCount=5
 
 # Scale ClickHouse replicas
-helm upgrade pmm-ha --set clickhouse.cluster.replicas=5 --namespace pmm percona/pmm-ha
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
+  --set clickhouse.cluster.replicas=5
 
 # Scale VictoriaMetrics components
-helm upgrade pmm-ha \
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
   --set victoriaMetrics.vmselect.replicaCount=3 \
   --set victoriaMetrics.vminsert.replicaCount=3 \
-  --set victoriaMetrics.vmstorage.replicaCount=5 \
-  --namespace pmm \
-  percona/pmm-ha
+  --set victoriaMetrics.vmstorage.replicaCount=5
 ```
 
 #### Monitoring PMM HA Health
@@ -1045,12 +1062,13 @@ Common troubleshooting steps for PMM HA:
   is DNS-based, so changing `replicas` needs no restart. Bump
   `haproxy.podAnnotations."pmm.percona.com/config-version"` in the same `helm upgrade`
   so the pods restart and pick up the new `server-template`. It has to be a value the
-  release is not already running - the chart ships `"4"`, so the examples below use `"5"`:
+  release is not already running - the chart ships `"5"`, so the examples below use `"6"`:
 
   ```sh
   helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+    --version <chart-version> --reuse-values \
     --set maxReplicas=20 \
-    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=5'
+    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=6'
   ```
 
   Or in `values.yaml`:
@@ -1059,7 +1077,7 @@ Common troubleshooting steps for PMM HA:
   maxReplicas: 20
   haproxy:
     podAnnotations:
-      pmm.percona.com/config-version: "5"
+      pmm.percona.com/config-version: "6"
   ```
 
   Prefer this over `kubectl rollout restart`: the bump is part of the same declarative
@@ -1078,15 +1096,28 @@ Common troubleshooting steps for PMM HA:
 
 ### Scaling Down to Single Replica
 
-When scaling down to a single PMM replica, ensure the **Raft leader is on pmm-0** before scaling. Kubernetes StatefulSets remove pods in reverse ordinal order (highest first), so:
+When scaling down to a single PMM replica, ensure the **Raft leader is on pmm-ha-0** before scaling. Kubernetes StatefulSets remove pods in reverse ordinal order (highest first), so:
 
-- Scaling from 3→1 removes pmm-2 and pmm-1, keeping only pmm-0
-- If the Raft leader is on pmm-1 or pmm-2 when you scale down, **PMM will become unreachable**
+- Scaling from 3→1 removes pmm-ha-2 and pmm-ha-1, keeping only pmm-ha-0
+- If the Raft leader is on pmm-ha-1 or pmm-ha-2 when you scale down, **PMM can become unreachable**
 
-Only after confirming pmm-0 is the leader, scale down:
+Check which pod is the leader first. Only the leader answers `200`:
    ```sh
-   helm upgrade <release-name> percona/pmm-ha --namespace <namespace> --set replicas=1
+   for i in 0 1 2; do
+     printf 'pmm-ha-%s: ' "$i"
+     kubectl exec pmm-ha-$i -n pmm -c pmm-ha -- \
+       curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/v1/server/leaderHealthCheck
+   done
    ```
+
+Only after confirming pmm-ha-0 is the leader, scale down:
+   ```sh
+   helm upgrade <release-name> percona/pmm-ha --namespace <namespace> \
+     --version <chart-version> --reuse-values --set replicas=1
+   ```
+
+Even with the leader on pmm-ha-0, expect PMM to be unavailable for about a minute: the
+change to `PMM_HA_PEERS` also recreates pmm-ha-0, which is by then the only PMM server.
 
 # Need help?
 
