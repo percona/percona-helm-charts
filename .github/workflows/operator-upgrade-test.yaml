@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           base="${{ github.event.pull_request.base.sha }}"
           files=$(git diff --name-only "$base" "${{ github.sha }}")
-          ops=()
+          ops='[]'
 
           chart_value() {
             git show "$base:charts/$1/Chart.yaml" | awk -v key="$2:" '$1 == key { gsub(/"/, "", $2); print $2; exit }'
@@ -52,7 +52,31 @@ jobs:
             op_app_ver=$(chart_value "$1" appVersion)
             db_ver=$(chart_value "$2" version)
             db_app_ver=$(chart_value "$2" appVersion)
-            ops+=("{\"operator\":\"$1\",\"db\":\"$2\",\"cr\":\"$3\",\"reconcileValue\":\"$4\",\"operatorVersion\":\"${op_ver}\",\"operatorAppVersion\":\"${op_app_ver}\",\"dbVersion\":\"${db_ver}\",\"dbAppVersion\":\"${db_app_ver}\"}")
+            ops=$(jq -c \
+              --arg operator "$1" \
+              --arg db "$2" \
+              --arg cr "$3" \
+              --arg reconcileValue "$4" \
+              --arg operatorVersion "$op_ver" \
+              --arg operatorAppVersion "$op_app_ver" \
+              --arg dbVersion "$db_ver" \
+              --arg dbAppVersion "$db_app_ver" \
+              '. + [{
+                operator: $operator,
+                db: $db,
+                cr: $cr,
+                reconcileValue: $reconcileValue,
+                operatorVersion: $operatorVersion,
+                operatorAppVersion: $operatorAppVersion,
+                dbVersion: $dbVersion,
+                dbAppVersion: $dbAppVersion
+              }]' <<< "$ops")
+          }
+          add_all() {
+            add pxc-operator pxc-db pxc pxc.labels.upgrade-test-reconcile
+            add pg-operator pg-db pg metadata.labels.upgrade-test-reconcile
+            add ps-operator ps-db ps metadata.labels.upgrade-test-reconcile
+            add psmdb-operator psmdb-db psmdb replsets.rs0.labels.upgrade-test-reconcile
           }
 
           grep -qE '^charts/pxc-' <<< "$files" && add pxc-operator pxc-db pxc pxc.labels.upgrade-test-reconcile
@@ -61,15 +85,11 @@ jobs:
           grep -qE '^charts/psmdb-' <<< "$files" && add psmdb-operator psmdb-db psmdb replsets.rs0.labels.upgrade-test-reconcile
 
           if grep -qE '^\.github/(workflows/operator-upgrade-test\.yaml|kind/upgrade-cluster\.yaml)$' <<< "$files"; then
-            ops=()
-            add pxc-operator pxc-db pxc pxc.labels.upgrade-test-reconcile
-            add pg-operator pg-db pg metadata.labels.upgrade-test-reconcile
-            add ps-operator ps-db ps metadata.labels.upgrade-test-reconcile
-            add psmdb-operator psmdb-db psmdb replsets.rs0.labels.upgrade-test-reconcile
+            ops='[]'
+            add_all
           fi
 
-          IFS=,
-          echo "matrix=[${ops[*]}]" >> "$GITHUB_OUTPUT"
+          echo "matrix=$ops" >> "$GITHUB_OUTPUT"
 
   upgrade:
     needs: changed
@@ -99,7 +119,7 @@ jobs:
       - name: Install default StorageClass
         run: |
           set -euo pipefail
-          kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.32/deploy/local-path-storage.yaml
+          kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/53204db98bfadf8a3042bb4dbe618ee1da2eddb5/deploy/local-path-storage.yaml
           kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
           kubectl rollout status deploy/local-path-provisioner -n local-path-storage --timeout=3m
 
@@ -141,6 +161,11 @@ jobs:
           helm install ${{ matrix.operator }} percona/${{ matrix.operator }} --version "$op_ver" --wait --timeout 10m
           helm install ${{ matrix.db }} percona/${{ matrix.db }} --version "$db_ver" --wait --timeout 10m
           kubectl wait --for=jsonpath='{.status.state}'=ready ${{ matrix.cr }}/${{ matrix.db }} --timeout=15m
+          if [ "${{ matrix.operator }}" = "pg-operator" ]; then
+            # PG can report ready before the pgBackRest replica-creation backup
+            # finishes. Upgrading in that window can leave replicas waiting for WAL.
+            kubectl wait --for=condition=PGBackRestReplicaCreate pg/${{ matrix.db }} --timeout=15m
+          fi
           kubectl wait --for=condition=Ready pod --all --field-selector='status.phase!=Succeeded' --timeout=5m
 
       - name: Upgrade to PR charts
@@ -193,9 +218,23 @@ jobs:
         run: |
           kubectl get pods,sts,deploy,pvc,${{ matrix.cr }} -o wide || true
           kubectl describe ${{ matrix.cr }}/${{ matrix.db }} || true
+          kubectl describe pods || true
+          kubectl get pods -o json | jq -r '
+            .items[] |
+            .metadata.name as $pod |
+            (.status.initContainerStatuses[]?, .status.containerStatuses[]?) |
+            [$pod, .name, (.ready | tostring), (.restartCount | tostring),
+             (.state | to_entries[0] | .key),
+             (.state | to_entries[0] | .value.reason // "")] |
+            @tsv
+          ' || true
+          kubectl get events --sort-by=.lastTimestamp || true
           kubectl get pods -o name | while read -r pod; do
-            echo "===== logs ${pod} ====="
-            kubectl logs "$pod" --all-containers --tail=200 || true
-            echo "===== previous ${pod} ====="
-            kubectl logs "$pod" --all-containers --tail=200 --previous || true
+            containers=$(kubectl get "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}')
+            for container in $containers; do
+              echo "===== logs ${pod}/${container} ====="
+              kubectl logs "$pod" -c "$container" --tail=200 || true
+              echo "===== previous ${pod}/${container} ====="
+              kubectl logs "$pod" -c "$container" --tail=200 --previous || true
+            done
           done
