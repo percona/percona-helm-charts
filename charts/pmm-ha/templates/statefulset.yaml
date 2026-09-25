@@ -1,5 +1,7 @@
 {{- include "pmm.nodeExporter.validate" . -}}
 {{- include "pmm.validatePgCrd" . -}}
+{{- include "pmm.openshift.validate" . -}}
+{{- include "pmm.haproxy.validate" . -}}
 {{- include "pmm.validateSecret" . -}}
 {{- include "pmm.vm.validateCredential" . -}}
 {{- include "pmm.validateBackupIrsaSa" . -}}
@@ -33,8 +35,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- include "pmm.podSecurityContext" . | nindent 6 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

@@ -353,12 +353,21 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{/*
+Port HAProxy binds for PMM traffic. The HAProxy Service publishes this same value, so every
+in-cluster consumer of PMM has to follow it rather than assume 443.
+*/}}
+{{- define "pmm.haproxy.httpsPort" -}}
+{{- (.Values.haproxy.containerPorts).https | default 443 -}}
+{{- end -}}
+
+{{/*
 PMM Server address reachable from inside the cluster. HAProxy routes to the current leader, so this
 stays valid across failovers.
 */}}
 {{- define "pmm.client.serverAddress" -}}
 {{- $haproxy := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
-{{- printf "%s.%s.svc.cluster.local:443" $haproxy .Release.Namespace -}}
+{{- $port := include "pmm.haproxy.httpsPort" . -}}
+{{- printf "%s.%s.svc.cluster.local:%v" $haproxy .Release.Namespace $port -}}
 {{- end -}}
 
 {{/*
@@ -543,6 +552,67 @@ lands on a pod that got no slot, every backend is DOWN and PMM serves 503.
 {{- end -}}
 
 {{/*
+Fail-fast validation for the `openshift` flag.
+
+It only governs the PMM Server and PMM Client pod securityContexts. The bundled
+kube-state-metrics and prometheus-node-exporter carry their own `restricted-v2` violations, and
+left at their defaults they reproduce the very failure the flag exists to remove: Helm reports
+`STATUS: deployed` while those workloads are rejected at admission and produce zero pods. So the
+flag requires the rest of the overlay rather than silently delivering half of it.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.openshift.validate" -}}
+{{- if .Values.openshift -}}
+{{- if ne (include "pmm.nodeExporter.mode" .) "openshift" -}}
+{{- fail "openshift=true requires nodeExporter.mode=openshift: the bundled prometheus-node-exporter needs hostNetwork, hostPID, hostPath volumes and host port 9100, none of which restricted-v2 permits. Install with -f examples/values-openshift.yaml." -}}
+{{- end -}}
+{{- if eq (include "pmm.kubeStateMetrics.bundledEnabled" .) "true" -}}
+{{- if dig "securityContext" "enabled" true (default dict (index .Values "kube-state-metrics")) -}}
+{{- fail "openshift=true requires kube-state-metrics.securityContext.enabled=false: the subchart pins uid/gid/fsGroup 65534, outside the namespace's assigned ranges. Install with -f examples/values-openshift.yaml." -}}
+{{- end -}}
+{{- end -}}
+{{- $httpsPort := int (include "pmm.haproxy.httpsPort" .) -}}
+{{- if lt $httpsPort 1024 -}}
+{{- fail (printf "openshift=true requires haproxy.containerPorts.https above 1024, got %d: restricted-v2 runs the container as a non-root uid with all capabilities dropped and allowPrivilegeEscalation=false, so HAProxy cannot bind a privileged port (\"cannot bind socket (Permission denied) for [0.0.0.0:%d]\") and the only ingress to PMM crash-loops while Helm still reports STATUS: deployed. Install with -f examples/values-openshift.yaml." $httpsPort $httpsPort) -}}
+{{- end -}}
+{{- else -}}
+{{/*
+The inverse check: the cluster IS OpenShift but openshift=false, so the chart is about to pin
+uid/gid values restricted-v2 rejects. Worth failing the render over, because the failure it
+prevents is silent, delayed and NOT self-healing:
+
+  - the StatefulSets are accepted, and pods already running stay up, so nothing looks wrong;
+  - every REPLACEMENT pod is refused ("1000 is not an allowed group ... must be in the ranges:
+    [1000850000, 1000859999]"), so the set quietly degrades, 3 -> 2 -> ...;
+  - and it cannot be repaired by fixing the values and upgrading again. Helm diffs against the
+    last SUCCESSFUL release; a failed upgrade's manifest is not recorded, so the uid keys it
+    applied are invisible to every later upgrade. They have to be cleared by hand:
+      kubectl patch sts <sts> --type=merge \
+        -p '{"spec":{"template":{"spec":{"securityContext":null}}}}'
+
+Detection is .Capabilities, not `lookup`: it needs no RBAC, and a client-side `helm template`
+carries the default API list, so CI renders do not trip this.
+
+Narrow on purpose - it fires only when something restricted-v2 would actually reject is set, so
+clearing those keys is an escape hatch for anyone running with anyuid.
+*/}}
+{{- if .Capabilities.APIVersions.Has "security.openshift.io/v1" -}}
+{{- $psc := .Values.podSecurityContext | default dict -}}
+{{- $pinned := list -}}
+{{- range $k := (list "runAsUser" "runAsGroup" "fsGroup") -}}
+{{- if hasKey $psc $k -}}{{- $pinned = append $pinned (printf "podSecurityContext.%s" $k) -}}{{- end -}}
+{{- end -}}
+{{- if not (kindIs "invalid" .Values.pmmClient.fsGroup) -}}
+{{- $pinned = append $pinned "pmmClient.fsGroup" -}}
+{{- end -}}
+{{- if $pinned -}}
+{{- fail (printf "This cluster exposes security.openshift.io/v1 (OpenShift), but openshift=false. %s would be rendered onto the PMM Server and PMM Client StatefulSets, and restricted-v2 rejects uids and groups outside the namespace's assigned ranges.\n\nThe pods are ADMITTED at apply time and only REPLACEMENT pods are refused, so the StatefulSet degrades silently later, and a failed upgrade leaves values that no subsequent upgrade can clear (Helm diffs against the last successful release).\n\nSet openshift=true, or install with -f examples/values-openshift.yaml. If you deliberately run with anyuid, clear those keys instead (podSecurityContext={} and pmmClient.fsGroup=null)." (join ", " $pinned)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Fail-fast validation for the ClickHouse Keeper node count.
 Called from statefulset.yaml alongside the other value checks, for the same ordering
 reason described above.
@@ -566,6 +636,38 @@ swallow its far more specific message.
 {{- $n := int $raw -}}
 {{- if gt $n $ceiling -}}
 {{- fail (printf "clickhouse.keeper.replicasCount (%d) exceeds the supported maximum (%d): every Keeper node is a full Raft voter, so each extra pair widens the majority every write waits on without buying fault tolerance the cluster needs - %d already survives 4 simultaneous losses." $n $ceiling $ceiling) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast validation that the bundled PostgreSQL cluster still reaches HAProxy.
+
+`haproxy.containerPorts.https` moves the HAProxy bind and the Service port together, and the
+chart's own consumers follow it. `pg-db.pmm.serverHost` does not: the PostgreSQL operator copies
+it verbatim into PMM_AGENT_SERVER_ADDRESS, and pmm-agent appends :443 to an address that carries
+no port. Left behind, the sidecar dials a port HAProxy no longer publishes while every pod stays
+Running and the PMM inventory stays empty - the same silent half-install the openshift validator
+exists to prevent, and reachable on plain Kubernetes.
+Only checked when serverHost actually points at this chart's HAProxy; an external PMM is the
+user's business.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.haproxy.validate" -}}
+{{- $port := int (include "pmm.haproxy.httpsPort" .) -}}
+{{- $pg := default dict (index .Values "pg-db") -}}
+{{- if dig "pmm" "enabled" false $pg -}}
+{{- $host := dig "pmm" "serverHost" "" $pg -}}
+{{- $svc := .Values.haproxy.fullnameOverride | default (printf "%s-haproxy" (include "pmm.fullname" .)) -}}
+{{- $parts := splitList ":" $host -}}
+{{- if hasPrefix $svc (first $parts) -}}
+{{- $declared := 443 -}}
+{{- if gt (len $parts) 1 -}}
+{{- $declared = int (last $parts) -}}
+{{- end -}}
+{{- if ne $declared $port -}}
+{{- fail (printf "pg-db.pmm.serverHost is %q, which resolves to port %d, but haproxy.containerPorts.https is %d. The PostgreSQL operator copies serverHost verbatim into PMM_AGENT_SERVER_ADDRESS and pmm-agent appends :443 to an address with no port, so the PMM sidecar would dial a port HAProxy does not publish - silently, while every pod stays Running and the PMM inventory stays empty. Set pg-db.pmm.serverHost to %q." $host $declared $port (printf "%s:%d" $svc $port)) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -950,6 +1052,47 @@ different identity than interactive ones — which shows up as S3 403s that only
 {{- end -}}
 
 {{/*
+Pod security context for the PMM Server StatefulSet.
+
+On OpenShift the namespace owns the identity: `restricted-v2` requires runAsUser to be inside
+the namespace's assigned uid-range and fsGroup inside its supplemental-group range, and rejects
+the pod outright otherwise. Dropping just those three keys lets OpenShift assign the identity
+while everything else the user set - seccompProfile, supplementalGroups, fsGroupChangePolicy -
+survives, since `restricted-v2` permits all of them.
+
+On plain Kubernetes fsGroup is load-bearing - it is what makes the PVC group-writable for the
+image's uid - so it must stay. runAsUser is not: the PMM Server image already declares
+`USER 1000`, and its entrypoint supports an arbitrary assigned uid via the NSS wrapper.
+*/}}
+{{- define "pmm.podSecurityContext" -}}
+{{- $ctx := .Values.podSecurityContext | default dict -}}
+{{- if .Values.openshift -}}
+{{- $ctx = omit $ctx "runAsUser" "runAsGroup" "fsGroup" -}}
+{{- end -}}
+{{- if $ctx -}}
+securityContext:
+  {{- toYaml $ctx | nindent 2 }}
+{{- else -}}
+securityContext: {}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Pod security context for the PMM Client StatefulSet. Same reasoning as above; the client image
+runs as uid 1002 rather than 1000, and fsGroup is the only key the chart sets, so on OpenShift
+nothing is left to emit.
+*/}}
+{{- define "pmm.client.podSecurityContext" -}}
+{{- if .Values.openshift -}}
+securityContext: {}
+{{- else -}}
+securityContext:
+  # The PMM Client image runs as this user, which has to own the volume to write to it.
+  fsGroup: {{ .Values.pmmClient.fsGroup }}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Name of the secret holding the PMM service account token the pg-db PMM client uses.
 
 Reproduces pg-db's own default expression - `pmm.secret | default (printf "%s-pmm-secret"
@@ -1158,5 +1301,45 @@ secret is read here through the same memoised lookup every other consumer uses.
 {{- $_ := set .Values "generatedVictoriaMetricsPassword" (randAlphaNum 32) -}}
 {{- end -}}
 {{- get .Values "generatedVictoriaMetricsPassword" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Resolve one key of the PMM secret to its base64 value, for the keys that more than one template
+needs to agree on.
+
+secret.yaml generates GF_PASSWORD and PG_PASSWORD, and pg-user-credentials-secrets.yaml has to
+write those same two passwords into the per-user credentials secrets the PostgreSQL operator
+reads. Under secret.create the secret does not exist yet at render time - Helm renders every
+template before it applies the pre-install hook that creates it - so the second template cannot
+read the value back and has to derive it the same way. Deriving it with a second randAlphaNum
+would hand Grafana a password PostgreSQL never got, so the generated value is cached on .Values
+and every caller gets the same one, the way pmm.clickhouse.datasourcePassword and
+pmm.vm.password already do. The secret itself is read through pmm.secret.cached, like every
+other consumer, so this adds no lookup of its own.
+
+Precedence: the key already in the secret (upgrades keep their password), then the explicit
+value from values.yaml, then a generated one. Takes a dict with "ctx" (the root context), "key"
+and "override". Returns base64 - the callers write it straight into a Secret's data.
+*/}}
+{{- define "pmm.secret.key" -}}
+{{- $ctx := .ctx -}}
+{{- include "pmm.secret.cached" $ctx -}}
+{{- $existing := get $ctx.Values "cachedPmmSecret" -}}
+{{- $current := "" -}}
+{{/* An empty secret.name makes lookup return a SecretList, which has no .data. */}}
+{{- if and $existing $existing.data -}}
+{{- $current = get $existing.data .key -}}
+{{- end -}}
+{{- if $current -}}
+{{- $current -}}
+{{- else if .override -}}
+{{- .override | b64enc -}}
+{{- else -}}
+{{- $cache := printf "generated_%s" .key -}}
+{{- if not (hasKey $ctx.Values $cache) -}}
+{{- $_ := set $ctx.Values $cache (randAlphaNum 32 | b64enc) -}}
+{{- end -}}
+{{- get $ctx.Values $cache -}}
 {{- end -}}
 {{- end -}}
