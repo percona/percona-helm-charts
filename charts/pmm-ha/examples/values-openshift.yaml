@@ -1,0 +1,59 @@
+# PMM HA on OpenShift under the default restricted-v2 SecurityContextConstraint.
+#
+#   helm install pmm-ha percona/pmm-ha -n <project> -f examples/values-openshift.yaml
+#
+# restricted-v2 assigns the user id (and fsGroup) from the project's own range and rejects
+# any pod that pins one outside it, so every uid the chart pins for plain Kubernetes is
+# unset here and the SCC fills it in. The SCC also injects what the chart otherwise sets
+# itself: runAsNonRoot, no privilege escalation, all capabilities dropped, RuntimeDefault
+# seccomp. Decide this before the first install - see "Pod security" in the README for why
+# switching ids on a populated volume is a re-ownership operation.
+
+# fsGroup is MustRunAs in restricted-v2 too: the SCC picks one from the project's
+# supplemental-groups range and rejects a pinned value.
+podSecurityContext:
+  runAsUser: null
+  fsGroup: null
+
+pmmClient:
+  podSecurityContext:
+    runAsUser: null
+    fsGroup: null
+
+haproxy:
+  podSecurityContext:
+    runAsUser: null
+
+clickhouse:
+  podSecurityContext:
+    runAsUser: null
+    runAsGroup: null
+    fsGroup: null
+  keeper:
+    podSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+      fsGroup: null
+
+jobs:
+  podSecurityContext:
+    runAsUser: null
+
+# The operator's strict security pins uid/gid/fsGroup 65534 into every VictoriaMetrics pod,
+# which restricted-v2 refuses. With it off the CRs carry no securityContext and the SCC
+# supplies an equivalent one (arbitrary non-root uid, dropped capabilities, seccomp).
+victoriaMetrics:
+  useStrictSecurity: false
+
+# The kube-state-metrics subchart pins 65534 as well.
+kube-state-metrics:
+  securityContext:
+    runAsUser: null
+    fsGroup: null
+
+# OpenShift's platform monitoring already runs a node-exporter; the bundled DaemonSet needs
+# host namespaces and hostPath, which restricted-v2 forbids anyway.
+nodeExporter:
+  mode: openshift
+prometheus-node-exporter:
+  enabled: false

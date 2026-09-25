@@ -25,9 +25,11 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # The PMM Client image runs as uid 1002, which has to own the volume to write to it.
       securityContext:
-        # The PMM Client image runs as this user, which has to own the volume to write to it.
-        fsGroup: 1002
+        {{- toYaml .Values.pmmClient.podSecurityContext | nindent 8 }}
+      # pmm-agent talks to PMM Server only, never to the Kubernetes API.
+      automountServiceAccountToken: false
       {{- with .Values.pmmClient.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -48,6 +50,8 @@ spec:
         - name: pmm-client-register
           image: "{{ .Values.pmmClient.image.repository }}:{{ .Values.pmmClient.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.pmmClient.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.pmmClient.securityContext | nindent 12 }}
           command:
             - /bin/sh
             - -c
@@ -96,6 +100,8 @@ spec:
         - name: pmm-client
           image: "{{ .Values.pmmClient.image.repository }}:{{ .Values.pmmClient.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.pmmClient.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.pmmClient.securityContext | nindent 12 }}
           env:
             {{- include "pmm.client.env" . | nindent 12 }}
           ports:

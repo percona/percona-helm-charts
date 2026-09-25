@@ -31,6 +31,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.nodeSelector }}
@@ -45,20 +46,31 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      # Init container to verify secret exists before starting main app
+      # No init container waits for the pg-encryption-key Secret: it is mounted below as a required
+      # volume, so the kubelet keeps the pod in ContainerCreating until it exists, and the
+      # pre-install hook (pmm-secret-init-job.yaml) creates it before this StatefulSet is applied.
+      # That is also why the pod needs no ServiceAccount token.
       initContainers:
-        - name: wait-for-pg-secret
-          image: alpine/kubectl:latest
+        {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
+        # pmm-managed rewrites the supervisord program files under /etc/supervisord.d at start,
+        # which a read-only root filesystem forbids. Seed emptyDirs with the image's static files
+        # and mount them over those paths (see volumes below).
+        - name: seed-writable-paths
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - /bin/sh
             - -c
-            - |
-              echo "Waiting for secret to be available..."
-              until kubectl get secret pg-encryption-key -n {{ .Release.Namespace }}; do
-                echo "Secret not found, retrying in 5s..."
-                sleep 5
-              done
-              echo "Secret found, proceeding..."
+            # Copy the files, not the directory: the emptyDir mount point is root-owned, so
+            # preserving its attributes (cp -a on the directory) fails as uid 1000.
+            - cp -a /etc/supervisord.d/* /seed/supervisord.d/ && mkdir -p /seed/run/supervisor
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: supervisord-config
+              mountPath: /seed/supervisord.d
+            - name: run
+              mountPath: /seed/run
           resources:
             requests:
               cpu: 10m
@@ -66,9 +78,12 @@ spec:
             limits:
               cpu: 50m
               memory: 64Mi
+        {{- end }}
         - name: wait-for-clickhouse
           image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
           imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           command:
             - /bin/bash
             - -c
@@ -130,6 +145,14 @@ spec:
                   key: PMM_CLICKHOUSE_PASSWORD
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
+            # clickhouse-client keeps its history under $HOME; keep that off the root filesystem.
+            - name: HOME
+              value: /tmp
+          {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          {{- end }}
           resources:
             requests:
               cpu: 50m
@@ -318,6 +341,16 @@ spec:
             - name: encryption-key
               mountPath: /etc/secrets
               readOnly: true
+            {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
+            - name: tmp
+              mountPath: /tmp
+            - name: run
+              mountPath: /run
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+            - name: supervisord-config
+              mountPath: /etc/supervisord.d
+            {{- end }}
             {{- if .Values.certs.name }}
             - name: {{ .Values.certs.name }}
               mountPath: /srv/nginx
@@ -330,7 +363,7 @@ spec:
         {{- range $index, $logFile := .Values.logStreamer.logFiles }}
         # Sidecar container to stream {{ $logFile }} to stdout
         - name: log-streamer-{{ $index }}
-          image: busybox:latest
+          image: "{{ .Values.logStreamer.image.repository }}:{{ .Values.logStreamer.image.tag }}"
           command:
             - /bin/sh
             - -c
@@ -366,6 +399,16 @@ spec:
         - name: encryption-key
           secret:
             secretName: pg-encryption-key
+        {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
+        - name: tmp
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: nginx-logs
+          emptyDir: {}
+        - name: supervisord-config
+          emptyDir: {}
+        {{- end }}
       {{- if .Values.certs.name }}
         - name: {{ .Values.certs.name }}
           secret:
