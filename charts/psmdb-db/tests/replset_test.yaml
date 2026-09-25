@@ -1,0 +1,172 @@
+suite: psmdb-db replset
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: test_replset renders default structure
+    asserts:
+      - isSubset:
+          path: spec.replsets[0]
+          content:
+            name: rs0
+            size: 3
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            podDisruptionBudget:
+              maxUnavailable: 1
+            expose:
+              enabled: false
+              type: ClusterIP
+            resources:
+              limits:
+                cpu: 600m
+                memory: 1Gi
+              requests:
+                cpu: 300m
+                memory: 1Gi
+            volumeSpec:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 3Gi
+
+  - it: test_replset renders changed default values
+    values:
+      - values/replset-changed-defaults.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.replsets
+          count: 2
+      - isSubset:
+          path: spec.replsets[0]
+          content:
+            name: rs0
+            size: 5
+            annotations:
+              test: annotation
+            labels:
+              test: label
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/zone
+            nodeSelector:
+              disktype: ssd
+            tolerations:
+              - key: test
+                operator: Exists
+                effect: NoExecute
+                tolerationSeconds: 60
+            podDisruptionBudget:
+              maxUnavailable: 2
+            expose:
+              enabled: true
+              type: LoadBalancer
+            resources:
+              limits:
+                cpu: 2m
+                memory: 2Mi
+              requests:
+                cpu: 1m
+                memory: 1Mi
+            volumeSpec:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 10Gi
+            sidecars:
+              - image: changed-image
+                name: sidecar
+            sidecarVolumes:
+              - name: sidecar-secret
+                secret:
+                  secretName: mysecret
+            sidecarPVCs:
+              - apiVersion: v1
+                kind: PersistentVolumeClaim
+                metadata:
+                  name: sidecar-volume-claim
+      - isSubset:
+          path: spec.replsets[1]
+          content:
+            name: rs1
+            size: 3
+            terminationGracePeriodSeconds: 300
+            configuration: |
+              operationProfiling:
+                mode: slowOp
+            schedulerName: mycustom-scheduler
+            serviceAccountName: percona-server-mongodb-operator-workload
+            priorityClassName: high-priority
+            runtimeClassName: image-rc
+            annotations:
+              iam.amazonaws.com/role: role-arn
+            labels:
+              rack: rack-22
+            nodeSelector:
+              disktype: nvme
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+            livenessProbe:
+              failureThreshold: 4
+              initialDelaySeconds: 60
+              periodSeconds: 30
+              timeoutSeconds: 10
+            readinessProbe:
+              failureThreshold: 8
+              initialDelaySeconds: 10
+              periodSeconds: 3
+              successThreshold: 1
+              timeoutSeconds: 2
+            podSecurityContext:
+              fsGroup: 1001
+            containerSecurityContext:
+              runAsUser: 1001
+            env:
+              - name: MY_ENV_VAR
+                value: my-value
+            envFrom:
+              - secretRef:
+                  name: my-secret
+            storage:
+              engine: wiredTiger
+            hostAliases:
+              - ip: 10.10.0.2
+                hostnames:
+                  - host1
+            podDisruptionBudget:
+              minAvailable: 1
+            expose:
+              enabled: true
+              type: LoadBalancer
+              loadBalancerClass: service.k8s.aws/nlb
+              loadBalancerIP: 10.0.0.1
+              loadBalancerSourceRanges:
+                - 10.0.0.0/8
+              annotations:
+                service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+              labels:
+                some-label: some-key
+              internalTrafficPolicy: Local
+              externalTrafficPolicy: Local
+            volumeSpec:
+              hostPath:
+                path: /data
+                type: Directory
+      - isSubset:
+          path: spec.replsets[1].hidden
+          content:
+            enabled: true
+            size: 1
+      - isSubset:
+          path: spec.replsets[1].nonvoting
+          content:
+            enabled: true
+            size: 1
+      - isSubset:
+          path: spec.replsets[1].arbiter
+          content:
+            enabled: true
+            size: 1
