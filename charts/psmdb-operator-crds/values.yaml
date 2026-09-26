@@ -8,3 +8,25 @@
 # Enabled by default; set to false to let uninstall remove the CRDs. See:
 # https://helm.sh/docs/howto/charts_tips_and_tricks/#tell-helm-not-to-uninstall-a-resource
 preserveCrds: true
+
+# Extra Kubernetes objects to deploy alongside the chart.
+# Each item may be either a YAML object or a multiline string (both support templating).
+#
+# For example:
+# extraObjects:
+#   - apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: '{{ .Release.Name }}'
+#       namespace: '{{ .Release.Namespace }}'
+#     data:
+#       key: value
+#   - |
+#     apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: '{{ .Release.Name }}-extra-configmap'
+#       namespace: '{{ .Release.Namespace }}'
+#     data:
+#       key: value
+extraObjects: []

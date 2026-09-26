@@ -48,6 +48,13 @@ helm uninstall pmm-ha-operators --namespace pmm
 
 ## Configuration
 
+### Extra objects
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `extraObjects` | Extra Kubernetes objects to deploy alongside the chart (YAML object or multiline string) | `[]` |
+
+
 ### VictoriaMetrics Operator
 
 ```yaml

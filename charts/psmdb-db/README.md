@@ -450,6 +450,7 @@ The chart can be customized using the following configurable parameters:
 | `clusterSync.podSecurityContext`                   | Pod security context for the PCSM Pod                                                                   | `{}`                                        |
 | `clusterSync.livenessProbe`                        | Liveness probe override                                                                                 | `{}`                                        |
 | `clusterSync.readinessProbe`                       | Readiness probe override                                                                                | `{}`                                        |
+| `extraObjects`              | Extra Kubernetes objects to deploy alongside the chart (YAML object or multiline string) | `[]` |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.

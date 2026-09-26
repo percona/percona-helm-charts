@@ -322,7 +322,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 | Name                | Description                                                                               | Value      |
 | ------------------- | ----------------------------------------------------------------------------------------- | ---------- |
 | `nodeExporter.mode` | Node metrics source: `internal` (deploy + scrape prometheus-node-exporter) or `openshift` | `internal` |
-
+| `extraObjects`     | Extra Kubernetes objects to deploy alongside the chart (YAML object or multiline string) | `[]`       |
 
 Specify each parameter using the `--set key=value[,key=value]` or `--set-string key=value[,key=value]` arguments to `helm install`. For example,
 

@@ -915,3 +915,24 @@ victoriaMetrics:
     podAnnotations: {}
     ## @param victoriaMetrics.vmstorage.extraArgs Extra arguments for vmstorage
     extraArgs: {}
+
+## @param extraObjects Extra Kubernetes objects to deploy alongside the chart (YAML objects or multiline strings; both support templating)
+##
+# For example:
+# extraObjects:
+#   - apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: '{{ template "pmm.fullname" . }}'
+#       namespace: '{{ .Release.Namespace }}'
+#     data:
+#       key: value
+#   - |
+#     apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: '{{ template "pmm.fullname" . }}-extra-configmap'
+#       namespace: '{{ .Release.Namespace }}'
+#     data:
+#       key: value
+extraObjects: []
