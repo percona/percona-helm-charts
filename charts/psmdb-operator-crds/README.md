@@ -58,6 +58,7 @@ helm install psmdb-operator-crds percona/psmdb-operator-crds --version 1.23.0 --
 | Value          | Default | Description                                                                                                                    |
 | -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------|
 | `preserveCrds` | `true`  | Add `helm.sh/resource-policy: keep` to the CRDs so they survive `helm uninstall`. Set to `false` to let uninstall remove them. |
+| `extraObjects` | `[]`    | Extra Kubernetes objects to deploy alongside the chart (YAML object or multiline string). |
 
 > **Note:** With the default `preserveCrds: true` the CRDs are intentionally left behind on
 > uninstall and must be removed manually (`kubectl delete crd ...`) if you truly want them gone.
