@@ -78,3 +78,25 @@ leaseName: ""
 leaseDuration: 60s
 renewDeadline: 40s
 retryPeriod: 10s
+
+# Extra Kubernetes objects to deploy alongside the chart.
+# Each item may be either a YAML object or a multiline string (both support templating).
+#
+# For example:
+# extraObjects:
+#   - apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: '{{ template "pxc-operator.fullname" . }}'
+#       namespace: '{{ .Release.Namespace }}'
+#     data:
+#       key: value
+#   - |
+#     apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: '{{ template "pxc-operator.fullname" . }}-extra-configmap'
+#       namespace: '{{ .Release.Namespace }}'
+#     data:
+#       key: value
+extraObjects: []

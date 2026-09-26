@@ -63,6 +63,7 @@ Chart.
 | `renewDeadline`                | Duration that the acting control plane retries refreshing leadership                    | `40s`                                                 |
 | `retryPeriod`                  | Duration between leader election retries                                                | `10s`                                                 |
 | `featureGates.backupSnapshots` | Enable or disable backup snapshots feature gate                                         | `false`                                               |
+| `extraObjects`                | Extra Kubernetes objects to deploy alongside the chart (YAML object or multiline string) | `[]`   |
 
 ## Deploy the Database
 To deploy Percona Operator for PostgreSQL cluster, run the following command:
