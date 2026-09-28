@@ -6,6 +6,10 @@ on:
     - 'charts/gcp-marketplace/**'
     - 'charts/pmm-ha/**'
     - 'charts/pmm-ha-dependencies/**'
+    # pmm-ha's own CI definition. Without this, editing it runs this workflow on a
+    # pmm-ha PR, which lints every other chart against main and trips on the
+    # PMM-HA-GA/main drift in charts/pg-db rather than on anything the PR changed.
+    - '.github/workflows/pmm-ha-pr-checks.yaml'
 
 
 jobs:

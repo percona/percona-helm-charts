@@ -115,6 +115,7 @@ pmm:
 #  customClusterName: ""
 #  mongodParams: ""
 #  mongosParams: ""
+#  querySource: profiler
 #  resources: {}
 #  containerSecurityContext: {}
 #  authenticationMechanism: SCRAM-SHA-256
