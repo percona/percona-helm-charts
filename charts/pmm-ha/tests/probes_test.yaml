@@ -10,39 +10,63 @@ release:
   name: smoke
   namespace: pmm
 tests:
-  - it: checks liveness through nginx to Grafana, not readyz
+  - it: checks Grafana through nginx for startup and liveness, not readyz
     template: templates/statefulset.yaml
     asserts:
       - equal:
-          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.httpGet
-          value: {path: /graph/api/health, port: https, scheme: HTTPS}
-      - equal:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].startupProbe.httpGet
           value: {path: /graph/api/health, port: https, scheme: HTTPS}
+      - matchRegex:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.exec.command[2]
+          pattern: 'curl -sf --max-time 4 -o /dev/null http://127\.0\.0\.1:8080/graph/api/health && exit 0'
+      - notExists:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.httpGet
       - equal:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].readinessProbe.httpGet.path
           value: /v1/readyz
 
-  # Pins every default timing: a lost timeoutSeconds falls back to Kubernetes' 1s, and a
-  # smaller startup budget restarts replicas mid-boot.
-  - it: restarts after 60s of failed liveness checks by default, with a boot budget ahead of it
+  # Grafana's health check is SELECT 1 on its database. Counting that as a replica fault would
+  # restart every replica at once during a shared database fault, so liveness only fails while
+  # the same SELECT 1 works from outside Grafana, with Grafana's own credentials and database.
+  # pg_isready is not enough: it says "accepting connections" while the grafana database
+  # itself refuses them (measured with CONNECTION LIMIT 0).
+  - it: counts a failed Grafana check only while Grafana's database answers SELECT 1
+    template: templates/statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.exec.command[2]
+          pattern: 'PGCONNECT_TIMEOUT=3 PGOPTIONS=.-c statement_timeout=2000. PGPASSWORD="\$GF_DATABASE_PASSWORD" \\\n\s+psql -w -h "\$\{GF_DATABASE_HOST%:\*\}" -p "\$\{GF_DATABASE_HOST##\*:\}" -U "\$GF_DATABASE_USER" -d "\$GF_DATABASE_NAME" -Atqc .SELECT 1. >/dev/null 2>&1 && exit 1\nexit 0\n$'
+      - contains:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].env
+          content:
+            name: GF_DATABASE_HOST
+            value: smoke-pg-db-ha.pmm.svc.cluster.local:5432
+
+  # Pins every default timing: a lost timeoutSeconds falls back to Kubernetes' 1s, which is
+  # shorter than the liveness script's two steps (4s curl, 3s psql), and a smaller
+  # startup budget restarts replicas mid-boot.
+  - it: restarts after 60s of failed liveness checks by default, with a 15 minute boot budget ahead of it
     template: templates/statefulset.yaml
     asserts:
       - equal:
-          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe
-          value:
-            httpGet: {path: /graph/api/health, port: https, scheme: HTTPS}
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            failureThreshold: 6
-            timeoutSeconds: 5
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.initialDelaySeconds
+          value: 0
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.failureThreshold
+          value: 6
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.timeoutSeconds
+          value: 10
       - equal:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].startupProbe
           value:
             httpGet: {path: /graph/api/health, port: https, scheme: HTTPS}
             initialDelaySeconds: 10
             periodSeconds: 10
-            failureThreshold: 36
+            failureThreshold: 90
             timeoutSeconds: 10
 
   - it: takes probe timings from values
@@ -85,3 +109,27 @@ tests:
       - equal:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.failureThreshold
           value: 6
+
+  # The startup budget counts from container start and nothing else waits for PostgreSQL, so
+  # a fresh install on a cluster where PostgreSQL is slow would restart PMM into
+  # CrashLoopBackOff. The wait uses the PMM Server image, which is on the node already, and
+  # the same address PMM itself connects to.
+  - it: waits for PostgreSQL to accept connections before starting PMM
+    template: templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[?(@.name=="wait-for-pg")].image
+          value: percona/pmm-server:3.9.1
+      - matchRegex:
+          path: spec.template.spec.initContainers[?(@.name=="wait-for-pg")].command[2]
+          pattern: 'until "\$pg_isready" -q -t 5 -h "\$\{PMM_POSTGRES_ADDR%:\*\}" -p "\$\{PMM_POSTGRES_ADDR##\*:\}"; do'
+      - equal:
+          path: spec.template.spec.initContainers[?(@.name=="wait-for-pg")].env
+          value:
+            - name: PMM_POSTGRES_ADDR
+              value: smoke-pg-db-ha.pmm.svc.cluster.local:5432
+      - contains:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].env
+          content:
+            name: PMM_POSTGRES_ADDR
+            value: smoke-pg-db-ha.pmm.svc.cluster.local:5432

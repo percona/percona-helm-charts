@@ -137,6 +137,35 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
+        # Nothing above waits for PostgreSQL itself: the pg-encryption-key secret comes from a
+        # pre-install hook, and the image's own wait covers only its built-in PostgreSQL. On a
+        # fresh install where PostgreSQL takes longer than the startup probe budget, the PMM
+        # container would be restarted into CrashLoopBackOff. The PMM Server image ships
+        # pg_isready (outside PATH, next to psql), so this pulls no extra image.
+        - name: wait-for-pg
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              pg_isready="$(dirname "$(readlink -f "$(command -v psql)")")/pg_isready"
+              echo "Waiting for PostgreSQL at ${PMM_POSTGRES_ADDR}..."
+              until "$pg_isready" -q -t 5 -h "${PMM_POSTGRES_ADDR%:*}" -p "${PMM_POSTGRES_ADDR##*:}"; do
+                echo "PostgreSQL is not accepting connections yet, retrying in 5s..."
+                sleep 5
+              done
+              echo "PostgreSQL is accepting connections"
+          env:
+            - name: PMM_POSTGRES_ADDR
+              value: {{ include "pmm.postgres.addr" . | quote }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
       containers:
         - name: {{ .Chart.Name }}
 
@@ -226,7 +255,7 @@ spec:
             - name: GF_DATABASE_TYPE
               value: "postgres"
             - name: GF_DATABASE_HOST
-              value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
+              value: {{ include "pmm.postgres.addr" . | quote }}
             - name: GF_DATABASE_NAME
               value: "grafana"
             - name: GF_DATABASE_USER
@@ -278,7 +307,7 @@ spec:
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
             - name: PMM_POSTGRES_ADDR
-              value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
+              value: {{ include "pmm.postgres.addr" . | quote }}
             - name: PMM_HA_PEERS
               value: "{{ include "pmm.haPeers" . }}"
             {{- if index .Values "pg-db" "pmm" "enabled" }}
@@ -301,14 +330,13 @@ spec:
           ports:
             - name: https
               containerPort: 8443
-          # Liveness checks Grafana through nginx, the path the UI's Grafana requests take, rather
-          # than /v1/readyz: readyz also checks QAN, whose health check pings the shared
-          # ClickHouse, so a ClickHouse outage would restart every replica at once. Grafana's own
-          # check still depends on the shared PostgreSQL, so a database outage does restart every
-          # replica until it recovers. HAProxy routes all traffic to the Raft leader, so a leader
-          # whose Grafana is gone breaks the UI for everyone; restarting it moves leadership off
-          # it, because pmm-managed hands leadership to a peer on shutdown. Setting
-          # startupProbeConf or livenessProbeConf to null drops that probe.
+          # Both probes check Grafana through nginx, the path the UI's Grafana requests take,
+          # rather than /v1/readyz: readyz also checks QAN, whose health check pings the shared
+          # ClickHouse, so a ClickHouse outage would restart every replica at once. HAProxy
+          # routes all traffic to the Raft leader, so a leader whose Grafana is gone breaks the
+          # UI for everyone; restarting it moves leadership off it, because pmm-managed hands
+          # leadership to a peer on shutdown. Setting startupProbeConf or livenessProbeConf to
+          # null drops that probe.
           {{- with .Values.startupProbeConf }}
           startupProbe:
             httpGet:
@@ -317,12 +345,25 @@ spec:
               scheme: HTTPS
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          # Grafana's health check is SELECT 1 on its PostgreSQL database, so a plain httpGet here
+          # would restart every replica at once during a shared database fault. When the Grafana
+          # check fails, liveness repeats that SELECT 1 from outside Grafana with Grafana's own
+          # credentials: if it works the fault is this replica's (Grafana dead, hung, or holding
+          # a broken connection pool) and the replica is restarted; if it fails the database is
+          # the problem and a restart would not help. pg_isready is not enough here: it reports
+          # "accepting connections" while the grafana database itself refuses them. nginx serves
+          # the same server block on 8080 without TLS.
           {{- with .Values.livenessProbeConf }}
           livenessProbe:
-            httpGet:
-              path: /graph/api/health
-              port: https
-              scheme: HTTPS
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  curl -sf --max-time 4 -o /dev/null http://127.0.0.1:8080/graph/api/health && exit 0
+                  PGCONNECT_TIMEOUT=3 PGOPTIONS='-c statement_timeout=2000' PGPASSWORD="$GF_DATABASE_PASSWORD" \
+                    psql -w -h "${GF_DATABASE_HOST%:*}" -p "${GF_DATABASE_HOST##*:}" -U "$GF_DATABASE_USER" -d "$GF_DATABASE_NAME" -Atqc 'SELECT 1' >/dev/null 2>&1 && exit 1
+                  exit 0
             {{- toYaml . | nindent 12 }}
           {{- end }}
           readinessProbe:
