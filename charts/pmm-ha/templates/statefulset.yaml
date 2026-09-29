@@ -137,11 +137,8 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
-        # Nothing above waits for PostgreSQL itself: the pg-encryption-key secret comes from a
-        # pre-install hook, and the image's own wait covers only its built-in PostgreSQL. On a
-        # fresh install where PostgreSQL takes longer than the startup probe budget, the PMM
-        # container would be restarted into CrashLoopBackOff. The PMM Server image ships
-        # pg_isready (outside PATH, next to psql), so this pulls no extra image.
+        # Hold the PMM container until PostgreSQL accepts connections, so a slow database does
+        # not eat into the startup probe budget. pg_isready is in the PMM Server image, off PATH.
         - name: wait-for-pg
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -331,13 +328,8 @@ spec:
           ports:
             - name: https
               containerPort: 8443
-          # Both probes check Grafana through nginx, the path the UI's Grafana requests take,
-          # rather than /v1/readyz: readyz also checks QAN, whose health check pings the shared
-          # ClickHouse, so a ClickHouse outage would restart every replica at once. HAProxy
-          # routes all traffic to the Raft leader, so a leader whose Grafana is gone breaks the
-          # UI for everyone; restarting it moves leadership off it, because pmm-managed hands
-          # leadership to a peer on shutdown. Setting startupProbeConf or livenessProbeConf to
-          # null drops that probe.
+          # Both probes check Grafana through nginx rather than /v1/readyz, which also checks the
+          # shared ClickHouse. Restarting a replica moves Raft leadership off it. null drops a probe.
           {{- with .Values.startupProbeConf }}
           startupProbe:
             httpGet:
@@ -346,16 +338,10 @@ spec:
               scheme: HTTPS
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          # Grafana's health check is SELECT 1 on its PostgreSQL database, so a plain httpGet here
-          # would restart every replica at once during a shared database fault. When the Grafana
-          # check fails, liveness repeats that SELECT 1 from outside Grafana with Grafana's own
-          # credentials: if it works the fault is this replica's (Grafana dead, hung, or holding
-          # a broken connection pool) and the replica is restarted; if it fails the database is
-          # the problem and a restart would not help. pg_isready is not enough here: it reports
-          # "accepting connections" while the grafana database itself refuses them. nginx serves
-          # the same server block on 8080 without TLS. The psql call is bounded by coreutils
-          # timeout rather than a statement_timeout startup option, which pgbouncer rejects.
-          # What the script prints ends up in the kubelet's "Liveness probe failed" event.
+          # Grafana's health check depends on the shared PostgreSQL, so a failed check counts only
+          # while Grafana's database still answers SELECT 1; otherwise a restart would not help and
+          # would hit every replica at once. Bounded with coreutils timeout, not statement_timeout
+          # (pgbouncer rejects it). The script's output ends up in the kubelet event.
           {{- with .Values.livenessProbeConf }}
           livenessProbe:
             exec:

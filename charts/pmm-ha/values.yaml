@@ -116,17 +116,9 @@ readyProbeConf:
   failureThreshold: 6
 
 ## Startup probe Config
-## Holds off the liveness and readiness probes until this probe first passes, so a slow first
-## start is not restarted mid-boot. The budget is failureThreshold x periodSeconds (about 15
-## minutes with the defaults) rather than a long initialDelaySeconds, which would keep every
-## restarted replica unready for that long and slow each step of a rolling update by the same
-## amount. A passing check ends the probe at once, so a large budget costs nothing on a normal
-## boot; it only bounds how long a boot may take before the replica is restarted. It has to
-## cover the database migrations of an upgrade (pmm-managed runs all of its in one
-## transaction, so a restart mid-way redoes them) and PostgreSQL coming back after an outage:
-## the wait-for-pg init container runs only when the pod starts, not when the kubelet
-## restarts the container. Set to null to drop the probe; drop the liveness probe too, or it
-## restarts replicas that are still booting.
+## The boot budget is failureThreshold x periodSeconds (15 minutes by default) and has to cover
+## an upgrade's database migrations. Set to null to drop the probe, together with the liveness
+## probe, or a slow boot gets restarted.
 ## @param startupProbeConf.initialDelaySeconds Number of seconds after the container has started before startup probes is initiated
 ## @param startupProbeConf.periodSeconds How often (in seconds) to perform the probe
 ## @param startupProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up
@@ -139,13 +131,9 @@ startupProbeConf:
   timeoutSeconds: 10
 
 ## Liveness probe Config
-## Restarts a replica whose Grafana stops answering while Grafana's PostgreSQL database still
-## answers SELECT 1 for Grafana's credentials. On the Raft leader that restart moves leadership
-## to another replica. With the defaults a replica is restarted after 60s (6 x 10s) of failed
-## checks. A shared database fault (outage, failover, connection limit, revoked login) is not a
-## failed check, so it restarts nothing. The check runs curl (3s) and then psql (5s, bounded by
-## coreutils timeout), so timeoutSeconds has to cover both. Set to null to drop the probe and
-## turn these restarts off.
+## Restarts a replica whose Grafana stops answering while its database still does; a shared
+## database fault restarts nothing. timeoutSeconds has to cover curl (3s) plus psql (5s).
+## Set to null to drop the probe.
 ## @param livenessProbeConf.initialDelaySeconds Number of seconds after the container has started before liveness probes is initiated
 ## @param livenessProbeConf.periodSeconds How often (in seconds) to perform the probe
 ## @param livenessProbeConf.failureThreshold When a probe fails, Kubernetes will try failureThreshold times before giving up

@@ -1,6 +1,4 @@
-# HAProxy sends every request to the Raft leader, so a leader whose Grafana is gone serves 502
-# until something moves leadership off it. The liveness probe does that by restarting the
-# replica; these cases pin what it checks and that readiness keeps its own, wider check.
+# Pins what the startup and liveness probes check, and that readiness keeps its own check.
 suite: pmm-ha probes
 templates:
   - templates/statefulset.yaml
@@ -25,11 +23,8 @@ tests:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].readinessProbe.httpGet.path
           value: /v1/readyz
 
-  # Grafana's health check is SELECT 1 on its database. Counting that as a replica fault would
-  # restart every replica at once during a shared database fault, so liveness only fails while
-  # the same SELECT 1 works from outside Grafana, with Grafana's own credentials and database.
-  # pg_isready is not enough: it says "accepting connections" while the grafana database
-  # itself refuses them (measured with CONNECTION LIMIT 0).
+  # A shared database fault must not count as a replica fault: liveness fails only while
+  # Grafana's database still answers SELECT 1.
   - it: counts a failed Grafana check only while Grafana's database answers SELECT 1
     template: templates/statefulset.yaml
     asserts:
@@ -49,9 +44,7 @@ tests:
             name: GF_DATABASE_HOST
             value: smoke-pg-db-ha.pmm.svc.cluster.local:5432
 
-  # Pins every default timing: a lost timeoutSeconds falls back to Kubernetes' 1s, which is
-  # shorter than the liveness script's two steps (3s curl, 5s psql), and a smaller
-  # startup budget restarts replicas mid-boot.
+  # Pins the default timings: Kubernetes' 1s default timeout is shorter than the liveness script.
   - it: restarts after 60s of failed liveness checks by default, with a 15 minute boot budget ahead of it
     template: templates/statefulset.yaml
     asserts:
@@ -92,8 +85,7 @@ tests:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].startupProbe.failureThreshold
           value: 40
 
-  # Without `with`, a null conf rendered the probe with Kubernetes' defaults (1s timeout,
-  # 3 failures), which kills replicas mid-boot instead of turning the probe off.
+  # null must drop the probe, not render it with Kubernetes' defaults.
   - it: drops a probe whose conf is null
     template: templates/statefulset.yaml
     set:
@@ -117,10 +109,7 @@ tests:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.failureThreshold
           value: 6
 
-  # The startup budget counts from container start and nothing else waits for PostgreSQL, so
-  # a fresh install on a cluster where PostgreSQL is slow would restart PMM into
-  # CrashLoopBackOff. The wait uses the PMM Server image, which is on the node already, and
-  # the same address PMM itself connects to.
+  # The init container waits for PostgreSQL with the PMM Server image and the address PMM uses.
   - it: waits for PostgreSQL to accept connections before starting PMM
     template: templates/statefulset.yaml
     asserts:

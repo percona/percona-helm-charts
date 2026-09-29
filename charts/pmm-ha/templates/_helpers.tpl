@@ -190,8 +190,7 @@ This overrides the function from the pg-db subchart
 {{- end -}}
 
 {{/*
-host:port of the PostgreSQL primary. The pg-operator's <cluster>-ha service follows the
-current primary, so it is what pmm-managed, Grafana and the probes should reach.
+host:port of the PostgreSQL primary (the pg-operator's <cluster>-ha service).
 */}}
 {{- define "pmm.postgres.addr" -}}
 {{- printf "%s-ha.%s.svc.cluster.local:5432" (include "pg-database.fullname" .) .Release.Namespace -}}
