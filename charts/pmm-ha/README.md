@@ -471,6 +471,7 @@ Consequences:
 | `haproxy.service.type`        | Service type for HAProxy: ClusterIP (internal), LoadBalancer (external via LB), or NodePort (external via node) | `ClusterIP` |
 | `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
 | `haproxy.containerPorts.https` | Port HAProxy binds for PMM traffic; the Service publishes the same port. Must be above 1024 on OpenShift        | `443`       |
+| `haproxy.bufsize`             | HAProxy `tune.bufsize` in bytes: the largest request header block accepted. Keep it above the pmm-server nginx 64 KiB header limit | `131072`    |
 
 
 ### Data-plane version pins
