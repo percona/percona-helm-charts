@@ -18,7 +18,7 @@ tests:
           value: {path: /graph/api/health, port: https, scheme: HTTPS}
       - matchRegex:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.exec.command[2]
-          pattern: 'curl -sf --max-time 4 -o /dev/null http://127\.0\.0\.1:8080/graph/api/health && exit 0'
+          pattern: 'curl -sf --max-time 3 -o /dev/null http://127\.0\.0\.1:8080/graph/api/health && exit 0'
       - notExists:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.httpGet
       - equal:
@@ -35,7 +35,14 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.exec.command[2]
-          pattern: 'PGCONNECT_TIMEOUT=3 PGOPTIONS=.-c statement_timeout=2000. PGPASSWORD="\$GF_DATABASE_PASSWORD" \\\n\s+psql -w -h "\$\{GF_DATABASE_HOST%:\*\}" -p "\$\{GF_DATABASE_HOST##\*:\}" -U "\$GF_DATABASE_USER" -d "\$GF_DATABASE_NAME" -Atqc .SELECT 1. >/dev/null 2>&1 && exit 1\nexit 0\n$'
+          pattern: 'if PGCONNECT_TIMEOUT=3 PGPASSWORD="\$GF_DATABASE_PASSWORD" timeout 5 \\\n\s+psql -w -h "\$\{GF_DATABASE_HOST%:\*\}" -p "\$\{GF_DATABASE_HOST##\*:\}" -U "\$GF_DATABASE_USER" -d "\$GF_DATABASE_NAME" -Atqc .SELECT 1. >/dev/null 2>&1; then\n\s+echo "[^"]*replica fault, restarting"\n\s+exit 1\nfi\necho "[^"]*database fault, not restarting"\nexit 0\n$'
+      # A missing binary must fail loudly, not silently disable the probe or spin the init loop.
+      - matchRegex:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.exec.command[2]
+          pattern: 'command -v psql >/dev/null \|\| \{ echo "[^"]*psql is missing[^"]*"; exit 1; \}'
+      - matchRegex:
+          path: spec.template.spec.initContainers[?(@.name=="wait-for-pg")].command[2]
+          pattern: 'test -x "\$pg_isready" \|\| \{ echo "pg_isready not found at \$pg_isready"; exit 1; \}\necho "Waiting'
       - contains:
           path: spec.template.spec.containers[?(@.name=="pmm-ha")].env
           content:
@@ -43,7 +50,7 @@ tests:
             value: smoke-pg-db-ha.pmm.svc.cluster.local:5432
 
   # Pins every default timing: a lost timeoutSeconds falls back to Kubernetes' 1s, which is
-  # shorter than the liveness script's two steps (4s curl, 3s psql), and a smaller
+  # shorter than the liveness script's two steps (3s curl, 5s psql), and a smaller
   # startup budget restarts replicas mid-boot.
   - it: restarts after 60s of failed liveness checks by default, with a 15 minute boot budget ahead of it
     template: templates/statefulset.yaml

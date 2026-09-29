@@ -143,8 +143,8 @@ startupProbeConf:
 ## answers SELECT 1 for Grafana's credentials. On the Raft leader that restart moves leadership
 ## to another replica. With the defaults a replica is restarted after 60s (6 x 10s) of failed
 ## checks. A shared database fault (outage, failover, connection limit, revoked login) is not a
-## failed check, so it restarts nothing. The check runs curl (4s) and then psql (3s to connect,
-## 2s for the query), so timeoutSeconds has to cover both. Set to null to drop the probe and
+## failed check, so it restarts nothing. The check runs curl (3s) and then psql (5s, bounded by
+## coreutils timeout), so timeoutSeconds has to cover both. Set to null to drop the probe and
 ## turn these restarts off.
 ## @param livenessProbeConf.initialDelaySeconds Number of seconds after the container has started before liveness probes is initiated
 ## @param livenessProbeConf.periodSeconds How often (in seconds) to perform the probe

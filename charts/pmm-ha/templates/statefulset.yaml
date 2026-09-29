@@ -150,6 +150,7 @@ spec:
             - -c
             - |
               pg_isready="$(dirname "$(readlink -f "$(command -v psql)")")/pg_isready"
+              test -x "$pg_isready" || { echo "pg_isready not found at $pg_isready"; exit 1; }
               echo "Waiting for PostgreSQL at ${PMM_POSTGRES_ADDR}..."
               until "$pg_isready" -q -t 5 -h "${PMM_POSTGRES_ADDR%:*}" -p "${PMM_POSTGRES_ADDR##*:}"; do
                 echo "PostgreSQL is not accepting connections yet, retrying in 5s..."
@@ -352,7 +353,9 @@ spec:
           # a broken connection pool) and the replica is restarted; if it fails the database is
           # the problem and a restart would not help. pg_isready is not enough here: it reports
           # "accepting connections" while the grafana database itself refuses them. nginx serves
-          # the same server block on 8080 without TLS.
+          # the same server block on 8080 without TLS. The psql call is bounded by coreutils
+          # timeout rather than a statement_timeout startup option, which pgbouncer rejects.
+          # What the script prints ends up in the kubelet's "Liveness probe failed" event.
           {{- with .Values.livenessProbeConf }}
           livenessProbe:
             exec:
@@ -360,9 +363,14 @@ spec:
                 - /bin/bash
                 - -c
                 - |
-                  curl -sf --max-time 4 -o /dev/null http://127.0.0.1:8080/graph/api/health && exit 0
-                  PGCONNECT_TIMEOUT=3 PGOPTIONS='-c statement_timeout=2000' PGPASSWORD="$GF_DATABASE_PASSWORD" \
-                    psql -w -h "${GF_DATABASE_HOST%:*}" -p "${GF_DATABASE_HOST##*:}" -U "$GF_DATABASE_USER" -d "$GF_DATABASE_NAME" -Atqc 'SELECT 1' >/dev/null 2>&1 && exit 1
+                  curl -sf --max-time 3 -o /dev/null http://127.0.0.1:8080/graph/api/health && exit 0
+                  command -v psql >/dev/null || { echo "Grafana health check failed and psql is missing, so the fault cannot be attributed: restarting"; exit 1; }
+                  if PGCONNECT_TIMEOUT=3 PGPASSWORD="$GF_DATABASE_PASSWORD" timeout 5 \
+                       psql -w -h "${GF_DATABASE_HOST%:*}" -p "${GF_DATABASE_HOST##*:}" -U "$GF_DATABASE_USER" -d "$GF_DATABASE_NAME" -Atqc 'SELECT 1' >/dev/null 2>&1; then
+                    echo "Grafana health check failed while its database answers SELECT 1: replica fault, restarting"
+                    exit 1
+                  fi
+                  echo "Grafana health check failed and its database does not answer SELECT 1: database fault, not restarting"
                   exit 0
             {{- toYaml . | nindent 12 }}
           {{- end }}
