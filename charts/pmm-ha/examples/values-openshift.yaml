@@ -43,6 +43,10 @@ haproxy:
 pg-db:
   pmm:
     serverHost: pmm-ha-haproxy:8443
+    ## Not passed to the operator by pg-db 3.1.0 yet; once it is, restricted-v2 must assign the
+    ## sidecar's uid like every other one.
+    containerSecurityContext:
+      runAsUser: null
 
 ## `openshift: true` covers the PMM Server and PMM Client pods only. The chart also pins uids
 ## for ClickHouse, Keeper and the helper Jobs (all of whose images would otherwise run as

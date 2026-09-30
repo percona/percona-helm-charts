@@ -964,6 +964,9 @@ kubectl -n <namespace> patch perconapgcluster <release>-pg-db --type merge -p \
   '{"spec":{"pmm":{"containerSecurityContext":{"runAsUser":1002,"runAsNonRoot":true,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"seccompProfile":{"type":"RuntimeDefault"}}}}}'
 ```
 
+On OpenShift none of this is needed: `restricted-v2` fills in the sidecar's security context
+itself, and would refuse the pinned uid 1002.
+
 **Operators.** Install `pmm-ha-dependencies` in a namespace of its own. The Altinity and
 VictoriaMetrics operators meet `restricted`, but the upstream `pg-operator` chart sets no
 seccomp profile, so that namespace can enforce `baseline` only (see
