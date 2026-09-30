@@ -1084,7 +1084,7 @@ helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
 Each PMM Client pod is registered in PMM as a Node named `<namespace>-<pod name>`, such
 as `pmm-pmm-ha-client-0`, and PMM Server does not let it be removed from the Inventory
 while the pod is running: that would leave the pod monitoring nothing, and remove every
-Service added on that Node. After scaling the PMM Client pods down, remove the Nodes of
+Service added to that Node. After scaling the PMM Client pods down, remove the Nodes of
 the pods that are gone from the Inventory, together with the Services on them. Move
 those Services to another Node first if they are still needed.
 
