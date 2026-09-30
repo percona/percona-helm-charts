@@ -86,3 +86,27 @@ tests:
       - hasDocuments:
           count: 0
         template: templates/vmagent-rbac.yaml
+
+  - it: lets the openshift-node-exporter job discover the platform exporter in openshift-monitoring
+    capabilities:
+      apiVersions:
+        - security.openshift.io/v1
+    values:
+      - ../examples/values-openshift.yaml
+    set:
+      secret.requireExisting: false
+    asserts:
+      - hasDocuments:
+          count: 9
+        template: templates/vmagent-rbac.yaml
+      - equal:
+          path: metadata.namespace
+          value: openshift-monitoring
+        documentIndex: 8  # the RoleBinding in openshift-monitoring
+        template: templates/vmagent-rbac.yaml
+
+  - it: renders no openshift-monitoring access in the internal node-exporter mode
+    asserts:
+      - hasDocuments:
+          count: 7
+        template: templates/vmagent-rbac.yaml

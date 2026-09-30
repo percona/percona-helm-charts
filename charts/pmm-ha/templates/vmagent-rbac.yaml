@@ -116,4 +116,40 @@ subjects:
 - kind: ServiceAccount
   name: {{ $name }}
   namespace: {{ .Release.Namespace }}
+{{- if eq (include "pmm.nodeExporter.mode" .) "openshift" }}
+---
+# nodeExporter.mode=openshift: the openshift-node-exporter job discovers the platform exporter's
+# endpoints in openshift-monitoring. Its kube-rbac-proxy then authorizes the scrape against the
+# nonResourceURL /metrics granted by the ClusterRole above.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $clusterName }}-node-exporter
+  namespace: openshift-monitoring
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["endpoints", "services", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $clusterName }}-node-exporter
+  namespace: openshift-monitoring
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $clusterName }}-node-exporter
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- end }}
