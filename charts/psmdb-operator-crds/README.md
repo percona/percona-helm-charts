@@ -80,7 +80,7 @@ helm upgrade psmdb-operator-crds percona/psmdb-operator-crds --version 1.23.1 --
 Then upgrade the operator:
 
 ```sh
-helm upgrade psmdb-operator percona/psmdb-operator --version 1.23.1 --namespace psmdb
+helm upgrade psmdb-operator percona/psmdb-operator --version 1.23.2 --namespace psmdb
 ```
 
 ## Taking Ownership of Existing CRDs
@@ -101,7 +101,7 @@ kubectl annotate crds "${CRDS[@]}" meta.helm.sh/release-namespace=psmdb
 Or use Helm 3.17.0+ with `--take-ownership`:
 
 ```sh
-helm upgrade --install psmdb-operator-crds percona/psmdb-operator-crds --version 1.23.2 --namespace psmdb --take-ownership
+helm upgrade --install psmdb-operator-crds percona/psmdb-operator-crds --version 1.23.1 --namespace psmdb --take-ownership
 ```
 
 ## Troubleshooting
