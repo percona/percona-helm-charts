@@ -82,6 +82,8 @@ The chart can be customized using the following configurable parameters:
 | |
 | `vault.endpointURL`            | Vault address                                                                                      | `""` |
 | `vault.tlsSecret`              | Kubernetes secret containing Vault TLS certs                                                       | `""` |
+| `vault.reinitInterval`         | How often the Vault client should be re-initialized                                                | `""` |
+| `vault.requestInterval`        | How often the operator queries Vault for the users secret (queries on every reconciliation if not set) | `""` |
 | `vault.syncUsers.role`         | Vault role name                                                                                    | `""` |
 | `vault.syncUsers.mountPath`    | Vault mount path (https://developer.hashicorp.com/vault/docs/secrets/kv)                           | `""` |
 | `vault.syncUsers.keyPath`      | Vault key path for password                                                                        | `""` |

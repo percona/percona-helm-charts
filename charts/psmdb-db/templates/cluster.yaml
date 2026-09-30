@@ -28,6 +28,12 @@ spec:
     {{- if .Values.vault.tlsSecret }}
     tlsSecret: {{ .Values.vault.tlsSecret }}
     {{- end }}
+    {{- if .Values.vault.reinitInterval }}
+    reinitInterval: {{ .Values.vault.reinitInterval }}
+    {{- end }}
+    {{- if .Values.vault.requestInterval }}
+    requestInterval: {{ .Values.vault.requestInterval }}
+    {{- end }}
     {{- if .Values.vault.syncUsers }}
     syncUsers:
       {{- if .Values.vault.syncUsers.role }}
