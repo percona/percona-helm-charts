@@ -2394,7 +2394,7 @@ write_manifest() {
     # Guarded like every other jq call in this file: a bare assignment returns jq's status, and
     # in any call context where errexit is not suppressed that ends the run HERE — after every
     # component has uploaded and before the index exists, which is the orphaned-backup failure
-    # this whole file is arranged to prevent. Today's `if ! write_manifest` call site happens to
+    # this whole file is arranged to prevent. Today's `write_manifest ... ||` call site happens to
     # suppress errexit, so this is a latch on a door that is currently shut.
     _manifest=$(jq -n \
         --argjson schema "${MANIFEST_SCHEMA}" \
@@ -2487,7 +2487,10 @@ write_manifest() {
         elif printf '%s\n' "backup_${TIMESTAMP}" | store_write "$(latest_path)"; then
             log "INFO" "[Manifest] Updated latest -> backup_${TIMESTAMP}"
         else
-            log "WARN" "[Manifest] Could not update latest pointer"
+            # A stale 'latest' is what `restore --backup-id latest --yes` (the DR path) restores.
+            log "ERROR" "[Manifest] Could not update the latest pointer; it still names the previous backup"
+            manifest_release_lease "${_mlock_held}" "${_mlease}"
+            return 2
         fi
     else
         # Hard failure, not a warning: the manifest IS the restore index. Component data with
@@ -3684,12 +3687,20 @@ backup_encryption_key() {
     local key_file="${key_stage_dir}/pg-encryption-key.yaml"
     local key_dest="$(comp_path encryption)/pg-encryption-key.yaml"
     
-    # Check if secret exists
-    if ! kubectl get secret "${secret_name}" -n "${NAMESPACE}" >/dev/null 2>&1; then
-        log "WARN" "[EncryptionKey] Secret not found: ${secret_name}"
-        log "INFO" "[EncryptionKey] This is normal if PMM encryption is not configured"
-        return 2  # Not an error, just not configured
-    fi
+    # Only a real NotFound means "not configured". A lookup that FAILED (403, timeout, 5xx) must
+    # fail the key backup, or the run completes, moves 'latest', and its dumps don't decrypt.
+    local _ek_state=0
+    k8s_object_state secret "${secret_name}" || _ek_state=$?
+    case "${_ek_state}" in
+        0) ;;
+        1)
+            log "WARN" "[EncryptionKey] Secret not found: ${secret_name}"
+            log "INFO" "[EncryptionKey] This is normal if PMM encryption is not configured"
+            return 2 ;;  # Not an error, just not configured
+        *)
+            log "ERROR" "[EncryptionKey] Could not check Secret ${secret_name} (apiserver error or RBAC) — the key is NOT in this backup"
+            return 1 ;;
+    esac
 
     if [ "${DRY_RUN}" = "true" ]; then
         log "INFO" "[EncryptionKey] [DRY RUN] Commands (secret: ${secret_name}):"
@@ -4876,8 +4887,13 @@ restore_postgresql() {
             log "ERROR" "[PostgreSQL] ${db}: pg_restore FAILED (exit ${rc}); last errors:"
             grep 'error:' "${pr_out}" 2>/dev/null | tail -n 5 | append_to_log || true
             fail=1
-        else
+        elif [ ${rc} -eq 1 ]; then
             log "WARN" "[PostgreSQL] ${db}: pg_restore exited ${rc} with warnings only (check the log)"
+        else
+            # rc is the pipeline's, i.e. timeout's/kubectl's: 124 = timed out, 137 = killed. Neither
+            # means pg_restore finished, so the database may be half-restored.
+            log "ERROR" "[PostgreSQL] ${db}: pg_restore did not complete (exit ${rc}$([ ${rc} -eq 124 ] && echo ", timed out after ${KUBECTL_EXEC_TIMEOUT}s"))"
+            fail=1
         fi
         rm -f "${pr_out}" 2>/dev/null || true
     done
@@ -6962,11 +6978,17 @@ cmd_backup() {
     # Write the per-run manifest + 'latest' pointer: the single index that ties together the
     # component locations (all under <component>/<id>/ now). This
     # 'latest' pointer is what `list` reads, in both s3 and shared mode.
-    if ! write_manifest "$([ "${all_success}" = "true" ] && echo complete || echo partial)" "${encryption_status}"; then
+    local _wm_rc=0
+    write_manifest "$([ "${all_success}" = "true" ] && echo complete || echo partial)" "${encryption_status}" || _wm_rc=$?
+    if [ ${_wm_rc} -eq 2 ]; then
+        # Indexed and restorable by id, but 'latest' (the DR path) still names an older backup.
+        all_success=false
+        log "ERROR" "[Manifest] 'latest' was not moved onto backup_${TIMESTAMP}; marking the run failed. Restore this backup by its id, not 'latest'."
+    elif [ ${_wm_rc} -ne 0 ]; then
         # The manifest is the restore index; without it this backup is undiscoverable/unrestorable.
         # Don't let a failed upload (|| true) be reported as a successful backup.
         all_success=false
-        log "ERROR" "[Manifest] Failed to write manifest.json / update 'latest' — this backup is NOT restorable; marking the run failed."
+        log "ERROR" "[Manifest] Failed to write manifest.json — this backup is NOT restorable; marking the run failed."
     fi
     log "INFO" ""
 

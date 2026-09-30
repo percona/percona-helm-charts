@@ -3127,6 +3127,76 @@ VM_S3_REGION="${_vo_r}"; S3_REGION="${_vo_sr}"; VM_S3_SECRET_NAME="${_vo_sn}"; S
 VM_S3_SECRET_ACCESS_KEY_KEY="${_vo_ak}"; VM_S3_SECRET_SECRET_KEY_KEY="${_vo_sk}"
 S3_SECRET_ACCESS_KEY_KEY="${_vo_cak}"; S3_SECRET_SECRET_KEY_KEY="${_vo_csk}"
 
+#########################################################################################
+section "backup_encryption_key — a lookup that FAILED is not 'encryption not configured'"
+#########################################################################################
+
+# A bare `kubectl get secret` exits non-zero for 403 / timeout / 5xx exactly as for NotFound, and
+# every one of them used to return 2 ("not configured"): the run stayed complete, 'latest' moved,
+# and a DR restore of it brought back PostgreSQL with no key to decrypt it.
+S3_ENABLED=false; DRY_RUN=true; NAMESPACE="test-ns"; BACKUP_TARGET=shared
+CURRENT_ID="backup_20260610-120000"; TIMESTAMP="20260610-120000"; BACKUP_DIR=$(mktemp -d)
+kubectl() { return 0; }
+backup_encryption_key >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "secret readable -> proceeds (dry run)" 0 "${rc}"
+kubectl() { echo 'Error from server (NotFound): secrets "pg-encryption-key" not found' >&2; return 1; }
+backup_encryption_key >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "NotFound -> 2 (not configured)" 2 "${rc}"
+kubectl() { echo 'Error from server (Forbidden): secrets "pg-encryption-key" is forbidden' >&2; return 1; }
+backup_encryption_key >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "Forbidden -> 1 (failed)" 1 "${rc}"
+kubectl() { echo 'Unable to connect to the server: net/http: request canceled (Client.Timeout exceeded)' >&2; return 1; }
+backup_encryption_key >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "apiserver timeout -> 1 (failed)" 1 "${rc}"
+rm -rf "${BACKUP_DIR}"; DRY_RUN=false
+unset -f kubectl 2>/dev/null || kubectl() { return 1; }
+
+#########################################################################################
+section "restore_postgresql — only pg_restore's own exit 1 may count as 'warnings'"
+#########################################################################################
+
+# The pipeline's status is timeout's/kubectl's, not pg_restore's: 124 (timed out) and 137
+# (killed) carry no 'error:' line and used to take the warnings branch, so PMM was scaled back up
+# on a half-restored database and the restore reported success.
+DRY_RUN=false; MF_PG_DBS="pmm-managed"; KUBECTL_EXEC_TIMEOUT=600; LOG_FILE=$(mktemp)
+comp_pod_selector() { echo "role=primary"; }
+one_pod() { echo "pg-0"; }
+store_bytes() { echo 100; }
+store_read() { echo dump; }
+timeout() { cat >/dev/null; printf '%s\n' "${_pr_out}"; return "${_pr_rc}"; }
+_pr() { _pr_rc=$1; _pr_out=$2; restore_postgresql >/dev/null 2>&1 && rc=0 || rc=$?; assert_rc "$3" "$4" "${rc}"; }
+_pr 0   ""                                                    "exit 0 -> restored"                    0
+_pr 1   "pg_restore: warning: errors ignored on restore: 2"   "exit 1, warnings only -> restored"     0
+_pr 1   "pg_restore: error: could not read input file"        "exit 1 with error: -> failed"          1
+_pr 124 ""                                                    "exit 124 (timeout) -> failed"          1
+_pr 137 ""                                                    "exit 137 (killed) -> failed"           1
+_pr 2   "some kubectl noise"                                  "any other exit -> failed"              1
+rm -f "${LOG_FILE}"
+unset -f timeout _pr
+
+#########################################################################################
+section "write_manifest — a 'latest' that did not move must fail the run"
+#########################################################################################
+
+# 'latest' is what the documented DR command restores (restore --backup-id latest --yes, which
+# also silences the staleness guard). A failed pointer write used to be a WARN and exit 0.
+_wl_out=$(mktemp)
+S3_ENABLED=false; DRY_RUN=false; NAMESPACE="test-ns"; BACKUP_TARGET=shared
+CURRENT_ID="backup_20260610-120000"; TIMESTAMP="20260610-120000"; BACKUP_ID=""
+RESULTS_JSON='{"postgresql":{"status":"success"},"clickhouse":{"status":"success"},"victoriametrics":{"status":"success"},"pmm-server":{"status":"success"}}'
+kubectl() { return 1; }
+store_read() { return 1; }
+store_absent() { return 0; }
+store_write() { case "$1" in */latest) cat >/dev/null; return 1 ;; *) cat > "${_wl_out}" ;; esac; }
+: > "${_wl_out}"
+write_manifest complete skipped >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "latest write fails -> 2" 2 "${rc}"
+if [ -s "${_wl_out}" ]; then ok; else bad "the manifest itself was still written" "a manifest" "(empty)"; fi
+store_write() { cat > "${_wl_out}"; }
+write_manifest complete skipped >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "latest write succeeds -> 0" 0 "${rc}"
+rm -f "${_wl_out}"
+
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then
     echo "OK: ${PASS} assertion(s) passed"
