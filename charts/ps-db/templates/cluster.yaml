@@ -758,9 +758,6 @@ spec:
     enabled: false
   {{- else }}
     enabled: true
-    {{- if hasKey $backup "allowParallel" }}
-    allowParallel: {{ $backup.allowParallel }}
-    {{- end }}
     {{- if .Values.backup.schedule }}
     schedule: {{- .Values.backup.schedule | toYaml | nindent 4 }}
     {{- end }}

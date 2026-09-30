@@ -723,7 +723,6 @@ pmm:
 
 backup:
   enabled: true
-  # allowParallel: false
   # initContainer:
   #   image: percona/percona-server-mysql-operator:1.2.0
   #   containerSecurityContext:

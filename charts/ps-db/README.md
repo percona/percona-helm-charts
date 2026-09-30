@@ -297,7 +297,6 @@ The chart can be customized using the following configurable parameters:
 | `users.passwordSecretRef.key`    | Key in the Secret that corresponds to the value of the user's password | `password` |
 ||
 | `backup.enabled`                                | Enable backups                                                                              | `true`                       |
-| `backup.allowParallel`                          | Allow taking multiple backups in parallel                                                   | `false`                      |
 | `backup.sourcePod`                              | Specify backup source pod                                                                   | ``                           |
 | `backup.encryptionKeySecret.name`               | Name of the Kubernetes Secret with the backup encryption key                                | ``                           |
 | `backup.encryptionKeySecret.key`                | Key in the Secret that contains the backup encryption key                                   | `encryptionKey`              |
