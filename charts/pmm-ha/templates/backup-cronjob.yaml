@@ -1,14 +1,15 @@
 {{- if .Values.centralBackupStorage.enabled }}
 {{- $cbs := .Values.centralBackupStorage }}
 {{- $s := $cbs.schedule }}
-{{- /* The orchestrator's arguments. Target coordinates are NOT repeated here: the pod already
-       carries them as env via pmm.backupRunEnv (NAMESPACE, BACKUP_TARGET, SHARED_MOUNT_PATH,
-       S3_BUCKET/REGION/PREFIX/ENDPOINT), and pmm-backup.sh reads exactly those as its defaults
-       with flags as overrides. Passing both put one fact in two rendered places where the flag
-       silently WINS — so an edit to the helper that was not mirrored here would send scheduled
-       runs to a different root than manual ones, the split-catalog drift the helper exists to
-       prevent. Only what the SCHEDULE decides is passed as flags. */}}
-{{- $args := list "backup" "--retention" (printf "%d" (int $s.retentionDays)) }}
+{{- /* The orchestrator's arguments. Target coordinates and retention are NOT repeated here: the
+       pod already carries them as env via pmm.backupRunEnv (NAMESPACE, BACKUP_TARGET,
+       SHARED_MOUNT_PATH, S3_BUCKET/REGION/PREFIX/ENDPOINT, BACKUP_RETENTION), and pmm-backup.sh
+       reads exactly those as its defaults with flags as overrides. Passing both put one fact in
+       two rendered places where the flag silently WINS — so an edit to the helper that was not
+       mirrored here would send scheduled runs to a different root than manual ones, the
+       split-catalog drift the helper exists to prevent. Only what the SCHEDULE decides is passed
+       as flags. */}}
+{{- $args := list "backup" }}
 {{- if eq $cbs.mode "s3" }}
   {{- /* Fail at render time rather than at 02:00 — or, worse, mid-DR. This guard is NOT gated
          on schedule.enabled: even suspended, this jobTemplate is the documented clone source

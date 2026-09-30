@@ -228,14 +228,19 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pmm.componentLabels" (list . "backup-tools") | nindent 4 }}
+  {{- /* IRSA: the run needs S3 credentials of its own. The role's trust policy must name this
+         SA as well as the S3 SA. */}}
+  {{- with include "pmm.backupIrsaAnnotations" . }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
 {{- with .Values.centralBackupStorage.tools.imagePullSecrets }}
 {{- /* On the SA, not on the pod specs: this reaches the backup-tools Deployment, every backup
        and restore Job, and the s3-mode temp restore pods that run under a backup SA — without
        touching .Values.image.imagePullSecrets, which also lands on the PMM StatefulSet, so
        using that to fix a tools-image pull would roll all PMM replicas as a side effect.
-       MUST be repeated on backup-s3-serviceaccount.yaml: pmm.backupRunSaName resolves to the
-       S3/IRSA SA whenever mode is s3 AND s3.irsaRoleArn is set, so on that path the pods do
-       NOT use this SA and a secret placed only here is dead config. */}}
+       MUST be repeated on backup-s3-serviceaccount.yaml: on the IRSA path the s3-mode temp
+       restore pods run under the S3 SA, not this one. */}}
 imagePullSecrets:
   {{- toYaml . | nindent 2 }}
 {{- end }}
@@ -328,17 +333,10 @@ metadata:
   labels:
     {{- include "pmm.componentLabels" (list . "backup-tools") | nindent 4 }}
 subjects:
+  {{- /* Only the run SA. Never the S3 SA: every VM and ClickHouse pod runs under that one. */}}
   - kind: ServiceAccount
-    name: {{ .Release.Name }}-backup-sa
+    name: {{ include "pmm.backupRunSaName" . }}
     namespace: {{ .Release.Namespace }}
-  {{- /* On the IRSA path the backup-tools pod runs as the S3 SA (see above), so the backup
-         RBAC has to follow it there. Listed as a second subject rather than swapped, so the
-         plain backup SA keeps working for anything else bound to it. */}}
-  {{- if and (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn }}
-  - kind: ServiceAccount
-    name: {{ include "pmm.backupS3SaName" . }}
-    namespace: {{ .Release.Namespace }}
-  {{- end }}
 roleRef:
   kind: Role
   name: {{ .Release.Name }}-backup-role

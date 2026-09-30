@@ -255,7 +255,7 @@ centralBackupStorage:
   schedule:
     enabled: true
     cron: "0 2 * * *"     # daily at 02:00
-    retentionDays: 7
+    retentionDays: 7      # also applies to manual `pmm-backup.sh backup` runs
     # components: ["--skip-victoriametrics"]   # empty = all four
 ```
 

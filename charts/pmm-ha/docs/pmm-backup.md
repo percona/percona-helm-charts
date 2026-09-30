@@ -465,7 +465,7 @@ centralBackupStorage:
     #   secretKey: "secret-key"
     ## (B) IRSA (AWS EKS only, keyless):
     irsaRoleArn: ""              # e.g. arn:aws:iam::<acct>:role/pmm-ha-backup-s3
-    serviceAccountName: "pmm-ha-backup-s3"   # SA for operator-managed pods (IRSA-annotated on AWS)
+    serviceAccountName: "pmm-ha-backup-s3"   # S3-only SA for operator-managed pods (IRSA-annotated on AWS)
   client:
     image:                       # rclone — PMM /srv sidecar + ad-hoc orchestrator uploads
       registry: docker.io
@@ -493,8 +493,8 @@ or, on AWS, IRSA:
 | Component | Chart wiring |
 |---|---|
 | PMM `/srv` | adds the `pmm-backup` rclone sidecar to the PMM StatefulSet; creds via `centralBackupStorage.s3.existingSecret` or the PMM SA's `irsaRoleArn` annotation |
-| VictoriaMetrics | `VMCluster.spec.serviceAccountName` = backup SA; vmbackup gets `AWS_REGION` + creds (`existingSecret` or IRSA chain) |
-| ClickHouse | CHI pod-template `serviceAccountName` = backup SA; clickhouse-backup gets `REMOTE_STORAGE=s3` + `S3_PATH` + creds (`existingSecret` or IRSA chain) |
+| VictoriaMetrics | `VMCluster.spec.serviceAccountName` = backup S3 SA (IRSA only; no RBAC); vmbackup gets `AWS_REGION` + creds (`existingSecret` or IRSA chain) |
+| ClickHouse | CHI pod-template `serviceAccountName` = backup S3 SA (IRSA only; no RBAC); clickhouse-backup gets `REMOTE_STORAGE=s3` + `S3_PATH` + creds (`existingSecret` or IRSA chain) |
 | PostgreSQL | nothing PG-specific — `pg_dump` streams through the `pmm-backup` rclone sidecar, which already has the S3 credentials. No pgBackRest S3 repo wiring. |
 
 ### S3 Authentication Setup (one-time, per cluster)
@@ -541,11 +541,15 @@ through the cluster's OIDC provider — **no access keys in the cluster**:
 1. **IAM policy** granting the bucket `s3:ListBucket`/`GetObject`/`PutObject`/`DeleteObject`
    (no `CreateBucket` needed).
 2. **IAM role** whose trust policy allows the cluster OIDC provider for the backup
-   ServiceAccounts (`system:serviceaccount:<ns>:pmm-ha-backup*` and the PMM server SA;
-   scope tighter for prod).
+   ServiceAccounts — `system:serviceaccount:<ns>:<release>-backup-sa` (backup-tools and the
+   backup/restore Jobs), `system:serviceaccount:<ns>:<release>-backup-s3` (VictoriaMetrics,
+   ClickHouse and the restore temp pods) — and the PMM server SA. A `StringLike` on
+   `system:serviceaccount:<ns>:<release>-backup-*` covers both backup SAs.
 3. Set `centralBackupStorage.s3.irsaRoleArn`. The chart annotates the SAs
    (`eks.amazonaws.com/role-arn`); the EKS pod-identity webhook injects a web-identity
-   token that the AWS SDK / rclone pick up automatically.
+   token that the AWS SDK / rclone pick up automatically. Only `<release>-backup-sa` is bound
+   to the backup Role (pod exec, Secrets); `<release>-backup-s3` gets S3 access and nothing
+   else, because every VictoriaMetrics and ClickHouse pod runs under it.
 4. The STS regional endpoint must be ACTIVE in the cluster's region (IAM console →
    Account settings) — a deactivated region fails every credential exchange with
    `403 RegionDisabledException`.
@@ -562,13 +566,13 @@ through the cluster's OIDC provider — **no access keys in the cluster**:
 | `templates/backup-scripts-configmap.yaml` | the orchestrator (`pmm-backup.sh`) and the tool bootstrap (`backup-entrypoint.sh`) rendered into a ConfigMap, mounted at `/usr/local/bin` in the Deployment and every backup/restore Job pod |
 | `templates/backup-cronjob.yaml` | CronJob `<release>-backup` — each run is a Job executing `pmm-backup.sh`. Always rendered when `centralBackupStorage.enabled`, **suspended** unless `schedule.enabled`, so its jobTemplate is always available to `kubectl create job --from` (see §3a) |
 | `examples/restore-job.yaml` | restore as a Job (disruption-protected); documents the clone-and-swap invocation |
-| `templates/backup-s3-serviceaccount.yaml` | IRSA SA for operator-managed pods (created when `irsaRoleArn` is set) |
+| `templates/backup-s3-serviceaccount.yaml` | S3-only IRSA SA for operator-managed pods and restore temp pods (created when `irsaRoleArn` is set) |
 | `templates/statefulset.yaml` | PMM StatefulSet — `pmm-backup` rclone sidecar + S3 credentials wiring (s3 mode) |
 | `templates/vmcluster.yaml` | VMCluster — backup `serviceAccountName` + vmbackup s3 env/creds |
 | `templates/clickhouse-cluster.yaml` | CHI — backup `serviceAccountName` + clickhouse-backup s3 env/creds |
 | `templates/central-backup-pvc.yaml` | PVC for the `shared` target (conditional) |
 | `templates/vmagent.yaml` | VMAgent scrape jobs for backup metrics |
-| `pg-db` values | `repo1` (local, operator HA only) — no pgBackRest S3/RWX repo; PG is backed up with `pg_dump` |
+| `pg-db` values | not overridden — pgBackRest stays on the pg-db subchart defaults (local `repo1`, operator HA only); PG is backed up with `pg_dump` |
 
 ### Storage Options (`shared` mode)
 
@@ -788,7 +792,7 @@ centralBackupStorage:
   schedule:
     enabled: false            # create the <release>-backup CronJob
     cron: "0 2 * * *"         # cron expression, cluster timezone (default: daily 02:00)
-    retentionDays: 7          # prune backups older than N days (passed as --retention)
+    retentionDays: 7          # prune backups older than N days (BACKUP_RETENTION env; manual runs too)
     components: []            # [] = all four; or e.g. ["--postgresql","--clickhouse"] or ["--skip-victoriametrics"]
     extraArgs: []             # extra `pmm-backup.sh backup` args
     startingDeadlineSeconds: 600    # skip a run that can't start within N seconds
@@ -805,7 +809,9 @@ The chart renders a CronJob `<release>-backup` whenever `centralBackupStorage.en
 its `jobTemplate` is the canonical, fully-wired run definition that `kubectl create job --from`
 clones for an ad-hoc backup *and* for a restore, so every install has one. Target and all S3
 settings reach the run as environment (via the shared `pmm.backupRunEnv` helper), not as repeated
-CLI flags — only `--retention`, `components` and `extraArgs` are schedule-specific. In `s3` mode
+CLI flags — and so does retention: `retentionDays` is projected as `BACKUP_RETENTION` into the
+backup-tools pod as well, so a manual `pmm-backup.sh backup` prunes on the same schedule as the
+CronJob. Only `components` and `extraArgs` are schedule-specific. In `s3` mode
 the bucket is required whenever `mode` is `s3`, **independently of `schedule.enabled`** — the
 chart fails the render on an empty `centralBackupStorage.s3.bucket`. The CronJob is always
 rendered (suspended without a schedule) because its jobTemplate is the documented clone source
@@ -1210,7 +1216,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | Variable | Description | Default |
 |---|---|---|
 | `BACKUP_DIR` | Backup directory | /backups |
-| `BACKUP_RETENTION` | Retention in days | 7 |
+| `BACKUP_RETENTION` | Retention in days (the chart sets it from `schedule.retentionDays`) | 7 |
 | `CENTRAL_BACKUP_PATH` | Central storage path (set by Helm) | |
 | `METRICS_DIR` | Directory for .prom metrics files | /backups/.metrics |
 | `KUBECTL_EXEC_TIMEOUT` | Timeout (seconds) for backup commands | 600 |

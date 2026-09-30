@@ -783,17 +783,20 @@ centralBackupStorage:
       secretKey: "secret-key"
     ## IAM role ARN annotated onto the backup ServiceAccounts (IRSA, AWS EKS only). Set per
     ## install (e.g. arn:aws:iam::<ACCOUNT_ID>:role/pmm-ha-backup-s3). Empty = no IRSA annotation.
+    ## Two SAs carry it: <release>-backup-sa (backup-tools and the backup/restore Jobs, the only
+    ## one bound to the backup Role) and the S3 SA below. The role's trust policy must name both.
     ## S3-mode credentials come from ONE of: irsaRoleArn (IRSA), existingSecret (static keys),
     ## or ambient AWS credentials on the node (instance profile / kube2iam). With none of the
     ## three, the backup sidecars deploy but every S3 operation fails with auth errors.
     irsaRoleArn: ""
-    ## Dedicated IRSA-annotated SA used by operator-managed pods (vmstorage, clickhouse, pgbackrest)
-    ## so their backup tools get S3 creds via the credential chain. Must be annotated with irsaRoleArn.
+    ## Dedicated IRSA-annotated SA used by operator-managed pods (vmstorage, clickhouse) and the
+    ## restore temp pods so their backup tools get S3 creds via the credential chain. S3 access
+    ## only: no Kubernetes RBAC is bound to it.
     ## Empty (default) → release-scoped "<release>-backup-s3" so two releases in one namespace
     ## don't collide on a single fixed SA. Set to pin a specific name.
     serviceAccountName: ""
-    ## Extra annotations for the chart-created backup S3 ServiceAccount (created when
-    ## irsaRoleArn is set), e.g. eks.amazonaws.com/sts-regional-endpoints: "false".
+    ## Extra annotations for both IRSA backup ServiceAccounts (the S3 SA and <release>-backup-sa),
+    ## applied when irsaRoleArn is set, e.g. eks.amazonaws.com/sts-regional-endpoints: "false".
     serviceAccountAnnotations: {}
 
   ## In-pod S3 client image (PMM backup sidecar / backup-tools). Override registry for mirrors/air-gap.
@@ -935,8 +938,9 @@ centralBackupStorage:
   ## This is where all component backups will be consolidated
   mountPath: /backups
   
-  ## NOTE: backup retention is controlled by centralBackupStorage.schedule.retentionDays
-  ## (passed to `pmm-backup.sh backup --retention`). There is no per-component retention here.
+  ## NOTE: backup retention is controlled by centralBackupStorage.schedule.retentionDays, which
+  ## the chart projects as BACKUP_RETENTION into every backup run (manual and scheduled, even
+  ## with the schedule disabled). There is no per-component retention here.
 
   ## @param centralBackupStorage.schedule Scheduled full backups via a Kubernetes CronJob.
   ## Each run is a JOB that executes pmm-backup.sh itself — there is no exec into the
@@ -955,7 +959,7 @@ centralBackupStorage:
     enabled: false
     ## @param centralBackupStorage.schedule.cron Cron expression (cluster timezone)
     cron: "0 2 * * *"          # daily at 02:00
-    ## @param centralBackupStorage.schedule.retentionDays Prune backups older than N days (--retention)
+    ## @param centralBackupStorage.schedule.retentionDays Prune backups older than N days (BACKUP_RETENTION; applies to manual runs too)
     retentionDays: 7
     ## @param centralBackupStorage.schedule.components Components to back up (empty = all four).
     ## e.g. ["--postgresql", "--clickhouse"] or add ["--skip-victoriametrics"]
@@ -1164,14 +1168,6 @@ tls:
 ## @param pg-db Configuration values passed to the pg-db dependency chart
 ##
 pg-db:
-  ## Custom annotations the operator propagates to its objects. Not needed for
-  ## pmm-backup.sh (PostgreSQL is backed up with pg_dump). Only set an IRSA
-  ## role-arn here if you enable an OPTIONAL offsite pgBackRest S3 repo (web-id), e.g.:
-  ##   metadata:
-  ##     annotations:
-  ##       eks.amazonaws.com/role-arn: "arn:aws:iam::<ACCOUNT_ID>:role/pmm-ha-backup-s3"
-  metadata:
-    annotations: {}
   ## PostgreSQL major version and image, pinned deliberately.
   ## Left unset, these inherit the pg-db subchart's defaults, so bumping the pg-db dependency
   ## also bumps PostgreSQL itself - the store holding pmm-managed, Grafana state and alert
@@ -1316,168 +1312,6 @@ pg-db:
       limits:
         cpu: 500m
         memory: 512Mi
-
-  ## @section PostgreSQL Backup Configuration (pgBackRest)
-  ## This section configures pgBackRest backups for PostgreSQL
-  ## pgBackRest is built into the Percona PostgreSQL Operator and provides:
-  ## - Full, Differential, and Incremental backups
-  ## - Point-in-Time Recovery (PITR)
-  ## - Multiple repository support (local, S3, GCS, Azure)
-  ## - Automatic retention management
-  ## - WAL archiving and management
-  ##
-  ## Documentation: https://docs.percona.com/percona-operator-for-postgresql/2.0/backups.html
-  ##
-  backups:
-    ## @param pg-db.backups.enabled Enable pgBackRest backups
-    enabled: true
-    
-    ## @param pg-db.backups.trackLatestRestorableTime Track the latest time to which data can be restored
-    ## Enables real-time monitoring of backup recoverability
-    trackLatestRestorableTime: true
-    
-    pgbackrest:
-      ## @param pg-db.backups.pgbackrest.image pgBackRest image
-      image: docker.io/percona/percona-pgbackrest:2.56.0-1
-      
-      ## @param pg-db.backups.pgbackrest.manual Manual backup configuration
-      ## Used when triggering on-demand backups via pmm-backup.sh or kubectl
-      manual:
-        ## @param pg-db.backups.pgbackrest.manual.repoName Default repository for manual backups
-        repoName: repo1
-        ## @param pg-db.backups.pgbackrest.manual.options Additional pgBackRest options for manual backups
-        ## Example options:
-        ## - --type=full                    # Force full backup
-        ## - --type=incr                    # Incremental backup (default)
-        ## - --type=diff                    # Differential backup
-        ## - --repo1-retention-full=7       # Keep 7 full backups
-        ## - --repo1-retention-diff=3       # Keep 3 differential backups
-        ## - --repo1-retention-archive=7    # Keep 7 sets of WAL archives
-        options:
-        - --type=full                    # Full backup for manual runs (e.g. pmm-backup.sh)
-        - --repo1-retention-full=1      # Keep 1 full on repo-host so full-folder copy to central is minimal
-        - --repo1-retention-diff=1
-        - --repo1-retention-archive=1
-      
-      ## @param pg-db.backups.pgbackrest.repos Backup repositories configuration
-      ## You can configure multiple repositories for different backup strategies:
-      ## - repo1: Local storage (fast recovery)
-      ## - repo2: S3 storage (offsite backup)
-      ## - repo3: GCS storage (geographic redundancy)
-      ## - repo4: Azure storage
-      ##
-      ## IMPORTANT: Scheduled backups are DISABLED by default.
-      ## Backups must be triggered manually using pmm-backup.sh or kubectl.
-      ## To enable scheduled backups, uncomment the 'schedules:' section below.
-      repos:
-      ## Repository 1: Local storage (required, used for WAL archiving)
-      - name: repo1
-        ## @param pg-db.backups.pgbackrest.repos[0].schedules Backup schedules in cron format
-        ## Scheduled backups are DISABLED - uncomment to enable automatic backups
-        # schedules:
-        #   ## Full backup schedule (recommended: weekly)
-        #   full: "0 2 * * 0"  # Sunday at 2 AM UTC
-        #   ## Differential backup schedule (optional, recommended: mid-week)
-        #   # differential: "0 2 * * 3"  # Wednesday at 2 AM UTC
-        #   ## Incremental backup schedule (optional, recommended: frequent)
-        #   # incremental: "0 */6 * * *"  # Every 6 hours
-        ## @param pg-db.backups.pgbackrest.repos[0].volume Local storage configuration
-        ## Storage is persistent - PVC will not be deleted when chart is uninstalled
-        volume:
-          volumeClaimSpec:
-            ## @param pg-db.backups.pgbackrest.repos[0].volume.volumeClaimSpec.storageClassName Storage class for backup PVC
-            ## Leave empty to use cluster default storage class
-            ## For production, use a storage class that supports volume expansion
-            # storageClassName: "gp3"
-            accessModes:
-            - ReadWriteOnce
-            resources:
-              requests:
-                ## @param pg-db.backups.pgbackrest.repos[0].volume.volumeClaimSpec.resources.requests.storage Backup storage size
-                ## repo1 is LOCAL-only: WAL archive + one retained full for replica bootstrap/HA.
-                ## Retention is capped at 1 full by `repo1-retention-full` in the `global:` block
-                ## below — NOT by manual.options, which an earlier version of this comment claimed.
-                ## manual.options applies only to on-demand backups; the operator's own
-                ## replica-create and scheduled backups never see it, and pgBackRest says so on
-                ## every run: "option 'repo1-retention-full' is not set for
-                ## 'repo1-retention-full-type=count', the repository may run out of space".
-                ## The actual off-cluster backups are logical pg_dumps taken by pmm-backup.sh,
-                ## NOT pgBackRest, so repo1 stays small. 1Gi matches the operator default —
-                ## raising it forces a PVC expansion on upgrade (fails on storage classes
-                ## without allowVolumeExpansion). Storage persists even after helm uninstall.
-                storage: 1Gi
-      
-      ## NOTE: pmm-backup.sh backs up PostgreSQL with pg_dump (logical), it does
-      ## NOT use a pgBackRest offsite repo. repo1 (local) is required by the operator for
-      ## replica bootstrap / HA. repo2/3/4 below are OPTIONAL offsite pgBackRest repos you
-      ## can enable independently; the orchestrator neither needs nor uses them.
-      ##
-      ## Repository 2: S3 (optional offsite). Uncomment + configure to enable.
-      # - name: repo2
-      #   s3:
-      #     bucket: "my-pg-backups"
-      #     endpoint: ""            # empty = AWS; or s3.<region>.amazonaws.com
-      #     region: "us-east-1"
-
-      ## Repository 3: Google Cloud Storage (optional)
-      ## Uncomment and configure to enable GCS backups
-      # - name: repo3
-      #   gcs:
-      #     ## GCS bucket name (required)
-      #     bucket: "pmm-postgresql-backups-gcs"
-      #   schedules:
-      #     ## Weekly full backup to GCS
-      #     full: "0 4 * * 0"  # Sunday at 4 AM UTC
-      
-      ## Repository 4: Azure Blob Storage (optional)
-      ## Uncomment and configure to enable Azure backups
-      # - name: repo4
-      #   azure:
-      #     ## Azure container name (required)
-      #     container: "pmm-postgresql-backups"
-      #   schedules:
-      #     ## Weekly full backup to Azure
-      #     full: "0 5 * * 0"  # Sunday at 5 AM UTC
-
-      ## @param pg-db.backups.pgbackrest.global pgBackRest global options
-      ## These apply to EVERY backup the operator takes — replica-create, scheduled and manual —
-      ## unlike manual.options, which reaches on-demand backups only. That distinction is why
-      ## repo1 retention lives here: without it pgBackRest warns "option 'repo1-retention-full'
-      ## is not set for 'repo1-retention-full-type=count', the repository may run out of space"
-      ## and keeps every full it ever takes, on a 1Gi PVC.
-      ##
-      ## 1 full + its WAL is all repo1 is for (replica bootstrap / HA). Point-in-time recovery
-      ## for PMM's own database is not a goal here — the off-cluster copy is the logical pg_dump
-      ## pmm-backup.sh takes. Raise this only together with the repo1 volume size above.
-      ##
-      ## Add offsite-repo options alongside these when you enable repo2/3/4
-      ## (e.g. repo2-s3-key-type: web-id).
-      global:
-        repo1-retention-full: "1"
-        repo1-retention-full-type: count
-    
-    ## @section S3 Credentials Configuration
-    ## If using S3 (repo2), you need to provide credentials
-    ## Create a secret with your S3 credentials:
-    ##
-    ## kubectl create secret generic pg-db-backrest-repo-config \
-    ##   --from-literal=aws-s3-key="AKIAIOSFODNN7EXAMPLE" \
-    ##   --from-literal=aws-s3-key-secret="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" \
-    ##   -n demo
-    ##
-    ## Or use existing secret name:
-    # s3SecretName: "pg-db-backrest-repo-config"
-    
-    ## @section GCS Credentials Configuration
-    ## If using GCS (repo3), you need to provide service account key
-    ## Create a secret with your GCS service account JSON key:
-    ##
-    ## kubectl create secret generic pg-db-gcs-key \
-    ##   --from-file=gcs-key=/path/to/service-account-key.json \
-    ##   -n demo
-    ##
-    ## Or use existing secret name:
-    # gcsSecretName: "pg-db-gcs-key"
 
 ## @section Kubernetes cluster metrics (kube-state-metrics + node-exporter)
 ## Installs kube-state-metrics and node-exporter by default and lets the

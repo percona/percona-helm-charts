@@ -909,6 +909,10 @@ about. Call with the root context and nindent to the env list's indent:
   value: {{ .Values.centralBackupStorage.mountPath }}
 - name: METRICS_DIR
   value: {{ .Values.centralBackupStorage.mountPath }}/.metrics
+{{- /* Every `backup` run ends with the retention sweep, manual runs included; without this they
+       pruned at the script's default of 7 days instead of retentionDays. */}}
+- name: BACKUP_RETENTION
+  value: {{ .Values.centralBackupStorage.schedule.retentionDays | int | quote }}
 # Backup target + S3 settings the chart already knows, projected as env so
 # pmm-backup.sh (restore and manual backup runs) defaults to THIS
 # install rather than requiring every --target/--s3-* flag to be re-typed — a
@@ -1036,18 +1040,31 @@ about. Call with the root context and nindent to the env list's indent:
 {{- end -}}
 
 {{/*
-ServiceAccount a backup/restore RUN executes under. On the IRSA path the run needs S3
-credentials of its own, and the S3 SA is the one the role's trust policy names; otherwise the
-plain backup SA. The RoleBinding binds BOTH, so the backup RBAC follows either way.
+ServiceAccount a backup/restore RUN executes under: always <release>-backup-sa, the only SA bound
+to the backup Role. On the IRSA path it carries the role annotation too (pmm.backupIrsaAnnotations);
+the S3 SA stays S3-only because the VM/ClickHouse pods and the restore temp pods run under it.
 
 ONE definition: the Deployment and every Job pod must agree, or scheduled runs execute under a
 different identity than interactive ones — which shows up as S3 403s that only happen at night.
 */}}
 {{- define "pmm.backupRunSaName" -}}
-{{- if and (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn -}}
-{{- include "pmm.backupS3SaName" . -}}
-{{- else -}}
 {{- printf "%s-backup-sa" .Release.Name -}}
+{{- end -}}
+
+{{/*
+IRSA annotations for a backup ServiceAccount (the run SA and the S3 SA), emitted only on the IRSA
+path. serviceAccountAnnotations is free-form, so the chart's role-arn is added only when the user
+has not set that key: a duplicate mapping key fails the whole install. Call with nindent to the
+annotations map's indent.
+*/}}
+{{- define "pmm.backupIrsaAnnotations" -}}
+{{- if and (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn -}}
+{{- with .Values.centralBackupStorage.s3.serviceAccountAnnotations }}
+{{ toYaml . }}
+{{- end }}
+{{- if not (hasKey (.Values.centralBackupStorage.s3.serviceAccountAnnotations | default dict) "eks.amazonaws.com/role-arn") }}
+eks.amazonaws.com/role-arn: {{ .Values.centralBackupStorage.s3.irsaRoleArn | quote }}
+{{- end }}
 {{- end -}}
 {{- end -}}
 
