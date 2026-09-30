@@ -1,10 +1,4 @@
-{{- $secret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
-{{- $clickhouseUser := "clickhouse_pmm" }}
-{{- if $secret }}
-{{- $clickhouseUser = (index $secret.data "PMM_CLICKHOUSE_USER" | b64dec) }}
-{{- else if .Values.secret.clickhouse_user }}
-{{- $clickhouseUser = .Values.secret.clickhouse_user }}
-{{- end }}
+{{- $clickhouseUser := include "pmm.secret.key" (dict "ctx" $ "key" "PMM_CLICKHOUSE_USER" "override" (.Values.secret.clickhouse_user | default "clickhouse_pmm")) | b64dec }}
 {{- $datasourceUser := include "pmm.clickhouse.datasourceUser" . }}
 {{- $datasourcePassword := include "pmm.clickhouse.datasourcePassword" . }}
 {{- $clickhouseDatabase := .Values.pmmEnv.PMM_CLICKHOUSE_DATABASE | default "pmm" }}
