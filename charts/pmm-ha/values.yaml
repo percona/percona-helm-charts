@@ -142,9 +142,7 @@ logStreamer:
 ## @section PMM Client
 ## Pre-provisions PMM Client pods to carry the monitoring load that the PMM Server pods should stay
 ## free of, such as remote databases, RDS and Azure instances. Each pod registers itself as a Node and can be
-## picked in the "Nodes" dropdown when adding a service. A PMM Server which honours
-## PMM_PROTECTED_NODE_NAME_PREFIXES refuses to remove these Nodes while their pod is running, as that
-## strands the pod: scale pmmClient.replicas down instead, then remove the Nodes left behind.
+## picked in the "Nodes" dropdown when adding a service.
 ## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-client/index.html
 ##
 pmmClient:
