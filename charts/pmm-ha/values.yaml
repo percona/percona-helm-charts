@@ -1333,6 +1333,13 @@ victoriaMetrics:
     enabled: true
     ## @param victoriaMetrics.vmagent.replicaCount Number of vmagent replicas
     replicaCount: 2
+    ## @param victoriaMetrics.vmagent.rbac.create Create a ServiceAccount and RBAC for vmagent
+    ## Every scrape job below finds its targets through the Kubernetes API, and the kubelet and
+    ## cAdvisor jobs read through the apiserver proxy (nodes/proxy). With false, the VictoriaMetrics
+    ## operator creates the ServiceAccount and RBAC itself; its ClusterRole has no nodes/proxy,
+    ## so the kubelet and cAdvisor jobs fail with 403.
+    rbac:
+      create: true
     ## @param victoriaMetrics.vmagent.resources Resource requests and limits for vmagent
     ## This vmagent scrapes only the chart's own infrastructure (HAProxy, ClickHouse,
     ## the VM components, kubelet/cAdvisor/apiserver). It therefore scales with the
