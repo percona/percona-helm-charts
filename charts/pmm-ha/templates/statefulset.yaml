@@ -351,7 +351,9 @@ spec:
           # Grafana's health check depends on the shared PostgreSQL, so a failed check counts only
           # while Grafana's database still answers SELECT 1; otherwise a restart would not help and
           # would hit every replica at once. Bounded with coreutils timeout, not statement_timeout
-          # (pgbouncer rejects it). The script's output ends up in the kubelet event.
+          # (pgbouncer rejects it). psql takes Grafana's TLS settings, so a certificate fault is not
+          # mistaken for a replica fault; disable is Grafana's own default. The script's output
+          # ends up in the kubelet event.
           {{- with .Values.livenessProbeConf }}
           livenessProbe:
             exec:
@@ -361,6 +363,10 @@ spec:
                 - |
                   curl -sf --max-time 3 -o /dev/null http://127.0.0.1:8080/graph/api/health && exit 0
                   command -v psql >/dev/null || { echo "Grafana health check failed and psql is missing, so the fault cannot be attributed: restarting"; exit 1; }
+                  export PGSSLMODE="${GF_DATABASE_SSL_MODE:-disable}"
+                  [ -z "$GF_DATABASE_CA_CERT_PATH" ] || export PGSSLROOTCERT="$GF_DATABASE_CA_CERT_PATH"
+                  [ -z "$GF_DATABASE_CLIENT_CERT_PATH" ] || export PGSSLCERT="$GF_DATABASE_CLIENT_CERT_PATH"
+                  [ -z "$GF_DATABASE_CLIENT_KEY_PATH" ] || export PGSSLKEY="$GF_DATABASE_CLIENT_KEY_PATH"
                   if PGCONNECT_TIMEOUT=3 PGPASSWORD="$GF_DATABASE_PASSWORD" timeout 5 \
                        psql -w -h "${GF_DATABASE_HOST%:*}" -p "${GF_DATABASE_HOST##*:}" -U "$GF_DATABASE_USER" -d "$GF_DATABASE_NAME" -Atqc 'SELECT 1' >/dev/null 2>&1; then
                     echo "Grafana health check failed while its database answers SELECT 1: replica fault, restarting"

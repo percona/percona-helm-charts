@@ -44,6 +44,14 @@ tests:
             name: GF_DATABASE_HOST
             value: smoke-pg-db-ha.pmm.svc.cluster.local:5432
 
+  # A TLS fault that breaks Grafana on every replica must also fail the probe's SELECT 1.
+  - it: connects to Grafana's database with Grafana's TLS settings
+    template: templates/statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].livenessProbe.exec.command[2]
+          pattern: '\nexport PGSSLMODE="\$\{GF_DATABASE_SSL_MODE:-disable\}"\n\[ -z "\$GF_DATABASE_CA_CERT_PATH" \] \|\| export PGSSLROOTCERT="\$GF_DATABASE_CA_CERT_PATH"\n\[ -z "\$GF_DATABASE_CLIENT_CERT_PATH" \] \|\| export PGSSLCERT="\$GF_DATABASE_CLIENT_CERT_PATH"\n\[ -z "\$GF_DATABASE_CLIENT_KEY_PATH" \] \|\| export PGSSLKEY="\$GF_DATABASE_CLIENT_KEY_PATH"\nif PGCONNECT_TIMEOUT'
+
   # Pins the default timings: Kubernetes' 1s default timeout is shorter than the liveness script.
   - it: restarts after 60s of failed liveness checks by default, with a 15 minute boot budget ahead of it
     template: templates/statefulset.yaml
