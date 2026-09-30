@@ -892,8 +892,9 @@ Variables that the chart derives from other values, such as `PMM_DATA_RETENTION`
 
 The chart's defaults meet the `restricted` [Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
 for everything it deploys itself, so PMM HA installs into a namespace labelled
-`pod-security.kubernetes.io/enforce=restricted` - with one exception, the bundled
-node-exporter (below). To check a running namespace without changing anything:
+`pod-security.kubernetes.io/enforce=restricted` - with two exceptions, the bundled
+node-exporter and the PMM sidecar in the PostgreSQL pods (both below). To check a running
+namespace without changing anything:
 
 ```bash
 kubectl label --dry-run=server --overwrite ns <namespace> pod-security.kubernetes.io/enforce=restricted
@@ -949,6 +950,20 @@ which fail even the `baseline` standard. In a `restricted` namespace either disa
 ([Using OpenShift's node exporter](#using-openshifts-node-exporter)), or run the exporter
 separately in a namespace that allows privileged pods.
 
+**PMM sidecar in the PostgreSQL pods.** The Percona PostgreSQL Operator adds a `pmm-client`
+sidecar to the PostgreSQL pods once the `pmm-token-init` Job has created its token, and renders
+it without a security context. In a `restricted` namespace that pod is then rejected, and
+PostgreSQL - PMM Server's own database - stays down. The operator accepts
+`spec.pmm.containerSecurityContext` for this, and `pg-db.pmm.containerSecurityContext` holds the
+right values, but pg-db 3.1.0 does not pass them through yet. Until it does, in a `restricted`
+namespace either set `pg-db.pmm.enabled=false` (PMM then does not monitor its own database) or
+hand the values to the operator directly after installing:
+
+```bash
+kubectl -n <namespace> patch perconapgcluster <release>-pg-db --type merge -p \
+  '{"spec":{"pmm":{"containerSecurityContext":{"runAsUser":1002,"runAsNonRoot":true,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"seccompProfile":{"type":"RuntimeDefault"}}}}}'
+```
+
 **Operators.** Install `pmm-ha-dependencies` in a namespace of its own. The Altinity and
 VictoriaMetrics operators meet `restricted`, but the upstream `pg-operator` chart sets no
 seccomp profile, so that namespace can enforce `baseline` only (see
@@ -997,13 +1012,17 @@ On CSI storage that supports `fsGroup` (most cloud and Ceph drivers) the kubelet
 data on the first mount and the upgrade needs nothing from you. On hostPath and `local` volumes,
 and on file storage whose driver does not apply `fsGroup` (see Storage above), nothing does, and `vmstorage` crash-loops with
 `cannot create lock file "/vmstorage-data/flock.lock": permission denied`; the operator then
-holds vmselect and vminsert back, and vmagent buffers the incoming samples on disk. Fix the
-ownership on the node once and restart the pod, or opt out first:
+holds vmselect and vminsert back, and vmagent buffers the incoming samples on disk. The
+operator rolls the replicas one at a time, so each one fails in turn. Fix the ownership of
+each replica's volume after its old pod has stopped, which is while the new one crash-loops:
+the old pod flushes its caches as root on shutdown, so a chown done before that is undone.
+Or opt out first:
 
 ```bash
-# on the node hosting the vmstorage volume
-chown -R 65534:65534 /path/to/vmstorage-db-vmstorage-<release>-vmcluster-0
-kubectl -n <namespace> delete pod vmstorage-<release>-vmcluster-0
+# for each replica N, once vmstorage-<release>-vmcluster-N is in CrashLoopBackOff,
+# on the node hosting its volume:
+chown -R 65534:65534 /path/to/vmstorage-db-vmstorage-<release>-vmcluster-N
+kubectl -n <namespace> delete pod vmstorage-<release>-vmcluster-N
 # or keep the old identity for an existing install
 helm upgrade ... --set victoriaMetrics.useStrictSecurity=false
 ```
