@@ -118,7 +118,7 @@ tests:
           value: percona/pmm-server:3.9.1
       - matchRegex:
           path: spec.template.spec.initContainers[?(@.name=="wait-for-pg")].command[2]
-          pattern: 'until "\$pg_isready" -q -t 5 -h "\$\{PMM_POSTGRES_ADDR%:\*\}" -p "\$\{PMM_POSTGRES_ADDR##\*:\}"; do'
+          pattern: 'until "\$pg_isready" -q -t 5 -U pmm -h "\$\{PMM_POSTGRES_ADDR%:\*\}" -p "\$\{PMM_POSTGRES_ADDR##\*:\}"; do\n\s+\[ \$\? -ne 3 \] \|\| \{ echo "[^"]*no connection attempt[^"]*"; exit 1; \}\n'
       - equal:
           path: spec.template.spec.initContainers[?(@.name=="wait-for-pg")].env
           value:

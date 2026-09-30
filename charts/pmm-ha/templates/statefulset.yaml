@@ -141,6 +141,8 @@ spec:
               memory: 128Mi
         # Hold the PMM container until PostgreSQL accepts connections, so a slow database does
         # not eat into the startup probe budget. pg_isready is in the PMM Server image, off PATH.
+        # -U is required under an arbitrary UID with no passwd entry (OpenShift): without it
+        # pg_isready makes no attempt (exit 3). It only pings, so the user need not exist.
         - name: wait-for-pg
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -151,7 +153,8 @@ spec:
               pg_isready="$(dirname "$(readlink -f "$(command -v psql)")")/pg_isready"
               test -x "$pg_isready" || { echo "pg_isready not found at $pg_isready"; exit 1; }
               echo "Waiting for PostgreSQL at ${PMM_POSTGRES_ADDR}..."
-              until "$pg_isready" -q -t 5 -h "${PMM_POSTGRES_ADDR%:*}" -p "${PMM_POSTGRES_ADDR##*:}"; do
+              until "$pg_isready" -q -t 5 -U pmm -h "${PMM_POSTGRES_ADDR%:*}" -p "${PMM_POSTGRES_ADDR##*:}"; do
+                [ $? -ne 3 ] || { echo "pg_isready made no connection attempt (invalid connection parameters)"; exit 1; }
                 echo "PostgreSQL is not accepting connections yet, retrying in 5s..."
                 sleep 5
               done
