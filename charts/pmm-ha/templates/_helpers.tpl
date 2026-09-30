@@ -190,6 +190,13 @@ This overrides the function from the pg-db subchart
 {{- end -}}
 
 {{/*
+host:port of the PostgreSQL primary (the pg-operator's <cluster>-ha service).
+*/}}
+{{- define "pmm.postgres.addr" -}}
+{{- printf "%s-ha.%s.svc.cluster.local:5432" (include "pg-database.fullname" .) .Release.Namespace -}}
+{{- end -}}
+
+{{/*
 Generate PMM HA peer list dynamically based on replicas count
 */}}
 {{- define "pmm.haPeers" -}}
