@@ -141,6 +141,36 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
+        # Hold the PMM container until PostgreSQL accepts connections, so a slow database does
+        # not eat into the startup probe budget. pg_isready is in the PMM Server image, off PATH.
+        # -U is required under an arbitrary UID with no passwd entry (OpenShift): without it
+        # pg_isready makes no attempt (exit 3). It only pings, so the user need not exist.
+        - name: wait-for-pg
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              pg_isready="$(dirname "$(readlink -f "$(command -v psql)")")/pg_isready"
+              test -x "$pg_isready" || { echo "pg_isready not found at $pg_isready"; exit 1; }
+              echo "Waiting for PostgreSQL at ${PMM_POSTGRES_ADDR}..."
+              until "$pg_isready" -q -t 5 -U pmm -h "${PMM_POSTGRES_ADDR%:*}" -p "${PMM_POSTGRES_ADDR##*:}"; do
+                [ $? -ne 3 ] || { echo "pg_isready made no connection attempt (invalid connection parameters)"; exit 1; }
+                echo "PostgreSQL is not accepting connections yet, retrying in 5s..."
+                sleep 5
+              done
+              echo "PostgreSQL is accepting connections"
+          env:
+            - name: PMM_POSTGRES_ADDR
+              value: {{ include "pmm.postgres.addr" . | quote }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
       containers:
         - name: {{ .Chart.Name }}
 
@@ -230,7 +260,7 @@ spec:
             - name: GF_DATABASE_TYPE
               value: "postgres"
             - name: GF_DATABASE_HOST
-              value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
+              value: {{ include "pmm.postgres.addr" . | quote }}
             - name: GF_DATABASE_NAME
               value: "grafana"
             - name: GF_DATABASE_USER
@@ -282,7 +312,7 @@ spec:
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
             - name: PMM_POSTGRES_ADDR
-              value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
+              value: {{ include "pmm.postgres.addr" . | quote }}
             - name: PMM_HA_PEERS
               value: "{{ include "pmm.haPeers" . }}"
             {{- if index .Values "pg-db" "pmm" "enabled" }}
@@ -304,6 +334,44 @@ spec:
           ports:
             - name: https
               containerPort: 8443
+          # Both probes check Grafana through nginx rather than /v1/readyz, which also checks the
+          # shared ClickHouse. Restarting a replica moves Raft leadership off it. null drops a probe.
+          {{- with .Values.startupProbeConf }}
+          startupProbe:
+            httpGet:
+              path: /graph/api/health
+              port: https
+              scheme: HTTPS
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Grafana's health check depends on the shared PostgreSQL, so a failed check counts only
+          # while Grafana's database still answers SELECT 1; otherwise a restart would not help and
+          # would hit every replica at once. Bounded with coreutils timeout, not statement_timeout
+          # (pgbouncer rejects it). psql takes Grafana's TLS settings, so a certificate fault is not
+          # mistaken for a replica fault; disable is Grafana's own default. The script's output
+          # ends up in the kubelet event.
+          {{- with .Values.livenessProbeConf }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  curl -sf --max-time 3 -o /dev/null http://127.0.0.1:8080/graph/api/health && exit 0
+                  command -v psql >/dev/null || { echo "Grafana health check failed and psql is missing, so the fault cannot be attributed: restarting"; exit 1; }
+                  export PGSSLMODE="${GF_DATABASE_SSL_MODE:-disable}"
+                  [ -z "$GF_DATABASE_CA_CERT_PATH" ] || export PGSSLROOTCERT="$GF_DATABASE_CA_CERT_PATH"
+                  [ -z "$GF_DATABASE_CLIENT_CERT_PATH" ] || export PGSSLCERT="$GF_DATABASE_CLIENT_CERT_PATH"
+                  [ -z "$GF_DATABASE_CLIENT_KEY_PATH" ] || export PGSSLKEY="$GF_DATABASE_CLIENT_KEY_PATH"
+                  if PGCONNECT_TIMEOUT=3 PGPASSWORD="$GF_DATABASE_PASSWORD" timeout 5 \
+                       psql -w -h "${GF_DATABASE_HOST%:*}" -p "${GF_DATABASE_HOST##*:}" -U "$GF_DATABASE_USER" -d "$GF_DATABASE_NAME" -Atqc 'SELECT 1' >/dev/null 2>&1; then
+                    echo "Grafana health check failed while its database answers SELECT 1: replica fault, restarting"
+                    exit 1
+                  fi
+                  echo "Grafana health check failed and its database does not answer SELECT 1: database fault, not restarting"
+                  exit 0
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /v1/readyz
