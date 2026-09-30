@@ -27,6 +27,7 @@ pmmEnv:
   PMM_CLICKHOUSE_DATABASE: "pmm"
   PMM_CLICKHOUSE_IS_CLUSTER: "1"
   # PMM_CLICKHOUSE_CLUSTER_NAME is set in statefulset.yaml
+  # PMM_DATA_RETENTION is derived from dataRetentionDays in statefulset.yaml
   # PMM_CLICKHOUSE_USER: "clickhouse_pmm"
   # PMM_CLICKHOUSE_PASSWORD: "chpass"
   # PMM_POSTGRES_ADDR: "pmm-ha-pg-db-ha.pmm-ha.svc.cluster.local:5432"
@@ -57,6 +58,14 @@ pmmEnv:
 #  GF_AUTH_GENERIC_OAUTH_API_URL: ''
 #  GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS: ''
 
+## The only way to set data retention in HA: PMM fixes the period when the replicas start,
+## so the Data retention field in its UI is read-only. Applied to metrics and Query
+## Analytics alike. Storage grows with it, see docs/SIZING.md before raising it.
+##
+## @param dataRetentionDays Data retention in whole days
+##
+dataRetentionDays: 30
+
 ## @param pmmResources optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) 
 ## requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-server/deployment-options/docker/index.html)
 pmmResources:
@@ -76,33 +85,6 @@ pmmResources:
     memory: "8Gi"
     cpu: "4"
 # pmmResources: {}
-
-## @param dataRetentionDays Optional single retention value, in days, for BOTH metrics and Query Analytics
-##
-## Metrics and Query Analytics are retained by two independent mechanisms, and in
-## an HA deployment neither one knows about the other:
-##
-##   * metrics   - victoriaMetrics.vmstorage.retentionPeriod, enforced by the
-##                 VictoriaMetrics operator on the external vmcluster
-##   * QAN       - PMM's own data retention setting, enforced by qan-api2 against
-##                 ClickHouse, and changeable from the PMM settings page
-##
-## Left EMPTY (the default) the chart does not interfere with either: vmstorage
-## uses victoriaMetrics.vmstorage.retentionPeriod and PMM keeps its own setting.
-## This is the safe choice on upgrade, and it leaves retention adjustable in the
-## PMM UI.
-##
-## Set to a number of days to drive both from here, which is usually what you want
-## when the deployment is managed declaratively. Two consequences to be aware of:
-##
-##   * it takes precedence over victoriaMetrics.vmstorage.retentionPeriod
-##   * it sets PMM_DATA_RETENTION, and PMM refuses to change data retention from
-##     the UI or API while that variable is set
-##
-## Storage scales close to linearly with this value - it is the largest single
-## lever on the cluster's disk footprint. Lowering it deletes data older than the
-## new window on the next reconcile. See docs/SIZING.md before changing it.
-dataRetentionDays: ""
 
 ## Readiness probe Config
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#configure-probes
@@ -160,7 +142,9 @@ logStreamer:
 ## @section PMM Client
 ## Pre-provisions PMM Client pods to carry the monitoring load that the PMM Server pods should stay
 ## free of, such as remote databases, RDS and Azure instances. Each pod registers itself as a Node and can be
-## picked in the "Nodes" dropdown when adding a service.
+## picked in the "Nodes" dropdown when adding a service. A PMM Server which honours
+## PMM_PROTECTED_NODE_NAME_PREFIXES refuses to remove these Nodes while their pod is running, as that
+## strands the pod: scale pmmClient.replicas down instead, then remove the Nodes left behind.
 ## ref: https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-pmm-client/index.html
 ##
 pmmClient:
@@ -171,6 +155,11 @@ pmmClient:
   ## PMM Server Nodes are not offered for that.
   ##
   replicas: 3
+  ## @param pmmClient.fsGroup Group that owns the PMM Client data volume
+  ## The PMM Client image runs as this user, which has to own the volume to write to it.
+  ## Ignored when `openshift: true` - OpenShift assigns the fsGroup itself.
+  ##
+  fsGroup: 1002
   ## @param pmmClient.image.repository PMM Client image repository
   ## @param pmmClient.image.pullPolicy PMM Client image pull policy
   ## @param pmmClient.image.tag PMM Client image tag, defaults to the chart appVersion
@@ -471,11 +460,28 @@ podAnnotations: {}
 
 ## @param podSecurityContext Configure Pods Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
-## Note: we intentionally don't use the `runAsGroup` to make it compatible with OpenShift. 
-## However, `runAsUser` needs to be set to nil for OpenShift to be able to assign a random user ID.
+## `runAsGroup` is deliberately unset. The other two keys are for plain Kubernetes only: on
+## OpenShift `restricted-v2` rejects both, `runAsUser` against the namespace's uid range and
+## `fsGroup` against its supplemental-group range (its fsGroup strategy is MustRunAs, so 1000
+## is refused just like 1000 as a uid). Set `openshift: true` below rather than editing this.
 podSecurityContext:
   runAsUser: 1000
   fsGroup: 1000
+
+## @param openshift Set to true when installing on OpenShift
+## OpenShift's `restricted-v2` SCC assigns every namespace its own uid and supplemental-group
+## ranges and rejects any pod that asks for values outside them. With this true the chart drops
+## `runAsUser`, `runAsGroup` and `fsGroup` from the PMM Server and PMM Client pod
+## securityContexts - including `pmmClient.fsGroup` - and lets OpenShift assign the identity.
+## Anything else you set in `podSecurityContext` is kept: `restricted-v2` permits
+## `seccompProfile`, `supplementalGroups` and `fsGroupChangePolicy`.
+##
+## This flag covers PMM Server and PMM Client only. The bundled kube-state-metrics and
+## prometheus-node-exporter violate `restricted-v2` in their own right, so the chart refuses to
+## render with `openshift: true` unless they are configured too. Install with
+## examples/values-openshift.yaml, which sets all of it.
+##
+openshift: false
 
 ## @param securityContext Configure Container Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
@@ -655,6 +661,14 @@ haproxy:
   enabled: true
   # Number of HAProxy replicas
   replicaCount: 3
+
+  ## @param haproxy.containerPorts.https Port HAProxy binds for PMM traffic
+  ## The Service publishes this same port. Keep 443 on plain Kubernetes; on OpenShift it
+  ## must be above 1024, because restricted-v2 runs the container as a non-root uid with
+  ## all capabilities dropped and so without NET_BIND_SERVICE.
+  ##
+  containerPorts:
+    https: 443
 
   ## @param haproxy.resources Resource requests and limits for the HAProxy container
   ## Every client remote_write, QAN payload and UI request crosses HAProxy, and it
@@ -1150,6 +1164,13 @@ victoriaMetrics:
       ## to vmauth's global maxConcurrentRequests default instead, leaving that global limit -
       ## which does protect vmauth itself from OOM - as the only ceiling.
       maxConcurrentPerUserRequests: "1000"
+      ## vmauth reads -auth.config at startup and then only on SIGHUP or /-/reload. The
+      ## operator mounts the chart's config Secret but does not watch it, so a helm upgrade
+      ## that adds a route or changes the credentials updates the file, not the running
+      ## process. In practice vmauth only picked a change up when pmm-managed happened to
+      ## reload its VictoriaMetrics URL - which in HA is vmauth - after an inventory change
+      ## (PMM-15556). Re-read the file on a timer instead; an unchanged file is a no-op.
+      configCheckInterval: "30s"
 
   ## VMAgent configuration - scrapes metrics and forwards to VictoriaMetrics
   ## VMAgent scrapes metrics from various sources and forwards them to VMAuth
@@ -1198,15 +1219,9 @@ victoriaMetrics:
   vmstorage:
     ## @param victoriaMetrics.vmstorage.replicaCount Number of vmstorage replicas
     replicaCount: 3
-    ## @param victoriaMetrics.vmstorage.retentionPeriod Data retention period for metrics
-    ## Applies to metrics only. Query Analytics is retained separately by PMM's own
-    ## setting, so the two can differ - set the chart-wide dataRetentionDays instead
-    ## if you want one value to drive both.
-    ##
-    ## Note that the storage needed grows linearly with this: 90d of metrics needs
-    ## roughly three times the vmstorage PVC that storageSize below defaults to.
-    ## See docs/SIZING.md.
-    retentionPeriod: "90d"
+    # retentionPeriod comes from the top-level dataRetentionDays, so that metrics and Query
+    # Analytics keep data for the same period. Setting it here would let the two drift, so
+    # the chart rejects it.
     ## @param victoriaMetrics.vmstorage.resources Resource requests and limits for vmstorage
     ## Memory tracks ACTIVE SERIES, not ingest rate. VictoriaMetrics sizes its caches
     ## from the cgroup limit, so a very wide request/limit gap invites node
