@@ -932,6 +932,14 @@ tls:
   forceRegenerate: 0
 
 ## @section PostgreSQL operator (pg-db) configuration
+## @param pgDbPmmSidecarPatched Acknowledge that the PMM sidecar's security context is handed to the operator by hand
+## In a namespace enforcing the "restricted" Pod Security Standard the chart refuses to render
+## while pg-db.pmm.enabled is true: the operator adds the sidecar without a security context,
+## the PostgreSQL pods are then refused, and PMM Server loses its database. Set this to true
+## only together with the kubectl patch in the README ("PMM sidecar in the PostgreSQL pods").
+##
+pgDbPmmSidecarPatched: false
+
 ## @param pg-db Configuration values passed to the pg-db dependency chart
 ##
 pg-db:

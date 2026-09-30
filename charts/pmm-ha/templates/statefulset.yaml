@@ -1,6 +1,7 @@
 {{- include "pmm.nodeExporter.validate" . -}}
 {{- include "pmm.dataRetention.validate" . -}}
 {{- include "pmm.openshift.validate" . -}}
+{{- include "pmm.podSecurity.validate" . -}}
 {{- include "pmm.haproxy.validate" . -}}
 {{- include "pmm.validateSecret" . -}}
 {{- include "pmm.vm.validateCredential" . -}}

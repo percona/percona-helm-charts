@@ -568,6 +568,8 @@ to change on OpenShift.
 | `jobs.securityContext`                  | Helper Job containers                                                                                               | `allowPrivilegeEscalation: false`, drop `ALL`, `readOnlyRootFilesystem: true`           |
 | `kubectl.image.repository`              | kubectl image used by the helper Jobs                                                                               | `alpine/kubectl`                                                                        |
 | `kubectl.image.tag`                     | Pinned tag of that image                                                                                            | `1.35.0`                                                                                |
+| `victoriaMetrics.vmagent.rbac.create`  | Give vmagent its own ServiceAccount and the RBAC its scrape jobs need; with `false` the operator creates them and kubelet/cAdvisor scraping gets 403 | `true` |
+| `pgDbPmmSidecarPatched`                 | Acknowledge the manual security-context patch for the PostgreSQL PMM sidecar, which lets the chart install into a `restricted` namespace (see [Pod security](#pod-security)) | `false` |
 
 ### Node exporter source parameters
 
@@ -955,9 +957,11 @@ sidecar to the PostgreSQL pods once the `pmm-token-init` Job has created its tok
 it without a security context. In a `restricted` namespace that pod is then rejected, and
 PostgreSQL - PMM Server's own database - stays down. The operator accepts
 `spec.pmm.containerSecurityContext` for this, and `pg-db.pmm.containerSecurityContext` holds the
-right values, but pg-db 3.1.0 does not pass them through yet. Until it does, in a `restricted`
-namespace either set `pg-db.pmm.enabled=false` (PMM then does not monitor its own database) or
-hand the values to the operator directly after installing:
+right values, but pg-db 3.1.0 does not pass them through yet. The chart therefore refuses to
+install or upgrade into a namespace labelled `pod-security.kubernetes.io/enforce=restricted`
+while `pg-db.pmm.enabled` is true. Either set `pg-db.pmm.enabled=false` (PMM then does not
+monitor its own database), or set `pgDbPmmSidecarPatched=true` and hand the values to the
+operator directly after installing:
 
 ```bash
 kubectl -n <namespace> patch perconapgcluster <release>-pg-db --type merge -p \

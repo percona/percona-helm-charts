@@ -566,6 +566,31 @@ clearing those keys is an escape hatch for anyone running with anyuid.
 {{- end -}}
 
 {{/*
+Fail-fast validation for a namespace that enforces the "restricted" Pod Security Standard.
+
+The Percona PostgreSQL Operator adds the pmm-client sidecar to the PostgreSQL pods only once the
+pmm-token-init Job has created its token, and renders it without a security context (pg-db 3.1.0
+does not pass pg-db.pmm.containerSecurityContext through). The pods that run at install time are
+admitted; the pod the operator re-creates with the sidecar is refused, and PostgreSQL - PMM
+Server's own database - stays down while Helm reports STATUS: deployed. Failing the render is
+the only point at which the user still sees it.
+
+The namespace is read with `lookup`, so an offline render (helm template, CI) never trips this.
+OpenShift is exempt: restricted-v2 fills in the sidecar's security context before PodSecurity
+admission sees the pod. pgDbPmmSidecarPatched acknowledges that the security context has been
+handed to the operator by hand (README, "PMM sidecar in the PostgreSQL pods").
+*/}}
+{{- define "pmm.podSecurity.validate" -}}
+{{- if and (index .Values "pg-db" "pmm" "enabled") (not .Values.openshift) (not .Values.pgDbPmmSidecarPatched) -}}
+{{- $ns := lookup "v1" "Namespace" "" .Release.Namespace -}}
+{{- $enforce := dig "metadata" "labels" "pod-security.kubernetes.io/enforce" "" ($ns | default dict) -}}
+{{- if eq $enforce "restricted" -}}
+{{- fail (printf "Namespace '%s' enforces the \"restricted\" Pod Security Standard, and pg-db.pmm.enabled=true. The PostgreSQL Operator adds the PMM sidecar to the PostgreSQL pods without a security context once PMM is up, so those pods are then refused and PMM Server loses its database while Helm still reports success.\n\nEither set pg-db.pmm.enabled=false (PMM then does not monitor its own database), or set pgDbPmmSidecarPatched=true and hand the security context to the operator right after installing:\n\n  kubectl -n %s patch perconapgcluster %s-pg-db --type merge -p '{\"spec\":{\"pmm\":{\"containerSecurityContext\":{\"runAsUser\":1002,\"runAsNonRoot\":true,\"allowPrivilegeEscalation\":false,\"capabilities\":{\"drop\":[\"ALL\"]},\"seccompProfile\":{\"type\":\"RuntimeDefault\"}}}}}'\n\nSee \"PMM sidecar in the PostgreSQL pods\" in the chart README." .Release.Namespace .Release.Namespace .Release.Name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Fail-fast validation for the ClickHouse Keeper node count.
 Called from statefulset.yaml alongside the other value checks, for the same ordering
 reason described above.
