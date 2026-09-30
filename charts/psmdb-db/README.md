@@ -395,7 +395,7 @@ The chart can be customized using the following configurable parameters:
 | `systemUsers`                                      | PSMDB operator system users                                                   | `{}`                             |
 | `logcollector.enabled`                             | Enable or disable the log collector sidecar container                         | `true`                           |
 | `logcollector.image.repository`                    | Container image repository for the log collector (Fluent Bit)                 | `percona/fluentbit`              |
-| `logcollector.image.tag`                           | Image tag for the log collector                                               | `5.1.1-1`                        |
+| `logcollector.image.tag`                           | Image tag for the log collector                                               | `5.1.2-1`                        |
 | `logcollector.env`                                 | Custom environment variables for Log Collector Pods                           | `[]`                             |
 | `logcollector.envFrom`                             | Custom environment variable sources (ConfigMaps/Secrets) for Log Collector    | `[]`                             |
 | `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
