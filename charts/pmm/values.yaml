@@ -118,8 +118,10 @@ encryptionKey:
   ## default, that is the namespace's `default` service account; set `serviceAccount.create` to
   ## true to scope the grant to a service account used only by PMM. That account's token is
   ## mounted into the init container that manages the secret even where token automount is
-  ## turned off; the PMM container itself only gets one when automount is on. Set this to false
-  ## to keep the key on the data volume only.
+  ## turned off; the PMM container itself only gets one when automount is on. The key has to be
+  ## on the data volume, so rendering fails when `pmmEnv.PMM_ENCRYPTION_KEY_PATH` or
+  ## `extraVolumeMounts` put it anywhere else. Set this to false to keep the key on the data
+  ## volume only, or to keep it elsewhere.
   ##
   backupToSecret: true
   ## @param encryptionKey.secretName Name of the secret holding the copy of the encryption key. Defaults to `<fullname>-encryption-key`.

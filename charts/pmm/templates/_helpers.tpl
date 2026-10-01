@@ -132,10 +132,22 @@ Name of the secret holding a copy of the PMM encryption key.
 {{- end }}
 
 {{/*
-Path of the PMM encryption key on the data volume, as PMM itself resolves it.
+Path of the PMM encryption key on the data volume, as PMM itself resolves it. Fails when the key
+is anywhere else, since the init containers that back it up mount nothing but the data volume.
 */}}
 {{- define "pmm.encryptionKeyPath" -}}
-{{- default "/srv/pmm-encryption.key" (dig "PMM_ENCRYPTION_KEY_PATH" "" (.Values.pmmEnv | default dict)) }}
+{{- $path := clean (default "/srv/pmm-encryption.key" (dig "PMM_ENCRYPTION_KEY_PATH" "" (.Values.pmmEnv | default dict))) }}
+{{- $onDataVolume := hasPrefix "/srv/" $path }}
+{{- range .Values.extraVolumeMounts }}
+{{- $mountPath := clean .mountPath }}
+{{- if or (eq $path $mountPath) (hasPrefix (printf "%s/" $mountPath) $path) }}
+{{- $onDataVolume = false }}
+{{- end }}
+{{- end }}
+{{- if not $onDataVolume }}
+{{- fail (printf "encryptionKey.backupToSecret needs the PMM encryption key on the data volume, but %s is not on it; set encryptionKey.backupToSecret to false" $path) }}
+{{- end }}
+{{- $path }}
 {{- end }}
 
 {{/*
