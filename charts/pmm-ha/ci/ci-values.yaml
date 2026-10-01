@@ -1,6 +1,10 @@
 # CI-specific values for GitHub Actions testing
 # Minimal resource requirements to fit in Kind cluster
 
+# Shortest useful period for a throwaway cluster, which is what the vmstorage
+# retentionPeriod of "1d" used to set before the chart derived both from one value.
+dataRetentionDays: 1
+
 storage:
   size: 5Gi
 
@@ -140,7 +144,6 @@ victoriaMetrics:
 
   vmstorage:
     replicaCount: 3
-    retentionPeriod: "1d"
     resources:
       requests:
         memory: "256Mi"

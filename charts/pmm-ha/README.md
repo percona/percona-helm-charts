@@ -52,11 +52,10 @@ The chart's resource defaults target roughly **100 monitored nodes** and need
 about 17 CPU, 40Gi of memory and 465Gi of storage in requests — three workers of
 8 vCPU / 32Gi.
 
-Retention is the single largest lever on the footprint. Metrics and Query
-Analytics are retained separately — `victoriaMetrics.vmstorage.retentionPeriod`
-(90 days) and PMM's own setting (30 days) — and the optional `dataRetentionDays`
-drives both from one value. Note that the default 50Gi vmstorage volume holds
-roughly 30 days at 100 nodes, not 90.
+Retention is the single largest lever on the footprint. `dataRetentionDays`
+(30 days by default) sets it for metrics and Query Analytics alike, see
+[Data retention](#data-retention). The default 50Gi vmstorage volume holds
+roughly those 30 days at 100 nodes, so longer retention needs a larger volume.
 
 For larger fleets:
 
@@ -295,17 +294,21 @@ PMM HA provides the following service endpoints for clients to connect:
 
 | Service | Description | Port |
 |---------|-------------|------|
-| `pmm-ha-haproxy` | **Recommended** - HAProxy load balancer that routes to the active PMM leader | 443 (HTTPS) |
+| `pmm-ha-haproxy` | **Recommended** - HAProxy load balancer that routes to the active PMM leader | `haproxy.containerPorts.https`, 443 by default (HTTPS) |
 | `monitoring-service` | Headless service for direct PMM pod access (used internally) | 8443 (HTTPS) |
 
 **For all external clients and Percona Operators, use `pmm-ha-haproxy` as the PMM server endpoint.**
+
+The HAProxy port is not fixed: the Service publishes whatever `haproxy.containerPorts.https` is
+set to, and the OpenShift overlay moves it to 8443 because `restricted-v2` cannot bind below 1024.
+Substitute that port for 443 everywhere below if you changed it.
 
 ### Connecting PMM Clients
 
 To connect a PMM client to the HA cluster:
 
 ```sh
-# From within the Kubernetes cluster
+# From within the Kubernetes cluster (use 8443 instead of 443 on OpenShift)
 pmm-admin config --server-url=https://admin:<password>@pmm-ha-haproxy:443 --server-insecure-tls
 
 # Or using the service token (recommended for automation)
@@ -402,10 +405,19 @@ Consequences:
 | `image.tag`                          | PMM image tag (immutable tags are recommended)                                                                                                                                                                                                | `3.9.1`             |
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
+| `dataRetentionDays`                  | Data retention in whole days, applied to metrics and Query Analytics alike. The only way to set retention in HA. See [Data retention](#data-retention)                                                                                         | `30`                 |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{}`                 |
 | `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `1`                  |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |
 | `readyProbeConf.failureThreshold`    | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                                                               | `6`                  |
+| `startupProbeConf.initialDelaySeconds` | Number of seconds after the container has started before startup probes is initiated                                                                                                                                                          | `10`                 |
+| `startupProbeConf.periodSeconds`     | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `10`                 |
+| `startupProbeConf.failureThreshold`  | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                                                               | `90`                 |
+| `startupProbeConf.timeoutSeconds`    | Number of seconds after which the probe times out                                                                                                                                                                                             | `10`                 |
+| `livenessProbeConf.initialDelaySeconds` | Number of seconds after the container has started before liveness probes is initiated                                                                                                                                                         | `0`                  |
+| `livenessProbeConf.periodSeconds`    | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `10`                 |
+| `livenessProbeConf.failureThreshold` | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                                                               | `6`                  |
+| `livenessProbeConf.timeoutSeconds`   | Number of seconds after which the probe times out                                                                                                                                                                                             | `10`                 |
 
 
 ### PMM Client
@@ -413,6 +425,7 @@ Consequences:
 | Name                                 | Description                                                      | Value                                                                                          |
 | ------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `pmmClient.replicas`                 | Number of PMM Client pods carrying the delegated monitoring      | `3`                                                                                            |
+| `pmmClient.fsGroup`                  | Group that owns the PMM Client data volume. Ignored when `openshift` is `true` | `1002`                                                                                         |
 | `pmmClient.image.repository`         | PMM Client image repository                                      | `percona/pmm-client`                                                                           |
 | `pmmClient.image.pullPolicy`         | PMM Client image pull policy                                     | `IfNotPresent`                                                                                 |
 | `pmmClient.image.tag`                | PMM Client image tag, defaults to the chart appVersion           | `3.9.1`                                                                                        |
@@ -465,6 +478,7 @@ Consequences:
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------- |
 | `haproxy.service.type`        | Service type for HAProxy: ClusterIP (internal), LoadBalancer (external via LB), or NodePort (external via node) | `ClusterIP` |
 | `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
+| `haproxy.containerPorts.https` | Port HAProxy binds for PMM traffic; the Service publishes the same port. Must be above 1024 on OpenShift        | `443`       |
 
 
 ### Data-plane version pins
@@ -513,7 +527,8 @@ Two things to know before changing these:
 | `serviceAccount.annotations` | Annotations for service account. Evaluated as a template. Only used if `create` is `true`.                          | `{}`                  |
 | `serviceAccount.name`        | Name of the service account to use. If not set and create is true, a name is generated using the fullname template. | `pmm-service-account` |
 | `podAnnotations`             | Pod annotations                                                                                                     | `{}`                  |
-| `podSecurityContext`         | Configure Pods Security Context                                                                                     | `{}`                  |
+| `podSecurityContext`         | Configure Pods Security Context. `runAsUser`/`runAsGroup`/`fsGroup` are dropped when `openshift` is `true`          | `{runAsUser: 1000, fsGroup: 1000}` |
+| `openshift`                  | Set to `true` on OpenShift so the cluster assigns the uid/fsGroup. Requires the rest of `examples/values-openshift.yaml` | `false`               |
 | `securityContext`            | Configure Container Security Context                                                                                | `{}`                  |
 | `nodeSelector`               | Node labels for pod assignment                                                                                      | `{}`                  |
 | `tolerations`                | Tolerations for pod assignment                                                                                      | `[]`                  |
@@ -766,6 +781,34 @@ helm upgrade pmm-ha -f values.yaml --namespace pmm percona/pmm-ha
 
 This will check updates in the repo and upgrade deployment if the updates are available. The rolling update strategy ensures zero-downtime upgrades.
 
+### Data retention
+
+Set retention with the top-level `dataRetentionDays`, in whole days:
+
+```yaml
+dataRetentionDays: 30
+```
+
+The chart renders this one value into two places, so both stores keep data for the same period: `PMM_DATA_RETENTION` on every PMM replica, which governs Query Analytics data in ClickHouse, and `retentionPeriod` on the `VMCluster` resource, which governs metrics. Setting either directly, through `pmmEnv.PMM_DATA_RETENTION` or `victoriaMetrics.vmstorage.retentionPeriod`, is rejected at render time.
+
+Retention cannot be changed from the PMM UI in HA. For how to change it, how to check the period a replica is using, and what shortening it does to existing data, see [Adjust data retention](https://docs.percona.com/percona-monitoring-and-management/3/install-pmm/install-HA-clustered.html#adjust-data-retention-and-other-settings) in the PMM documentation.
+
+> **Upgrade note (from a Technical Preview installation)**
+>
+> `dataRetentionDays` now always sets retention for both stores, and it defaults to `30`.
+> Technical Preview versions kept metrics for `90d` by default, through
+> `victoriaMetrics.vmstorage.retentionPeriod`, and left Query Analytics retention to the
+> PMM UI. A shorter period takes effect in the same `helm upgrade` and deletes older data,
+> which cannot be recovered. Before upgrading, check the periods the release is using:
+>
+> - Metrics: `kubectl get vmcluster -n <namespace> -o jsonpath='{.items[*].spec.retentionPeriod}'`
+> - Query Analytics: **Data retention** under *PMM Configuration > Settings > Advanced Settings*
+>
+> Then set `dataRetentionDays` to the period you want to keep, for example `90` to keep the
+> earlier metrics default. If the two periods differ, the shorter store gains data over time
+> and needs more storage, see [docs/SIZING.md](docs/SIZING.md). Remove
+> `victoriaMetrics.vmstorage.retentionPeriod` from your values, which the chart now rejects.
+
 ### [PMM environment variables](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/docker.html#environment-variables)
 
 In case you want to add extra environment variables (useful for advanced operations like custom init scripts), you can use the `pmmEnv` property.
@@ -773,8 +816,9 @@ In case you want to add extra environment variables (useful for advanced operati
 ```yaml
 pmmEnv:
   PMM_ENABLE_UPDATES: "0"
-  PMM_DATA_RETENTION: "2160h" # 90 days
 ```
+
+Variables that the chart derives from other values, such as `PMM_DATA_RETENTION`, `PMM_VM_URL` and `PMM_CLICKHOUSE_ADDR`, are set on the container directly and cannot be overridden through `pmmEnv`.
 
 ### Kubernetes cluster metrics
 
@@ -803,6 +847,36 @@ victoriaMetrics:
     extraArgs:
       maxLabelsPerTimeseries: "60"
 ```
+
+### Installing on OpenShift
+
+OpenShift's `restricted-v2` SCC gives every namespace its own uid and supplemental-group ranges
+and rejects any pod asking for values outside them, and it runs containers without
+`NET_BIND_SERVICE`. Install with the bundled overlay, which covers all of it:
+
+```bash
+helm install pmm-ha percona/pmm-ha -n pmm -f examples/values-openshift.yaml
+```
+
+It sets `openshift: true` (PMM Server and PMM Client let the cluster assign uid and fsGroup),
+disables the bundled node-exporter in favour of OpenShift's, turns off the kube-state-metrics
+securityContext, moves the HAProxy port to 8443, and points the bundled PostgreSQL cluster's PMM
+sidecar at that port.
+
+`openshift: true` governs the PMM Server and PMM Client pod securityContexts only. Setting it on
+its own is refused: the chart fails to render unless `nodeExporter.mode`, the kube-state-metrics
+securityContext and `haproxy.containerPorts.https` are set with it. Left at their defaults those
+three would be rejected at admission or crash-loop while Helm still reported `STATUS: deployed` -
+a green install with no metrics and no reachable UI.
+
+`haproxy.containerPorts.https` is also checked on plain Kubernetes: the HAProxy Service publishes
+whatever the container binds, and `pg-db.pmm.serverHost` is the one consumer the chart cannot
+rewrite, because the PostgreSQL operator copies it verbatim into `PMM_AGENT_SERVER_ADDRESS`.
+Move the port and the chart requires the port in `serverHost` too.
+
+To reach PMM from outside the cluster, create an OpenShift Route pointing at the `pmm-ha-haproxy`
+Service. Do not use the chart's own `ingress.enabled` for this - it targets `monitoring-service`
+and bypasses HAProxy, which pins you to a single PMM pod with no leader routing.
 
 ### Using OpenShift's node exporter
 
@@ -863,7 +937,8 @@ After deployment, get the external endpoint:
 kubectl get svc -n pmm -l app.kubernetes.io/name=haproxy
 ```
 
-The `EXTERNAL-IP` column shows the public access point. Connect via `https://<EXTERNAL-IP>:443`.
+The `EXTERNAL-IP` column shows the public access point. Connect via `https://<EXTERNAL-IP>:443`,
+or on the port `haproxy.containerPorts.https` is set to (8443 under the OpenShift overlay).
 
 #### Using NodePort (For bare-metal or when LoadBalancer is unavailable)
 
@@ -962,38 +1037,43 @@ PMM replicas.
 
 These constraints are covered under [Known Limitations](#known-limitations).
 
-> **Upgrade note (chart 1.7.0)**
->
-> An even `replicas` (`2` or `4`) was previously accepted and now fails the render.
-> Set an odd value in the same `helm upgrade`. That changes `PMM_HA_PEERS`, so it
-> recreates every PMM pod.
->
-> `clickhouse.keeper.replicasCount` is now capped at `9` as well as required to be odd.
-> Anything higher was previously accepted and now fails the render.
-
 #### Scaling PMM HA
+
+`helm upgrade` with `--set` and no values flag rebuilds the release from the chart
+defaults plus that one `--set`, so every other value set at install time is reverted:
+a `LoadBalancer` service goes back to `ClusterIP`, and scaling HAProxy resets
+`replicas` to `3`. The commands below pass `--reuse-values` to keep them; with a
+values file, change the count there and pass `-f values.yaml` instead. They also pin
+`--version` to the chart already running (the `CHART` column of
+`helm list --namespace pmm`), because `percona/pmm-ha` alone resolves to the newest
+chart in the repository and scaling would upgrade the chart too.
 
 To scale the PMM HA deployment:
 
 ```sh
 # Scale PMM server replicas (odd values only)
-helm upgrade pmm-ha --set replicas=5 --namespace pmm percona/pmm-ha
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
+  --set replicas=5
 
 # Scale HAProxy replicas
 # HAProxy replicas beyond the worker-node count are co-located rather than left
 # Pending, so they add throughput but not an extra failure domain.
-helm upgrade pmm-ha --set haproxy.replicaCount=5 --namespace pmm percona/pmm-ha
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
+  --set haproxy.replicaCount=5
 
 # Scale ClickHouse replicas
-helm upgrade pmm-ha --set clickhouse.cluster.replicas=5 --namespace pmm percona/pmm-ha
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
+  --set clickhouse.cluster.replicas=5
 
 # Scale VictoriaMetrics components
-helm upgrade pmm-ha \
+helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+  --version <chart-version> --reuse-values \
   --set victoriaMetrics.vmselect.replicaCount=3 \
   --set victoriaMetrics.vminsert.replicaCount=3 \
-  --set victoriaMetrics.vmstorage.replicaCount=5 \
-  --namespace pmm \
-  percona/pmm-ha
+  --set victoriaMetrics.vmstorage.replicaCount=5
 ```
 
 #### Monitoring PMM HA Health
@@ -1057,12 +1137,13 @@ Common troubleshooting steps for PMM HA:
   is DNS-based, so changing `replicas` needs no restart. Bump
   `haproxy.podAnnotations."pmm.percona.com/config-version"` in the same `helm upgrade`
   so the pods restart and pick up the new `server-template`. It has to be a value the
-  release is not already running - the chart ships `"4"`, so the examples below use `"5"`:
+  release is not already running - the chart ships `"5"`, so the examples below use `"6"`:
 
   ```sh
   helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
+    --version <chart-version> --reuse-values \
     --set maxReplicas=20 \
-    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=5'
+    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=6'
   ```
 
   Or in `values.yaml`:
@@ -1071,7 +1152,7 @@ Common troubleshooting steps for PMM HA:
   maxReplicas: 20
   haproxy:
     podAnnotations:
-      pmm.percona.com/config-version: "5"
+      pmm.percona.com/config-version: "6"
   ```
 
   Prefer this over `kubectl rollout restart`: the bump is part of the same declarative
@@ -1090,15 +1171,28 @@ Common troubleshooting steps for PMM HA:
 
 ### Scaling Down to Single Replica
 
-When scaling down to a single PMM replica, ensure the **Raft leader is on pmm-0** before scaling. Kubernetes StatefulSets remove pods in reverse ordinal order (highest first), so:
+When scaling down to a single PMM replica, ensure the **Raft leader is on pmm-ha-0** before scaling. Kubernetes StatefulSets remove pods in reverse ordinal order (highest first), so:
 
-- Scaling from 3→1 removes pmm-2 and pmm-1, keeping only pmm-0
-- If the Raft leader is on pmm-1 or pmm-2 when you scale down, **PMM will become unreachable**
+- Scaling from 3→1 removes pmm-ha-2 and pmm-ha-1, keeping only pmm-ha-0
+- If the Raft leader is on pmm-ha-1 or pmm-ha-2 when you scale down, **PMM can become unreachable**
 
-Only after confirming pmm-0 is the leader, scale down:
+Check which pod is the leader first. Only the leader answers `200`:
    ```sh
-   helm upgrade <release-name> percona/pmm-ha --namespace <namespace> --set replicas=1
+   for i in 0 1 2; do
+     printf 'pmm-ha-%s: ' "$i"
+     kubectl exec pmm-ha-$i -n pmm -c pmm-ha -- \
+       curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/v1/server/leaderHealthCheck
+   done
    ```
+
+Only after confirming pmm-ha-0 is the leader, scale down:
+   ```sh
+   helm upgrade <release-name> percona/pmm-ha --namespace <namespace> \
+     --version <chart-version> --reuse-values --set replicas=1
+   ```
+
+Even with the leader on pmm-ha-0, expect PMM to be unavailable for about a minute: the
+change to `PMM_HA_PEERS` also recreates pmm-ha-0, which is by then the only PMM server.
 
 # Need help?
 
