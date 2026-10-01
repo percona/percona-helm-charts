@@ -197,7 +197,7 @@ mysql:
     pvc:
       resources:
         requests:
-          storage: 3Gi
+          storage: 30Gi
     # emptyDir: {}
     # hostPath:
     #   path: /data
