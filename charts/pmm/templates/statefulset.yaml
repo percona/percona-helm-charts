@@ -223,6 +223,11 @@ spec:
               mountPath: /srv
             - name: encryption-key-workdir
               mountPath: /shared
+            # Mounted explicitly because hardened clusters turn off token automount for the
+            # default service account. Only this container gets it, not PMM itself.
+            - name: encryption-key-api-access
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
         {{- end }}
       {{- end }}
       containers:
@@ -314,6 +319,24 @@ spec:
         - name: encryption-key-workdir
           emptyDir:
             medium: Memory
+        # Not named kube-api-access-*, which Kubernetes would take for its own token volume and
+        # mount into every container.
+        - name: encryption-key-api-access
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: token
+                expirationSeconds: 600
+            - configMap:
+                name: kube-root-ca.crt
+                items:
+                  - key: ca.crt
+                    path: ca.crt
+            - downwardAPI:
+                items:
+                  - path: namespace
+                    fieldRef:
+                      fieldPath: metadata.namespace
       {{- end }}
       {{- if .Values.certs.name }}
         - name: {{ .Values.certs.name }}
