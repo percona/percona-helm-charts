@@ -721,6 +721,75 @@ pmm:
       cpu: 300m
     limits: {}
 
+logcollector:
+  enabled: true
+  image:
+    repository: perconalab/fluentbit
+    tag: main-logcollector
+  imagePullPolicy: Always
+  # Custom Fluent Bit configuration, merged into the log collector pipeline.
+  # Must be in Fluent Bit's YAML configuration format (the classic ".conf"
+  # format is not supported).
+  # configuration: |
+  #   pipeline:
+  #     filters:
+  #       - name: record_modifier
+  #         match: "*"
+  #         record:
+  #           - cluster_name cluster1
+  # env: []
+  # envFrom: []
+  # containerSecurityContext:
+  #   privileged: false
+  #   runAsGroup: 1001
+  #   runAsUser: 1001
+  # resources:
+  #   requests:
+  #     memory: 150M
+  #     cpu: 300m
+  #   limits:
+  #     memory: 200M
+  #     cpu: 350m
+  # readinessProbe:
+  #   initialDelaySeconds: 5
+  #   periodSeconds: 10
+  #   tcpSocket:
+  #     port: 2020
+  # livenessProbe:
+  #   initialDelaySeconds: 30
+  #   periodSeconds: 15
+  #   tcpSocket:
+  #     port: 2020
+  # volumeMounts: []
+  # volumes: []
+  # logRotate:
+  #   schedule: "0 0 * * *"
+  #   configuration: |
+  #     /var/lib/mysql/log/*.log {
+  #         daily
+  #         maxsize 100M
+  #         rotate 7
+  #         missingok
+  #         nocompress
+  #         notifempty
+  #         copytruncate
+  #         sharedscripts
+  #     }
+  #   extraConfig:
+  #     name: my-logrotate-config
+  #   readinessProbe:
+  #     exec:
+  #       command:
+  #         - /bin/true
+  #     initialDelaySeconds: 5
+  #     periodSeconds: 10
+  #   livenessProbe:
+  #     exec:
+  #       command:
+  #         - /bin/true
+  #     initialDelaySeconds: 30
+  #     periodSeconds: 15
+
 backup:
   enabled: true
   # initContainer:
