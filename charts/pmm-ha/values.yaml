@@ -547,7 +547,7 @@ openshift: false
 
 ## @param securityContext Configure Container Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
-## Applied to the PMM Server container and to its init containers. The defaults satisfy the
+## Applied to the PMM Server container, its init containers and the log-streamer sidecars. The defaults satisfy the
 ## "restricted" Pod Security Standard together with podSecurityContext above.
 ##
 ## readOnlyRootFilesystem is off because the PMM Server image still writes generated

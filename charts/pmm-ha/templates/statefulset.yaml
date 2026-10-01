@@ -441,7 +441,9 @@ spec:
         {{- range $index, $logFile := .Values.logStreamer.logFiles }}
         # Sidecar container to stream {{ $logFile }} to stdout
         - name: log-streamer-{{ $index }}
-          image: "{{ .Values.logStreamer.image.repository }}:{{ .Values.logStreamer.image.tag }}"
+          image: "{{ $.Values.logStreamer.image.repository }}:{{ $.Values.logStreamer.image.tag }}"
+          securityContext:
+            {{- toYaml $.Values.securityContext | nindent 12 }}
           command:
             - /bin/sh
             - -c
