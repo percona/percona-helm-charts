@@ -108,7 +108,8 @@ secret:
 ## keeps a copy of that key in a Kubernetes secret, so the credentials remain readable if the
 ## data volume is lost and PMM is pointed at an external PostgreSQL that survived.
 ## The key on the data volume is the one PMM encrypted with and always wins: the secret is used
-## to restore it when the volume has none, and is refreshed when the key has been rotated.
+## to restore it when the volume has none, and is refreshed at the next pod start after the key
+## has been rotated.
 ## ref: https://docs.percona.com/percona-monitoring-and-management/3/admin/security/data_encryption.html
 ##
 encryptionKey:
