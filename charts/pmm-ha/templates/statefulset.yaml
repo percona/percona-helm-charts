@@ -1,4 +1,11 @@
 {{- include "pmm.nodeExporter.validate" . -}}
+{{- include "pmm.dataRetention.validate" . -}}
+{{- include "pmm.openshift.validate" . -}}
+{{- include "pmm.haproxy.validate" . -}}
+{{- include "pmm.validateSecret" . -}}
+{{- include "pmm.vm.validateCredential" . -}}
+{{- include "pmm.replicas.validate" . -}}
+{{- include "pmm.keeper.validate" . -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -27,8 +34,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- include "pmm.podSecurityContext" . | nindent 6 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -133,6 +139,36 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
+        # Hold the PMM container until PostgreSQL accepts connections, so a slow database does
+        # not eat into the startup probe budget. pg_isready is in the PMM Server image, off PATH.
+        # -U is required under an arbitrary UID with no passwd entry (OpenShift): without it
+        # pg_isready makes no attempt (exit 3). It only pings, so the user need not exist.
+        - name: wait-for-pg
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              pg_isready="$(dirname "$(readlink -f "$(command -v psql)")")/pg_isready"
+              test -x "$pg_isready" || { echo "pg_isready not found at $pg_isready"; exit 1; }
+              echo "Waiting for PostgreSQL at ${PMM_POSTGRES_ADDR}..."
+              until "$pg_isready" -q -t 5 -U pmm -h "${PMM_POSTGRES_ADDR%:*}" -p "${PMM_POSTGRES_ADDR##*:}"; do
+                [ $? -ne 3 ] || { echo "pg_isready made no connection attempt (invalid connection parameters)"; exit 1; }
+                echo "PostgreSQL is not accepting connections yet, retrying in 5s..."
+                sleep 5
+              done
+              echo "PostgreSQL is accepting connections"
+          env:
+            - name: PMM_POSTGRES_ADDR
+              value: {{ include "pmm.postgres.addr" . | quote }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
       containers:
         - name: {{ .Chart.Name }}
 
@@ -168,6 +204,35 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: PMM_HA_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{/*
+            Grafana reads the admin password from GF_SECURITY_ADMIN_PASSWORD, but the secret
+            stores it under PMM_ADMIN_PASSWORD. With a user-created secret (secret.create: false,
+            the documented default) the envFrom secretRef above injects that secret's keys
+            verbatim and cannot rename one, so the mapping has to be emitted here; with
+            secret.create there is no envFrom secretRef at all and this is the only source.
+            Either way it must not be gated on secret.create - that gate is what caused
+            PMM-15400, leaving PMM on its built-in admin password. charts/pmm guards the same
+            env on secret.name.
+
+            Where envFrom does apply, env wins over it, so a GF_SECURITY_ADMIN_PASSWORD key also
+            placed in the secret is overridden - PMM_ADMIN_PASSWORD is the single source of truth.
+
+            Required, not optional: pmm.validateSecret refuses to render without the key, so an
+            optional ref would only serve to let a key deleted after install silently drop the
+            env var again. Note charts/pmm still uses optional: true for its copy of this ref.
+            */}}
+            {{ if .Values.secret.name }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_ADMIN_PASSWORD
+                  optional: false
+            {{ end }}
             {{ if .Values.secret.create }}
             # additional secrets that could be used for Grafana iDP
             - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
@@ -182,12 +247,6 @@ spec:
                   name: {{ .Values.secret.name }}
                   key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
                   optional: true
-            - name: GF_SECURITY_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secret.name }}
-                  key: PMM_ADMIN_PASSWORD
-                  optional: true
             {{ end }}
             - name: PMM_POSTGRES_USERNAME
               value: {{ index .Values "pg-db" "pmmUserName" | quote }}
@@ -199,7 +258,7 @@ spec:
             - name: GF_DATABASE_TYPE
               value: "postgres"
             - name: GF_DATABASE_HOST
-              value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
+              value: {{ include "pmm.postgres.addr" . | quote }}
             - name: GF_DATABASE_NAME
               value: "grafana"
             - name: GF_DATABASE_USER
@@ -209,16 +268,19 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: GF_PASSWORD
-            - name: VMAGENT_remoteWrite_basicAuth_username
+            # VictoriaMetrics (vmauth) credentials. Named PMM_HA_* on purpose: PMM Server reads them only
+            # through PMM_VM_URL below, and the PMM_HA_ prefix keeps them out of the VMAGENT_* passthrough
+            # that PMM forwards to every PMM Client's vmagent.
+            - name: PMM_HA_VM_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
-                  key: VMAGENT_remoteWrite_basicAuth_username
-            - name: VMAGENT_remoteWrite_basicAuth_password
+                  key: PMM_HA_VM_USERNAME
+            - name: PMM_HA_VM_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
-                  key: VMAGENT_remoteWrite_basicAuth_password
+                  key: PMM_HA_VM_PASSWORD
             - name: PMM_CLICKHOUSE_USER
               valueFrom:
                 secretKeyRef:
@@ -242,22 +304,72 @@ spec:
                   name: {{ include "pmm.clickhouse.datasourceSecretName" . }}
                   key: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
             - name: PMM_VM_URL
-              value: "http://$(VMAGENT_remoteWrite_basicAuth_username):$(VMAGENT_remoteWrite_basicAuth_password)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
+              value: "http://$(PMM_HA_VM_USERNAME):$(PMM_HA_VM_PASSWORD)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
             - name: PMM_CLICKHOUSE_ADDR
               value: "{{ include "pmm.fullname" . }}-clickhouse-sticky.{{ .Release.Namespace }}.svc.cluster.local:9000"
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
             - name: PMM_POSTGRES_ADDR
-              value: "{{ .Release.Name }}-pg-db-ha.{{ .Release.Namespace }}.svc.cluster.local:5432"
+              value: {{ include "pmm.postgres.addr" . | quote }}
             - name: PMM_HA_PEERS
               value: "{{ include "pmm.haPeers" . }}"
+            {{- if index .Values "pg-db" "pmm" "enabled" }}
+            # Let PMM know of dedicated nodes that must not be used for monitoring other services.
+            - name: PMM_INTERNAL_NODE_NAME_PREFIXES
+              value: "{{ .Release.Namespace }}-{{ include "pg-database.fullname" . }}-"
+            {{- end }}
             - name: PMM_CLICKHOUSE_NODES
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
             - name: PMM_ENCRYPTION_KEY_PATH
               value: /etc/secrets/key
+            # Derived from dataRetentionDays, and rendered on every replica unconditionally:
+            # PMM fixes retention when it starts, so a replica without this variable falls
+            # back to whatever period is already stored and warns that the chart should be
+            # supplying one. Declared here rather than in pmmEnv so it always wins over the
+            # ConfigMap.
+            - name: PMM_DATA_RETENTION
+              value: {{ include "pmm.dataRetention.pmm" . | quote }}
           ports:
             - name: https
               containerPort: 8443
+          # Both probes check Grafana through nginx rather than /v1/readyz, which also checks the
+          # shared ClickHouse. Restarting a replica moves Raft leadership off it. null drops a probe.
+          {{- with .Values.startupProbeConf }}
+          startupProbe:
+            httpGet:
+              path: /graph/api/health
+              port: https
+              scheme: HTTPS
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Grafana's health check depends on the shared PostgreSQL, so a failed check counts only
+          # while Grafana's database still answers SELECT 1; otherwise a restart would not help and
+          # would hit every replica at once. Bounded with coreutils timeout, not statement_timeout
+          # (pgbouncer rejects it). psql takes Grafana's TLS settings, so a certificate fault is not
+          # mistaken for a replica fault; disable is Grafana's own default. The script's output
+          # ends up in the kubelet event.
+          {{- with .Values.livenessProbeConf }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  curl -sf --max-time 3 -o /dev/null http://127.0.0.1:8080/graph/api/health && exit 0
+                  command -v psql >/dev/null || { echo "Grafana health check failed and psql is missing, so the fault cannot be attributed: restarting"; exit 1; }
+                  export PGSSLMODE="${GF_DATABASE_SSL_MODE:-disable}"
+                  [ -z "$GF_DATABASE_CA_CERT_PATH" ] || export PGSSLROOTCERT="$GF_DATABASE_CA_CERT_PATH"
+                  [ -z "$GF_DATABASE_CLIENT_CERT_PATH" ] || export PGSSLCERT="$GF_DATABASE_CLIENT_CERT_PATH"
+                  [ -z "$GF_DATABASE_CLIENT_KEY_PATH" ] || export PGSSLKEY="$GF_DATABASE_CLIENT_KEY_PATH"
+                  if PGCONNECT_TIMEOUT=3 PGPASSWORD="$GF_DATABASE_PASSWORD" timeout 5 \
+                       psql -w -h "${GF_DATABASE_HOST%:*}" -p "${GF_DATABASE_HOST##*:}" -U "$GF_DATABASE_USER" -d "$GF_DATABASE_NAME" -Atqc 'SELECT 1' >/dev/null 2>&1; then
+                    echo "Grafana health check failed while its database answers SELECT 1: replica fault, restarting"
+                    exit 1
+                  fi
+                  echo "Grafana health check failed and its database does not answer SELECT 1: database fault, not restarting"
+                  exit 0
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /v1/readyz

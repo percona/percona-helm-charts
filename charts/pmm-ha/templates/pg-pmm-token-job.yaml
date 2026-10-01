@@ -38,14 +38,60 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-pmm-token-init
+  name: {{ include "pmm.pgTokenJobName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
+    {{- include "pmm.pgTokenJob.labels" . | nindent 4 }}
 spec:
   ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
   backoffLimit: 10
+{{- include "pmm.pgTokenJobPodTemplate" . }}
+{{- end }}
+
+{{/*
+Common labels of the token-init Job: the PMM Server labels with the component swapped to
+pmm-token-init. The pod-spec hash in the Job's name moves whenever the template changes, so the
+name is not a stable handle; a component label is, and it is what the README tells people to
+select on.
+
+Derived from "pmm.labels" rather than spelled out, so the two cannot drift. It cannot simply
+append the component - "pmm.labels" already emits one, and a second would be a duplicate key in
+the same mapping - so the rendered line is substituted instead. "pmm.selectorLabels" emits
+exactly one "app.kubernetes.io/component: pmm-server" line, and it is the only place in the
+chart that emits it.
+*/}}
+{{- define "pmm.pgTokenJob.labels" -}}
+{{ include "pmm.labels" . | replace "app.kubernetes.io/component: pmm-server" "app.kubernetes.io/component: pmm-token-init" }}
+{{- end }}
+
+{{/*
+Pod template for the pg-db PMM token-init Job, kept as a named template so the Job name can
+carry a hash of it (see pmm.pgTokenJobName). A Job's spec.template is immutable and this Job
+is an ordinary release resource, not a helm.sh/hook, so a `helm upgrade` that changes the
+script or an env value would otherwise be rejected with "spec.template: field is immutable"
+for as long as the previous Job survives (ttlSecondsAfterFinished bounds that to 24h after
+it completed). Hashing the template into the name makes such a change a create-and-prune
+instead of a patch. A hook would be the other way out, but the readiness loop below is
+unbounded, and a post-install/post-upgrade hook that never returns would hang helm.
+
+Helm does not hand over between the old Job and the new one. `Client.Update` applies the whole
+target list first and only then prunes `original.Difference(target)`, with
+DeletePropagationBackground - so the new Job is scheduled while the old one is still running,
+and the old pod can outlive the pruned Job object. A prune that fails is logged and skipped,
+not raised, and a Job created by a revision that later failed is not in the next upgrade's diff
+at all (that diffs against the last *deployed* revision), so it is never pruned. The script
+below therefore assumes another token-init pod may be running alongside it, and settles that on
+the secret rather than on the Job.
+
+Indentation here is the final rendered indentation - the include is not re-indented, so the
+embedded shell script is untouched.
+*/}}
+{{- define "pmm.pgTokenJobPodTemplate" }}
   template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: pmm-token-init
     spec:
       serviceAccountName: {{ .Release.Name }}-pmm-token-generator
       restartPolicy: OnFailure
@@ -61,9 +107,9 @@ spec:
         - name: PMM_SERVICE_NAME
           value: "pmm-ha-haproxy"
         - name: PMM_PORT
-          value: "443"
+          value: "{{ include "pmm.haproxy.httpsPort" . }}"
         - name: SECRET_NAME
-          value: "{{ index .Values "pg-db" "pmm" "secret" | default "pg-pmm-secret" }}"
+          value: "{{ include "pmm.pgPmmSecretName" . }}"
         - name: SERVICE_ACCOUNT_NAME
           value: "pmm-pg-monitoring"
         - name: NAMESPACE
@@ -78,14 +124,33 @@ spec:
           
           echo "=== PMM Token Generator for PostgreSQL Monitoring ==="
           
-          # Check if secret already exists with a valid token
-          if kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
-            EXISTING_KEY=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o jsonpath='{.data.PMM_SERVER_TOKEN}' 2>/dev/null | base64 -d)
-            if [ -n "$EXISTING_KEY" ]; then
-              echo "Secret '$SECRET_NAME' already exists with PMM_SERVER_TOKEN. Skipping token creation."
-              exit 0
+          # The secret, not the Job, is the single source of truth for which token is live: more
+          # than one token-init pod can be running at once (see the template comment above), so
+          # every decision below is taken against the secret as it is read at that moment.
+          #
+          # One read sets all three values, because the write at the bottom sends the
+          # resourceVersion back as a precondition: it has to be the version the token was read
+          # from, or it guards nothing. SECRET_RV is empty when the secret does not exist, and
+          # SECRET_HAS_DATA distinguishes "no .data at all" from "data without our key" - the
+          # two need different JSON Patch operations.
+          read_secret() {
+            SECRET_RV=""
+            SECRET_TOKEN=""
+            SECRET_HAS_DATA=""
+            SECRET_READ=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" \
+              -o jsonpath='{.metadata.resourceVersion}{"\n"}{.data.PMM_SERVER_TOKEN}{"\n"}{.data}' \
+              2>/dev/null) || return 0
+            SECRET_RV=$(printf '%s\n' "$SECRET_READ" | sed -n 1p)
+            SECRET_B64=$(printf '%s\n' "$SECRET_READ" | sed -n 2p)
+            # Presence only - the third line is the whole .data map, token value included.
+            if [ -n "$(printf '%s\n' "$SECRET_READ" | sed -n 3p)" ]; then
+              SECRET_HAS_DATA=yes
             fi
-          fi
+            if [ -n "$SECRET_B64" ]; then
+              SECRET_TOKEN=$(printf '%s' "$SECRET_B64" | base64 -d 2>/dev/null) || SECRET_TOKEN=""
+            fi
+            return 0
+          }
           
           PMM_URL="https://${PMM_SERVICE_NAME}.${NAMESPACE}.svc.cluster.local:${PMM_PORT}"
           
@@ -114,6 +179,48 @@ spec:
             echo "PMM not ready yet (HTTP $HTTP_CODE). Waiting 10 seconds..."
             sleep 10
           done
+          
+          # A service account token is a REFERENCE to a row in PMM's Grafana database, not a
+          # value PMM is seeded from, so unlike PMM_ADMIN_PASSWORD it can go stale. This secret
+          # is created below with kubectl rather than by Helm, so `helm uninstall` leaves it
+          # behind: reusing the release name after a reinstall inherits a token the new Grafana
+          # database never issued. Accepting any non-empty token keeps that dead token forever,
+          # and every pmm-client sidecar in the bundled cluster then fails to register with
+          # "Auth method is not service account token" - silently, because PMM_AGENT_SIDECAR
+          # retries inside the entrypoint, so the container never restarts and the pod stays
+          # Ready. Validate it instead, and re-mint when it does not authenticate.
+          #
+          # This check has to run AFTER the readiness loop above: probing an unready PMM would
+          # fail and re-mint a token that was in fact fine. The readiness loop is necessary but
+          # not sufficient - it only proves /v1/readyz answered 200 once, through HAProxy, whose
+          # backend check is /v1/server/leaderHealthCheck; a leader change between the two
+          # requests, or a curl failure (%{http_code} reports "000", and the request never
+          # completed at all), lands here with nothing said about the token. So only 401/403
+          # count as "the token is dead". Anything else is inconclusive and the Job fails, which
+          # restartPolicy: OnFailure + backoffLimit retries; re-minting there would mint a
+          # second token while the PG pods keep the old one from secretKeyRef until they
+          # restart, and the superseded one is never revoked in Grafana.
+          # Reading the secret here doubles as the re-check this pod owes the wait above: the
+          # loop is unbounded, so another token-init pod may have finished while this one sat in
+          # it. STALE_TOKEN is what that read returned - empty, or a token this run is about to
+          # replace. SECRET_RV, from the same read, is the version it came from: the write at the
+          # bottom sends that back to require that nothing has changed the secret in between.
+          read_secret
+          STALE_TOKEN=$SECRET_TOKEN
+          if [ -n "$STALE_TOKEN" ]; then
+            TOKEN_CODE=$(curl -sk -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer ${STALE_TOKEN}" \
+              "${PMM_URL}/graph/api/user" 2>/dev/null) || true
+            if [ "$TOKEN_CODE" = "200" ]; then
+              echo "Secret '$SECRET_NAME' holds a token that authenticates (HTTP $TOKEN_CODE). Skipping token creation."
+              exit 0
+            fi
+            if [ "$TOKEN_CODE" != "401" ] && [ "$TOKEN_CODE" != "403" ]; then
+              echo "ERROR: could not validate the token in '$SECRET_NAME' (HTTP $TOKEN_CODE). Not re-minting on an inconclusive probe; failing so the Job retries."
+              exit 1
+            fi
+            echo "Secret '$SECRET_NAME' holds a token that does NOT authenticate (HTTP $TOKEN_CODE) - re-minting."
+          fi
           
           echo ""
           echo "=== Creating Service Account ==="
@@ -156,15 +263,22 @@ spec:
           echo "=== Creating Service Account Token ==="
           
           # Create token for the service account
-          TOKEN_NAME="pg-monitoring-token-$(date +%s)"
+          # Grafana requires the token name to be unique within the org, so a name at one-second
+          # resolution is not enough: two token-init pods that mint in the same second send the
+          # same name and the second one gets a 400 back, with no key in the response and
+          # nothing in the message to say why. The pod name is unique by construction and says
+          # which run minted a given token, which is what you want when auditing the service
+          # account.
+          TOKEN_NAME="pg-monitoring-token-$(hostname)-$(date +%s)"
           TOKEN_RESPONSE=$(curl -sk -X POST \
             -H "Content-Type: application/json" \
             -u "admin:${PMM_ADMIN_PASSWORD}" \
             -d "{\"name\":\"${TOKEN_NAME}\"}" \
             "${PMM_URL}/graph/api/serviceaccounts/${SA_UID}/tokens" 2>/dev/null)
           
-          # Extract the token key
+          # Extract the token key, and its id so this run can withdraw its own token below
           TOKEN_KEY=$(echo "$TOKEN_RESPONSE" | grep -o '"key":"[^"]*"' | cut -d'"' -f4)
+          TOKEN_ID=$(echo "$TOKEN_RESPONSE" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
           
           if [ -z "$TOKEN_KEY" ]; then
             echo "ERROR: Could not create service account token"
@@ -176,14 +290,112 @@ spec:
           echo ""
           echo "=== Creating Kubernetes Secret ==="
           
-          # Create or update the secret
-          kubectl create secret generic "$SECRET_NAME" \
-            --namespace="$NAMESPACE" \
-            --from-literal=PMM_SERVER_TOKEN="$TOKEN_KEY" \
-            --dry-run=client -o yaml | kubectl apply -f -
+          # Withdraw the token minted by THIS run. Only ever this run's own token: revoking every
+          # token on the service account would pull the rug out from under PostgreSQL pods that
+          # already have the live one mounted.
+          # Check the status code rather than curl's exit code: without -f curl exits 0 on any
+          # HTTP response, so a 503 from HAProxy while there is no healthy leader would leave
+          # the token live and log nothing. A transport failure reports "000" and warns too.
+          # The warning names the token, because PMM's service account page lists tokens by
+          # name, not by id.
+          revoke_own_token() {
+            if [ -n "$TOKEN_ID" ]; then
+              DEL_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -X DELETE \
+                -u "admin:${PMM_ADMIN_PASSWORD}" \
+                "${PMM_URL}/graph/api/serviceaccounts/${SA_UID}/tokens/${TOKEN_ID}" 2>/dev/null) || true
+              if [ "$DEL_CODE" != "200" ]; then
+                echo "WARNING: could not delete token '${TOKEN_NAME}' (id ${TOKEN_ID}, HTTP ${DEL_CODE}); remove it from PMM by hand"
+              fi
+            fi
+          }
+
+          # Conditional write: the JSON Patch carries a `test` on the resourceVersion the secret
+          # was last read at, so the API server rejects it unless the secret is still at that
+          # version. A patch rather than `kubectl replace` because replace is a whole-object PUT
+          # and would drop anything else the secret carries - other keys, labels, the
+          # last-applied annotation left by the `kubectl apply` this replaces.
+          patch_token() {
+            if [ -n "$SECRET_HAS_DATA" ]; then
+              PATCH_OP="{\"op\":\"add\",\"path\":\"/data/PMM_SERVER_TOKEN\",\"value\":\"$TOKEN_B64\"}"
+            else
+              PATCH_OP="{\"op\":\"add\",\"path\":\"/data\",\"value\":{\"PMM_SERVER_TOKEN\":\"$TOKEN_B64\"}}"
+            fi
+            PATCH_ERR=$(kubectl patch secret "$SECRET_NAME" -n "$NAMESPACE" --type=json \
+              -p "[{\"op\":\"test\",\"path\":\"/metadata/resourceVersion\",\"value\":\"$SECRET_RV\"},${PATCH_OP}]" \
+              2>&1 >/dev/null)
+          }
+
+          # Install the token. Two runs can reach this point having read the same secret at the
+          # same version, so the WRITE has to be what settles which one wins - a read followed by
+          # an unconditional write cannot tell "nobody else wrote" from "someone else is about to
+          # write too", and both would then apply, leaving one Admin token live in PMM and
+          # referenced by nothing. Both writes below are decided server-side:
+          #
+          #   - `kubectl create` when the secret does not exist: it fails if anything created it
+          #     first.
+          #   - a JSON Patch carrying a `test` on the resourceVersion the token was read at when
+          #     it does: of two runs holding the same resourceVersion, exactly one patch lands
+          #     and the other is rejected.
+          #
+          # A run whose write is rejected re-reads and looks at what is in the secret now. A
+          # token other than the one it set out to replace means another run installed one behind
+          # it: withdraw the token minted here and defer. Deferring without re-validating is
+          # deliberate - that run minted against a PMM it had just probed, and if it is wrong
+          # anyway the next Job run validates it and re-mints. Anything else (the secret still
+          # holds STALE_TOKEN, or was deleted outright) is a write this run should retry.
+          #
+          # No read-back after a write that landed: the only run that can overwrite a freshly
+          # installed token is one that read it, validated it and found it dead, which is the
+          # re-mint path doing its job rather than a lost race.
+          TOKEN_B64=$(printf '%s' "$TOKEN_KEY" | base64 | tr -d '\n')
+          INSTALLED=""
+          WRITE_ATTEMPT=0
+          while [ "$WRITE_ATTEMPT" -lt 5 ]; do
+            WRITE_ATTEMPT=$((WRITE_ATTEMPT + 1))
+
+            if [ -n "$SECRET_TOKEN" ] && [ "$SECRET_TOKEN" != "$STALE_TOKEN" ]; then
+              break
+            fi
+
+            if [ -z "$SECRET_RV" ]; then
+              if kubectl create secret generic "$SECRET_NAME" \
+                   --namespace="$NAMESPACE" \
+                   --from-literal=PMM_SERVER_TOKEN="$TOKEN_KEY" >/dev/null 2>&1; then
+                INSTALLED=yes
+                break
+              fi
+              echo "Secret '$SECRET_NAME' was created by another run - re-reading."
+            elif patch_token; then
+              INSTALLED=yes
+              break
+            else
+              # A rejected write is usually the race being settled, but it is also what an RBAC
+              # or validation problem looks like from here, and those do not resolve on a retry.
+              # Pass the server's own message through rather than asserting which one it was.
+              echo "Secret '$SECRET_NAME' did not accept a write at resourceVersion $SECRET_RV - re-reading. kubectl said: $PATCH_ERR"
+            fi
+
+            read_secret
+          done
+
+          if [ -n "$INSTALLED" ]; then
+            echo "Secret '$SECRET_NAME' holds the PMM_SERVER_TOKEN minted by this run"
+          elif [ -n "$SECRET_TOKEN" ] && [ "$SECRET_TOKEN" != "$STALE_TOKEN" ]; then
+            echo "Secret '$SECRET_NAME' already holds a token from another run - withdrawing this one."
+            revoke_own_token
+            echo "PostgreSQL pods keep the token already in the secret"
+            exit 0
+          else
+            # Out of attempts without landing a write and without another run's token to defer
+            # to. Withdraw the token minted here rather than leak it, and fail: restartPolicy
+            # OnFailure retries, and the next run re-validates whatever the secret holds by then.
+            echo "ERROR: could not install PMM_SERVER_TOKEN in '$SECRET_NAME' after $WRITE_ATTEMPT attempts. Withdrawing this run's token and failing so the Job retries."
+            revoke_own_token
+            exit 1
+          fi
           
           echo ""
           echo "=== Success ==="
-          echo "Secret '$SECRET_NAME' created with PMM_SERVER_TOKEN"
+          echo "Secret '$SECRET_NAME' holds PMM_SERVER_TOKEN"
           echo "PostgreSQL pods can now use this secret for PMM monitoring"
-{{- end }}
+{{- end -}}
