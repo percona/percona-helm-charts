@@ -755,6 +755,8 @@ backup:
 #      storageName: s3
 #      type: incremental
   # backoffLimit: 6
+  # startingDeadlineSeconds: 0
+  # suspendedDeadlineSeconds: 0
   imagePullPolicy: Always
   imagePullSecrets: []
   resources:

@@ -303,6 +303,8 @@ The chart can be customized using the following configurable parameters:
 | `backup.image.repository`                       | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
 | `backup.image.tag`                              | Backup Container image tag                                                                  | `8.4.0-6.1`                  |
 | `backup.backoffLimit`                           | The number of retries to make a backup                                                      | ``                           |
+| `backup.startingDeadlineSeconds`                | The maximum time in seconds for a backup to start                                           | `0`                          |
+| `backup.suspendedDeadlineSeconds`               | The maximum time in seconds for a backup to remain in a suspended state                     | `0`                          |
 | `backup.imagePullPolicy`                        | The policy used to update images                                                            | `Always`                     |
 | `backup.imagePullSecrets`                       | Backup Container pull secret                                                                | `[]`                         |
 | `backup.initContainer.image`                    | An alternative image for the initial Operator installation                                  | `""`                         |
