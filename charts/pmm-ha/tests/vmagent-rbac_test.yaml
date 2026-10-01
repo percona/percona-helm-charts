@@ -1,0 +1,112 @@
+# vmagent is the one chart component that reads the Kubernetes API: service discovery for every
+# scrape job, the kubelet/cAdvisor jobs through the apiserver proxy, and its config-reloader's
+# watch on the rendered config Secret. PMM Server's ServiceAccount has neither a token nor RBAC,
+# so vmagent must run under its own, and the operator creates no RBAC once a name is given.
+# templates/vmagent.yaml itself cannot be loaded here (its labels repeat app.kubernetes.io/component,
+# which helm unittest rejects); the VMAgent's serviceAccountName is checked by rendering in CI.
+suite: pmm-ha vmagent RBAC
+templates:
+  - templates/vmagent-rbac.yaml
+release:
+  name: smoke
+  namespace: monitoring
+tests:
+  - it: gives vmagent a ServiceAccount of its own, with a token
+    asserts:
+      - equal:
+          path: metadata.name
+          value: smoke-pmm-ha-vmagent
+        documentSelector: {path: kind, value: ServiceAccount}
+        template: templates/vmagent-rbac.yaml
+      - equal:
+          path: automountServiceAccountToken
+          value: true
+        documentSelector: {path: kind, value: ServiceAccount}
+        template: templates/vmagent-rbac.yaml
+
+  - it: grants the node access the kubelet and cAdvisor jobs need
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["nodes/proxy"]
+            verbs: ["get"]
+        documentSelector: {path: kind, value: ClusterRole}
+        template: templates/vmagent-rbac.yaml
+      - equal:
+          path: metadata.name
+          value: monitoring-smoke-pmm-ha-vmagent
+        documentSelector: {path: kind, value: ClusterRole}
+        template: templates/vmagent-rbac.yaml
+
+  - it: grants no cluster-wide access to Secrets or pods
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+          any: true
+        documentSelector: {path: kind, value: ClusterRole}
+        template: templates/vmagent-rbac.yaml
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["pods", "endpoints", "services"]
+          any: true
+        documentSelector: {path: kind, value: ClusterRole}
+        template: templates/vmagent-rbac.yaml
+
+  - it: limits the Secret access to the config the operator renders for this VMAgent
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            resourceNames: ["vmagent-smoke-pmm-ha-vmagent"]
+            verbs: ["get", "list", "watch"]
+        documentIndex: 3  # the release-namespace Role
+        template: templates/vmagent-rbac.yaml
+
+  - it: lets the kube-apiserver job discover the endpoints in default
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: default
+        documentIndex: 6  # the RoleBinding in default
+        template: templates/vmagent-rbac.yaml
+
+  - it: leaves the ServiceAccount and RBAC to the operator when rbac.create is false
+    set:
+      victoriaMetrics.vmagent.rbac.create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/vmagent-rbac.yaml
+
+  - it: lets the openshift-node-exporter job discover the platform exporter in openshift-monitoring
+    capabilities:
+      apiVersions:
+        - security.openshift.io/v1
+    values:
+      - ../examples/values-openshift.yaml
+    set:
+      secret.requireExisting: false
+    asserts:
+      - hasDocuments:
+          count: 9
+        template: templates/vmagent-rbac.yaml
+      - equal:
+          path: metadata.namespace
+          value: openshift-monitoring
+        documentIndex: 8  # the RoleBinding in openshift-monitoring
+        template: templates/vmagent-rbac.yaml
+
+  - it: renders no openshift-monitoring access in the internal node-exporter mode
+    asserts:
+      - hasDocuments:
+          count: 7
+        template: templates/vmagent-rbac.yaml

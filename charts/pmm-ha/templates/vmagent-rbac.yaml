@@ -1,0 +1,155 @@
+{{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmagent.enabled .Values.victoriaMetrics.vmagent.rbac.create -}}
+{{- $name := printf "%s-vmagent" (include "pmm.fullname" .) -}}
+{{- /* ClusterRoles and their bindings are cluster-wide, so the namespace keeps two releases of
+       the same name in different namespaces apart. */ -}}
+{{- $clusterName := printf "%s-%s" .Release.Namespace $name -}}
+# vmagent is the only chart component that reads the Kubernetes API: every job in its
+# inlineScrapeConfig finds targets through kubernetes_sd_configs, the kubelet and cAdvisor jobs
+# go through the apiserver proxy, and its config-reloader watches the config Secret the operator
+# renders. With a ServiceAccount named in the VMAgent the operator creates no RBAC, so it is all
+# here, scoped to what those jobs use.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+automountServiceAccountToken: true
+---
+# Node discovery (role: node) and the kubelet/cAdvisor jobs, which read
+# /api/v1/nodes/<node>/proxy/metrics[/cadvisor]; plus the apiserver's own /metrics.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $clusterName }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["nodes/proxy"]
+  verbs: ["get"]
+- nonResourceURLs: ["/metrics"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $clusterName }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $clusterName }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+---
+# The endpoints and pod jobs discover only the release namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["pods", "endpoints", "services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "list", "watch"]
+# The config-reloader sidecar watches the Secret the operator renders the scrape config into
+# ("vmagent-" + the VMAgent name).
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["vmagent-{{ $name }}"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+---
+# The kube-apiserver job discovers the `kubernetes` Service's endpoints, which live in `default`.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $clusterName }}-apiserver
+  namespace: default
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["endpoints", "services", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $clusterName }}-apiserver
+  namespace: default
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $clusterName }}-apiserver
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+{{- if eq (include "pmm.nodeExporter.mode" .) "openshift" }}
+---
+# nodeExporter.mode=openshift: the openshift-node-exporter job discovers the platform exporter's
+# endpoints in openshift-monitoring. Its kube-rbac-proxy then authorizes the scrape against the
+# nonResourceURL /metrics granted by the ClusterRole above.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $clusterName }}-node-exporter
+  namespace: openshift-monitoring
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["endpoints", "services", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $clusterName }}-node-exporter
+  namespace: openshift-monitoring
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $clusterName }}-node-exporter
+subjects:
+- kind: ServiceAccount
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

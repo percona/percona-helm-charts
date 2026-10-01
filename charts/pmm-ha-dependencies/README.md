@@ -123,6 +123,22 @@ pg-operator:
 > one-entry watch list scopes it to that namespace *only* and breaks the primary install.
 > See the inline notes in `values.yaml`.
 
+### Pod security
+
+The Altinity and VictoriaMetrics operators run with a security context that meets the
+`restricted` [Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/):
+non-root, no privilege escalation, all capabilities dropped, RuntimeDefault seccomp profile and
+a read-only root filesystem. The upstream `pg-operator` chart hardcodes its container security
+context and sets no seccomp profile, which `restricted` requires, so the namespace this chart
+is installed in can enforce `baseline` but not `restricted`. Keep the operators in a namespace
+of their own and enforce `restricted` on the PMM namespace instead - see
+[Pod security](../pmm-ha/README.md#pod-security) in the pmm-ha chart.
+
+On OpenShift the `restricted-v2` SCC assigns user ids from the project's range and rejects the
+ones these values pin for plain Kubernetes (65534 for the Altinity operator, 1000 for the
+VictoriaMetrics operator). Install with
+[`examples/values-openshift.yaml`](examples/values-openshift.yaml), which unsets them.
+
 ## Multi-namespace support
 
 Both the ClickHouse and PostgreSQL operators default to watching **all** namespaces
