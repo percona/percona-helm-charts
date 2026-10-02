@@ -49,6 +49,9 @@ vmstorage_pvc_per_pod = vm_bytes_per_day × metrics_retention_days
 # Query Analytics. Every ClickHouse replica holds a FULL copy - QAN is not sharded.
 qan_bytes_per_day     = services × 200 rows/min × 1440 × 20 bytes
 clickhouse_pvc_per_pod = qan_bytes_per_day × qan_retention_days × 1.7
+
+# PostgreSQL. Each PMM replica pools up to 50 (pmm-managed) + 100 (Grafana) connections.
+pg-db max_connections ≥ replicas × 150 + 50
 ```
 
 The `0.9 bytes/sample` and `20 bytes/row` constants are conservative planning
