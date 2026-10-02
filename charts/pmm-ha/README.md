@@ -577,6 +577,13 @@ components (PMM, ClickHouse, VictoriaMetrics, PostgreSQL) use pod anti-affinity;
 topology spread constraint, so it can be scaled beyond the number of worker nodes at the cost of
 co-locating replicas.
 
+PostgreSQL failover is handled by Patroni, which keeps its leader lock in the Kubernetes API. The
+chart enables Patroni's [DCS failsafe mode](https://patroni.readthedocs.io/en/latest/dcs_failsafe_mode.html)
+(`pg-db.patroni.dynamicConfiguration.failsafe_mode`), so a Kubernetes API outage - a managed
+control plane restarting or being upgraded, for example - does not demote a healthy primary. The
+primary stays up as long as it can reach every other PostgreSQL member; if any member is
+unreachable, it demotes as before.
+
 > **Important**: The three Kubernetes operators (VictoriaMetrics, ClickHouse, PostgreSQL) must be installed before deploying PMM HA. They manage the lifecycle of their respective resources through Custom Resource Definitions (CRDs).
 
 ### [Image tags](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
