@@ -898,10 +898,7 @@ pg-db:
                   postgres-operator.crunchydata.com/role: pgbouncer
   patroni:
     dynamicConfiguration:
-      ## Patroni keeps its leader lock in the Kubernetes API. Without failsafe mode, an API
-      ## server outage longer than the leader lease (30s) makes a healthy primary demote
-      ## itself, and PMM loses write access until another member is promoted. With it, the
-      ## primary keeps running as long as it can reach every other member's Patroni REST API.
+      ## Don't demote a primary that can still reach every other member when the Kubernetes API is down.
       failsafe_mode: true
       postgresql:
         pg_hba:
