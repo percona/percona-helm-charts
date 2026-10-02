@@ -318,6 +318,12 @@ spec:
             - name: PMM_INTERNAL_NODE_NAME_PREFIXES
               value: "{{ .Release.Namespace }}-{{ include "pg-database.fullname" . }}-"
             {{- end }}
+            # Let PMM know of the Nodes the PMM Client pods register as, named "<namespace>-<pod name>"
+            # by pmm.client.env, so that users cannot remove them while the pod runs: that strands
+            # the pod and takes the Services configured on it along. Rendered regardless of
+            # pmmClient.replicas, so scaling the Clients does not roll the PMM Server pods.
+            - name: PMM_PROTECTED_NODE_NAME_PREFIXES
+              value: "{{ .Release.Namespace }}-{{ include "pmm.client.fullname" . }}-"
             - name: PMM_CLICKHOUSE_NODES
               value: {{ include "pmm.clickhouse.nodes" . | quote }}
             - name: PMM_ENCRYPTION_KEY_PATH
