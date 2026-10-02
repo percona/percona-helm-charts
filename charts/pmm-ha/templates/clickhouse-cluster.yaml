@@ -337,6 +337,10 @@ spec:
                 {{- if $chEndpoint }}
                 - name: S3_ENDPOINT
                   value: "{{ $chEndpoint }}"
+                {{- /* clickhouse-backup defaults to virtual-hosted addressing, which fails on
+                       MinIO/Ceph without wildcard DNS (PMM-13858 review #6). AWS has no endpoint. */}}
+                - name: S3_FORCE_PATH_STYLE
+                  value: "true"
                 {{- end }}
                 {{- /* Credentials default to the central S3 secret (when neither an own
                        existingSecret nor inline keys are set) so a MinIO/Ceph user who sets

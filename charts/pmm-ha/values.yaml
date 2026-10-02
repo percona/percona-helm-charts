@@ -674,9 +674,10 @@ clickhouse:
         cpu: 500m
         memory: 512Mi
     
-    ## @param clickhouse.backup.retention Number of backups to keep
+    ## @param clickhouse.backup.keepLocal Local (hardlink) backups clickhouse-backup keeps per replica
     ## Note: Local backups use hardlinks (~0 space) and are copied to central storage
     keepLocal: 1   # Keep only latest local hardlink backup
+    ## @param clickhouse.backup.keepRemote Remote backups clickhouse-backup itself keeps (0 = the orchestrator prunes)
     ## keepRemote MUST stay 0 unless you know what you are trading away.
     ## 0 disables clickhouse-backup's own remote pruning and leaves the REMOTE copy entirely to
     ## the orchestrator's retention sweep, which is the only thing that knows about the manifest
@@ -1022,8 +1023,9 @@ centralBackupStorage:
     ## is not retried at all, whatever this is set to.
     backoffLimit: 1
     ## @param centralBackupStorage.schedule.ttlSecondsAfterFinished Delete finished Jobs after N seconds
-    ## Exists for MANUAL `kubectl create job --from=cronjob/<release>-backup` clones, which the
-    ## history limits below never clean. It applies to the CronJob's own Jobs too and is
+    ## The history limits below also count manual `kubectl create job --from` clones (they are owned
+    ## by the CronJob); the documented restore clone drops that ownerReference, so this TTL is what
+    ## sweeps it. It applies to the CronJob's own Jobs too and is
     ## INDEPENDENT of failedJobsHistoryLimit: on a sparse schedule (weekly, monthly) a TTL
     ## shorter than the interval deletes a failed Job — and its pod log, which is the only place
     ## a failure BEFORE the orchestrator starts is recorded — before anyone looks. Set to null

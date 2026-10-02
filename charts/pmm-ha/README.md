@@ -608,6 +608,61 @@ Two things to know before changing these:
 | ------------------- | ----------------------------------------------------------------------------------------- | ---------- |
 | `nodeExporter.mode` | Node metrics source: `internal` (deploy + scrape prometheus-node-exporter) or `openshift` | `internal` |
 
+### Backup and restore parameters
+
+See [Backup and Restore](#backup-and-restore) and [docs/pmm-backup.md](docs/pmm-backup.md). Comments in [values.yaml](values.yaml) carry the details.
+
+| Name | Description | Value |
+| ---- | ----------- | ----- |
+| `centralBackupStorage.enabled` | Enable the backup infrastructure (backup-tools Deployment, sidecars, CronJob) | `false` |
+| `centralBackupStorage.mode` | Backup target: `s3` (any S3-compatible store) or `shared` (RWX/NFS volume) | `s3` |
+| `centralBackupStorage.sharedMountPath` | Mount path of the shared volume inside the component pods (`shared` mode) | `/central` |
+| `centralBackupStorage.s3.bucket` | Bucket name, required in `s3` mode | `""` |
+| `centralBackupStorage.s3.region` | Bucket region | `us-east-1` |
+| `centralBackupStorage.s3.endpoint` | Endpoint URL for S3-compatible stores; empty for AWS | `""` |
+| `centralBackupStorage.s3.provider` | rclone S3 provider (`AWS`, `Minio`, `Ceph`, `Other`, ...) | `AWS` |
+| `centralBackupStorage.s3.prefix` | Key prefix under `<namespace>/`; empty means the release name | `""` |
+| `centralBackupStorage.s3.existingSecret` | Secret with static S3 keys (inherited by the ClickHouse and VictoriaMetrics sidecars) | `""` |
+| `centralBackupStorage.s3.existingSecretKeys.accessKey` | Key of the access key inside `existingSecret` | `access-key` |
+| `centralBackupStorage.s3.existingSecretKeys.secretKey` | Key of the secret key inside `existingSecret` | `secret-key` |
+| `centralBackupStorage.s3.irsaRoleArn` | IAM role for IRSA (AWS EKS, keyless) | `""` |
+| `centralBackupStorage.s3.serviceAccountName` | Name of the S3 ServiceAccount; empty means `<release>-backup-s3` | `""` |
+| `centralBackupStorage.s3.serviceAccountAnnotations` | Extra annotations for the IRSA ServiceAccounts | `{}` |
+| `centralBackupStorage.client.image` | rclone image for the PMM backup sidecar and restore pods | `docker.io/rclone/rclone:1.74.3` |
+| `centralBackupStorage.tools.image` | backup-tools image (kubectl, jq, rclone) | `docker.io/tigercomputing/cloud-tools:20260831175138` |
+| `centralBackupStorage.tools.imagePullSecrets` | Pull secrets for the backup pods only | `[]` |
+| `centralBackupStorage.tools.resources` | Resources for backup-tools and the backup/restore Jobs | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
+| `centralBackupStorage.storageSize` | Size of the chart-created central PVC | `100Gi` |
+| `centralBackupStorage.storageClassName` | Storage class of the central PVC | `""` |
+| `centralBackupStorage.accessMode` | Access mode of the central volume (declare `ReadWriteMany` for an RWX `existingClaim`) | `""` |
+| `centralBackupStorage.existingClaim` | Use a pre-created PVC instead of a chart-created one | `""` |
+| `centralBackupStorage.volumeName` | Bind the chart-created PVC to a pre-created PV | `""` |
+| `centralBackupStorage.mountPath` | Mount path of the central volume in backup-tools and the Jobs | `/backups` |
+| `centralBackupStorage.schedule.enabled` | Run scheduled backups (the CronJob always exists, suspended when false) | `false` |
+| `centralBackupStorage.schedule.cron` | Cron expression (cluster timezone) | `0 2 * * *` |
+| `centralBackupStorage.schedule.retentionDays` | Prune backups older than N days (manual runs too) | `7` |
+| `centralBackupStorage.schedule.components` | Components to back up; empty means all | `[]` |
+| `centralBackupStorage.schedule.extraArgs` | Extra arguments for `pmm-backup.sh backup` | `[]` |
+| `centralBackupStorage.schedule.startingDeadlineSeconds` | Skip a run that cannot start within N seconds | `600` |
+| `centralBackupStorage.schedule.terminationGracePeriodSeconds` | Time a run gets to release its locks on TERM | `300` |
+| `centralBackupStorage.schedule.backoffLimit` | Retries for a failed run | `1` |
+| `centralBackupStorage.schedule.ttlSecondsAfterFinished` | Delete finished Jobs after N seconds | `604800` |
+| `centralBackupStorage.schedule.activeDeadlineSeconds` | Hard cap on one run; must exceed the real backup duration | `21600` |
+| `centralBackupStorage.schedule.successfulJobsHistoryLimit` | Succeeded Jobs kept | `3` |
+| `centralBackupStorage.schedule.failedJobsHistoryLimit` | Failed Jobs kept | `3` |
+| `clickhouse.backup.enabled` | Run the clickhouse-backup sidecar (needs `centralBackupStorage.enabled`) | `true` |
+| `clickhouse.backup.image` | clickhouse-backup image | `altinity/clickhouse-backup:2.8.0` |
+| `clickhouse.backup.resources` | Resources for the clickhouse-backup sidecar | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
+| `clickhouse.backup.keepLocal` | Local (hardlink) backups kept per replica | `1` |
+| `clickhouse.backup.keepRemote` | Remote backups clickhouse-backup keeps itself; keep `0` so the orchestrator owns retention | `0` |
+| `clickhouse.backup.s3` | ClickHouse-only S3 overrides; empty fields inherit `centralBackupStorage.s3` | see values.yaml |
+| `victoriaMetrics.vmstorage.backupVolumeSize` | Size limit of the vmstorage local backup emptyDir | `20Gi` |
+| `victoriaMetrics.vmstorage.backup.enabled` | Run the vmbackup sidecar (needs `centralBackupStorage.enabled`) | `true` |
+| `victoriaMetrics.vmstorage.backup.image` | vmbackup image | `victoriametrics/vmbackup:v1.151.0` |
+| `victoriaMetrics.vmstorage.backup.restoreImage` | vmrestore image | `victoriametrics/vmrestore:v1.151.0` |
+| `victoriaMetrics.vmstorage.backup.resources` | Resources for the vmbackup sidecar | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
+| `victoriaMetrics.vmstorage.backup.s3` | VictoriaMetrics-only S3 overrides; empty fields inherit `centralBackupStorage.s3` | see values.yaml |
+
 
 Specify each parameter using the `--set key=value[,key=value]` or `--set-string key=value[,key=value]` arguments to `helm install`. For example,
 
@@ -847,6 +902,13 @@ helm upgrade pmm-ha -f values.yaml --namespace pmm percona/pmm-ha
 ```
 
 This will check updates in the repo and upgrade deployment if the updates are available. The rolling update strategy ensures zero-downtime upgrades.
+
+Helm installs CRDs only once and never upgrades them. If the operators came from an older `pmm-ha-dependencies` (for example 1.1.0, whose PerconaPGCluster CRD caps `postgresVersion` at 17), apply the current CRDs before upgrading, or the install fails with `spec.postgresVersion in body should be less than or equal to 17`:
+
+```sh
+# use the pg-operator version your pmm-ha-dependencies release pins (3.1.0 in 1.2.0)
+helm show crds percona/pg-operator --version 3.1.0 | kubectl apply --server-side --force-conflicts -f -
+```
 
 ### Data retention
 

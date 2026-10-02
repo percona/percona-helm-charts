@@ -1,5 +1,4 @@
 {{- include "pmm.nodeExporter.validate" . -}}
-{{- include "pmm.validatePgCrd" . -}}
 {{- include "pmm.dataRetention.validate" . -}}
 {{- include "pmm.openshift.validate" . -}}
 {{- include "pmm.haproxy.validate" . -}}

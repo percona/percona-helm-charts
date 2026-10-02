@@ -657,6 +657,14 @@ section "lease locks — expiry must never be guessed"
 
 assert_eq "lease name" "pmm-backup-postgresql" "$(lease_name postgresql)"
 assert_eq "lease name (hyphenated component)" "pmm-backup-pmm-server" "$(lease_name pmm-server)"
+# Review #10: scoped to the resolved owner, so two installs in one namespace get separate locks.
+SCOPE_PG_CLUSTER="pmm-prod-pg-db"; SCOPE_PMM_STS="pmm-prod-pmm-ha"
+assert_eq "lease name carries the resolved owner" "pmm-backup-postgresql-pmm-prod-pg-db" "$(lease_name postgresql)"
+assert_eq "for pmm-server too" "pmm-backup-pmm-server-pmm-prod-pmm-ha" "$(lease_name pmm-server)"
+assert_eq "an unresolved component keeps the plain name" "pmm-backup-clickhouse" "$(lease_name clickhouse)"
+SCOPE_VM_CLUSTER="$(printf 'v%.0s' $(seq 1 80))"
+assert_eq "a long owner still fits a Kubernetes name" "63" "$(lease_name victoriametrics | wc -c | tr -d ' ' | awk '{print $1-0}')"
+SCOPE_PG_CLUSTER=""; SCOPE_PMM_STS=""; SCOPE_VM_CLUSTER=""
 
 # renewTime is MicroTime; the parser must accept it and reject anything it cannot read.
 got=$(epoch_from_rfc3339 "2026-08-23T14:05:12.123456Z" 2>/dev/null || echo "")
@@ -867,7 +875,7 @@ assert_eq "an existing encryption entry is not overwritten" "abc" \
 rm -f "${_wm_out}"
 
 #########################################################################################
-section "restore_encryption_key — the store must not be able to choose what gets applied"
+section "prepare/apply_encryption_key — the store must not be able to choose what gets applied"
 #########################################################################################
 
 # This is the ONE place store content reaches the apiserver as a MANIFEST rather than as data.
@@ -888,11 +896,15 @@ mkdir -p "$(dirname "${_ek_payload}")"
 _ek_saved_mf_field=$(command -v mf_field >/dev/null 2>&1 && echo yes || echo no)
 mf_field() { echo ""; }                       # no sha256 recorded: the checksum block is skipped
 store_read() { cat "$1" 2>/dev/null; }
-kubectl() { if [ "$1" = apply ]; then cp "$3" "${_ek_applied}"; fi; return 0; }
+kubectl() {
+    case "$1" in
+        get) echo 'Error from server (NotFound): secrets "pg-encryption-key" not found' >&2; return 1 ;;
+        apply) cp "$3" "${_ek_applied}" ;;
+    esac; return 0; }
 
 _ek_probe() {   # <label> <expect-applied yes|no>
     : > "${_ek_applied}"
-    restore_encryption_key >/dev/null 2>&1
+    { prepare_encryption_key && apply_encryption_key; } >/dev/null 2>&1
     _ek_got=$( [ -s "${_ek_applied}" ] && echo yes || echo no )
     assert_eq "$1" "$2" "${_ek_got}"
 }
@@ -921,6 +933,30 @@ printf '%s\n' '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pmm-secret
 _ek_probe "a Secret with another name is refused" "no"
 printf '%s\n' 'not json at all' > "${_ek_payload}"
 _ek_probe "unparseable content is refused" "no"
+
+# Review #4: the key being replaced is saved first, and an unchanged key is not re-applied.
+_ek_created="${_ek_dir}/created"; _EK_CUR='{"apiVersion":"v1","kind":"Secret","type":"Opaque","metadata":{"name":"pg-encryption-key","uid":"u1","resourceVersion":"7"},"data":{"k":"b2xk"}}'
+kubectl() {
+    case "$1" in
+        get) printf '%s' "${_EK_CUR}" ;;
+        create) cat > "${_ek_created}" ;;
+        apply) cp "$3" "${_ek_applied}" ;;
+    esac; return 0; }
+printf '%s\n' "${_SECRET}" > "${_ek_payload}"; : > "${_ek_created}"
+_ek_probe "a different key is applied" "yes"
+assert_eq "after the current one is saved under a pre-restore name" "pg-encryption-key-pre-restore-" \
+    "$(jq -r '.metadata.name' "${_ek_created}" 2>/dev/null | cut -c1-30)"
+assert_eq "with the current key's data" "b2xk" "$(jq -r '.data.k' "${_ek_created}" 2>/dev/null)"
+assert_eq "and none of the live object's identity" "null" "$(jq -r '.metadata.uid' "${_ek_created}" 2>/dev/null)"
+_EK_CUR='{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pg-encryption-key"},"data":{"k":"dg=="}}'; : > "${_ek_created}"
+_ek_probe "the same key is not re-applied" "no"
+assert_eq "and nothing is saved" "" "$(cat "${_ek_created}")"
+_EK_CUR='{"apiVersion":"v1","kind":"Secret","metadata":{"name":"pg-encryption-key"},"data":{"k":"b2xk"}}'
+kubectl() { case "$1" in get) printf '%s' "${_EK_CUR}" ;; create) return 1 ;; apply) cp "$3" "${_ek_applied}" ;; esac; return 0; }
+_ek_probe "a key that cannot be saved first is not replaced" "no"
+# A lookup that FAILED (403, timeout) is not "no key": replacing it would skip the snapshot.
+kubectl() { case "$1" in get) echo 'Error from server (Forbidden): secrets is forbidden' >&2; return 1 ;; apply) cp "$3" "${_ek_applied}" ;; esac; return 0; }
+_ek_probe "a key that cannot be read is not replaced" "no"
 rm -rf "${_ek_dir}"
 # Put the manifest accessor back so later sections see the real one.
 mf_field() { jq -r --arg c "$1" --arg k "$2" '.components[$c][$k] // empty' "${MANIFEST_FILE}" 2>/dev/null; }
@@ -2326,6 +2362,19 @@ ch_query() { case "$1" in "INSERT INTO"*) return 1 ;; *) printf '0' ;; esac; }
 _rc=0; ch_run_action "create backup_X" 30 1 "backup creation" >/dev/null 2>&1 || _rc=$?
 assert_rc "a failed enqueue fails immediately" 1 "${_rc}"
 
+# Review #2: timeout 0 polls until success/error, but a status that is GONE (sidecar restarted,
+# its action list lost) must not poll forever.
+_rc=$( sleep() { :; }
+       ch_query() { case "$1" in ("INSERT INTO"*) return 0 ;; (*) printf '' ;; esac; }
+       ch_run_action "upload backup_X" 0 10 "S3 upload" >/dev/null 2>&1; echo $? )
+assert_rc "timeout 0 with no status at all gives up" 1 "${_rc}"
+_rc=$( sleep() { :; }; _n="${SCRIPT_DIR}/.chn.$$"; echo 0 > "${_n}"
+       ch_query() { case "$1" in ("INSERT INTO"*) return 0 ;;
+           ("SELECT status"*) c=$(($(cat "${_n}") + 1)); echo "${c}" > "${_n}"; [ "${c}" -ge 50 ] && printf success || printf 'in progress' ;;
+           (*) printf '0' ;; esac; }
+       ch_run_action "upload backup_X" 0 10 "S3 upload" >/dev/null 2>&1; r=$?; rm -f "${_n}"; echo ${r} )
+assert_rc "timeout 0 keeps polling a long-running action (50 polls) to success" 0 "${_rc}"
+
 unset -f ch_query
 log() { :; }
 rm -f "${_ca_log}"
@@ -3152,27 +3201,194 @@ rm -rf "${BACKUP_DIR}"; DRY_RUN=false
 unset -f kubectl 2>/dev/null || kubectl() { return 1; }
 
 #########################################################################################
+section "vm_origin_for_pod — the -origin path is store-derived, so it is gated"
+#########################################################################################
+# Review #15 follow-up: spliced unquoted into vmbackup's argv, so a manifest someone edited must
+# not be able to add flags; anything unexpected falls back to a full upload.
+_vo() {   # <objects-json-array> -> what vm_origin_for_pod prints for pod vmstorage-x-0
+    ( S3_ENABLED=true; S3_BUCKET=b; S3_PREFIX=ns/rel; CURRENT_ID=backup_NEW; _vo_objs="$1"
+      catalog_latest() { echo backup_OLD; }
+      catalog_manifest() { printf '{"components":{"victoriametrics":{"status":"success","objects":%s}}}' "${_vo_objs}"; }
+      vm_origin_for_pod vmstorage-x-0 9>/dev/null 2>/dev/null ) }
+_vo_pre=$( S3_ENABLED=true; S3_BUCKET=b; S3_PREFIX=ns/rel; comp_display victoriametrics backup_OLD )
+assert_eq "the previous backup's path for this pod is the origin" "${_vo_pre}/vmstorage-x-0/vm_backup_OLD" \
+    "$(_vo "[\"${_vo_pre}/vmstorage-x-0/vm_backup_OLD\",\"${_vo_pre}/vmstorage-x-1/vm_backup_OLD\"]")"
+assert_eq "a path with a space (an injected flag) is ignored" "" "$(_vo "[\"${_vo_pre}/vmstorage-x-0/a -dst=s3://evil/x\"]")"
+assert_eq "a path outside that backup's prefix is ignored" "" "$(_vo '["s3://evil/vmstorage-x-0/vm_backup_OLD"]')"
+assert_eq "a path climbing out with .. is ignored" "" "$(_vo "[\"${_vo_pre}/vmstorage-x-0/../../../x\"]")"
+assert_eq "no origin when the last backup is this run" "" "$( ( S3_ENABLED=true; CURRENT_ID=backup_OLD; catalog_latest() { echo backup_OLD; }; vm_origin_for_pod vmstorage-x-0 9>/dev/null 2>/dev/null ) )"
+unset -f _vo
+
+#########################################################################################
+section "restore_cleanup — a staged dump and the decoded key do not outlive the run"
+#########################################################################################
+_rc_dir=$(mktemp -d); _rc_rm="${_rc_dir}/rm"
+_rc_out=$( TEMP_PODS_MARKER=""; MANIFEST_FILE=""; PG_STAGE_MARKER="${_rc_dir}/stage"; ENC_KEY_FILE="${_rc_dir}/enc"
+           printf 'pg-0 /pgdata/pmm-restore-grafana.dump\npg-0 /pgdata/pmm-restore-pmm-managed.dump\n' > "${PG_STAGE_MARKER}"; echo secret > "${ENC_KEY_FILE}"
+           timeout() { shift; "$@"; }; release_locks() { :; }
+           kubectl() { printf '%s\n' "$*" >> "${_rc_rm}"; return 0; }
+           restore_cleanup >/dev/null 2>&1
+           [ -e "${ENC_KEY_FILE}" ] && echo key-left; [ -e "${PG_STAGE_MARKER}" ] && echo marker-left; true )
+assert_eq "the decoded key file and the marker are removed" "" "${_rc_out}"
+assert_eq "every staged dump is removed in its pod" "2" "$(grep -c -- '-c database -- rm -f /pgdata/pmm-restore-' "${_rc_rm}" 2>/dev/null)"
+rm -rf "${_rc_dir}"
+
+#########################################################################################
+section "pg_stage_dump — chunked, and a broken chunk is retried, not the whole dump"
+#########################################################################################
+# Review #1: one long `kubectl exec -i` stream broke on large dumps. The stub plays the PG pod:
+# it appends what a chunk exec receives (failing the injected attempts) and answers stat.
+DRY_RUN=false; NAMESPACE=test-ns; LOG_FILE=$(mktemp); S3_ENABLED=false
+_sd_src=$(mktemp); _sd_dst=$(mktemp); _sd_fails="${_sd_dst}.fails"
+awk 'BEGIN { for (i = 0; i < 2500; i++) printf "%09d\n", i }' > "${_sd_src}"   # 25000 bytes
+PG_STAGE_CHUNK=10000
+# BSD dd (macOS) has no iflag=skip_bytes; shadow it there only. The real dd path is tested below.
+_sd_dd_ok=$(command dd if=/dev/null iflag=skip_bytes,count_bytes count=0 2>/dev/null && echo yes || echo no)
+if [ "${_sd_dd_ok}" = no ]; then
+    dd() { _dd_if="" _dd_skip=0 _dd_count=0
+        for _dd_a in "$@"; do case "${_dd_a}" in if=*) _dd_if=${_dd_a#if=} ;; skip=*) _dd_skip=${_dd_a#skip=} ;; count=*) _dd_count=${_dd_a#count=} ;; esac; done
+        tail -c +"$((_dd_skip + 1))" "${_dd_if}" | head -c "${_dd_count}"; }
+fi
+timeout() { shift; "$@"; }
+kubectl() {
+    while [ "$1" != "--" ]; do shift; done; shift
+    case "$1 $3" in
+        "sh : > \"\$1\"") : > "${_sd_dst}" ;;
+        stat*) wc -c < "${_sd_dst}" | tr -d ' ' ;;
+        sh*dd*) _sd_n=$(cat "${_sd_fails}" 2>/dev/null || echo 0)
+                if [ "$6" = "${_sd_fail_off}" ] && [ "${_sd_n:-0}" -gt 0 ]; then
+                    echo $((_sd_n - 1)) > "${_sd_fails}"; cat >/dev/null; return 1
+                fi
+                cat >> "${_sd_dst}"; [ "$(wc -c < "${_sd_dst}" | tr -d ' ')" -ge "$7" ] ;;
+    esac
+}
+_sd_fail_off=10000; echo 1 > "${_sd_fails}"   # the second chunk fails once
+pg_stage_dump pg-0 "${_sd_src}" /pgdata/x.dump 25000 >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "a chunk that fails once is retried and the dump stages" 0 "${rc}"
+assert_eq "the staged copy is byte-identical" "yes" "$(cmp -s "${_sd_src}" "${_sd_dst}" && echo yes || echo no)"
+_sd_fail_off=20000; echo 3 > "${_sd_fails}"   # the last chunk keeps failing
+pg_stage_dump pg-0 "${_sd_src}" /pgdata/x.dump 25000 >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "a chunk that fails 3 times fails the staging" 1 "${rc}"
+echo 0 > "${_sd_fails}"
+pg_stage_dump pg-0 "${_sd_src}" /pgdata/x.dump 25001 >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "a staged size that does not match the dump fails" 1 "${rc}"
+rm -f "${LOG_FILE}" "${_sd_src}" "${_sd_dst}" "${_sd_fails}"
+PG_STAGE_CHUNK=67108864
+unset -f timeout dd 2>/dev/null || true
+unset -f kubectl 2>/dev/null || kubectl() { return 1; }
+
+# The real shared-mode range read (dd), wherever dd supports byte offsets (GNU, BusyBox, CI).
+if [ "${_sd_dd_ok}" = yes ]; then
+    _rr_src=$(mktemp); awk 'BEGIN { for (i = 0; i < 3000; i++) printf "%09d\n", i }' > "${_rr_src}"
+    assert_eq "store_read_range (shared) returns exactly the requested range" \
+        "$(tail -c +12346 "${_rr_src}" | head -c 7000 | cksum)" "$(S3_ENABLED=false store_read_range "${_rr_src}" 12345 7000 | cksum)"
+    rm -f "${_rr_src}"
+else
+    echo "  skip: store_read_range dd path (this dd has no iflag=skip_bytes; CI runs it)"
+fi
+
+#########################################################################################
+section "pg_recreate_db — one psql session that keeps the owner and the database grants"
+#########################################################################################
+DRY_RUN=false; NAMESPACE=test-ns; LOG_FILE=$(mktemp); _rdb_sql="${TMPDIR:-/tmp}/.rdb_sql.$$"
+timeout() { shift; "$@"; }
+kubectl() { printf '%s\n' "$*" > "${_rdb_sql}.args"; cat > "${_rdb_sql}"; return "${_rdb_rc:-0}"; }
+_rdb_rc=0; pg_recreate_db pg-0 pmm-managed >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "recreate succeeds when psql does" 0 "${rc}"
+assert_eq "the database name goes in as a psql variable, never spliced into SQL" "yes" \
+    "$(grep -q -- '-v db=pmm-managed' "${_rdb_sql}.args" && echo yes || echo no)"
+assert_eq "it stops on the first error" "yes" "$(grep -q -- 'ON_ERROR_STOP=1' "${_rdb_sql}.args" && echo yes || echo no)"
+for _rdb_want in 'datname = :'"'"'db'"'"'' 'gset' 'DROP DATABASE :"db" WITH (FORCE);' 'CREATE DATABASE :"db" OWNER :"owner" TEMPLATE template0;' 'aclexplode(datacl)' ':grants;'; do
+    assert_eq "SQL carries: ${_rdb_want}" "yes" "$(grep -qF -- "${_rdb_want}" "${_rdb_sql}" && echo yes || echo no)"
+done
+_rdb_rc=1; pg_recreate_db pg-0 grafana >/dev/null 2>&1 && rc=0 || rc=$?
+assert_rc "a failed session is a failed database" 1 "${rc}"
+rm -f "${LOG_FILE}" "${_rdb_sql}" "${_rdb_sql}.args"
+unset -f timeout
+unset -f kubectl 2>/dev/null || kubectl() { return 1; }
+
+#########################################################################################
 section "restore_postgresql — only pg_restore's own exit 1 may count as 'warnings'"
 #########################################################################################
 
-# The pipeline's status is timeout's/kubectl's, not pg_restore's: 124 (timed out) and 137
-# (killed) carry no 'error:' line and used to take the warnings branch, so PMM was scaled back up
-# on a half-restored database and the restore reported success.
+# The pipeline's status is kubectl's, not pg_restore's: 137 (killed) carries no 'error:' line and
+# used to take the warnings branch, so PMM was scaled back up on a half-restored database and the
+# restore reported success.
 DRY_RUN=false; MF_PG_DBS="pmm-managed"; KUBECTL_EXEC_TIMEOUT=600; LOG_FILE=$(mktemp)
 comp_pod_selector() { echo "role=primary"; }
 one_pod() { echo "pg-0"; }
 store_bytes() { echo 100; }
-store_read() { echo dump; }
-timeout() { cat >/dev/null; printf '%s\n' "${_pr_out}"; return "${_pr_rc}"; }
+store_read_stream() { echo dump; }
+pg_recreate_db() { return 0; }
+pg_end_sessions() { echo 0; }
+pg_free_bytes() { echo 999999999; }
+pg_stage_dump() { return 0; }
+timeout() { shift; "$@"; }   # else `timeout ... kubectl` execs the real binary, not the stub
+_pr_args="${TMPDIR:-/tmp}/.pr_args.$$"
+kubectl() {
+    case "$*" in *pg_restore*) ;; *) return 0 ;; esac   # only the restore itself is under test
+    printf '%s\n' "$*" > "${_pr_args}"; printf '%s\n' "${_pr_out}"; return "${_pr_rc}"; }
 _pr() { _pr_rc=$1; _pr_out=$2; restore_postgresql >/dev/null 2>&1 && rc=0 || rc=$?; assert_rc "$3" "$4" "${rc}"; }
 _pr 0   ""                                                    "exit 0 -> restored"                    0
 _pr 1   "pg_restore: warning: errors ignored on restore: 2"   "exit 1, warnings only -> restored"     0
 _pr 1   "pg_restore: error: could not read input file"        "exit 1 with error: -> failed"          1
-_pr 124 ""                                                    "exit 124 (timeout) -> failed"          1
 _pr 137 ""                                                    "exit 137 (killed) -> failed"           1
 _pr 2   "some kubectl noise"                                  "any other exit -> failed"              1
-rm -f "${LOG_FILE}"
-unset -f timeout _pr
+# Review #7: the database is recreated first, so pg_restore runs without --clean; a database that
+# could not be recreated is failed and never restored into.
+_pr 0 "" "restore into a recreated database" 0
+assert_eq "pg_restore is not --clean (the database was recreated)" "no" \
+    "$(grep -q -- '--clean' "${_pr_args}" && echo yes || echo no)"
+assert_eq "pg_restore reads the staged file, not stdin" "yes" \
+    "$(grep -q -- '/pgdata/pmm-restore-pmm-managed.dump' "${_pr_args}" && echo yes || echo no)"
+pg_recreate_db() { return 1; }; : > "${_pr_args}"
+_pr 0 "" "recreate failed -> failed" 1
+assert_eq "and pg_restore never ran" "" "$(cat "${_pr_args}")"
+# Review #1: a dump that cannot be staged in full, or does not fit, fails BEFORE the drop.
+pg_recreate_db() { echo dropped >> "${_pr_args}.drop"; return 0; }; rm -f "${_pr_args}.drop"
+pg_stage_dump() { return 1; }; : > "${_pr_args}"
+_pr 0 "" "staging failed -> failed" 1
+assert_eq "and the database was not dropped" "no" "$([ -s "${_pr_args}.drop" ] && echo yes || echo no)"
+pg_stage_dump() { return 0; }; pg_free_bytes() { echo 10; }; : > "${_pr_args}"
+_pr 0 "" "not enough room to stage -> failed" 1
+assert_eq "and the database was not dropped" "no" "$([ -s "${_pr_args}.drop" ] && echo yes || echo no)"
+pg_free_bytes() { echo 999999999; }; pg_recreate_db() { return 1; }; : > "${_pr_args}"
+_pr 0 "" "recreate failed after staging -> failed" 1
+assert_eq "and pg_restore never ran" "" "$(cat "${_pr_args}")"
+rm -f "${_pr_args}.drop"
+# Leftover sessions (an orphan pg_dump from a killed run) are ended first; if that fails nothing
+# is dropped.
+pg_recreate_db() { return 0; }; pg_end_sessions() { return 1; }; : > "${_pr_args}"
+_pr 0 "" "sessions could not be ended -> failed" 1
+assert_eq "and pg_restore never ran" "" "$(cat "${_pr_args}")"
+rm -f "${LOG_FILE}" "${_pr_args}"
+unset -f _pr pg_recreate_db pg_end_sessions pg_free_bytes pg_stage_dump timeout
+
+#########################################################################################
+section "pg_end_tagged / release_locks — orphaned pg_dump/pg_restore sessions are ended"
+#########################################################################################
+# A killed kubectl exec leaves the remote pg_dump running, holding ACCESS SHARE locks. Every
+# session this run starts carries application_name=pmm-backup:<holder>.
+_et_sql="${TMPDIR:-/tmp}/.et_sql.$$"
+_et=$( LOG_FILE=/dev/null; timeout() { shift; "$@"; }
+       kubectl() { printf '%s\n' "$*" > "${_et_sql}.args"; cat > "${_et_sql}"; echo 2; }
+       pg_end_tagged pg-0 stale )
+assert_eq "it reports how many sessions were ended" "2" "${_et}"
+assert_eq "the tag goes in as a psql variable" "yes" "$(grep -q -- "-v tag=${PG_APPNAME}" "${_et_sql}.args" && echo yes || echo no)"
+for _et_want in "WHEN 'own' THEN application_name = left(:'tag', 63)" "application_name LIKE 'pmm-backup:%' AND application_name <> left(:'tag', 63)" 'pg_terminate_backend(pid, 5000)'; do
+    assert_eq "SQL carries: ${_et_want}" "yes" "$(grep -qF -- "${_et_want}" "${_et_sql}" && echo yes || echo no)"
+done
+rm -f "${_et_sql}" "${_et_sql}.args"
+_rl() {   # <LOCK_COMPONENTS> <DRY_RUN> -> called|not
+    ( LOCK_COMPONENTS="$1"; DRY_RUN="$2"; kubectl() { return 0; }
+      eval "$(awk '/^release_locks\(\) \{/,/^}/' "${TARGET}")"   # an earlier section stubs it
+      pg_end_own_sessions() { echo called; }; release_locks 2>/dev/null ) | grep -q called && echo called || echo not; }
+assert_eq "release_locks ends this run's PG sessions when it held the postgresql lock" "called" "$(_rl "clickhouse postgresql" false)"
+assert_eq "...not when PostgreSQL was not locked" "not" "$(_rl "clickhouse victoriametrics" false)"
+assert_eq "...and not on a dry run" "not" "$(_rl "postgresql" true)"
+unset -f _rl
+
+unset -f kubectl 2>/dev/null || kubectl() { return 1; }
 
 #########################################################################################
 section "write_manifest — a 'latest' that did not move must fail the run"

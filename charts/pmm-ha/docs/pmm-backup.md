@@ -114,7 +114,8 @@ kubectl create job --from=cronjob/<release>-backup restore-$(date +%s) \
   | yq '.spec.template.spec.containers[0].args =
           ["restore","--backup-id","latest","--yes"]
         | .spec.backoffLimit = 0
-        | .spec.activeDeadlineSeconds = null' \
+        | .spec.activeDeadlineSeconds = null
+        | del(.metadata.ownerReferences)' \
   | kubectl apply -f -
 
 kubectl logs -n <namespace> -f job/restore-<timestamp>
@@ -122,7 +123,10 @@ kubectl logs -n <namespace> -f job/restore-<timestamp>
 
 `backoffLimit: 0` because a failed restore needs a human before anything touches the data
 again; `activeDeadlineSeconds: null` because the backup deadline is sized for backups and a
-large restore legitimately runs longer.
+large restore legitimately runs longer. `del(.metadata.ownerReferences)` because kubectl makes
+the clone owned by the CronJob: the CronJob's history limits would then delete the finished
+restore Job and its log after later backups, and `helm uninstall` (or disabling
+`centralBackupStorage`) would delete a restore that is still running, leaving PMM at 0.
 
 A Job also removes the other hazard of `exec`: **a dropped connection is not a failed
 restore.** The orchestrator runs inside the backup-tools pod, so if the client's `exec`
@@ -923,12 +927,15 @@ Each component's lock is a Kubernetes `Lease` in the release namespace:
 ```
 kubectl get leases -n <ns> -l app.kubernetes.io/component=pmm-backup-lock
 
-pmm-backup-clickhouse
-pmm-backup-pmm-server
-pmm-backup-postgresql
-pmm-backup-victoriametrics
+pmm-backup-clickhouse-<chi>                 # each name carries the owner the run resolved,
+pmm-backup-pmm-server-<statefulset>         # so two installs in a namespace never share a lock
+pmm-backup-postgresql-<perconapgcluster>    # (truncated to 63 characters)
+pmm-backup-victoriametrics-<vmcluster>
 pmm-backup-manifest-<backup-id>     # only while a manifest merge is in flight
 ```
+
+Do not upgrade the chart while a backup or restore is running: a run on an older script version
+uses the plain `pmm-backup-<component>` names and does not exclude a run on the new one.
 
 The locks are **cluster-wide in reach** — that is the point. (The Lease objects themselves are
 namespaced, and live in the release namespace; they serialize every client that can reach *this*
@@ -1219,7 +1226,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `BACKUP_RETENTION` | Retention in days (the chart sets it from `schedule.retentionDays`) | 7 |
 | `CENTRAL_BACKUP_PATH` | Central storage path (set by Helm) | |
 | `METRICS_DIR` | Directory for .prom metrics files | /backups/.metrics |
-| `KUBECTL_EXEC_TIMEOUT` | Timeout (seconds) for backup commands | 600 |
+| `KUBECTL_EXEC_TIMEOUT` | Max wait (seconds) for pods to start or stop. Data transfers (dumps, uploads, restores) have no wall clock: a scheduled Job is bounded by `activeDeadlineSeconds`, but the documented restore clone clears it and exec runs have none, so a hung transfer waits until someone stops it | 600 |
 | `KUBECTL_STATUS_TIMEOUT` | Timeout (seconds) for status queries | 30 |
 | `RCLONE_TIMEOUT` | Wall clock (seconds) for one rclone read or delete | `KUBECTL_STATUS_TIMEOUT` |
 | `RCLONE_PURGE_TIMEOUT` | Wall clock (seconds) for one recursive rclone purge | 300 |
@@ -1227,7 +1234,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `LOCK_LEASE_SECONDS` / `LOCK_RENEW_SECONDS` | Component lock lease duration / renewal interval | 900 / 60 |
 | `LOCK_RENEWER_MAX_SECONDS` | Backstop lifetime for the lease renewer | 86400 |
 | `CH_SECRET_NAME` | Kubernetes secret for ClickHouse | pmm-secret |
-| `CH_CREATE_TIMEOUT` / `CH_UPLOAD_TIMEOUT` | Max seconds to wait for clickhouse-backup create / upload | 300 / 600 |
+| `CH_CREATE_TIMEOUT` | Max seconds to wait for clickhouse-backup create (the upload has no wall clock) | 300 |
 | `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
 | `BACKUP_TARGET` | Target mode: `s3` or `shared` (set by Helm from `centralBackupStorage.mode`) | s3 |
 | `PMM_SERVER_REPLICAS` | Replica count a restore scales PMM back up to, used **only** when the live `spec.replicas` is 0/unreadable *and* the count stashed on the StatefulSet (`restore.pmm.percona.com/original-replicas`) is unusable. Set it when re-running a restore against an install that does not run 3. | 3 |
@@ -1572,14 +1579,15 @@ Locks are `Lease` objects in the release namespace, not files on the backup volu
 # List the locks currently held
 kubectl get leases -n <namespace> -l app.kubernetes.io/component=pmm-backup-lock
 
-# Who holds one, and when it was last renewed (a live run renews every 60s)
-kubectl get lease pmm-backup-victoriametrics -n <namespace> \
+# Who holds one, and when it was last renewed (a live run renews every 60s). Take the full
+# name from the list above, e.g. pmm-backup-victoriametrics-<vmcluster>.
+kubectl get lease <lease-name> -n <namespace> \
   -o jsonpath='{.spec.holderIdentity}{"  renewed: "}{.spec.renewTime}{"  duration: "}{.spec.leaseDurationSeconds}{"\n"}'
 
 # Manually release a stale lock (only if you are sure no backup or restore is running).
 # You should rarely need this: a lease whose holder is gone stops being renewed and the next
 # run takes it over automatically once it is older than leaseDurationSeconds (900s default).
-kubectl delete lease pmm-backup-victoriametrics -n <namespace>
+kubectl delete lease <lease-name> -n <namespace>
 ```
 
 If `renewTime` is still advancing, a run really is holding it — do not delete it. If it is
@@ -1609,11 +1617,12 @@ wget -qO- "http://${POD_IP}:9091/"
 **"Another backup/restore holds the &lt;component&gt; lock"**
 - A concurrent run holds that component's `Lease`. Backup and restore share the lock names, so
   this also fires when a restore is running.
-- Check whether it is live: `kubectl get lease pmm-backup-<component> -n <ns> -o yaml`. A live
+- Check whether it is live: `kubectl get lease pmm-backup-<component>-<owner> -n <ns> -o yaml`
+  (names: `kubectl get leases -n <ns> -l app.kubernetes.io/component=pmm-backup-lock`). A live
   holder's `renewTime` advances every 60s.
 - If it is live, wait. If it is frozen, no action is needed either — the next run takes it over
   once it is older than `leaseDurationSeconds` (900s). Only if you need to proceed immediately:
-  `kubectl delete lease pmm-backup-<component> -n <ns>`.
+  `kubectl delete lease pmm-backup-<component>-<owner> -n <ns>`.
 
 **"...its expiry could not be determined; refusing to steal it"**
 - The lease's `renewTime` could not be converted to a time, so the orchestrator cannot tell
@@ -1736,21 +1745,37 @@ PostgreSQL is backed up with `pg_dump` (one custom-format file per database), so
 `pg_restore` into the running primary. Scale PMM down first so nothing writes the DBs.
 
 ```bash
-# shared: the dump is on the central volume (backup-tools mount)
-kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- \
-  pg_restore --clean --if-exists --no-owner -U postgres -d <db> \
-  < /backups/postgresql/backup_<id>/<db>.dump
-
-# s3: stream it from the bucket with the backup-tools pod's own rclone
+# 1. Stage the dump in the PG pod as a file. Do not pipe it straight into pg_restore: a
+#    `kubectl exec -i` stream breaks (websocket 1006) when pg_restore reads slower than it arrives.
+#    shared: the dump is on the central volume (backup-tools mount)
+kubectl exec -n <namespace> deploy/<release>-backup-tools -- cat /backups/postgresql/backup_<id>/<db>.dump \
+  | kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- sh -c 'cat > /pgdata/restore.dump'
+#    s3: stream it from the bucket with the backup-tools pod's own rclone
 kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
   rclone cat --s3-no-check-bucket s3:<bucket>/<prefix>/postgresql/<id>/<db>.dump \
-  | kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- \
-    pg_restore --clean --if-exists --no-owner -U postgres -d <db>
+  | kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- sh -c 'cat > /pgdata/restore.dump'
+
+# 2. Recreate the database empty from template0, keeping its owner (read it first). template0,
+#    because the operator seeds template1 with a pgbouncer schema that the dump creates too.
+#    Re-apply the database grants afterwards (GRANT ALL ON DATABASE "<db>" TO <each PMM user>).
+kubectl exec -n <namespace> <pg-primary-pod> -c database -- \
+  psql -U postgres -tAc "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '<db>'"
+kubectl exec -n <namespace> <pg-primary-pod> -c database -- \
+  psql -U postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS "<db>" WITH (FORCE)' \
+  -c 'CREATE DATABASE "<db>" OWNER "<owner>" TEMPLATE template0'
+
+# 3. Restore from the staged file, then remove it
+kubectl exec -n <namespace> <pg-primary-pod> -c database -- pg_restore -U postgres -d <db> /pgdata/restore.dump
+kubectl exec -n <namespace> <pg-primary-pod> -c database -- rm -f /pgdata/restore.dump
 ```
 
-Repeat per database (PMM: `pmm-managed`, `grafana`). `--clean --if-exists` drops existing
-objects first; the target databases must already exist (operator/chart create them on
-deploy), which is exactly why this restores cleanly into a fresh cluster in **any** namespace.
+Repeat per database (PMM: `pmm-managed`, `grafana`). Recreating the database (rather than
+`pg_restore --clean`) makes the restore exact: `--clean` only drops objects that are in the
+dump, so tables created after the backup would survive. A `pg_dump` or `pg_restore` left running
+by an earlier, killed attempt blocks `DROP DATABASE`; end those sessions first
+(`pg_terminate_backend`), as the orchestrator does. The target databases must already
+exist (operator/chart create them on deploy), which is why this restores cleanly into a fresh
+cluster in **any** namespace.
 No pgBackRest, stanza, or `PerconaPGRestore` involved.
 
 #### ClickHouse
@@ -1861,9 +1886,10 @@ PostgreSQL needs no options — databases come from the manifest.
    the target). Aborts the restore if it fails (data can't be decrypted otherwise).
 8. **Scale down PMM** to 0 — nothing may write the DBs during restore, and the
    pmm-storage PVCs must be free for the `/srv` restore.
-9. **Restore DB components** (parallel by default): PostgreSQL (`pg_restore --clean
-   --if-exists` per database, streamed from the dump; missing/empty dumps and pg_restore
-   error lines are hard failures), ClickHouse (s3: `restore_remote --rm` with
+9. **Restore DB components** (parallel by default): PostgreSQL (each dump staged
+   in the PG pod, the database recreated from template0 with its owner and grants, then
+   `pg_restore` from the staged file;
+   missing/empty dumps and pg_restore error lines are hard failures), ClickHouse (s3: `restore_remote --rm` with
    `--env S3_BUCKET/S3_PATH` pointing at the SOURCE `--s3-bucket`/`--s3-prefix`, which
    makes cross-namespace/cross-prefix restores work; shared: untar + `restore --rm`),
    VictoriaMetrics (scale vmstorage+vminsert to 0 — vminsert wait is soft/non-blocking,

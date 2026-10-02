@@ -84,9 +84,10 @@ spec:
   schedule: {{ $s.cron | quote }}
   # With the run inside the Job, Forbid is the real overlap guard for SCHEDULED runs: a backup
   # still running at the next tick makes that tick SKIP (the wrapper's inflight marker used to
-  # provide this). It does NOT cover manual `kubectl create job --from` clones — those carry no
-  # ownerReference, so the controller does not count them as active. A manual run straddling a
-  # tick therefore makes the SCHEDULED Job fail on the held component Leases rather than skip.
+  # provide this). It does NOT cover manual `kubectl create job --from` clones — kubectl makes them
+  # owned by this CronJob, but the controller never adds a Job it did not create to .status.active
+  # (PMM-13858 review #13). A manual run straddling a tick therefore makes the SCHEDULED Job
+  # fail on the held component Leases rather than skip.
   #
   # To pause the schedule for a long manual run, set centralBackupStorage.schedule.enabled=false
   # and upgrade — do NOT `kubectl patch ... suspend=true`. `suspend` is rendered from values
@@ -116,9 +117,9 @@ spec:
              deliberate ttlSecondsAfterFinished: 0 ("delete as soon as it finishes") and leak
              manual clones forever — the exact opposite of what was asked. null disables. */}}
       {{- if ne (toString $s.ttlSecondsAfterFinished) "<nil>" }}
-      # Sweeps finished Jobs. The history limits above already bound the CronJob's OWN Jobs;
-      # this exists for MANUAL `kubectl create job --from=...` clones, which no history limit
-      # ever cleans. NOTE it applies to the CronJob's Jobs too and is independent of
+      # Sweeps finished Jobs. The history limits above also count manual `--from` clones (kubectl
+      # makes them owned by this CronJob); the documented restore clone drops that ownerReference,
+      # so this TTL is what sweeps it. NOTE it applies to the CronJob's Jobs too and is independent of
       # failedJobsHistoryLimit — on a sparse schedule (weekly/monthly) a TTL shorter than the
       # interval deletes a failed Job, and its pod log, before the next run. Set to null to
       # disable and keep only the history limits.
@@ -185,6 +186,10 @@ spec:
               # DR exec target and must stay up; see backup-entrypoint.sh.)
               - name: PMM_TOOLS_STRICT
                 value: "true"
+              # Same as --release: a Job always targets its own install. Env, not args, so the
+              # documented restore clone (which rewrites args) keeps it (PMM-13858 review #3).
+              - name: TARGET_RELEASE
+                value: {{ .Release.Name | quote }}
               {{- if eq $cbs.mode "s3" }}
               - name: PMM_TOOLS_REQUIRE_RCLONE
                 value: "true"

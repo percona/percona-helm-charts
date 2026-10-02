@@ -474,8 +474,11 @@ absent on an ad-hoc run. Reporting a good backup as failed is far worse than los
 
 ## DN-34 — `pg_restore` exits non-zero on warnings
 
-`--clean --if-exists` on a fresh database produces "does not exist, skipping" warnings and a
-non-zero exit. A non-zero exit **with `error:` lines** is a real failure (empty input, corrupt
+`pg_restore` can exit non-zero on warnings alone. Each database is dropped and recreated from
+template0 (same owner and grants) before the restore, because `--clean` only drops objects in
+the dump and left newer tables behind (review #7 on PR #919). The dump is staged in the PG pod
+first: piped into pg_restore over `kubectl exec -i`, the stream broke (websocket 1006) whenever
+pg_restore read slower than it arrived. A non-zero exit **with `error:` lines** is a real failure (empty input, corrupt
 dump, permissions) and must fail the restore; warnings alone must not.
 
 ## DN-35 — The `latest` pointer is bucket-controlled input
@@ -503,7 +506,8 @@ different snapshot primitives — a much bigger design, not a tweak.
 
 ## DN-37 — Locks are Leases, and expiry is never guessed
 
-Locks are `coordination.k8s.io` Leases named `pmm-backup-<component>` in the namespace, plus a
+Locks are `coordination.k8s.io` Leases named `pmm-backup-<component>-<owner CR>` in the namespace
+(the owner since review #10 on PR #919, so two installs never share one), plus a
 short-lived `pmm-backup-manifest-<id>` around the concurrent-manifest merge.
 
 They used to be `mkdir` locks on `BACKUP_DIR` with a `kill -0 <pid>` liveness check. That only

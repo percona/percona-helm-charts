@@ -102,11 +102,26 @@ fi
 
 [ "${ENSURE_ONLY}" = "true" ] && exit 0
 
-# exec, so pmm-backup.sh is PID 1's successor and receives TERM directly from Kubernetes —
-# its EXIT/TERM traps are what release the per-component Leases.
-#
 # ABSOLUTE path, for the same reason the Job's `command` is absolute: a
 # centralBackupStorage.tools.image override (documented for mirrors and air-gapped registries)
 # may not carry /usr/local/bin on PATH. Resolving by bare name here would only move that
 # failure one step later — past a bootstrap that had already reported success.
+#
+# As PID 1 (Job pod), forward TERM to every process (kill -1 spares PID 1): the shell defers its
+# trap until the foreground child exits, so this ends that child and the trap runs (PMM-13858 review #8).
+if [ "$$" -eq 1 ]; then
+    set +e
+    # Trap BEFORE the fork (PID 1 drops an untrapped TERM); a TERM that lands before the child
+    # exists is replayed to it below.
+    term=""
+    trap 'term=1; kill -TERM -1 2>/dev/null' TERM INT
+    /usr/local/bin/pmm-backup.sh "$@" &
+    child=$!
+    [ -z "${term}" ] || kill -TERM "${child}" 2>/dev/null
+    while :; do
+        wait "${child}"; rc=$?
+        kill -0 "${child}" 2>/dev/null || break
+    done
+    exit "${rc}"
+fi
 exec /usr/local/bin/pmm-backup.sh "$@"

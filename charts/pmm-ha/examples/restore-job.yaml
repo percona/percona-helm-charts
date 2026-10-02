@@ -21,7 +21,8 @@
 #     | yq '.spec.template.spec.containers[0].args =
 #             ["restore","--backup-id","latest","--yes"]
 #           | .spec.backoffLimit = 0
-#           | .spec.activeDeadlineSeconds = null' \
+#           | .spec.activeDeadlineSeconds = null
+#           | del(.metadata.ownerReferences)' \
 #     | kubectl apply -f -
 #
 #   kubectl logs -n <NAMESPACE> -f job/restore-<ts>
@@ -41,6 +42,10 @@
 #                       multi-terabyte VictoriaMetrics re-ingest — can legitimately run
 #                       longer, and being killed at the deadline leaves PMM and VM scaled to 0
 #                       with half-written PVCs. Clear it, or set your own generous value.
+#   del(.metadata.ownerReferences)
+#                       kubectl makes the clone owned by the CronJob, so its history limits
+#                       would delete this Job and its log after later backups, and a
+#                       `helm uninstall` would delete it mid-restore (PMM left at 0).
 #
 # Options for the args list:
 #   --backup-id     `latest`, or a specific backup_<timestamp> from `pmm-backup.sh list`.
@@ -105,11 +110,16 @@ spec:
             - name: NAMESPACE
               value: <NAMESPACE>
             # Lets the orchestrator prefer THIS release's backup-tools pod when two pmm-ha
-            # installs share a namespace; without it the selector is unscoped and can resolve
-            # the other release's central backup volume. Safe to omit (it falls back), and the
-            # `--from` clone above gets it from values automatically.
+            # installs share a namespace; the `--from` clone above gets it from values.
             - name: RELEASE_NAME
               value: <RELEASE>
+            # Scopes every lookup to this release, as the CronJob's Jobs do.
+            - name: TARGET_RELEASE
+              value: <RELEASE>
+            # This install's catalog. Without it the orchestrator reads <NAMESPACE>/pmm-ha, which
+            # is wrong for any other release name (PMM-13858 review #11).
+            - name: SHARED_SUBPATH
+              value: <NAMESPACE>/<RELEASE>
             - name: BACKUP_DIR
               value: <BACKUP_DIR>
             - name: METRICS_DIR

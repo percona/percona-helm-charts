@@ -270,7 +270,7 @@ rules:
     # almost entirely immutable and an apply would fail on the parts that matter rather than
     # replace them. `update` stays off for the same reason.
     verbs: ["get", "list", "create", "delete", "watch", "patch"]
-  # Component locks are coordination.k8s.io Leases in this namespace (pmm-backup-<component>,
+  # Component locks are coordination.k8s.io Leases in this namespace (pmm-backup-<component>-<owner>,
   # plus a short-lived pmm-backup-manifest-<id> around the concurrent-manifest merge). They
   # replaced filesystem mkdir locks, which could not exclude a client on another filesystem —
   # e.g. an operator running a restore from a laptop while the CronJob's backup runs in the pod.

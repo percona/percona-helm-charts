@@ -272,8 +272,6 @@ CH_BACKUP_TYPE="${CH_BACKUP_TYPE:-full}"
 # Max seconds to wait for clickhouse-backup create/upload to finish (polled async)
 CH_CREATE_TIMEOUT="${CH_CREATE_TIMEOUT:-300}"
 numeric_env CH_CREATE_TIMEOUT 300
-CH_UPLOAD_TIMEOUT="${CH_UPLOAD_TIMEOUT:-600}"
-numeric_env CH_UPLOAD_TIMEOUT 600
 
 # PMM server (/srv) settings: path inside the PMM server pod to archive
 PMM_SRV_PATH="${PMM_SRV_PATH:-/srv}"
@@ -464,6 +462,7 @@ fi
 # at scale-up. The path is chosen in the parent before any fork, so every subshell inherits the
 # same path and writes to the same file.
 TEMP_PODS_MARKER=""
+PG_STAGE_MARKER=""   # "<pod> <file>" per staged dump, so restore_cleanup can remove them (review #1)
 RESTORE_START_TIME=0
 ENCRYPTION_KEY_OK=false ; POSTGRESQL_OK=false ; CLICKHOUSE_OK=false
 VICTORIAMETRICS_OK=false ; PMM_SERVER_OK=false
@@ -603,7 +602,8 @@ Environment Variables:
   BACKUP_RETENTION          Retention in days (default: 7)
   METRICS_DIR               Directory for Prometheus .prom metrics files
                             (default: /backups/.metrics)
-  KUBECTL_EXEC_TIMEOUT      Timeout for backup/restore commands via 'timeout' (default: 600)
+  KUBECTL_EXEC_TIMEOUT      Max wait for pods to start/stop (default: 600). Data transfers have no
+                            wall clock (only a scheduled Job's activeDeadlineSeconds bounds them)
   KUBECTL_STATUS_TIMEOUT    Timeout for status queries via 'timeout' (default: 30)
   RCLONE_TIMEOUT            Wall clock for one rclone read/delete (default: KUBECTL_STATUS_TIMEOUT)
   RCLONE_PURGE_TIMEOUT      Wall clock for one recursive rclone purge (default: 300)
@@ -615,7 +615,6 @@ Environment Variables:
   LOCK_RENEWER_MAX_SECONDS  Backstop lifetime for the lease renewer (default: 86400)
   CH_SECRET_NAME            Kubernetes secret for ClickHouse credentials (default: pmm-secret)
   CH_CREATE_TIMEOUT         Max seconds to wait for ClickHouse backup creation (default: 300)
-  CH_UPLOAD_TIMEOUT         Max seconds to wait for ClickHouse S3 upload (default: 600)
   CH_LIST_TIMEOUT           Budget for the restore pre-flight 'list remote' (default: 120)
   PMM_SRV_PATH              Path archived from each PMM server pod (default: /srv)
   PMM_SERVER_REPLICAS       Fallback PMM replica count on restore scale-up (default: 3)
@@ -1002,6 +1001,13 @@ append_to_log() { tee -a "${LOG_FILE}" >&2 2>/dev/null || cat >&2; }
 #
 # Usage: pod_sh <tag> <pod> <container|-> <timeout> <script> [args...]
 # Returns the command's status; 0 in dry run (the caller's success path is what a real run takes).
+# timeout <secs>, except 0 = no wall clock: data-path execs grow with data size and are bounded by
+# the Job's activeDeadlineSeconds instead (PMM-13858 review #2).
+_bounded() {
+    _bd_t="$1"; shift
+    if [ "${_bd_t}" = "0" ]; then "$@"; else timeout "${_bd_t}" "$@"; fi
+}
+
 pod_sh() {
     _ps_tag="$1" _ps_pod="$2" _ps_ctr="$3" _ps_to="$4" _ps_script="$5"; shift 5
     if [ "${DRY_RUN}" = "true" ]; then
@@ -1011,9 +1017,9 @@ pod_sh() {
         return 0
     fi
     if [ "${_ps_ctr}" = "-" ] || [ -z "${_ps_ctr}" ]; then
-        timeout "${_ps_to}" kubectl exec -n "${NAMESPACE}" "${_ps_pod}" -- sh -c "${_ps_script}" sh "$@"
+        _bounded "${_ps_to}" kubectl exec -n "${NAMESPACE}" "${_ps_pod}" -- sh -c "${_ps_script}" sh "$@"
     else
-        timeout "${_ps_to}" kubectl exec -n "${NAMESPACE}" "${_ps_pod}" -c "${_ps_ctr}" -- sh -c "${_ps_script}" sh "$@"
+        _bounded "${_ps_to}" kubectl exec -n "${NAMESPACE}" "${_ps_pod}" -c "${_ps_ctr}" -- sh -c "${_ps_script}" sh "$@"
     fi
 }
 
@@ -1033,9 +1039,9 @@ pod_exec() {
         return 0
     fi
     if [ "${_pe_ctr}" = "-" ] || [ -z "${_pe_ctr}" ]; then
-        timeout "${_pe_to}" kubectl exec -n "${NAMESPACE}" "${_pe_pod}" -- "$@"
+        _bounded "${_pe_to}" kubectl exec -n "${NAMESPACE}" "${_pe_pod}" -- "$@"
     else
-        timeout "${_pe_to}" kubectl exec -n "${NAMESPACE}" "${_pe_pod}" -c "${_pe_ctr}" -- "$@"
+        _bounded "${_pe_to}" kubectl exec -n "${NAMESPACE}" "${_pe_pod}" -c "${_pe_ctr}" -- "$@"
     fi
 }
 
@@ -1413,6 +1419,12 @@ store_read() {
     if [ "${S3_ENABLED}" = "true" ]; then s3_rclone cat "$1"
     else cat "$1"; fi
 }
+# A byte range of an object, idle-bounded only (no wall clock, PMM-13858 review #1). dd, not
+# `tail -c +N`: BusyBox tail reads from byte 0 and fails past ~2.5 GB.
+store_read_range() {   # <uri> <offset> <count>
+    if [ "${S3_ENABLED}" = "true" ]; then _rclone_stream cat --offset "$2" --count "$3" "$1"
+    else dd if="$1" bs=1M iflag=skip_bytes,count_bytes skip="$2" count="$3" 2>/dev/null; fi
+}
 store_write() {  # <path> <- stdin
     if [ "${S3_ENABLED}" = "true" ]; then s3_rclone_rcat "$1"
     else share_mkdir "$(dirname "$1")" && cat > "$1"; fi
@@ -1627,7 +1639,7 @@ backup_id_default() { echo "${CURRENT_ID}"; }
 #   1. rclone's own idle/connect timeouts, on every call including the streaming ones: they
 #      bound a stalled transfer without killing one that is still moving data.
 #   2. a hard `timeout` wall clock on metadata, read and delete ops, which are expected to be
-#      quick. Deliberately NOT on rcat, which carries multi-gigabyte pg_dump streams.
+#      quick. Deliberately NOT on rcat or store_read_range, which carry multi-gigabyte pg_dump streams.
 # Each falls back to its default if not a positive integer — `timeout abc` just fails and
 # `--timeout 0s` means "no timeout" to rclone, so a typo must not silently disable a bound.
 RCLONE_IO_TIMEOUT="${RCLONE_IO_TIMEOUT:-60}"           # rclone --timeout: idle IO per attempt
@@ -1874,6 +1886,8 @@ numeric_env LOCK_LEASE_SECONDS 900
 LOCK_RENEW_SECONDS="${LOCK_RENEW_SECONDS:-60}"
 numeric_env LOCK_RENEW_SECONDS 60
 LOCK_HOLDER="${HOSTNAME:-$(hostname 2>/dev/null || echo unknown)}-$$"
+# application_name of this run's pg_dump/pg_restore sessions, so they can be ended (pg_end_tagged).
+PG_APPNAME="pmm-backup:${LOCK_HOLDER}"
 LOCK_RENEWER_PID=""
 
 # Lease names are Kubernetes object names (DNS-1123 subdomain: lowercase alphanumerics, '-'
@@ -1884,8 +1898,17 @@ LOCK_RENEWER_PID=""
 # manifest was written unprotected — in exactly the multi-process workflow the merge exists
 # for. Sanitising can only ever MERGE two names into one, which over-locks (safe); it can
 # never split one lock into two.
+# Names the resolved owner too: one lock per install, the same with or without --release
+# (PMM-13858 review #10). Callers resolve the scope before locking.
 lease_name() {
-    _lnm=$(printf 'pmm-backup-%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g')
+    _lnm_owner=""
+    case "$1" in
+        postgresql)      _lnm_owner="${SCOPE_PG_CLUSTER}" ;;
+        clickhouse)      _lnm_owner="${SCOPE_CH_CHI}" ;;
+        victoriametrics) _lnm_owner="${SCOPE_VM_CLUSTER}" ;;
+        pmm-server)      _lnm_owner="${SCOPE_PMM_STS}" ;;
+    esac
+    _lnm=$(printf 'pmm-backup-%s%s' "$1" "${_lnm_owner:+-${_lnm_owner}}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9.-]/-/g')
     _lnm=$(printf '%.63s' "${_lnm}")
     printf '%s' "${_lnm}" | sed 's/[^a-z0-9]*$//'
 }
@@ -2167,6 +2190,8 @@ acquire_locks() {
 
 release_locks() {
     local _c
+    # Before the leases go: a killed run's remote pg_dump/pg_restore outlives its kubectl exec.
+    case " ${LOCK_COMPONENTS} " in *" postgresql "*) [ "${DRY_RUN}" = "true" ] || pg_end_own_sessions ;; esac
     catalog_cache_clear
     stop_lock_renewer
     unprotect_operand_pods
@@ -2852,12 +2877,34 @@ preflight_checks() {   # <backup|restore|prune>
 # pg_restore. (The operator keeps its own local repo1 for replica/HA; we don't use it.)
 ################################################################################
 
+# End pg_dump/pg_restore sessions by tag: "own" = this run's, "stale" = any pmm-backup:* tag but
+# ours. A killed kubectl exec leaves its remote process running and holding ACCESS SHARE locks
+# (PMM-13858 review). "stale" is safe only while this install's postgresql lock is held.
+pg_end_tagged() {   # <pod> own|stale ; prints how many sessions were ended
+    timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "$1" -c database -- \
+        psql -U postgres -tA -v ON_ERROR_STOP=1 -v tag="${PG_APPNAME}" -v mode="$2" -f - 2>>"${LOG_FILE}" <<'SQL'
+SELECT count(*) FILTER (WHERE pg_terminate_backend(pid, 5000)) FROM pg_stat_activity
+ WHERE pid <> pg_backend_pid() AND CASE :'mode'
+   WHEN 'own' THEN application_name = left(:'tag', 63)
+   ELSE application_name LIKE 'pmm-backup:%' AND application_name <> left(:'tag', 63) END;
+SQL
+}
+pg_end_own_sessions() {
+    _peo_pod=$(one_pod PostgreSQL "primary pod" "$(comp_pod_selector postgresql)" 2>/dev/null) || return 0
+    _peo_n=$(pg_end_tagged "${_peo_pod}" own 2>/dev/null) || return 0
+    [ "${_peo_n:-0}" = "0" ] || log "INFO" "[PostgreSQL] Ended ${_peo_n} session(s) of this run left by an interrupted exec"
+    return 0
+}
+
 backup_postgresql() {
     log "INFO" "[PostgreSQL] === Starting Backup (pg_dump) ==="
     local start_time=$(date +%s)
 
-    local pg_pod
+    local pg_pod _stale=""
     pg_pod=$(one_pod PostgreSQL "primary pod" "$(comp_pod_selector postgresql)") || return 1
+    if [ "${DRY_RUN}" != "true" ] && _stale=$(pg_end_tagged "${pg_pod}" stale); then
+        [ "${_stale:-0}" = "0" ] || log "WARN" "[PostgreSQL] Ended ${_stale} pg_dump/pg_restore session(s) left by an earlier, killed run"
+    fi
 
     # Application databases to dump: everything except templates and the empty 'postgres'
     # maintenance db. pg_dump uses local peer auth as the postgres superuser.
@@ -2922,8 +2969,8 @@ EOF
         # a successful write of the truncated bytes.
         local dump_rc_file="/tmp/.pgdump_rc_$$" dump_rc
         rm -f "${dump_rc_file}" 2>/dev/null || true
-        if { timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${pg_pod}" -c database -- \
-                pg_dump -U postgres -Fc -d "${db}" 2>>"${LOG_FILE}"
+        if { kubectl exec -n "${NAMESPACE}" "${pg_pod}" -c database -- \
+                env PGAPPNAME="${PG_APPNAME}" pg_dump -U postgres -Fc -d "${db}" 2>>"${LOG_FILE}"
              echo $? > "${dump_rc_file}"; } \
             | store_write "${dump_dest}" >>"${LOG_FILE}" 2>&1; then
             dump_rc=$(cat "${dump_rc_file}" 2>/dev/null || echo 1); rm -f "${dump_rc_file}" 2>/dev/null || true
@@ -2966,7 +3013,7 @@ EOF
         --argjson files "$(sizes_to_json "${pg_file_sizes}")" \
         '{status: $status, engine: $engine, databases: $databases, location: $location,
           bytes: $bytes, duration: $duration, files: $files,
-          restore: "(per db) pg_restore --clean --if-exists -U postgres -d <db> <db>.dump"}'
+          restore: "(per db) DROP + CREATE DATABASE <db> (same owner), then pg_restore -U postgres -d <db> <db>.dump"}'
     [ "${pg_status}" = "success" ] && \
         log "INFO" "[PostgreSQL] ✓ Completed: ${ok_count} db(s), $(human_bytes ${total_bytes}), $(result_get postgresql duration)s"
     return 0
@@ -3073,9 +3120,17 @@ ch_run_action() {
         return 1
     fi
     log "INFO" "[ClickHouse] Waiting for ${_cra_what} to complete..."
-    while [ "${_cra_el}" -lt "${_cra_to}" ]; do
+    # _cra_to 0 = poll until ClickHouse reports success/error (review #2), but 30 polls in a row
+    # with no status means the action is gone (sidecar restarted), not slow.
+    _cra_lost=0
+    while [ "${_cra_to}" -eq 0 ] || [ "${_cra_el}" -lt "${_cra_to}" ]; do
         _cra_st=$(ch_action_field status "${_cra_cmd}" "${_cra_since}")
         [ "${VERBOSE}" = "true" ] && log "INFO" "[ClickHouse] ${_cra_what} status: ${_cra_st}"
+        if [ -n "${_cra_st}" ]; then _cra_lost=0; else _cra_lost=$((_cra_lost + 1)); fi
+        if [ "${_cra_lost}" -ge 30 ]; then
+            log "ERROR" "[ClickHouse] ${_cra_what}: no status for 30 polls; the sidecar lost the action (restart?)"
+            return 1
+        fi
         case "${_cra_st}" in
             # This function owns the "Waiting for ..." line above, so it owns the matching
             # completion. Without it an upload that takes minutes ended with no marker at all —
@@ -3176,7 +3231,7 @@ backup_clickhouse() {
         log "INFO" "[ClickHouse] [DRY RUN]   INSERT INTO system.backup_actions(command) VALUES('${ch_create_cmd}')"
         log "INFO" "[ClickHouse] [DRY RUN]   (poll until status=success, timeout ${CH_CREATE_TIMEOUT}s)"
         if [ "${S3_ENABLED}" = "true" ]; then
-            log "INFO" "[ClickHouse] [DRY RUN]   INSERT ... VALUES('upload ${backup_name}')   (timeout ${CH_UPLOAD_TIMEOUT}s)"
+            log "INFO" "[ClickHouse] [DRY RUN]   INSERT ... VALUES('upload ${backup_name}')   (no wall clock)"
             log "INFO" "[ClickHouse] [DRY RUN]   INSERT ... VALUES('delete local ${backup_name}')"
         fi
         result_set clickhouse --arg status "success" --arg engine "clickhouse-backup" \
@@ -3213,7 +3268,7 @@ backup_clickhouse() {
     ch_run_action "${ch_create_cmd}" "${CH_CREATE_TIMEOUT}" 5 "backup creation" || return 1
 
     # Duration measures the CREATE, which is the phase this component controls; the upload that
-    # follows is bounded separately by CH_UPLOAD_TIMEOUT.
+    # follows is not wall-clocked (it grows with data size).
     local duration=$(($(date +%s) - start_time))
 
     # Size: LIMIT 1 and shape-checked before use. system.backup_list can hold MORE THAN ONE row
@@ -3236,7 +3291,7 @@ backup_clickhouse() {
 
     if [ "${S3_ENABLED}" = "true" ]; then
         log "INFO" "[ClickHouse] Uploading backup to S3..."
-        ch_run_action "${ch_upload_cmd}" "${CH_UPLOAD_TIMEOUT}" 10 "S3 upload" || return 1
+        ch_run_action "${ch_upload_cmd}" 0 10 "S3 upload" || return 1
         log "INFO" "[ClickHouse] Deleting the local backup after upload..."
         ch_query "INSERT INTO system.backup_actions(command) VALUES('delete local ${backup_name}')" >> "${LOG_FILE}" 2>&1
     elif [ "${BACKUP_TARGET}" = "shared" ]; then
@@ -3261,7 +3316,7 @@ ch_archive_to_shared() {   # <backup-name>
     ch_shared_dir="$(comp_inpod clickhouse)"
     CH_SHARED_TAR="${ch_shared_dir}/${backup_name}.tar.gz"
     log "INFO" "[ClickHouse] Archiving backup to the shared volume: ${CH_SHARED_TAR}"
-    if ! pod_sh ClickHouse "${CH_POD}" clickhouse-backup "${KUBECTL_EXEC_TIMEOUT}" \
+    if ! pod_sh ClickHouse "${CH_POD}" clickhouse-backup 0 \
         'mkdir -p "$1" && tar -czf "$2" -C /var/lib/clickhouse/backup "$3"' \
         "${ch_shared_dir}" "${CH_SHARED_TAR}" "${backup_name}" >> "${LOG_FILE}" 2>&1; then
         log "ERROR" "[ClickHouse] Failed to archive the backup to the shared volume"
@@ -3327,6 +3382,27 @@ vm_dst_for_pod() {   # <pod> <backup-name>
     else echo "fs://$(comp_inpod victoriametrics)/$1/$2"; fi
 }
 
+# <pod>'s copy in the last complete backup, as a vmbackup -origin: unchanged parts are then copied
+# server-side instead of uploaded again (PMM-13858 review #15). Empty when there is none.
+vm_origin_for_pod() {   # <pod>
+    _vo_id=$(catalog_latest 2>/dev/null) || return 0
+    [ -n "${_vo_id}" ] && [ "${_vo_id}" != "${CURRENT_ID}" ] || return 0
+    _vo_obj=$(catalog_manifest "${_vo_id}" 2>/dev/null | jq -r --arg p "/$1/" \
+        'select(.components.victoriametrics.status == "success") | .components.victoriametrics.objects[]? | select(contains($p))' \
+        2>/dev/null | head -n 1)
+    [ -n "${_vo_obj}" ] || return 0
+    # Store-derived and spliced unquoted into vmbackup's argv, so charset- and shape-gated (DN-17):
+    # it must be that backup's own path for this pod. Anything else costs a full upload, nothing more.
+    if [ "${S3_ENABLED}" = "true" ]; then _vo_pre="$(comp_display victoriametrics "${_vo_id}")/$1/"
+    else _vo_pre="$(comp_inpod victoriametrics "${_vo_id}")/$1/"; fi
+    case "${_vo_obj}" in
+        *[!A-Za-z0-9_./:-]*|*..*) log "WARN" "[VictoriaMetrics] ignoring origin with unexpected characters: ${_vo_obj}" >&9; return 0 ;;
+        "${_vo_pre}"*) ;;
+        *) log "WARN" "[VictoriaMetrics] ignoring origin outside ${_vo_pre}: ${_vo_obj}" >&9; return 0 ;;
+    esac
+    if [ "${S3_ENABLED}" = "true" ]; then printf '%s' "${_vo_obj}"; else printf 'fs://%s' "${_vo_obj}"; fi
+}
+
 backup_victoriametrics() {
     log "INFO" "[VictoriaMetrics] === Starting Backup ==="
     local vm_start_time=$(date +%s)
@@ -3380,6 +3456,12 @@ backup_victoriametrics() {
         # step that could drop it.
         local backup_dst="$(vm_dst_for_pod "${pod}" "${backup_name}")"
         log "INFO" "[VictoriaMetrics] Creating backup ${backup_name} -> ${backup_dst}"
+        local vm_origin="" vm_origin_flag=""
+        vm_origin=$(vm_origin_for_pod "${pod}")
+        if [ -n "${vm_origin}" ]; then
+            vm_origin_flag="-origin=${vm_origin}"
+            log "INFO" "[VictoriaMetrics]   unchanged parts are copied server-side from ${vm_origin}"
+        fi
 
         # vmbackup creates its own fs:// destination, in the vmstorage container, under that
         # container's umask - which yields 0700. Every other directory on the shared volume is
@@ -3401,12 +3483,13 @@ backup_victoriametrics() {
         local vm_output
         local vm_exit_code
         set +e
-        vm_output=$(pod_exec VictoriaMetrics "${pod}" vmbackup "${KUBECTL_EXEC_TIMEOUT}" \
+        vm_output=$(pod_exec VictoriaMetrics "${pod}" vmbackup 0 \
             /vmbackup-prod \
             -snapshot.createURL=http://localhost:8482/snapshot/create \
             -snapshot.deleteURL=http://localhost:8482/snapshot/delete \
             -storageDataPath=/vmstorage-data \
             -dst="${backup_dst}" \
+            ${vm_origin_flag} \
             ${vm_endpoint_flag} \
             -concurrency=10 \
             -maxBytesPerSecond=0 2>&1)
@@ -3440,7 +3523,7 @@ backup_victoriametrics() {
             # backup. s3 has no modes, so it is skipped there.
             if [ "${BACKUP_TARGET}" = "shared" ]; then
                 _vm_tree="${backup_dst#fs://}"
-                pod_sh VictoriaMetrics "${pod}" vmbackup "${KUBECTL_EXEC_TIMEOUT}" \
+                pod_sh VictoriaMetrics "${pod}" vmbackup 0 \
                     'chmod -R g+rX "$1" 2>/dev/null; find "$1" -type d -exec chmod g+s {} + 2>/dev/null; true' \
                     "${_vm_tree}" >/dev/null 2>&1 || true
             fi
@@ -3595,12 +3678,12 @@ backup_pmm_server() {
         set +e
         if [ "${BACKUP_TARGET}" = "s3" ]; then
             # In the pmm-backup sidecar, which has rclone: bytes go pod -> S3 directly.
-            pod_sh PMMServer "${pod}" pmm-backup "${KUBECTL_EXEC_TIMEOUT}" \
+            pod_sh PMMServer "${pod}" pmm-backup 0 \
                 'set -o pipefail; cd "$1" && tar -czf - --exclude=lost+found $(ls -A | grep -vxF lost+found) | rclone rcat --s3-no-check-bucket "$2"' \
                 "${PMM_SRV_PATH}" "${s3_uri}" >> "${LOG_FILE}" 2>&1
             pmm_exit=$?
         else
-            pod_sh PMMServer "${pod}" - "${KUBECTL_EXEC_TIMEOUT}" \
+            pod_sh PMMServer "${pod}" - 0 \
                 'mkdir -p "$1" && cd "$2" && tar -czf "$3" --exclude=lost+found $(ls -A | grep -vxF lost+found)' \
                 "$(comp_inpod pmm-server)/${pod}" "${PMM_SRV_PATH}" "${shared_file}" >> "${LOG_FILE}" 2>&1
             pmm_exit=$?
@@ -3639,7 +3722,6 @@ backup_pmm_server() {
             pmm_objects="${pmm_objects} $(comp_location pmm-server)/${pod}/srv.tar.gz"
         else
             log "ERROR" "[PMMServer] Backup failed for ${pod} (exit code: ${pmm_exit})"
-            [ ${pmm_exit} -eq 124 ] && log "ERROR" "[PMMServer]   Timed out after ${KUBECTL_EXEC_TIMEOUT}s (raise KUBECTL_EXEC_TIMEOUT)"
             # Remove the truncated object through the layer, same as above.
             store_delete_object "${dest}" >/dev/null 2>&1 || true
             failed_pods="${failed_pods} ${pod}"
@@ -3776,7 +3858,7 @@ backup_encryption_key() {
         # Recorded in the manifest, not just logged. This is the one object small enough to hash
         # for free, and it is the object whose silent corruption is least recoverable: a restore
         # that applies a truncated key Secret leaves PostgreSQL undecryptable with no error.
-        # restore_encryption_key re-hashes what it read and refuses on a mismatch.
+        # prepare_encryption_key re-hashes what it read and refuses on a mismatch.
         [ "${checksum}" = "N/A" ] && checksum=""
 
         local file_size=$(du -h "${key_file}" | cut -f1)
@@ -4687,6 +4769,16 @@ restore_cleanup() {
     # long-lived, so they accumulated. cmd_restore's own `rm -f` calls stay: they release it as soon
     # as it is genuinely done with, and a second rm is harmless.
     [ -n "${MANIFEST_FILE}" ] && rm -f "${MANIFEST_FILE}" 2>/dev/null || true
+    # A signal can cut a run short with a dump staged on the PG data volume or the decoded key in
+    # /tmp (PMM-13858 review); both are removed here, idempotently.
+    if [ -n "${PG_STAGE_MARKER}" ] && [ -s "${PG_STAGE_MARKER}" ]; then
+        _sp="" _sf=""
+        while read -r _sp _sf; do
+            timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${_sp}" -c database -- rm -f "${_sf}" >/dev/null 2>&1 || true
+        done < "${PG_STAGE_MARKER}"
+    fi
+    [ -n "${PG_STAGE_MARKER}" ] && rm -f "${PG_STAGE_MARKER}" 2>/dev/null || true
+    [ -n "${ENC_KEY_FILE}" ] && rm -f "${ENC_KEY_FILE}" 2>/dev/null || true
     release_locks
     return 0
 }
@@ -4777,9 +4869,12 @@ scale_up_pmm() {
 }
 
 ################################################################################
-# Encryption key (restored FIRST; restore aborts if it fails)
+# Encryption key (verified FIRST, applied after scale-down; restore aborts if either fails)
 ################################################################################
-restore_encryption_key() {
+# Split in two (PMM-13858 review #4): prepare reads and verifies the key BEFORE PMM is scaled down,
+# so a bad key aborts with nothing changed; apply runs AFTER, and keeps the replaced key.
+ENC_KEY_FILE=""
+prepare_encryption_key() {
     local tmp
     tmp=$(mktemp /tmp/enc.XXXXXX 2>/dev/null || echo "/tmp/enc.$$")
     store_read "$(comp_path encryption)/pg-encryption-key.yaml" > "${tmp}" 2>/dev/null || true
@@ -4837,7 +4932,34 @@ restore_encryption_key() {
         rm -f "${tmp}" "${tmp}.ns"; return 1
     fi
     mv "${tmp}.ns" "${tmp}"
+    ENC_KEY_FILE="${tmp}"
+    log "INFO" "[EncryptionKey] Verified; it is applied after PMM is scaled down"
+    return 0
+}
+
+apply_encryption_key() {
+    local tmp="${ENC_KEY_FILE}" cur="" snap=""
     if [ "${DRY_RUN}" = "true" ]; then log "INFO" "[EncryptionKey] [DRY RUN] kubectl apply -n ${NAMESPACE} -f <key from ${BACKUP_NAME}/encryption>"; rm -f "${tmp}"; return 0; fi
+    # Only NotFound means "no key to keep"; a failed lookup must not skip the snapshot below.
+    local _ks=0; k8s_object_state secret pg-encryption-key || _ks=$?
+    if [ "${_ks}" -eq 0 ]; then cur=$(kubectl get secret pg-encryption-key -n "${NAMESPACE}" -o json 2>>"${LOG_FILE}") || cur=""; fi
+    if [ "${_ks}" -eq 2 ] || { [ "${_ks}" -eq 0 ] && [ -z "${cur}" ]; }; then
+        log "ERROR" "[EncryptionKey] Could not read the current pg-encryption-key; not replacing it"; rm -f "${tmp}"; return 1
+    fi
+    if [ -n "${cur}" ] && [ "$(printf '%s' "${cur}" | jq -cS '.data' 2>/dev/null)" = "$(jq -cS '.data' "${tmp}" 2>/dev/null)" ]; then
+        log "INFO" "[EncryptionKey] Unchanged (the target already holds this key)"; rm -f "${tmp}"; return 0
+    fi
+    # Keep the key being replaced: without it, a PMM booted over data this restore did not finish
+    # can never decrypt its own columns again.
+    if [ -n "${cur}" ]; then
+        snap="pg-encryption-key-pre-restore-$(date -u +%Y%m%d-%H%M%S)"
+        if ! printf '%s' "${cur}" | jq --arg n "${snap}" '{apiVersion, kind, type, data, metadata: {name: $n}}' \
+                | kubectl create -n "${NAMESPACE}" -f - >> "${LOG_FILE}" 2>&1; then
+            log "ERROR" "[EncryptionKey] Could not save the current key as Secret ${snap}; not replacing it"
+            rm -f "${tmp}"; return 1
+        fi
+        log "INFO" "[EncryptionKey] Saved the replaced key as Secret ${snap}"
+    fi
     if kubectl apply -f "${tmp}" -n "${NAMESPACE}" >> "${LOG_FILE}" 2>&1; then
         log "INFO" "[EncryptionKey] Restored"; rm -f "${tmp}"; return 0
     fi
@@ -4845,21 +4967,103 @@ restore_encryption_key() {
 }
 
 ################################################################################
-# PostgreSQL — logical restore: stream each pg_dump back into the live primary via
-# pg_restore --clean --if-exists (PMM is down, so nothing is writing). Works into
-# any namespace/cluster; the target databases already exist (chart/operator create
-# pmm-managed + grafana on deploy).
+# PostgreSQL — logical restore: recreate each database empty, then stream its pg_dump back into
+# the live primary via pg_restore (PMM is down, so nothing is writing). Works into any
+# namespace/cluster; the target databases already exist (chart/operator create pmm-managed +
+# grafana on deploy).
 ################################################################################
+# Drop and recreate <db> from template0 with its current owner and grants, in one psql session.
+# pg_restore --clean only drops what the dump contains, so tables newer than the backup survived
+# (PMM-13858 review #7). template0 because the operator seeds template1 with a pgbouncer schema
+# that the dump also creates; the grants are the operator's per-user GRANT ALL.
+pg_recreate_db() {   # <pod> <db>
+    if ! timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "$1" -c database -- \
+            psql -U postgres -v ON_ERROR_STOP=1 -v db="$2" -f - >>"${LOG_FILE}" 2>&1 <<'SQL'
+SELECT pg_get_userbyid(datdba) AS owner, datacl IS NULL AS default_acl,
+       coalesce((SELECT string_agg(format('GRANT %s ON DATABASE %I TO %s', a.privilege_type, datname,
+                 CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE quote_ident(pg_get_userbyid(a.grantee)) END), '; ')
+                 FROM aclexplode(datacl) a), 'SELECT 1') AS grants
+  FROM pg_database WHERE datname = :'db' \gset
+DROP DATABASE :"db" WITH (FORCE);
+CREATE DATABASE :"db" OWNER :"owner" TEMPLATE template0;
+\if :default_acl
+\else
+REVOKE ALL ON DATABASE :"db" FROM PUBLIC;
+:grants;
+\endif
+SQL
+    then
+        log "ERROR" "[PostgreSQL] ${2}: could not drop and recreate the database"; return 1
+    fi
+}
+
+# End every other session on <db...>. A remote pg_dump/pg_restore outlives its killed kubectl exec,
+# and such an orphan blocks DROP DATABASE for good (PMM-13858 review #7). PMM is down, so nothing
+# legitimate is connected. Prints how many sessions were ended.
+pg_end_sessions() {   # <pod> <db...>
+    _pes_pod="$1"; shift
+    timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "${_pes_pod}" -c database -- \
+        psql -U postgres -tA -v ON_ERROR_STOP=1 -v dbs="$*" -f - 2>>"${LOG_FILE}" <<'SQL'
+SELECT count(*) FILTER (WHERE pg_terminate_backend(pid, 5000)) FROM pg_stat_activity
+ WHERE datname = ANY (string_to_array(:'dbs', ' ')) AND pid <> pg_backend_pid();
+SQL
+}
+
+# A dump is staged in the PG pod as a file, in retried chunks, then restored from it. One long
+# `kubectl exec -i` stream into pg_restore broke (websocket 1006) on large dumps, so they never
+# restored (PMM-13858 review #1); a short exec per chunk makes a break cost one retry.
+PG_STAGE_DIR="${PG_STAGE_DIR:-/pgdata}"
+PG_STAGE_CHUNK="${PG_STAGE_CHUNK:-67108864}"
+numeric_env PG_STAGE_CHUNK 67108864
+pg_free_bytes() {   # <pod>
+    timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "$1" -c database -- \
+        df -Pk "${PG_STAGE_DIR}" 2>>"${LOG_FILE}" | awk 'NR == 2 { printf "%.0f", $4 * 1024 }'
+}
+pg_stage_dump() {   # <pod> <uri> <stage-file> <expected-bytes>
+    timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "$1" -c database -- \
+        sh -c ': > "$1"' sh "$3" 2>>"${LOG_FILE}" || { log "ERROR" "[PostgreSQL] cannot create $1:$3"; return 1; }
+    _psd_off=0
+    while [ "${_psd_off}" -lt "$4" ]; do
+        _psd_end=$((_psd_off + PG_STAGE_CHUNK))
+        [ "${_psd_end}" -le "$4" ] || _psd_end="$4"
+        _psd_try=1
+        # Each chunk lands at its own offset and is checked by the file size, so a retry rewrites it.
+        until store_read_range "$2" "${_psd_off}" "${PG_STAGE_CHUNK}" 2>>"${LOG_FILE}" \
+                | kubectl exec -i -n "${NAMESPACE}" "$1" -c database -- sh -c \
+                  'dd of="$1" bs=1M seek="$2" oflag=seek_bytes conv=notrunc status=none && [ "$(stat -c %s "$1")" -ge "$3" ]' \
+                  sh "$3" "${_psd_off}" "${_psd_end}" 2>>"${LOG_FILE}"; do
+            if [ "${_psd_try}" -ge 3 ]; then
+                log "ERROR" "[PostgreSQL] staging $2 failed at byte ${_psd_off} after 3 attempts"; return 1
+            fi
+            _psd_try=$((_psd_try + 1)); log "WARN" "[PostgreSQL] staging chunk at byte ${_psd_off} failed; attempt ${_psd_try}/3"
+        done
+        _psd_off="${_psd_end}"
+    done
+    _psd_got=$(timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "$1" -c database -- \
+        stat -c %s "$3" 2>>"${LOG_FILE}") || _psd_got=""
+    [ "${_psd_got}" = "$4" ] && return 0
+    log "ERROR" "[PostgreSQL] staged ${_psd_got:-0} of $4 bytes of $2"; return 1
+}
+
 restore_postgresql() {
     local pg_pod dbs db rc fail=0
     pg_pod=$(one_pod PostgreSQL "primary pod" "$(comp_pod_selector postgresql)" || true)
     if [ -z "${pg_pod}" ]; then log "ERROR" "[PostgreSQL] Primary pod not resolved; refusing to restore"; return 1; fi
     dbs="${MF_PG_DBS}"
     if [ -z "${dbs}" ]; then log "ERROR" "[PostgreSQL] No databases recorded in the manifest"; return 1; fi
+    if [ "${DRY_RUN}" != "true" ]; then
+        local ended=""
+        # shellcheck disable=SC2086
+        if ended=$(pg_end_sessions "${pg_pod}" ${dbs}); then
+            [ "${ended:-0}" = "0" ] || log "WARN" "[PostgreSQL] Ended ${ended} leftover session(s) on: ${dbs}"
+        else
+            log "ERROR" "[PostgreSQL] Could not end the sessions on ${dbs} (see the log); refusing to restore"; return 1
+        fi
+    fi
 
     for db in ${dbs}; do
         if [ "${DRY_RUN}" = "true" ]; then
-            log "INFO" "[PostgreSQL] [DRY RUN] store_read $(comp_display postgresql)/${db}.dump | pg_restore --clean --if-exists -d ${db} (in ${pg_pod})"
+            log "INFO" "[PostgreSQL] [DRY RUN] stage $(comp_display postgresql)/${db}.dump in ${pg_pod}:${PG_STAGE_DIR}, DROP + CREATE DATABASE ${db}, pg_restore -d ${db} <staged file>"
             continue
         fi
         rc=0
@@ -4874,13 +5078,26 @@ restore_postgresql() {
         if ! [ "${dump_size:-0}" -gt 0 ] 2>/dev/null; then
             log "ERROR" "[PostgreSQL] dump missing or empty: ${uri}"; fail=1; rm -f "${pr_out}"; continue
         fi
-        store_read "${uri}" 2>>"${LOG_FILE}" \
-            | timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "${pg_pod}" -c database -- \
-              pg_restore --clean --if-exists -U postgres -d "${db}" >"${pr_out}" 2>&1 || rc=$?
+        # Everything that can fail without touching the database runs before the DROP.
+        local free stage="${PG_STAGE_DIR}/pmm-restore-${db}.dump"
+        [ -n "${PG_STAGE_MARKER}" ] && { printf '%s %s\n' "${pg_pod}" "${stage}" >> "${PG_STAGE_MARKER}"; } 2>/dev/null || true
+        free=$(pg_free_bytes "${pg_pod}" || true)
+        if [ -n "${free}" ] && [ "${free}" -lt "${dump_size}" ] 2>/dev/null; then
+            log "ERROR" "[PostgreSQL] ${db}: ${PG_STAGE_DIR} in ${pg_pod} has $(human_bytes "${free}") free, the dump needs $(human_bytes "${dump_size}")"
+            fail=1; rm -f "${pr_out}"; continue
+        fi
+        if ! pg_stage_dump "${pg_pod}" "${uri}" "${stage}" "${dump_size}" \
+                || ! pg_recreate_db "${pg_pod}" "${db}"; then
+            timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${pg_pod}" -c database -- rm -f "${stage}" >/dev/null 2>&1 || true
+            fail=1; rm -f "${pr_out}"; continue
+        fi
+        kubectl exec -n "${NAMESPACE}" "${pg_pod}" -c database -- \
+            env PGAPPNAME="${PG_APPNAME}" pg_restore -U postgres -d "${db}" "${stage}" >"${pr_out}" 2>&1 || rc=$?
         cat "${pr_out}" >> "${LOG_FILE}" 2>/dev/null || true
-        # pg_restore exits non-zero on warnings too (e.g. "does not exist, skipping" from --clean
-        # on a fresh db) — but a non-zero exit WITH error lines is a real failure (empty input,
-        # corrupt dump, permission errors) and must fail the restore, not warn-and-succeed.
+        timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${pg_pod}" -c database -- rm -f "${stage}" >/dev/null 2>&1 \
+            || log "WARN" "[PostgreSQL] could not remove ${pg_pod}:${stage}"
+        # pg_restore exits non-zero on warnings too — but a non-zero exit WITH error lines is a
+        # real failure (empty input, corrupt dump, permission errors) and must fail the restore.
         if [ ${rc} -eq 0 ]; then
             log "INFO" "[PostgreSQL] ✓ ${db} restored"
         elif grep -q 'error:' "${pr_out}" 2>/dev/null; then
@@ -4890,9 +5107,9 @@ restore_postgresql() {
         elif [ ${rc} -eq 1 ]; then
             log "WARN" "[PostgreSQL] ${db}: pg_restore exited ${rc} with warnings only (check the log)"
         else
-            # rc is the pipeline's, i.e. timeout's/kubectl's: 124 = timed out, 137 = killed. Neither
-            # means pg_restore finished, so the database may be half-restored.
-            log "ERROR" "[PostgreSQL] ${db}: pg_restore did not complete (exit ${rc}$([ ${rc} -eq 124 ] && echo ", timed out after ${KUBECTL_EXEC_TIMEOUT}s"))"
+            # rc is kubectl's: 137 = killed. That does not mean pg_restore finished, so the
+            # database may be half-restored.
+            log "ERROR" "[PostgreSQL] ${db}: pg_restore did not complete (exit ${rc})"
             fail=1
         fi
         rm -f "${pr_out}" 2>/dev/null || true
@@ -4925,7 +5142,7 @@ restore_clickhouse() {
         # ("override any environment variable via CLI parameter", verified on 2.8.0). IAM access
         # is bucket-wide already.
         log "INFO" "[ClickHouse] restore_remote --rm ${name} (from s3://$(ch_restore_bucket)/$(ch_restore_path), in ${ch_pod})..."
-        pod_exec ClickHouse "${ch_pod}" clickhouse-backup "${KUBECTL_EXEC_TIMEOUT}" \
+        pod_exec ClickHouse "${ch_pod}" clickhouse-backup 0 \
             clickhouse-backup restore_remote \
             --env "S3_BUCKET=$(ch_restore_bucket)" --env "S3_PATH=$(ch_restore_path)" \
             --rm "${name}" >>"${LOG_FILE}" 2>&1 || rc=$?
@@ -4935,7 +5152,7 @@ restore_clickhouse() {
         # Tarball path and backup name as positional args, not interpolated: both are
         # manifest-derived (load_manifest charset-checks them), so this closes the same class
         # of hole as the pmm-server restore rather than relying on the gate alone.
-        pod_sh ClickHouse "${ch_pod}" clickhouse-backup "${KUBECTL_EXEC_TIMEOUT}" \
+        pod_sh ClickHouse "${ch_pod}" clickhouse-backup 0 \
             'mkdir -p /var/lib/clickhouse/backup && tar -xzf "$1" -C /var/lib/clickhouse/backup && clickhouse-backup restore --rm "$2"' \
             "${tarball}" "${name}" >>"${LOG_FILE}" 2>&1 || rc=$?
     fi
@@ -5489,7 +5706,7 @@ restore_victoriametrics() {
         exec_out=$(mktemp /tmp/vmrestore.XXXXXX 2>/dev/null || echo "/tmp/vmrestore.$$"); rc=0
         # -loggerLevel=WARN silences vmrestore's per-part "downloading/deleting" info spam; its
         # full output still goes to the log FILE (not the console). On failure we surface the tail.
-        timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${restore_pod}" -c vmrestore -- \
+        kubectl exec -n "${NAMESPACE}" "${restore_pod}" -c vmrestore -- \
             /vmrestore-prod -src="${src}" -storageDataPath=/vmstorage-data ${vm_endpoint_flag} -concurrency=10 -loggerLevel=WARN >"${exec_out}" 2>&1 || rc=$?
         cat "${exec_out}" >> "${LOG_FILE}" 2>/dev/null || true
         delete_temp_restore_pod "${restore_pod}"
@@ -5689,7 +5906,7 @@ restore_pmm_server() {
             # silent merge of two releases is the worse outcome.
             local uri="$(comp_path pmm-server)/${src_subdir}/srv.tar.gz"
             log "INFO" "[PMMServer] Restoring /srv (ord ${ord}) -> ${pvc} from S3..."
-            pod_sh PMMServer "${restore_pod}" - "${KUBECTL_EXEC_TIMEOUT}" \
+            pod_sh PMMServer "${restore_pod}" - 0 \
                 'set -o pipefail; rclone lsjson --s3-no-check-bucket "$1" >/dev/null || exit 3; cd /srv && { ls -A | { grep -vxF lost+found || [ $? -eq 1 ]; } | xargs -r rm -rf; } && rclone cat --s3-no-check-bucket "$1" | tar -xzf - -C /srv --no-same-owner && rm -rf /srv/ha' \
                 "${uri}" >"${out}" 2>&1 || rc=$?
         else
@@ -5698,7 +5915,7 @@ restore_pmm_server() {
             # extract after /srv has been emptied.
             local tb="$(comp_inpod pmm-server)/${src_subdir}/srv.tar.gz"
             log "INFO" "[PMMServer] Restoring /srv (ord ${ord}) -> ${pvc} from ${tb}..."
-            pod_sh PMMServer "${restore_pod}" - "${KUBECTL_EXEC_TIMEOUT}" \
+            pod_sh PMMServer "${restore_pod}" - 0 \
                 '[ -r "$1" ] || exit 3; cd /srv && { ls -A | { grep -vxF lost+found || [ $? -eq 1 ]; } | xargs -r rm -rf; } && tar -xzf "$1" -C /srv --no-same-owner && rm -rf /srv/ha' \
                 "${tb}" >"${out}" 2>&1 || rc=$?
         fi
@@ -6446,7 +6663,7 @@ cleanup_old_backups() {
         log "INFO" "[DRY RUN]   \$ find ${BACKUP_DIR}/logs -maxdepth 1 -type f \\( -name 'backup_*.log' -o -name 'restore_*.log' -o -name 'prune_*.log' \\) -mtime +${BACKUP_RETENTION} -delete"
         log "INFO" "[DRY RUN]   \$ find ${BACKUP_DIR}/.logs -maxdepth 1 -type f \\( -name 'cron-*' -o -name 'inflight.pid' \\) -mtime +${BACKUP_RETENTION} -delete"
         if [ "${BACKUP_CLICKHOUSE}" = "true" ]; then
-            log "INFO" "[ClickHouse] [DRY RUN]   \$ kubectl exec ... -c clickhouse-backup -- clickhouse-backup clean --keep-local-older-than ${BACKUP_RETENTION}d"
+            log "INFO" "[ClickHouse] [DRY RUN]   \$ kubectl exec <each clickhouse pod> -c clickhouse-backup -- clickhouse-backup clean"
         fi
         # The sweep prints the EXACT paths it would purge, not just the command shape. This is
         # the review gate for retention: a reviewer has to be able to see the real delete list
@@ -6505,25 +6722,22 @@ cleanup_old_backups() {
 
     log "INFO" "[PostgreSQL] pg_dump files pruned with the per-id retention sweep"
 
-    # ClickHouse cleanup
-    if [ "${BACKUP_CLICKHOUSE}" = "true" ]; then
-        log "INFO" "[ClickHouse] Cleaning up old backups..."
-        local ch_pod=$(kubectl get pods -n "${NAMESPACE}" \
-            -l "$(comp_pod_selector clickhouse)" \
-            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-        
-        if [ -n "${ch_pod}" ]; then
-            if timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse-backup -- \
-                command -v clickhouse-backup >/dev/null 2>&1; then
-                if [ "${VERBOSE}" = "true" ]; then
-                    timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse-backup -- \
-                        clickhouse-backup clean --keep-local-older-than "${BACKUP_RETENTION}d" 2>&1 | tee -a "${LOG_FILE}" || true
-                else
-                    timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse-backup -- \
-                        clickhouse-backup clean --keep-local-older-than "${BACKUP_RETENTION}d" >> "${LOG_FILE}" 2>&1 || true
-                fi
-            fi
-        fi
+    # ClickHouse: empty shadow/ (left by failed FREEZE runs) on EVERY replica. `clean` takes no
+    # age flag, and `command -v` is a shell builtin kubectl exec cannot run (PMM-13858 review #12).
+    # Not after a failed ClickHouse backup in this run: a create that timed out here may still be
+    # freezing in the sidecar, and `clean` would wipe shadow/ under it.
+    if [ "${BACKUP_CLICKHOUSE}" = "true" ] && [ "${COMMAND}" = "backup" ] \
+            && [ "$(result_get clickhouse status "")" != "success" ]; then
+        log "INFO" "[ClickHouse] shadow/ cleanup skipped: this run's ClickHouse backup did not succeed"
+    elif [ "${BACKUP_CLICKHOUSE}" = "true" ]; then
+        log "INFO" "[ClickHouse] Cleaning shadow/ leftovers..."
+        local ch_pod
+        for ch_pod in $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" \
+                -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+            timeout "${KUBECTL_EXEC_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${ch_pod}" -c clickhouse-backup -- \
+                clickhouse-backup clean >> "${LOG_FILE}" 2>&1 \
+                || log "WARN" "[ClickHouse] clickhouse-backup clean failed in ${ch_pod} (see the log)"
+        done
     fi
     
     # VictoriaMetrics writes straight to its target (no local leftover to prune):
@@ -6834,7 +7048,7 @@ cmd_backup() {
         trap release_locks EXIT
         trap 'release_locks; exit 130' INT
         trap 'release_locks; exit 143' TERM
-        acquire_locks
+        # BEFORE acquire_locks, whose lease names carry the resolved owners (lease_name), and
         # BEFORE protect_operand_pods, which annotates the PostgreSQL and ClickHouse pods this
         # run will exec into: those selectors are install-scoped, so with the scope still empty
         # the hold reached every release's PG and ClickHouse pods in the namespace — and a
@@ -6842,6 +7056,7 @@ cmd_backup() {
         # nothing will ever strip it. (A no-op at the pre-flight call below, which is where the
         # dry-run path — that never annotates anything — resolves it instead.)
         if ! resolve_component_scope 4; then exit 1; fi
+        acquire_locks
         # AFTER the traps, so an interrupt between here and the first component still strips the
         # holds; after acquire_locks, so a run that loses the lock race never touches a live
         # run's pods.
@@ -7111,8 +7326,8 @@ cmd_prune() {
     if ! resolve_component_scope 4 clickhouse; then exit 1; fi
     if ! preflight_checks prune; then exit 1; fi
 
-    # cleanup_old_backups does more than the S3 sweep: it also execs `clickhouse-backup clean
-    # --keep-local-older-than` into the LIVE ClickHouse pod, which is a database-side
+    # cleanup_old_backups does more than the S3 sweep: it also execs `clickhouse-backup clean`
+    # into the LIVE ClickHouse pods, which is a database-side
     # destructive operation. Running that unlocked while a backup holds the clickhouse Lease
     # and is mid create/upload puts two writers on the same sidecar, so the sweep takes the
     # same lock a backup would. Alphabetical order and the same release path as every other
@@ -7168,6 +7383,7 @@ cmd_restore() {
             TEMP_PODS_MARKER=$(mktemp /tmp/pmm-temp-pods.XXXXXX 2>/dev/null || echo "/tmp/.pmm-temp-pods.$$")
             rm -f "${TEMP_PODS_MARKER}" 2>/dev/null || true
         }
+        [ -n "${PG_STAGE_MARKER}" ] || PG_STAGE_MARKER="${TEMP_PODS_MARKER}.pgstage"
     fi
     # EXIT just cleans up; INT/TERM must also EXIT, or ash/dash resumes the restore with its locks
     # released and temp pods deleted. restore_cleanup is idempotent. See DN-20.
@@ -7254,10 +7470,11 @@ cmd_restore() {
     fi
     RESTORE_START_TIME=$(date +%s)
 
-    # 1. Encryption key first — abort if it fails (can't decrypt restored data otherwise).
+    # 1. Encryption key first — read and verified here, applied after scale-down (step 2).
     [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "encryption_key"
+    local _enc_apply=false
     if [ "${RESTORE_ENCRYPTION_KEY}" = "true" ] && [ "${MF_ENC_STATUS}" = "success" ]; then
-        restore_encryption_key && ENCRYPTION_KEY_OK=true
+        prepare_encryption_key && ENCRYPTION_KEY_OK=true && _enc_apply=true
     else
         [ "${RESTORE_ENCRYPTION_KEY}" = "true" ] && log "WARN" "Encryption key requested but not in this backup"
         ENCRYPTION_KEY_OK=true
@@ -7278,7 +7495,13 @@ cmd_restore() {
     #    are free for the /srv restore. PMM is brought up LAST (after all data is restored), so it
     #    boots against the restored DBs + /srv instead of migrating a half-restored database.
     [ "${DRY_RUN}" != "true" ] && write_restore_metrics 1 "scale_down_pmm"
-    if ! scale_down_pmm; then log "ERROR" "Failed to scale down PMM; aborting."; write_restore_metrics 0 "idle" 0 "$(date +%s)" 0; exit 1; fi
+    if ! scale_down_pmm; then log "ERROR" "Failed to scale down PMM; aborting."; [ -n "${ENC_KEY_FILE}" ] && rm -f "${ENC_KEY_FILE}"; write_restore_metrics 0 "idle" 0 "$(date +%s)" 0; exit 1; fi
+    if [ "${_enc_apply}" = "true" ] && ! apply_encryption_key; then
+        # Nothing was written yet, so PMM goes back to serving instead of staying at 0.
+        log "ERROR" "Encryption key could not be applied; aborting. No data was written, scaling PMM back up."
+        scale_up_pmm || true
+        write_restore_metrics 0 "idle" 0 "$(date +%s)" 0; exit 1
+    fi
 
     # 3. The three data stores (PMM is down).
     #
@@ -7558,7 +7781,7 @@ main() {
             ''|*[!0-9]*) echo "Error: Invalid --retention: '${BACKUP_RETENTION}' (must be a non-negative integer)"; exit 1 ;;
         esac
         # Digit-only was sufficient while this value was only ever a string (find -mtime +N,
-        # clickhouse-backup --keep-local-older-than Nd). The S3 sweep does arithmetic with it,
+        # and nothing else). The S3 sweep does arithmetic with it,
         # where a leading zero is an octal literal: "010" silently means 8 days (purging the 9th
         # and 10th day the operator asked to keep) and "08" is not valid octal at all — busybox
         # aborts the whole run with "arithmetic syntax error" after the backup already succeeded.
