@@ -711,7 +711,7 @@ haproxy:
   # Increment config-version in the same upgrade for that, and for any other ConfigMap
   # change that requires a restart.
   podAnnotations:
-    pmm.percona.com/config-version: "5"
+    pmm.percona.com/config-version: "6"
 
   # HAProxy pod spread across nodes.
   #
@@ -898,7 +898,12 @@ pg-db:
                   postgres-operator.crunchydata.com/role: pgbouncer
   patroni:
     dynamicConfiguration:
+      ## Don't demote a primary that can still reach every other member when the Kubernetes API is down.
+      failsafe_mode: true
       postgresql:
+        parameters:
+          ## Must cover every PMM replica's connection pools, see docs/SIZING.md.
+          max_connections: 300
         pg_hba:
           # Allow connections from private RFC1918 networks (common Kubernetes ranges)
           # 10.0.0.0/8 covers AWS and GCP
