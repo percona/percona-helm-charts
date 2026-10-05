@@ -49,10 +49,6 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      # No init container waits for the pg-encryption-key Secret: it is mounted below as a required
-      # volume, so the kubelet keeps the pod in ContainerCreating until it exists, and the
-      # pre-install hook (pmm-secret-init-job.yaml) creates it before this StatefulSet is applied.
-      # That is also why the pod needs no ServiceAccount token.
       initContainers:
         {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
         # pmm-managed rewrites the supervisord program files under /etc/supervisord.d at start,
@@ -148,7 +144,7 @@ spec:
                   key: PMM_CLICKHOUSE_PASSWORD
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
-            # clickhouse-client keeps its history under $HOME; keep that off the root filesystem.
+            # clickhouse-client writes its history under $HOME, which is / (not writable) for uid 1000.
             - name: HOME
               value: /tmp
           {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
@@ -470,6 +466,8 @@ spec:
                   - path: "annotations"
                     fieldRef:
                       fieldPath: metadata.annotations
+        # A required Secret volume: the pod waits in ContainerCreating until the pre-install
+        # hook (pmm-secret-init-job.yaml) has created it.
         - name: encryption-key
           secret:
             secretName: pg-encryption-key
