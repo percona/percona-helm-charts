@@ -656,9 +656,11 @@ judge for it, and `cmd_backup` calls it unconditionally.
 it can be scheduled independently of the backup. That also relaxes a coupling the bounds were
 paying for: `S3_PRUNE_MAX_PER_RUN` and `S3_PRUNE_MAX_SECONDS` exist largely so the sweep cannot
 overrun the backup CronJob's `activeDeadlineSeconds` while holding that run's component locks.
-On its own schedule it answers to its own deadline. It takes no component locks — it touches no
-database, and the only data it deletes belongs to ids past the cutoff, which no in-flight backup
-can be writing.
+On its own schedule it answers to its own deadline. It takes only the ClickHouse lock, because
+it runs `clickhouse-backup clean` in the live pod, which must not overlap a backup's create or
+upload; scope is resolved for ClickHouse alone, so an unrelated cluster in the namespace cannot
+fail the prune. Everything else it deletes belongs to ids past the cutoff, which no in-flight
+backup can be writing.
 
 ## DN-41 — The manifest is a versioned on-storage contract
 
@@ -1179,3 +1181,89 @@ under `set -o pipefail` exits **1 on an empty directory**, because grep reports 
 selected". After the wipe above, a re-run therefore failed with the identical `exit 1` before
 reaching rclone at all — and so does a first restore into a DR target whose PMM has never booted.
 The grep now forgives status 1 and only status 1.
+
+## Implementation notes
+
+Rationale moved out of `files/pmm-backup.sh` comments when they were trimmed. Each entry is
+keyed by the function it explains.
+
+### Install scoping (`comp_pod_selector`, `resolve_component_scope`, `resolve_one`)
+
+Pod selectors are scoped by the owning CR name (PostgresCluster, CHI, VMCluster, PMM
+StatefulSet), resolved once per run in the target namespace. The rule is "exactly one owner per
+kind", with `--release` as the explicit tie-break. It is not a filter on `RELEASE_NAME`: that is
+the source release baked into the tools pod and usually differs on a cross-namespace restore
+(DN-33). `resolve_one` returns 1 for none (a per-component failure), 2 for several and 3 for a
+failed lookup. Both 2 and 3 stop the run, so it never fails open.
+
+### `TEMP_PODS_MARKER`
+
+The proof that "this run created a temp pod" is a file chosen in the parent before forking, not a
+variable. Parallel restores run in `( ... ) &`, so a variable set there is invisible to
+`restore_cleanup`. Cleanup would then skip the VM temp pods holding RWO vmstorage PVCs, and the
+scale-up would hit Multi-Attach.
+
+### File probes (`dir_writable`, `init_log`, `store_write_private`)
+
+Never create files with `: > file`. `:` is a POSIX special builtin, so a failed redirection kills
+the shell; use `touch`, whose failure is an ordinary non-zero exit (the lint suite enforces this).
+Probe writability with a real write, not `[ -w ]`: root and NFS/EFS squashing make `-w` lie.
+
+### `protect_operand_pods`
+
+PostgreSQL and ClickHouse are backed up and restored by `kubectl exec` into the live operator pods.
+For the whole run those pods (selected, scope-resolved components only) carry
+`karpenter.sh/do-not-disrupt` plus an owner annotation. A pre-existing hold without our owner
+annotation is never touched. Ours, including the leftover of a SIGKILLed run, is taken over and
+removed on exit. This is best-effort: it never aborts a run, and it does not replace a
+PodDisruptionBudget.
+
+### `backup_postgresql`
+
+Database names must match `[A-Za-z0-9_.-]`. The manifest stores the list space-joined, restore
+word-splits it, and `sizes_to_json` keys on `<name>:<bytes>`. A name containing whitespace or `:`
+would back up but could not be restored, so the backup refuses it up front.
+
+### Cross-namespace readability (`backup_victoriametrics`, `backup_encryption_key`)
+
+In shared mode, vmbackup creates its tree under the vmstorage container's umask (0700), which a
+peer namespace cannot read. So the destination is pre-created as `2775`, and after a successful
+run `chmod -R g+rX` plus setgid on directories is applied from the owning pod (best-effort). The
+staged encryption key is written under umask 027 (0640, group root) in shared mode and 077 in s3
+mode. OpenShift gives every arbitrary-uid pod gid 0, so group-read is the narrowest mode that a DR
+namespace can read.
+
+### `validate_temp_pod_admission`
+
+`kubectl create --dry-run=server` reports a PodSecurity violation in warn mode as `Warning: would
+violate ...` on stderr and still exits 0. The probe therefore checks the output as well as the
+exit code, and refuses on that warning: the namespace could switch to enforce in the middle of a
+restore.
+
+### `prepare_encryption_key`
+
+The key file is the only store content applied as a Kubernetes manifest, so it must be exactly
+one v1 Secret named `pg-encryption-key` (`jq -e -s 'length == 1 and ...'`). Otherwise anyone who
+can write to the store prefix could inject objects that a DR restore would create as the backup
+ServiceAccount. The sha256 check is not this control, because its expected value comes from the
+same store. Slurping (`-s`) matters: without it, `jq -e` takes its exit status from the last value
+only. The namespace is rewritten with jq on `.[0]`, not with sed.
+
+### Temp restore pods (`render_temp_pod_security_context`, `scheduling_of`, `render_temp_restore_pod`)
+
+- When an fsGroup is rendered, `fsGroupChangePolicy: OnRootMismatch` is added. The default
+  (`Always`) walks every file on a large vmstorage or `/srv` volume and can outlast the 300s
+  readiness wait while the tier is already at 0.
+- nodeSelector, tolerations, priorityClassName and imagePullSecrets are copied from the live
+  workload, so the pod lands where the RWO PVC binds and can pull a private image. Affinity is not
+  copied: pod (anti-)affinity points at pods that the restore has just scaled to 0.
+- Explicit resources (`centralBackupStorage.tools.resources`) keep a namespace ResourceQuota
+  without a defaulting LimitRange from rejecting the pod after scale-down.
+
+### `restore_pmm_server`
+
+`/srv` is emptied before extraction, except `lost+found`, using the same `ls -A | grep -vxF
+lost+found` list the backup tars. tar only overwrites the members it carries, so extracting onto a
+populated DR target would merge two PMM releases. Under `pipefail`, grep's status 1 on an empty
+directory is forgiven; status 2 is not.
+

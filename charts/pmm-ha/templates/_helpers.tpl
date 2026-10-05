@@ -119,20 +119,7 @@ renders first, so it needs its own call to report the missing key rather than dy
 b64dec. Keep every consumer that decodes a key from this secret calling it.
 */}}
 {{/*
-Refuse an install whose PMM pods would get the /srv backup sidecar but no S3 credentials.
-
-serviceaccount.yaml is gated entirely on .Values.serviceAccount.create, so with create=false
-the chart never emits the eks.amazonaws.com/role-arn annotation and statefulset.yaml drops
-serviceAccountName — the PMM pods run as the namespace `default` SA. The pmm-backup sidecar is
-NOT gated the same way: it is added whenever centralBackupStorage is on in s3 mode, complete
-with RCLONE_CONFIG_S3_ENV_AUTH=true and no static keys. Its `rclone rcat` then has no
-web-identity token, 403s on every PMM pod, and backup_pmm_server reports the archive missing —
-so the whole backup is marked failed, on every run, with nothing at render time having said why.
-
-The chart cannot annotate a ServiceAccount it does not create, so the honest move is to refuse
-rather than ship the broken combination. Only this exact combination fails: with an
-existingSecret the sidecar has static keys and needs no SA, and with create=true the annotation
-is emitted normally.
+Refuse IRSA with serviceAccount.create=false and no static keys: the PMM /srv sidecar would have no S3 credentials.
 */}}
 {{- define "pmm.validateBackupIrsaSa" -}}
 {{- $cbs := .Values.centralBackupStorage -}}
@@ -691,32 +678,17 @@ when nodeExporter.mode == "openshift".
 {{- end -}}
 
 {{/*
-Central backup RWX/NFS volume (shared mode). Renders a single pod-spec volume entry named
-"central-backup-storage" referencing the same NFS/PVC as the backup-tools pod. Mounted at
-.Values.centralBackupStorage.sharedMountPath inside the component pods so each tool writes its
-backup straight to the shared volume. Call with the root context: {{- include "pmm.centralBackupVolume" . }}
+Central backup volume entry "central-backup-storage".
 */}}
 {{- define "pmm.centralBackupVolume" -}}
-{{- /* ALWAYS a PersistentVolumeClaim. A PVC-less `nfs:` volume was offered here and is gone:
-       the VictoriaMetrics and /srv restores run in temp pods this chart does not render -
-       pmm-backup.sh builds them at restore time and can only mount a claim - so that shortcut
-       backed up fine and then could not restore half the components. It also cannot express
-       mountOptions (an inline NFSVolumeSource has only server/path/readOnly), and `hard` /
-       `nfsvers` are not optional on a volume holding backup archives. An NFS export is still
-       fully supported: declare a PersistentVolume for it, with the mount options, and point
-       existingClaim at its claim. */}}
+{{- /* Always a PVC: restore temp pods can only mount a claim. Use a PV for raw NFS. */}}
 - name: central-backup-storage
   persistentVolumeClaim:
     claimName: {{ .Values.centralBackupStorage.existingClaim | default (printf "%s-central-backup" .Release.Name) }}
 {{- end -}}
 
 {{/*
-Name of the key inside an S3 credentials Secret. Collapses the
-`(<s3>.existingSecretKeys | default dict).accessKey | default "access-key"` idiom that the
-pmm-backup, vmbackup and clickhouse-backup sidecars each hand-copy. Call with the keys dict
-(may be nil) and which credential is wanted:
-  {{ include "pmm.s3SecretKeyName" (dict "keys" $s3.existingSecretKeys "which" "access") }}
-  {{ include "pmm.s3SecretKeyName" (dict "keys" $s3.existingSecretKeys "which" "secret") }}
+Key name inside an S3 credentials Secret: (dict "keys" <existingSecretKeys> "which" "access"|"secret").
 */}}
 {{- define "pmm.s3SecretKeyName" -}}
 {{- $keys := .keys | default dict -}}
@@ -771,42 +743,15 @@ Once generated it is read back from the chart-managed secret, so upgrades keep t
 {{- end -}}
 
 {{/*
-Name of the backup S3 ServiceAccount (used by vmstorage/ClickHouse for the IRSA credential chain
-and referenced by the restore temp pods). Release-scoped by default so two releases in the same
-namespace don't collide on one fixed SA (Helm ownership conflict on install, and uninstall of one
-release deleting the SA the other still uses). Override via centralBackupStorage.s3.serviceAccountName.
+Backup S3 ServiceAccount name; release-scoped so two releases can share a namespace.
 */}}
 {{- define "pmm.backupS3SaName" -}}
 {{- .Values.centralBackupStorage.s3.serviceAccountName | default (printf "%s-backup-s3" .Release.Name) -}}
 {{- end -}}
 
 {{/*
-S3 key root for THIS install: <namespace>/<prefix>.
-
-Every S3 path the backup and restore tooling builds hangs off this — <component>/<id>/ and
-clickhouse/... — so it is the one place that decides which keys an install owns.
-
-Why the namespace leads the path: retention deletes by AGE under the root it is given and
-cannot tell whose backup an id is, so two installs sharing a root delete each other's
-backups (irreversibly, on a bucket without versioning). The prefix alone does not prevent
-that, because it defaults to the same literal "pmm-ha" for every install — so two namespaces
-on one cluster collide unless the operator intervenes. Leading with .Release.Namespace makes
-that case safe automatically, while keeping the prefix configurable for the case the
-namespace cannot solve: the same namespace name on two DIFFERENT clusters sharing one bucket
-(namespaces are cluster-scoped, and no cluster identity is readable from the chart's
-namespaced RBAC). Set a distinct prefix per cluster for that topology.
-
-Why the prefix defaults to .Release.Name and not the literal "pmm-ha": two releases in ONE
-namespace is a topology this chart supports (the backup SA and the central PVC are both
-release-scoped for it, see pmm.backupS3SaName). A fixed literal gave both of them the same
-root, so they shared one catalog, one 'latest' pointer and one age-based retention sweep —
-and since ownership is recorded only by namespace, either release could promote or delete
-the other's backups. The release name is the identity that distinguishes them. For the
-conventional release name "pmm-ha" the rendered root is unchanged.
-
-Namespace first also keeps the bucket human-navigable and DR-discoverable: the path names the
-install, so a restore can be pointed at a source (--s3-prefix <ns>/<prefix>) without querying
-the source cluster, which in a real disaster may be gone.
+S3 key root for this install: <namespace>/<prefix>, prefix defaulting to the release name.
+Retention deletes by age under its root, so the root must be unique per install.
 */}}
 {{- define "pmm.backupS3Root" -}}
 {{- $prefix := .Values.centralBackupStorage.s3.prefix | default .Release.Name | trimPrefix "/" | trimSuffix "/" -}}
@@ -814,24 +759,14 @@ the source cluster, which in a real disaster may be gone.
 {{- end -}}
 
 {{/*
-The same identity as a path segment, for the SHARED target, which has no s3.prefix to override
-with. Kept separate from pmm.backupS3Root rather than reusing it so that an s3.prefix override
-cannot silently move the shared layout too - the two targets are configured independently.
+Shared-target install path; independent of s3.prefix by design.
 */}}
 {{- define "pmm.backupInstallPath" -}}
 {{- printf "%s/%s" .Release.Namespace .Release.Name -}}
 {{- end -}}
 
 {{/*
-The relabel rules that scope a backup-metrics scrape job to THIS release's backup-tools pod.
-Kept as a named template even though one job uses it today: the rule is subtle (an unescaped
-release name in a regex silently keeps another release's pods) and it belongs somewhere a second
-job can reuse rather than copy. Two releases in one namespace is a topology this chart supports —
-the backup SA and the central PVC are both release-scoped for it.
-
-regexQuoteMeta on the release name matters: Prometheus anchors relabel regexes but does not
-escape them, so an unescaped release called `pmm.prod` would also keep a co-located `pmmXprod`
-release's pods — reintroducing the cross-release mixing this rule exists to stop.
+Scope a scrape job to this release's backup-tools pod. regexQuoteMeta: relabel regexes are not escaped.
 */}}
 {{- define "pmm.backupToolsScrapeKeep" -}}
 - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
@@ -856,52 +791,28 @@ dict with "name" and "value".
 {{- end -}}
 
 {{/*
-Environment for a backup/restore RUN of pmm-backup.sh — the single definition of how the
-orchestrator learns this install's target (shared mount or S3 coordinates + credentials).
-Consumed by the backup-tools Deployment (manual/interactive runs), the backup CronJob's
-jobTemplate (scheduled runs) — and, through `kubectl create job --from`, every manual backup
-and restore cloned from it. (examples/restore-job.yaml's standalone fallback is NOT a consumer:
-it is a static file, cannot include a helper, and hand-copies a shared-mode-only subset — which
-is exactly why that file steers operators to the clone instead.) These were one hand-copied
-block per consumer before PMM-13858 moved scheduled runs into Jobs; env drift between the
-Deployment and the Job would make a manual run and a scheduled run write to different
-places, which is exactly the class of bug the S3_PREFIX composition comment below warns
-about. Call with the root context and nindent to the env list's indent:
-  {{- include "pmm.backupRunEnv" . | nindent 10 }}
+Env for a pmm-backup.sh run, shared by the Deployment and Job pods so their targets can't drift.
 */}}
 {{- define "pmm.backupRunEnv" -}}
 - name: NAMESPACE
   value: {{ .Release.Namespace }}
-{{- /* Lets the orchestrator scope its backup-tools selector to THIS release: two pmm-ha
-       installs can share a namespace, and an unscoped selector can resolve the other one's
-       central backup volume. See LABEL_BACKUP_TOOLS in files/pmm-backup.sh. */}}
+{{- /* Scopes the backup-tools selector when two releases share a namespace. */}}
 - name: RELEASE_NAME
   value: {{ .Release.Name }}
 - name: BACKUP_DIR
   value: {{ .Values.centralBackupStorage.mountPath }}
 - name: METRICS_DIR
   value: {{ .Values.centralBackupStorage.mountPath }}/.metrics
-{{- /* Every `backup` run ends with the retention sweep, manual runs included; without this they
-       pruned at the script's default of 7 days instead of retentionDays. */}}
+{{- /* Manual runs prune too, so they need retentionDays. */}}
 - name: BACKUP_RETENTION
   value: {{ .Values.centralBackupStorage.schedule.retentionDays | int | quote }}
-# Backup target + S3 settings the chart already knows, projected as env so
-# pmm-backup.sh (restore and manual backup runs) defaults to THIS
-# install rather than requiring every --target/--s3-* flag to be re-typed — a
-# forgotten --s3-secret otherwise makes a static-key restore schedule temp pods
-# under a non-existent SA and fail at admission mid-restore. Flags still override.
+# Defaults for pmm-backup.sh; flags still override.
 - name: BACKUP_TARGET
   value: {{ .Values.centralBackupStorage.mode | quote }}
 {{- if eq .Values.centralBackupStorage.mode "shared" }}
 - name: SHARED_MOUNT_PATH
   value: {{ .Values.centralBackupStorage.sharedMountPath | quote }}
-{{- /* The install's own subdirectory under that mount: <namespace>/<release>, the shared-target
-       counterpart of S3_PREFIX and deliberately the same string. Without it every install
-       mounting one RWX export wrote into a single catalog - one `latest`, one manifests/, one
-       age-based retention sweep - and two releases in a namespace could promote each other's
-       backups (ownership is recorded per namespace, which they share). A DR restore reads the
-       SOURCE's subpath with --shared-source-path, exactly as it reads a source bucket prefix
-       with --s3-prefix. */}}
+{{- /* Per-install catalog under a shared mount; same string as S3_PREFIX. */}}
 - name: SHARED_SUBPATH
   value: {{ include "pmm.backupInstallPath" . | quote }}
 {{- else }}
@@ -909,16 +820,11 @@ about. Call with the root context and nindent to the env list's indent:
   value: {{ .Values.centralBackupStorage.s3.bucket | quote }}
 - name: S3_REGION
   value: {{ .Values.centralBackupStorage.s3.region | quote }}
-{{- /* <namespace>/<prefix> — see the "pmm.backupS3Root" helper for why the
-       namespace leads. The scripts treat S3_PREFIX as an opaque key prefix, so a
-       multi-segment value needs no change on their side. */}}
 - name: S3_PREFIX
   value: {{ include "pmm.backupS3Root" . | quote }}
 - name: S3_PROVIDER
   value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
-{{- /* Defines the `s3:` remote the orchestrator addresses as s3:<bucket>/<prefix>.
-       Same variable set that render_rclone_s3_env() puts in the temp restore pods,
-       so there is one definition of what "the s3 remote" means. */}}
+{{- /* Same set render_rclone_s3_env() gives the temp restore pods. */}}
 - name: RCLONE_CONFIG_S3_TYPE
   value: "s3"
 - name: RCLONE_CONFIG_S3_PROVIDER
@@ -933,8 +839,6 @@ about. Call with the root context and nindent to the env list's indent:
 - name: RCLONE_CONFIG_S3_ENDPOINT
   value: {{ . | quote }}
 {{- end }}
-{{- /* Static keys: env_auth=true above makes rclone read these. On the IRSA path
-       there are no keys and the SA's web-identity token is used instead. */}}
 {{- with .Values.centralBackupStorage.s3.existingSecret }}
 - name: AWS_ACCESS_KEY_ID
   valueFrom:
@@ -951,24 +855,13 @@ about. Call with the root context and nindent to the env list's indent:
 - name: S3_ENDPOINT
   value: {{ . | quote }}
 {{- end }}
-{{- /* VictoriaMetrics may point at a DIFFERENT endpoint than everything else
-       (victoriaMetrics.vmstorage.backup.s3.endpoint). vmbackup/vmrestore accept it
-       only as -customS3Endpoint, and this pod is what invokes them, so the effective
-       value is resolved here rather than as an env var on the sidecar that no tool
-       reads. Only emitted when it actually differs from S3_ENDPOINT. */}}
+{{- /* vmbackup/vmrestore take the endpoint only as a flag, so this pod needs VM's own (DN-28). */}}
 {{- $vmEndpoint := .Values.victoriaMetrics.vmstorage.backup.s3.endpoint | default .Values.centralBackupStorage.s3.endpoint }}
 {{- if and $vmEndpoint (ne $vmEndpoint .Values.centralBackupStorage.s3.endpoint) }}
 - name: VM_S3_ENDPOINT
   value: {{ $vmEndpoint | quote }}
 {{- end }}
-{{- /* Same argument for the REGION and the CREDENTIALS, and for the same reason the endpoint
-       needed it: vmbackup runs as a sidecar the chart wires from
-       victoriaMetrics.vmstorage.backup.s3 (vmcluster.yaml), but vmRESTORE runs in a temp pod
-       THIS process renders. Projecting only the endpoint meant a VM-only region or secret was
-       honoured when the backup was written and ignored when it was read back, so the override
-       produced backups vmrestore could not authenticate to. Resolved with the SAME precedence
-       vmcluster.yaml uses, and emitted only when it actually differs from the central value -
-       the orchestrator falls back to S3_REGION / S3_SECRET_NAME otherwise. */}}
+{{- /* VM region/secret overrides, so vmrestore's temp pod reads what vmbackup wrote. */}}
 {{- $vmS3 := .Values.victoriaMetrics.vmstorage.backup.s3 }}
 {{- $vmRegion := $vmS3.region | default .Values.centralBackupStorage.s3.region }}
 {{- if and $vmRegion (ne $vmRegion .Values.centralBackupStorage.s3.region) }}
@@ -991,43 +884,26 @@ about. Call with the root context and nindent to the env list's indent:
 - name: S3_SECRET_SECRET_KEY_KEY
   value: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "secret") | quote }}
 {{- end }}
-{{- /* Only project the SA name when the chart actually CREATES that SA (i.e. IRSA is
-       configured — see backup-s3-serviceaccount.yaml, same condition). Otherwise the
-       restore temp pods would set serviceAccountName to a non-existent SA and be rejected
-       at admission mid-restore (with PMM/VM already scaled to 0). Ambient-credential
-       installs leave this empty and the temp pods use the namespace default SA. */}}
+{{- /* Only when the SA is created; a missing SA fails temp pods at admission mid-restore. */}}
 {{- if .Values.centralBackupStorage.s3.irsaRoleArn }}
 - name: S3_SERVICE_ACCOUNT
   value: {{ include "pmm.backupS3SaName" . | quote }}
 {{- end }}
 {{- end }}
-{{- /* Requests/limits for the RESTORE temp pods, as compact JSON (JSON is a subset of YAML, so
-       the orchestrator splices it into the pod manifest verbatim). Projected in BOTH modes,
-       unlike the S3 block above: a namespace with a ResourceQuota that requires requests, and
-       no defaulting LimitRange, rejects an unqualified pod at admission — and the temp pods are
-       created AFTER the tier has been scaled to 0, so that rejection lands past the point of no
-       return. Reuses centralBackupStorage.tools.resources so there is one knob, not two. */}}
+{{- /* Both modes: a ResourceQuota would reject unqualified temp pods after scale-down. */}}
 - name: TEMP_POD_RESOURCES
   value: {{ .Values.centralBackupStorage.tools.resources | default dict | toJson | quote }}
 {{- end -}}
 
 {{/*
-ServiceAccount a backup/restore RUN executes under: always <release>-backup-sa, the only SA bound
-to the backup Role. On the IRSA path it carries the role annotation too (pmm.backupIrsaAnnotations);
-the S3 SA stays S3-only because the VM/ClickHouse pods and the restore temp pods run under it.
-
-ONE definition: the Deployment and every Job pod must agree, or scheduled runs execute under a
-different identity than interactive ones — which shows up as S3 403s that only happen at night.
+SA every backup/restore run uses (the one bound to the backup Role).
 */}}
 {{- define "pmm.backupRunSaName" -}}
 {{- printf "%s-backup-sa" .Release.Name -}}
 {{- end -}}
 
 {{/*
-IRSA annotations for a backup ServiceAccount (the run SA and the S3 SA), emitted only on the IRSA
-path. serviceAccountAnnotations is free-form, so the chart's role-arn is added only when the user
-has not set that key: a duplicate mapping key fails the whole install. Call with nindent to the
-annotations map's indent.
+IRSA annotations for backup SAs; role-arn only if the user didn't set it (duplicate keys fail).
 */}}
 {{- define "pmm.backupIrsaAnnotations" -}}
 {{- if and (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn -}}
@@ -1104,50 +980,29 @@ release inherit the previous install's dead token.
 {{- end -}}
 
 {{/*
-The labels that IDENTIFY the backup-tools pod. Used as the Deployment's selector and pod
-labels, and as the backup Job's podAffinity matchLabels. Keeping them in one place is what
-stops a future label change from silently turning the Job's REQUIRED affinity into a selector
-that matches nothing — which would leave every scheduled run Pending until its deadline.
-(pmm.backupToolsScrapeKeep expresses the same identity for vmagent's scrape job.)
-*/}}
-{{/*
-Object/pod labels for a backup object, with app.kubernetes.io/component set to the given value.
-Called as `(list . "backup-tools")`.
-
-pmm.labels goes through pmm.selectorLabels, which hardcodes `component: pmm-server`. Emitting
-that and then overriding it on the next line produced a DUPLICATE YAML key in every backup
-object — it worked only because Helm's decoder keeps the last occurrence, while a strict decoder
-(`kubectl apply --validate=strict`, some GitOps engines) rejects the manifest outright, and a
-future reordering of the two lines would silently break both the Deployment's
-selector.matchLabels and the Job's podAffinity (leaving every scheduled run Pending).
-
-So the value is REPLACED in the rendered string rather than shadowed by a second key. Rendering
-through pmm.labels keeps .Values.extraLabels and the chart/version/managed-by labels in one
-place, and the `fail` below means a change to pmm.selectorLabels breaks the build instead of
-silently mislabelling every backup object.
+Labels with the component replaced (not duplicated) in pmm.labels. Called as (list . "backup-tools").
 */}}
 {{- define "pmm.componentLabels" -}}
 {{- $root := index . 0 -}}
 {{- $component := index . 1 -}}
 {{- $out := include "pmm.labels" $root -}}
-{{- /* Fail the render rather than emit the wrong component. A silent no-op here would put
-       `component: pmm-server` on the backup Deployment while its selector (and the Job's
-       podAffinity) still look for backup-tools — every scheduled run would sit Pending until
-       its deadline, which is far worse than a build error. */}}
+{{- /* A silent no-op would leave backup Jobs Pending on a selector that matches nothing. */}}
 {{- if not (contains "app.kubernetes.io/component: pmm-server" $out) -}}
 {{- fail "pmm.componentLabels: pmm.labels no longer emits 'app.kubernetes.io/component: pmm-server' — update this helper" -}}
 {{- end -}}
 {{- $out | replace "app.kubernetes.io/component: pmm-server" (printf "app.kubernetes.io/component: %s" $component) -}}
 {{- end -}}
 
+{{/*
+backup-tools identity: Deployment selector and backup Job podAffinity.
+*/}}
 {{- define "pmm.backupToolsSelectorLabels" -}}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: backup-tools
 {{- end -}}
 
 {{/*
-The chart-shipped scripts, as a pod volume. subPath mounts keep the rest of /usr/local/bin
-intact, so both scripts resolve via PATH.
+Chart-shipped scripts; subPath mounts keep /usr/local/bin intact.
 */}}
 {{- define "pmm.backupScriptsVolume" -}}
 - name: backup-scripts
@@ -1165,20 +1020,10 @@ intact, so both scripts resolve via PATH.
   subPath: backup-entrypoint.sh
 {{- end -}}
 
-{{/*
-Resources for a process running the orchestrator. The Deployment and the Job pods run the very
-same code, so they get the same sizing from one values key rather than two hand-copied blocks
-under a comment asserting they match.
-*/}}
 {{- define "pmm.backupRunResources" -}}
 {{- toYaml (.Values.centralBackupStorage.tools.resources | default dict) -}}
 {{- end -}}
 
-{{/*
-The central backup volume's MOUNT. Pairs with pmm.centralBackupVolume — they are the two halves
-of one fact (where the run reads and writes), so they live next to each other rather than one
-being a helper and the other hand-copied into each consumer.
-*/}}
 {{- define "pmm.centralBackupMount" -}}
 - name: central-backup-storage
   mountPath: {{ .Values.centralBackupStorage.mountPath }}
