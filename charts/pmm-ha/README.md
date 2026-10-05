@@ -31,8 +31,9 @@ This PMM HA deployment provides the following high availability features:
 ## Prerequisites
 
 - Kubernetes 1.32+
-- Helm 3.13.0+ — older versions ignore the `null` entries in `values.yaml` that keep the
-  HAProxy stats port off the `pmm-ha-haproxy` Service
+- Helm 3.17.0+ — older versions assume a Kubernetes version below 1.32 when rendering without a
+  cluster (`helm template`), so they reject the chart, and versions before 3.13.0 also ignore the
+  `null` entries in `values.yaml` that keep the HAProxy stats port off the `pmm-ha-haproxy` Service
 - PV provisioner support in the underlying infrastructure
 - A StorageClass with `allowVolumeExpansion: true` — every capacity correction on
   a running install is a PVC expansion, which is impossible without it

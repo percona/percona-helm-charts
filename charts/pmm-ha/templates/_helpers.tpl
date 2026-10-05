@@ -640,16 +640,19 @@ Called from statefulset.yaml, which always renders.
 {{- end -}}
 
 {{/*
-Fail-fast check for the minimum Helm version. Helm before 3.13.0 ignores a null in this chart's
-values.yaml that should remove a subchart default, so the haproxytech defaults stat: 1024 and
-http: 80 stay on the pmm-ha-haproxy Service, and a LoadBalancer or NodePort service type exposes
-the unauthenticated stats page while the install reports success.
+Fail-fast check for the minimum Helm version, 3.17.0. Two things set it:
+- Helm before 3.13.0 ignores a null in this chart's values.yaml that should remove a subchart
+  default, so the haproxytech defaults stat: 1024 and http: 80 stay on the pmm-ha-haproxy
+  Service, and a LoadBalancer or NodePort service type exposes the unauthenticated stats page
+  while the install reports success.
+- Without a cluster (helm template), Helm checks kubeVersion against the Kubernetes version it
+  was built for, which is below the chart's 1.32 floor before Helm 3.17.0 (3.16 assumes 1.31).
 Called from statefulset.yaml, which always renders.
 */}}
 {{- define "pmm.helmVersion.validate" -}}
 {{- $version := .Capabilities.HelmVersion.Version -}}
-{{- if not (semverCompare ">=3.13.0-0" $version) -}}
-{{- fail (printf "pmm-ha requires Helm 3.13.0 or later, got %s: older Helm ignores the nulls in values.yaml that keep the HAProxy stats port off the pmm-ha-haproxy Service, so it would publish the unauthenticated stats page on port 1024." $version) -}}
+{{- if not (semverCompare ">=3.17.0-0" $version) -}}
+{{- fail (printf "pmm-ha requires Helm 3.17.0 or later, got %s. Helm before 3.17.0 cannot render this chart without a cluster, because it assumes a Kubernetes version older than 1.32, and Helm before 3.13.0 ignores the nulls in values.yaml that keep the HAProxy stats port off the pmm-ha-haproxy Service, so it would publish the unauthenticated stats page on port %s." $version (include "pmm.haproxy.statsPort" .)) -}}
 {{- end -}}
 {{- end -}}
 
