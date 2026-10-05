@@ -34,3 +34,23 @@ tests:
       - matchRegex:
           path: data["haproxy.cfg"]
           pattern: "/v1/server/leaderHealthCheck"
+
+  # PMM-15608: the default must stay above the pmm-server nginx 64 KiB header limit.
+  - it: raises tune.bufsize above the pmm-server nginx header limit by default
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "(?m)^global\\n(.*\\n)*?\\s+tune\\.bufsize 131072\\n"
+
+  - it: follows an explicit haproxy.bufsize
+    set: {haproxy.bufsize: 262144}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "\\s+tune\\.bufsize 262144\\n"
+
+  - it: rejects a haproxy.bufsize HTTP/2 cannot run with
+    set: {haproxy.bufsize: 8192}
+    asserts:
+      - failedTemplate:
+          errorMessage: "haproxy.bufsize must be at least 16384 (HTTP/2 needs it), got 8192"
