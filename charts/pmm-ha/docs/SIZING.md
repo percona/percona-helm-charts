@@ -183,7 +183,7 @@ minutes.
 | PostgreSQL ×3 | `pg-db.instances[].dataVolumeClaimSpec.resources.requests.storage` (10Gi) | PostgreSQL shuts down when it cannot write WAL, and failover does not help because the replicas are the same size. pmm-managed and Grafana keep their state here, so the PMM UI, API and alerting all go down. |
 | pgBackRest repository | `pg-db.backups.pgbackrest.repos[].volume.volumeClaimSpec.resources.requests.storage` (1Gi) | Backups and WAL archiving fail. PostgreSQL keeps running, so nothing else shows the problem. |
 | PMM Server ×3 | `storage.size` (40Gi) | Writes to `/srv` on that replica fail. |
-| PMM Client | `pmmClient.storage.size` (2Gi) | The Agent can no longer buffer metrics while PMM Server is unreachable. |
+| PMM Client ×3 | `pmmClient.storage.size` (2Gi) | The Agent can no longer buffer metrics while PMM Server is unreachable. |
 
 To see which volume is filling, run this against vmselect, for example from
 *Explore* in PMM:
@@ -226,9 +226,13 @@ for pvc in $(kubectl get pvc -n $NS -o name | grep pmm-storage); do
 done
 # 2. Delete the StatefulSet, leaving its pods and PVCs running
 kubectl delete statefulset pmm-ha -n $NS --cascade=orphan
-# 3. Recreate it with the new size
-helm upgrade pmm-ha percona/pmm-ha -n $NS --reuse-values --set storage.size=$NEW
+# 3. Recreate it with the new size, pinned to the running chart (CHART column of helm list)
+helm upgrade pmm-ha percona/pmm-ha -n $NS --version <chart-version> --reuse-values \
+  --set storage.size=$NEW
 ```
+
+For PMM Client, use `grep pmm-agent`, `statefulset pmm-ha-client` and
+`--set pmmClient.storage.size=$NEW`.
 
 Lowering `dataRetentionDays` also frees metrics and Query Analytics space, but it
 deletes everything older than the new window, see [Grow the PVC together with
