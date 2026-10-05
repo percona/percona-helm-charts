@@ -199,11 +199,17 @@ spec:
 {{ $mysql.annotations | toYaml | indent 6 }}
     labels:
 {{ $mysql.labels | toYaml | indent 6 }}
+    {{- if $mysql.resources }}
     resources:
+      {{- if hasKey $mysql.resources "requests" }}
       requests:
 {{ tpl ($mysql.resources.requests | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if hasKey $mysql.resources "limits" }}
       limits:
 {{ tpl ($mysql.resources.limits | toYaml) $ | indent 8 }}
+      {{- end }}
+    {{- end }}
     {{- if $mysql.env }}
     env:
 {{ $mysql.env | toYaml | indent 6 }}
@@ -352,11 +358,17 @@ spec:
 {{ $haproxy.tolerations | toYaml | indent 8 }}
       nodeSelector:
 {{ $haproxy.nodeSelector | toYaml | indent 8 }}
+      {{- if $haproxy.resources }}
       resources:
+        {{- if hasKey $haproxy.resources "requests" }}
         requests:
 {{ tpl ($haproxy.resources.requests | toYaml) $ | indent 10 }}
+        {{- end }}
+        {{- if hasKey $haproxy.resources "limits" }}
         limits:
 {{ tpl ($haproxy.resources.limits | toYaml) $ | indent 10 }}
+        {{- end }}
+      {{- end }}
       {{- if $haproxy.sidecarResources }}
       sidecarResources:
         {{- range $name, $resources := $haproxy.sidecarResources }}
@@ -527,11 +539,17 @@ spec:
 {{ $router.tolerations | toYaml | indent 8 }}
       nodeSelector:
 {{ $router.nodeSelector | toYaml | indent 8 }}
+      {{- if $router.resources }}
       resources:
+        {{- if hasKey $router.resources "requests" }}
         requests:
 {{ tpl ($router.resources.requests | toYaml) $ | indent 10 }}
+        {{- end }}
+        {{- if hasKey $router.resources "limits" }}
         limits:
 {{ tpl ($router.resources.limits | toYaml) $ | indent 10 }}
+        {{- end }}
+      {{- end }}
       {{- if $router.volumeSpec }}
       volumeSpec:
         {{- if $router.volumeSpec.hostPath }}
@@ -661,11 +679,17 @@ spec:
 {{ $orc.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $orc.nodeSelector | toYaml | indent 6 }}
+    {{- if $orc.resources }}
     resources:
+      {{- if hasKey $orc.resources "requests" }}
       requests:
 {{ tpl ($orc.resources.requests | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if hasKey $orc.resources "limits" }}
       limits:
 {{ tpl ($orc.resources.limits | toYaml) $ | indent 8 }}
+      {{- end }}
+    {{- end }}
     {{- if $orc.volumeSpec }}
     volumeSpec:
       {{- if $orc.volumeSpec.hostPath }}
@@ -733,11 +757,17 @@ spec:
     livenessProbe:
 {{ tpl ($pmm.livenessProbe | toYaml) $ | indent 6 }}
     {{- end }}
+    {{- if $pmm.resources }}
     resources:
+      {{- if hasKey $pmm.resources "requests" }}
       requests:
 {{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if hasKey $pmm.resources "limits" }}
       limits:
 {{ tpl ($pmm.resources.limits | toYaml) $ | indent 8 }}
+      {{- end }}
+    {{- end }}
   {{- end }}
 
   {{- $toolkit := .Values.toolkit }}
@@ -749,10 +779,14 @@ spec:
     {{- end }}
     {{- if $toolkit.resources }}
     resources:
+      {{- if hasKey $toolkit.resources "requests" }}
       requests:
 {{ tpl ($toolkit.resources.requests | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if hasKey $toolkit.resources "limits" }}
       limits:
 {{ tpl ($toolkit.resources.limits | toYaml) $ | indent 8 }}
+      {{- end }}
     {{- end }}
   {{- end }}
 
@@ -821,10 +855,14 @@ spec:
     {{- end }}
     {{- if $backup.resources }}
     resources:
+      {{- if hasKey $backup.resources "requests" }}
       requests:
 {{ tpl ($backup.resources.requests | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if hasKey $backup.resources "limits" }}
       limits:
 {{ tpl ($backup.resources.limits | toYaml) $ | indent 8 }}
+      {{- end }}
     {{- end }}
     {{- if $backup.pitr }}
     pitr:
