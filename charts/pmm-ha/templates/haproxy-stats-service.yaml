@@ -1,6 +1,6 @@
-{{- if .Values.haproxy.enabled }}
+{{- if and .Values.haproxy.enabled .Values.haproxy.monitoring.stats.enabled }}
 # In-cluster access to the HAProxy stats page and Prometheus exporter, which pmm-ha-haproxy
-# no longer publishes (PMM-15662). vmagent's haproxy job discovers its targets through it.
+# does not publish. vmagent's haproxy job discovers its targets through it.
 apiVersion: v1
 kind: Service
 metadata:

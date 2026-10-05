@@ -39,7 +39,8 @@ spec:
   
   # Inline scrape configuration for infrastructure metrics
   inlineScrapeConfig: |
-    # Scrape HAProxy metrics
+    {{- if and .Values.haproxy.monitoring.stats.enabled .Values.haproxy.monitoring.prometheus.enabled }}
+    # Scrape HAProxy metrics. The exporter is served on the stats frontend, so it needs both flags.
     - job_name: 'haproxy'
       kubernetes_sd_configs:
         - role: endpoints
@@ -47,8 +48,7 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # The stats port is not published on pmm-ha-haproxy (PMM-15662), only on this
-        # in-cluster Service
+        # The stats port is not published on pmm-ha-haproxy, only on this in-cluster Service
         - source_labels: [__meta_kubernetes_service_name]
           regex: 'pmm-ha-haproxy-stats'
           action: keep
@@ -67,6 +67,7 @@ spec:
         # Set the metrics path
         - target_label: __metrics_path__
           replacement: {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }}
+    {{- end }}
     
     # Scrape ClickHouse metrics
     - job_name: 'clickhouse'

@@ -1,4 +1,4 @@
-# PMM-15662: the HAProxy stats page and Prometheus exporter have no authentication, so the
+# The HAProxy stats page and Prometheus exporter have no authentication, so the
 # pmm-ha-haproxy Service, which users expose as LoadBalancer or NodePort, must not publish them.
 # vmagent reaches them through the in-cluster pmm-ha-haproxy-stats Service instead.
 suite: pmm-ha HAProxy stats exposure
@@ -62,6 +62,32 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: is not rendered when stats are disabled
+    template: templates/haproxy-stats-service.yaml
+    set: {haproxy.monitoring.stats.enabled: false}
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not scrape HAProxy when stats are disabled
+    template: templates/vmagent.yaml
+    set: {haproxy.monitoring.stats.enabled: false}
+    asserts:
+      - notMatchRegex:
+          path: spec.inlineScrapeConfig
+          pattern: "job_name: 'haproxy'"
+      - matchRegex:
+          path: spec.inlineScrapeConfig
+          pattern: "job_name: 'clickhouse'"
+
+  - it: does not scrape HAProxy when the exporter is disabled
+    template: templates/vmagent.yaml
+    set: {haproxy.monitoring.prometheus.enabled: false}
+    asserts:
+      - notMatchRegex:
+          path: spec.inlineScrapeConfig
+          pattern: "job_name: 'haproxy'"
 
   - it: scrapes HAProxy through the stats Service, keeping the original service label
     template: templates/vmagent.yaml
