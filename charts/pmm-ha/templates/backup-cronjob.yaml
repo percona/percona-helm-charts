@@ -58,7 +58,8 @@ spec:
           restartPolicy: Never
           # Room for the TERM trap to release Leases; a SIGKILL leaves them held for 900s.
           terminationGracePeriodSeconds: {{ $s.terminationGracePeriodSeconds | default 300 }}
-          {{- with .Values.image.imagePullSecrets }}
+          {{- /* A pod listing pull secrets gets none from its SA, so the tools ones are listed too. */}}
+          {{- with concat (.Values.image.imagePullSecrets | default list) (.Values.centralBackupStorage.tools.imagePullSecrets | default list) | uniq }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
           {{- end }}

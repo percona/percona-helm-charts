@@ -248,6 +248,11 @@ lock with it.
 run (an ad-hoc ClickHouse incremental, say) must not move it — restoring `latest` would then
 silently restore just that one component. The decision is made on the MERGED manifest.
 
+The other side of that gate: when newer backups exist that `latest` did not advance onto (a
+partial `schedule.components`, or failed runs), `restore --backup-id latest` refuses and the
+operator names an id. `--yes` does not override it — every non-interactive restore passes
+`--yes`, so a refusal it could bypass would never fire.
+
 ## DN-15 — Validate everything before the point of no return
 
 `scale_down_pmm()` is the point of no return: past it, a missing ClickHouse remote, an absent
@@ -715,11 +720,14 @@ job scraped it, so a `/srv` backup failing on **every** PMM pod never reached Pr
 `git log` for that fix adds the fifth listener and the fifth job; it does not remove the reason
 there had to be a fifth.
 
-Now `write_backup_metrics` emits one `backup_metrics.prom` holding every component, the pod
-serves *whatever `.prom` files exist* on one port, and vmagent has one job. Adding a component
-changes a label value and nothing else. The two writers keep separate files (backup and
-restore have different lifecycles and write at different times) but use disjoint metric
-families, so concatenating them still yields one `HELP`/`TYPE` pair per family.
+Now the pod serves *whatever `backup/*.prom` files exist* on one port, sorted so each family
+stays one contiguous group, and vmagent has one job. Adding a component changes a label value
+and nothing else. `write_backup_metrics` writes one samples-only file per component
+(`backup/<component>.prom`): a run replaces exactly what it covered, so a single-component
+retry neither erases the other components' results (and resolves their alerts) nor publishes a
+series a second file already carries — both of which a per-run file did. The backup, restore
+and prune writers keep separate files (different lifecycles) with disjoint metric families,
+so concatenating them still yields one `HELP`/`TYPE` pair per family.
 
 Two things came out of consolidating that the split had been hiding:
 
@@ -1086,7 +1094,7 @@ or digest pinning reaches beta**; it then becomes a values-only change.
 supports, needs no code, and is what `tools.image` exists for — so it is now the **default**:
 `docker.io/tigercomputing/cloud-tools`, pinned to a timestamp tag. The trade is that Percona
 does not publish one, so the default is third-party (verified: Alpine + busybox `sh`, all 14 tools the orchestrator
-uses, `nc` in the BusyBox family the metrics listener detects, runs as an assigned UID, and no
+uses, `python3` for the metrics listener (BusyBox `nc` as its fallback), runs as an assigned UID, and no
 collision with the per-file `subPath` script mounts). Two properties of it are the reason it is
 a stopgap rather than the destination: it is a single small vendor's build, and it **bumps
 kubectl on its own schedule** — a live risk here specifically, because `kubectl exec --request-timeout`

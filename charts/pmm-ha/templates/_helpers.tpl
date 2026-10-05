@@ -766,6 +766,18 @@ Shared-target install path; independent of s3.prefix by design.
 {{- end -}}
 
 {{/*
+This install's logs/, .staging/ and .metrics/ root. Shared mode nests it under the install path,
+or two installs on one volume overwrite each other's metrics and reap each other's logs.
+*/}}
+{{- define "pmm.backupStateDir" -}}
+{{- if eq .Values.centralBackupStorage.mode "shared" -}}
+{{- printf "%s/%s" .Values.centralBackupStorage.mountPath (include "pmm.backupInstallPath" .) -}}
+{{- else -}}
+{{- .Values.centralBackupStorage.mountPath -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Scope a scrape job to this release's backup-tools pod. regexQuoteMeta: relabel regexes are not escaped.
 */}}
 {{- define "pmm.backupToolsScrapeKeep" -}}
@@ -801,8 +813,10 @@ Env for a pmm-backup.sh run, shared by the Deployment and Job pods so their targ
   value: {{ .Release.Name }}
 - name: BACKUP_DIR
   value: {{ .Values.centralBackupStorage.mountPath }}
+- name: STATE_DIR
+  value: {{ include "pmm.backupStateDir" . }}
 - name: METRICS_DIR
-  value: {{ .Values.centralBackupStorage.mountPath }}/.metrics
+  value: {{ include "pmm.backupStateDir" . }}/.metrics
 {{- /* Manual runs prune too, so they need retentionDays. */}}
 - name: BACKUP_RETENTION
   value: {{ .Values.centralBackupStorage.schedule.retentionDays | int | quote }}
@@ -868,7 +882,8 @@ Env for a pmm-backup.sh run, shared by the Deployment and Job pods so their targ
 - name: VM_S3_REGION
   value: {{ $vmRegion | quote }}
 {{- end }}
-{{- if and $vmS3.existingSecret (ne $vmS3.existingSecret .Values.centralBackupStorage.s3.existingSecret) }}
+{{- /* Whenever set, even if it names the central Secret: its keys may differ (vmcluster.yaml uses them). */}}
+{{- if $vmS3.existingSecret }}
 - name: VM_S3_SECRET_NAME
   value: {{ $vmS3.existingSecret | quote }}
 - name: VM_S3_SECRET_ACCESS_KEY_KEY
@@ -892,7 +907,7 @@ Env for a pmm-backup.sh run, shared by the Deployment and Job pods so their targ
 {{- end }}
 {{- /* Both modes: a ResourceQuota would reject unqualified temp pods after scale-down. */}}
 - name: TEMP_POD_RESOURCES
-  value: {{ .Values.centralBackupStorage.tools.resources | default dict | toJson | quote }}
+  value: {{ .Values.centralBackupStorage.tools.restorePodResources | default .Values.centralBackupStorage.tools.resources | default dict | toJson | quote }}
 {{- end -}}
 
 {{/*

@@ -814,8 +814,9 @@ centralBackupStorage:
       secretKey: "secret-key"
     ## IAM role ARN annotated onto the backup ServiceAccounts (IRSA, AWS EKS only). Set per
     ## install (e.g. arn:aws:iam::<ACCOUNT_ID>:role/pmm-ha-backup-s3). Empty = no IRSA annotation.
-    ## Two SAs carry it: <release>-backup-sa (backup-tools and the backup/restore Jobs, the only
-    ## one bound to the backup Role) and the S3 SA below. The role's trust policy must name both.
+    ## Three SAs carry it: <release>-backup-sa (backup-tools and the backup/restore Jobs, the only
+    ## one bound to the backup Role), the S3 SA below, and the PMM server SA (its /srv pmm-backup
+    ## sidecar uploads with it). The role's trust policy must name all three.
     ## S3-mode credentials come from ONE of: irsaRoleArn (IRSA), existingSecret (static keys),
     ## or ambient AWS credentials on the node (instance profile / kube2iam). With none of the
     ## three, the backup sidecars deploy but every S3 operation fails with auth errors.
@@ -886,8 +887,8 @@ centralBackupStorage:
       repository: tigercomputing/cloud-tools
       tag: "20260831175138"
     ## @param centralBackupStorage.tools.imagePullSecrets Pull secrets for the backup pods only
-    ## Rendered onto the backup ServiceAccount, so it reaches the backup-tools Deployment, every
-    ## backup/restore Job and the s3-mode temp restore pods — without touching
+    ## Rendered onto the backup ServiceAccount (s3-mode temp restore pods) and merged with
+    ## image.imagePullSecrets on the backup-tools and backup/restore Job pods — without touching
     ## image.imagePullSecrets, which is chart-wide and would roll the PMM StatefulSet too.
     ## E.g. imagePullSecrets: [{name: dockerhub}]
     imagePullSecrets: []
@@ -903,6 +904,16 @@ centralBackupStorage:
       limits:
         cpu: 500m
         memory: 512Mi
+    ## @param centralBackupStorage.tools.restorePodResources Resources for the temporary restore pods
+    ## vmrestore (-concurrency=10) and the /srv download + extract run inside these pods, one at a
+    ## time, while PMM and vmstorage are at 0. Empty = tools.resources.
+    restorePodResources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
 
 
   ## @param centralBackupStorage.storageSize Size of central backup storage
@@ -998,9 +1009,9 @@ centralBackupStorage:
     ## WARNING: a partial scope FREEZES the 'latest' pointer. 'latest' only advances onto a
     ## complete, full-scope backup - that is what stops `restore --backup-id latest` from
     ## restoring a single component - so if every scheduled run is partial, nothing ever moves
-    ## it again and the documented DR path keeps restoring an ever-older backup. Restore now
-    ## reports the pointer's age and refuses without --yes when newer backups were skipped, but
-    ## the fix is to keep at least one full-scope schedule. Leave empty unless you have one.
+    ## it again. `restore --backup-id latest` then refuses (even with --yes) while newer backups
+    ## exist that it skipped, and you must name a backup id; the fix is to keep at least one
+    ## full-scope schedule. Leave empty unless you have one.
     components: []
     ## @param centralBackupStorage.schedule.extraArgs Extra args appended to the backup command
     extraArgs: []

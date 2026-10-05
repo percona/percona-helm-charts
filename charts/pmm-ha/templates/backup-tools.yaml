@@ -24,7 +24,8 @@ spec:
         checksum/backup-scripts: {{ include (print $.Template.BasePath "/backup-scripts-configmap.yaml") . | sha256sum }}
         # No karpenter.sh/do-not-disrupt: on an always-on pod it blocks node rollouts (DN-47).
     spec:
-      {{- with .Values.image.imagePullSecrets }}
+      {{- /* A pod listing pull secrets gets none from its SA, so the tools ones are listed too. */}}
+      {{- with concat (.Values.image.imagePullSecrets | default list) (.Values.centralBackupStorage.tools.imagePullSecrets | default list) | uniq }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -41,54 +42,63 @@ spec:
             PMM_TOOLS_REQUIRE_RCLONE=true \
 {{- end }}
               sh /usr/local/bin/backup-entrypoint.sh --ensure-tools-only || true
-            command -v nc >/dev/null 2>&1 || apk add --no-cache netcat-openbsd >/dev/null 2>&1 || true
-            # nc only serves metrics, so it is deliberately not a readiness condition.
-            NC_OK=true
-            command -v nc >/dev/null 2>&1 || NC_OK=false
-            if [ "${NC_OK}" = "true" ]; then
-              # BusyBox nc needs `-l -p PORT`; OpenBSD nc needs `-l PORT` and rejects -p.
-              if nc --help 2>&1 | grep -qi busybox; then NC_LISTEN="-l -p"; else NC_LISTEN="-l"; fi
-              echo "metrics listener: nc ${NC_LISTEN} <port>"
-            else
-              NC_LISTEN=""
-              echo "ERROR: netcat (nc) is not present and could not be installed."
-              echo "ERROR:   Backup and restore are UNAFFECTED — they never use it."
-              echo "ERROR:   The metrics endpoint on :9091 will NOT be served, so every"
-              echo "ERROR:   pmm_ha_backup_* / pmm_ha_restore_* series stops updating and the"
-              echo "ERROR:   scrape target for this pod goes down. Use an image that ships netcat"
-              echo "ERROR:   (centralBackupStorage.tools.image) or give the pod an Alpine mirror."
-            fi
-            METRICS_PATH="{{ .Values.centralBackupStorage.mountPath }}/.metrics"
-            mkdir -p "${METRICS_PATH}"
-            # One endpoint, component is a label; each metric family's file is listed below (DN-42).
+            METRICS_PATH="{{ include "pmm.backupStateDir" . }}/.metrics"
             mkdir -p "${METRICS_PATH}/backup"
             [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
-            serve_metrics() {
-              while true; do
-                # Rate-limit to 1/s if nc fails fast, so a spin can't starve exec'd runs.
-                _t0=$(date +%s 2>/dev/null || echo 0)   # 0 on failure — see the check below
-                # Only one HELP/TYPE per family is allowed, so the backup preamble lives here.
-                { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'
-                  printf '%s\n' \
-                    '# HELP pmm_ha_backup_last_success Whether the last backup succeeded (1=yes, 0=no)' \
-                    '# TYPE pmm_ha_backup_last_success gauge' \
-                    '# HELP pmm_ha_backup_last_timestamp_seconds Unix timestamp of backup completion' \
-                    '# TYPE pmm_ha_backup_last_timestamp_seconds gauge' \
-                    '# HELP pmm_ha_backup_last_duration_seconds Backup duration in seconds' \
-                    '# TYPE pmm_ha_backup_last_duration_seconds gauge' \
-                    '# HELP pmm_ha_backup_last_size_bytes Backup size in bytes' \
-                    '# TYPE pmm_ha_backup_last_size_bytes gauge'
-                  cat "${METRICS_PATH}"/backup/*.prom 2>/dev/null || echo '# no backup run yet'
-                  cat "${METRICS_PATH}"/restore_metrics.prom 2>/dev/null || true
-                  # A new .prom family written by pmm-backup.sh must be added here too.
-                  cat "${METRICS_PATH}"/prune_metrics.prom 2>/dev/null || true
-                } | nc -w 5 ${NC_LISTEN} "$1" >/dev/null 2>&1
-                # Both fallbacks are 0, so a broken `date` still sleeps.
-                _t1=$(date +%s 2>/dev/null || echo 0)
-                [ "$(( _t1 - _t0 ))" -lt 1 ] && sleep 1
-              done
-            }
-            if [ "${NC_OK}" = "true" ]; then serve_metrics 9091 & fi
+            # One endpoint, component is a label (DN-42). One HELP/TYPE per family, so the backup
+            # preamble lives here; sort keeps each family's samples contiguous. A new .prom family
+            # written by pmm-backup.sh must be added here too.
+            export METRICS_PATH
+            export RENDER_METRICS='printf "%s\n" \
+              "# HELP pmm_ha_backup_last_success Whether the last backup succeeded (1=yes, 0=no)" \
+              "# TYPE pmm_ha_backup_last_success gauge" \
+              "# HELP pmm_ha_backup_last_timestamp_seconds Unix timestamp of backup completion" \
+              "# TYPE pmm_ha_backup_last_timestamp_seconds gauge" \
+              "# HELP pmm_ha_backup_last_duration_seconds Backup duration in seconds" \
+              "# TYPE pmm_ha_backup_last_duration_seconds gauge" \
+              "# HELP pmm_ha_backup_last_size_bytes Backup size in bytes" \
+              "# TYPE pmm_ha_backup_last_size_bytes gauge"
+            { cat "$METRICS_PATH"/backup/*.prom 2>/dev/null || echo "# no backup run yet"; } | sort
+            cat "$METRICS_PATH"/restore_metrics.prom 2>/dev/null
+            cat "$METRICS_PATH"/prune_metrics.prom 2>/dev/null
+            true'
+            # Both vmagent replicas scrape at the same instant and a one-connection nc loop resets
+            # one of them (up ~0.5), so python3 serves each scrape on its own thread; nc is the
+            # fallback. Metrics only, so deliberately not a readiness condition.
+            if command -v python3 >/dev/null 2>&1; then
+              echo "metrics listener: python3"
+              python3 -c '
+            import http.server, os, subprocess
+            class H(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    b = subprocess.run(["sh", "-c", os.environ["RENDER_METRICS"]], stdout=subprocess.PIPE).stdout
+                    self.send_response(200); self.send_header("Content-Type", "text/plain"); self.end_headers(); self.wfile.write(b)
+                def log_message(self, *a): pass
+            http.server.ThreadingHTTPServer(("", 9091), H).serve_forever()
+            ' &
+            else
+              command -v nc >/dev/null 2>&1 || apk add --no-cache netcat-openbsd >/dev/null 2>&1 || true
+              if command -v nc >/dev/null 2>&1; then
+                # BusyBox nc needs `-l -p PORT`; OpenBSD nc needs `-l PORT` and rejects -p.
+                if nc --help 2>&1 | grep -qi busybox; then NC_LISTEN="-l -p"; else NC_LISTEN="-l"; fi
+                echo "metrics listener: nc ${NC_LISTEN} <port> (one scrape at a time)"
+                ( while true; do
+                    _t0=$(date +%s 2>/dev/null || echo 0)
+                    { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; sh -c "${RENDER_METRICS}"; } \
+                      | nc -w 5 ${NC_LISTEN} 9091 >/dev/null 2>&1
+                    # Rate-limit to 1/s if nc fails fast; both date fallbacks are 0, so it still sleeps.
+                    _t1=$(date +%s 2>/dev/null || echo 0)
+                    [ "$(( _t1 - _t0 ))" -lt 1 ] && sleep 1
+                  done ) &
+              else
+                echo "ERROR: neither python3 nor netcat (nc) is present, and nc could not be installed."
+                echo "ERROR:   Backup and restore are UNAFFECTED — they never use it."
+                echo "ERROR:   The metrics endpoint on :9091 will NOT be served, so every"
+                echo "ERROR:   pmm_ha_backup_* / pmm_ha_restore_* series stops updating and the"
+                echo "ERROR:   scrape target for this pod goes down. Use an image that ships python3 or"
+                echo "ERROR:   netcat (centralBackupStorage.tools.image) or give the pod an Alpine mirror."
+              fi
+            fi
             sleep infinity
         readinessProbe:
           # The only signal of a failed tools install (the start-up script never exits non-zero).

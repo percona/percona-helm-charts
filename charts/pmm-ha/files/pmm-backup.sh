@@ -19,7 +19,11 @@ TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
 BACKUP_ID=""            # backup: group id (auto if omitted)
                         # restore: <ts> | backup_<ts> | latest
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
-METRICS_DIR="${METRICS_DIR:-/backups/.metrics}"
+# This install's logs/ and .staging/; the chart nests it under <namespace>/<release> in shared
+# mode so installs on one volume stay apart. Unset = BACKUP_DIR (re-derived after -d).
+_STATE_DIR_FROM_ENV="${STATE_DIR:-}"
+STATE_DIR="${STATE_DIR:-${BACKUP_DIR}}"
+METRICS_DIR="${METRICS_DIR:-${STATE_DIR}/.metrics}"
 VERBOSE="${VERBOSE:-false}"
 DRY_RUN=false
 LOG_FILE=""
@@ -43,6 +47,9 @@ S3_REGION="${S3_REGION:-us-east-1}"
 S3_PREFIX=$(echo "${S3_PREFIX:-}" | sed 's|^/||; s|/$||')
 # Configured via RCLONE_CONFIG_<NAME>_* env vars.
 RCLONE_REMOTE="${RCLONE_REMOTE:-s3}"
+# rcat streams cap one object at 10,000 parts x chunk (default 5M = 48.8 GiB); 16M = 156 GiB,
+# at ~4 x chunk of buffer memory.
+S3_STREAM_CHUNK="16M"
 # Derived from BACKUP_TARGET after parsing.
 S3_ENABLED=false
 
@@ -417,9 +424,11 @@ Environment Variables:
   AWS_ACCESS_KEY_ID         S3 access key (for S3 backups)
   AWS_SECRET_ACCESS_KEY     S3 secret key (for S3 backups)
   BACKUP_DIR                Backup directory (default: /backups)
+  STATE_DIR                 This install's logs/ and .staging/ (default: BACKUP_DIR; the chart
+                            sets <mount>/<namespace>/<release> in shared mode)
   BACKUP_RETENTION          Retention in days (default: 7)
   METRICS_DIR               Directory for Prometheus .prom metrics files
-                            (default: /backups/.metrics)
+                            (default: STATE_DIR/.metrics)
   KUBECTL_EXEC_TIMEOUT      Max wait for pods to start/stop (default: 600). Data transfers have no
                             wall clock (only a scheduled Job's activeDeadlineSeconds bounds them)
   KUBECTL_STATUS_TIMEOUT    Timeout for status queries via 'timeout' (default: 30)
@@ -482,10 +491,9 @@ Manifest & Catalog (both modes):
   coordinates the manifest records (PG dump databases, CH backup name, VM/PMM paths).
 
 Metrics:
-  Backups write METRICS_DIR/backup_metrics.prom, restores write restore_metrics.prom.
-  Every component appears in one file, distinguished by a 'component' LABEL rather than
-  by file or port. The backup-tools pod serves every .prom in that directory over a
-  single HTTP listener on port 9091, which vmagent scrapes as one job.
+  Backups write METRICS_DIR/backup/<component>.prom, one file per component the run
+  covered; restores write restore_metrics.prom. The backup-tools pod serves them over one
+  HTTP listener on port 9091 ('component' is a label), which vmagent scrapes as one job.
 
 Prerequisites:
   - kubectl configured with access to the target cluster
@@ -732,9 +740,9 @@ log() {
 # Restore log, UTC like every timestamp here; falls back to /tmp.
 init_log() {
     _il_ts=$(date -u +%Y%m%d-%H%M%S)
-    LOG_FILE="${BACKUP_DIR}/logs/restore_${_il_ts}.log"
+    LOG_FILE="${STATE_DIR}/logs/restore_${_il_ts}.log"
     # touch, not ': >>': a redirect failure on a special builtin kills the shell.
-    if ! share_mkdir "${BACKUP_DIR}/logs" || ! touch "${LOG_FILE}" 2>/dev/null; then
+    if ! share_mkdir "${STATE_DIR}/logs" || ! touch "${LOG_FILE}" 2>/dev/null; then
         LOG_FILE="/tmp/restore_${_il_ts}.log"
         touch "${LOG_FILE}" 2>/dev/null || true
     fi
@@ -1017,7 +1025,7 @@ manifest_schema_of() {
 BACKUP_COMPONENTS="postgresql clickhouse victoriametrics pmm-server encryption"
 
 # Local staging; never a comp_path, which may be an rclone spec (DN-25).
-staging_dir() { echo "${BACKUP_DIR}/.staging/$(backup_id_default)/$1"; }
+staging_dir() { echo "${STATE_DIR}/.staging/$(backup_id_default)/$1"; }
 
 # ---- Storage access -----------------------------------------------------------------
 # The only code that knows s3 from shared. rc != 0 = could not; no trailing pipes (DN-03).
@@ -1208,7 +1216,7 @@ s3_rclone() {
 
 # Pipe stdin into an object; no wall clock (see _rclone_stream).
 s3_rclone_rcat() {
-    _rclone_stream rcat --s3-no-check-bucket "$1"
+    _rclone_stream rcat --s3-no-check-bucket --s3-chunk-size "${S3_STREAM_CHUNK}" "$1"
 }
 
 # DESTRUCTIVE prefix delete, kept apart from read-only s3_rclone. Benign AccessDenied (DN-31).
@@ -1875,12 +1883,9 @@ latest_staleness_guard() {   # <resolved-id>
     log "WARN" "The pointer only moves onto a complete, full-scope backup (all of: ${CORE_COMPONENTS})."
     log "WARN" "This usually means schedule.components is set to a partial scope, in which case"
     log "WARN" "no scheduled run will ever move it again and 'latest' will keep ageing."
-    log "WARN" "Inspect with: $(basename "$0") list    then restore an id explicitly."
-    if [ "${ASSUME_YES}" = "true" ]; then
-        log "WARN" "Proceeding with the stale pointer because --yes was given."
-        return 0
-    fi
-    log "ERROR" "Refusing to restore a stale 'latest' without --yes."
+    # Not overridable by --yes: every non-interactive restore passes it, so it would never stop.
+    log "ERROR" "Refusing to restore a stale 'latest'. Pick the backup explicitly:"
+    log "ERROR" "  $(basename "$0") list    then    restore --backup-id ${_ls_id} (or a newer id) --yes"
     return 1
 }
 
@@ -2761,8 +2766,8 @@ backup_pmm_server() {
         if [ "${BACKUP_TARGET}" = "s3" ]; then
             # pmm-backup sidecar has rclone.
             pod_sh PMMServer "${pod}" pmm-backup 0 \
-                'set -o pipefail; cd "$1" && tar -czf - --exclude=lost+found $(ls -A | grep -vxF lost+found) | rclone rcat --s3-no-check-bucket "$2"' \
-                "${PMM_SRV_PATH}" "${s3_uri}" >> "${LOG_FILE}" 2>&1
+                'set -o pipefail; cd "$1" && tar -czf - --exclude=lost+found $(ls -A | grep -vxF lost+found) | rclone rcat --s3-no-check-bucket --s3-chunk-size "$3" "$2"' \
+                "${PMM_SRV_PATH}" "${s3_uri}" "${S3_STREAM_CHUNK}" >> "${LOG_FILE}" 2>&1
             pmm_exit=$?
         else
             pod_sh PMMServer "${pod}" - 0 \
@@ -4661,9 +4666,12 @@ prune_purge_one() {   # <id> <ch-required-set>
 
     # A pin holds ONLY ClickHouse; the other components are purged (DN-09).
     if [ -n "${_ppo_why}" ]; then
-        _ppo_keep=$(printf '%s\n' "${_ppo_comps}" | grep -v '^clickhouse$' || true)
+        # Skip components an earlier sweep already pruned: re-purging them every run would spend
+        # the per-run cap on ids that stay pinned for good.
+        _ppo_keep=$(printf '%s' "${_ppo_mf}" | jq -r '.components | to_entries[]
+            | select(.key != "clickhouse" and .value.status != "pruned") | .key' 2>/dev/null || true)
         if [ -z "${_ppo_keep}" ]; then
-            log "WARN" "[Retention] Keeping '${_ppo_id}': ${_ppo_why}, and ClickHouse is all it holds."
+            log "INFO" "[Retention] Keeping '${_ppo_id}': ${_ppo_why}; nothing besides ClickHouse is left to purge."
             PRUNE_ONE_SKIPPED=1; return 0
         fi
         if [ "${DRY_RUN}" = "true" ]; then
@@ -4896,7 +4904,7 @@ cleanup_old_backups() {
 
     if [ "${DRY_RUN}" = "true" ]; then
         log "INFO" "[DRY RUN] Cleanup commands:"
-        log "INFO" "[DRY RUN]   \$ find ${BACKUP_DIR}/logs -maxdepth 1 -type f \\( -name 'backup_*.log' -o -name 'restore_*.log' -o -name 'prune_*.log' \\) -mtime +${BACKUP_RETENTION} -delete"
+        log "INFO" "[DRY RUN]   \$ find ${STATE_DIR}/logs -maxdepth 1 -type f \\( -name 'backup_*.log' -o -name 'restore_*.log' -o -name 'prune_*.log' \\) -mtime +${BACKUP_RETENTION} -delete"
         if [ "${BACKUP_CLICKHOUSE}" = "true" ]; then
             log "INFO" "[ClickHouse] [DRY RUN]   \$ kubectl exec <each clickhouse pod> -c clickhouse-backup -- clickhouse-backup clean"
         fi
@@ -4907,11 +4915,11 @@ cleanup_old_backups() {
     fi
 
     # Staging is scratch (DN-24).
-    find "${BACKUP_DIR}/.staging" -maxdepth 1 -type d -name "backup_*" -mtime +1 \
+    find "${STATE_DIR}/.staging" -maxdepth 1 -type d -name "backup_*" -mtime +1 \
         -exec rm -rf {} \; >> "${LOG_FILE}" 2>&1 || true
 
     # Logs: match every prefix this file writes; || true so a find hiccup cannot abort.
-    find "${BACKUP_DIR}/logs" -maxdepth 1 -type f \
+    find "${STATE_DIR}/logs" -maxdepth 1 -type f \
         \( -name "backup_*.log" -o -name "restore_*.log" -o -name "prune_*.log" \) -mtime +${BACKUP_RETENTION} \
         -delete >> "${LOG_FILE}" 2>&1 || true
 
@@ -4984,68 +4992,50 @@ write_backup_metrics() {
         metrics_dir="/tmp/.backup_metrics"
         mkdir -p "${metrics_dir}" 2>/dev/null || { log "WARN" "Could not write backup metrics anywhere; continuing"; return 0; }
     fi
-
-    # One samples-only file per run scope; the listener adds HELP/TYPE once (DN-42).
-    local _m_scope="all"
-    [ -n "${COMPONENT_SUFFIX}" ] && _m_scope="${COMPONENT_SUFFIX#_}"
-    case "${_m_scope}" in *[!A-Za-z0-9_.-]*) _m_scope="all" ;; esac
     mkdir -p "${metrics_dir}/backup" 2>/dev/null || true
-    local tmp_file="${metrics_dir}/backup/.${_m_scope}.prom.tmp"
-    local target_file="${metrics_dir}/backup/${_m_scope}.prom"
 
-    # Samples grouped by metric: one HELP/TYPE pair per family.
-    local _m_ok="" _m_ts="" _m_dur="" _m_bytes="" _mc="" _mc_ok=""
+    # One samples-only file per component (DN-42): a run replaces exactly the components it
+    # covered, so a partial or concurrent run neither duplicates nor drops another's series.
+    local _mc="" _mc_ok="" _m_body="" _m_written=0
     for _mc in $(printf '%s' "${RESULTS_JSON}" | jq -r 'keys[]' 2>/dev/null || true); do
         # Encryption is emitted below; emitting it here too duplicates the series.
         [ "${_mc}" = "encryption" ] && continue
+        case "${_mc}" in *[!A-Za-z0-9_.-]*) continue ;; esac
         _mc_ok=$(result_ok "${_mc}" && echo 1 || echo 0)
-        _m_ok="${_m_ok}pmm_ha_backup_last_success{component=\"${_mc}\",namespace=\"${NAMESPACE}\"} ${_mc_ok}
+        _m_body="pmm_ha_backup_last_success{component=\"${_mc}\",namespace=\"${NAMESPACE}\"} ${_mc_ok}
+pmm_ha_backup_last_timestamp_seconds{component=\"${_mc}\",namespace=\"${NAMESPACE}\"} ${timestamp}
+pmm_ha_backup_last_duration_seconds{component=\"${_mc}\",namespace=\"${NAMESPACE}\"} $(result_get "${_mc}" duration 0)
+pmm_ha_backup_last_size_bytes{component=\"${_mc}\",namespace=\"${NAMESPACE}\"} $(result_get "${_mc}" bytes 0)
 "
-        _m_ts="${_m_ts}pmm_ha_backup_last_timestamp_seconds{component=\"${_mc}\",namespace=\"${NAMESPACE}\"} ${timestamp}
-"
-        _m_dur="${_m_dur}pmm_ha_backup_last_duration_seconds{component=\"${_mc}\",namespace=\"${NAMESPACE}\"} $(result_get "${_mc}" duration 0)
-"
-        _m_bytes="${_m_bytes}pmm_ha_backup_last_size_bytes{component=\"${_mc}\",namespace=\"${NAMESPACE}\"} $(result_get "${_mc}" bytes 0)
-"
+        publish_metrics_file "${metrics_dir}/backup/${_mc}.prom" "${_m_body}" && _m_written=$((_m_written + 1))
     done
     # not_found is normal (no PG encryption), so it is treated like skipped.
     if [ "${enc_status}" != "skipped" ] && [ "${enc_status}" != "not_found" ]; then
         [ "${enc_status}" = "success" ] && _mc_ok=1 || _mc_ok=0
-        _m_ok="${_m_ok}pmm_ha_backup_last_success{component=\"encryption\",namespace=\"${NAMESPACE}\"} ${_mc_ok}
+        _m_body="pmm_ha_backup_last_success{component=\"encryption\",namespace=\"${NAMESPACE}\"} ${_mc_ok}
+pmm_ha_backup_last_timestamp_seconds{component=\"encryption\",namespace=\"${NAMESPACE}\"} ${timestamp}
 "
-        _m_ts="${_m_ts}pmm_ha_backup_last_timestamp_seconds{component=\"encryption\",namespace=\"${NAMESPACE}\"} ${timestamp}
-"
+        publish_metrics_file "${metrics_dir}/backup/encryption.prom" "${_m_body}" && _m_written=$((_m_written + 1))
     fi
 
-    if [ -z "${_m_ok}" ]; then
-        log "WARN" "No component results to publish as metrics; leaving the previous file in place"
+    if [ "${_m_written}" -eq 0 ]; then
+        log "WARN" "No component results to publish as metrics; leaving the previous files in place"
         return 0
     fi
-
-    # Samples only (DN-42).
-    if ! { printf '%s' "${_m_ok}${_m_ts}${_m_dur}${_m_bytes}" > "${tmp_file}"; } 2>/dev/null
-    then
-        log "WARN" "Could not write backup metrics to ${tmp_file}; continuing"
-        rm -f "${tmp_file}" 2>/dev/null || true
-        return 0
-    fi
-
-    if mv "${tmp_file}" "${target_file}" 2>/dev/null; then
-        log "INFO" "Metrics written to ${target_file}"
-        # Full-scope run removes stale per-component files: duplicate series fail the scrape.
-        if [ "${_m_scope}" = "all" ]; then
-            for _stale in "${metrics_dir}"/backup/*.prom; do
-                if [ -f "${_stale}" ] && [ "${_stale}" != "${target_file}" ]; then
-                    rm -f "${_stale}" 2>/dev/null || true
-                    log "INFO" "Removed superseded component metrics ${_stale##*/}"
-                fi
-            done
-        fi
-    else
-        log "WARN" "Could not publish backup metrics to ${target_file}; continuing"
-        rm -f "${tmp_file}" 2>/dev/null || true
-    fi
+    # Pre-merge single-file layout: it would duplicate every series above.
+    rm -f "${metrics_dir}/backup/all.prom" 2>/dev/null || true
+    log "INFO" "Metrics written to ${metrics_dir}/backup/ (${_m_written} file(s))"
     return 0
+}
+
+# Atomic replace (temp + mv) so a scrape never reads half a file.
+publish_metrics_file() {   # <target> <samples>
+    if { printf '%s' "$2" > "$1.tmp"; } 2>/dev/null && mv "$1.tmp" "$1" 2>/dev/null; then
+        return 0
+    fi
+    log "WARN" "Could not publish backup metrics to $1; continuing"
+    rm -f "$1.tmp" 2>/dev/null || true
+    return 1
 }
 
 # Never fails the run (DN-32). Labels use manifest component keys (DN-42).
@@ -5166,7 +5156,7 @@ cmd_backup() {
             exit 1
         fi
 
-        share_mkdir "${BACKUP_DIR}/logs" || true
+        share_mkdir "${STATE_DIR}/logs" || true
 
         # INT/TERM must exit too: ash/dash would resume unlocked after the handler (DN-20).
         LOCK_COMPONENTS=$(lock_list 4)
@@ -5180,8 +5170,8 @@ cmd_backup() {
         protect_operand_pods 4
     else
         # Dry run still appends stderr to LOG_FILE; a failed redirect fails the command.
-        share_mkdir "${BACKUP_DIR}/logs" || true
-        dir_writable "${BACKUP_DIR}/logs" || LOG_FILE="/dev/null"
+        share_mkdir "${STATE_DIR}/logs" || true
+        dir_writable "${STATE_DIR}/logs" || LOG_FILE="/dev/null"
         # release_locks also reaps the retention sweep's catalog cache, which runs in dry run too.
         trap release_locks EXIT
     fi
@@ -5650,6 +5640,8 @@ main() {
     if [ "${BACKUP_TARGET}" = "shared" ] && [ -z "${SHARED_SUBPATH}" ]; then
         SHARED_SUBPATH="${NAMESPACE}/${TARGET_RELEASE:-pmm-ha}"
     fi
+    # -d moves logs/ and .staging/ unless STATE_DIR was set explicitly.
+    [ -n "${_STATE_DIR_FROM_ENV}" ] || STATE_DIR="${BACKUP_DIR}"
 
     # Refuse (never sanitise) S3 settings: they reach SQL literals, CLI args and YAML (DN-17).
     case "${S3_BUCKET}" in
@@ -5724,19 +5716,19 @@ main() {
 
         # Separate prune_ prefix keeps backup logs clean; the reaper matches on it.
         if [ "${COMMAND}" = "prune" ]; then
-            LOG_FILE="${BACKUP_DIR}/logs/prune_${TIMESTAMP}.log"
-            share_mkdir "${BACKUP_DIR}/logs" || true
-            dir_writable "${BACKUP_DIR}/logs" || LOG_FILE="/tmp/prune_${TIMESTAMP}.log"
+            LOG_FILE="${STATE_DIR}/logs/prune_${TIMESTAMP}.log"
+            share_mkdir "${STATE_DIR}/logs" || true
+            dir_writable "${STATE_DIR}/logs" || LOG_FILE="/tmp/prune_${TIMESTAMP}.log"
         elif [ "${COMMAND}" = "list" ]; then
             # Read-only, prints to stdout; keep it out of the backup log series.
             LOG_FILE="/dev/null"
         else
-            LOG_FILE="${BACKUP_DIR}/logs/backup_${TIMESTAMP}${COMPONENT_SUFFIX}.log"
+            LOG_FILE="${STATE_DIR}/logs/backup_${TIMESTAMP}${COMPONENT_SUFFIX}.log"
             # Fall back to /tmp: an unwritable logs/ fails every >>LOG_FILE redirect.
-            share_mkdir "${BACKUP_DIR}/logs" || true
-            if ! dir_writable "${BACKUP_DIR}/logs"; then
+            share_mkdir "${STATE_DIR}/logs" || true
+            if ! dir_writable "${STATE_DIR}/logs"; then
                 LOG_FILE="/tmp/backup_${TIMESTAMP}${COMPONENT_SUFFIX}.log"
-                _LOGDIR_FELL_BACK="${BACKUP_DIR}/logs"
+                _LOGDIR_FELL_BACK="${STATE_DIR}/logs"
             fi
         fi
         CURRENT_ID="backup_${TIMESTAMP}"

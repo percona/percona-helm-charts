@@ -744,7 +744,7 @@ Two operational notes:
   `kubectl exec ... backup` **is** killable by consolidation, which is why §0 and §3a recommend
   running long backups and restores as Jobs.
 - The orchestrator scripts require **jq** (manifest generation/merging/parsing, secret
-  export), plus `rclone` in s3 mode and `nc` for the metrics listener. The default tools image
+  export), plus `rclone` in s3 mode and `python3` (or `nc`) for the metrics listener. The default tools image
   ships all of them, so the bootstrap only probes (see §9). An image that lacks one falls back
   to `apk add`, which needs root — and backup Jobs run with `PMM_TOOLS_STRICT=true`, so on a
   non-root platform a missing tool is a failed backup, not a slow one.
@@ -1006,22 +1006,21 @@ Locks are always acquired in **alphabetical order** (clickhouse, pmm-server, pos
 
 ### Metric Files
 
-After each backup run, Prometheus metrics are written to `/backups/.metrics/` on the PVC:
+After each backup run, Prometheus metrics are written to the install's `.metrics/` directory —
+`/backups/.metrics/` in `s3` mode, `/backups/<namespace>/<release>/.metrics/` in `shared` mode,
+so two installs on one volume never share it:
 
 ```
-/backups/.metrics/backup/all.prom         # a full-scope run — every component, one file
-/backups/.metrics/backup/<component>.prom # a component-scoped run (e.g. postgresql.prom)
-/backups/.metrics/restore_metrics.prom    # written by `restore`
-/backups/.metrics/prune_metrics.prom      # written by `prune`
+.metrics/backup/<component>.prom   # one per component: postgresql, clickhouse, victoriametrics, pmm-server, encryption
+.metrics/restore_metrics.prom      # written by `restore`
+.metrics/prune_metrics.prom        # written by `prune`
 ```
 
-Backup metrics are keyed by **run scope**, not by component: a full run writes one
-`backup/all.prom` holding every component, distinguished by a `component` **label** —
-`postgresql`, `clickhouse`, `victoriametrics`, `pmm-server` and `encryption`. A
-component-scoped run writes `backup/<component>.prom` instead, so concurrent single-component
-runs do not overwrite each other (DN-42). A full-scope run removes the per-component files it
-supersedes, because the listener concatenates `backup/*.prom` into one exposition and the text
-format allows a series only once per exposition.
+Backup metrics are written **one file per component**, and the component is also a `component`
+**label**. A run replaces exactly the files of the components it covered: a single-component
+retry (`backup --postgresql`) updates PostgreSQL and leaves the other components' last results —
+and their alerts — as they were, and no two files ever carry the same series (DN-42). The
+listener serves `backup/*.prom` sorted, so each metric family stays one contiguous group.
 
 What is NOT split per component is the serving side: one listener, one port, one scrape job,
 because the component was always a label. Splitting those is what let `pmm-server` metrics be
@@ -1228,7 +1227,8 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `BACKUP_DIR` | Backup directory | /backups |
 | `BACKUP_RETENTION` | Retention in days (the chart sets it from `schedule.retentionDays`) | 7 |
 | `CENTRAL_BACKUP_PATH` | Central storage path (set by Helm) | |
-| `METRICS_DIR` | Directory for .prom metrics files | /backups/.metrics |
+| `STATE_DIR` | This install's `logs/` and `.staging/` (the chart sets `<mountPath>/<namespace>/<release>` in shared mode) | `BACKUP_DIR` |
+| `METRICS_DIR` | Directory for .prom metrics files | `STATE_DIR`/.metrics |
 | `KUBECTL_EXEC_TIMEOUT` | Max wait (seconds) for pods to start or stop. Data transfers (dumps, uploads, restores) have no wall clock: a scheduled Job is bounded by `activeDeadlineSeconds`, but the documented restore clone clears it and exec runs have none, so a hung transfer waits until someone stops it | 600 |
 | `KUBECTL_STATUS_TIMEOUT` | Timeout (seconds) for status queries | 30 |
 | `RCLONE_TIMEOUT` | Wall clock (seconds) for one rclone read or delete | `KUBECTL_STATUS_TIMEOUT` |
@@ -1389,7 +1389,8 @@ reports `Ready` quite happily. Only the generation and replica fields above are 
 
 ### Log Locations
 
-All logs are written to the logs/ directory on the backup-tools volume:
+All logs are written to the install's `logs/` directory on the backup-tools volume —
+`/backups/logs/` in `s3` mode, `/backups/<namespace>/<release>/logs/` in `shared` mode:
 
 ```
 /backups/logs/backup_<id>.log              # Single-process mode
@@ -1419,7 +1420,7 @@ as `vN-too-new`. Adding a new optional field is not a version bump; moving or re
 existing one is. See DN-41.
 
 ```text
-/backups/
+/backups/<namespace>/<release>/             # this install's subpath (SHARED_SUBPATH)
   latest                                    # text pointer -> backup_<id> (what `list` reads)
   manifests/
     backup_20260223-150001.json             # THE index: schema + status + per-component coordinates
@@ -1444,7 +1445,7 @@ existing one is. See DN-41.
       pg-encryption-key.yaml                # Kubernetes Secret YAML
   logs/                                     # execution logs (backup_<id>.log, restore_<id>.log)
   .staging/                                 # transient per-run staging, reaped after each run
-  .metrics/                                 # Prometheus metrics (backup/<scope>.prom, restore_metrics.prom, prune_metrics.prom)
+  .metrics/                                 # Prometheus metrics (backup/<component>.prom, restore_metrics.prom, prune_metrics.prom)
 ```
 
 Locks are **not** on this volume: they are Kubernetes `Lease` objects, because the thing they
@@ -1598,8 +1599,8 @@ frozen and older than `leaseDurationSeconds`, the next run will take it over on 
 ### Checking Metrics
 
 ```bash
-# From inside the pod (a full run writes backup/all.prom; a scoped run writes backup/<component>.prom)
-cat /backups/.metrics/backup/all.prom
+# From inside the pod (shared mode: /backups/<namespace>/<release>/.metrics)
+cat /backups/.metrics/backup/*.prom
 
 # Via HTTP (netcat server)
 wget -qO- http://localhost:9091/
@@ -2085,7 +2086,7 @@ Two OpenShift-specific things worth knowing:
 One caveat remains that is outside this feature's control.
 
 **The default tools image ships the tools.** `centralBackupStorage.tools.image` defaults to
-`docker.io/tigercomputing/cloud-tools`, which carries kubectl, jq, rclone and BusyBox `nc`, so
+`docker.io/tigercomputing/cloud-tools`, which carries kubectl, jq, rclone, python3 and BusyBox `nc`, so
 `files/backup-entrypoint.sh` probes, finds them, and never runs its `apk add` fallback. Verified
 on a live cluster under an assigned non-root UID: a full backup completed with the bootstrap
 logging only `tools: jq-1.8.1, rclone v1.75.0` and no install step.
@@ -2136,6 +2137,10 @@ UID at all is a question about the chart rather than about this feature.
 
 Metrics files are stored on the PVC (`/backups/.metrics/`), so they survive pod restarts. However, after an initial deployment (before any backup has run), the endpoint serves only a placeholder comment (`# no backup run yet`). VMAgent will scrape these without error but no metrics will be available until the first backup completes.
 
-### netcat Serving Limitations
+### Metrics listener
 
-The metrics HTTP server uses BusyBox `nc` (netcat) which handles one connection at a time per port. If VMAgent and a manual `wget` hit the same port simultaneously, one will get a connection refused. This is acceptable given the 60-second scrape interval and the low-traffic nature of backup metrics.
+The metrics endpoint is served by `python3` (`http.server.ThreadingHTTPServer`), one thread per
+scrape. Both vmagent replicas scrape the pod at the same instant; the previous BusyBox `nc` loop
+served one connection at a time and reset the other, so `up{job="backup-metrics"}` averaged 0.5.
+An image without `python3` falls back to that `nc` loop (the pod log says which one runs), with
+the same limitation.

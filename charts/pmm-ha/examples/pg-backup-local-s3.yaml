@@ -50,7 +50,7 @@ pg-db:
         s3:
           bucket: "pmm-postgresql-backups"
           region: "us-east-1"
-          endpoint: ""  # Leave empty for AWS S3
+          endpoint: "s3.us-east-1.amazonaws.com"  # required by the CRD, AWS too
         schedules:
           full: "0 3 * * 0"  # Sunday 3 AM - Weekly offsite backup
 

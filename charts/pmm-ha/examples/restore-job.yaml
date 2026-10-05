@@ -122,8 +122,10 @@ spec:
               value: <NAMESPACE>/<RELEASE>
             - name: BACKUP_DIR
               value: <BACKUP_DIR>
+            - name: STATE_DIR              # this install's logs/.staging/.metrics, not the volume root
+              value: <BACKUP_DIR>/<NAMESPACE>/<RELEASE>
             - name: METRICS_DIR
-              value: <BACKUP_DIR>/.metrics
+              value: <BACKUP_DIR>/<NAMESPACE>/<RELEASE>/.metrics
             - name: BACKUP_TARGET
               value: shared
             - name: SHARED_MOUNT_PATH

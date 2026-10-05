@@ -632,6 +632,7 @@ See [Backup and Restore](#backup-and-restore) and [docs/pmm-backup.md](docs/pmm-
 | `centralBackupStorage.tools.image` | backup-tools image (kubectl, jq, rclone) | `docker.io/tigercomputing/cloud-tools:20260831175138` |
 | `centralBackupStorage.tools.imagePullSecrets` | Pull secrets for the backup pods only | `[]` |
 | `centralBackupStorage.tools.resources` | Resources for backup-tools and the backup/restore Jobs | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
+| `centralBackupStorage.tools.restorePodResources` | Resources for the temporary restore pods (vmrestore, /srv extract); empty = `tools.resources` | `{requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: "2", memory: 2Gi}}` |
 | `centralBackupStorage.storageSize` | Size of the chart-created central PVC | `100Gi` |
 | `centralBackupStorage.storageClassName` | Storage class of the central PVC | `""` |
 | `centralBackupStorage.accessMode` | Access mode of the central volume (declare `ReadWriteMany` for an RWX `existingClaim`) | `""` |

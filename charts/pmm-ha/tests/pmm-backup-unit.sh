@@ -1975,6 +1975,18 @@ R t6_ch_status "$(jq -r '.components.clickhouse.status' "${B}/manifests/${OLD}.j
 R t6_overall   "$(jq -r '.status' "${B}/manifests/${OLD}.json" 2>/dev/null)"
 rm -rf "${B}"
 
+# 6b. an already-pruned pinned base must not spend the per-run cap. OLDER stays pinned by NEW;
+#     once its other components are gone, a cap of 1 must still reach OLD behind it.
+B=$(mktemp -d); BACKUP_DIR="${B}"
+mk "${B}" "${OLDER}" complete demo "${ALL4}"; mk "${B}" "${NEW}" complete demo "${ALL4}" "${OLDER}"
+printf '%s' "${NEW}" > "${B}/latest"
+prune_expired_backups >/dev/null 2>&1; catalog_cache_clear
+mk "${B}" "${OLD}" complete demo "${ALL4}"
+S3_PRUNE_MAX_PER_RUN=1; prune_expired_backups >/dev/null 2>&1; S3_PRUNE_MAX_PER_RUN=50; catalog_cache_clear
+R t6b_old_gone "$(have "${B}/manifests/${OLD}.json")"
+R t6b_base_ch  "$(have "${B}/clickhouse/${OLDER}")"
+rm -rf "${B}"
+
 # 7. unreadable manifest defers the id
 B=$(mktemp -d); BACKUP_DIR="${B}"
 mk "${B}" "${NEW}" complete demo "${ALL4}"; mk "${B}" "${OLD}" complete demo "${ALL4}"
@@ -2044,6 +2056,8 @@ assert_eq "...and /srv too"                       "no"  "$(_f t6_pmm_gone)"
 assert_eq "...the index marks PG pruned"          "pruned"  "$(_f t6_pg_status)"
 assert_eq "...ClickHouse stays restorable"        "success" "$(_f t6_ch_status)"
 assert_eq "...and the id becomes partial"         "partial" "$(_f t6_overall)"
+assert_eq "a pruned pinned base does not use the cap" "no"  "$(_f t6b_old_gone)"
+assert_eq "...and its CH data is still kept"         "yes" "$(_f t6b_base_ch)"
 assert_eq "an unreadable manifest defers the id"  "yes" "$(_f t7_mf)"
 assert_eq "...and its data is left alone"         "yes" "$(_f t7_data)"
 assert_eq "a newer-schema manifest is deferred"   "yes" "$(_f t8_mf)"
@@ -2629,10 +2643,10 @@ ASSUME_YES=false
 latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
 assert_rc "stale pointer is refused without --yes" 1 $?
 
-# --yes is the operator saying they know. It must still have been told.
+# Not even with --yes: every non-interactive restore passes it, so it would never stop one.
 ASSUME_YES=true
 latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
-assert_rc "--yes allows the stale pointer" 0 $?
+assert_rc "--yes does not override a stale pointer" 1 $?
 
 # The refusal has to NAME the newer backups, or it is just an obstacle. The suite silences
 # log() globally, so restore it for the two assertions that are ABOUT what the operator reads.
@@ -2795,42 +2809,45 @@ rm -rf "${_sd}" 2>/dev/null || true
 BACKUP_TARGET=shared
 
 #########################################################################################
-section "write_backup_metrics — a full run must not leave duplicate series behind"
+section "write_backup_metrics — one file per component: no run drops or duplicates another's"
 #########################################################################################
 
-# The listener cats backup/*.prom into ONE exposition. Two files carrying the same series is
-# not a cosmetic duplicate: the text format allows one sample per series per exposition, so
-# Prometheus rejects the WHOLE scrape and backup-failure alerting goes quiet.
+# The listener cats backup/*.prom into ONE exposition. Two files carrying the same series break
+# the scrape; a run rewriting files for components it did not cover erases their last result, so
+# a failed-ClickHouse alert resolves while ClickHouse is still broken.
 _md=$(mktemp -d 2>/dev/null || echo "/tmp/mtest.$$"); mkdir -p "${_md}/backup"
 METRICS_DIR="${_md}"
+_succ() { sed -n "s/^pmm_ha_backup_last_success{component=\"$1\".*} //p" "${_md}/backup/$1.prom" 2>/dev/null; }
+_has() { [ -f "${_md}/backup/$1" ] && echo yes || echo no; }
 
-# A previous component-scoped run's leftovers.
-: > "${_md}/backup/postgresql.prom"
-: > "${_md}/backup/clickhouse.prom"
+# A full run, ClickHouse failing; the pre-merge single-file layout is still on disk.
+: > "${_md}/backup/all.prom"
+RESULTS_JSON='{}'
+result_set postgresql --arg status success '{status:$status}'
+result_set clickhouse --arg status failed '{status:$status}'
+write_backup_metrics success >/dev/null 2>&1
+assert_eq "full run writes postgresql.prom"   "yes" "$(_has postgresql.prom)"
+assert_eq "full run writes clickhouse.prom"   "yes" "$(_has clickhouse.prom)"
+assert_eq "...and the key's encryption.prom"  "yes" "$(_has encryption.prom)"
+assert_eq "the pre-merge all.prom is removed" "no"  "$(_has all.prom)"
+assert_eq "ClickHouse failure is published"   "0"   "$(_succ clickhouse)"
 
-# write_backup_metrics deliberately publishes nothing when the run produced no component
-# results (it leaves the previous file in place), so seed one.
-result_set postgresql --arg status completed '{status:$status}'
-
-COMPONENT_SUFFIX=""            # no suffix => full-scope run => writes all.prom
+# The documented retry, `backup --postgresql` without --backup-id, after that night.
+RESULTS_JSON='{}'
+result_set postgresql --arg status success '{status:$status}'
 write_backup_metrics skipped >/dev/null 2>&1
+assert_eq "a PG-only run keeps ClickHouse's failure" "0"   "$(_succ clickhouse)"
+assert_eq "...and the key's result"                  "yes" "$(_has encryption.prom)"
+assert_eq "...and updates PostgreSQL"                "1"   "$(_succ postgresql)"
+_dups=$(cat "${_md}"/backup/*.prom | sed 's/ [^ ]*$//' | sort | uniq -d | wc -l | tr -d ' ')
+assert_eq "no series is published twice"             "0"   "${_dups}"
 
-assert_eq "full run publishes all.prom"            "yes" "$([ -f "${_md}/backup/all.prom" ] && echo yes || echo no)"
-assert_eq "stale postgresql.prom is cleared"       "no"  "$([ -f "${_md}/backup/postgresql.prom" ] && echo yes || echo no)"
-assert_eq "stale clickhouse.prom is cleared"       "no"  "$([ -f "${_md}/backup/clickhouse.prom" ] && echo yes || echo no)"
-
-# DN-42: the concurrent workflow writes one file per component and NO all.prom. A
-# component-scoped run must therefore leave its siblings alone, or concurrent runs would
-# delete each other's metrics as they finish.
-: > "${_md}/backup/victoriametrics.prom"
-COMPONENT_SUFFIX="_postgresql"
+# Nothing ran: leave every file as it was.
+RESULTS_JSON='{}'
 write_backup_metrics skipped >/dev/null 2>&1
+assert_eq "an empty run keeps the files"             "0"   "$(_succ clickhouse)"
 
-assert_eq "component run writes its own file"      "yes" "$([ -f "${_md}/backup/postgresql.prom" ] && echo yes || echo no)"
-assert_eq "component run keeps a sibling's file"   "yes" "$([ -f "${_md}/backup/victoriametrics.prom" ] && echo yes || echo no)"
-assert_eq "component run keeps all.prom"           "yes" "$([ -f "${_md}/backup/all.prom" ] && echo yes || echo no)"
-
-COMPONENT_SUFFIX=""
+RESULTS_JSON='{}'
 rm -rf "${_md}" 2>/dev/null || true
 
 #########################################################################################
