@@ -992,3 +992,25 @@ secrets:
   pgbouncer:
   # pguser user password
   pguser:
+
+# Extra Kubernetes objects to deploy alongside the chart.
+# Each item may be either a YAML object or a multiline string (both support templating).
+#
+# For example:
+# extraObjects:
+#   - apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: '{{ template "pg-database.fullname" . }}'
+#       namespace: '{{ .Release.Namespace }}'
+#     data:
+#       key: value
+#   - |
+#     apiVersion: v1
+#     kind: ConfigMap
+#     metadata:
+#       name: '{{ template "pg-database.fullname" . }}-extra-configmap'
+#       namespace: '{{ .Release.Namespace }}'
+#     data:
+#       key: value
+extraObjects: []

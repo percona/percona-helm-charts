@@ -52,6 +52,7 @@ The chart can be customized using the following configurable parameters:
 | `leaseDuration`                 | Duration that non-leader candidates wait before forcing leader acquisition                     | `60s`                                            |
 | `renewDeadline`                 | Duration the acting leader retries refreshing its leadership before giving up                  | `40s`                                            |
 | `retryPeriod`                   | Duration clients should wait between attempts to acquire or renew the leader lease             | `10s`                                            |
+| `extraObjects` | Extra Kubernetes objects to deploy alongside the chart (YAML object or multiline string) | `[]` |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 

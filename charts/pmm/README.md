@@ -116,7 +116,7 @@ It removes all of the resources associated with the last release of the chart as
 | `nodeSelector`               | Node labels for pod assignment                                                                                      | `{}`                  |
 | `tolerations`                | Tolerations for pod assignment                                                                                      | `[]`                  |
 | `affinity`                   | Affinity for pod assignment                                                                                         | `{}`                  |
-
+| `extraObjects`              | Extra Kubernetes objects to deploy alongside the chart (YAML object or multiline string)            | `[]`                  |
 
 Specify each parameter using the `--set key=value[,key=value]` or `--set-string key=value[,key=value]` arguments to `helm install`. For example,
 

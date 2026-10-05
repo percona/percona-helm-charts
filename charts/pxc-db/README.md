@@ -364,7 +364,7 @@ The chart can be customized using the following configurable parameters:
 | `passwordGenerationOptions.minLength` | Minimum length for generated passwords                                                                                                                            | `16`                             |
 | `passwordGenerationOptions.maxLength` | Maximum length for generated passwords                                                                                                                            | `20`                             |
 | `passwordGenerationOptions.symbols`   | Character set of symbols to use in generated passwords                                                                                                            | `!#$%&()*+,-.<=>?@[]^_{}~`       |
-
+| `extraObjects`                     | Extra Kubernetes objects to deploy alongside the chart (YAML object or multiline string) | `[]`                      |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 
