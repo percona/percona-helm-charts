@@ -1082,7 +1082,10 @@ configuration at start outside its data volume, among others `/etc/supervisord.d
 
 **Offline rendering.** With the default `secret.create: false` the chart looks `pmm-secret` up
 in the cluster and refuses to render without it. `helm template`, `helm lint` and CI policy
-scanners have no cluster to ask, so pass `--set secret.requireExisting=false` there.
+scanners have no cluster to ask, so pass `--set secret.requireExisting=false` there. Never
+apply a render made that way: it leaves out the `gfuser-credentials` and `pmmuser-credentials`
+Secrets. Argo CD and `helm template | kubectl apply` always render without a cluster, so
+turning this off to get past the failure there deploys PMM without them.
 
 ### Kubernetes cluster metrics
 

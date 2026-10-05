@@ -259,7 +259,9 @@ secret:
   ## @param secret.requireExisting Fail the render when secret.create is false and the Secret is not
   ## in the cluster. `lookup` cannot tell a missing Secret from an offline render (`helm template`,
   ## `helm lint`, policy scans in CI), so set this to false for those; the two PostgreSQL credential
-  ## Secrets derived from it are then left out of the render.
+  ## Secrets derived from it are then left out of the render. Never apply such a render: Argo CD
+  ## and `helm template | kubectl apply` render without `lookup`, so it deploys without the
+  ## gfuser-credentials and pmmuser-credentials Secrets.
   ##
   requireExisting: true
   ## @param secret.pmm_password Initial PMM password - it changes only on the first deployment, ignored if PMM was already provisioned. Only used when secret.create is true; with a manually created secret the PMM_ADMIN_PASSWORD key is required instead.
