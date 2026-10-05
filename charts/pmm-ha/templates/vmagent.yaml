@@ -4,7 +4,7 @@
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMAgent
 metadata:
-  name: {{ include "pmm.fullname" . }}-vmagent
+  name: {{ include "pmm.vmagent.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
@@ -20,9 +20,8 @@ spec:
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
 
   {{- if .Values.victoriaMetrics.vmagent.rbac.create }}
-  # A ServiceAccount of its own, with the discovery and nodes/proxy access its scrape jobs
-  # need (vmagent-rbac.yaml). PMM Server's ServiceAccount has no token and no RBAC.
-  serviceAccountName: {{ include "pmm.fullname" . }}-vmagent
+  # Created with its RBAC in vmagent-rbac.yaml.
+  serviceAccountName: {{ include "pmm.vmagent.name" . }}
   {{- end }}
 
   # Remote write configuration - forwards metrics to VMAuth with secure basicAuth

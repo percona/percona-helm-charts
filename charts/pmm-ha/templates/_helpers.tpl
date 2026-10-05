@@ -67,6 +67,14 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
+Name of the VMAgent CR and of vmagent's ServiceAccount and RBAC. The operator names the config
+Secret "vmagent-" + this, which the vmagent Role grants by name.
+*/}}
+{{- define "pmm.vmagent.name" -}}
+{{- printf "%s-vmagent" (include "pmm.fullname" .) -}}
+{{- end }}
+
+{{/*
 Pod annotation
 */}}
 {{- define "pmm.podAnnotations" -}}
