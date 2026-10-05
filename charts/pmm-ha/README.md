@@ -578,6 +578,10 @@ components (PMM, ClickHouse, VictoriaMetrics, PostgreSQL) use pod anti-affinity;
 topology spread constraint, so it can be scaled beyond the number of worker nodes at the cost of
 co-locating replicas.
 
+Patroni's [DCS failsafe mode](https://patroni.readthedocs.io/en/latest/dcs_failsafe_mode.html) is
+enabled, so a Kubernetes API outage does not demote a PostgreSQL primary that can still reach every
+other member.
+
 > **Important**: The three Kubernetes operators (VictoriaMetrics, ClickHouse, PostgreSQL) must be installed before deploying PMM HA. They manage the lifecycle of their respective resources through Custom Resource Definitions (CRDs).
 
 ### [Image tags](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
@@ -1138,13 +1142,13 @@ Common troubleshooting steps for PMM HA:
   is DNS-based, so changing `replicas` needs no restart. Bump
   `haproxy.podAnnotations."pmm.percona.com/config-version"` in the same `helm upgrade`
   so the pods restart and pick up the new `server-template`. It has to be a value the
-  release is not already running - the chart ships `"5"`, so the examples below use `"6"`:
+  release is not already running - the chart ships `"6"`, so the examples below use `"7"`:
 
   ```sh
   helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
     --version <chart-version> --reuse-values \
     --set maxReplicas=20 \
-    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=6'
+    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=7'
   ```
 
   Or in `values.yaml`:
@@ -1153,7 +1157,7 @@ Common troubleshooting steps for PMM HA:
   maxReplicas: 20
   haproxy:
     podAnnotations:
-      pmm.percona.com/config-version: "6"
+      pmm.percona.com/config-version: "7"
   ```
 
   Prefer this over `kubectl rollout restart`: the bump is part of the same declarative
