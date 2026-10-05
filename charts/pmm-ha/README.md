@@ -553,7 +553,7 @@ to change on OpenShift.
 | Name                                    | Description                                                                                                         | Value                                                                                   |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `podSecurityContext`                    | PMM Server pods                                                                                                     | `runAsUser: 1000`, `runAsNonRoot: true`, `fsGroup: 1000`, RuntimeDefault seccomp        |
-| `securityContext`                       | PMM Server container, its init containers and the log-streamer sidecars. `readOnlyRootFilesystem` is experimental, see [Pod security](#pod-security) | `allowPrivilegeEscalation: false`, drop `ALL`, `readOnlyRootFilesystem: false`          |
+| `securityContext`                       | PMM Server container, its init containers and the log-streamer sidecars. `readOnlyRootFilesystem` must stay `false`, see [Pod security](#pod-security) | `allowPrivilegeEscalation: false`, drop `ALL`, `readOnlyRootFilesystem: false`          |
 | `pmmClient.podSecurityContext`          | PMM Client pods; the group comes from `pmmClient.fsGroup` (`1002`)                                                  | `runAsUser: 1002`, `runAsNonRoot: true`, RuntimeDefault seccomp                         |
 | `pmmClient.securityContext`             | PMM Client containers                                                                                               | `allowPrivilegeEscalation: false`, drop `ALL`                                           |
 | `haproxy.podSecurityContext`            | HAProxy pods. The sysctl lets uid 1000 bind port 443                                                                | `runAsUser: 1000`, `runAsNonRoot: true`, RuntimeDefault seccomp, `net.ipv4.ip_unprivileged_port_start=0` |
@@ -1065,13 +1065,10 @@ cluster-wide ClusterRole, so a job in `victoriaMetrics.vmagent.scrapeConfigs` th
 outside the release namespace needs `victoriaMetrics.vmagent.rbac.extraClusterRules` (see
 Privileges above).
 
-**Read-only root filesystem for PMM Server** is off because the image still writes generated
-configuration under `/etc` at start (`/etc/supervisord.d/*.ini` and
-`/etc/victoriametrics-promscrape.yml`). Setting `securityContext.readOnlyRootFilesystem: true`
-makes the chart mount emptyDirs over `/tmp`, `/run`, `/var/log/nginx` and
-`/etc/supervisord.d` (seeded from the image by an init container), which covers everything
-except `/etc/victoriametrics-promscrape.yml`. Treat it as experimental until the image writes
-that file elsewhere.
+**Read-only root filesystem for PMM Server** is not supported: the image writes generated
+configuration at start outside its data volume, among others `/etc/supervisord.d/pmm.ini`,
+`/etc/victoriametrics-promscrape.yml`, `/usr/local/percona/pmm/config/pmm-agent.yaml` and
+`/usr/share/pmm-server`, so `securityContext.readOnlyRootFilesystem` must stay `false`.
 
 **Offline rendering.** With the default `secret.create: false` the chart looks `pmm-secret` up
 in the cluster and refuses to render without it. `helm template`, `helm lint` and CI policy

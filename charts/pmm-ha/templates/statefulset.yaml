@@ -50,34 +50,6 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
-        {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
-        # pmm-managed rewrites the supervisord program files under /etc/supervisord.d at start,
-        # which a read-only root filesystem forbids. Seed emptyDirs with the image's static files
-        # and mount them over those paths (see volumes below).
-        - name: seed-writable-paths
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-            - /bin/sh
-            - -c
-            # Copy the files, not the directory: the emptyDir mount point is root-owned, so
-            # preserving its attributes (cp -a on the directory) fails as uid 1000.
-            - cp -a /etc/supervisord.d/* /seed/supervisord.d/ && mkdir -p /seed/run/supervisor
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          volumeMounts:
-            - name: supervisord-config
-              mountPath: /seed/supervisord.d
-            - name: run
-              mountPath: /seed/run
-          resources:
-            requests:
-              cpu: 10m
-              memory: 16Mi
-            limits:
-              cpu: 50m
-              memory: 64Mi
-        {{- end }}
         - name: wait-for-clickhouse
           image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
           imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
@@ -147,11 +119,6 @@ spec:
             # clickhouse-client writes its history under $HOME, which is / (not writable) for uid 1000.
             - name: HOME
               value: /tmp
-          {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
-          volumeMounts:
-            - name: tmp
-              mountPath: /tmp
-          {{- end }}
           resources:
             requests:
               cpu: 50m
@@ -409,16 +376,6 @@ spec:
             - name: encryption-key
               mountPath: /etc/secrets
               readOnly: true
-            {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
-            - name: tmp
-              mountPath: /tmp
-            - name: run
-              mountPath: /run
-            - name: nginx-logs
-              mountPath: /var/log/nginx
-            - name: supervisord-config
-              mountPath: /etc/supervisord.d
-            {{- end }}
             {{- if .Values.certs.name }}
             - name: {{ .Values.certs.name }}
               mountPath: /srv/nginx
@@ -471,16 +428,6 @@ spec:
         - name: encryption-key
           secret:
             secretName: pg-encryption-key
-        {{- if (.Values.securityContext | default dict).readOnlyRootFilesystem }}
-        - name: tmp
-          emptyDir: {}
-        - name: run
-          emptyDir: {}
-        - name: nginx-logs
-          emptyDir: {}
-        - name: supervisord-config
-          emptyDir: {}
-        {{- end }}
       {{- if .Values.certs.name }}
         - name: {{ .Values.certs.name }}
           secret:

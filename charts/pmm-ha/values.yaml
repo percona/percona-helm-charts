@@ -548,12 +548,9 @@ openshift: false
 ## Applied to the PMM Server container, its init containers and the log-streamer sidecars. The defaults satisfy the
 ## "restricted" Pod Security Standard together with podSecurityContext above.
 ##
-## readOnlyRootFilesystem is off because the PMM Server image still writes generated
-## configuration under /etc at start (/etc/supervisord.d/*.ini and
-## /etc/victoriametrics-promscrape.yml, see PMM-14746). Turning it on makes the chart mount
-## emptyDirs over /tmp, /run, /var/log/nginx and /etc/supervisord.d (seeded from the image by
-## an init container), which covers everything except /etc/victoriametrics-promscrape.yml -
-## treat it as experimental until the image writes that file elsewhere.
+## readOnlyRootFilesystem must stay false: PMM Server writes generated configuration outside its
+## data volume at start (/etc/supervisord.d, /etc/victoriametrics-promscrape.yml,
+## /usr/local/percona/pmm/config, /usr/share/pmm-server).
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
