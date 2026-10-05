@@ -71,6 +71,34 @@ tests:
         documentIndex: 3  # the release-namespace Role
         template: templates/vmagent-rbac.yaml
 
+  - it: appends rbac.extraClusterRules and rbac.extraRules for user scrape jobs
+    set:
+      victoriaMetrics.vmagent.rbac.extraClusterRules:
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["list"]
+      victoriaMetrics.vmagent.rbac.extraRules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs: ["get"]
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["list"]
+        documentSelector: {path: kind, value: ClusterRole}
+        template: templates/vmagent-rbac.yaml
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["get"]
+        documentIndex: 3  # the release-namespace Role
+        template: templates/vmagent-rbac.yaml
+
   - it: lets the kube-apiserver job discover the endpoints in default
     asserts:
       - equal:

@@ -3,11 +3,12 @@
 {{- /* ClusterRoles and their bindings are cluster-wide, so the namespace keeps two releases of
        the same name in different namespaces apart. */ -}}
 {{- $clusterName := printf "%s-%s" .Release.Namespace $name -}}
-# vmagent is the only chart component that reads the Kubernetes API: every job in its
-# inlineScrapeConfig finds targets through kubernetes_sd_configs, the kubelet and cAdvisor jobs
-# go through the apiserver proxy, and its config-reloader watches the config Secret the operator
-# renders. With a ServiceAccount named in the VMAgent the operator creates no RBAC, so it is all
-# here, scoped to what those jobs use.
+{{- $rbac := .Values.victoriaMetrics.vmagent.rbac -}}
+# vmagent's scrape jobs find their targets through the Kubernetes API, the kubelet and cAdvisor
+# jobs go through the apiserver proxy, and its config-reloader watches the config Secret the
+# operator renders. With a ServiceAccount named in the VMAgent the operator creates no RBAC, so
+# it is all here, scoped to the built-in jobs. rbac.extraRules and rbac.extraClusterRules widen
+# it for user scrapeConfigs.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -33,6 +34,9 @@ rules:
   verbs: ["get"]
 - nonResourceURLs: ["/metrics"]
   verbs: ["get"]
+{{- with $rbac.extraClusterRules }}
+{{ toYaml . }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -69,6 +73,9 @@ rules:
   resources: ["secrets"]
   resourceNames: ["vmagent-{{ $name }}"]
   verbs: ["get", "list", "watch"]
+{{- with $rbac.extraRules }}
+{{ toYaml . }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

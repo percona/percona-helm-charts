@@ -1344,8 +1344,23 @@ victoriaMetrics:
     ## cAdvisor jobs read through the apiserver proxy (nodes/proxy). With false, the VictoriaMetrics
     ## operator creates the ServiceAccount and RBAC itself; its ClusterRole has no nodes/proxy,
     ## so the kubelet and cAdvisor jobs fail with 403.
+    ## The built-in jobs discover only the release namespace (and `default` for the apiserver),
+    ## so a job in scrapeConfigs that discovers elsewhere gets 403 and loses its targets; the only
+    ## sign is in vmagent's logs. Grant what it needs with the two lists below.
     rbac:
       create: true
+      ## @param victoriaMetrics.vmagent.rbac.extraRules Rules appended to vmagent's Role in the release namespace
+      extraRules: []
+      ## @param victoriaMetrics.vmagent.rbac.extraClusterRules Rules appended to vmagent's ClusterRole
+      ## E.g. pod and endpoint discovery in every namespace:
+      ## extraClusterRules:
+      ##   - apiGroups: [""]
+      ##     resources: ["pods", "endpoints", "services"]
+      ##     verbs: ["get", "list", "watch"]
+      ##   - apiGroups: ["discovery.k8s.io"]
+      ##     resources: ["endpointslices"]
+      ##     verbs: ["get", "list", "watch"]
+      extraClusterRules: []
     ## @param victoriaMetrics.vmagent.resources Resource requests and limits for vmagent
     ## This vmagent scrapes only the chart's own infrastructure (HAProxy, ClickHouse,
     ## the VM components, kubelet/cAdvisor/apiserver). It therefore scales with the

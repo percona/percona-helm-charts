@@ -569,6 +569,8 @@ to change on OpenShift.
 | `kubectl.image.repository`              | kubectl image used by the helper Jobs                                                                               | `alpine/kubectl`                                                                        |
 | `kubectl.image.tag`                     | Pinned tag of that image                                                                                            | `1.35.0`                                                                                |
 | `victoriaMetrics.vmagent.rbac.create`  | Give vmagent its own ServiceAccount and the RBAC its scrape jobs need; with `false` the operator creates them and kubelet/cAdvisor scraping gets 403 | `true` |
+| `victoriaMetrics.vmagent.rbac.extraClusterRules` | Rules appended to vmagent's ClusterRole, for `scrapeConfigs` that discover outside the release namespace | `[]` |
+| `victoriaMetrics.vmagent.rbac.extraRules` | Rules appended to vmagent's Role in the release namespace | `[]` |
 | `pgDbPmmSidecarPatched`                 | Acknowledge the manual security-context patch for the PostgreSQL PMM sidecar, which lets the chart install into a `restricted` namespace (see [Pod security](#pod-security)) | `false` |
 
 ### Node exporter source parameters
@@ -917,11 +919,30 @@ What runs as what:
 | Helper Jobs                                                   | 65534               | read-only                                | `jobs.podSecurityContext`, `jobs.securityContext`             |
 
 **Privileges.** PMM Server does not call the Kubernetes API: its pods run with
-`automountServiceAccountToken: false` and the chart creates no ClusterRole for them. The only
-RBAC the chart creates are two namespaced Roles for the helper Jobs, each limited to the one
-Secret its Job manages (`pg-encryption-key` and `<release>-pg-db-pmm-secret`) plus `create` on
-Secrets, which Kubernetes cannot narrow by name. kube-state-metrics keeps the cluster-wide
-read-only ClusterRole its subchart ships.
+`automountServiceAccountToken: false` and get no RBAC. The chart creates:
+
+- two Roles for the helper Jobs, each limited to the one Secret its Job manages
+  (`pg-encryption-key` and `<release>-pg-db-pmm-secret`) plus `create` on Secrets, which
+  Kubernetes cannot narrow by name;
+- for vmagent (`victoriaMetrics.vmagent.rbac.create`), a ServiceAccount and:
+  - a ClusterRole `<namespace>-<release>-pmm-ha-vmagent`: `get`, `list`, `watch` on `nodes`,
+    `get` on `nodes/proxy`, and `get` on the non-resource URL `/metrics`;
+  - a Role in the release namespace: discovery (`pods`, `endpoints`, `services`,
+    `endpointslices`) and `get`, `list`, `watch` on its own config Secret only;
+  - a Role in `default`, to discover the `kubernetes` Service for the apiserver job;
+  - with `nodeExporter.mode=openshift`, a Role in `openshift-monitoring`, to discover the
+    platform node-exporter.
+
+`nodes/proxy` is the broad one: through the apiserver it reaches every kubelet endpoint that
+answers GET, not only the metrics ones - among them `/pods` (the spec of every pod on the node,
+in every namespace, environment values included), `/configz` and `/logs/` (the node's
+`/var/log`). The kubelet and cAdvisor jobs scrape through it.
+kube-state-metrics keeps the cluster-wide read-only ClusterRole its subchart ships.
+
+vmagent's built-in jobs discover only the release namespace, so a job you add under
+`victoriaMetrics.vmagent.scrapeConfigs` that discovers pods or endpoints elsewhere gets 403 and
+loses its targets, with the error only in vmagent's logs. Grant it what it needs with
+`victoriaMetrics.vmagent.rbac.extraClusterRules` (or `extraRules` for the release namespace).
 
 **Storage.** Every pod with a persistent volume runs as a non-root user: PMM Server (1000),
 PMM Client (1002), ClickHouse and Keeper (101) and vmstorage (65534). A new volume is
@@ -1038,6 +1059,11 @@ Verified in place on kind's hostPath volumes: vmagent replayed its buffer after 
 samples were lost. PMM Server, PMM Client, HAProxy, PostgreSQL and the operators need nothing;
 ClickHouse and Keeper move to uid 101, but their entrypoint had already chowned the data to
 101 while running as root, so they restart cleanly.
+
+Custom scrape jobs also need a look when upgrading from 1.8.x: vmagent no longer runs under a
+cluster-wide ClusterRole, so a job in `victoriaMetrics.vmagent.scrapeConfigs` that discovers
+outside the release namespace needs `victoriaMetrics.vmagent.rbac.extraClusterRules` (see
+Privileges above).
 
 **Read-only root filesystem for PMM Server** is off because the image still writes generated
 configuration under `/etc` at start (`/etc/supervisord.d/*.ini` and
