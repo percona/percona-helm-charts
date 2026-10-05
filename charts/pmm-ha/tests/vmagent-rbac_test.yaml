@@ -1,9 +1,7 @@
-# vmagent is the one chart component that reads the Kubernetes API: service discovery for every
-# scrape job, the kubelet/cAdvisor jobs through the apiserver proxy, and its config-reloader's
-# watch on the rendered config Secret. PMM Server's ServiceAccount has neither a token nor RBAC,
-# so vmagent must run under its own, and the operator creates no RBAC once a name is given.
-# templates/vmagent.yaml itself cannot be loaded here (its labels repeat app.kubernetes.io/component,
-# which helm unittest rejects); the VMAgent's serviceAccountName is checked by rendering in CI.
+# PMM Server's ServiceAccount has neither a token nor RBAC, so vmagent runs under its own, and the
+# operator creates no RBAC once a name is given. templates/vmagent.yaml itself cannot be loaded
+# here (its labels repeat app.kubernetes.io/component, which helm unittest rejects); its
+# serviceAccountName is asserted in pmm-ha-pr-checks.yaml ("release-name-sensitive names").
 suite: pmm-ha vmagent RBAC
 templates:
   - templates/vmagent-rbac.yaml
