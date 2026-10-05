@@ -72,8 +72,12 @@ altinity-clickhouse-operator:
       readOnlyRootFilesystem: true
       seccompProfile:
         type: RuntimeDefault
-  # The CRD installation hook runs kubectl once; same posture.
+  # The CRD installation hook runs kubectl once; same posture. Same pinned kubectl image as the
+  # pmm-ha helper Jobs: bitnami/kubectl, the upstream default, publishes only `latest`.
   crdHook:
+    image:
+      repository: alpine/kubectl
+      tag: "1.35.0"
     podSecurityContext:
       runAsNonRoot: true
       runAsUser: 65534

@@ -23,7 +23,7 @@ altinity-clickhouse-operator:
       runAsUser: null
   crdHook:
     image:
-      repository: docker.io/bitnami/kubectl
+      repository: docker.io/alpine/kubectl
     podSecurityContext:
       runAsUser: null
 
