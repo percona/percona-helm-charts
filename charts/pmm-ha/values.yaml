@@ -612,6 +612,8 @@ clickhouse:
     runAsUser: 101
     runAsGroup: 101
     fsGroup: 101
+    # Skip the recursive chown on every start once the volume root already matches.
+    fsGroupChangePolicy: OnRootMismatch
     runAsNonRoot: true
     seccompProfile:
       type: RuntimeDefault
@@ -681,6 +683,7 @@ clickhouse:
       runAsUser: 101
       runAsGroup: 101
       fsGroup: 101
+      fsGroupChangePolicy: OnRootMismatch
       runAsNonRoot: true
       seccompProfile:
         type: RuntimeDefault
