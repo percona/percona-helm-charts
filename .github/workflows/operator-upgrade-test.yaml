@@ -1,0 +1,240 @@
+name: Operator and Database Chart Upgrade Test
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'charts/pxc-operator/**'
+      - 'charts/pxc-db/**'
+      - 'charts/pg-operator/**'
+      - 'charts/pg-db/**'
+      - 'charts/ps-operator/**'
+      - 'charts/ps-db/**'
+      - 'charts/psmdb-operator/**'
+      - 'charts/psmdb-operator-crds/**'
+      - 'charts/psmdb-db/**'
+      - '.github/kind/upgrade-cluster.yaml'
+      - '.github/workflows/operator-upgrade-test.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changed:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: List changed operators
+        id: list
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          files=$(git diff --name-only "$base" "${{ github.sha }}")
+          ops='[]'
+
+          chart_value() {
+            git show "$base:charts/$1/Chart.yaml" | awk -v key="$2:" '$1 == key { gsub(/"/, "", $2); print $2; exit }'
+          }
+          add() {
+            local op_ver op_app_ver db_ver db_app_ver
+            op_ver=$(chart_value "$1" version)
+            op_app_ver=$(chart_value "$1" appVersion)
+            db_ver=$(chart_value "$2" version)
+            db_app_ver=$(chart_value "$2" appVersion)
+            ops=$(jq -c \
+              --arg operator "$1" \
+              --arg db "$2" \
+              --arg cr "$3" \
+              --arg reconcileValue "$4" \
+              --arg operatorVersion "$op_ver" \
+              --arg operatorAppVersion "$op_app_ver" \
+              --arg dbVersion "$db_ver" \
+              --arg dbAppVersion "$db_app_ver" \
+              '. + [{
+                operator: $operator,
+                db: $db,
+                cr: $cr,
+                reconcileValue: $reconcileValue,
+                operatorVersion: $operatorVersion,
+                operatorAppVersion: $operatorAppVersion,
+                dbVersion: $dbVersion,
+                dbAppVersion: $dbAppVersion
+              }]' <<< "$ops")
+          }
+          add_all() {
+            add pxc-operator pxc-db pxc pxc.labels.upgrade-test-reconcile
+            add pg-operator pg-db pg metadata.labels.upgrade-test-reconcile
+            add ps-operator ps-db ps metadata.labels.upgrade-test-reconcile
+            add psmdb-operator psmdb-db psmdb replsets.rs0.labels.upgrade-test-reconcile
+          }
+
+          grep -qE '^charts/pxc-' <<< "$files" && add pxc-operator pxc-db pxc pxc.labels.upgrade-test-reconcile
+          grep -qE '^charts/pg-' <<< "$files" && add pg-operator pg-db pg metadata.labels.upgrade-test-reconcile
+          grep -qE '^charts/ps-(operator|db)/' <<< "$files" && add ps-operator ps-db ps metadata.labels.upgrade-test-reconcile
+          grep -qE '^charts/psmdb-' <<< "$files" && add psmdb-operator psmdb-db psmdb replsets.rs0.labels.upgrade-test-reconcile
+
+          if grep -qE '^\.github/(workflows/operator-upgrade-test\.yaml|kind/upgrade-cluster\.yaml)$' <<< "$files"; then
+            ops='[]'
+            add_all
+          fi
+
+          echo "matrix=$ops" >> "$GITHUB_OUTPUT"
+
+  upgrade:
+    needs: changed
+    if: needs.changed.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    name: ${{ matrix.operator }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changed.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5.0.1
+        with:
+          version: v3.21.4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.15.0
+        with:
+          config: .github/kind/upgrade-cluster.yaml
+          node_image: kindest/node:v1.32.2
+
+      - name: Install default StorageClass
+        run: |
+          set -euo pipefail
+          kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/53204db98bfadf8a3042bb4dbe618ee1da2eddb5/deploy/local-path-storage.yaml
+          kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+          kubectl rollout status deploy/local-path-provisioner -n local-path-storage --timeout=3m
+
+      - name: Add Percona Helm repo
+        run: |
+          helm repo add percona https://percona.github.io/percona-helm-charts/
+          helm repo update
+
+      - name: Install published charts
+        run: |
+          set -euo pipefail
+
+          published_version() {
+            local chart="$1" want="$2" app_version="$3" available selected
+            available=$(helm search repo "percona/${chart}" --versions -o json | jq -r --arg app_version "$app_version" '.[] | select(.app_version == $app_version) | .version')
+
+            if grep -qxF "$want" <<< "$available"; then
+              echo "$want"
+              return
+            fi
+
+            selected=$(
+              {
+                awk 'NF { print $0, "candidate" }' <<< "$available"
+                echo "$want target"
+              } | sort -k1,1V | awk '$2 == "target" { print candidate; exit } { candidate=$1 }'
+            )
+            echo "$selected"
+          }
+
+          op_ver=$(published_version "${{ matrix.operator }}" "${{ matrix.operatorVersion }}" "${{ matrix.operatorAppVersion }}")
+          db_ver=$(published_version "${{ matrix.db }}" "${{ matrix.dbVersion }}" "${{ matrix.dbAppVersion }}")
+          if [ -z "$op_ver" ] || [ -z "$db_ver" ]; then
+            echo "no compatible published chart at or before the base version for ${{ matrix.operator }} or ${{ matrix.db }}"
+            exit 1
+          fi
+          echo "Installing ${{ matrix.operator }} ${op_ver} and ${{ matrix.db }} ${db_ver}"
+
+          helm install ${{ matrix.operator }} percona/${{ matrix.operator }} --version "$op_ver" --wait --timeout 10m
+          helm install ${{ matrix.db }} percona/${{ matrix.db }} --version "$db_ver" --wait --timeout 10m
+          kubectl wait --for=jsonpath='{.status.state}'=ready ${{ matrix.cr }}/${{ matrix.db }} --timeout=15m
+          if [ "${{ matrix.operator }}" = "pg-operator" ]; then
+            # PG can report ready before the pgBackRest replica-creation backup
+            # finishes. Upgrading in that window can leave replicas waiting for WAL.
+            kubectl wait --for=condition=PGBackRestReplicaCreate pg/${{ matrix.db }} --timeout=15m
+          fi
+          kubectl wait --for=condition=Ready pod --all --field-selector='status.phase!=Succeeded' --timeout=5m
+
+      - name: Upgrade to PR charts
+        run: |
+          set -euo pipefail
+
+          wait_for_reconciliation() {
+            local resource="$1" name="$2" generation="$3" deadline status state observed pods unready
+            deadline=$((SECONDS + 900))
+
+            while (( SECONDS < deadline )); do
+              status=$(kubectl get "$resource/$name" -o json)
+              state=$(jq -r '.status.state // ""' <<< "$status")
+              observed=$(jq '[.status.observedGeneration // 0, (.status.conditions[]?.observedGeneration // 0)] | max' <<< "$status")
+              pods=$(kubectl get pods -o json)
+              unready=$(jq '[.items[] | select(.status.phase != "Succeeded") | select(any(.status.conditions[]?; .type == "Ready" and .status == "True") | not)] | length' <<< "$pods")
+              if [ "$state" = ready ] && (( observed >= generation )) && (( unready == 0 )); then
+                return
+              fi
+              sleep 10
+            done
+
+            echo "$resource/$name or its active pods did not become ready for generation $generation"
+            kubectl get "$resource/$name" -o yaml
+            kubectl get pods -o wide
+            return 1
+          }
+
+          previous_generation=$(kubectl get ${{ matrix.cr }}/${{ matrix.db }} -o jsonpath='{.metadata.generation}')
+          if [ "${{ matrix.operator }}" = "psmdb-operator" ]; then
+            helm template psmdb-operator-crds charts/psmdb-operator-crds | kubectl apply --server-side --force-conflicts -f -
+          else
+            kubectl apply --server-side --force-conflicts -f charts/${{ matrix.operator }}/crds
+          fi
+          helm upgrade ${{ matrix.operator }} charts/${{ matrix.operator }} --wait --timeout 10m
+          helm upgrade ${{ matrix.db }} charts/${{ matrix.db }} \
+            --set-string "${{ matrix.reconcileValue }}=${{ github.run_id }}-${{ github.run_attempt }}" \
+            --wait \
+            --timeout 10m
+          generation=$(kubectl get ${{ matrix.cr }}/${{ matrix.db }} -o jsonpath='{.metadata.generation}')
+          echo "Database generation: ${previous_generation} -> ${generation}"
+          if (( generation <= previous_generation )); then
+            echo "database generation did not increase after applying the reconciliation label"
+            exit 1
+          fi
+          wait_for_reconciliation ${{ matrix.cr }} ${{ matrix.db }} "$generation"
+
+      - name: Dump cluster on failure
+        if: failure()
+        run: |
+          kubectl get pods,sts,deploy,pvc,${{ matrix.cr }} -o wide || true
+          kubectl describe ${{ matrix.cr }}/${{ matrix.db }} || true
+          kubectl describe pods || true
+          kubectl get pods -o json | jq -r '
+            .items[] |
+            .metadata.name as $pod |
+            (.status.initContainerStatuses[]?, .status.containerStatuses[]?) |
+            [$pod, .name, (.ready | tostring), (.restartCount | tostring),
+             (.state | to_entries[0] | .key),
+             (.state | to_entries[0] | .value.reason // "")] |
+            @tsv
+          ' || true
+          kubectl get events --sort-by=.lastTimestamp || true
+          kubectl get pods -o name | while read -r pod; do
+            containers=$(kubectl get "$pod" -o jsonpath='{.spec.initContainers[*].name} {.spec.containers[*].name}')
+            for container in $containers; do
+              echo "===== logs ${pod}/${container} ====="
+              kubectl logs "$pod" -c "$container" --tail=200 || true
+              echo "===== previous ${pod}/${container} ====="
+              kubectl logs "$pod" -c "$container" --tail=200 --previous || true
+            done
+          done
