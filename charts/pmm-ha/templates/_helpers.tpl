@@ -652,7 +652,7 @@ Called from statefulset.yaml, which always renders.
 {{- define "pmm.helmVersion.validate" -}}
 {{- $version := .Capabilities.HelmVersion.Version -}}
 {{- if not (semverCompare ">=3.17.0-0" $version) -}}
-{{- fail (printf "pmm-ha requires Helm 3.17.0 or later, got %s. Helm before 3.17.0 cannot render this chart without a cluster, because it assumes a Kubernetes version older than 1.32, and Helm before 3.13.0 ignores the nulls in values.yaml that keep the HAProxy stats port off the pmm-ha-haproxy Service, so it would publish the unauthenticated stats page on port %s." $version (include "pmm.haproxy.statsPort" .)) -}}
+{{- fail (printf "pmm-ha supports Helm 3.17.0 or later, got %s; upgrade Helm. The minimum exists because Helm before 3.17.0 assumes a Kubernetes version older than 1.32 when rendering without a cluster, so it rejects the chart's kubeVersion, and Helm before 3.13.0 also ignores the nulls in values.yaml that keep the HAProxy stats port off the pmm-ha-haproxy Service, so it would publish the unauthenticated stats page on port %s." $version (include "pmm.haproxy.statsPort" .)) -}}
 {{- end -}}
 {{- end -}}
 
