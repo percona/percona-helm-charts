@@ -101,9 +101,6 @@ spec:
             <default remove="1"/>
           </users>
         </clickhouse>
-{{- if .Values.clickhouse.backup.enabled }}
-      # FREEZE hardlinks take ~0 space; the orchestrator copies them out.
-{{- end }}
 
       # Read-only user for the Grafana ClickHouse data source.
       #

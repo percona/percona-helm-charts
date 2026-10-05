@@ -1793,7 +1793,7 @@ BACKUP_TARGET=s3; S3_ENABLED=true; S3_BUCKET=bk; S3_PREFIX=demo/pmm-ha
 BACKUP_DIR=/backups; SHARED_MOUNT_PATH=/central; RCLONE_REMOTE=s3; CURRENT_ID=backup_20260610-120000
 assert_eq "s3 root"          "s3:bk/demo/pmm-ha"                    "$(backup_root)"
 assert_eq "s3 root display"  "s3://bk/demo/pmm-ha"                  "$(backup_root_display)"
-assert_eq "s3 root inpod"    "s3:bk/demo/pmm-ha"                    "$(backup_root_inpod)"
+assert_eq "s3 root inpod"    "s3:bk/demo/pmm-ha"                    "$(backup_root inpod)"
 assert_eq "s3 comp path"     "s3:bk/demo/pmm-ha/postgresql/backup_20260610-120000"   "$(comp_path postgresql)"
 assert_eq "s3 comp display"  "s3://bk/demo/pmm-ha/postgresql/backup_20260610-120000" "$(comp_display postgresql)"
 assert_eq "s3 comp inpod"    "s3:bk/demo/pmm-ha/postgresql/backup_20260610-120000"   "$(comp_inpod postgresql)"
@@ -1810,7 +1810,7 @@ assert_eq "vm dst s3"        "s3://bk/demo/pmm-ha/victoriametrics/backup_2026061
 BACKUP_TARGET=shared; S3_ENABLED=false
 assert_eq "shared root"          "/backups"                                   "$(backup_root)"
 assert_eq "shared root display"  "/backups"                                   "$(backup_root_display)"
-assert_eq "shared root inpod"    "/central"                                   "$(backup_root_inpod)"
+assert_eq "shared root inpod"    "/central"                                   "$(backup_root inpod)"
 assert_eq "shared comp path"     "/backups/postgresql/backup_20260610-120000" "$(comp_path postgresql)"
 assert_eq "shared comp display"  "/backups/postgresql/backup_20260610-120000" "$(comp_display postgresql)"
 assert_eq "shared comp inpod"    "/central/postgresql/backup_20260610-120000" "$(comp_inpod postgresql)"

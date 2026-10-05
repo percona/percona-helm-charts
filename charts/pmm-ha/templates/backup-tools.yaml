@@ -63,10 +63,6 @@ spec:
             # One endpoint, component is a label; each metric family's file is listed below (DN-42).
             mkdir -p "${METRICS_PATH}/backup"
             [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
-            # Legacy files on the persistent volume would duplicate HELP lines and fail the scrape.
-            rm -f "${METRICS_PATH}"/postgresql_metrics.prom "${METRICS_PATH}"/clickhouse_metrics.prom \
-                  "${METRICS_PATH}"/victoriametrics_metrics.prom "${METRICS_PATH}"/pmm-server_metrics.prom \
-                  "${METRICS_PATH}"/backup_metrics.prom 2>/dev/null || true
             serve_metrics() {
               while true; do
                 # Rate-limit to 1/s if nc fails fast, so a spin can't starve exec'd runs.

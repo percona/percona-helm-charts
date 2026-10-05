@@ -1440,7 +1440,6 @@ existing one is. See DN-41.
     backup_20260223-150001/
       pg-encryption-key.yaml                # Kubernetes Secret YAML
   logs/                                     # execution logs (backup_<id>.log, restore_<id>.log)
-  .logs/                                    # legacy pre-Job scheduler markers; inert, and now aged out by the retention sweep
   .staging/                                 # transient per-run staging, reaped after each run
   .metrics/                                 # Prometheus metrics (backup/<scope>.prom, restore_metrics.prom, prune_metrics.prom)
 ```

@@ -546,11 +546,9 @@ comp_col() {   # <key-or-flag> <column>
     done
     return 1
 }
-comp_key()   { comp_col "$1" 1; }
 comp_label() { comp_col "$1" 3; }
 comp_bvar()  { comp_col "$1" 4; }
 comp_rvar()  { comp_col "$1" 5; }
-comp_mfvar() { comp_col "$1" 7; }
 comp_okvar() { comp_col "$1" 8; }
 
 comp_val() {   # <key> <column>: value of the named variable
@@ -838,7 +836,6 @@ backup_root() {   # [view]
     fi
 }
 backup_root_display() { backup_root display; }
-backup_root_inpod()   { backup_root inpod; }
 
 # <root>/<component>/<id>. An empty id would mean every backup, so it fails loudly.
 comp_at() {   # <view> <component> [id]
@@ -2585,10 +2582,8 @@ backup_victoriametrics() {
         pod_count=$((pod_count + 1))
         log "INFO" "[VictoriaMetrics] Processing vmstorage pod ${pod_count}: ${pod}"
         
-        local has_vmbackup_sidecar=false
         if kubectl get pod -n "${NAMESPACE}" "${pod}" \
             -o jsonpath='{.spec.containers[*].name}' | grep -q "vmbackup"; then
-            has_vmbackup_sidecar=true
             log "INFO" "[VictoriaMetrics] vmbackup sidecar detected in ${pod}"
         else
             log "WARN" "[VictoriaMetrics] vmbackup sidecar not found in ${pod}, skipping"
@@ -4902,7 +4897,6 @@ cleanup_old_backups() {
     if [ "${DRY_RUN}" = "true" ]; then
         log "INFO" "[DRY RUN] Cleanup commands:"
         log "INFO" "[DRY RUN]   \$ find ${BACKUP_DIR}/logs -maxdepth 1 -type f \\( -name 'backup_*.log' -o -name 'restore_*.log' -o -name 'prune_*.log' \\) -mtime +${BACKUP_RETENTION} -delete"
-        log "INFO" "[DRY RUN]   \$ find ${BACKUP_DIR}/.logs -maxdepth 1 -type f \\( -name 'cron-*' -o -name 'inflight.pid' \\) -mtime +${BACKUP_RETENTION} -delete"
         if [ "${BACKUP_CLICKHOUSE}" = "true" ]; then
             log "INFO" "[ClickHouse] [DRY RUN]   \$ kubectl exec <each clickhouse pod> -c clickhouse-backup -- clickhouse-backup clean"
         fi
@@ -4920,13 +4914,6 @@ cleanup_old_backups() {
     find "${BACKUP_DIR}/logs" -maxdepth 1 -type f \
         \( -name "backup_*.log" -o -name "restore_*.log" -o -name "prune_*.log" \) -mtime +${BACKUP_RETENTION} \
         -delete >> "${LOG_FILE}" 2>&1 || true
-
-    # Legacy cron-backup.sh markers; -name 'cron-*' keeps operator files safe.
-    if [ -d "${BACKUP_DIR}/.logs" ]; then
-    find "${BACKUP_DIR}/.logs" -maxdepth 1 -type f \
-        \( -name 'cron-*' -o -name 'inflight.pid' \) -mtime +${BACKUP_RETENTION} \
-        -delete >> "${LOG_FILE}" 2>&1 || true
-    fi
 
     # Backup data is pruned only by prune_expired_backups.
     prune_expired_backups
