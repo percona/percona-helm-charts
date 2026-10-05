@@ -184,9 +184,12 @@ refused at validation:
 Scale the tiers back to the values your install uses, then re-run the restore:
 
 ```bash
-kubectl patch vmcluster <release>-vmcluster -n <namespace> --type=merge \
+kubectl patch vmcluster <vmcluster> -n <namespace> --type=merge \
   -p '{"spec":{"vmstorage":{"replicaCount":3},"vminsert":{"replicaCount":2}}}'
 ```
+
+`<vmcluster>` is the name `kubectl get vmcluster -n <namespace>` prints (the chart fullname plus
+`-vmcluster`, e.g. `pmm-ha-vmcluster` for release `pmm-ha`).
 
 The defaults are `victoriaMetrics.vmstorage.replicaCount: 3` and
 `victoriaMetrics.vminsert.replicaCount: 2`; check your own values first, since a restore
@@ -1656,14 +1659,14 @@ wget -qO- "http://${POD_IP}:9091/"
 
 **A restore reported success but no new metrics are appearing**
 
-- Check the ingestion tier: `kubectl get vmcluster <release>-pmm-ha-vmcluster -o jsonpath='{.spec.vminsert.replicaCount}'`.
+- Check the ingestion tier: `kubectl get vmcluster <vmcluster> -o jsonpath='{.spec.vminsert.replicaCount}'`.
   A restore scales vminsert to 0 and back; if the scale-back patch failed (a VMOperator webhook
   being momentarily unavailable is enough) the tier stays at 0. The data is intact and `readyz`
   returns 200, but nothing is being written.
 - Since DN-50 this is caught: the vminsert scale-back is readiness-verified, so the restore fails
   the VictoriaMetrics component instead of reporting success, and a `0` found in the spec is
   refused as a scale-back target rather than re-applied.
-- Fix: `kubectl patch vmcluster <release>-pmm-ha-vmcluster --type=merge -p '{"spec":{"vminsert":{"replicaCount":<N>}}}'`
+- Fix: `kubectl patch vmcluster <vmcluster> --type=merge -p '{"spec":{"vminsert":{"replicaCount":<N>}}}'`
   and re-run the restore if you need the run recorded as successful.
 
 **"PMMServer: archive missing or empty at ... after the upload reported success"**

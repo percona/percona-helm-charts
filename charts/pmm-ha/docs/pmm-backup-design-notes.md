@@ -1266,4 +1266,3 @@ only. The namespace is rewritten with jq on `.[0]`, not with sed.
 lost+found` list the backup tars. tar only overwrites the members it carries, so extracting onto a
 populated DR target would merge two PMM releases. Under `pipefail`, grep's status 1 on an empty
 directory is forgiven; status 2 is not.
-
