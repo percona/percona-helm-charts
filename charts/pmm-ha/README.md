@@ -296,12 +296,21 @@ PMM HA provides the following service endpoints for clients to connect:
 |---------|-------------|------|
 | `pmm-ha-haproxy` | **Recommended** - HAProxy load balancer that routes to the active PMM leader | `haproxy.containerPorts.https`, 443 by default (HTTPS) |
 | `monitoring-service` | Headless service for direct PMM pod access (used internally) | 8443 (HTTPS) |
+| `pmm-ha-haproxy-stats` | Headless, in-cluster only: HAProxy stats page (`/stats`) and Prometheus exporter (`/metrics`), scraped by vmagent | 1024 (HTTP) |
 
 **For all external clients and Percona Operators, use `pmm-ha-haproxy` as the PMM server endpoint.**
 
 The HAProxy port is not fixed: the Service publishes whatever `haproxy.containerPorts.https` is
 set to, and the OpenShift overlay moves it to 8443 because `restricted-v2` cannot bind below 1024.
 Substitute that port for 443 everywhere below if you changed it.
+
+`pmm-ha-haproxy` publishes only that HTTPS port, so a `LoadBalancer` or `NodePort` service type
+does not expose the HAProxy stats page, which has no authentication. The page is read-only. To
+open it for debugging, port-forward to the stats Service and browse `http://localhost:1024/stats`:
+
+```sh
+kubectl port-forward -n <namespace> svc/pmm-ha-haproxy-stats 1024
+```
 
 ### Connecting PMM Clients
 
@@ -479,6 +488,8 @@ Consequences:
 | `haproxy.service.type`        | Service type for HAProxy: ClusterIP (internal), LoadBalancer (external via LB), or NodePort (external via node) | `ClusterIP` |
 | `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
 | `haproxy.containerPorts.https` | Port HAProxy binds for PMM traffic; the Service publishes the same port. Must be above 1024 on OpenShift        | `443`       |
+| `haproxy.containerPorts.http` | Unset: nothing listens on it                                                                                     | `nil`       |
+| `haproxy.containerPorts.stat` | Unset so a LoadBalancer or NodePort Service does not publish the stats page; it stays reachable in-cluster through `pmm-ha-haproxy-stats` | `nil`       |
 | `haproxy.bufsize`             | HAProxy `tune.bufsize` in bytes: the largest request header block accepted. Keep it above the pmm-server nginx 64 KiB header limit | `131072`    |
 
 

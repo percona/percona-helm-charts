@@ -1,0 +1,21 @@
+{{- if .Values.haproxy.enabled }}
+# In-cluster access to the HAProxy stats page and Prometheus exporter, which pmm-ha-haproxy
+# no longer publishes (PMM-15662). vmagent's haproxy job discovers its targets through it.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pmm-ha-haproxy-stats
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.labels" . | replace "app.kubernetes.io/component: pmm-server" "app.kubernetes.io/component: haproxy-stats" | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: haproxy
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: stat
+      protocol: TCP
+      port: {{ .Values.haproxy.monitoring.stats.port | default 1024 }}
+      targetPort: {{ .Values.haproxy.monitoring.stats.port | default 1024 }}
+{{- end }}

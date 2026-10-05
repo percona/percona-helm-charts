@@ -7,8 +7,7 @@ metadata:
   name: {{ include "pmm.fullname" . }}-vmagent
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: vmagent
+    {{- include "pmm.labels" . | replace "app.kubernetes.io/component: pmm-server" "app.kubernetes.io/component: vmagent" | nindent 4 }}
 spec:
   {{- if .Values.victoriaMetrics.version }}
   # Pinned alongside the VMCluster - see victoriaMetrics.version in values.yaml.
@@ -48,9 +47,10 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # Keep only HAProxy service endpoints
+        # The stats port is not published on pmm-ha-haproxy (PMM-15662), only on this
+        # in-cluster Service
         - source_labels: [__meta_kubernetes_service_name]
-          regex: 'pmm-ha-haproxy'
+          regex: 'pmm-ha-haproxy-stats'
           action: keep
         # Target the stats/metrics port (1024)
         - source_labels: [__meta_kubernetes_endpoint_port_name]
@@ -61,8 +61,9 @@ spec:
           target_label: pod
         - source_labels: [__meta_kubernetes_namespace]
           target_label: namespace
-        - source_labels: [__meta_kubernetes_service_name]
-          target_label: service
+        # Keep the label HAProxy series carried before the stats Service existed
+        - target_label: service
+          replacement: pmm-ha-haproxy
         # Set the metrics path
         - target_label: __metrics_path__
           replacement: {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }}

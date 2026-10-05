@@ -46,13 +46,13 @@ data:
         timeout server  50000
     
     {{- if .Values.haproxy.monitoring.stats.enabled | default true }}
-    # Statistics and monitoring
+    # Statistics and monitoring. Unauthenticated, so read-only (no "stats admin") and reachable
+    # only in-cluster through the pmm-ha-haproxy-stats Service (PMM-15662).
     frontend stats
         bind *:{{ .Values.haproxy.monitoring.stats.port | default 1024 }}
         stats enable
         stats uri {{ .Values.haproxy.monitoring.stats.uri | default "/stats" }}
         stats refresh {{ .Values.haproxy.monitoring.stats.refresh | default "30s" }}
-        stats admin if TRUE
         {{- if .Values.haproxy.monitoring.prometheus.enabled | default true }}
         http-request use-service prometheus-exporter if { path {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }} }
         {{- end }}

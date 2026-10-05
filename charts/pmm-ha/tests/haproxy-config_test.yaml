@@ -54,3 +54,13 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "haproxy.bufsize must be at least 16384 (HTTP/2 needs it), got 8192"
+
+  # PMM-15662: the stats page has no authentication, so it must not change backend states.
+  - it: keeps the stats page read-only
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats\\n\\s+bind \\*:1024\\n\\s+stats enable\\n"
+      - notMatchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "(?m)^\\s*stats admin"

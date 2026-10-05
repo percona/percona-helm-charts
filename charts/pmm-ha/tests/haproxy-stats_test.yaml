@@ -1,0 +1,71 @@
+# PMM-15662: the HAProxy stats page and Prometheus exporter have no authentication, so the
+# pmm-ha-haproxy Service, which users expose as LoadBalancer or NodePort, must not publish them.
+# vmagent reaches them through the in-cluster pmm-ha-haproxy-stats Service instead.
+suite: pmm-ha HAProxy stats exposure
+templates:
+  - charts/haproxy/templates/service.yaml
+  - charts/haproxy/templates/deployment.yaml
+  # The subchart Deployment includes it for a checksum annotation
+  - charts/haproxy/templates/configmap.yaml
+  - templates/haproxy-stats-service.yaml
+  - templates/vmagent.yaml
+release:
+  name: smoke
+  namespace: pmm
+tests:
+  - it: publishes only the HTTPS port on pmm-ha-haproxy
+    template: charts/haproxy/templates/service.yaml
+    set: {haproxy.service.type: LoadBalancer}
+    asserts:
+      - equal:
+          path: spec.ports
+          value:
+            - {name: https, protocol: TCP, port: 443, targetPort: https}
+
+  - it: serves the stats port on a headless in-cluster Service
+    template: templates/haproxy-stats-service.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: pmm-ha-haproxy-stats
+      - equal:
+          path: spec.clusterIP
+          value: None
+      - notExists:
+          path: spec.type
+      - equal:
+          path: spec.ports
+          value:
+            - {name: stat, protocol: TCP, port: 1024, targetPort: 1024}
+
+  - it: selects the HAProxy pods
+    template: templates/haproxy-stats-service.yaml
+    asserts:
+      - equal:
+          path: spec.selector
+          value:
+            app.kubernetes.io/name: haproxy
+            app.kubernetes.io/instance: smoke
+
+  - it: labels the HAProxy pods the way the stats Service selects them
+    template: charts/haproxy/templates/deployment.yaml
+    asserts:
+      - isSubset:
+          path: spec.template.metadata.labels
+          content:
+            app.kubernetes.io/name: haproxy
+            app.kubernetes.io/instance: smoke
+
+  - it: is not rendered without HAProxy
+    template: templates/haproxy-stats-service.yaml
+    set: {haproxy.enabled: false}
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: scrapes HAProxy through the stats Service, keeping the original service label
+    template: templates/vmagent.yaml
+    asserts:
+      - matchRegex:
+          path: spec.inlineScrapeConfig
+          pattern: "(?s)job_name: 'haproxy'.*?regex: 'pmm-ha-haproxy-stats'\\n\\s+action: keep\\n.*?regex: 'stat'\\n\\s+action: keep\\n.*?target_label: service\\n\\s+replacement: pmm-ha-haproxy\\n.*?job_name: 'clickhouse'"
