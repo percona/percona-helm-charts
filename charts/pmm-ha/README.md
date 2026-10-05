@@ -989,6 +989,16 @@ kubectl -n <namespace> patch perconapgcluster <release>-pg-db --type merge -p \
   '{"spec":{"pmm":{"containerSecurityContext":{"runAsUser":1002,"runAsNonRoot":true,"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"seccompProfile":{"type":"RuntimeDefault"}}}}}'
 ```
 
+Run the patch as soon as the install returns: with `helm install --wait` the sidecar can
+already have been added and refused by then. PostgreSQL recovers once the patch lands.
+
+The check reads only the namespace's `pod-security.kubernetes.io/enforce` label. A cluster that
+enforces `restricted` through a cluster-wide PodSecurity admission default (an
+`AdmissionConfiguration` with `defaults.enforce: restricted`, as RKE2's CIS profile ships) is not
+detected, so apply the same settings there yourself. The check reads the release namespace,
+which the built-in `admin`, `edit` and `view` roles allow; with a custom role that lacks `get` on
+it the render fails with `forbidden`, and either setting above skips the check.
+
 On OpenShift none of this is needed: `restricted-v2` fills in the sidecar's security context
 itself, and would refuse the pinned uid 1002.
 
