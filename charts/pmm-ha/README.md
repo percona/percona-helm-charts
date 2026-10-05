@@ -30,7 +30,7 @@ This PMM HA deployment provides the following high availability features:
 
 ## Prerequisites
 
-- Kubernetes 1.22+
+- Kubernetes 1.32+
 - Helm 3.13.0+ — older versions ignore the `null` entries in `values.yaml` that keep the
   HAProxy stats port off the `pmm-ha-haproxy` Service
 - PV provisioner support in the underlying infrastructure
