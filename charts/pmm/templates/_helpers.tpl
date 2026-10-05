@@ -117,8 +117,7 @@ Pod annotation
 */}}
 {{- define "pmm.podAnnotations" -}}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-helm.sh/chart: {{ include "pmm.chart" . }}
-checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+checksum/config: {{ include "pmm.configMapOrSecretContentHash" (dict "ctx" . "name" "/configmap.yaml") }}
 {{- if .Values.podAnnotations }}
 {{ toYaml .Values.podAnnotations }}
 {{- end }}
@@ -134,4 +133,17 @@ Create password if it does not exist or reuse existing one.
 {{- else -}}
 {{ .Values.secret.pmm_password | default (randAscii 16) | b64enc }}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Compute a ConfigMap or Secret checksum from its data only, for the checksum/* pod annotations.
+The full manifest carries the helm.sh/chart label, which changes on every chart version bump.
+The template may render several documents, so hash the data of each one.
+*/}}
+{{- define "pmm.configMapOrSecretContentHash" -}}
+{{- $data := list -}}
+{{- range regexSplit "(?m)^---$" (include (print .ctx.Template.BasePath .name) .ctx) -1 -}}
+{{- $data = append $data (pick (fromYaml .) "data" "stringData") -}}
+{{- end -}}
+{{ $data | toYaml | sha256sum }}
 {{- end -}}
