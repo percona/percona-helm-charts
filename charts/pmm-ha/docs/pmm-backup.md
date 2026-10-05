@@ -1236,12 +1236,12 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `RCLONE_IO_TIMEOUT` / `RCLONE_CONNECT_TIMEOUT` | rclone's own idle-IO / connect bounds, applied to every call including streams | 60 / 15 |
 | `LOCK_LEASE_SECONDS` / `LOCK_RENEW_SECONDS` | Component lock lease duration / renewal interval | 900 / 60 |
 | `LOCK_RENEWER_MAX_SECONDS` | Backstop lifetime for the lease renewer | 86400 |
-| `CH_SECRET_NAME` | Kubernetes secret for ClickHouse | pmm-secret |
+| `CH_SECRET_NAME` | Kubernetes secret for ClickHouse (the chart sets it from `secret.name`) | pmm-secret |
 | `CH_CREATE_TIMEOUT` | Max seconds to wait for clickhouse-backup create (the upload has no wall clock) | 300 |
 | `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
 | `BACKUP_TARGET` | Target mode: `s3` or `shared` (set by Helm from `centralBackupStorage.mode`) | s3 |
 | `PMM_SERVER_REPLICAS` | Replica count a restore scales PMM back up to, used **only** when the live `spec.replicas` is 0/unreadable *and* the count stashed on the StatefulSet (`restore.pmm.percona.com/original-replicas`) is unusable. Set it when re-running a restore against an install that does not run 3. | 3 |
-| `TEMP_POD_RESOURCES` | JSON `resources` for the temp pods a restore creates (`vm-restore-*`, `pmm-srv-restore-*`). Raise it if those pods are OOM-killed on large volumes; note that raising it also makes them harder to schedule on a full node. | `{"requests":{"cpu":"50m","memory":"64Mi"}}` |
+| `TEMP_POD_RESOURCES` | JSON `resources` for the temp pods a restore creates (`vm-restore-*`, `pmm-srv-restore-*`); the chart sets it from `centralBackupStorage.tools.restorePodResources`. Raise it if those pods are OOM-killed on large volumes; note that raising it also makes them harder to schedule on a full node. | `{"requests":{"cpu":"100m","memory":"256Mi"},"limits":{"cpu":"2","memory":"2Gi"}}` |
 | `S3_BUCKET` | S3 bucket (required for `s3`; set by Helm) | |
 | `S3_REGION` / `S3_ENDPOINT` / `S3_PREFIX` | S3 region / endpoint / key prefix (set by Helm) | us-east-1 / / `<namespace>/<release>` |
 | `SHARED_SUBPATH` | Shared-target equivalent of `S3_PREFIX`: the install's subdirectory under the shared mount (set by Helm) | `<namespace>/<release>` |

@@ -811,6 +811,9 @@ Env for a pmm-backup.sh run, shared by the Deployment and Job pods so their targ
 {{- /* Scopes the backup-tools selector when two releases share a namespace. */}}
 - name: RELEASE_NAME
   value: {{ .Release.Name }}
+{{- /* ClickHouse credentials: the same Secret the ClickHouse pods use, not the script's pmm-secret default. */}}
+- name: CH_SECRET_NAME
+  value: {{ .Values.secret.name | quote }}
 - name: BACKUP_DIR
   value: {{ .Values.centralBackupStorage.mountPath }}
 - name: STATE_DIR

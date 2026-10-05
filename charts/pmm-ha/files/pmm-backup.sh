@@ -282,9 +282,10 @@ PMM_SAVED_REPLICAS="" ; PMM_STATEFULSET_NAME=""
 # Rendered into temp restore pods; set in the restore dispatch.
 TEMP_POD_S3_KEYS_ENV="" ; TEMP_POD_VM_S3_KEYS_ENV="" ; TEMP_POD_SA_LINE=""
 # Temp pod resources as JSON. Not set via ${VAR:-{...}}: a `}` closes the expansion.
+# Fallback = the chart's restorePodResources; limits too, or a quota requiring them rejects the pod.
 TEMP_POD_RESOURCES="${TEMP_POD_RESOURCES:-}"
 if [ -z "${TEMP_POD_RESOURCES}" ]; then
-    TEMP_POD_RESOURCES='{"requests":{"cpu":"50m","memory":"64Mi"}}'
+    TEMP_POD_RESOURCES='{"requests":{"cpu":"100m","memory":"256Mi"},"limits":{"cpu":"2","memory":"2Gi"}}'
 fi
 # A file, not a variable: parallel restores run in subshells. Gates restore_cleanup's sweep.
 TEMP_PODS_MARKER=""

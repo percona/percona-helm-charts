@@ -66,6 +66,7 @@
 # Replace every <PLACEHOLDER>, then: kubectl apply -f restore-job.yaml
 #
 #   <RELEASE> / <NAMESPACE>   your Helm release and its namespace
+#   <PMM_SECRET>              secret.name                             (chart default pmm-secret)
 #   <TOOLS_IMAGE>             centralBackupStorage.tools.image (registry/repository:tag)
 #   <IMAGE_PULL_SECRET>       image.imagePullSecrets, if your install sets one (else delete it)
 #   <BACKUP_DIR>              centralBackupStorage.mountPath          (chart default /backups)
@@ -122,6 +123,8 @@ spec:
               value: <NAMESPACE>/<RELEASE>
             - name: BACKUP_DIR
               value: <BACKUP_DIR>
+            - name: CH_SECRET_NAME         # ClickHouse credentials
+              value: <PMM_SECRET>
             - name: STATE_DIR              # this install's logs/.staging/.metrics, not the volume root
               value: <BACKUP_DIR>/<NAMESPACE>/<RELEASE>
             - name: METRICS_DIR

@@ -143,3 +143,17 @@ tests:
           pattern: 'http\.server\.ThreadingHTTPServer\(\("", 9091\)'
         template: templates/backup-tools.yaml
         documentSelector: {path: kind, value: Deployment}
+
+  - it: reads ClickHouse credentials from secret.name, the Secret the ClickHouse pods use
+    set:
+      secret.name: my-pmm-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: CH_SECRET_NAME, value: my-pmm-secret}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content: {name: CH_SECRET_NAME, value: my-pmm-secret}
+        template: templates/backup-cronjob.yaml

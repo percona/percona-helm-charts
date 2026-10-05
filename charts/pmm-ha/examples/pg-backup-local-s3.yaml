@@ -16,7 +16,8 @@ pg-db:
         repo1-retention-full-type: count
         repo1-retention-full: "7"        # Local: Keep 7 full backups
         repo1-retention-archive: "7"     # Local: Keep 7 WAL sets
-        repo2-retention-full: "30"       # S3: Keep 30 full backups (30 days)
+        repo2-retention-full-type: time  # fulls are weekly, so a count of 30 would keep 30 weeks
+        repo2-retention-full: "30"       # S3: 30 days
 
       manual:
         repoName: repo1  # Default to local for manual backups

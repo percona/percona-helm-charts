@@ -13,10 +13,12 @@ pg-db:
       # retention at all. pgBackRest then warns that the repository may run out of space and
       # keeps every full it ever takes.
       global:
-        repo1-retention-full-type: count
-        repo1-retention-full: "7"        # Local: 7 full backups (1 week)
-        repo2-retention-full: "30"       # S3 US: 30 full backups (30 days)
-        repo3-retention-full: "90"       # GCS: 90 full backups (90 days)
+        # repo1/repo3 take weekly fulls, so their windows are time-based (days); repo2 is daily.
+        repo1-retention-full-type: time
+        repo1-retention-full: "7"        # Local: 7 days
+        repo2-retention-full: "30"       # S3 US: 30 daily full backups (30 days)
+        repo3-retention-full-type: time
+        repo3-retention-full: "90"       # GCS: 90 days
 
       manual:
         repoName: repo1
