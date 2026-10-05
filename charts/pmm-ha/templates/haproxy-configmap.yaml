@@ -14,6 +14,12 @@ data:
         log stdout    local1 info
         log stdout    local2 info
         daemon
+        {{- $bufsize := int .Values.haproxy.bufsize }}
+        {{- if lt $bufsize 16384 }}
+        {{- fail (printf "haproxy.bufsize must be at least 16384 (HTTP/2 needs it), got %d" $bufsize) }}
+        {{- end }}
+        # A larger request makes HAProxy drop the whole HTTP/2 connection (PMM-15608)
+        tune.bufsize {{ $bufsize }}
     
     resolvers k8s
         # Read the cluster DNS server from the pod's own /etc/resolv.conf rather than naming

@@ -684,6 +684,10 @@ haproxy:
       cpu: 1
       memory: 512Mi
   
+  ## @param haproxy.bufsize HAProxy tune.bufsize in bytes: the largest request header block accepted
+  ## Keep it above the pmm-server nginx 64 KiB header limit (PMM-15608). Bump config-version when changing it.
+  bufsize: 131072
+
   ## HAProxy Service configuration for external access
   ## @param haproxy.service.type Service type for HAProxy
   ##   - ClusterIP: Internal only (default)
@@ -711,7 +715,7 @@ haproxy:
   # Increment config-version in the same upgrade for that, and for any other ConfigMap
   # change that requires a restart.
   podAnnotations:
-    pmm.percona.com/config-version: "5"
+    pmm.percona.com/config-version: "6"
 
   # HAProxy pod spread across nodes.
   #
