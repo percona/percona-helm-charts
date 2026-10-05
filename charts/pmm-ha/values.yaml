@@ -668,8 +668,8 @@ haproxy:
   ## @param haproxy.containerPorts.http Unset: nothing listens on it
   ## @param haproxy.containerPorts.stat Unset so a LoadBalancer or NodePort Service does not publish the stats page
   ## The subchart publishes every containerPorts entry on the Service, and its defaults add
-  ## http: 80 and stat: 1024, so both are nulled here. The stats page and /metrics stay
-  ## reachable in-cluster through the pmm-ha-haproxy-stats Service.
+  ## http: 80 and stat: 1024, so both are nulled here. vmagent reaches the stats page and
+  ## /metrics through the headless pmm-ha-haproxy-stats Service instead.
   ##
   containerPorts:
     https: 443
@@ -785,13 +785,7 @@ haproxy:
     # vmagent scrapes HAProxy only while both are enabled.
     prometheus:
       enabled: true
-      port: 1024
       path: /metrics
-  
-  # HAProxy security configuration
-  security:
-    # Enable HTTP to HTTPS redirect
-    redirectToHttps: true
 
 # HAProxy TLS configuration
 tls:

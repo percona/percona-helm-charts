@@ -65,6 +65,13 @@ tests:
           path: data["haproxy.cfg"]
           pattern: "(?m)^\\s*stats admin"
 
+  - it: binds the stats frontend to an explicit stats port
+    set: {haproxy.monitoring.stats.port: 9101}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats\\n\\s+bind \\*:9101\\n"
+
   - it: omits the stats frontend when stats are disabled
     set: {haproxy.monitoring.stats.enabled: false}
     asserts:

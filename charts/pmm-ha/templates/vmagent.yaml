@@ -7,7 +7,7 @@ metadata:
   name: {{ include "pmm.fullname" . }}-vmagent
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | replace "app.kubernetes.io/component: pmm-server" "app.kubernetes.io/component: vmagent" | nindent 4 }}
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "vmagent") | nindent 4 }}
 spec:
   {{- if .Values.victoriaMetrics.version }}
   # Pinned alongside the VMCluster - see victoriaMetrics.version in values.yaml.
@@ -48,7 +48,7 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # The stats port is not published on pmm-ha-haproxy, only on this in-cluster Service
+        # The stats port is not published on pmm-ha-haproxy, only on this headless Service
         - source_labels: [__meta_kubernetes_service_name]
           regex: 'pmm-ha-haproxy-stats'
           action: keep

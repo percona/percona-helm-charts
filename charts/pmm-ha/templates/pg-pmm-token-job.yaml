@@ -53,15 +53,9 @@ Common labels of the token-init Job: the PMM Server labels with the component sw
 pmm-token-init. The pod-spec hash in the Job's name moves whenever the template changes, so the
 name is not a stable handle; a component label is, and it is what the README tells people to
 select on.
-
-Derived from "pmm.labels" rather than spelled out, so the two cannot drift. It cannot simply
-append the component - "pmm.labels" already emits one, and a second would be a duplicate key in
-the same mapping - so the rendered line is substituted instead. "pmm.selectorLabels" emits
-exactly one "app.kubernetes.io/component: pmm-server" line, and it is the only place in the
-chart that emits it.
 */}}
 {{- define "pmm.pgTokenJob.labels" -}}
-{{ include "pmm.labels" . | replace "app.kubernetes.io/component: pmm-server" "app.kubernetes.io/component: pmm-token-init" }}
+{{ include "pmm.componentLabels" (dict "ctx" . "component" "pmm-token-init") }}
 {{- end }}
 
 {{/*

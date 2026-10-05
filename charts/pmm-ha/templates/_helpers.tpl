@@ -43,6 +43,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+"pmm.labels" with app.kubernetes.io/component set to .component, for objects other than the PMM
+Server. It cannot simply append the component: "pmm.selectorLabels" already emits exactly one
+"app.kubernetes.io/component: pmm-server" line, and a second one would be a duplicate key, which
+helm-unittest rejects. So the rendered line is substituted instead.
+Usage: include "pmm.componentLabels" (dict "ctx" $ "component" "vmagent")
+*/}}
+{{- define "pmm.componentLabels" -}}
+{{ include "pmm.labels" .ctx | replace "app.kubernetes.io/component: pmm-server" (printf "app.kubernetes.io/component: %s" .component) }}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "pmm.selectorLabels" -}}
@@ -307,6 +318,14 @@ in-cluster consumer of PMM has to follow it rather than assume 443.
 */}}
 {{- define "pmm.haproxy.httpsPort" -}}
 {{- (.Values.haproxy.containerPorts).https | default 443 -}}
+{{- end -}}
+
+{{/*
+Port of the HAProxy stats frontend, which serves both the stats page and the Prometheus exporter.
+The pmm-ha-haproxy-stats Service publishes it; pmm-ha-haproxy does not.
+*/}}
+{{- define "pmm.haproxy.statsPort" -}}
+{{- .Values.haproxy.monitoring.stats.port | default 1024 -}}
 {{- end -}}
 
 {{/*
