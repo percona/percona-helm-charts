@@ -1,0 +1,11 @@
+crVersion: 9.9.9
+enableVolumeExpansion: true
+updateStrategy: RollingUpdate
+upgradeOptions:
+  versionServiceEndpoint: https://versions.test
+  apply: recommended
+  schedule: "0 1 * * *"
+tls:
+  enabled: false
+pxc:
+  clusterSecretName: secret

@@ -1,0 +1,42 @@
+# CI-specific values for GitHub Actions testing
+# Minimal resource requirements for operators to fit in Kind cluster
+
+# Altinity ClickHouse Operator
+altinity-clickhouse-operator:
+  enabled: true
+  # Override the name to avoid hitting Kubernetes 63-character resource name limit
+  fullnameOverride: clickhouse-op
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# PostgreSQL Operator
+pg-operator:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# VictoriaMetrics Operator
+victoria-metrics-operator:
+  enabled: true
+  crds:
+    enabled: true
+  admissionWebhooks:
+    # Keep enabled in CI to test the full production configuration
+    enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

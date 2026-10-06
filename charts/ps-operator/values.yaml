@@ -6,8 +6,8 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mysql-operator
-  tag: 1.0.0
-  pullPolicy: IfNotPresent
+  tag: 1.2.0
+  pullPolicy: Always
 
 # set if you want to specify a namespace to watch
 # defaults to `.Release.namespace` if left blank
@@ -33,6 +33,7 @@ serviceAccount:
 env:
   logStructured: false
   logLevel: "INFO"
+  maxConcurrentReconciles: 1
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious

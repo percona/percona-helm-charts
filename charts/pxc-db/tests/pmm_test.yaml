@@ -1,0 +1,127 @@
+suite: pxc-db pmm
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: test_pmm renders default structure
+    asserts:
+      - equal:
+          path: spec.pmm.enabled
+          value: false
+
+  - it: test_pmm renders changed default values
+    values:
+      - values/pmm-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.pmm
+          value:
+            enabled: true
+            image: changed-image:changed-tag
+            serverHost: pmm
+            serverUser: admin
+            livenessProbes:
+              failureThreshold: 7
+              initialDelaySeconds: 25
+              periodSeconds: 15
+              successThreshold: 1
+              timeoutSeconds: 8
+            readinessProbes:
+              failureThreshold: 5
+              initialDelaySeconds: 20
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 5
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+
+  - it: test_pmm renders image pull settings when defined
+    set:
+      pmm.enabled: true
+      pmm.imagePullPolicy: Always
+      pmm.imagePullSecrets:
+        - name: private-registry-credentials
+    asserts:
+      - isSubset:
+          path: spec.pmm
+          content:
+            imagePullPolicy: Always
+            imagePullSecrets:
+              - name: private-registry-credentials
+
+  - it: test_pmm renders probes when defined
+    set:
+      pmm.enabled: true
+      pmm.readinessProbes:
+        initialDelaySeconds: 15
+        timeoutSeconds: 15
+        periodSeconds: 30
+        successThreshold: 1
+        failureThreshold: 5
+      pmm.livenessProbes:
+        initialDelaySeconds: 300
+        timeoutSeconds: 5
+        periodSeconds: 10
+        successThreshold: 1
+        failureThreshold: 3
+    asserts:
+      - isSubset:
+          path: spec.pmm
+          content:
+            readinessProbes:
+              initialDelaySeconds: 15
+              timeoutSeconds: 15
+              periodSeconds: 30
+              successThreshold: 1
+              failureThreshold: 5
+            livenessProbes:
+              initialDelaySeconds: 300
+              timeoutSeconds: 5
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 3
+
+  - it: test_pmm renders security context when defined
+    set:
+      pmm.enabled: true
+      pmm.containerSecurityContext:
+        privileged: false
+    asserts:
+      - equal:
+          path: spec.pmm.containerSecurityContext
+          value:
+            privileged: false
+
+  - it: test_pmm renders custom params when defined
+    set:
+      pmm.enabled: true
+      pmm.customClusterName: custom-cluster
+      pmm.pxcParams: --disable-tablestats-limit=2000
+      pmm.proxysqlParams: --custom-labels=CUSTOM-LABELS
+    asserts:
+      - isSubset:
+          path: spec.pmm
+          content:
+            customClusterName: custom-cluster
+            pxcParams: --disable-tablestats-limit=2000
+            proxysqlParams: --custom-labels=CUSTOM-LABELS
+
+  - it: test_pmm renders resource limits when defined
+    set:
+      pmm.enabled: true
+      pmm.resources.limits:
+        memory: 300M
+        cpu: 600m
+    asserts:
+      - equal:
+          path: spec.pmm.resources.limits
+          value:
+            memory: 300M
+            cpu: 600m

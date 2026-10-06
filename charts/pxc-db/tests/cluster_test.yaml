@@ -1,0 +1,283 @@
+suite: pxc-db cluster
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: test_cluster renders default structure
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: apiVersion
+          value: pxc.percona.com/v1
+      - equal:
+          path: kind
+          value: PerconaXtraDBCluster
+      - isSubset:
+          path: metadata
+          content:
+            name: unit-pxc-db
+            namespace: test-ns
+            finalizers:
+              - percona.com/delete-pxc-pods-in-order
+      - isSubset:
+          path: spec
+          content:
+            secretsName: unit-pxc-db-secrets
+            sslSecretName: unit-pxc-db-ssl
+            sslInternalSecretName: unit-pxc-db-ssl-internal
+            tls:
+              enabled: true
+            updateStrategy: SmartUpdate
+
+  - it: test_cluster renders changed default values
+    values:
+      - values/cluster-changed-defaults.yaml
+    asserts:
+      - isSubset:
+          path: spec
+          content:
+            crVersion: 9.9.9
+            enableVolumeExpansion: true
+            secretsName: secret
+            updateStrategy: RollingUpdate
+            upgradeOptions:
+              versionServiceEndpoint: https://versions.test
+              apply: recommended
+              schedule: "0 1 * * *"
+            tls:
+              enabled: false
+
+  - it: test_cluster uses provided tls secret names
+    set:
+      secrets.tls.cluster: external-cluster-ssl
+      secrets.tls.internal: external-internal-ssl
+    asserts:
+      - equal:
+          path: spec.sslSecretName
+          value: external-cluster-ssl
+      - equal:
+          path: spec.sslInternalSecretName
+          value: external-internal-ssl
+
+  - it: test_cluster uses provided password generation options
+    set:
+      passwordGenerationOptions.minLength: 16
+      passwordGenerationOptions.maxLength: 20
+      passwordGenerationOptions.symbols: "!@#"
+    asserts:
+      - equal:
+          path: spec.passwordGenerationOptions
+          value:
+            minLength: 16
+            maxLength: 20
+            symbols: "!@#"
+
+  - it: test_cluster renders init container settings
+    set:
+      initContainer.image: dummy-image
+      initContainer.containerSecurityContext.runAsUser: 1001
+      initContainer.resources.requests.cpu: 100m
+      initContainer.resources.requests.memory: 100M
+    asserts:
+      - equal:
+          path: spec.initContainer
+          value:
+            image: dummy-image
+            containerSecurityContext:
+              runAsUser: 1001
+            resources:
+              requests:
+                cpu: 100m
+                memory: 100M
+
+  - it: test_cluster renders custom finalizers when defined
+    set:
+      finalizers:
+        - percona.com/delete-pxc-pods-in-order
+        - percona.com/delete-proxysql-pvc
+        - percona.com/delete-pxc-pvc
+        - percona.com/delete-ssl
+    asserts:
+      - equal:
+          path: metadata.finalizers
+          value:
+            - percona.com/delete-pxc-pods-in-order
+            - percona.com/delete-proxysql-pvc
+            - percona.com/delete-pxc-pvc
+            - percona.com/delete-ssl
+
+  - it: test_cluster renders annotations when defined
+    set:
+      annotations.team: database
+    asserts:
+      - equal:
+          path: metadata.annotations.team
+          value: database
+
+  - it: test_cluster renders volume expansion when defined
+    set:
+      enableVolumeExpansion: true
+    asserts:
+      - equal:
+          path: spec.enableVolumeExpansion
+          value: true
+
+  - it: test_cluster renders storage scaling when defined
+    set:
+      storageScaling:
+        enableVolumeScaling: true
+        enableExternalAutoscaling: false
+        autoscaling:
+          enabled: true
+          triggerThresholdPercent: 75
+          growthStep: 2Gi
+          maxSize: 20Gi
+    asserts:
+      - equal:
+          path: spec.storageScaling
+          value:
+            enableVolumeScaling: true
+            enableExternalAutoscaling: false
+            autoscaling:
+              enabled: true
+              triggerThresholdPercent: 75
+              growthStep: 2Gi
+              maxSize: 20Gi
+
+  - it: test_cluster renders ignore annotations when defined
+    set:
+      ignoreAnnotations:
+        - iam.amazonaws.com/role
+    asserts:
+      - equal:
+          path: spec.ignoreAnnotations
+          value:
+            - iam.amazonaws.com/role
+
+  - it: test_cluster renders ignore labels when defined
+    set:
+      ignoreLabels:
+        - rack
+    asserts:
+      - equal:
+          path: spec.ignoreLabels
+          value:
+            - rack
+
+  - it: test_cluster renders pause when defined
+    set:
+      pause: true
+    asserts:
+      - equal:
+          path: spec.pause
+          value: true
+
+  - it: test_cluster renders unsafe flags when defined
+    set:
+      unsafeFlags:
+        tls: false
+        pxcSize: true
+        proxySize: true
+        backupIfUnhealthy: true
+    asserts:
+      - equal:
+          path: spec.unsafeFlags
+          value:
+            tls: false
+            pxcSize: true
+            proxySize: true
+            backupIfUnhealthy: true
+
+  - it: test_cluster renders webhook option when defined
+    set:
+      enableCRValidationWebhook: true
+    asserts:
+      - equal:
+          path: spec.enableCRValidationWebhook
+          value: true
+
+  - it: test_cluster renders upgrade apply option when defined
+    set:
+      upgradeOptions.apply: recommended
+    asserts:
+      - equal:
+          path: spec.upgradeOptions.apply
+          value: recommended
+
+  - it: test_cluster renders tls optional fields when defined
+    set:
+      tls.certValidityDuration: 2160h
+      tls.caValidityDuration: 26280h
+      tls.SANs:
+        - pxc-1.example.com
+        - pxc-2.example.com
+      tls.issuerConf:
+        name: special-selfsigned-issuer
+        kind: ClusterIssuer
+        group: cert-manager.io
+    asserts:
+      - isSubset:
+          path: spec.tls
+          content:
+            certValidityDuration: 2160h
+            caValidityDuration: 26280h
+            SANs:
+              - pxc-1.example.com
+              - pxc-2.example.com
+            issuerConf:
+              name: special-selfsigned-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+
+  - it: test_cluster renders custom secret names when defined
+    set:
+      secrets.vault: external-vault
+      secrets.logCollector: external-log-collector
+    asserts:
+      - equal:
+          path: spec.vaultSecretName
+          value: external-vault
+      - equal:
+          path: spec.logCollectorSecretName
+          value: external-log-collector
+
+  - it: test_cluster renders users when defined
+    set:
+      users:
+        - name: my-user
+          dbs:
+            - db1
+            - db2
+          hosts:
+            - localhost
+          grants:
+            - SELECT
+            - DELETE
+            - INSERT
+          withGrantOption: true
+          passwordSecretRef:
+            name: my-user-pwd
+            key: my-user-pwd-key
+        - name: my-user-two
+    asserts:
+      - equal:
+          path: spec.users
+          value:
+            - name: my-user
+              dbs:
+                - db1
+                - db2
+              hosts:
+                - localhost
+              grants:
+                - SELECT
+                - DELETE
+                - INSERT
+              withGrantOption: true
+              passwordSecretRef:
+                name: my-user-pwd
+                key: my-user-pwd-key
+            - name: my-user-two

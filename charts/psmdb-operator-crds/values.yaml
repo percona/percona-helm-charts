@@ -1,0 +1,10 @@
+# Default values for psmdb-operator-crds.
+# This chart contains CRDs only; all values below are optional.
+
+# preserveCrds adds the "helm.sh/resource-policy: keep" annotation to the CRDs so
+# they (and every custom resource / cluster stored under them) survive a
+# `helm uninstall` of this chart -- a safety net against a GitOps tool
+# (Flux, Argo CD, etc.) accidentally deleting the CRDs and destroying data.
+# Enabled by default; set to false to let uninstall remove the CRDs. See:
+# https://helm.sh/docs/howto/charts_tips_and_tricks/#tell-helm-not-to-uninstall-a-resource
+preserveCrds: true

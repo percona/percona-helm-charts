@@ -1,0 +1,59 @@
+haproxy:
+  size: 5
+  image: changed-image
+  imagePullSecrets:
+    - name: pull-secret
+  annotations:
+    test: annotation
+  labels:
+    test: label
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+    limits:
+      cpu: 2m
+      memory: 2Mi
+  sidecars:
+    - image: changed-image
+      name: sidecar
+  sidecarVolumes:
+    - name: sidecar-volume
+      emptyDir: {}
+  sidecarPVCs:
+    - name: sidecar-pvc
+      persistentVolumeClaim:
+        claimName: sidecar-claim
+  sidecarResources:
+    requests:
+      cpu: 3m
+      memory: 3Mi
+    limits:
+      cpu: 4m
+      memory: 4Mi
+  nodeSelector:
+    disktype: ssd
+  affinity:
+    antiAffinityTopologyKey: topology.kubernetes.io/zone
+  tolerations:
+    - key: test
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 60
+  gracePeriod: 60
+  podDisruptionBudget:
+    maxUnavailable: 2
+  readinessDelaySec: 20
+  livenessDelaySec: 400
+  readinessProbes:
+    failureThreshold: 5
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  livenessProbes:
+    failureThreshold: 6
+    initialDelaySeconds: 80
+    periodSeconds: 40
+    successThreshold: 1
+    timeoutSeconds: 6

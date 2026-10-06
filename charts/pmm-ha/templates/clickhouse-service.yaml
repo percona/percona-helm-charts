@@ -1,0 +1,30 @@
+{{- if .Values.clickhouse.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pmm.fullname" . }}-clickhouse-sticky
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+    app: clickhouse
+spec:
+  type: ClusterIP
+  # Session affinity ensures requests from the same client IP go to the same pod
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      # Timeout for session stickiness (in seconds)
+      timeoutSeconds: {{ .Values.clickhouse.service.sessionAffinityTimeout }}
+  ports:
+    - name: tcp
+      port: 9000
+      targetPort: 9000
+      protocol: TCP
+    - name: http
+      port: 8123
+      targetPort: 8123
+      protocol: TCP
+  selector:
+    clickhouse.altinity.com/chi: {{ .Release.Name }}
+    clickhouse.altinity.com/cluster: {{ .Values.clickhouse.cluster.name }}
+{{- end }}
+

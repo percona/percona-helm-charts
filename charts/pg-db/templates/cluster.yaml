@@ -23,11 +23,18 @@ metadata:
 spec:
   crVersion: {{ .Values.crVersion }}
   {{- include "pg-database.initContainer" .Values | indent 2 }}
+  {{- if .Values.clusterServiceDNSSuffix }}
+  clusterServiceDNSSuffix: {{ .Values.clusterServiceDNSSuffix }}
+  {{- end }}
   {{- if .Values.metadata }}
   metadata: {{ .Values.metadata | toYaml | nindent 4 }}
   {{- end }}
   image: {{ .Values.image }}
   imagePullPolicy: {{ .Values.imagePullPolicy | default "Always" }}
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   port: {{ default 5432 .Values.port }}
   postgresVersion: {{ .Values.postgresVersion }}
   standby: {{- .Values.standby | toYaml | nindent 4 }}
@@ -52,9 +59,51 @@ spec:
   tlsOnly: {{ .Values.tlsOnly }}
   {{- end -}}
 
+  {{- if .Values.tls }}
+  tls:
+    {{- if .Values.tls.caValidityDuration }}
+    caValidityDuration: {{ .Values.tls.caValidityDuration }}
+    {{- end }}
+    {{- if .Values.tls.certManagementPolicy }}
+    certManagementPolicy: {{ .Values.tls.certManagementPolicy }}
+    {{- end }}
+    {{- if .Values.tls.certValidityDuration }}
+    certValidityDuration: {{ .Values.tls.certValidityDuration }}
+    {{- end }}
+    {{- if .Values.tls.pgBackRestCertValidityDuration }}
+    pgBackRestCertValidityDuration: {{ .Values.tls.pgBackRestCertValidityDuration }}
+    {{- end }}
+    {{- if and (hasKey .Values.tls "issuerConf") .Values.tls.issuerConf.name }}
+    issuerConf:
+      name: {{ .Values.tls.issuerConf.name }}
+      {{- if .Values.tls.issuerConf.kind }}
+      kind: {{ .Values.tls.issuerConf.kind }}
+      {{- end }}
+      {{- if .Values.tls.issuerConf.group }}
+      group: {{ .Values.tls.issuerConf.group }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
   {{- if hasKey .Values "openshift" }}
   openshift: {{ .Values.openshift }}
   {{- end -}}
+
+  {{- if .Values.config }}
+  config:
+    {{- if .Values.config.files }}
+    files:
+{{ .Values.config.files | toYaml | indent 4 }}
+    {{- end }}
+  {{- end }}
+
+  {{- if .Values.authentication }}
+  authentication:
+    {{- if .Values.authentication.rules }}
+    rules:
+{{ .Values.authentication.rules | toYaml | indent 4 }}
+    {{- end }}
+  {{- end }}
 
   {{ if hasKey .Values "autoCreateUserSchema" }}
   autoCreateUserSchema: {{ .Values.autoCreateUserSchema }}
@@ -100,9 +149,11 @@ spec:
     postgresCluster:
       clusterName: {{ $postgresCluster.clusterName }}
       repoName: {{ $postgresCluster.repoName }}
+      {{- if $postgresCluster.options }}
       options:
       {{- range $option := $postgresCluster.options }}
       - {{ $option }}
+      {{- end }}
       {{- end }}
       {{- if $postgresCluster.tolerations }}
       tolerations:
@@ -112,13 +163,19 @@ spec:
     {{- if $pgbackrest := $dataSource.pgbackrest }}
     pgbackrest:
       stanza: {{ $pgbackrest.stanza }}
+      {{- if $pgbackrest.configuration }}
       configuration:
 {{ $pgbackrest.configuration | toYaml | indent 6 }}
+      {{- end }}
+      {{- if $pgbackrest.global }}
       global:
 {{ $pgbackrest.global | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $pgbackrest.options }}
       options:
       {{- range $option := $pgbackrest.options }}
       - {{ $option }}
+      {{- end }}
       {{- end }}
       {{- if $pgbackrest.tolerations }}
       tolerations:
@@ -202,6 +259,17 @@ spec:
   instances:
   {{- range $instance := .Values.instances }}
     - name: {{ $instance.name }}
+      {{- if and $instance.metadata (or $instance.metadata.annotations $instance.metadata.labels) }}
+      metadata:
+        {{- if $instance.metadata.annotations }}
+        annotations:
+{{ $instance.metadata.annotations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $instance.metadata.labels }}
+        labels:
+{{ $instance.metadata.labels | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
       {{- include "pg-database.initContainer" $instance | indent 6 }}
       replicas: {{ $instance.replicas }}
       {{- if $instance.affinity }}
@@ -226,17 +294,15 @@ spec:
       {{- end }}
       {{- if $instance.sidecars }}
       sidecars:
-      {{- range $sidecar := $instance.sidecars }}
-      - name: {{ $sidecar.name }}
-        image: {{ $sidecar.image }}
-        {{- with $sidecar.command }}
-        command: {{ toJson . }}
-        {{- end }}
-        {{- with $sidecar.securityContext }}
-        securityContext: 
-          {{- toYaml . | nindent 10 }}
-        {{- end }}
+{{ $instance.sidecars | toYaml | indent 8 }}
       {{- end }}
+      {{- if $instance.sidecarVolumes }}
+      sidecarVolumes:
+{{ $instance.sidecarVolumes | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $instance.sidecarPVCs }}
+      sidecarPVCs:
+{{ $instance.sidecarPVCs | toYaml | indent 8 }}
       {{- end }}
       {{- if $instance.topologySpreadConstraints }}
       topologySpreadConstraints:
@@ -274,6 +340,7 @@ spec:
         - {{ $accessMode }}
         {{- end }}
         {{- else }}
+        accessModes:
         - ReadWriteOnce
         {{- end }}
         resources:
@@ -291,6 +358,7 @@ spec:
         - {{ $accessMode }}
         {{- end }}
         {{- else }}
+        accessModes:
         - ReadWriteOnce
         {{- end }}
         resources:
@@ -311,13 +379,113 @@ spec:
                 storage: {{ $volume.dataVolumeClaimSpec.resources.requests.storage }}
       {{- end }}
       {{- end }}
+      {{- if $instance.extraVolumes }}
+      extraVolumes:
+{{- toYaml $instance.extraVolumes | nindent 8 }}
+      {{- end }}
+  {{- end }}
+
+  {{- if .Values.logicalReplicas }}
+  logicalReplicas:
+  {{- range $replica := .Values.logicalReplicas }}
+    - name: {{ $replica.name }}
+      {{- if $replica.databases }}
+      databases:
+      {{- range $database := $replica.databases }}
+        - {{ $database }}
+      {{- end }}
+      {{- end }}
+      {{- if $replica.bootstrapMethod }}
+      bootstrapMethod: {{ $replica.bootstrapMethod }}
+      {{- end }}
+      {{- if and $replica.metadata (or $replica.metadata.annotations $replica.metadata.labels) }}
+      metadata:
+        {{- if $replica.metadata.annotations }}
+        annotations:
+{{ $replica.metadata.annotations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $replica.metadata.labels }}
+        labels:
+{{ $replica.metadata.labels | toYaml | indent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- include "pg-database.resources" $replica | indent 6 }}
+      {{- if $replica.affinity }}
+      affinity:
+{{ $replica.affinity | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replica.tolerations }}
+      tolerations:
+{{ $replica.tolerations | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replica.priorityClassName }}
+      priorityClassName: {{ $replica.priorityClassName }}
+      {{- end }}
+      {{- if $replica.expose }}
+      expose:
+        type: {{ $replica.expose.type }}
+        {{- if $replica.expose.annotations }}
+        annotations:
+{{ $replica.expose.annotations | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $replica.expose.labels }}
+        labels:
+{{ $replica.expose.labels | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $replica.expose.loadBalancerClass }}
+        loadBalancerClass: {{ $replica.expose.loadBalancerClass | quote }}
+        {{- end }}
+        {{- if $replica.expose.loadBalancerSourceRanges }}
+        loadBalancerSourceRanges:
+{{ $replica.expose.loadBalancerSourceRanges | toYaml | indent 10 }}
+        {{- end }}
+        {{- if $replica.expose.nodePort }}
+        nodePort: {{ $replica.expose.nodePort }}
+        {{- end }}
+      {{- end }}
+      {{- if $replica.startupProbe }}
+      startupProbe:
+{{ $replica.startupProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replica.livenessProbe }}
+      livenessProbe:
+{{ $replica.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replica.readinessProbe }}
+      readinessProbe:
+{{ $replica.readinessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replica.dataVolumeClaimSpec }}
+      dataVolumeClaimSpec:
+        {{- if $replica.dataVolumeClaimSpec.storageClassName }}
+        storageClassName: {{ $replica.dataVolumeClaimSpec.storageClassName }}
+        {{- end }}
+        {{- if $replica.dataVolumeClaimSpec.accessModes }}
+        accessModes:
+        {{- range $accessMode := $replica.dataVolumeClaimSpec.accessModes }}
+        - {{ $accessMode }}
+        {{- end }}
+        {{- else }}
+        accessModes:
+        - ReadWriteOnce
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $replica.dataVolumeClaimSpec.resources.requests.storage }}
+      {{- end }}
+  {{- end }}
   {{- end }}
 
   proxy:
     pgBouncer:
       image: {{ .Values.proxy.pgBouncer.image }}
       replicas: {{ .Values.proxy.pgBouncer.replicas }}
-      exposeSuperusers: {{ .Values.proxy.pgBouncer.exposeSuperusers | default true }}
+      exposeSuperusers: {{ .Values.proxy.pgBouncer.exposeSuperusers | default false }}
+      paused: {{ .Values.proxy.pgBouncer.paused | default false }}
+      {{- if .Values.proxy.pgBouncer.usersSecret }}
+      usersSecret:
+{{ .Values.proxy.pgBouncer.usersSecret | toYaml | indent 8 }}
+      {{- end }}
       {{- include "pg-database.resources" .Values.proxy.pgBouncer | indent 6 }}
       {{- if .Values.proxy.pgBouncer.containers }}
       containers:
@@ -356,21 +524,23 @@ spec:
       {{- end }}
       {{- if .Values.proxy.pgBouncer.sidecars }}
       sidecars:
-      {{- range $sidecar := .Values.proxy.pgBouncer.sidecars }}
-      - name: {{ $sidecar.name }}
-        image: {{ $sidecar.image }}
-        {{- with $sidecar.command }}
-        command: {{ toJson . }}
-        {{- end }}
-        {{- with $sidecar.securityContext }}
-        securityContext: 
-          {{- toYaml . | nindent 10 }}
-        {{- end }}
+{{ .Values.proxy.pgBouncer.sidecars | toYaml | indent 8 }}
       {{- end }}
+      {{- if .Values.proxy.pgBouncer.sidecarVolumes }}
+      sidecarVolumes:
+{{ .Values.proxy.pgBouncer.sidecarVolumes | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.sidecarPVCs }}
+      sidecarPVCs:
+{{ .Values.proxy.pgBouncer.sidecarPVCs | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.customTLSSecret }}
       customTLSSecret:
         name: {{ .Values.proxy.pgBouncer.customTLSSecret.name }}
+      {{- end }}
+      {{- if .Values.proxy.pgBouncer.additionalTrustedCAs }}
+      additionalTrustedCAs:
+{{ .Values.proxy.pgBouncer.additionalTrustedCAs | toYaml | indent 8 }}
       {{- end }}
       {{- if .Values.proxy.pgBouncer.config }}
       config:
@@ -404,7 +574,7 @@ spec:
 
   pmm:
     enabled: {{ .Values.pmm.enabled }}
-    image: {{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}
+    image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
     {{- if .Values.pmm.imagePullPolicy }}
     imagePullPolicy: {{ .Values.pmm.imagePullPolicy | default "Always" }}
     {{- end }}
@@ -420,11 +590,79 @@ spec:
     {{- end }}
     {{- include "pg-database.resources" .Values.pmm | indent 4 }}
 
+  {{- if .Values.logcollector }}
+  logcollector:
+    enabled: {{ .Values.logcollector.enabled }}
+    image: {{ .Values.logcollector.image }}
+    {{- if .Values.logcollector.imagePullPolicy }}
+    imagePullPolicy: {{ .Values.logcollector.imagePullPolicy }}
+    {{- end }}
+    {{- if .Values.logcollector.configuration }}
+    configuration: |
+{{ .Values.logcollector.configuration | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.env }}
+    env:
+{{ .Values.logcollector.env | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.envFrom }}
+    envFrom:
+{{ .Values.logcollector.envFrom | toYaml | indent 6 }}
+    {{- end }}
+    {{- include "pg-database.resources" .Values.logcollector | indent 4 }}
+    {{- if .Values.logcollector.containerSecurityContext }}
+    containerSecurityContext:
+{{ .Values.logcollector.containerSecurityContext | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.livenessProbe }}
+    livenessProbe:
+{{ .Values.logcollector.livenessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.readinessProbe }}
+    readinessProbe:
+{{ .Values.logcollector.readinessProbe | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.volumeMounts }}
+    volumeMounts:
+{{ .Values.logcollector.volumeMounts | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.volumes }}
+    volumes:
+{{ .Values.logcollector.volumes | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.logcollector.logRotate }}
+    logRotate:
+      {{- if .Values.logcollector.logRotate.configuration }}
+      configuration: |
+{{ .Values.logcollector.logRotate.configuration | indent 8 }}
+      {{- end }}
+      {{- if .Values.logcollector.logRotate.extraConfig }}
+      extraConfig:
+{{ .Values.logcollector.logRotate.extraConfig | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.logcollector.logRotate.schedule }}
+      schedule: {{ .Values.logcollector.logRotate.schedule | quote }}
+      {{- end }}
+      {{- if .Values.logcollector.logRotate.livenessProbe }}
+      livenessProbe:
+{{ .Values.logcollector.logRotate.livenessProbe | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.logcollector.logRotate.readinessProbe }}
+      readinessProbe:
+{{ .Values.logcollector.logRotate.readinessProbe | toYaml | indent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+
   backups:
     {{- $isBackupsEnabled := (hasKey .Values.backups "enabled") | ternary .Values.backups.enabled true }}
     enabled: {{ $isBackupsEnabled }}
     {{- if $isBackupsEnabled }}
     trackLatestRestorableTime: {{ .Values.backups.trackLatestRestorableTime }}
+    {{- if .Values.backups.volumeSnapshots }}
+    volumeSnapshots:
+{{ .Values.backups.volumeSnapshots | toYaml | indent 6 }}
+    {{- end }}
     pgbackrest:
       {{- if .Values.backups.pgbackrest.envFrom }}
       envFrom:
@@ -498,17 +736,15 @@ spec:
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.sidecars }}
         sidecars:
-        {{- range $sidecar := .Values.backups.pgbackrest.repoHost.sidecars }}
-        - name: {{ $sidecar.name }}
-          image: {{ $sidecar.image }}
-          {{- with $sidecar.command }}
-          command: {{ toJson . }}
-          {{- end }}
-          {{- with $sidecar.securityContext }}
-          securityContext: 
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+{{ .Values.backups.pgbackrest.repoHost.sidecars | toYaml | indent 10 }}
         {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.sidecarVolumes }}
+        sidecarVolumes:
+{{ .Values.backups.pgbackrest.repoHost.sidecarVolumes | toYaml | indent 10 }}
+        {{- end }}
+        {{- if .Values.backups.pgbackrest.repoHost.sidecarPVCs }}
+        sidecarPVCs:
+{{ .Values.backups.pgbackrest.repoHost.sidecarPVCs | toYaml | indent 10 }}
         {{- end }}
         {{- if .Values.backups.pgbackrest.repoHost.affinity }}
         affinity:
@@ -554,6 +790,7 @@ spec:
             - {{ $accessMode }}
             {{- end }}
             {{- else }}
+            accessModes:
             - ReadWriteOnce
             {{- end }}
             resources:
@@ -646,6 +883,38 @@ spec:
     {{- if .Values.extensions.builtin }}
     builtin:
 {{ .Values.extensions.builtin | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_stat_monitor }}
+    pg_stat_monitor:
+{{ .Values.extensions.pg_stat_monitor | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_stat_statements }}
+    pg_stat_statements:
+{{ .Values.extensions.pg_stat_statements | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_audit }}
+    pg_audit:
+{{ .Values.extensions.pg_audit | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pgvector }}
+    pgvector:
+{{ .Values.extensions.pgvector | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_repack }}
+    pg_repack:
+{{ .Values.extensions.pg_repack | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_cron }}
+    pg_cron:
+{{ .Values.extensions.pg_cron | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.set_user }}
+    set_user:
+{{ .Values.extensions.set_user | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.extensions.pg_tde }}
+    pg_tde:
+{{ .Values.extensions.pg_tde | toYaml | indent 6 }}
     {{- end }}
     {{- if .Values.extensions.custom }}
     custom:

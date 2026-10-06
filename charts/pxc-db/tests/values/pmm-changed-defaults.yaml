@@ -1,0 +1,26 @@
+pmm:
+  enabled: true
+  image:
+    repository: changed-image
+    tag: changed-tag
+  serverHost: pmm
+  serverUser: admin
+  livenessProbes:
+    failureThreshold: 7
+    initialDelaySeconds: 25
+    periodSeconds: 15
+    successThreshold: 1
+    timeoutSeconds: 8
+  readinessProbes:
+    failureThreshold: 5
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+    limits:
+      cpu: 2m
+      memory: 2Mi

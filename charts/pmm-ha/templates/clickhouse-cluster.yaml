@@ -1,0 +1,202 @@
+{{- $secret := (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) }}
+{{- $clickhouseUser := "clickhouse_pmm" }}
+{{- if $secret }}
+{{- $clickhouseUser = (index $secret.data "PMM_CLICKHOUSE_USER" | b64dec) }}
+{{- else if .Values.secret.clickhouse_user }}
+{{- $clickhouseUser = .Values.secret.clickhouse_user }}
+{{- end }}
+{{- $datasourceUser := include "pmm.clickhouse.datasourceUser" . }}
+{{- $datasourcePassword := include "pmm.clickhouse.datasourcePassword" . }}
+{{- $clickhouseDatabase := .Values.pmmEnv.PMM_CLICKHOUSE_DATABASE | default "pmm" }}
+{{- include "pmm.clickhouse.validateIdentifier" (dict "name" "clickhouse.datasource.user" "value" $datasourceUser) }}
+{{- include "pmm.clickhouse.validateIdentifier" (dict "name" "pmmEnv.PMM_CLICKHOUSE_DATABASE" "value" $clickhouseDatabase) }}
+{{- if or (eq $datasourceUser $clickhouseUser) (eq $datasourceUser "clickhouse_operator") }}
+{{- fail (printf "clickhouse.datasource.user must differ from the PMM ClickHouse user and from clickhouse_operator, otherwise the drop-in merges into that account and strips its privileges, got %s" $datasourceUser) }}
+{{- end }}
+apiVersion: "clickhouse.altinity.com/v1"
+kind: ClickHouseInstallation
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  configuration:
+    # ClickHouse Keeper coordination
+    zookeeper:
+      nodes:
+        {{- include "pmm.clickhouse.keeper.nodes" . | nindent 8 }}
+      session_timeout_ms: 30000
+      operation_timeout_ms: 10000
+    
+    clusters:
+      - name: {{ .Values.clickhouse.cluster.name }}
+        templates:
+          podTemplate: clickhouse-pod-template
+          dataVolumeClaimTemplate: clickhouse-data-volume
+        layout:
+          shardsCount: {{ .Values.clickhouse.cluster.shards }}
+          replicasCount: {{ .Values.clickhouse.cluster.replicas }}
+    
+    # Prometheus metrics configuration
+    settings:
+      prometheus/port: "9363"
+      prometheus/endpoint: "/metrics"
+      prometheus/metrics: "true"
+      prometheus/events: "true"
+      prometheus/asynchronous_metrics: "true"
+    
+    # Profiles configuration
+    profiles:
+      clickhouse_operator/allow_experimental_analyzer: "0"
+      clickhouse_operator/prefer_localhost_replica: "1"
+      readonly/readonly: "2"
+    
+    # User management - password from Kubernetes secret using valueFrom
+    users:
+      # Admin user for operator management
+      clickhouse_operator/access_management: "1"
+      clickhouse_operator/named_collection_control: "1"
+      clickhouse_operator/networks/ip:
+        - 127.0.0.1
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+      clickhouse_operator/profile: clickhouse_operator
+      clickhouse_operator/quota: default
+      clickhouse_operator/show_named_collections: "1"
+      clickhouse_operator/show_named_collections_secrets: "1"
+      
+      # PMM application user - password from Kubernetes secret
+      # Using valueFrom with secretKeyRef to read password from secret
+      {{ $clickhouseUser }}/password:
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Values.secret.name }}
+            key: PMM_CLICKHOUSE_PASSWORD
+      {{ $clickhouseUser }}/networks/ip:
+        {{- range .Values.clickhouse.users.networks.ip }}
+        - {{ . }}
+        {{- end }}
+      {{ $clickhouseUser }}/profile: default
+      {{ $clickhouseUser }}/quota: default
+      {{ $clickhouseUser }}/access_management: "1"
+    
+    # Disable default user for security
+    files:
+      users.d/disable-default-user.xml: |
+        <clickhouse>
+          <users>
+            <default remove="1"/>
+          </users>
+        </clickhouse>
+
+      # Read-only user for the Grafana ClickHouse data source.
+      #
+      # Grafana runs data source queries on behalf of every signed-in user, including Viewers, so
+      # this user must not be able to do more than read Query Analytics data. The grants section
+      # is what enforces that: it replaces ClickHouse's implicit "all privileges" with an
+      # allowlist, and withholding the SOURCES privileges keeps table functions such as url(),
+      # file(), s3() and remote() out of reach, which would otherwise allow SSRF against cloud
+      # instance metadata endpoints.
+      #
+      # Declared as a drop-in rather than through the operator's users map because that map has
+      # no way to express grants.
+      users.d/pmm-datasource-user.xml: |
+        <clickhouse>
+          <profiles>
+            <pmm_datasource>
+              <readonly>1</readonly>
+              <constraints>
+                <max_execution_time>
+                  <changeable_in_readonly/>
+                </max_execution_time>
+              </constraints>
+            </pmm_datasource>
+          </profiles>
+          <users>
+            <{{ $datasourceUser }}>
+              <password_sha256_hex>{{ $datasourcePassword | sha256sum }}</password_sha256_hex>
+              <networks>
+                {{- range .Values.clickhouse.users.networks.ip }}
+                <ip>{{ . }}</ip>
+                {{- end }}
+              </networks>
+              <profile>pmm_datasource</profile>
+              <quota>default</quota>
+              <grants>
+                <query>GRANT SELECT ON `{{ $clickhouseDatabase }}`.*</query>
+              </grants>
+            </{{ $datasourceUser }}>
+          </users>
+        </clickhouse>
+
+      # Server-side hardening, matching what PMM Server ships for its built-in ClickHouse.
+      #
+      # settings_constraints_replace_previous: readonly=1 blocks every setting change, but the
+      # Grafana ClickHouse plugin sets max_execution_time on each query to enforce its timeout.
+      # Marking that one setting changeable needs this flag, without which ClickHouse rejects the
+      # constraint outright.
+      #
+      # select_from_system_db_requires_grant: without it ClickHouse lets every user read the whole
+      # system database regardless of its grants, so the data source user could read system.query_log
+      # and with it the SQL text of every query any user has run. The metadata the plugin needs
+      # (system.tables, columns, databases, one) stays readable either way.
+      #
+      # remote_url_allow_hosts: an empty allowlist means no host may be reached through URL-based
+      # engines and table functions - url(), remote(), mysql() and S3 over HTTP - for every user,
+      # not just the data source one. Query Analytics does not use them: replication runs over the
+      # interserver protocol and Keeper, and schema changes go through ON CLUSTER DDL.
+      config.d/pmm-hardening.xml: |
+        <clickhouse>
+          <access_control_improvements>
+            <settings_constraints_replace_previous>true</settings_constraints_replace_previous>
+            <select_from_system_db_requires_grant>true</select_from_system_db_requires_grant>
+          </access_control_improvements>
+          <remote_url_allow_hosts></remote_url_allow_hosts>
+        </clickhouse>
+
+  templates:
+    podTemplates:
+      - name: clickhouse-pod-template
+        generateName: "{{ .Release.Name }}-{cluster}-{shard}-{replica}"
+        metadata:
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "9363"
+            prometheus.io/path: "/metrics"
+        spec:
+          # Pod anti-affinity to spread replicas across different nodes
+          # Using preferredDuringScheduling for soft anti-affinity (allows single-node deployments)
+          # Weight 100 (max) makes this the highest priority soft constraint
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        clickhouse.altinity.com/chi: {{ .Release.Name }}
+                        clickhouse.altinity.com/cluster: {{ .Values.clickhouse.cluster.name }}
+                    topologyKey: kubernetes.io/hostname
+          containers:
+            - name: clickhouse
+              image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
+              imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+              ports:
+                - name: metrics
+                  containerPort: 9363
+                  protocol: TCP
+              resources:
+                {{- toYaml .Values.clickhouse.resources | nindent 16 }}
+    
+    # Persistent volume configuration for ClickHouse data
+    volumeClaimTemplates:
+      - name: clickhouse-data-volume
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          {{- if .Values.clickhouse.storage.storageClassName }}
+          storageClassName: {{ .Values.clickhouse.storage.storageClassName }}
+          {{- end }}
+          resources:
+            requests:
+              storage: {{ .Values.clickhouse.storage.size }}
+

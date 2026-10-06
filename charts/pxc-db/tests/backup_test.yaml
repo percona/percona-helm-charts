@@ -1,0 +1,440 @@
+suite: pxc-db backup
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: test_backup omits the backup section when disabled
+    set:
+      backup.enabled: false
+    asserts:
+      - notExists:
+          path: spec.backup
+
+  - it: test_backup renders default settings when enabled
+    set:
+      backup.enabled: true
+      backup.image.repository: default-image
+      backup.image.tag: default-tag
+    asserts:
+      - equal:
+          path: spec.backup
+          value:
+            image: default-image:default-tag
+            pitr:
+              enabled: false
+            storages: {}
+            schedule: []
+
+  - it: test_backup renders changed default values
+    values:
+      - values/backup-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.backup.image
+          value: changed-image:changed-tag
+      - equal:
+          path: spec.backup.pitr
+          value:
+            enabled: true
+            storageName: binlogs
+            timeBetweenUploads: 10
+            timeoutSeconds: 20
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+
+  - it: test_backup uses provided storage access keys
+    set:
+      backup.storages.backup1.type: s3
+      backup.storages.backup1.s3.bucket: operator-testing
+      backup.storages.backup1.s3.region: us-east-1
+      backup.storages.backup1.s3.credentialsAccessKey: test1
+      backup.storages.backup1.s3.credentialsSecretKey: test2
+    asserts:
+      - equal:
+          path: spec.backup.storages.backup1
+          value:
+            s3:
+              bucket: operator-testing
+              credentialsSecret: unit-pxc-db-s3-backup1
+              region: us-east-1
+            type: s3
+
+  - it: test_backup uses provided storage secret name
+    set:
+      backup.storages.backup1.type: s3
+      backup.storages.backup1.s3.bucket: operator-testing
+      backup.storages.backup1.s3.region: us-east-1
+      backup.storages.backup1.s3.credentialsSecret: my-secret
+    asserts:
+      - equal:
+          path: spec.backup.storages.backup1
+          value:
+            s3:
+              bucket: operator-testing
+              credentialsSecret: my-secret
+              region: us-east-1
+            type: s3
+
+  - it: test_backup renders allowParallel when defined
+    set:
+      backup.allowParallel: true
+    asserts:
+      - equal:
+          path: spec.backup.allowParallel
+          value: true
+
+  - it: test_backup renders backoffLimit when defined
+    set:
+      backup.backoffLimit: 6
+    asserts:
+      - equal:
+          path: spec.backup.backoffLimit
+          value: 6
+
+  - it: test_backup renders ttlSecondsAfterFinished when defined
+    set:
+      backup.ttlSecondsAfterFinished: 3600
+    asserts:
+      - equal:
+          path: spec.backup.ttlSecondsAfterFinished
+          value: 3600
+
+  - it: test_backup renders activeDeadlineSeconds when defined
+    set:
+      backup.activeDeadlineSeconds: 3600
+    asserts:
+      - equal:
+          path: spec.backup.activeDeadlineSeconds
+          value: 3600
+
+  - it: test_backup renders startingDeadlineSeconds when defined
+    set:
+      backup.startingDeadlineSeconds: 300
+    asserts:
+      - equal:
+          path: spec.backup.startingDeadlineSeconds
+          value: 300
+
+  - it: test_backup renders suspendedDeadlineSeconds when defined
+    set:
+      backup.suspendedDeadlineSeconds: 1200
+    asserts:
+      - equal:
+          path: spec.backup.suspendedDeadlineSeconds
+          value: 1200
+
+  - it: test_backup renders runningDeadlineSeconds when defined
+    set:
+      backup.runningDeadlineSeconds: 1200
+    asserts:
+      - equal:
+          path: spec.backup.runningDeadlineSeconds
+          value: 1200
+
+  - it: test_backup renders serviceAccountName when defined
+    set:
+      backup.serviceAccountName: percona-xtradb-cluster-operator
+    asserts:
+      - equal:
+          path: spec.backup.serviceAccountName
+          value: percona-xtradb-cluster-operator
+
+  - it: test_backup renders imagePullPolicy when defined
+    set:
+      backup.imagePullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.backup.imagePullPolicy
+          value: Always
+
+  - it: test_backup renders pitr when enabled
+    set:
+      backup.pitr.enabled: true
+      backup.pitr.storageName: s3-binlogs
+      backup.pitr.timeBetweenUploads: 120
+      backup.pitr.timeoutSeconds: 90
+    asserts:
+      - equal:
+          path: spec.backup.pitr
+          value:
+            enabled: true
+            storageName: s3-binlogs
+            timeBetweenUploads: 120
+            timeoutSeconds: 90
+            resources:
+              requests: {}
+              limits: {}
+
+  - it: test_backup renders pitr resources when defined
+    set:
+      backup.pitr.enabled: true
+      backup.pitr.resources:
+        requests:
+          memory: 0.1G
+          cpu: 100m
+        limits:
+          memory: 1G
+          cpu: 700m
+    asserts:
+      - equal:
+          path: spec.backup.pitr.resources
+          value:
+            requests:
+              memory: 0.1G
+              cpu: 100m
+            limits:
+              memory: 1G
+              cpu: 700m
+
+  - it: test_backup renders schedule when defined
+    set:
+      backup.schedule:
+        - name: daily
+          schedule: "0 0 * * *"
+          storageName: s3-main
+    asserts:
+      - equal:
+          path: spec.backup.schedule
+          value:
+            - name: daily
+              schedule: 0 0 * * *
+              storageName: s3-main
+
+  - it: test_backup renders schedule retention when defined
+    set:
+      backup.schedule:
+        - name: sat-night-backup
+          schedule: "0 0 * * 6"
+          retention:
+            type: count
+            count: 5
+            deleteFromStorage: true
+          storageName: s3-us-west
+    asserts:
+      - equal:
+          path: spec.backup.schedule
+          value:
+            - name: sat-night-backup
+              schedule: 0 0 * * 6
+              retention:
+                type: count
+                count: 5
+                deleteFromStorage: true
+              storageName: s3-us-west
+
+  - it: test_backup renders imagePullSecrets when defined
+    set:
+      backup.imagePullSecrets:
+        - name: private-registry-credentials
+    asserts:
+      - equal:
+          path: spec.backup.imagePullSecrets
+          value:
+            - name: private-registry-credentials
+
+  - it: test_backup renders conditional filesystem storage fields
+    set:
+      backup.storages.fs-pvc:
+        type: filesystem
+        volume:
+          persistentVolumeClaim:
+            storageClassName: standard
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 6Gi
+    asserts:
+      - equal:
+          path: spec.backup.storages.fs-pvc
+          value:
+            type: filesystem
+            volume:
+              persistentVolumeClaim:
+                storageClassName: standard
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 6Gi
+
+  - it: test_backup renders conditional s3 storage fields
+    set:
+      backup.storages.s3-us-west:
+        type: s3
+        verifyTLS: true
+        nodeSelector:
+          storage: tape
+          backupWorker: "True"
+        resources:
+          requests:
+            memory: 1G
+            cpu: 600m
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: DoNotSchedule
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: backupWorker
+                      operator: In
+                      values:
+                        - "True"
+        tolerations:
+          - key: backupWorker
+            operator: Equal
+            value: "True"
+            effect: NoSchedule
+        annotations:
+          testName: scheduled-backup
+        labels:
+          backupWorker: "True"
+        schedulerName: default-scheduler
+        priorityClassName: high-priority
+        containerSecurityContext:
+          privileged: true
+        podSecurityContext:
+          fsGroup: 1001
+          supplementalGroups:
+            - 1001
+            - 1002
+            - 1003
+        containerOptions:
+          env:
+            - name: VERIFY_TLS
+              value: "false"
+          args:
+            xtrabackup:
+              - --someflag=abc
+            xbcloud:
+              - --someflag=abc
+            xbstream:
+              - --someflag=abc
+        s3:
+          bucket: S3-BACKUP-BUCKET-NAME-HERE
+          credentialsSecret: my-cluster-name-backup-s3
+          region: us-west-2
+          endpointUrl: https://sfo2.digitaloceanspaces.com
+          caBundle:
+            name: s3-ca-bundle-secret-name
+            key: ca.crt
+    asserts:
+      - equal:
+          path: spec.backup.storages.s3-us-west
+          value:
+            type: s3
+            verifyTLS: true
+            nodeSelector:
+              storage: tape
+              backupWorker: "True"
+            resources:
+              requests:
+                memory: 1G
+                cpu: 600m
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: backupWorker
+                          operator: In
+                          values:
+                            - "True"
+            tolerations:
+              - key: backupWorker
+                operator: Equal
+                value: "True"
+                effect: NoSchedule
+            annotations:
+              testName: scheduled-backup
+            labels:
+              backupWorker: "True"
+            schedulerName: default-scheduler
+            priorityClassName: high-priority
+            containerSecurityContext:
+              privileged: true
+            podSecurityContext:
+              fsGroup: 1001
+              supplementalGroups:
+                - 1001
+                - 1002
+                - 1003
+            containerOptions:
+              env:
+                - name: VERIFY_TLS
+                  value: "false"
+              args:
+                xtrabackup:
+                  - --someflag=abc
+                xbcloud:
+                  - --someflag=abc
+                xbstream:
+                  - --someflag=abc
+            s3:
+              bucket: S3-BACKUP-BUCKET-NAME-HERE
+              credentialsSecret: my-cluster-name-backup-s3
+              region: us-west-2
+              endpointUrl: https://sfo2.digitaloceanspaces.com
+              caBundle:
+                name: s3-ca-bundle-secret-name
+                key: ca.crt
+
+  - it: test_backup renders s3 advanced fields when defined
+    set:
+      backup.storages.s3-us-west:
+        type: s3
+        s3:
+          bucket: S3-BACKUP-BUCKET-NAME-HERE
+          credentialsSecret: my-cluster-name-backup-s3
+          region: us-west-2
+          forcePathStyle: true
+          prefix: prefix
+          checksumAlgorithm: SHA256
+    asserts:
+      - equal:
+          path: spec.backup.storages.s3-us-west.s3
+          value:
+            bucket: S3-BACKUP-BUCKET-NAME-HERE
+            credentialsSecret: my-cluster-name-backup-s3
+            region: us-west-2
+            forcePathStyle: true
+            prefix: prefix
+            checksumAlgorithm: SHA256
+
+  - it: test_backup renders conditional azure storage fields
+    set:
+      backup.storages.azure-blob:
+        type: azure
+        azure:
+          credentialsSecret: azure-secret
+          container: test
+          endpointUrl: https://accountName.blob.core.windows.net
+          storageClass: Hot
+          blockSize: 4194304
+          concurrency: 4
+    asserts:
+      - equal:
+          path: spec.backup.storages.azure-blob
+          value:
+            type: azure
+            azure:
+              credentialsSecret: azure-secret
+              container: test
+              endpointUrl: https://accountName.blob.core.windows.net
+              storageClass: Hot
+              blockSize: 4194304
+              concurrency: 4
