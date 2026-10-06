@@ -1,4 +1,8 @@
 {{- if .Values.centralBackupStorage.enabled }}
+{{- /* Every backup covers all four components; with a sidecar off each run fails it, so latest and retention never move (DN-14/DN-40). */}}
+{{- if not (and .Values.clickhouse.backup.enabled .Values.victoriaMetrics.vmstorage.backup.enabled) }}
+{{- fail "centralBackupStorage.enabled needs clickhouse.backup.enabled and victoriaMetrics.vmstorage.backup.enabled: every backup covers PostgreSQL, ClickHouse, VictoriaMetrics and PMM Server, and with a sidecar off each run fails that component, so 'latest' never moves and retention never prunes. Turn the sidecar back on, or set centralBackupStorage.enabled=false." }}
+{{- end }}
 {{- $cbs := .Values.centralBackupStorage }}
 {{- $s := $cbs.schedule }}
 {{- /* Only schedule-decided flags; target/retention come from pmm.backupRunEnv (flags would override it). */}}

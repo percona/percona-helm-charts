@@ -1860,7 +1860,10 @@ central mount). Discovery is from the manifest.
 **Component selection**: `--postgresql`, `--clickhouse`, `--victoriametrics`, `--pmm-server`,
 `--encryption-key` (plus `--skip-<component>` to drop components from the default set).
 If none are set, every component the manifest marks `success` is restored; explicitly
-requesting a component the manifest does NOT mark `success` is a hard error.
+requesting a component the manifest does NOT mark `success` is a hard error. The encryption
+key follows PostgreSQL, because it must match the PostgreSQL data PMM runs on: it is restored
+with PostgreSQL (unless `--skip-encryption-key`), and without a PostgreSQL restore only when
+`--encryption-key` is given.
 PostgreSQL needs no options — databases come from the manifest.
 
 **Orchestration**: `--parallel` (default) or `--sequential`.

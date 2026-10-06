@@ -3430,6 +3430,47 @@ write_manifest complete skipped >/dev/null 2>&1 && rc=0 || rc=$?
 assert_rc "latest write succeeds -> 0" 0 "${rc}"
 rm -f "${_wl_out}"
 
+#########################################################################################
+section "scope_encryption_key — the key follows the PostgreSQL data PMM will run on"
+#########################################################################################
+# A key applied without its PostgreSQL leaves pmm-managed unable to decrypt the data in place;
+# PostgreSQL restored without its key is the same failure the other way round.
+_sek() {   # <RESTORE_POSTGRESQL> <MF_PG_STATUS> <RESTORE_ENCRYPTION_KEY> <ENC_KEY_REQUESTED> <SKIP_ENCRYPTION_KEY>
+    RESTORE_POSTGRESQL=$1; MF_PG_STATUS=$2; RESTORE_ENCRYPTION_KEY=$3; ENC_KEY_REQUESTED=$4
+    SKIP_ENCRYPTION_KEY=$5; MF_ENC_STATUS=success
+    scope_encryption_key >/dev/null 2>&1; printf '%s' "${RESTORE_ENCRYPTION_KEY}"
+}
+assert_eq "default restore applies the key"                 "true"  "$(_sek true success true false false)"
+assert_eq "--skip-postgresql keeps the current key"         "false" "$(_sek false success true false false)"
+assert_eq "a failed PG in the backup keeps the current key" "false" "$(_sek false failed true false false)"
+assert_eq "--encryption-key alone still applies it"         "true"  "$(_sek false success true true false)"
+assert_eq "--postgresql alone brings its key along"         "true"  "$(_sek true success false false false)"
+assert_eq "--skip-encryption-key wins over PostgreSQL"      "false" "$(_sek true success false false true)"
+RESTORE_POSTGRESQL=false; RESTORE_ENCRYPTION_KEY=false; ENC_KEY_REQUESTED=false; SKIP_ENCRYPTION_KEY=false
+
+#########################################################################################
+section "stop_children — background children ignore SIGINT, so the traps stop them"
+#########################################################################################
+if command -v pgrep >/dev/null 2>&1; then
+    _sc_child() { trap - EXIT INT TERM; sleep 30 & echo $! > "${_sc_d}/grandchild"; wait; }
+    _sc_d=$(mktemp -d 2>/dev/null || echo "/tmp/sctest.$$"); mkdir -p "${_sc_d}"
+    _sc_child & RUN_CHILD_PIDS="$!"
+    sleep 1
+    # A TERMed orphan stays a zombie until something reaps it; that is gone too.
+    _sc_alive() {
+        kill -0 "$1" 2>/dev/null || { echo gone; return 0; }
+        case "$(ps -o stat= -p "$1" 2>/dev/null)" in Z*) echo gone ;; *) echo alive ;; esac
+    }
+    _sc_c="${RUN_CHILD_PIDS}"; _sc_g=$(cat "${_sc_d}/grandchild" 2>/dev/null)
+    assert_eq "the child and its sleep are running"   "alive alive" "$(_sc_alive "${_sc_c}") $(_sc_alive "${_sc_g}")"
+    stop_children; sleep 1
+    assert_eq "stop_children ends the child"           "gone"  "$(_sc_alive "${_sc_c}")"
+    assert_eq "...and what it started"                 "gone"  "$(_sc_alive "${_sc_g}")"
+    assert_eq "...and clears the list"                 ""      "${RUN_CHILD_PIDS}"
+    wait "${_sc_c}" 2>/dev/null || true
+    rm -rf "${_sc_d}"
+fi
+
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then
     echo "OK: ${PASS} assertion(s) passed"

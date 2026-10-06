@@ -14,8 +14,8 @@
 {{- fail (printf "clickhouse.datasource.user must differ from the PMM ClickHouse user and from clickhouse_operator, otherwise the drop-in merges into that account and strips its privileges, got %s" $datasourceUser) }}
 {{- end }}
 {{- /* pmm-backup.sh backs up and restores one ClickHouse pod, i.e. one shard. */}}
-{{- if and .Values.centralBackupStorage.enabled .Values.clickhouse.backup.enabled (gt (int .Values.clickhouse.cluster.shards) 1) }}
-{{- fail (printf "clickhouse.cluster.shards is %v, but ClickHouse backup/restore covers a single shard: the other shards' QAN data would be missing from every backup. Use shards: 1, or set clickhouse.backup.enabled=false." .Values.clickhouse.cluster.shards) }}
+{{- if and .Values.centralBackupStorage.enabled (gt (int .Values.clickhouse.cluster.shards) 1) }}
+{{- fail (printf "clickhouse.cluster.shards is %v, but ClickHouse backup/restore covers a single shard: the other shards' QAN data would be missing from every backup. Use clickhouse.cluster.shards: 1, or set centralBackupStorage.enabled=false." .Values.clickhouse.cluster.shards) }}
 {{- end }}
 apiVersion: "clickhouse.altinity.com/v1"
 kind: ClickHouseInstallation

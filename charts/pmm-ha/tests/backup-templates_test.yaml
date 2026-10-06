@@ -128,13 +128,29 @@ tests:
       - failedTemplate:
           errorPattern: "clickhouse.cluster.shards is 2, but ClickHouse backup/restore covers a single shard"
 
-  - it: allows more than one shard when ClickHouse backups are off
+  - it: allows more than one shard when backups are off
     template: templates/clickhouse-cluster.yaml
     set:
       clickhouse.cluster.shards: 2
-      clickhouse.backup.enabled: false
+      centralBackupStorage.enabled: false
     asserts:
       - notFailedTemplate: {}
+
+  - it: refuses backups with the ClickHouse sidecar off (every run would fail that component)
+    template: templates/backup-cronjob.yaml
+    set:
+      clickhouse.backup.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "centralBackupStorage.enabled needs clickhouse.backup.enabled and victoriaMetrics.vmstorage.backup.enabled"
+
+  - it: refuses backups with the vmbackup sidecar off
+    template: templates/backup-cronjob.yaml
+    set:
+      victoriaMetrics.vmstorage.backup.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "centralBackupStorage.enabled needs clickhouse.backup.enabled and victoriaMetrics.vmstorage.backup.enabled"
 
   - it: serves metrics with a thread per scrape (two vmagent replicas scrape at the same instant)
     asserts:

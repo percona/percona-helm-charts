@@ -652,14 +652,14 @@ See [Backup and Restore](#backup-and-restore) and [docs/pmm-backup.md](docs/pmm-
 | `centralBackupStorage.schedule.activeDeadlineSeconds` | Hard cap on one run; must exceed the real backup duration | `21600` |
 | `centralBackupStorage.schedule.successfulJobsHistoryLimit` | Succeeded Jobs kept | `3` |
 | `centralBackupStorage.schedule.failedJobsHistoryLimit` | Failed Jobs kept | `3` |
-| `clickhouse.backup.enabled` | Run the clickhouse-backup sidecar (needs `centralBackupStorage.enabled`) | `true` |
+| `clickhouse.backup.enabled` | Run the clickhouse-backup sidecar (needs `centralBackupStorage.enabled`, which requires it to stay `true`) | `true` |
 | `clickhouse.backup.image` | clickhouse-backup image | `altinity/clickhouse-backup:2.8.0` |
 | `clickhouse.backup.resources` | Resources for the clickhouse-backup sidecar | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
 | `clickhouse.backup.keepLocal` | Local (hardlink) backups kept per replica | `1` |
 | `clickhouse.backup.keepRemote` | Remote backups clickhouse-backup keeps itself; keep `0` so the orchestrator owns retention | `0` |
 | `clickhouse.backup.s3` | ClickHouse-only S3 overrides; empty fields inherit `centralBackupStorage.s3` | see values.yaml |
 | `victoriaMetrics.vmstorage.backupVolumeSize` | Size limit of the vmstorage local backup emptyDir | `20Gi` |
-| `victoriaMetrics.vmstorage.backup.enabled` | Run the vmbackup sidecar (needs `centralBackupStorage.enabled`) | `true` |
+| `victoriaMetrics.vmstorage.backup.enabled` | Run the vmbackup sidecar (needs `centralBackupStorage.enabled`, which requires it to stay `true`) | `true` |
 | `victoriaMetrics.vmstorage.backup.image` | vmbackup image | `victoriametrics/vmbackup:v1.151.0` |
 | `victoriaMetrics.vmstorage.backup.restoreImage` | vmrestore image | `victoriametrics/vmrestore:v1.151.0` |
 | `victoriaMetrics.vmstorage.backup.resources` | Resources for the vmbackup sidecar | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |

@@ -156,6 +156,7 @@ DISRUPTION_HELD_PODS=""
 CURRENT_ID=""
 # First --<component> flag disables the others; later flags combine.
 EXPLICIT_SELECTION=false
+ENC_KEY_REQUESTED=false   # restore --encryption-key given by name
 LIST_ONLY=false
 LIST_ID=""
 
@@ -289,6 +290,7 @@ if [ -z "${TEMP_POD_RESOURCES}" ]; then
 fi
 # A file, not a variable: parallel restores run in subshells. Gates restore_cleanup's sweep.
 TEMP_PODS_MARKER=""
+RUN_CHILD_PIDS=""   # parallel backup/restore children while they run; the INT/TERM traps stop them
 PG_STAGE_MARKER=""   # "<pod> <file>" per staged dump, for restore_cleanup
 RESTORE_START_TIME=0
 ENCRYPTION_KEY_OK=false ; POSTGRESQL_OK=false ; CLICKHOUSE_OK=false
@@ -360,6 +362,8 @@ Component selection (combinable, e.g. --postgresql --clickhouse):
   --skip-postgresql  --skip-clickhouse  --skip-victoriametrics  --skip-pmm-server
   --skip-encryption-key     backup: skip the PMM encryption key (captured with PostgreSQL
                             by default); restore: do not restore it
+                            Restore applies the key with PostgreSQL; without a PostgreSQL
+                            restore it is applied only with --encryption-key.
 
 Backup options:
   -r, --retention DAYS      Number of days to retain backups (default: 7)
@@ -661,6 +665,7 @@ parse_args() {
             --encryption-key)
                 flag_requires restore "$1"
                 select_component encryption-key
+                ENC_KEY_REQUESTED=true
                 ;;
             --skip-postgresql|--skip-clickhouse|--skip-victoriametrics|--skip-pmm-server)
                 skip_component "${1#--skip-}"
@@ -3172,6 +3177,18 @@ select_default_components() {
     return 0
 }
 
+# The key must match the PostgreSQL data PMM runs on: it follows a PostgreSQL restore (as it is
+# captured with one), and without one it is applied only when asked for by name.
+scope_encryption_key() {
+    if restore_do postgresql && [ "${SKIP_ENCRYPTION_KEY}" != "true" ] && restore_has encryption; then
+        RESTORE_ENCRYPTION_KEY=true
+    elif [ "${RESTORE_ENCRYPTION_KEY}" = "true" ] && [ "${ENC_KEY_REQUESTED}" != "true" ]; then
+        RESTORE_ENCRYPTION_KEY=false
+        log "WARN" "[EncryptionKey] Not restoring the encryption key: PostgreSQL is not being restored, and PMM must keep the key that matches the PostgreSQL data in place. Pass --encryption-key to replace it anyway."
+    fi
+    return 0
+}
+
 # Server-side dry-run of the real temp pod spec (DN-15); also scan for PodSecurity warn output.
 validate_temp_pod_admission() {   # <role> <pvc> <image> <sec-ctx> <sched>
     local _vtpa_role="$1" _vtpa_pvc="$2" _vtpa_image="$3" _vtpa_sec="${4:-}" _vtpa_sched="${5:-}"
@@ -4468,6 +4485,18 @@ restore_summary_rows() {
 # $1 is the subcommand's default when --parallel/--sequential were not given.
 parallel_enabled() { [ "${PARALLEL:-$1}" = "true" ]; }
 
+# Background children ignore SIGINT (an async list in a non-interactive sh) and `trap - INT`
+# cannot undo it, so the parent's INT/TERM traps stop them, and what they started, with TERM.
+stop_tree() {   # <pid>  parent first, so it cannot move on to its next step
+    _st_kids=$(pgrep -P "$1" 2>/dev/null || true)
+    kill -TERM "$1" 2>/dev/null || true
+    for _st_c in ${_st_kids}; do stop_tree "${_st_c}"; done
+}
+stop_children() {
+    for _sc_p in ${RUN_CHILD_PIDS}; do stop_tree "${_sc_p}"; done
+    RUN_CHILD_PIDS=""
+}
+
 # Restore child: EXIT trap dropped so it cannot release the parent's locks; rc via file.
 _restore_child() {   # <component-key> <tmpdir>
     trap - EXIT INT TERM
@@ -5162,8 +5191,8 @@ cmd_backup() {
         # INT/TERM must exit too: ash/dash would resume unlocked after the handler (DN-20).
         LOCK_COMPONENTS=$(lock_list 4)
         trap release_locks EXIT
-        trap 'release_locks; exit 130' INT
-        trap 'release_locks; exit 143' TERM
+        trap 'stop_children; release_locks; exit 130' INT
+        trap 'stop_children; release_locks; exit 143' TERM
         # Before acquire_locks and protect_operand_pods: both use install-scoped selectors.
         if ! resolve_component_scope 4; then exit 1; fi
         acquire_locks
@@ -5211,10 +5240,12 @@ cmd_backup() {
             _backup_child "${_bc}" "${_btmp}" &
             _bpids="${_bpids} $!"
         done
+        RUN_CHILD_PIDS="${_bpids}"
         # Only these children: a bare wait hangs on the lock renewer (lint-enforced).
         for _bp in ${_bpids}; do
             wait "${_bp}" 2>/dev/null || true
         done
+        RUN_CHILD_PIDS=""
         # Merge in table order for deterministic output.
         for _bc in ${CORE_COMPONENTS}; do
             comp_on "${_bc}" 4 || continue
@@ -5402,11 +5433,12 @@ cmd_restore() {
     fi
     # INT/TERM must exit too (DN-20). Also set for dry run: it reaps the local manifest copy.
     trap restore_cleanup EXIT
-    trap 'restore_cleanup; exit 130' INT
-    trap 'restore_cleanup; exit 143' TERM
+    trap 'stop_children; restore_cleanup; exit 130' INT
+    trap 'stop_children; restore_cleanup; exit 143' TERM
 
     if ! load_manifest; then exit 1; fi
     select_default_components
+    scope_encryption_key
 
     log "INFO" "Components:$(restore_plan_line)"
 
@@ -5506,10 +5538,12 @@ cmd_restore() {
             _restore_child "${_rc}" "${tmpdir}" &
             _pids="${_pids} $!"
         done
+        RUN_CHILD_PIDS="${_pids}"
         # Only these children: a bare wait hangs on the lock renewer (lint-enforced).
         for _p in ${_pids}; do
             wait "${_p}" 2>/dev/null || true
         done
+        RUN_CHILD_PIDS=""
         # A child that wrote no rc file counts as FAILED.
         for _rc in ${RESTORE_DB_COMPONENTS}; do
             restore_do "${_rc}" || continue
