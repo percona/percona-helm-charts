@@ -53,3 +53,10 @@ tolerations: []
 affinity: {}
 
 disableTelemetry: false
+
+leaderElection:
+  enabled: true
+  leaseName: 08db2feb.percona.com
+  leaseDuration: 60s
+  renewDeadline: 40s
+  retryPeriod: 10s
