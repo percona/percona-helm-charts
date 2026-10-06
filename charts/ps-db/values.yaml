@@ -140,6 +140,8 @@ mysql:
   #   value: "3"
   # - name: ASYNC_SOURCE_CONNECT_RETRY
   #   value: "60"
+  # - name: BOOTSTRAP_CLONE_STALL_TIMEOUT
+  #   value: "900"
   # envFrom:
   # - secretRef:
   #     name: my-env-secret
