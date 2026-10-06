@@ -28,6 +28,12 @@ spec:
     {{- if .Values.vault.tlsSecret }}
     tlsSecret: {{ .Values.vault.tlsSecret }}
     {{- end }}
+    {{- if .Values.vault.reinitInterval }}
+    reinitInterval: {{ .Values.vault.reinitInterval }}
+    {{- end }}
+    {{- if .Values.vault.requestInterval }}
+    requestInterval: {{ .Values.vault.requestInterval }}
+    {{- end }}
     {{- if .Values.vault.syncUsers }}
     syncUsers:
       {{- if .Values.vault.syncUsers.role }}
@@ -149,6 +155,9 @@ spec:
     {{- end }}
     {{- if .Values.pmm.mongosParams }}
     mongosParams: {{ tpl .Values.pmm.mongosParams $ }}
+    {{- end }}
+    {{- if .Values.pmm.querySource }}
+    querySource: {{ .Values.pmm.querySource }}
     {{- end }}
     {{- if .Values.pmm.resources }}
     resources:
@@ -937,6 +946,10 @@ spec:
       {{- if .Values.sharding.mongos.hostAliases }}
       hostAliases:
 {{ .Values.sharding.mongos.hostAliases | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.mongos.logs }}
+      logs:
+{{ .Values.sharding.mongos.logs | toYaml | indent 8 }}
       {{- end }}
 
   {{- if .Values.users }}
