@@ -6,9 +6,7 @@
 ## The victoria-metrics-operator manages VictoriaMetrics resources
 victoria-metrics-operator:
   enabled: true
-  # The subchart already runs the operator as uid 1000 with no privilege escalation, dropped
-  # capabilities and a read-only root filesystem; the "restricted" Pod Security Standard also
-  # wants a seccomp profile.
+  # The subchart's defaults meet "restricted" except for the seccomp profile.
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault
@@ -43,8 +41,7 @@ altinity-clickhouse-operator:
     env:
       - name: WATCH_NAMESPACES
         value: ".*"
-    # The image runs as `nobody` (65534) but declares nothing, so state it: this is what the
-    # "restricted" Pod Security Standard checks. The operator writes no files.
+    # The image runs as `nobody` (65534) without declaring it, which "restricted" needs stated.
     containerSecurityContext:
       runAsNonRoot: true
       runAsUser: 65534
@@ -72,8 +69,7 @@ altinity-clickhouse-operator:
       readOnlyRootFilesystem: true
       seccompProfile:
         type: RuntimeDefault
-  # The CRD installation hook runs kubectl once; same posture. Same pinned kubectl image as the
-  # pmm-ha helper Jobs: bitnami/kubectl, the upstream default, publishes only `latest`.
+  # Same pinned kubectl image as the pmm-ha Jobs; the upstream bitnami/kubectl has only `latest`.
   crdHook:
     image:
       repository: alpine/kubectl

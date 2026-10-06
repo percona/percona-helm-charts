@@ -56,10 +56,7 @@ tests:
           path: data.PMM_DATA_RETENTION
         template: templates/configmap.yaml
 
-  # The earlier attempt had PMM patch the VMCluster itself, which needed the cluster's name
-  # in the environment and get/patch on vmclusters in RBAC. Retention is a chart value now,
-  # so PMM does not talk to the Kubernetes API about it and the variables may not come back
-  # (the chart creates no ClusterRole for PMM at all).
+  # Retention is a chart value; PMM has no Kubernetes API access to address the VMCluster with.
   - it: does not address the VMCluster from PMM
     asserts:
       - notExists:

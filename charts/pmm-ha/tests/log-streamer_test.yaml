@@ -1,6 +1,4 @@
-# The log-streamer sidecars are rendered inside a range, where `.` is the log file: values must
-# come through `$`. They share the PMM Server container's security context so the pod still
-# meets the "restricted" Pod Security Standard with them enabled.
+# The sidecars render inside a range, where `.` is the log file, so values must come through `$`.
 suite: pmm-ha log streamer
 templates:
   - templates/statefulset.yaml

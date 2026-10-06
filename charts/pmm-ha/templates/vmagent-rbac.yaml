@@ -1,14 +1,10 @@
 {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmagent.enabled .Values.victoriaMetrics.vmagent.rbac.create -}}
 {{- $name := include "pmm.vmagent.name" . -}}
-{{- /* ClusterRoles and their bindings are cluster-wide, so the namespace keeps two releases of
-       the same name in different namespaces apart. */ -}}
+{{- /* Cluster-scoped names carry the namespace so same-named releases do not clash. */ -}}
 {{- $clusterName := printf "%s-%s" .Release.Namespace $name -}}
 {{- $rbac := .Values.victoriaMetrics.vmagent.rbac -}}
-# vmagent's scrape jobs find their targets through the Kubernetes API, the kubelet and cAdvisor
-# jobs go through the apiserver proxy, and its config-reloader watches the config Secret the
-# operator renders. With a ServiceAccount named in the VMAgent the operator creates no RBAC, so
-# it is all here, scoped to the built-in jobs. rbac.extraRules and rbac.extraClusterRules widen
-# it for user scrapeConfigs.
+# The operator creates no RBAC for a VMAgent that names its ServiceAccount, so it is here, scoped
+# to the built-in scrape jobs. rbac.extraRules and rbac.extraClusterRules widen it.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -17,8 +13,7 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
 automountServiceAccountToken: true
 ---
-# Node discovery (role: node) and the kubelet/cAdvisor jobs, which read
-# /api/v1/nodes/<node>/proxy/metrics[/cadvisor]; plus the apiserver's own /metrics.
+# Node discovery, kubelet and cAdvisor through the apiserver proxy, and the apiserver's /metrics.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -67,8 +62,7 @@ rules:
 - apiGroups: ["discovery.k8s.io"]
   resources: ["endpointslices"]
   verbs: ["get", "list", "watch"]
-# The config-reloader sidecar watches the Secret the operator renders the scrape config into
-# ("vmagent-" + the VMAgent name).
+# The rendered scrape config, watched by the config-reloader.
 - apiGroups: [""]
   resources: ["secrets"]
   resourceNames: ["vmagent-{{ $name }}"]
@@ -125,9 +119,7 @@ subjects:
   namespace: {{ .Release.Namespace }}
 {{- if eq (include "pmm.nodeExporter.mode" .) "openshift" }}
 ---
-# nodeExporter.mode=openshift: the openshift-node-exporter job discovers the platform exporter's
-# endpoints in openshift-monitoring. Its kube-rbac-proxy then authorizes the scrape against the
-# nonResourceURL /metrics granted by the ClusterRole above.
+# The platform node-exporter; its kube-rbac-proxy checks the /metrics grant in the ClusterRole.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

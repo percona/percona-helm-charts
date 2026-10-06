@@ -423,8 +423,7 @@ spec:
                   - path: "annotations"
                     fieldRef:
                       fieldPath: metadata.annotations
-        # A required Secret volume: the pod waits in ContainerCreating until the pre-install
-        # hook (pmm-secret-init-job.yaml) has created it.
+        # Required: the pod waits in ContainerCreating until pmm-secret-init-job creates it.
         - name: encryption-key
           secret:
             secretName: pg-encryption-key

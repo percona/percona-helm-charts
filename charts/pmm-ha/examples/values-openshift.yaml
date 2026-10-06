@@ -43,16 +43,12 @@ haproxy:
 pg-db:
   pmm:
     serverHost: pmm-ha-haproxy:8443
-    ## Not passed to the operator by pg-db 3.1.0 yet; once it is, restricted-v2 must assign the
-    ## sidecar's uid like every other one.
+    ## For when pg-db passes it through: let the SCC assign the uid.
     containerSecurityContext:
       runAsUser: null
 
-## `openshift: true` covers the PMM Server and PMM Client pods only. The chart also pins uids
-## for ClickHouse, Keeper and the helper Jobs (all of whose images would otherwise run as
-## root), and restricted-v2 rejects those pins the same way. Unset them and let the SCC assign
-## the identity - it also injects runAsNonRoot, no privilege escalation, dropped capabilities
-## and RuntimeDefault seccomp, which the chart sets itself everywhere else.
+## `openshift: true` covers PMM Server and PMM Client only; restricted-v2 also rejects the uids
+## pinned for ClickHouse, Keeper and the helper Jobs, so let the SCC assign those.
 clickhouse:
   podSecurityContext:
     runAsUser: null
@@ -68,8 +64,6 @@ jobs:
   podSecurityContext:
     runAsUser: null
 
-## The operator's strict security pins uid/gid/fsGroup 65534 into every VictoriaMetrics pod,
-## which restricted-v2 refuses. With it off the CRs carry no securityContext and the SCC
-## supplies an equivalent one (arbitrary non-root uid, dropped capabilities, seccomp).
+## Strict security pins uid 65534, which restricted-v2 refuses; the SCC supplies an equivalent.
 victoriaMetrics:
   useStrictSecurity: false

@@ -194,8 +194,7 @@ spec:
                   protocol: TCP
               resources:
                 {{- toYaml .Values.clickhouse.resources | nindent 16 }}
-              # Logs and the entrypoint's scratch files are the only writes outside the data
-              # volume; emptyDirs keep them off the (read-only) root filesystem.
+              # The only writes outside the data volume, so the root filesystem can be read-only.
               volumeMounts:
                 - name: clickhouse-logs
                   mountPath: /var/log/clickhouse-server

@@ -1,7 +1,5 @@
-# PMM Server's ServiceAccount has neither a token nor RBAC, so vmagent runs under its own, and the
-# operator creates no RBAC once a name is given. templates/vmagent.yaml itself cannot be loaded
-# here (its labels repeat app.kubernetes.io/component, which helm unittest rejects); its
-# serviceAccountName is asserted in pmm-ha-pr-checks.yaml ("release-name-sensitive names").
+# templates/vmagent.yaml cannot be loaded here (it repeats the app.kubernetes.io/component label);
+# its serviceAccountName is asserted in pmm-ha-pr-checks.yaml instead.
 suite: pmm-ha vmagent RBAC
 templates:
   - templates/vmagent-rbac.yaml

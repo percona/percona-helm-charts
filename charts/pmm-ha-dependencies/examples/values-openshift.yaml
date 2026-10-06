@@ -2,14 +2,10 @@
 #
 #   helm install pmm-operators percona/pmm-ha-dependencies -n <project> -f examples/values-openshift.yaml
 #
-# restricted-v2 assigns user ids from the project's range and rejects pinned ones, so the
-# ids the charts pin for plain Kubernetes are unset here. Both operator images declare a
-# numeric non-root user, which is what runAsNonRoot needs once no uid is pinned.
-
-# Image names are fully qualified. CRI-O resolves unqualified names through its short-name
-# aliases first, and Red Hat ships one for `victoriametrics/operator` that points at
-# registry.connect.redhat.com, where the upstream tags do not exist - the pull fails instead of
-# falling back to Docker Hub.
+# restricted-v2 rejects pinned user ids, so the ones values.yaml pins are unset here.
+#
+# Images are fully qualified: CRI-O's short-name alias for `victoriametrics/operator` points at
+# registry.connect.redhat.com, where the upstream tags do not exist.
 altinity-clickhouse-operator:
   operator:
     image:

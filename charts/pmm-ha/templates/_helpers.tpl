@@ -67,8 +67,8 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Name of the VMAgent CR and of vmagent's ServiceAccount and RBAC. The operator names the config
-Secret "vmagent-" + this, which the vmagent Role grants by name.
+Name of the VMAgent CR, its ServiceAccount and RBAC. The operator names its config Secret
+"vmagent-" + this.
 */}}
 {{- define "pmm.vmagent.name" -}}
 {{- printf "%s-vmagent" (include "pmm.fullname" .) -}}
@@ -574,19 +574,10 @@ clearing those keys is an escape hatch for anyone running with anyuid.
 {{- end -}}
 
 {{/*
-Fail-fast validation for a namespace that enforces the "restricted" Pod Security Standard.
-
-The Percona PostgreSQL Operator adds the pmm-client sidecar to the PostgreSQL pods only once the
-pmm-token-init Job has created its token, and renders it without a security context (pg-db 3.1.0
-does not pass pg-db.pmm.containerSecurityContext through). The pods that run at install time are
-admitted; the pod the operator re-creates with the sidecar is refused, and PostgreSQL - PMM
-Server's own database - stays down while Helm reports STATUS: deployed. Failing the render is
-the only point at which the user still sees it.
-
-The namespace is read with `lookup`, so an offline render (helm template, CI) never trips this.
-OpenShift is exempt: restricted-v2 fills in the sidecar's security context before PodSecurity
-admission sees the pod. pgDbPmmSidecarPatched acknowledges that the security context has been
-handed to the operator by hand (README, "PMM sidecar in the PostgreSQL pods").
+Refuse a namespace enforcing "restricted" while the PostgreSQL PMM sidecar is on: the operator
+adds it without a security context once PMM is up, the re-created PostgreSQL pod is refused, and
+Helm still reports success. Offline renders skip this (`lookup`), OpenShift's restricted-v2 fills
+the context in, and pgDbPmmSidecarPatched acknowledges the manual patch in the README.
 */}}
 {{- define "pmm.podSecurity.validate" -}}
 {{- if and (index .Values "pg-db" "pmm" "enabled") (not .Values.openshift) (not .Values.pgDbPmmSidecarPatched) -}}

@@ -1,6 +1,4 @@
-# In a namespace enforcing the "restricted" Pod Security Standard the operator's PMM sidecar,
-# which pg-db 3.1.0 renders without a security context, gets the PostgreSQL pods refused once
-# PMM is up. The chart must refuse the render instead of leaving PMM without its database.
+# pmm.podSecurity.validate: see _helpers.tpl for why the render is refused.
 suite: pmm-ha restricted namespace guard
 templates:
   - templates/statefulset.yaml
@@ -78,7 +76,6 @@ tests:
     asserts:
       - notFailedTemplate: {}
 
-  # restricted-v2 fills in the sidecar's security context before PodSecurity admission runs.
   - it: exempts OpenShift installs made with the overlay
     template: templates/statefulset.yaml
     capabilities:
