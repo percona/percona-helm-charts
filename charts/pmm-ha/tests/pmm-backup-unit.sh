@@ -55,7 +55,10 @@ section() { echo; echo "-- $1"; }
 # Re-define the orchestrator's own <fn>... after a stub: `unset -f` would leave them undefined.
 real_fn() {
     for _rf in "$@"; do
-        eval "$(awk -v f="${_rf}" '$0 ~ "^" f "\\(\\) *\\{" {p = 1} p {print} p && /^}/ {exit}' "${TARGET}")"
+        # A one-liner ends on its own line; otherwise at the next column-0 `}`.
+        _rf_def=$(awk -v f="${_rf}" '!p && $0 ~ "^" f "\\(\\) *\\{" {p = 1; print; if ($0 ~ /}[[:space:]]*$/) exit; next} p {print} p && /^}/ {exit}' "${TARGET}")
+        [ -n "${_rf_def}" ] || { echo "real_fn: ${_rf} not found in ${TARGET}"; exit 1; }
+        eval "${_rf_def}"
     done
 }
 
@@ -2686,6 +2689,7 @@ assert_rc "pointer at the newest id passes" 0 $?
 # Partial schedule: a newer COMPLETE id the pointer declined. Destructive + silent = refuse.
 _cat_ids="backup_20260601-120000 backup_20260610-120000 backup_20260612-120000"
 _cat_status="backup_20260610-120000=complete backup_20260612-120000=complete"
+ASSUME_YES=false
 latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
 assert_rc "stale pointer is refused without --yes" 1 $?
 
@@ -2739,17 +2743,22 @@ _cat_status="backup_20260612-120000=complete"
 latest_staleness_guard "backup_pre-upgrade" >/dev/null 2>&1
 assert_rc "a custom 'latest' with no readable time is not refused" 0 $?
 
-# Newest first, stop at the first complete one, never more than LATEST_CHECK_MAX reads: days of
-# failed hourly runs must not cost a manifest read each before a DR restore starts.
-_cat_ids="backup_20260610-120000"; _cat_status="backup_20260610-120000=complete"
-_d=11; while [ "${_d}" -le 28 ]; do
+# Newest first, stop at the first complete one. No cap: a complete run behind ten or more failed
+# ones (the DR moment) must still be found (round-7 review #5).
+_cat_ids="backup_20260610-120000 backup_20260611-000000"
+_cat_status="backup_20260610-120000=complete backup_20260611-000000=complete"
+_d=12; while [ "${_d}" -le 28 ]; do
     _cat_ids="${_cat_ids} backup_202606${_d}-120000"; _cat_status="${_cat_status} backup_202606${_d}-120000=partial"
     _d=$((_d + 1))
 done
 : > "${_cat_reads_f}"
 latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1; _rc=$?
+assert_rc "a complete run behind 17 failed ones is still found" 1 "${_rc}"
+_cat_status=$(printf '%s' "${_cat_status}" | sed 's/backup_20260611-000000=complete/backup_20260611-000000=partial/')
+: > "${_cat_reads_f}"
+latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1; _rc=$?
 assert_rc "18 newer failed runs: 'latest' goes ahead" 0 "${_rc}"
-assert_eq "...after at most LATEST_CHECK_MAX manifest reads" "${LATEST_CHECK_MAX}" "$(_cat_reads)"
+assert_eq "...after reading each once" "18" "$(_cat_reads)"
 _cat_status=$(printf '%s' "${_cat_status}" | sed 's/backup_20260628-120000=partial/backup_20260628-120000=complete/')
 : > "${_cat_reads_f}"
 latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1; _rc=$?
@@ -2762,7 +2771,25 @@ real_fn catalog_ids catalog_manifest
 # The real one reads the store; the stub would refuse an id it does not know.
 store_read() { printf '{"real":1}'; }; CATALOG_CACHE_DIR=""
 assert_eq "teardown restores the real catalog_manifest" '{"real":1}' "$(catalog_manifest backup_x)"
-real_fn store_read
+
+# Under the cache two custom ids cost one store read each (round-7 review #7).
+_sr_f=$(mktemp "${TMPDIR:-/tmp}/sr.XXXXXX")
+catalog_ids() { printf '%s\n' backup_20260610-120000 backup_a backup_b; }
+store_read() {
+    echo "$1" >> "${_sr_f}"
+    case "$1" in
+        *backup_a.json) printf '{"status":"partial","created":"2026-06-11T00:00:00Z"}' ;;
+        *backup_b.json) printf '{"status":"partial","created":"2026-06-12T00:00:00Z"}' ;;
+        *) return 1 ;;
+    esac
+}
+catalog_cache_init   # load_manifest does this before the guard; restore_cleanup clears it
+latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
+assert_eq "custom manifests are read once each" "2" "$(wc -l < "${_sr_f}" | tr -d ' ')"
+catalog_cache_clear
+case "$(awk '/^load_manifest\(\) \{/,/^}/' "${TARGET}")" in *"catalog_cache_init"*) ok ;; *) bad "load_manifest caches for the guard" "catalog_cache_init" "absent" ;; esac
+rm -f "${_sr_f}"
+real_fn store_read catalog_ids
 
 #########################################################################################
 section "retention_lock — retention takes the lock every restore holds"
@@ -2785,6 +2812,15 @@ _rl_reset; _rl_lease_rc=1; LEASE_HOLDER="restore-pod-7"
 retention_lock; _rc=$?
 assert_rc "held lease: retention does not run" 1 "${_rc}"
 case "${RETENTION_LOCK_WHY}" in *"held by restore-pod-7"*) ok ;; *) bad "names the holder" "held by restore-pod-7" "${RETENTION_LOCK_WHY}" ;; esac
+case "${RETENTION_LOCK_WHY}" in *"another backup"*) ok ;; *) bad "does not blame only a restore" "another backup" "${RETENTION_LOCK_WHY}" ;; esac
+# Taking over an expired lease is logged, as acquire_component_lock does.
+_rl_reset; LEASE_HOLDER="dead-pod"
+lease_try_acquire() { LEASE_HOLDER="dead-pod"; return 0; }
+log() { echo "[$1] $2"; }
+_out=$(retention_lock 2>&1)
+log() { :; }
+case "${_out}" in *"Took over the expired pmm-server lock"*dead-pod*) ok ;; *) bad "an expired-lease takeover is logged" "Took over" "${_out}" ;; esac
+lease_try_acquire() { _rl_calls="${_rl_calls}$1|"; return "${_rl_lease_rc:-0}"; }
 
 _rl_reset; _rl_lease_rc=2; LEASE_ERR="leases is forbidden"
 retention_lock >/dev/null 2>&1
@@ -2807,6 +2843,11 @@ DRY_RUN=false
 # prune and a backup's sweep both go through it (review round 6 #3: `prune --clickhouse` used to
 # leave PMM unresolved and lock a different lease name).
 case "$(awk '/^cmd_prune\(\) \{/,/^}/' "${TARGET}")" in *"retention_lock"*) ok ;; *) bad "cmd_prune locks through retention_lock" "retention_lock" "absent" ;; esac
+# ...and resolves the ClickHouse owner for its lease whatever the flags, without overriding them
+# (`prune --postgresql` used to lock an unsuffixed lease; forcing the flag ran `clean` on --skip-clickhouse).
+_cp_body=$(awk '/^cmd_prune\(\) \{/,/^}/' "${TARGET}")
+case "${_cp_body}" in *'SCOPE_CH_CHI=$(resolve_one ClickHouse'*) ok ;; *) bad "cmd_prune resolves the ClickHouse lease owner" "resolve_one ClickHouse" "absent" ;; esac
+case "${_cp_body}" in *"BACKUP_CLICKHOUSE=true"*) bad "cmd_prune leaves --skip-clickhouse alone" "no override" "BACKUP_CLICKHOUSE=true" ;; *) ok ;; esac
 case "$(awk '/^cmd_backup\(\) \{/,/^}/' "${TARGET}")" in *"if retention_lock; then"*) ok ;; *) bad "a backup's sweep locks through retention_lock" "retention_lock" "absent" ;; esac
 real_fn lease_try_acquire resolve_one stop_lock_renewer start_lock_renewer
 LOCK_COMPONENTS=""; SCOPE_PMM_STS=""
@@ -2816,53 +2857,166 @@ section "restore_manifest_unchanged — a sweep between validation and the lock 
 #########################################################################################
 
 MANIFEST_FILE=$(mktemp "${TMPDIR:-/tmp}/mf.XXXXXX"); printf '{"status":"complete"}' > "${MANIFEST_FILE}"
-CURRENT_ID="backup_20260610-120000"
+_sv_cid0="${CURRENT_ID}"; CURRENT_ID="backup_20260610-120000"
 store_read() { printf '%s' "${_srm}"; [ -n "${_srm}" ]; }
 _srm='{"status":"complete"}'; restore_manifest_unchanged; assert_rc "same manifest: go ahead" 0 $?
 _srm='{"status":"complete","components":{"postgresql":{"status":"pruned"}}}'; restore_manifest_unchanged
 assert_rc "rewritten by a sweep: stop" 1 $?
 _srm=''; restore_manifest_unchanged; assert_rc "gone (or unreadable): stop" 1 $?
-real_fn store_read; rm -f "${MANIFEST_FILE}"; MANIFEST_FILE=""
+real_fn store_read; rm -f "${MANIFEST_FILE}"; MANIFEST_FILE=""; CURRENT_ID="${_sv_cid0}"
 
 #########################################################################################
 section "vm_wait_storage_ready / vm_image_pull_probe — VictoriaMetrics restore guards"
 #########################################################################################
 
-NAMESPACE=unit; VM_READY_TIMEOUT=30
+_sv_ns="${NAMESPACE}"; _sv_vrt="${VM_READY_TIMEOUT}"; _sv_tpr="${TEMP_POD_RESOURCES}"; _sv_sa="${TEMP_POD_SA_LINE}"
+_sv_s3="${S3_ENABLED}"; _sv_mk="${TEMP_PODS_MARKER}"
+NAMESPACE=unit
 sleep() { :; }
-# A crash-looping vmstorage will not heal: stop at once instead of holding PMM down for 30 min.
-kubectl() { printf 'true \nfalse CrashLoopBackOff\ntrue \n'; }
-vm_wait_storage_ready 3 >/dev/null 2>&1; assert_rc "CrashLoopBackOff stops the wait" 1 $?
-kubectl() { printf 'true \ntrue \ntrue \n'; }
+_vw_f=$(mktemp "${TMPDIR:-/tmp}/vw.XXXXXX"); _vw_log=""; _vw_restarts=1
+timeout() { shift; "$@"; }   # the real one would run the kubectl binary, not this stub
+kubectl() {
+    case "$1" in
+        logs) printf '%s' "${_vw_log}" ;;
+        *) echo get >> "${_vw_f}"; printf 'vmstorage-0|true|0|\nvmstorage-1|false|%s|CrashLoopBackOff\nvmstorage-2|true|0|\n' "${_vw_restarts}" ;;
+    esac
+}
+# The incomplete-restore marker never heals: stop at once (round-7 review #3)...
+VM_READY_TIMEOUT=30; _vw_log="cannot open storage: incomplete vmrestore run"
+vm_wait_storage_ready 3 >/dev/null 2>&1; assert_rc "the restore-in-progress marker stops the wait" 1 $?
+assert_eq "...on the first look" "1" "$(wc -l < "${_vw_f}" | tr -d ' ')"
+# ...nor does a pod that has crashed 5 times (round-8 review #6)...
+: > "${_vw_f}"; _vw_log="panic: something else"; _vw_restarts=5
+vm_wait_storage_ready 3 >/dev/null 2>&1; assert_rc "five restarts stop the wait" 1 $?
+assert_eq "...on the first look" "1" "$(wc -l < "${_vw_f}" | tr -d ' ')"
+# ...but one crash may heal on retry, so keep waiting (here until a 1 s timeout).
+: > "${_vw_f}"; VM_READY_TIMEOUT=1; _vw_restarts=1
+vm_wait_storage_ready 3 >/dev/null 2>&1; assert_rc "a single crash waits out the timeout" 1 $?
+case "$(wc -l < "${_vw_f}" | tr -d ' ')" in 1) bad "...instead of stopping at once" "more than one look" "1" ;; *) ok ;; esac
+kubectl() { printf 'vmstorage-0|true|0|\nvmstorage-1|true|0|\nvmstorage-2|true|0|\n'; }
 vm_wait_storage_ready 3 >/dev/null 2>&1; assert_rc "all ready returns at once" 0 $?
+rm -f "${_vw_f}"
 
-# The pull probe: one pod per vmstorage node, pinned there, running the image and nothing else.
+# The pull probe: ONE pod, placed by the scheduler, running the image and nothing else (round-7 #4).
 real_fn clear_leftover_temp_pod
 k8s_object_state() { return 1; }; delete_temp_restore_pod() { :; }
-TEMP_POD_SA_LINE=""; TEMP_POD_RESOURCES='{"requests":{"cpu":"10m"}}'
-_pp_f=$(mktemp "${TMPDIR:-/tmp}/probe.XXXXXX"); _pp_status="Succeeded "
+TEMP_POD_SA_LINE="  serviceAccountName: pmm-ha-backup-s3"
+TEMP_PODS_MARKER=$(mktemp "${TMPDIR:-/tmp}/marker.XXXXXX"); TEMP_POD_RESOURCES='{"requests":{"cpu":"100m"}}'
+_pp_f=$(mktemp "${TMPDIR:-/tmp}/probe.XXXXXX"); _pp_status="Succeeded||||"
 kubectl() {
     case "$*" in
         *"create -f -"*) cat > "${_pp_f}"; echo "pod created" ;;   # a file: create runs inside $( )
-        *"{.spec.nodeName}"*) printf 'node-a' ;;
         *) printf '%s' "${_pp_status}" ;;
     esac
 }
-DRY_RUN=false
-vm_image_pull_probe "vmrestore:v1" "" "" "vmstorage-x-0" >/dev/null 2>&1; assert_rc "image runs: probe passes" 0 $?
+DRY_RUN=false; S3_ENABLED=true
+vm_image_pull_probe "vmrestore:v1" "" "" >/dev/null 2>&1; assert_rc "image runs: probe passes" 0 $?
 _pp_yaml=$(cat "${_pp_f}")
-case "${_pp_yaml}" in *"nodeName: node-a"*) ok ;; *) bad "probe is pinned to the vmstorage node" "nodeName: node-a" "${_pp_yaml}" ;; esac
+case "${_pp_yaml}" in *nodeName*) bad "probe is left to the scheduler" "no nodeName" "${_pp_yaml}" ;; *) ok ;; esac
 case "${_pp_yaml}" in *'command: ["/vmrestore-prod", "-version"]'*) ok ;; *) bad "probe only runs -version" "-version" "${_pp_yaml}" ;; esac
 case "${_pp_yaml}" in *"allowPrivilegeEscalation: false"*) ok ;; *) bad "probe carries the temp-pod hardening" "allowPrivilegeEscalation" "${_pp_yaml}" ;; esac
-_pp_status="Pending ImagePullBackOff"
-vm_image_pull_probe "vmrestore:nope" "" "" "vmstorage-x-0" >/dev/null 2>&1; assert_rc "pull failure fails validation" 1 $?
+case "${_pp_yaml}" in *"resources: ${TEMP_POD_RESOURCES}"*) ok ;; *) bad "probe uses the temp pods' resources (LimitRange/quota)" "${TEMP_POD_RESOURCES}" "${_pp_yaml}" ;; esac
+case "${_pp_yaml}" in *"imagePullPolicy: Always"*) ok ;; *) bad "probe always asks the registry" "Always" "${_pp_yaml}" ;; esac
+case "${_pp_yaml}" in *"karpenter.sh/do-not-disrupt"*) ok ;; *) bad "probe is the real temp-pod spec (annotations)" "do-not-disrupt" "${_pp_yaml}" ;; esac
+case "${_pp_yaml}" in *volumeMounts*|*persistentVolumeClaim*) bad "probe mounts nothing" "no volumes" "${_pp_yaml}" ;; *) ok ;; esac
+case "${_pp_yaml}" in *"serviceAccountName: pmm-ha-backup-s3"*) ok ;; *) bad "s3 probe runs under the temp pods' SA" "serviceAccountName" "${_pp_yaml}" ;; esac
+assert_eq "probe is registered for interrupt cleanup" "vm-image-probe" "$(cat "${TEMP_PODS_MARKER}")"
+S3_ENABLED=false
+vm_image_pull_probe "vmrestore:v1" "" "" >/dev/null 2>&1
+case "$(cat "${_pp_f}")" in *serviceAccountName*) bad "shared probe takes no SA, like the real temp pod" "no serviceAccountName" "present" ;; *) ok ;; esac
+_pp_status="Pending||ImagePullBackOff||"
+vm_image_pull_probe "vmrestore:nope" "" "" >/dev/null 2>&1; assert_rc "pull failure fails validation" 1 $?
+_pp_status="Failed|||1|"
+vm_image_pull_probe "vmrestore:v1" "" "" >/dev/null 2>&1; assert_rc "an image that exits non-zero fails validation" 1 $?
+# Evicted or never scheduled is not proof of a bad image: warn and go on (round-8 review #5).
+_pp_status="Failed|Evicted|||"
+vm_image_pull_probe "vmrestore:v1" "" "" >/dev/null 2>&1; assert_rc "an evicted probe does not block the restore" 0 $?
+_pp_status="Pending||||Unschedulable"
+vm_image_pull_probe "vmrestore:v1" "" "" >/dev/null 2>&1; assert_rc "an unscheduled probe does not block the restore" 0 $?
+# Scheduled but still pulling after 300 s: the real pods would wait the same pull with PMM down (#2).
+_pp_status="Pending||ContainerCreating||"
+vm_image_pull_probe "vmrestore:v1" "" "" >/dev/null 2>&1; assert_rc "a pull still running after 300 s fails closed" 1 $?
 : > "${_pp_f}"; DRY_RUN=true
-vm_image_pull_probe "vmrestore:v1" "" "" "vmstorage-x-0" >/dev/null 2>&1
+vm_image_pull_probe "vmrestore:v1" "" "" >/dev/null 2>&1
 assert_eq "dry run creates nothing" "" "$(cat "${_pp_f}")"
-rm -f "${_pp_f}"
+rm -f "${_pp_f}" "${TEMP_PODS_MARKER}"
 DRY_RUN=false
-unset -f kubectl sleep
+unset -f kubectl sleep timeout
 real_fn k8s_object_state delete_temp_restore_pod
+NAMESPACE="${_sv_ns}"; VM_READY_TIMEOUT="${_sv_vrt}"; TEMP_POD_RESOURCES="${_sv_tpr}"; TEMP_POD_SA_LINE="${_sv_sa}"
+S3_ENABLED="${_sv_s3}"; TEMP_PODS_MARKER="${_sv_mk}"
+
+#########################################################################################
+section "load_manifest / manifest merge / sweep marker — round-7 review #1, #8, #12"
+#########################################################################################
+
+_sv_bid="${BACKUP_ID}"; _sv_cid="${CURRENT_ID}"
+_lm_f=$(mktemp "${TMPDIR:-/tmp}/lm.XXXXXX")
+# A bucket-controlled 'latest' is charset-gated BEFORE the staleness guard reads by it.
+catalog_latest() { printf '../../other-ns/pmm-ha/manifests/backup_x'; }
+latest_staleness_guard() { echo called >> "${_lm_f}"; return 0; }
+BACKUP_ID=latest
+load_manifest >/dev/null 2>&1; assert_rc "a traversal 'latest' is refused" 1 $?
+assert_eq "...before the guard reads anything by it" "" "$(cat "${_lm_f}")"
+real_fn catalog_latest latest_staleness_guard
+# A manifest retention has started on is never restored from.
+store_read() { printf '{"schema":1,"status":"pruning","components":{"postgresql":{"status":"success"}}}'; }
+BACKUP_ID=backup_20260610-120000
+load_manifest >/dev/null 2>&1; assert_rc "status 'pruning' is refused" 1 $?
+rm -f "${MANIFEST_FILE}" 2>/dev/null; MANIFEST_FILE=""
+
+# The merge takes the LAST writer's `created`: a custom id re-run in full that 'latest' moves onto
+# must not be aged by its first run (round-8 review #1).
+CURRENT_ID=backup_pre-upgrade
+store_read() { printf '{"created":"2026-06-01T00:00:00Z","status":"complete","components":{"clickhouse":{"status":"success"}}}'; }
+manifest_merge_existing '{"created":"2026-06-12T00:00:00Z","status":"complete","components":{"postgresql":{"status":"success"}}}' false "" >/dev/null 2>&1
+assert_eq "merge takes the last writer's created" "2026-06-12T00:00:00Z" "$(printf '%s' "${MANIFEST_MERGED}" | jq -r .created)"
+# ...but 'pruning' sticks: some of the id may already be deleted (round-8 review #8).
+store_read() { printf '{"status":"pruning","components":{"victoriametrics":{"status":"success"}}}'; }
+manifest_merge_existing '{"status":"complete","components":{"postgresql":{"status":"success"}}}' false "" >/dev/null 2>&1
+assert_eq "a re-run does not clear 'pruning'" "pruning" "$(printf '%s' "${MANIFEST_MERGED}" | jq -r .status)"
+real_fn store_read
+
+# The sweep marks the manifest 'pruning' BEFORE its first delete; if it cannot, it deletes nothing.
+: > "${_lm_f}"
+catalog_manifest() { printf '{"schema":1,"status":"complete","components":{"postgresql":{"status":"success"},"pmm-server":{"status":"success"}}}'; }
+store_write() { printf 'write %s\n' "$(cat)" >> "${_lm_f}"; return "${_sw_rc:-0}"; }
+store_delete_prefix() { echo "delete $1" >> "${_lm_f}"; }
+store_delete_object() { echo "delete-manifest $1" >> "${_lm_f}"; }
+DRY_RUN=false; _sw_rc=0
+prune_purge_one backup_old "" >/dev/null 2>&1
+case "$(head -n 1 "${_lm_f}")" in "write "*'"status":"pruning"'*) ok ;; *) bad "the first sweep action marks the manifest pruning" "write …pruning" "$(head -n 1 "${_lm_f}")" ;; esac
+assert_eq "...then purges, manifest last" "delete-manifest" "$(tail -n 1 "${_lm_f}" | cut -d' ' -f1)"
+: > "${_lm_f}"; _sw_rc=1
+prune_purge_one backup_old "" >/dev/null 2>&1
+assert_eq "an unmarkable id is deferred with nothing deleted" "0" "$(grep -c '^delete' "${_lm_f}" || true)"
+assert_eq "...and counted as skipped" "1" "${PRUNE_ONE_SKIPPED}"
+# Same order on the ClickHouse-pinned branch: mark, delete the rest, then rewrite to 'partial'.
+catalog_manifest() { printf '{"schema":1,"status":"complete","components":{"clickhouse":{"status":"success","name":"backup_old"},"postgresql":{"status":"success"}}}'; }
+: > "${_lm_f}"; _sw_rc=0
+prune_purge_one backup_old " backup_old " >/dev/null 2>&1
+case "$(head -n 1 "${_lm_f}")" in "write "*'"status":"pruning"'*) ok ;; *) bad "pinned: marks pruning first" "write …pruning" "$(head -n 1 "${_lm_f}")" ;; esac
+# prune_mark_pruned writes pretty JSON: the 'partial' rewrite must come after the last delete.
+_pin_order=$(awk '/^delete/ {d = NR} /"status": "partial"/ {p = NR} END {print (d && p > d) ? "ok" : "bad"}' "${_lm_f}")
+assert_eq "pinned: ends rewritten to partial, after the deletes" "ok" "${_pin_order}"
+assert_eq "pinned: clickhouse/ is never deleted" "0" "$(grep -c 'delete .*clickhouse' "${_lm_f}" || true)"
+: > "${_lm_f}"; _sw_rc=1
+prune_purge_one backup_old " backup_old " >/dev/null 2>&1
+assert_eq "pinned: an unmarkable id deletes nothing" "0" "$(grep -c '^delete' "${_lm_f}" || true)"
+real_fn catalog_manifest store_write store_delete_prefix store_delete_object
+rm -f "${_lm_f}"
+BACKUP_ID="${_sv_bid}"; CURRENT_ID="${_sv_cid}"
+
+#########################################################################################
+section "real_fn — the test helper itself"
+#########################################################################################
+
+# A one-liner must not drag the next functions back in over their stubs; a missing name is fatal.
+manifest_display() { echo stub; }
+real_fn manifest_path
+assert_eq "re-defining a one-liner leaves the next function's stub alone" "stub" "$(manifest_display)"
+real_fn manifest_display
+( real_fn no_such_function_here ) >/dev/null 2>&1; assert_rc "a missing function fails loudly" 1 $?
 
 #########################################################################################
 section "vm_report_incomplete_restore — name the marker, but only when it is the cause"
@@ -2873,12 +3027,14 @@ section "vm_report_incomplete_restore — name the marker, but only when it is t
 # saying only that they "did not return" - the actual cause lives in a pod log.
 NAMESPACE=testns
 BACKUP_NAME=backup_20260610-120000
-_vri_log=""
+_vri_log=""; _t_marker_pod="vmstorage-0"   # not _vri_pod: the function's own variable
+timeout() { shift; "$@"; }
 kubectl() {
     case "$1" in
-        get)  printf '%s' "vmstorage-0" ;;
-        logs) printf '%s' "${_vri_log}" ;;
+        get)  printf '%s' "vmstorage-0 vmstorage-1" ;;
+        logs) [ "$4" = "${_t_marker_pod}" ] && printf '%s' "${_vri_log}" ;;
     esac
+    return 0
 }
 _cap=""
 log() { _cap="${_cap}
@@ -2896,6 +3052,11 @@ case "${_cap}" in
     *) bad "gives the re-run command with this backup id" "restore --backup-id ${BACKUP_NAME}" "${_cap}" ;;
 esac
 
+# The marker on ANY shard is found, not just the first pod's (round-8 review #9).
+_t_marker_pod="vmstorage-1"; _cap=""; vm_report_incomplete_restore
+case "${_cap}" in *"vmstorage-1 is refusing to start"*) ok ;; *) bad "finds the marker on another shard" "vmstorage-1" "${_cap}" ;; esac
+_t_marker_pod="vmstorage-0"
+
 # A vmstorage that is down for an UNRELATED reason must not be told to re-run a restore: that
 # advice would not help, and acting on it would scale a healthy-ish cluster down again.
 _vri_log='pod has unbound immediate PersistentVolumeClaims'
@@ -2907,7 +3068,7 @@ kubectl() { printf '%s' ""; }
 _cap=""; vm_report_incomplete_restore
 assert_eq "silent when there is no vmstorage pod" "" "${_cap}"
 
-unset -f kubectl 2>/dev/null || true
+unset -f kubectl timeout 2>/dev/null || true
 log() { :; }
 NAMESPACE=""; BACKUP_NAME=""
 

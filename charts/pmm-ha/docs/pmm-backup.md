@@ -1243,7 +1243,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `LOCK_RENEWER_MAX_SECONDS` | Backstop lifetime for the lease renewer | 86400 |
 | `CH_SECRET_NAME` | Kubernetes secret for ClickHouse (the chart sets it from `secret.name`) | pmm-secret |
 | `CH_CREATE_TIMEOUT` | Max seconds to wait for clickhouse-backup create (the upload has no wall clock) | 300 |
-| `VM_READY_TIMEOUT` | Max seconds a restore waits for vmstorage to be Ready again after vmrestore (a large tier loads its index for minutes) | 1800 |
+| `VM_READY_TIMEOUT` | Max seconds a restore waits for vmstorage to be Ready again after vmrestore (a large tier loads its index for minutes). It stops early on vmrestore's incomplete-restore marker or after 5 restarts | 1800 |
 | `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
 | `BACKUP_TARGET` | Target mode: `s3` or `shared` (set by Helm from `centralBackupStorage.mode`) | s3 |
 | `PMM_SERVER_REPLICAS` | Replica count a restore scales PMM back up to, used **only** when the live `spec.replicas` is 0/unreadable *and* the count stashed on the StatefulSet (`restore.pmm.percona.com/original-replicas`) is unusable. Set it when re-running a restore against an install that does not run 3. | 3 |
@@ -1895,8 +1895,9 @@ PostgreSQL needs no options — databases come from the manifest.
 5. If `--dry-run`: print the per-component plan and exit.
 6. **Confirm** (unless `--yes`; required when there's no TTY). `--yes` answers the prompt only — it never disables a safety check, so e.g. a failed encryption-key restore still aborts the run.
    Then the component locks are taken and the manifest is re-read: if a retention sweep changed it
-   in between, the run stops before anything changes. Before that, validation also runs the
-   vmrestore image once on each vmstorage node, so a pull failure surfaces while PMM is still up.
+   in between (a sweep marks it `pruning` before its first delete), the run stops before anything
+   changes. Before that, validation runs the vmrestore image once, so a bad tag, a missing pull
+   secret or an unreachable registry surfaces while PMM is still up.
 7. **Encryption key**: fetch from the backup and `kubectl apply` (namespace rewritten to
    the target). Aborts the restore if it fails (data can't be decrypted otherwise).
 8. **Scale down PMM** to 0 — nothing may write the DBs during restore, and the

@@ -253,8 +253,8 @@ The other side of that gate: when newer COMPLETE backups exist that `latest` did
 latest` refuses and the operator names an id. `--yes` does not override it — every non-interactive
 restore passes `--yes`, so a refusal it could bypass would never fire. Newer failed or partial runs
 do not count: skipping them is what `latest` is for, and refusing on them would block the DR restore
-exactly when backups have started failing. A custom id is ordered by its manifest's `created`. Newer
-backups are checked newest first and the check stops at the first complete one, reading at most ten.
+exactly when backups have started failing. A custom id is ordered by its manifest's `created` (its last
+write, so re-running a component counts as a newer ad-hoc run). Newer backups are checked newest first and the check stops at the first complete one.
 
 ## DN-15 — Validate everything before the point of no return
 
