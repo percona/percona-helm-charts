@@ -4,12 +4,13 @@
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMAgent
 metadata:
-  name: {{ include "pmm.fullname" . }}-vmagent
+  name: {{ include "pmm.vmagent.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: vmagent
 spec:
+  useStrictSecurity: {{ .Values.victoriaMetrics.useStrictSecurity }}
   {{- if .Values.victoriaMetrics.version }}
   # Pinned alongside the VMCluster - see victoriaMetrics.version in values.yaml.
   componentVersion: {{ .Values.victoriaMetrics.version | quote }}
@@ -18,10 +19,9 @@ spec:
   # Number of VMAgent replicas
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
 
-  {{- if .Values.serviceAccount.create }}
-  # Use PMM's service account so vmagent can scrape the kubelet/cAdvisor through
-  # the apiserver proxy (requires the nodes/proxy permission granted in clusterrole.yaml).
-  serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+  {{- if .Values.victoriaMetrics.vmagent.rbac.create }}
+  # Created with its RBAC in vmagent-rbac.yaml.
+  serviceAccountName: {{ include "pmm.vmagent.name" . }}
   {{- end }}
 
   # Remote write configuration - forwards metrics to VMAuth with secure basicAuth
