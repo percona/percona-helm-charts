@@ -6,6 +6,10 @@
 ## The victoria-metrics-operator manages VictoriaMetrics resources
 victoria-metrics-operator:
   enabled: true
+  # The subchart's defaults meet "restricted" except for the seccomp profile.
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
   crds:
     enabled: true
   admissionWebhooks:
@@ -37,6 +41,17 @@ altinity-clickhouse-operator:
     env:
       - name: WATCH_NAMESPACES
         value: ".*"
+    # The image runs as `nobody` (65534) without declaring it, which "restricted" needs stated.
+    containerSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      seccompProfile:
+        type: RuntimeDefault
   # The metrics-exporter sidecar reads its own env, not the operator's, and uses the same
   # GetInformerNamespace() logic — so mirror the setting here, or a ClickHouseInstallation in a
   # non-operator namespace stays unmonitored until the next reconcile pushes it to the exporter.
@@ -44,6 +59,32 @@ altinity-clickhouse-operator:
     env:
       - name: WATCH_NAMESPACES
         value: ".*"
+    containerSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      seccompProfile:
+        type: RuntimeDefault
+  # Same pinned kubectl image as the pmm-ha Jobs; the upstream bitnami/kubectl has only `latest`.
+  crdHook:
+    image:
+      repository: alpine/kubectl
+      tag: "1.35.0"
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
   # fullnameOverride: clickhouse-op  # Uncomment to shorten resource names if hitting 63-char limit
 
 ## @section PostgreSQL Operator Configuration

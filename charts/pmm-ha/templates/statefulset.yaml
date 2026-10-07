@@ -1,6 +1,7 @@
 {{- include "pmm.nodeExporter.validate" . -}}
 {{- include "pmm.dataRetention.validate" . -}}
 {{- include "pmm.openshift.validate" . -}}
+{{- include "pmm.podSecurity.validate" . -}}
 {{- include "pmm.haproxy.validate" . -}}
 {{- include "pmm.validateSecret" . -}}
 {{- include "pmm.vm.validateCredential" . -}}
@@ -35,6 +36,7 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- include "pmm.podSecurityContext" . | nindent 6 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -48,30 +50,12 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      # Init container to verify secret exists before starting main app
       initContainers:
-        - name: wait-for-pg-secret
-          image: alpine/kubectl:latest
-          command:
-            - /bin/sh
-            - -c
-            - |
-              echo "Waiting for secret to be available..."
-              until kubectl get secret pg-encryption-key -n {{ .Release.Namespace }}; do
-                echo "Secret not found, retrying in 5s..."
-                sleep 5
-              done
-              echo "Secret found, proceeding..."
-          resources:
-            requests:
-              cpu: 10m
-              memory: 16Mi
-            limits:
-              cpu: 50m
-              memory: 64Mi
         - name: wait-for-clickhouse
           image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
           imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           command:
             - /bin/bash
             - -c
@@ -133,6 +117,9 @@ spec:
                   key: PMM_CLICKHOUSE_PASSWORD
             - name: PMM_CLICKHOUSE_CLUSTER_NAME
               value: "{{ .Values.clickhouse.cluster.name }}"
+            # clickhouse-client writes its history under $HOME, which is / (not writable) for uid 1000.
+            - name: HOME
+              value: /tmp
           resources:
             requests:
               cpu: 50m
@@ -147,6 +134,8 @@ spec:
         - name: wait-for-pg
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           command:
             - /bin/bash
             - -c
@@ -405,7 +394,9 @@ spec:
         {{- range $index, $logFile := .Values.logStreamer.logFiles }}
         # Sidecar container to stream {{ $logFile }} to stdout
         - name: log-streamer-{{ $index }}
-          image: busybox:latest
+          image: "{{ $.Values.logStreamer.image.repository }}:{{ $.Values.logStreamer.image.tag }}"
+          securityContext:
+            {{- toYaml $.Values.securityContext | nindent 12 }}
           command:
             - /bin/sh
             - -c
@@ -475,6 +466,7 @@ spec:
                   - path: "annotations"
                     fieldRef:
                       fieldPath: metadata.annotations
+        # Required: the pod waits in ContainerCreating until pmm-secret-init-job creates it.
         - name: encryption-key
           secret:
             secretName: pg-encryption-key

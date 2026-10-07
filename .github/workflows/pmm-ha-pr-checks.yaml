@@ -264,6 +264,9 @@ jobs:
                   -s templates/clickhouse-cluster.yaml | grep -m1 '^  name:')
           [[ "$chi" == "  name: pmm-2" ]] || { echo "::error::CHI name changed: $chi"; exit 1; }
 
+          # helm unittest cannot load vmagent.yaml (see tests/vmagent-rbac_test.yaml).
+          assert_has "serviceAccountName: pmm-2-pmm-ha-vmagent" "VMAgent serviceAccountName"
+
           # Release names are not regex-safe: a dot in the name must not widen an anchored regex.
           helm template 'pmm.ha' charts/pmm-ha --namespace "$NS" --dry-run=server \
             | grep -qF "regex: 'pmm\\.ha'" \
