@@ -426,6 +426,8 @@ spec:
         - name: pmm-backup
           image: "{{ .Values.centralBackupStorage.client.image.registry }}/{{ .Values.centralBackupStorage.client.image.repository }}:{{ .Values.centralBackupStorage.client.image.tag }}"
           command: ["sleep", "infinity"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           env:
             {{- include "pmm.rcloneS3Env" . | nindent 12 }}
             {{- with .Values.centralBackupStorage.s3.existingSecret }}

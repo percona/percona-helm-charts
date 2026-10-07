@@ -764,6 +764,13 @@ clickhouse:
       limits:
         cpu: 500m
         memory: 512Mi
+
+    ## @param clickhouse.backup.securityContext Container securityContext of the backup sidecar (runs as the pod's uid 101)
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
     
     ## @param clickhouse.backup.keepLocal Local (hardlink) backups clickhouse-backup keeps per replica
     ## Note: Local backups use hardlinks (~0 space) and are copied to central storage
@@ -1008,14 +1015,21 @@ centralBackupStorage:
         cpu: "2"
         memory: 2Gi
     ## @param centralBackupStorage.tools.podSecurityContext Pod securityContext of backup-tools and the backup/restore Jobs
-    ## Pod Security "restricted": add runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534 here and
-    ## capabilities: {drop: [ALL]} below (the default image ships jq/rclone; shared mode needs the volume writable by that uid).
+    ## Pod Security "restricted", like the rest of the chart: the default image ships jq and rclone, so
+    ## nothing needs root. The central volume must be writable by this uid; null the ids on OpenShift.
     podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      fsGroup: 65534
+      fsGroupChangePolicy: OnRootMismatch
       seccompProfile:
         type: RuntimeDefault
     ## @param centralBackupStorage.tools.securityContext Container securityContext of the same pods
     securityContext:
       allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
 
 
   ## @param centralBackupStorage.storageSize Size of central backup storage
@@ -1868,6 +1882,13 @@ victoriaMetrics:
         limits:
           cpu: 500m
           memory: 512Mi
+
+      ## @param victoriaMetrics.vmstorage.backup.securityContext Container securityContext of the vmbackup sidecar
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
       
       ## @param victoriaMetrics.vmstorage.backup.s3 S3 configuration for remote backups
       s3:

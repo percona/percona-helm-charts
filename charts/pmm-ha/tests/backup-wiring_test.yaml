@@ -118,41 +118,50 @@ tests:
           path: spec.template.spec.containers[0].env
           content: {name: VMRESTORE_IMAGE, value: "victoriametrics/vmrestore:v1.151.0"}
 
-  - it: hardens backup-tools and the Job pods by default
+  - it: runs backup-tools and the Job pods "restricted" by default (PMM-14746)
     asserts:
       - equal:
           path: spec.template.spec.securityContext
-          value: {seccompProfile: {type: RuntimeDefault}}
+          value: {runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534, fsGroupChangePolicy: OnRootMismatch, seccompProfile: {type: RuntimeDefault}}
         template: templates/backup-tools.yaml
         documentSelector: {path: kind, value: Deployment}
-      - equal:
-          path: spec.template.spec.containers[0].securityContext
-          value: {allowPrivilegeEscalation: false}
-        template: templates/backup-tools.yaml
-        documentSelector: {path: kind, value: Deployment}
-      - equal:
-          path: spec.jobTemplate.spec.template.spec.securityContext
-          value: {seccompProfile: {type: RuntimeDefault}}
-        template: templates/backup-cronjob.yaml
-      - equal:
-          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext
-          value: {allowPrivilegeEscalation: false}
-        template: templates/backup-cronjob.yaml
-
-  - it: adds a restricted profile from values on top of the defaults
-    set:
-      centralBackupStorage.tools.podSecurityContext: {runAsNonRoot: true, runAsUser: 65534}
-      centralBackupStorage.tools.securityContext: {capabilities: {drop: [ALL]}}
-    asserts:
-      - equal:
-          path: spec.jobTemplate.spec.template.spec.securityContext
-          value: {runAsNonRoot: true, runAsUser: 65534, seccompProfile: {type: RuntimeDefault}}
-        template: templates/backup-cronjob.yaml
       - equal:
           path: spec.template.spec.containers[0].securityContext
           value: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
         template: templates/backup-tools.yaml
         documentSelector: {path: kind, value: Deployment}
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext
+          value: {runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534, fsGroupChangePolicy: OnRootMismatch, seccompProfile: {type: RuntimeDefault}}
+        template: templates/backup-cronjob.yaml
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext
+          value: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+        template: templates/backup-cronjob.yaml
+
+  - it: leaves the ids to the SCC with the OpenShift overlay
+    values:
+      - ../examples/values-openshift.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext.runAsUser
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - notExists:
+          path: spec.template.spec.securityContext.fsGroup
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+
+  - it: hardens the backup sidecars like the containers beside them
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-backup")].securityContext
+          value: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, readOnlyRootFilesystem: false}
+        template: templates/statefulset.yaml
+      - equal:
+          path: spec.templates.podTemplates[0].spec.containers[?(@.name=="clickhouse-backup")].securityContext
+          value: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+        template: templates/clickhouse-cluster.yaml
 
   - it: refuses an access-mode change on the chart's PVC instead of letting the apiserver fail it
     template: templates/central-backup-pvc.yaml

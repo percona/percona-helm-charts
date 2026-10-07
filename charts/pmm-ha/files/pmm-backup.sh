@@ -982,25 +982,20 @@ dir_writable() {   # <dir>
     return 1
 }
 
-# mkdir -p plus setgid group bits so peer namespaces (gid 0) can write; best-effort.
+# mkdir -p, then 2777 on the levels it created: the writers run as different uids (PMM 1000,
+# ClickHouse 101, VM and the tools 65534) and fsGroup re-owns the volume to whichever pod mounted it
+# last, so no group fits. Existing directories are left alone. Best-effort.
 share_mkdir() {   # <dir>
+    _sm_new="" _sm_p="$1"
+    while [ ! -d "${_sm_p}" ] && [ "${_sm_p}" != "/" ] && [ "${_sm_p}" != "." ]; do
+        _sm_new="${_sm_p}
+${_sm_new}"
+        _sm_p=$(dirname "${_sm_p}")
+    done
     mkdir -p "$1" 2>/dev/null || return 1
-    # Every level below the mount root, so a DR namespace can traverse the parents.
-    _sm_rest=""
-    case "$1" in
-        "${BACKUP_DIR}"/*) _sm_rest="${1#"${BACKUP_DIR}"/}" ;;
-    esac
-    if [ -n "${_sm_rest}" ]; then
-        _sm_cur="${BACKUP_DIR}"
-        while [ -n "${_sm_rest}" ]; do
-            _sm_cur="${_sm_cur}/${_sm_rest%%/*}"
-            chmod g+rwxs "${_sm_cur}" 2>/dev/null || true
-            case "${_sm_rest}" in *"/"*) _sm_rest="${_sm_rest#*/}" ;; *) _sm_rest="" ;; esac
-        done
-        return 0
-    fi
-    # Not gated on target: the central volume is shared in s3 mode too.
-    chmod g+rwxs "$1" 2>/dev/null || true
+    printf '%s' "${_sm_new}" | while IFS= read -r _sm_d; do
+        [ -z "${_sm_d}" ] || chmod 2777 "${_sm_d}" 2>/dev/null || true
+    done
     return 0
 }
 
@@ -2680,11 +2675,11 @@ backup_victoriametrics() {
             log "INFO" "[VictoriaMetrics]   unchanged parts are copied server-side from ${vm_origin}"
         fi
 
-        # Pre-create the dir 2775 so peer namespaces can read it (vmbackup's umask gives 0700).
+        # Pre-create the dir 2777 like share_mkdir (vmbackup's umask gives 0700).
         if [ "${BACKUP_TARGET}" = "shared" ]; then
             _vm_dstdir="${backup_dst#fs://}"
             pod_sh VictoriaMetrics "${pod}" vmbackup "${KUBECTL_EXEC_TIMEOUT}" \
-                'mkdir -p "$1" 2>/dev/null && chmod 2775 "$1" 2>/dev/null || true' \
+                'mkdir -p "$1" 2>/dev/null && chmod 2777 "$1" 2>/dev/null || true' \
                 "${_vm_dstdir}" >/dev/null 2>&1 || true
         fi
         
@@ -2841,6 +2836,8 @@ backup_pmm_server() {
                 "${PMM_SRV_PATH}" "${s3_uri}" "${S3_STREAM_CHUNK}" >> "${LOG_FILE}" 2>&1
             pmm_exit=$?
         else
+            # Created here, not by uid 1000 in the pod: retention (uid 65534) must be able to delete in it.
+            [ "${DRY_RUN}" = "true" ] || share_mkdir "$(comp_path pmm-server)/${pod}" || true
             pod_sh PMMServer "${pod}" - 0 \
                 'mkdir -p "$1" && cd "$2" && tar -czf "$3" --exclude=lost+found $(ls -A | grep -vxF lost+found)' \
                 "$(comp_inpod pmm-server)/${pod}" "${PMM_SRV_PATH}" "${shared_file}" >> "${LOG_FILE}" 2>&1

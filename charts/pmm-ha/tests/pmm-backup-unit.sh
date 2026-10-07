@@ -3513,6 +3513,13 @@ for _sc_d in "${BACKUP_DIR}/ns1" "${BACKUP_DIR}/ns1/pmm-ha" "${BACKUP_DIR}/ns1/p
     [ "$(printf '%s' "${_sc_m}" | cut -c7)" = "s" ] || _sc_bad="${_sc_bad} ${_sc_d}(no-setgid)"
 done
 assert_eq "every level of the chain is group-writable+setgid" "" "${_sc_bad}"
+# World-writable too: the writers run as different uids and fsGroup flips the group (PMM-14746).
+assert_eq "created levels are 2777" "drwxrwsrwx" "$(ls -ld "${BACKUP_DIR}/ns1/pmm-ha" | cut -c1-10)"
+# ...but a directory it did not create keeps its mode.
+mkdir -p "${BACKUP_DIR}/pre"; chmod 755 "${BACKUP_DIR}/pre"
+share_mkdir "${BACKUP_DIR}/pre/new"
+assert_eq "an existing directory is left alone" "drwxr-xr-x" "$(ls -ld "${BACKUP_DIR}/pre" | cut -c1-10)"
+assert_eq "...while the one it created is opened" "drwxrwsrwx" "$(ls -ld "${BACKUP_DIR}/pre/new" | cut -c1-10)"
 rm -rf "${BACKUP_DIR}" 2>/dev/null || true
 BACKUP_DIR="${_sc_bd}"; BACKUP_TARGET="${_sc_t}"
 

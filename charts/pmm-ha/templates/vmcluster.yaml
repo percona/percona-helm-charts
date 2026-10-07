@@ -157,6 +157,10 @@ spec:
       - name: vmbackup
         image: {{ .Values.victoriaMetrics.vmstorage.backup.image }}
         imagePullPolicy: IfNotPresent
+        {{- with .Values.victoriaMetrics.vmstorage.backup.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         command: ["sleep", "infinity"]
         {{- /* `env:` inside the conditional so shared mode doesn't render `env: null`. */}}
         {{- if or (eq .Values.centralBackupStorage.mode "s3") .Values.victoriaMetrics.vmstorage.backup.s3.enabled }}

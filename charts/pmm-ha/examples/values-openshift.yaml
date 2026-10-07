@@ -64,6 +64,13 @@ jobs:
   podSecurityContext:
     runAsUser: null
 
+## The backup tools pin 65534 as well (with centralBackupStorage.enabled).
+centralBackupStorage:
+  tools:
+    podSecurityContext:
+      runAsUser: null
+      fsGroup: null
+
 ## Strict security pins uid 65534, which restricted-v2 refuses; the SCC supplies an equivalent.
 victoriaMetrics:
   useStrictSecurity: false

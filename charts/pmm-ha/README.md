@@ -672,8 +672,8 @@ See [Backup and Restore](#backup-and-restore) and [docs/pmm-backup.md](docs/pmm-
 | `centralBackupStorage.tools.imagePullSecrets` | Pull secrets for the backup pods only | `[]` |
 | `centralBackupStorage.tools.resources` | Resources for backup-tools and the backup/restore Jobs | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
 | `centralBackupStorage.tools.restorePodResources` | Resources for the temporary restore pods (vmrestore, /srv extract); empty = `tools.resources` | `{requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: "2", memory: 2Gi}}` |
-| `centralBackupStorage.tools.podSecurityContext` | Pod securityContext of backup-tools and the backup/restore Jobs | `{seccompProfile: {type: RuntimeDefault}}` |
-| `centralBackupStorage.tools.securityContext` | Container securityContext of the same pods | `{allowPrivilegeEscalation: false}` |
+| `centralBackupStorage.tools.podSecurityContext` | Pod securityContext of backup-tools and the backup/restore Jobs | `{runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534, fsGroupChangePolicy: OnRootMismatch, seccompProfile: {type: RuntimeDefault}}` |
+| `centralBackupStorage.tools.securityContext` | Container securityContext of the same pods | `{allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}` |
 | `centralBackupStorage.storageSize` | Size of the chart-created central PVC | `100Gi` |
 | `centralBackupStorage.storageClassName` | Storage class of the central PVC | `""` |
 | `centralBackupStorage.accessMode` | Access mode of the central volume (declare `ReadWriteMany` for an RWX `existingClaim`) | `""` |
@@ -695,6 +695,7 @@ See [Backup and Restore](#backup-and-restore) and [docs/pmm-backup.md](docs/pmm-
 | `clickhouse.backup.enabled` | Run the clickhouse-backup sidecar (needs `centralBackupStorage.enabled`, which requires it to stay `true`) | `true` |
 | `clickhouse.backup.image` | clickhouse-backup image | `altinity/clickhouse-backup:2.8.0` |
 | `clickhouse.backup.resources` | Resources for the clickhouse-backup sidecar | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
+| `clickhouse.backup.securityContext` | Container securityContext of the clickhouse-backup sidecar | `{allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}` |
 | `clickhouse.backup.keepLocal` | Local (hardlink) backups kept per replica | `1` |
 | `clickhouse.backup.keepRemote` | Remote backups clickhouse-backup keeps itself; keep `0` so the orchestrator owns retention | `0` |
 | `clickhouse.backup.s3` | ClickHouse-only S3 overrides; empty fields inherit `centralBackupStorage.s3` | see values.yaml |
@@ -702,6 +703,7 @@ See [Backup and Restore](#backup-and-restore) and [docs/pmm-backup.md](docs/pmm-
 | `victoriaMetrics.vmstorage.backup.image` | vmbackup image | `victoriametrics/vmbackup:v1.151.0` |
 | `victoriaMetrics.vmstorage.backup.restoreImage` | vmrestore image for the restore temp pods (`VMRESTORE_IMAGE`) | `victoriametrics/vmrestore:v1.151.0` |
 | `victoriaMetrics.vmstorage.backup.resources` | Resources for the vmbackup sidecar | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
+| `victoriaMetrics.vmstorage.backup.securityContext` | Container securityContext of the vmbackup sidecar | `{allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}` |
 | `victoriaMetrics.vmstorage.backup.s3` | VictoriaMetrics-only S3 overrides; empty fields inherit `centralBackupStorage.s3` | see values.yaml |
 
 
@@ -1055,6 +1057,8 @@ What runs as what:
 | PostgreSQL (pg-db)                                            | 26 / 1001           | read-only                                | Percona PostgreSQL Operator, no chart input                   |
 | kube-state-metrics                                            | 65534               | read-only                                | subchart defaults                                             |
 | Helper Jobs                                                   | 65534               | read-only                                | `jobs.podSecurityContext`, `jobs.securityContext`             |
+| Backup tools and the backup/restore Jobs                      | 65534               | writable                                 | `centralBackupStorage.tools.*`                                |
+| Backup sidecars (`pmm-backup`, `clickhouse-backup`, `vmbackup`) | their pod's user  | writable                                 | `securityContext`, `clickhouse.backup.securityContext`, `victoriaMetrics.vmstorage.backup.securityContext` |
 
 **Privileges.** PMM Server does not call the Kubernetes API: its pods run with
 `automountServiceAccountToken: false` and get no RBAC. The chart creates:

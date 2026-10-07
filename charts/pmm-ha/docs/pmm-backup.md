@@ -2153,13 +2153,25 @@ UID at all is a question about the chart rather than about this feature.
 
 ### Pod Security `restricted`
 
-backup-tools and the backup/restore Job pods take `centralBackupStorage.tools.podSecurityContext`
-and `.securityContext`. The defaults (`seccompProfile: RuntimeDefault`, `allowPrivilegeEscalation:
-false`) keep them root-capable. For a namespace that enforces `restricted`, add `runAsNonRoot: true`,
-`runAsUser`/`fsGroup` (e.g. 65534) and `capabilities: {drop: [ALL]}`. The default tools image already
-ships jq and rclone, so nothing needs root at start-up. In shared mode the central volume must also be
-writable by that uid. The restore temp pods add the same hardening themselves whenever the workload
-they borrow their identity from is non-root (DN-48).
+Every backup container meets `restricted` by default, like the rest of the chart. backup-tools and
+the backup/restore Jobs run as 65534 (`centralBackupStorage.tools.podSecurityContext` and
+`.securityContext`); the default tools image ships jq and rclone, so nothing needs root at start-up.
+The sidecars run as their pod's user (PMM 1000, ClickHouse 101, vmstorage 65534) with no privilege
+escalation and all capabilities dropped. The restore temp pods borrow the workload's identity and
+add the same hardening (DN-48).
+
+The central volume must be writable by 65534. The kubelet re-owns it through `fsGroup` on most CSI
+volumes; on hostPath, `local` or NFS volumes it does not, so a volume an earlier root-run tools pod
+wrote (logs, `.metrics`, shared-mode backups) needs a one-time `chown -R 65534:65534`, or set
+`centralBackupStorage.tools.podSecurityContext` and `.securityContext` back to a root identity.
+
+Shared mode writes the RWX volume from several uids (PMM 1000, ClickHouse 101, vmstorage and the
+tools 65534), and a driver that applies `fsGroup` (csi-driver-nfs does by default) re-groups the
+volume to whichever pod mounted it last. So the orchestrator creates its directories `2777` and
+retention can delete across uids. A shared volume written by an earlier, root-run version needs
+`chmod -R a+rwX` on its backup tree once, as root (e.g. from a one-off pod that mounts the claim).
+Setting the CSI driver's `fsGroupPolicy` to `None` also stops the recursive re-grouping on every
+mount, which is slow on a large backup volume. On OpenShift, `examples/values-openshift.yaml` nulls the ids so the SCC assigns them.
 
 ### Metrics Persistence
 
