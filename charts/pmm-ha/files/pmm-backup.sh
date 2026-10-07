@@ -1616,14 +1616,25 @@ release_locks() {
 }
 
 # Retention must not purge an id a restore is reading: every restore holds the pmm-server lock.
+# Resolves PMM whatever --<component> flags say; RETENTION_LOCK_WHY says why it could not lock.
+RETENTION_LOCK_WHY=""
 retention_lock() {
+    RETENTION_LOCK_WHY=""
     [ "${DRY_RUN}" = "true" ] && return 0
     case " ${LOCK_COMPONENTS} " in *" pmm-server "*) return 0 ;; esac
     _rtl_rc=0
     [ -n "${SCOPE_PMM_STS}" ] || SCOPE_PMM_STS=$(resolve_one PMM "PMM Server StatefulSet" statefulset "${LABEL_PMM_SERVER}") || _rtl_rc=$?
     # rc 1 = no PMM StatefulSet: a restore resolves the same empty owner, so the lease still matches.
-    [ "${_rtl_rc}" -le 1 ] || return 1
-    lease_try_acquire "$(lease_name pmm-server)" "${LOCK_LEASE_SECONDS}" pmm-server || return 1
+    if [ "${_rtl_rc}" -gt 1 ]; then
+        RETENTION_LOCK_WHY="the PMM StatefulSet could not be resolved (see above)"; return 1
+    fi
+    _rtl_rc=0
+    lease_try_acquire "$(lease_name pmm-server)" "${LOCK_LEASE_SECONDS}" pmm-server || _rtl_rc=$?
+    case "${_rtl_rc}" in
+        0) ;;
+        1) RETENTION_LOCK_WHY="the pmm-server lock is held by ${LEASE_HOLDER:-unknown} (a restore may be reading an old backup)"; return 1 ;;
+        *) RETENTION_LOCK_WHY="the pmm-server lock could not be taken: ${LEASE_ERR:-lost a takeover race}"; return 1 ;;
+    esac
     LOCK_COMPONENTS="${LOCK_COMPONENTS} pmm-server"
     stop_lock_renewer
     start_lock_renewer
@@ -1887,39 +1898,55 @@ manifest_top() { manifest_field "$1" < "${MANIFEST_FILE}"; }
 # Component nested scalar field of the loaded manifest: mf_field <component> <key>
 mf_field() { jq -r --arg c "$1" --arg k "$2" '.components[$c][$k] // empty' "${MANIFEST_FILE}" 2>/dev/null; }
 
+# The loaded manifest is still what the store holds (an unreadable store counts as changed).
+restore_manifest_unchanged() {
+    [ "$(store_read "$(manifest_path)" 2>/dev/null)" = "$(cat "${MANIFEST_FILE}" 2>/dev/null)" ]
+}
+
+# A backup's time: its timestamp id, else its manifest's `created` (custom ids).
+backup_epoch() {   # <id>
+    backup_id_epoch "$1" 2>/dev/null && return 0
+    epoch_from_rfc3339 "$(catalog_manifest "$1" 2>/dev/null | jq -r '.created // empty' 2>/dev/null)"
+}
+
+# Newer backups are checked newest first, at most this many manifests.
+LATEST_CHECK_MAX=10
+
 # latest skips partial backups (DN-14); refuse only when a newer COMPLETE run skipped it.
 latest_staleness_guard() {   # <resolved-id>
     _ls_id="$1"
-    _ls_epoch=$(backup_id_epoch "${_ls_id}" 2>/dev/null) || _ls_epoch=""
-    if [ -z "${_ls_epoch}" ]; then
-        log "INFO" "'latest' resolves to ${_ls_id}, a custom id with no timestamp; staleness not checked"
+    if ! _ls_epoch=$(backup_epoch "${_ls_id}"); then
+        log "WARN" "'latest' resolves to ${_ls_id}, whose age cannot be read; staleness not checked"
         return 0
     fi
     log "INFO" "'latest' resolves to ${_ls_id}, $(( ( $(date +%s) - _ls_epoch ) / 86400 )) day(s) old"
 
-    # Custom ids carry no time to order by; failed/partial runs are meant to leave latest put.
-    _ls_newer=0; _ls_failed=0
+    # "<epoch> <id>" of each newer backup; failed/partial runs are meant to leave latest put.
+    _ls_cands="" _ls_failed=0 _ls_hit=""
     set -f
     for _ls_c in $(catalog_ids 2>/dev/null); do
-        _ls_ce=$(backup_id_epoch "${_ls_c}" 2>/dev/null) || continue
-        [ "${_ls_ce}" -gt "${_ls_epoch}" ] || continue
+        [ "${_ls_c}" != "${_ls_id}" ] || continue
+        _ls_ce=$(backup_epoch "${_ls_c}") || continue
+        [ "${_ls_ce}" -le "${_ls_epoch}" ] || _ls_cands="${_ls_cands}${_ls_ce} ${_ls_c}
+"
+    done
+    for _ls_c in $(printf '%s' "${_ls_cands}" | sort -rn | head -n "${LATEST_CHECK_MAX}" | cut -d' ' -f2); do
         if [ "$(catalog_manifest "${_ls_c}" 2>/dev/null | jq -r '.status // empty' 2>/dev/null)" = "complete" ]; then
-            _ls_newer=$((_ls_newer + 1))
-        else
-            _ls_failed=$((_ls_failed + 1))
+            _ls_hit="${_ls_c}"; break
         fi
+        _ls_failed=$((_ls_failed + 1))
     done
     set +f
     [ "${_ls_failed}" -eq 0 ] || log "WARN" "${_ls_failed} newer backup(s) failed or are partial; 'latest' stays on the last complete one"
-    [ "${_ls_newer}" -gt 0 ] || return 0
+    [ -n "${_ls_hit}" ] || return 0
 
-    log "WARN" "${_ls_newer} newer complete backup(s) exist that 'latest' did not advance onto."
+    log "WARN" "A newer complete backup (${_ls_hit}) exists that 'latest' did not advance onto."
     log "WARN" "The pointer only moves onto a complete, full-scope backup (all of: ${CORE_COMPONENTS})."
     log "WARN" "This usually means schedule.components is set to a partial scope, in which case"
     log "WARN" "no scheduled run will ever move it again and 'latest' will keep ageing."
     # Not overridable by --yes: every non-interactive restore passes it, so it would never stop.
     log "ERROR" "Refusing to restore a stale 'latest'. Pick the backup explicitly:"
-    log "ERROR" "  $(basename "$0") list    then    restore --backup-id ${_ls_id} (or a newer id) --yes"
+    log "ERROR" "  $(basename "$0") list    then    restore --backup-id ${_ls_id} (or ${_ls_hit}) --yes"
     return 1
 }
 
@@ -1975,13 +2002,6 @@ load_manifest() {
     fi
 
     MF_STATUS=$(manifest_top status); MF_TARGET=$(manifest_top target); MF_CREATED=$(manifest_top created)
-    # Another namespace's retention locks there, not here: it can purge this id mid-restore.
-    _lm_src=$(manifest_top namespace)
-    _lm_ep=$(backup_id_epoch "${BACKUP_NAME}" 2>/dev/null) || _lm_ep=""
-    if [ -n "${_lm_src}" ] && [ "${_lm_src}" != "${NAMESPACE}" ] && [ -n "${_lm_ep}" ] \
-        && [ $(( $(date +%s) - _lm_ep )) -gt $(( BACKUP_RETENTION * 86400 )) ]; then
-        log "WARN" "${BACKUP_NAME} (namespace ${_lm_src}) is older than ${BACKUP_RETENTION}d: if that install still runs scheduled backups, its retention can delete it mid-restore. Pause them first (centralBackupStorage.schedule.enabled=false there)."
-    fi
     MF_PG_STATUS=$(mf_field postgresql status); MF_PG_DBS=$(mf_field postgresql databases)
     MF_CH_STATUS=$(mf_field clickhouse status);      MF_CH_NAME=$(mf_field clickhouse name)
     MF_CH_S3_BUCKET=$(mf_field clickhouse s3_bucket); MF_CH_S3_PATH=$(mf_field clickhouse s3_path)
@@ -3249,6 +3269,43 @@ validate_temp_pod_admission() {   # <role> <pvc> <image> <sec-ctx> <sched>
     return 0
 }
 
+# Run the image (`-version`) on each vmstorage pod's node, so a pull failure surfaces before scale-down.
+vm_image_pull_probe() {   # <image> <sec-ctx> <sched> <vmstorage-pods>
+    if [ "${DRY_RUN}" = "true" ]; then
+        log "INFO" "[Preflight] [DRY RUN] would pull ${1} on each vmstorage node"; return 0
+    fi
+    _vipp_fail=0
+    for _vipp_p in $4; do
+        _vipp_node=$(kubectl get pod -n "${NAMESPACE}" "${_vipp_p}" -o jsonpath='{.spec.nodeName}' 2>/dev/null) || _vipp_node=""
+        _vipp_name="vm-image-probe-${_vipp_p##*-}"
+        clear_leftover_temp_pod "${_vipp_name}" Preflight
+        _vipp_rc=0
+        _vipp_out=$(printf 'apiVersion: v1\nkind: Pod\nmetadata:\n  name: %s\n  labels:\n    app.kubernetes.io/component: vm-image-probe\nspec:\n  restartPolicy: Never\n  nodeName: %s\n%s\n%s\n%s\n  containers:\n    - name: vmrestore\n      image: %s\n      imagePullPolicy: IfNotPresent\n      command: ["/vmrestore-prod", "-version"]\n%s\n      resources: %s\n' \
+                "${_vipp_name}" "${_vipp_node}" "${TEMP_POD_SA_LINE}" "$2" "$3" "$1" \
+                "$(render_temp_container_security_context "$2")" "${TEMP_POD_RESOURCES}" \
+             | kubectl create -f - -n "${NAMESPACE}" 2>&1) || _vipp_rc=$?
+        printf '%s\n' "${_vipp_out}" | append_to_log
+        if [ "${_vipp_rc}" -ne 0 ]; then
+            log "ERROR" "[Preflight] could not create the vmrestore image probe on ${_vipp_node:-?}"; _vipp_fail=1; continue
+        fi
+        _vipp_st="" _vipp_t=0
+        while [ "${_vipp_t}" -lt 300 ]; do
+            _vipp_st=$(kubectl get pod -n "${NAMESPACE}" "${_vipp_name}" -o jsonpath='{.status.phase} {.status.containerStatuses[0].state.waiting.reason}' 2>/dev/null) || _vipp_st=""
+            case "${_vipp_st}" in
+                Succeeded*|Failed*|*ErrImagePull*|*ImagePullBackOff*|*InvalidImageName*|*CreateContainer*) break ;;
+            esac
+            sleep 5; _vipp_t=$((_vipp_t + 5))
+        done
+        case "${_vipp_st}" in
+            Succeeded*) log "INFO" "[Preflight] vmrestore image runs on ${_vipp_node}" ;;
+            *) log "ERROR" "[Preflight] the vmrestore image ${1} did not run on ${_vipp_node:-?} (${_vipp_st:-no status in 300s}); nothing has been changed"
+               _vipp_fail=1 ;;
+        esac
+        delete_temp_restore_pod "${_vipp_name}"
+    done
+    return "${_vipp_fail}"
+}
+
 validate_temp_pod_credentials() {
     local fail=0
     # A missing Secret/SA is rejected at admission, after PMM is down.
@@ -3397,12 +3454,14 @@ validate_restore_victoriametrics() {
         fi
         # Admission probe with the real spec before scale-down.
         if [ -n "${_vmimg}" ]; then
-            local _vmprobe_pvc="" _vmprobe_p=""
+            local _vmprobe_pvc="" _vmprobe_p="" _vmprobe_sec="" _vmprobe_sched=""
             _vmprobe_p=$(echo "${_vmpods}" | awk '{print $1}')
             _vmprobe_pvc="${VM_STORAGE_PVC_PREFIX}${_vmprobe_p}"
-            validate_temp_pod_admission vm "${_vmprobe_pvc}" "${_vmimg}" \
-                "$(security_context_of pod "${_vmprobe_p}" vmstorage)" \
-                "$(scheduling_of pod "${_vmprobe_p}")" || fail=1
+            _vmprobe_sec=$(security_context_of pod "${_vmprobe_p}" vmstorage)
+            _vmprobe_sched=$(scheduling_of pod "${_vmprobe_p}")
+            validate_temp_pod_admission vm "${_vmprobe_pvc}" "${_vmimg}" "${_vmprobe_sec}" "${_vmprobe_sched}" || fail=1
+            # No sidecar caches the image: pull it on each vmstorage node while the tier is still up.
+            [ "${fail}" -ne 0 ] || vm_image_pull_probe "${_vmimg}" "${_vmprobe_sec}" "${_vmprobe_sched}" "${_vmpods}" || fail=1
         fi
     fi
     # Shard-count check hoisted here so it aborts with PMM still up.
@@ -4192,6 +4251,22 @@ vm_original_replicas() {   # <spec-value> <live-pod-count> <floor>
     printf '%s' "${_vor_n}"
 }
 
+# vmstorage Ready within VM_READY_TIMEOUT (wall clock); a CrashLoopBackOff will not heal, so stop early.
+vm_wait_storage_ready() {   # <expected>
+    _vws_end=$(( $(date +%s) + VM_READY_TIMEOUT ))
+    while [ "$(date +%s)" -lt "${_vws_end}" ]; do
+        _vws_st=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector victoriametrics)" -o jsonpath='{range .items[*]}{.status.containerStatuses[?(@.name=="vmstorage")].ready}{" "}{.status.containerStatuses[?(@.name=="vmstorage")].state.waiting.reason}{"\n"}{end}' 2>/dev/null) || _vws_st=""
+        if [ "$(printf '%s\n' "${_vws_st}" | grep -c '^true' || true)" -ge "$1" ]; then
+            log "INFO" "[VictoriaMetrics] $1 vmstorage pod(s) ready"; return 0
+        fi
+        case "${_vws_st}" in
+            *CrashLoopBackOff*) log "ERROR" "[VictoriaMetrics] a vmstorage pod is in CrashLoopBackOff; not waiting out VM_READY_TIMEOUT"; return 1 ;;
+        esac
+        sleep 5
+    done
+    return 1
+}
+
 # Explain a vmstorage refusing to start on vmrestore's restore-in-progress marker. Diagnostic only.
 vm_report_incomplete_restore() {
     _vri_pod=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector victoriametrics)" \
@@ -4314,8 +4389,8 @@ restore_victoriametrics() {
     # Scale-back failure is a component failure, checked at the end.
     local vm_scaleback_ok=true
     kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge -p '{"spec":{"vmstorage":{"replicaCount":'${original_vmstorage}'}}}' 2>&1 | append_to_log || true
-    wait_for_pods_ready "${NAMESPACE}" "$(comp_pod_selector victoriametrics)" "${original_vmstorage}" "${VM_READY_TIMEOUT}" || {
-        log "ERROR" "[VictoriaMetrics] vmstorage did not return to ${original_vmstorage} ready replica(s) within ${VM_READY_TIMEOUT}s after restore (raise VM_READY_TIMEOUT for a large tier)"
+    vm_wait_storage_ready "${original_vmstorage}" || {
+        log "ERROR" "[VictoriaMetrics] vmstorage did not return to ${original_vmstorage} ready replica(s) after restore (VM_READY_TIMEOUT=${VM_READY_TIMEOUT}s; raise it for a large tier)"
         vm_scaleback_ok=false
         vm_report_incomplete_restore
     }
@@ -5355,7 +5430,7 @@ cmd_backup() {
         [ "${PRUNE_REFUSED}" -eq 0 ] || _bk_prune_rc=1
     else
         _bk_prune_rc=1
-        log "WARN" "Retention sweep deferred: the pmm-server lock is held (a restore may be reading an old backup)${LEASE_HOLDER:+, holder ${LEASE_HOLDER}}"
+        log "WARN" "Retention sweep deferred: ${RETENTION_LOCK_WHY}"
     fi
     write_prune_metrics "${_bk_prune_rc}"
     if [ "${_bk_prune_rc}" -ne 0 ]; then
@@ -5433,15 +5508,18 @@ cmd_prune() {
     log "INFO" "================================================================================"
     log "INFO" "Namespace: ${NAMESPACE}  Target: ${BACKUP_TARGET}  Retention: ${BACKUP_RETENTION}d  Log: ${LOG_FILE}"
 
-    # Not VM/PG: an unrelated second VMCluster/PostgresCluster must not fail the prune.
-    if ! resolve_component_scope 4 "clickhouse pmm-server"; then exit 1; fi
+    # ClickHouse only: an unrelated second VMCluster/PostgresCluster must not fail the prune.
+    if ! resolve_component_scope 4 clickhouse; then exit 1; fi
     if ! preflight_checks prune; then exit 1; fi
 
-    LOCK_COMPONENTS="clickhouse pmm-server"
+    LOCK_COMPONENTS="clickhouse"
     trap release_locks EXIT
     trap 'release_locks; exit 130' INT
     trap 'release_locks; exit 143' TERM
     acquire_locks
+    if ! retention_lock; then
+        log "ERROR" "Retention sweep refused: ${RETENTION_LOCK_WHY}"; exit 1
+    fi
 
     local _prune_rc=0
     cleanup_old_backups || _prune_rc=$?
@@ -5534,6 +5612,11 @@ cmd_restore() {
         LOCK_COMPONENTS=$(lock_list 5)
         RESTORE_PMM_SERVER="${_saved_pmm}"
         acquire_locks
+        # A sweep that held the pmm-server lock before us may have purged this id since it was validated.
+        if ! restore_manifest_unchanged; then
+            log "ERROR" "${BACKUP_NAME}'s manifest changed or could not be re-read since it was validated (a retention sweep?). Nothing has been changed; re-run the restore."
+            exit 1
+        fi
         # Exec'd PG/ClickHouse pods need the hold too; set in the parent before subshells fork.
         protect_operand_pods 5
     fi

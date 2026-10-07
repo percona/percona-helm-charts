@@ -1837,7 +1837,7 @@ kubectl get secret pg-encryption-key -n <namespace>
 
 #### Restore subcommand (Automated)
 
-`pmm-backup.sh restore` automates full restore from central backup storage. It runs in the backup-tools pod (or any host with `kubectl` and read access to the backup directory).
+`pmm-backup.sh restore` automates full restore from central backup storage. It runs in the backup-tools pod (or any host with `kubectl` and read access to the backup directory; export `VMRESTORE_IMAGE` there, which the chart sets in its own pods).
 
 ##### Usage
 
@@ -1894,6 +1894,9 @@ PostgreSQL needs no options — databases come from the manifest.
    does not carry as `success` is a hard error before anything is touched.
 5. If `--dry-run`: print the per-component plan and exit.
 6. **Confirm** (unless `--yes`; required when there's no TTY). `--yes` answers the prompt only — it never disables a safety check, so e.g. a failed encryption-key restore still aborts the run.
+   Then the component locks are taken and the manifest is re-read: if a retention sweep changed it
+   in between, the run stops before anything changes. Before that, validation also runs the
+   vmrestore image once on each vmstorage node, so a pull failure surfaces while PMM is still up.
 7. **Encryption key**: fetch from the backup and `kubectl apply` (namespace rewritten to
    the target). Aborts the restore if it fails (data can't be decrypted otherwise).
 8. **Scale down PMM** to 0 — nothing may write the DBs during restore, and the
@@ -1978,8 +1981,8 @@ The subpath is what keeps two installs on one export from sharing a `latest` poi
 by the restore; only the source's is read.
 
 If the source install is still running, pause its schedule (`centralBackupStorage.schedule.enabled=false`)
-before restoring one of its backups that is older than its retention: its sweep takes its locks in
-its own namespace, so nothing stops it purging that backup mid-restore (the restore warns).
+before restoring one of its backups that is close to its retention: its sweep takes its locks in its own
+namespace, so nothing stops it purging that backup mid-restore.
 
 Prerequisites for the target namespace: the PMM-HA instance installed (distinct release
 name; see the multi-namespace section of the chart README), `pmm-secret` present, and —

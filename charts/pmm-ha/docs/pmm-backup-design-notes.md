@@ -253,8 +253,8 @@ The other side of that gate: when newer COMPLETE backups exist that `latest` did
 latest` refuses and the operator names an id. `--yes` does not override it — every non-interactive
 restore passes `--yes`, so a refusal it could bypass would never fire. Newer failed or partial runs
 do not count: skipping them is what `latest` is for, and refusing on them would block the DR restore
-exactly when backups have started failing. Custom ids carry no timestamp, so they are not ordered
-against `latest` at all.
+exactly when backups have started failing. A custom id is ordered by its manifest's `created`. Newer
+backups are checked newest first and the check stops at the first complete one, reading at most ten.
 
 ## DN-15 — Validate everything before the point of no return
 
@@ -670,8 +670,9 @@ upload, and the pmm-server lock, because every restore holds that one: an expire
 what a restore of an old backup reads. A backup's own sweep takes the pmm-server lock too when the
 run does not already hold it, and defers the sweep if it cannot. Scope is resolved for ClickHouse
 and PMM alone, so an unrelated VMCluster or PostgreSQL cluster in the namespace cannot fail the
-prune. A cross-namespace restore is not covered: the source's sweep locks in the source namespace,
-so the restore only warns when it reads a backup older than the retention window.
+prune. A restore re-reads its manifest once it holds its locks, so a sweep that finished in between
+stops it before anything changes. A cross-namespace restore is not covered: the source's sweep locks in
+the source namespace, so the docs say to pause the source's schedule.
 
 ## DN-41 — The manifest is a versioned on-storage contract
 
