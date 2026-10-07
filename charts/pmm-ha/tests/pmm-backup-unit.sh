@@ -2889,8 +2889,9 @@ assert_eq "...on the first look" "1" "$(wc -l < "${_vw_f}" | tr -d ' ')"
 : > "${_vw_f}"; _vw_log="panic: something else"; _vw_restarts=5
 vm_wait_storage_ready 3 >/dev/null 2>&1; assert_rc "five restarts stop the wait" 1 $?
 assert_eq "...on the first look" "1" "$(wc -l < "${_vw_f}" | tr -d ' ')"
-# ...but one crash may heal on retry, so keep waiting (here until a 1 s timeout).
-: > "${_vw_f}"; VM_READY_TIMEOUT=1; _vw_restarts=1
+# ...but one crash may heal on retry, so keep waiting. 3 s, not 1: a 1 s window that opens just
+# before a second boundary fits a single look on a slow runner (CI BusyBox did).
+: > "${_vw_f}"; VM_READY_TIMEOUT=3; _vw_restarts=1
 vm_wait_storage_ready 3 >/dev/null 2>&1; assert_rc "a single crash waits out the timeout" 1 $?
 case "$(wc -l < "${_vw_f}" | tr -d ' ')" in 1) bad "...instead of stopping at once" "more than one look" "1" ;; *) ok ;; esac
 kubectl() { printf 'vmstorage-0|true|0|\nvmstorage-1|true|0|\nvmstorage-2|true|0|\n'; }
