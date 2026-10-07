@@ -21,9 +21,9 @@ apiVersion: "clickhouse.altinity.com/v1"
 kind: ClickHouseInstallation
 metadata:
   name: {{ .Release.Name }}
-  {{- /* Lets pmm-backup.sh tie-break by release; not pmm.labels (those carry pmm-server selectors). */}}
+  {{- /* Lets pmm-backup.sh tie-break by release. Not pmm.labels (pmm-server selectors), and no helm.sh/chart:
+         the operator copies these onto the pod template, so every chart version bump would roll ClickHouse. */}}
   labels:
-    helm.sh/chart: {{ include "pmm.chart" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
@@ -272,16 +272,7 @@ spec:
                 {{- $chKeys := $chS3.existingSecretKeys }}
                 {{- if and (not $chSecret) (not $chS3.accessKey) }}{{- $chSecret = .Values.centralBackupStorage.s3.existingSecret }}{{- $chKeys = .Values.centralBackupStorage.s3.existingSecretKeys }}{{- end }}
                 {{- if $chSecret }}
-                - name: S3_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ $chSecret }}
-                      key: {{ include "pmm.s3SecretKeyName" (dict "keys" $chKeys "which" "access") }}
-                - name: S3_SECRET_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ $chSecret }}
-                      key: {{ include "pmm.s3SecretKeyName" (dict "keys" $chKeys "which" "secret") }}
+                {{- include "pmm.s3KeyEnv" (dict "secret" $chSecret "keys" $chKeys "idVar" "S3_ACCESS_KEY" "secretVar" "S3_SECRET_KEY") | nindent 16 }}
                 {{- else if $chS3.accessKey }}
                 - name: S3_ACCESS_KEY
                   value: "{{ $chS3.accessKey }}"

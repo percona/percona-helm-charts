@@ -30,9 +30,17 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "pmm.backupRunSaName" . }}
+      {{- with .Values.centralBackupStorage.tools.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       - name: backup-tools
         image: "{{ .Values.centralBackupStorage.tools.image.registry }}/{{ .Values.centralBackupStorage.tools.image.repository }}:{{ .Values.centralBackupStorage.tools.image.tag }}"
+        {{- with .Values.centralBackupStorage.tools.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         command:
           - sh
           - -c

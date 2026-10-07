@@ -248,10 +248,13 @@ lock with it.
 run (an ad-hoc ClickHouse incremental, say) must not move it — restoring `latest` would then
 silently restore just that one component. The decision is made on the MERGED manifest.
 
-The other side of that gate: when newer backups exist that `latest` did not advance onto (a
-partial `schedule.components`, or failed runs), `restore --backup-id latest` refuses and the
-operator names an id. `--yes` does not override it — every non-interactive restore passes
-`--yes`, so a refusal it could bypass would never fire.
+The other side of that gate: when newer COMPLETE backups exist that `latest` did not advance onto
+(a partial `schedule.components`, or a full run whose pointer write failed), `restore --backup-id
+latest` refuses and the operator names an id. `--yes` does not override it — every non-interactive
+restore passes `--yes`, so a refusal it could bypass would never fire. Newer failed or partial runs
+do not count: skipping them is what `latest` is for, and refusing on them would block the DR restore
+exactly when backups have started failing. Custom ids carry no timestamp, so they are not ordered
+against `latest` at all.
 
 ## DN-15 — Validate everything before the point of no return
 
@@ -661,11 +664,14 @@ judge for it, and `cmd_backup` calls it unconditionally.
 it can be scheduled independently of the backup. That also relaxes a coupling the bounds were
 paying for: `S3_PRUNE_MAX_PER_RUN` and `S3_PRUNE_MAX_SECONDS` exist largely so the sweep cannot
 overrun the backup CronJob's `activeDeadlineSeconds` while holding that run's component locks.
-On its own schedule it answers to its own deadline. It takes only the ClickHouse lock, because
+On its own schedule it answers to its own deadline. It takes the ClickHouse lock, because
 it runs `clickhouse-backup clean` in the live pod, which must not overlap a backup's create or
-upload; scope is resolved for ClickHouse alone, so an unrelated cluster in the namespace cannot
-fail the prune. Everything else it deletes belongs to ids past the cutoff, which no in-flight
-backup can be writing.
+upload, and the pmm-server lock, because every restore holds that one: an expired id is exactly
+what a restore of an old backup reads. A backup's own sweep takes the pmm-server lock too when the
+run does not already hold it, and defers the sweep if it cannot. Scope is resolved for ClickHouse
+and PMM alone, so an unrelated VMCluster or PostgreSQL cluster in the namespace cannot fail the
+prune. A cross-namespace restore is not covered: the source's sweep locks in the source namespace,
+so the restore only warns when it reads a backup older than the retention window.
 
 ## DN-41 — The manifest is a versioned on-storage contract
 
@@ -1002,7 +1008,10 @@ a fixed string with no nested YAML, so the unit tests can pin its columns (DN-22
 same UID it assigned the workload — the chart's own values already say as much for PMM:
 *"`runAsUser` needs to be set to nil for OpenShift to be able to assign a random user ID."*
 Read as a fallback rather than a failure, it also means an unreadable object degrades to the
-platform default instead of a broken manifest. The one thing it must never do is invent a
+platform default instead of a broken manifest. The container block is separate and always present
+(`allowPrivilegeEscalation: false`, `seccompProfile: RuntimeDefault`); a non-root `runAsUser` adds
+`runAsNonRoot` and `drop: [ALL]`, which is what Pod Security `restricted` asks for, while a root
+workload (vmstorage by default) keeps its capabilities. The one thing it must never do is invent a
 value: non-digits are dropped rather than rendered, because an invalid `securityContext` is
 another pod rejected after PMM is already down (DN-15).
 

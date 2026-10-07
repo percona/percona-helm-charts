@@ -634,6 +634,8 @@ See [Backup and Restore](#backup-and-restore) and [docs/pmm-backup.md](docs/pmm-
 | `centralBackupStorage.tools.imagePullSecrets` | Pull secrets for the backup pods only | `[]` |
 | `centralBackupStorage.tools.resources` | Resources for backup-tools and the backup/restore Jobs | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
 | `centralBackupStorage.tools.restorePodResources` | Resources for the temporary restore pods (vmrestore, /srv extract); empty = `tools.resources` | `{requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: "2", memory: 2Gi}}` |
+| `centralBackupStorage.tools.podSecurityContext` | Pod securityContext of backup-tools and the backup/restore Jobs | `{seccompProfile: {type: RuntimeDefault}}` |
+| `centralBackupStorage.tools.securityContext` | Container securityContext of the same pods | `{allowPrivilegeEscalation: false}` |
 | `centralBackupStorage.storageSize` | Size of the chart-created central PVC | `100Gi` |
 | `centralBackupStorage.storageClassName` | Storage class of the central PVC | `""` |
 | `centralBackupStorage.accessMode` | Access mode of the central volume (declare `ReadWriteMany` for an RWX `existingClaim`) | `""` |
@@ -658,10 +660,9 @@ See [Backup and Restore](#backup-and-restore) and [docs/pmm-backup.md](docs/pmm-
 | `clickhouse.backup.keepLocal` | Local (hardlink) backups kept per replica | `1` |
 | `clickhouse.backup.keepRemote` | Remote backups clickhouse-backup keeps itself; keep `0` so the orchestrator owns retention | `0` |
 | `clickhouse.backup.s3` | ClickHouse-only S3 overrides; empty fields inherit `centralBackupStorage.s3` | see values.yaml |
-| `victoriaMetrics.vmstorage.backupVolumeSize` | Size limit of the vmstorage local backup emptyDir | `20Gi` |
 | `victoriaMetrics.vmstorage.backup.enabled` | Run the vmbackup sidecar (needs `centralBackupStorage.enabled`, which requires it to stay `true`) | `true` |
 | `victoriaMetrics.vmstorage.backup.image` | vmbackup image | `victoriametrics/vmbackup:v1.151.0` |
-| `victoriaMetrics.vmstorage.backup.restoreImage` | vmrestore image | `victoriametrics/vmrestore:v1.151.0` |
+| `victoriaMetrics.vmstorage.backup.restoreImage` | vmrestore image for the restore temp pods (`VMRESTORE_IMAGE`) | `victoriametrics/vmrestore:v1.151.0` |
 | `victoriaMetrics.vmstorage.backup.resources` | Resources for the vmbackup sidecar | `{requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 512Mi}}` |
 | `victoriaMetrics.vmstorage.backup.s3` | VictoriaMetrics-only S3 overrides; empty fields inherit `centralBackupStorage.s3` | see values.yaml |
 
@@ -675,6 +676,8 @@ helm install pmm-ha --namespace pmm percona/pmm-ha
 The above command installs PMM HA with 3 replicas for PMM Servers (default configuration).
 
 > NOTE: Once this chart is deployed, it is impossible to change the application's access credentials, such as password, using Helm. To change these application credentials after deployment, delete any persistent volumes (PVs) used by the chart and re-deploy it, or use the application's built-in administrative tools if available.
+>
+> If `GF_PASSWORD` or `PG_PASSWORD` in the PMM secret is changed by hand, the next `helm upgrade` stops and prints the `kubectl patch` that copies it into `<user>-credentials` (the PostgreSQL operator then applies it to the role); restart the PMM pods afterwards.
 
 Alternatively, a YAML file that specifies the values for the above parameters can be provided while installing the chart. For example:
 

@@ -124,7 +124,7 @@ Refuse IRSA with serviceAccount.create=false and no static keys: the PMM /srv si
 {{- define "pmm.validateBackupIrsaSa" -}}
 {{- $cbs := .Values.centralBackupStorage -}}
 {{- if and $cbs.enabled (eq $cbs.mode "s3") $cbs.s3.irsaRoleArn (not .Values.serviceAccount.create) (not $cbs.s3.existingSecret) -}}
-{{- fail (printf "centralBackupStorage.s3.irsaRoleArn is set (%s), but serviceAccount.create is false. IRSA authenticates a POD through the ServiceAccount it runs under, and with create=false this chart neither creates that ServiceAccount nor gives the PMM pods one: statefulset.yaml omits serviceAccountName entirely, so they run under the namespace 'default' account. The pmm-backup sidecar would then start with RCLONE_CONFIG_S3_ENV_AUTH=true and no web-identity token, and every /srv backup would fail with 403.\n\nSetting serviceAccount.name does NOT help here - it names the account the chart would have created, and nothing reads it while create is false.\n\nPick one:\n  - set serviceAccount.create=true and let the chart create the ServiceAccount and put the role annotation on it (this is what IRSA needs; the chart also creates the matching ClusterRole/ClusterRoleBinding here); or\n  - use static keys instead: centralBackupStorage.s3.existingSecret=<secret>, which authenticates the sidecar directly and needs no ServiceAccount at all." $cbs.s3.irsaRoleArn) -}}
+{{- fail (printf "centralBackupStorage.s3.irsaRoleArn is set (%s), but serviceAccount.create is false. IRSA authenticates a POD through the ServiceAccount it runs under, and with create=false this chart neither creates that ServiceAccount nor gives the PMM pods one: statefulset.yaml omits serviceAccountName entirely, so they run under the namespace 'default' account. The pmm-backup sidecar would then assume the role with that 'default' account's token, which the role's trust policy does not name, and every /srv backup would fail with 403.\n\nSetting serviceAccount.name does NOT help here - it names the account the chart would have created, and nothing reads it while create is false.\n\nPick one:\n  - set serviceAccount.create=true and let the chart create the ServiceAccount, whose token the sidecar assumes the role with (this is what IRSA needs; the chart also creates the matching ClusterRole/ClusterRoleBinding here); or\n  - use static keys instead: centralBackupStorage.s3.existingSecret=<secret>, which authenticates the sidecar directly and needs no ServiceAccount at all." $cbs.s3.irsaRoleArn) -}}
 {{- end -}}
 {{- end -}}
 
@@ -700,6 +700,44 @@ Key name inside an S3 credentials Secret: (dict "keys" <existingSecretKeys> "whi
 {{- end -}}
 
 {{/*
+Static S3 key env from a Secret: (dict "secret" <name> "keys" <existingSecretKeys> ["idVar" "secretVar"]).
+*/}}
+{{- define "pmm.s3KeyEnv" -}}
+- name: {{ .idVar | default "AWS_ACCESS_KEY_ID" }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ .secret }}
+      key: {{ include "pmm.s3SecretKeyName" (dict "keys" .keys "which" "access") }}
+- name: {{ .secretVar | default "AWS_SECRET_ACCESS_KEY" }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ .secret }}
+      key: {{ include "pmm.s3SecretKeyName" (dict "keys" .keys "which" "secret") }}
+{{- end -}}
+
+{{/*
+rclone "s3" remote env for the pmm-backup sidecar and pmm-backup.sh runs; render_rclone_s3_env() mirrors it for temp pods.
+*/}}
+{{- define "pmm.rcloneS3Env" -}}
+{{- $s3 := .Values.centralBackupStorage.s3 -}}
+- name: RCLONE_CONFIG_S3_TYPE
+  value: "s3"
+- name: RCLONE_CONFIG_S3_PROVIDER
+  value: {{ $s3.provider | default "AWS" | quote }}
+- name: RCLONE_CONFIG_S3_ENV_AUTH
+  value: "true"
+- name: RCLONE_CONFIG_S3_REGION
+  value: {{ $s3.region | quote }}
+{{- /* The IAM policy has no CreateBucket. */}}
+- name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET
+  value: "true"
+{{- with $s3.endpoint }}
+- name: RCLONE_CONFIG_S3_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Name of the chart-managed secret holding the read-only ClickHouse data source credentials.
 
 Kept apart from .Values.secret.name because that secret is user-managed by default, and these
@@ -841,32 +879,9 @@ Env for a pmm-backup.sh run, shared by the Deployment and Job pods so their targ
   value: {{ include "pmm.backupS3Root" . | quote }}
 - name: S3_PROVIDER
   value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
-{{- /* Same set render_rclone_s3_env() gives the temp restore pods. */}}
-- name: RCLONE_CONFIG_S3_TYPE
-  value: "s3"
-- name: RCLONE_CONFIG_S3_PROVIDER
-  value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
-- name: RCLONE_CONFIG_S3_ENV_AUTH
-  value: "true"
-- name: RCLONE_CONFIG_S3_REGION
-  value: {{ .Values.centralBackupStorage.s3.region | quote }}
-- name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET
-  value: "true"
-{{- with .Values.centralBackupStorage.s3.endpoint }}
-- name: RCLONE_CONFIG_S3_ENDPOINT
-  value: {{ . | quote }}
-{{- end }}
+{{ include "pmm.rcloneS3Env" . }}
 {{- with .Values.centralBackupStorage.s3.existingSecret }}
-- name: AWS_ACCESS_KEY_ID
-  valueFrom:
-    secretKeyRef:
-      name: {{ . }}
-      key: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "access") }}
-- name: AWS_SECRET_ACCESS_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ . }}
-      key: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "secret") }}
+{{ include "pmm.s3KeyEnv" (dict "secret" . "keys" $.Values.centralBackupStorage.s3.existingSecretKeys) }}
 {{- end }}
 {{- with .Values.centralBackupStorage.s3.endpoint }}
 - name: S3_ENDPOINT
@@ -907,6 +922,10 @@ Env for a pmm-backup.sh run, shared by the Deployment and Job pods so their targ
 - name: S3_SERVICE_ACCOUNT
   value: {{ include "pmm.backupS3SaName" . | quote }}
 {{- end }}
+{{- end }}
+{{- with .Values.victoriaMetrics.vmstorage.backup.restoreImage }}
+- name: VMRESTORE_IMAGE
+  value: {{ . | quote }}
 {{- end }}
 {{- /* Both modes: a ResourceQuota would reject unqualified temp pods after scale-down. */}}
 - name: TEMP_POD_RESOURCES

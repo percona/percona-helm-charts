@@ -2130,13 +2130,33 @@ _tp_hasnt "pmm pod does not hardcode root" "runAsUser: 0"
 _tp_has "pmm pod carries its sweep label"  "component: pmm-srv-restore-temp"
 _tp_has "pmm pod gets rclone env on s3"    "RCLONE_CONFIG_S3_TYPE"
 _tp_has "pmm pod opts out of consolidation" "karpenter.sh/do-not-disrupt"
-_tp_hasnt "pmm pod with no identity has no securityContext" "securityContext"
+# No identity = no POD-level block (a restricted SCC assigns one); the container block is always there.
+case "$(printf '%s\n' "${_tp_yaml}" | grep -c '^  securityContext:$')" in
+    0) ok ;; *) bad "pmm pod with no identity has no pod securityContext" "absent" "present" ;; esac
+_tp_has   "container never escalates"              "allowPrivilegeEscalation: false"
+_tp_has   "container runs the RuntimeDefault seccomp profile" "type: RuntimeDefault"
+_tp_hasnt "no identity: no runAsNonRoot (it may be root)" "runAsNonRoot"
+_tp_hasnt "no identity: capabilities are left alone" 'drop: ["ALL"]'
+# The block belongs to the container: 6 spaces, after the container's name, before its mounts.
+_tp_ctr_sec=$(printf '%s\n' "${_tp_yaml}" | awk '
+    /^    - name: /                  { ctr = NR }
+    /^      securityContext:$/       { if (ctr) sec = NR }
+    /^      volumeMounts:$/          { if (sec) { print "ok"; exit } }')
+case "${_tp_ctr_sec}" in
+    ok) ok ;; *) bad "container securityContext sits inside the container" "6-space block in containers[0]" "misplaced" ;; esac
 
 # ...and with one, it lands at pod-spec level rather than inside the container. Both creators take
 # it, because both write a volume another workload owns.
 _tp_capture create_pmm_restore_pod pmm-srv-restore-pmm-0 pmm-storage-pmm-0 percona/pmm-server:3 \
     "$(render_temp_pod_security_context 1000 "" 1000)"
 _tp_has "pmm pod carries the identity it was given"  "runAsUser: 1000"
+# Non-root: the rest of Pod Security "restricted" too.
+_tp_has "non-root identity adds runAsNonRoot"        "runAsNonRoot: true"
+_tp_has "non-root identity drops every capability"   'drop: ["ALL"]'
+_tp_capture create_vm_restore_pod vm-restore-vmstorage-0 vmstorage-db-vmstorage-0 vmrestore:v1 \
+    "$(render_temp_pod_security_context 0 "" "")"
+_tp_hasnt "a root identity keeps its capabilities"   'drop: ["ALL"]'
+_tp_hasnt "...and is not marked runAsNonRoot"        "runAsNonRoot"
 
 # The temp pod inherits the workload's DEPLOYMENT constraints, not just its identity. Without
 # these it had no pull secret (ImagePullBackOff on a private registry / Docker Hub 429), no
@@ -2626,19 +2646,29 @@ section "latest_staleness_guard — a partial schedule freezes the DR pointer"
 #########################################################################################
 
 # DN-14 keeps 'latest' off partial backups. With schedule.components set, every scheduled run
-# is partial, so the pointer stops advancing and `restore --backup-id latest` quietly restores
-# an ever-older backup. The gate is right; the silence is not.
+# is complete but partial-scope, so the pointer stops advancing and `restore --backup-id latest`
+# quietly restores an ever-older backup. The gate is right; the silence is not. A newer FAILED run
+# must not trip it, though: skipping those is what 'latest' is for.
 _cat_ids=""
+_cat_status=""   # "<id>=<status> ..."
 catalog_ids() { printf '%s\n' ${_cat_ids}; }
+catalog_manifest() {
+    for _cm_p in ${_cat_status}; do
+        [ "${_cm_p%%=*}" = "$1" ] && { printf '{"status":"%s"}' "${_cm_p#*=}"; return 0; }
+    done
+    return 1
+}
 
 # Healthy install: the pointer IS the newest id, so nothing to warn about.
 _cat_ids="backup_20260601-120000 backup_20260610-120000"
+_cat_status="backup_20260601-120000=complete backup_20260610-120000=complete"
 ASSUME_YES=false
 latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
 assert_rc "pointer at the newest id passes" 0 $?
 
-# Partial schedule: newer ids exist that the pointer declined. Destructive + silent = refuse.
+# Partial schedule: a newer COMPLETE id the pointer declined. Destructive + silent = refuse.
 _cat_ids="backup_20260601-120000 backup_20260610-120000 backup_20260612-120000"
+_cat_status="backup_20260610-120000=complete backup_20260612-120000=complete"
 ASSUME_YES=false
 latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
 assert_rc "stale pointer is refused without --yes" 1 $?
@@ -2655,13 +2685,53 @@ log() { echo "[$1] $2"; }
 _out=$(latest_staleness_guard "backup_20260610-120000" 2>&1)
 log() { :; }
 case "${_out}" in
-    *"1 newer backup(s) exist"*) ok ;;
-    *) bad "refusal counts the skipped backups" "1 newer backup(s) exist" "${_out}" ;;
+    *"1 newer complete backup(s) exist"*) ok ;;
+    *) bad "refusal counts the skipped backups" "1 newer complete backup(s) exist" "${_out}" ;;
 esac
 case "${_out}" in
     *"day(s) old"*) ok ;;
     *) bad "refusal reports the pointer's age" "day(s) old" "${_out}" ;;
 esac
+
+# A newer FAILED/partial run is exactly what 'latest' skips: the DR restore must go ahead (review #4).
+_cat_status="backup_20260610-120000=complete backup_20260612-120000=partial"
+latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
+assert_rc "a newer partial run does not block 'latest'" 0 $?
+log() { echo "[$1] $2"; }
+_out=$(latest_staleness_guard "backup_20260610-120000" 2>&1)
+log() { :; }
+case "${_out}" in
+    *"1 newer backup(s) failed or are partial"*) ok ;;
+    *) bad "...but it is reported" "1 newer backup(s) failed or are partial" "${_out}" ;;
+esac
+# An unreadable manifest is not proof of a complete run either.
+_cat_status="backup_20260610-120000=complete"
+latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
+assert_rc "a newer id with no readable manifest does not block" 0 $?
+
+# Custom ids carry no time: 'pre-upgrade' sorts after every timestamp but is not newer (review #1).
+_cat_ids="backup_20260610-120000 backup_pre-upgrade"
+_cat_status="backup_20260610-120000=complete backup_pre-upgrade=complete"
+latest_staleness_guard "backup_20260610-120000" >/dev/null 2>&1
+assert_rc "a custom-named backup never makes 'latest' stale" 0 $?
+# ...and a custom 'latest' cannot be aged, so it is not refused either.
+_cat_ids="backup_pre-upgrade backup_20260612-120000"
+_cat_status="backup_pre-upgrade=complete backup_20260612-120000=complete"
+latest_staleness_guard "backup_pre-upgrade" >/dev/null 2>&1
+assert_rc "a custom 'latest' is not staleness-checked" 0 $?
+
+# Mixed: only the complete one counts.
+_cat_ids="backup_20260610-120000 backup_20260611-120000 backup_20260612-120000"
+_cat_status="backup_20260610-120000=complete backup_20260611-120000=partial backup_20260612-120000=complete"
+log() { echo "[$1] $2"; }
+_out=$(latest_staleness_guard "backup_20260610-120000" 2>&1); _rc=$?
+log() { :; }
+assert_rc "mixed newer runs: the complete one still refuses" 1 "${_rc}"
+case "${_out}" in
+    *"1 newer complete backup(s) exist"*) ok ;;
+    *) bad "mixed newer runs count only the complete one" "1 newer complete backup(s) exist" "${_out}" ;;
+esac
+unset -f catalog_manifest 2>/dev/null || true
 
 ASSUME_YES=false
 unset -f catalog_ids 2>/dev/null || true

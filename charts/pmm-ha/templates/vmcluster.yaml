@@ -149,7 +149,7 @@ spec:
     extraArgs:
       {{- toYaml .Values.victoriaMetrics.vmstorage.extraArgs | nindent 6 }}
     {{- end }}
-    {{- /* Without backup infra these sidecars would just idle. */}}
+    {{- /* Without backup infra the sidecar would just idle. */}}
     {{- if and .Values.centralBackupStorage.enabled .Values.victoriaMetrics.vmstorage.backup.enabled }}
     # vmbackup is one-shot; the sidecar sleeps and the orchestrator execs into it.
     containers:
@@ -168,25 +168,14 @@ spec:
           {{- $vmSecret := $vmS3.existingSecret }}
           {{- $vmKeys := $vmS3.existingSecretKeys }}
           {{- if not $vmSecret }}{{- $vmSecret = .Values.centralBackupStorage.s3.existingSecret }}{{- $vmKeys = .Values.centralBackupStorage.s3.existingSecretKeys }}{{- end }}
-          {{- if $vmSecret }}
-          - name: AWS_ACCESS_KEY_ID
-            valueFrom:
-              secretKeyRef:
-                name: {{ $vmSecret }}
-                key: {{ include "pmm.s3SecretKeyName" (dict "keys" $vmKeys "which" "access") }}
-          - name: AWS_SECRET_ACCESS_KEY
-            valueFrom:
-              secretKeyRef:
-                name: {{ $vmSecret }}
-                key: {{ include "pmm.s3SecretKeyName" (dict "keys" $vmKeys "which" "secret") }}
+          {{- with $vmSecret }}
+          {{- include "pmm.s3KeyEnv" (dict "secret" . "keys" $vmKeys) | nindent 10 }}
           {{- end }}
           {{- end }}
         volumeMounts:
           - name: vmstorage-db
             mountPath: /vmstorage-data
             readOnly: true
-          - name: vmstorage-backup
-            mountPath: /vmstorage-backup
           {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
           # shared mode: vmbackup -dst=fs://<sharedMountPath>/backup_<id>/victoriametrics/<pod>/...
           - name: central-backup-storage
@@ -194,24 +183,6 @@ spec:
           {{- end }}
         resources:
           {{- toYaml .Values.victoriaMetrics.vmstorage.backup.resources | nindent 10 }}
-    {{- if .Values.victoriaMetrics.vmstorage.backup.restoreImage }}
-      - name: vmrestore
-        image: {{ .Values.victoriaMetrics.vmstorage.backup.restoreImage }}
-        imagePullPolicy: IfNotPresent
-        command: ["sleep", "infinity"]
-        volumeMounts:
-          - name: vmstorage-db
-            mountPath: /vmstorage-data
-          - name: vmstorage-backup
-            mountPath: /vmstorage-backup
-          {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
-          # shared mode: vmrestore -src=fs://<sharedMountPath>/backup_<id>/victoriametrics/<pod>/...
-          - name: central-backup-storage
-            mountPath: {{ .Values.centralBackupStorage.sharedMountPath }}
-          {{- end }}
-        resources:
-          {{- toYaml .Values.victoriaMetrics.vmstorage.backup.resources | nindent 10 }}
-    {{- end }}
     {{- end }}
     # Persistent storage configuration
     storage:
@@ -225,16 +196,10 @@ spec:
           resources:
             requests:
               storage: {{ .Values.victoriaMetrics.vmstorage.storageSize }}
-    {{- /* Without backup infra these sidecars would just idle. */}}
-    {{- if and .Values.centralBackupStorage.enabled .Values.victoriaMetrics.vmstorage.backup.enabled }}
-    # emptyDir: the VM operator doesn't support extra PVCs per pod.
+    {{- /* Only vmbackup mounts it, in shared mode. */}}
+    {{- if and .Values.centralBackupStorage.enabled .Values.victoriaMetrics.vmstorage.backup.enabled (eq .Values.centralBackupStorage.mode "shared") }}
     volumes:
-      - name: vmstorage-backup
-        emptyDir:
-          sizeLimit: {{ .Values.victoriaMetrics.vmstorage.backupVolumeSize }}
-      {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
       {{- include "pmm.centralBackupVolume" . | nindent 6 }}
-      {{- end }}
     {{- end }}
     # Service configuration for vmstorage
     serviceSpec:

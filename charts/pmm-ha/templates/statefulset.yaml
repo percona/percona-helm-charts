@@ -436,28 +436,18 @@ spec:
           image: "{{ .Values.centralBackupStorage.client.image.registry }}/{{ .Values.centralBackupStorage.client.image.repository }}:{{ .Values.centralBackupStorage.client.image.tag }}"
           command: ["sleep", "infinity"]
           env:
-            - { name: RCLONE_CONFIG_S3_TYPE, value: "s3" }
-            - { name: RCLONE_CONFIG_S3_PROVIDER, value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }} }
-            - { name: RCLONE_CONFIG_S3_ENV_AUTH, value: "true" }
-            - { name: RCLONE_CONFIG_S3_REGION, value: {{ .Values.centralBackupStorage.s3.region | quote }} }
-            # IAM policy has no CreateBucket; bucket already exists -> don't check/create it
-            - { name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET, value: "true" }
-            {{- with .Values.centralBackupStorage.s3.endpoint }}
-            - { name: RCLONE_CONFIG_S3_ENDPOINT, value: {{ . | quote }} }
+            {{- include "pmm.rcloneS3Env" . | nindent 12 }}
+            {{- with .Values.centralBackupStorage.s3.existingSecret }}
+            {{- include "pmm.s3KeyEnv" (dict "secret" . "keys" $.Values.centralBackupStorage.s3.existingSecretKeys) | nindent 12 }}
             {{- end }}
-            {{- if .Values.centralBackupStorage.s3.existingSecret }}
-            # Static credentials (any S3-compatible storage). On AWS with IRSA, leave
-            # existingSecret empty — the SDK credential chain uses the web-identity token.
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.centralBackupStorage.s3.existingSecret }}
-                  key: {{ include "pmm.s3SecretKeyName" (dict "keys" .Values.centralBackupStorage.s3.existingSecretKeys "which" "access") }}
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.centralBackupStorage.s3.existingSecret }}
-                  key: {{ include "pmm.s3SecretKeyName" (dict "keys" .Values.centralBackupStorage.s3.existingSecretKeys "which" "secret") }}
+            {{- with .Values.centralBackupStorage.s3.irsaRoleArn }}
+            # IRSA for this container only: the PMM SA is shared with the pmm container and vmagent.
+            - name: AWS_ROLE_ARN
+              value: {{ index ($.Values.centralBackupStorage.s3.serviceAccountAnnotations | default dict) "eks.amazonaws.com/role-arn" | default . | quote }}
+            - name: AWS_WEB_IDENTITY_TOKEN_FILE
+              value: /var/run/secrets/pmm-backup/token
+            - name: AWS_REGION
+              value: {{ $.Values.centralBackupStorage.s3.region | quote }}
             {{- end }}
           resources:
             requests:
@@ -470,6 +460,11 @@ spec:
             - name: {{ .Values.storage.name }}
               mountPath: /srv
               readOnly: true
+            {{- if .Values.centralBackupStorage.s3.irsaRoleArn }}
+            - name: pmm-backup-aws-token
+              mountPath: /var/run/secrets/pmm-backup
+              readOnly: true
+            {{- end }}
         {{- end }}
       volumes:
         - name: annotations
@@ -491,6 +486,17 @@ spec:
       {{- end }}
       {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
         {{- include "pmm.centralBackupVolume" . | nindent 8 }}
+      {{- end }}
+      {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn }}
+        {{- $saAnn := .Values.centralBackupStorage.s3.serviceAccountAnnotations | default dict }}
+        # The pmm-backup sidecar's web-identity token (the EKS webhook's settings, by hand).
+        - name: pmm-backup-aws-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: {{ index $saAnn "eks.amazonaws.com/audience" | default "sts.amazonaws.com" | quote }}
+                  expirationSeconds: {{ index $saAnn "eks.amazonaws.com/token-expiration" | default 86400 }}
+                  path: token
       {{- end }}
       {{- if .Values.extraVolumes }}
         {{- toYaml .Values.extraVolumes | nindent 8 }}

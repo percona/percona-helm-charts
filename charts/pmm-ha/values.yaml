@@ -815,9 +815,10 @@ centralBackupStorage:
       secretKey: "secret-key"
     ## IAM role ARN annotated onto the backup ServiceAccounts (IRSA, AWS EKS only). Set per
     ## install (e.g. arn:aws:iam::<ACCOUNT_ID>:role/pmm-ha-backup-s3). Empty = no IRSA annotation.
-    ## Three SAs carry it: <release>-backup-sa (backup-tools and the backup/restore Jobs, the only
-    ## one bound to the backup Role), the S3 SA below, and the PMM server SA (its /srv pmm-backup
-    ## sidecar uploads with it). The role's trust policy must name all three.
+    ## Annotated: <release>-backup-sa (backup-tools and the backup/restore Jobs, the only one bound
+    ## to the backup Role) and the S3 SA below. The PMM server SA is NOT annotated (the pmm container
+    ## and vmagent share it); only its pmm-backup sidecar assumes the role, with that SA's projected
+    ## token. The role's trust policy must name all three.
     ## S3-mode credentials come from ONE of: irsaRoleArn (IRSA), existingSecret (static keys),
     ## or ambient AWS credentials on the node (instance profile / kube2iam). With none of the
     ## three, the backup sidecars deploy but every S3 operation fails with auth errors.
@@ -830,6 +831,7 @@ centralBackupStorage:
     serviceAccountName: ""
     ## Extra annotations for both IRSA backup ServiceAccounts (the S3 SA and <release>-backup-sa),
     ## applied when irsaRoleArn is set, e.g. eks.amazonaws.com/sts-regional-endpoints: "false".
+    ## The pmm-backup sidecar's token follows role-arn, audience and token-expiration from here too.
     serviceAccountAnnotations: {}
 
   ## In-pod S3 client image (PMM backup sidecar / backup-tools). Override registry for mirrors/air-gap.
@@ -915,6 +917,15 @@ centralBackupStorage:
       limits:
         cpu: "2"
         memory: 2Gi
+    ## @param centralBackupStorage.tools.podSecurityContext Pod securityContext of backup-tools and the backup/restore Jobs
+    ## Pod Security "restricted": add runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534 here and
+    ## capabilities: {drop: [ALL]} below (the default image ships jq/rclone; shared mode needs the volume writable by that uid).
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    ## @param centralBackupStorage.tools.securityContext Container securityContext of the same pods
+    securityContext:
+      allowPrivilegeEscalation: false
 
 
   ## @param centralBackupStorage.storageSize Size of central backup storage
@@ -933,6 +944,7 @@ centralBackupStorage:
   ## Empty (default) picks by mode: ReadWriteMany for shared (many component pods mount the
   ## volume) and ReadWriteOnce for s3 (only the backup-tools pod mounts a small logs volume).
   ## Set explicitly to override — e.g. "ReadWriteMany" on NFS/EFS, "ReadWriteOnce" on EBS.
+  ## Immutable once the chart has created the PVC: a later change (or a mode switch) fails the render.
   ## (Forcing RWX on a cluster whose only storage class is RWO leaves the PVC Pending.)
   ## In s3 mode an explicit ReadWriteMany also LIFTS the backup Job's required co-location with
   ## the backup-tools pod: that affinity exists only because an RWO volume can be mounted from a
@@ -1657,11 +1669,6 @@ victoriaMetrics:
     ## If empty, uses the cluster's default storage class
     storageClassName: ""
     
-    ## @param victoriaMetrics.vmstorage.backupVolumeSize Size limit for local backup volume (emptyDir)
-    ## Note: Local backups use emptyDir (ephemeral storage on the node)
-    ## For persistent backups, configure S3 below
-    backupVolumeSize: 20Gi
-    
     ## @param victoriaMetrics.vmstorage.affinity Pod affinity configuration for vmstorage
     affinity:
       podAntiAffinity:
@@ -1695,8 +1702,8 @@ victoriaMetrics:
       ## Pinned (not :latest) for reproducibility; keep in step with the vmstorage version.
       image: victoriametrics/vmbackup:v1.151.0
 
-      ## @param victoriaMetrics.vmstorage.backup.restoreImage vmrestore image (for restore from central backup)
-      ## Keep the same version as backup.image.
+      ## @param victoriaMetrics.vmstorage.backup.restoreImage vmrestore image for the restore temp pods
+      ## Keep the same version as backup.image. Passed to pmm-backup.sh as VMRESTORE_IMAGE.
       restoreImage: victoriametrics/vmrestore:v1.151.0
       
       ## @param victoriaMetrics.vmstorage.backup.resources Resource requests and limits for vmbackup sidecar

@@ -7,8 +7,3 @@
 values-dev*.yaml
 values-*.local.yaml
 CLAUDE.md
-
-**/values-dev.yaml
-**/values-*.local.yaml
-values-dev-*.yaml
-**/values-dev-*.yaml

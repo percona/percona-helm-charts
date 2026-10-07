@@ -68,6 +68,10 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           serviceAccountName: {{ include "pmm.backupRunSaName" . }}
+          {{- with $cbs.tools.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- if $needsColocation }}
           # Required: without backup-tools on this node the RWO volume is unusable anyway.
           affinity:
@@ -81,6 +85,10 @@ spec:
           containers:
           - name: backup
             image: "{{ $cbs.tools.image.registry }}/{{ $cbs.tools.image.repository }}:{{ $cbs.tools.image.tag }}"
+            {{- with $cbs.tools.securityContext }}
+            securityContext:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
             env:
               {{- include "pmm.backupRunEnv" . | nindent 14 }}
               # Jobs fail loudly on a missing tool; the Deployment deliberately does not.

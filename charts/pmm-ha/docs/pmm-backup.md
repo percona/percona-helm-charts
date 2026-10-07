@@ -379,7 +379,9 @@ RGW, ...); pick one of two credential models (see §3 for setup):
   Secret and injected into every uploading pod. The only option on non-AWS storage.
 - **IRSA** (AWS EKS only, keyless): each uploading pod runs under a ServiceAccount
   annotated with an IAM role (`eks.amazonaws.com/role-arn`); the EKS pod-identity webhook
-  injects a web-identity token that the AWS SDK credential chain picks up.
+  injects a web-identity token that the AWS SDK credential chain picks up. The exception is
+  the PMM pods: their ServiceAccount is shared with the `pmm` container and vmagent, so it is
+  not annotated, and only the `pmm-backup` sidecar gets the role, through its own projected token.
 
 For non-AWS endpoints set `centralBackupStorage.s3.endpoint` (and `provider` for the
 rclone-based clients); the orchestrator passes the endpoint through to every tool,
@@ -499,7 +501,7 @@ or, on AWS, IRSA:
 
 | Component | Chart wiring |
 |---|---|
-| PMM `/srv` | adds the `pmm-backup` rclone sidecar to the PMM StatefulSet; creds via `centralBackupStorage.s3.existingSecret` or the PMM SA's `irsaRoleArn` annotation |
+| PMM `/srv` | adds the `pmm-backup` rclone sidecar to the PMM StatefulSet; creds via `centralBackupStorage.s3.existingSecret`, or `irsaRoleArn` assumed by the sidecar alone with the PMM SA's projected token |
 | VictoriaMetrics | `VMCluster.spec.serviceAccountName` = backup S3 SA (IRSA only; no RBAC); vmbackup gets `AWS_REGION` + creds (`existingSecret` or IRSA chain) |
 | ClickHouse | CHI pod-template `serviceAccountName` = backup S3 SA (IRSA only; no RBAC); clickhouse-backup gets `REMOTE_STORAGE=s3` + `S3_PATH` + creds (`existingSecret` or IRSA chain) |
 | PostgreSQL | nothing PG-specific — `pg_dump` streams through the `pmm-backup` rclone sidecar, which already has the S3 credentials. No pgBackRest S3 repo wiring. |
@@ -552,9 +554,12 @@ through the cluster's OIDC provider — **no access keys in the cluster**:
    backup/restore Jobs), `system:serviceaccount:<ns>:<release>-backup-s3` (VictoriaMetrics,
    ClickHouse and the restore temp pods) — and the PMM server SA. A `StringLike` on
    `system:serviceaccount:<ns>:<release>-backup-*` covers both backup SAs.
-3. Set `centralBackupStorage.s3.irsaRoleArn`. The chart annotates the SAs
+3. Set `centralBackupStorage.s3.irsaRoleArn`. The chart annotates the two backup SAs
    (`eks.amazonaws.com/role-arn`); the EKS pod-identity webhook injects a web-identity
-   token that the AWS SDK / rclone pick up automatically. Only `<release>-backup-sa` is bound
+   token that the AWS SDK / rclone pick up automatically. The PMM server SA stays
+   unannotated, because the `pmm` container and vmagent run under it too: the chart gives the
+   `pmm-backup` sidecar alone `AWS_ROLE_ARN` and a projected token of that SA (audience and
+   expiry follow `serviceAccountAnnotations`, as the webhook's would). Only `<release>-backup-sa` is bound
    to the backup Role (pod exec, Secrets); `<release>-backup-s3` gets S3 access and nothing
    else, because every VictoriaMetrics and ClickHouse pod runs under it.
 4. The STS regional endpoint must be ACTIVE in the cluster's region (IAM console →
@@ -1238,6 +1243,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `LOCK_RENEWER_MAX_SECONDS` | Backstop lifetime for the lease renewer | 86400 |
 | `CH_SECRET_NAME` | Kubernetes secret for ClickHouse (the chart sets it from `secret.name`) | pmm-secret |
 | `CH_CREATE_TIMEOUT` | Max seconds to wait for clickhouse-backup create (the upload has no wall clock) | 300 |
+| `VM_READY_TIMEOUT` | Max seconds a restore waits for vmstorage to be Ready again after vmrestore (a large tier loads its index for minutes) | 1800 |
 | `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
 | `BACKUP_TARGET` | Target mode: `s3` or `shared` (set by Helm from `centralBackupStorage.mode`) | s3 |
 | `PMM_SERVER_REPLICAS` | Replica count a restore scales PMM back up to, used **only** when the live `spec.replicas` is 0/unreadable *and* the count stashed on the StatefulSet (`restore.pmm.percona.com/original-replicas`) is unusable. Set it when re-running a restore against an install that does not run 3. | 3 |
@@ -1267,7 +1273,7 @@ the pod needs no flags:
 | `S3_SERVICE_ACCOUNT` | ServiceAccount for restore temp pods (IRSA SA, or one carrying imagePullSecrets) | pmm-ha-backup-s3 |
 | `PMM_STORAGE_PVC_PREFIX` | Override the PMM `/srv` PVC name prefix. **Normally leave unset** — the name is read from the PMM StatefulSet's `volumeClaimTemplate`, so it follows `storage.name` automatically (DN-39) | *(derived)* |
 | `VM_STORAGE_PVC_PREFIX` | Override the vmstorage PVC name prefix (the VictoriaMetrics operator's convention) | vmstorage-db- |
-| `VMRESTORE_IMAGE` | vmrestore image override | *(auto-detected from the vmstorage pod)* |
+| `VMRESTORE_IMAGE` | vmrestore image for the temp pods (set by the chart from `victoriaMetrics.vmstorage.backup.restoreImage`; unset = the restore refuses) | |
 | `CENTRAL_BACKUP_PVC` | Central backup PVC name for a `shared`-mode restore | *(auto-detected from backup-tools)* |
 
 ### Examples
@@ -1900,7 +1906,8 @@ PostgreSQL needs no options — databases come from the manifest.
    makes cross-namespace/cross-prefix restores work; shared: untar + `restore --rm`),
    VictoriaMetrics (scale vmstorage+vminsert to 0 — vminsert wait is soft/non-blocking,
    vmstorage wait is strict — then `vmrestore` per ordinal in a temp pod, ordinal-mapped
-   to the SOURCE release's directory names, then scale back and bounce vmselect).
+   to the SOURCE release's directory names, then scale back (vmstorage gets
+   `VM_READY_TIMEOUT` to become Ready) and bounce vmselect).
    A failed ordinal-map lookup is a hard error (no fallback guessing); partial restores
    (some ordinals failed) fail the component.
 10. **PMM `/srv`**: per ordinal, a temp pod mounts the pmm-storage PVC and extracts the
@@ -1969,6 +1976,10 @@ kubectl exec -n <target-ns> deploy/<target-release>-backup-tools -- \
 The subpath is what keeps two installs on one export from sharing a `latest` pointer, a
 `manifests/` directory and an age-based retention sweep. The target's own subpath is untouched
 by the restore; only the source's is read.
+
+If the source install is still running, pause its schedule (`centralBackupStorage.schedule.enabled=false`)
+before restoring one of its backups that is older than its retention: its sweep takes its locks in
+its own namespace, so nothing stops it purging that backup mid-restore (the restore warns).
 
 Prerequisites for the target namespace: the PMM-HA instance installed (distinct release
 name; see the multi-namespace section of the chart README), `pmm-secret` present, and —
@@ -2063,8 +2074,8 @@ vmbackup/vmrestore via `-customS3Endpoint`.
 `--target shared` mounts a user-provided RWX volume (`/central`) into the component pods so
 each lands its backup with an in-pod write (no API-server streaming for VM/CH/PMM).
 PostgreSQL `pg_dump` is streamed through the orchestrator onto the same volume. The chart
-mounts `/central` into the PMM StatefulSet, the clickhouse-backup sidecar, and the vmbackup/
-vmrestore sidecars; the volume must be `ReadWriteMany`.
+mounts `/central` into the PMM StatefulSet, the clickhouse-backup sidecar, the vmbackup
+sidecar and the vmrestore temp pods; the volume must be `ReadWriteMany`.
 
 ### OpenShift
 
@@ -2133,8 +2144,18 @@ kubectl+jq+rclone works, and a minimal one built in-house (Alpine, `apk add jq`,
 > still alpha. DN-49 carries the full comparison and the values snippet.
 
 The other open item is not specific to backup: the chart sets no `securityContext` on
-ClickHouse, vmstorage or backup-tools, so whether those components come up under an assigned
+ClickHouse or vmstorage, so whether those components come up under an assigned
 UID at all is a question about the chart rather than about this feature.
+
+### Pod Security `restricted`
+
+backup-tools and the backup/restore Job pods take `centralBackupStorage.tools.podSecurityContext`
+and `.securityContext`. The defaults (`seccompProfile: RuntimeDefault`, `allowPrivilegeEscalation:
+false`) keep them root-capable. For a namespace that enforces `restricted`, add `runAsNonRoot: true`,
+`runAsUser`/`fsGroup` (e.g. 65534) and `capabilities: {drop: [ALL]}`. The default tools image already
+ships jq and rclone, so nothing needs root at start-up. In shared mode the central volume must also be
+writable by that uid. The restore temp pods add the same hardening themselves whenever the workload
+they borrow their identity from is non-root (DN-48).
 
 ### Metrics Persistence
 

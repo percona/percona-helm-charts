@@ -68,6 +68,7 @@
 #   <RELEASE> / <NAMESPACE>   your Helm release and its namespace
 #   <PMM_SECRET>              secret.name                             (chart default pmm-secret)
 #   <TOOLS_IMAGE>             centralBackupStorage.tools.image (registry/repository:tag)
+#   <VMRESTORE_IMAGE>         victoriaMetrics.vmstorage.backup.restoreImage
 #   <IMAGE_PULL_SECRET>       image.imagePullSecrets, if your install sets one (else delete it)
 #   <BACKUP_DIR>              centralBackupStorage.mountPath          (chart default /backups)
 #   <SHARED_MOUNT_PATH>       centralBackupStorage.sharedMountPath    (chart default /central)
@@ -104,9 +105,14 @@ spec:
       # Delete them if the SA already carries a secret, or if you use none.
       imagePullSecrets:
         - name: <IMAGE_PULL_SECRET>
+      securityContext:                # centralBackupStorage.tools.podSecurityContext
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: restore
           image: <TOOLS_IMAGE>
+          securityContext:            # centralBackupStorage.tools.securityContext
+            allowPrivilegeEscalation: false
           env:
             - name: NAMESPACE
               value: <NAMESPACE>
@@ -133,6 +139,8 @@ spec:
               value: shared
             - name: SHARED_MOUNT_PATH
               value: <SHARED_MOUNT_PATH>
+            - name: VMRESTORE_IMAGE        # the vmstorage pods carry no vmrestore container
+              value: <VMRESTORE_IMAGE>
             - name: PMM_TOOLS_STRICT       # fail loudly if jq cannot be installed
               value: "true"
           # command bootstraps the tools, args is the operation — same split as the CronJob,
