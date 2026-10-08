@@ -3847,16 +3847,19 @@ _bp "error: error reading from error stream: next reader: websocket: close 1006 
 _bp "TAR_RC=2" 0 "failed+deleted" "tar rc 2 -> failed"
 rm -f "${_bp_st}"; unset -f _bp
 
-# The in-pod script itself: TAR_RC on success; a failed cd exits 2 with no marker (bash in the PMM
-# image would otherwise hand tar's slot rc 1 from cd).
+# The in-pod script itself: TAR_RC carries tar's rc; a failed cd exits 2 with no marker (bash in the
+# PMM image would otherwise hand tar's slot rc 1 from cd). tar is a function so the runner's tar
+# (busybox-static has no --exclude) is not under test.
 _bp_script=$(grep -F 'echo "TAR_RC=$?"' "${TARGET}" | sed "s/^[^']*'//; s/'[^']*\$//")
-_bp_d=$(mktemp -d); mkdir -p "${_bp_d}/srv/a"; echo x > "${_bp_d}/srv/a/f"
-_bp_o=$(sh -c "${_bp_script}" sh "${_bp_d}/out/pmm-0" "${_bp_d}/srv" "${_bp_d}/out/pmm-0/srv.tar.gz" 2>&1)
-assert_eq "in-pod tar prints TAR_RC=0" "0" "$(printf '%s\n' "${_bp_o}" | marker_rc TAR_RC)"
-assert_eq "...and wrote the archive" "yes" "$([ -s "${_bp_d}/out/pmm-0/srv.tar.gz" ] && echo yes || echo no)"
-_bp_o=$(sh -c "${_bp_script}" sh "${_bp_d}/out/pmm-0" "${_bp_d}/missing" "${_bp_d}/out/pmm-0/x.tar.gz" 2>&1); _bp_r=$?
+_bp_d=$(mktemp -d); mkdir -p "${_bp_d}/srv/a"
+_bp_run() { sh -c "tar() { echo \"\$*\" > \"\$2\"; return $1; }; ${_bp_script}" sh "${_bp_d}/out/pmm-0" "$2" "${_bp_d}/out/pmm-0/srv.tar.gz" 2>&1; }
+assert_eq "tar rc 0 -> TAR_RC=0" "0" "$(_bp_run 0 "${_bp_d}/srv" | marker_rc TAR_RC)"
+assert_eq "...run in /srv's entries, into the target" "-czf ${_bp_d}/out/pmm-0/srv.tar.gz --exclude=lost+found a" \
+    "$(cat "${_bp_d}/out/pmm-0/srv.tar.gz")"
+assert_eq "tar rc 1 (warnings) -> TAR_RC=1" "1" "$(_bp_run 1 "${_bp_d}/srv" | marker_rc TAR_RC)"
+_bp_o=$(_bp_run 0 "${_bp_d}/missing"); _bp_r=$?
 assert_eq "a failed cd exits 2 with no TAR_RC" "2:" "${_bp_r}:$(printf '%s\n' "${_bp_o}" | marker_rc TAR_RC)"
-rm -rf "${_bp_d}"
+rm -rf "${_bp_d}"; unset -f _bp_run
 
 #########################################################################################
 section "pg_end_tagged / release_locks — orphaned pg_dump/pg_restore sessions are ended"
