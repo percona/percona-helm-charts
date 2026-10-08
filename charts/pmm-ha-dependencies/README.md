@@ -135,9 +135,9 @@ of their own and enforce `restricted` on the PMM namespace instead - see
 [Pod security](../pmm-ha/README.md#pod-security) in the pmm-ha chart.
 
 On OpenShift the `restricted-v2` SCC assigns user ids from the project's range and rejects the
-ones these values pin for plain Kubernetes (65534 for the Altinity operator, 1000 for the
-VictoriaMetrics operator). Install with
-[`examples/values-openshift.yaml`](examples/values-openshift.yaml), which unsets them.
+ones these values pin for plain Kubernetes (65534 for the Altinity operator). Install with
+[`examples/values-openshift.yaml`](examples/values-openshift.yaml), which unsets them; the chart
+refuses to install on OpenShift while they are still set.
 
 ## Multi-namespace support
 
