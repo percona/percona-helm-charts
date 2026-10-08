@@ -30,8 +30,10 @@ This PMM HA deployment provides the following high availability features:
 
 ## Prerequisites
 
-- Kubernetes 1.22+
-- Helm 3.2.0+
+- Kubernetes 1.32+
+- Helm 3.17.0+ — older versions assume a Kubernetes version below 1.32 when rendering without a
+  cluster (`helm template`), so they reject the chart, and versions before 3.13.0 also ignore the
+  `null` entries in `values.yaml` that keep the HAProxy stats port off the `pmm-ha-haproxy` Service
 - PV provisioner support in the underlying infrastructure
 - A StorageClass with `allowVolumeExpansion: true` — every capacity correction on
   a running install is a PVC expansion, which is impossible without it
@@ -301,12 +303,24 @@ PMM HA provides the following service endpoints for clients to connect:
 |---------|-------------|------|
 | `pmm-ha-haproxy` | **Recommended** - HAProxy load balancer that routes to the active PMM leader | `haproxy.containerPorts.https`, 443 by default (HTTPS) |
 | `monitoring-service` | Headless service for direct PMM pod access (used internally) | 8443 (HTTPS) |
+| `pmm-ha-haproxy-stats` | Headless service for the HAProxy stats page (`haproxy.monitoring.stats.uri`) and Prometheus exporter (`haproxy.monitoring.prometheus.path`), scraped by vmagent | `haproxy.monitoring.stats.port`, 1024 by default (HTTP) |
 
 **For all external clients and Percona Operators, use `pmm-ha-haproxy` as the PMM server endpoint.**
 
 The HAProxy port is not fixed: the Service publishes whatever `haproxy.containerPorts.https` is
 set to, and the OpenShift overlay moves it to 8443 because `restricted-v2` cannot bind below 1024.
 Substitute that port for 443 everywhere below if you changed it.
+
+`pmm-ha-haproxy` publishes only that HTTPS port, so a `LoadBalancer` or `NodePort` service type
+does not expose the HAProxy stats page, which has no authentication. The page is read-only, and
+like any metrics endpoint it remains readable by anything that can reach the HAProxy pod IPs. To
+open it for debugging, port-forward to the stats Service and browse
+`http://localhost:1024/stats`. The command and URL use the defaults; substitute your
+`haproxy.monitoring.stats.port` and `haproxy.monitoring.stats.uri` if you changed them:
+
+```sh
+kubectl port-forward -n <namespace> svc/pmm-ha-haproxy-stats 1024
+```
 
 ### Connecting PMM Clients
 
@@ -485,6 +499,8 @@ Consequences:
 | `haproxy.service.type`        | Service type for HAProxy: ClusterIP (internal), LoadBalancer (external via LB), or NodePort (external via node) | `ClusterIP` |
 | `haproxy.service.annotations` | Service annotations (add cloud-specific annotations as needed)                                                   | `{}`        |
 | `haproxy.containerPorts.https` | Port HAProxy binds for PMM traffic; the Service publishes the same port. Must be above 1024 on OpenShift        | `443`       |
+| `haproxy.containerPorts.http` | Unset: nothing listens on it                                                                                     | `nil`       |
+| `haproxy.containerPorts.stat` | Unset so a LoadBalancer or NodePort Service does not publish the stats page; vmagent reaches it through `pmm-ha-haproxy-stats` | `nil`       |
 | `haproxy.bufsize`             | HAProxy `tune.bufsize` in bytes: the largest request header block accepted. Keep it above the pmm-server nginx 64 KiB header limit | `131072`    |
 
 

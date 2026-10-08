@@ -45,15 +45,16 @@ data:
         timeout client  50000
         timeout server  50000
     
-    {{- if .Values.haproxy.monitoring.stats.enabled | default true }}
-    # Statistics and monitoring
+    {{- if .Values.haproxy.monitoring.stats.enabled }}
+    # Statistics and monitoring. Unauthenticated, so read-only (no "stats admin"). Not published
+    # on pmm-ha-haproxy, only on the headless pmm-ha-haproxy-stats Service, but readable by
+    # anything that can reach the pod IPs.
     frontend stats
-        bind *:{{ .Values.haproxy.monitoring.stats.port | default 1024 }}
+        bind *:{{ include "pmm.haproxy.statsPort" . }}
         stats enable
         stats uri {{ .Values.haproxy.monitoring.stats.uri | default "/stats" }}
         stats refresh {{ .Values.haproxy.monitoring.stats.refresh | default "30s" }}
-        stats admin if TRUE
-        {{- if .Values.haproxy.monitoring.prometheus.enabled | default true }}
+        {{- if .Values.haproxy.monitoring.prometheus.enabled }}
         http-request use-service prometheus-exporter if { path {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }} }
         {{- end }}
     {{- end }}

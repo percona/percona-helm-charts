@@ -225,8 +225,8 @@ owned by the first release, and a second install fails with
 
 ## Requirements
 
-- Kubernetes 1.24+
-- Helm 3.8+
+- Kubernetes 1.32+
+- Helm 3.17.0+
 - PV provisioner support in the underlying infrastructure (for operator storage)
 
 ## Chart Dependencies
