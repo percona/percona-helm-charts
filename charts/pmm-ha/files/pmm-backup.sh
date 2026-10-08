@@ -766,6 +766,10 @@ _bounded() {
     if [ "${_bd_t}" = "0" ]; then "$@"; else timeout "${_bd_t}" "$@"; fi
 }
 
+# The rc a pod script printed as "<key>=<rc>" on stdin; empty when missing. kubectl exits 1 for its
+# own failures too (dropped stream, "Unable to connect"), so a command's rc 1 is read from here.
+marker_rc() { sed -n "s/^$1=\([0-9][0-9]*\)\$/\1/p" | tail -n 1; }
+
 # pod_sh <tag> <pod> <container|-> <timeout> <script> [args...]
 # One script text is both previewed and run; values are positional args (DN-17). 0 in dry run.
 pod_sh() {
@@ -2547,8 +2551,9 @@ ch_archive_to_shared() {   # <backup-name>
     ch_shared_dir="$(comp_inpod clickhouse)"
     CH_SHARED_TAR="${ch_shared_dir}/${backup_name}.tar.gz"
     log "INFO" "[ClickHouse] Archiving backup to the shared volume: ${CH_SHARED_TAR}"
+    # Test first: on NFS, BusyBox mkdir -p on an existing path gets EACCES at a root uid 101 cannot write.
     if ! pod_sh ClickHouse "${CH_POD}" clickhouse-backup 0 \
-        'mkdir -p "$1" && tar -czf "$2" -C /var/lib/clickhouse/backup "$3"' \
+        '{ [ -d "$1" ] || mkdir -p "$1"; } && tar -czf "$2" -C /var/lib/clickhouse/backup "$3"' \
         "${ch_shared_dir}" "${CH_SHARED_TAR}" "${backup_name}" >> "${LOG_FILE}" 2>&1; then
         log "ERROR" "[ClickHouse] Failed to archive the backup to the shared volume"
         return 1
@@ -2675,12 +2680,9 @@ backup_victoriametrics() {
             log "INFO" "[VictoriaMetrics]   unchanged parts are copied server-side from ${vm_origin}"
         fi
 
-        # Pre-create the dir 2777 like share_mkdir (vmbackup's umask gives 0700).
-        if [ "${BACKUP_TARGET}" = "shared" ]; then
-            _vm_dstdir="${backup_dst#fs://}"
-            pod_sh VictoriaMetrics "${pod}" vmbackup "${KUBECTL_EXEC_TIMEOUT}" \
-                'mkdir -p "$1" 2>/dev/null && chmod 2777 "$1" 2>/dev/null || true' \
-                "${_vm_dstdir}" >/dev/null 2>&1 || true
+        # Every level 2777 from here (vmbackup's umask gives 0700); in-pod BusyBox mkdir -p fails on NFS.
+        if [ "${BACKUP_TARGET}" = "shared" ] && [ "${DRY_RUN}" != "true" ]; then
+            share_mkdir "$(comp_path victoriametrics)/${pod}/${backup_name}" || true
         fi
         
         # Via pod_exec so --dry-run prints the argv only.
@@ -2838,17 +2840,26 @@ backup_pmm_server() {
         else
             # Created here, not by uid 1000 in the pod: retention (uid 65534) must be able to delete in it.
             [ "${DRY_RUN}" = "true" ] || share_mkdir "$(comp_path pmm-server)/${pod}" || true
-            pod_sh PMMServer "${pod}" - 0 \
-                'mkdir -p "$1" && cd "$2" && tar -czf "$3" --exclude=lost+found $(ls -A | grep -vxF lost+found)' \
-                "$(comp_inpod pmm-server)/${pod}" "${PMM_SRV_PATH}" "${shared_file}" >> "${LOG_FILE}" 2>&1
+            # tar's rc via TAR_RC: a cut exec stream also exits 1 but leaves a partial archive behind.
+            _pmm_out=$(pod_sh PMMServer "${pod}" - 0 \
+                '{ [ -d "$1" ] || mkdir -p "$1"; } && cd "$2" || exit 2; tar -czf "$3" --exclude=lost+found $(ls -A | grep -vxF lost+found); echo "TAR_RC=$?"' \
+                "$(comp_inpod pmm-server)/${pod}" "${PMM_SRV_PATH}" "${shared_file}" 2>&1)
             pmm_exit=$?
+            printf '%s\n' "${_pmm_out}" >> "${LOG_FILE}"
+            _pmm_rc=$(printf '%s\n' "${_pmm_out}" | marker_rc TAR_RC)
+            if [ -n "${_pmm_rc}" ]; then
+                pmm_exit="${_pmm_rc}"
+            elif [ "${DRY_RUN}" != "true" ]; then
+                log "ERROR" "[PMMServer] ${pod}: no TAR_RC from the pod (kubectl exit ${pmm_exit}); the exec stream was cut, so the archive cannot be trusted"
+                pmm_exit=255
+            fi
         fi
         set -e
         if [ "${DRY_RUN}" = "true" ]; then success_count=$((success_count + 1)); continue; fi
 
         # tar: 0=ok, 1=files changed/unreadable while reading (warn); >=2 fatal; 124=timeout
-        if [ ${pmm_exit} -eq 0 ] || [ ${pmm_exit} -eq 1 ]; then
-            [ ${pmm_exit} -eq 1 ] && log "WARN" "[PMMServer] ${pod}: tar warnings (files changed/unreadable while archiving)"
+        if [ "${pmm_exit}" -eq 0 ] || [ "${pmm_exit}" -eq 1 ]; then
+            [ "${pmm_exit}" -eq 1 ] && log "WARN" "[PMMServer] ${pod}: tar warnings (files changed/unreadable while archiving)"
 
             # Size from the destination, via the store layer (DN-26).
             size_b=$(store_bytes "${dest}" 2>/dev/null || echo 0)
@@ -3234,6 +3245,18 @@ select_default_components() {
         fi
     done
     return 0
+}
+
+# Default selection only: " <key>(<status>)" for each failed/pruned component not --skip'ed.
+# Absent components (a scoped backup) carry no status and pass.
+default_restore_gaps() {
+    _drg_out="" _drg_k="" _drg_st=""
+    [ "${EXPLICIT_SELECTION}" = "true" ] && return 0
+    for _drg_k in ${RESTORE_COMPONENTS}; do
+        _drg_st=$(comp_val "${_drg_k}" 7)
+        case "${_drg_st}" in failed|pruned) comp_on "${_drg_k}" 6 || _drg_out="${_drg_out} ${_drg_k}(${_drg_st})" ;; esac
+    done
+    printf '%s' "${_drg_out}"
 }
 
 # The key must match the PostgreSQL data PMM runs on: it follows a PostgreSQL restore (as it is
@@ -3928,21 +3951,29 @@ restore_postgresql() {
             fail=1; rm -f "${pr_out}"; continue
         fi
         kubectl exec -n "${NAMESPACE}" "${pg_pod}" -c database -- \
-            env PGAPPNAME="${PG_APPNAME}" pg_restore -U postgres -d "${db}" "${stage}" >"${pr_out}" 2>&1 || rc=$?
+            sh -c 'env PGAPPNAME="$1" pg_restore -U postgres -d "$2" "$3"; echo "PG_RESTORE_RC=$?"' \
+            sh "${PG_APPNAME}" "${db}" "${stage}" >"${pr_out}" 2>&1 || rc=$?
         cat "${pr_out}" >> "${LOG_FILE}" 2>/dev/null || true
         timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -n "${NAMESPACE}" "${pg_pod}" -c database -- rm -f "${stage}" >/dev/null 2>&1 \
             || log "WARN" "[PostgreSQL] could not remove ${pg_pod}:${stage}"
+        # pg_restore's own rc; without the marker kubectl failed and the database is in an unknown state.
+        _pgr_rc=$(marker_rc PG_RESTORE_RC < "${pr_out}")
+        if [ -z "${_pgr_rc}" ]; then
+            log "ERROR" "[PostgreSQL] ${db}: no PG_RESTORE_RC from the pod (kubectl exit ${rc}); pg_restore may not have run or finished"
+            fail=1; rm -f "${pr_out}"; continue
+        fi
+        rc="${_pgr_rc}"
         # Non-zero with 'error:' lines is a real failure; rc 1 alone is warnings.
-        if [ ${rc} -eq 0 ]; then
+        if [ "${rc}" -eq 0 ]; then
             log "INFO" "[PostgreSQL] ✓ ${db} restored"
         elif grep -q 'error:' "${pr_out}" 2>/dev/null; then
             log "ERROR" "[PostgreSQL] ${db}: pg_restore FAILED (exit ${rc}); last errors:"
             grep 'error:' "${pr_out}" 2>/dev/null | tail -n 5 | append_to_log || true
             fail=1
-        elif [ ${rc} -eq 1 ]; then
+        elif [ "${rc}" -eq 1 ]; then
             log "WARN" "[PostgreSQL] ${db}: pg_restore exited ${rc} with warnings only (check the log)"
         else
-            # Other rc is kubectl's (137 = killed): the DB may be half-restored.
+            # pg_restore killed (137) or crashed: the DB may be half-restored.
             log "ERROR" "[PostgreSQL] ${db}: pg_restore did not complete (exit ${rc})"
             fail=1
         fi
@@ -5344,12 +5375,12 @@ cmd_backup() {
             fi
         fi
 
-        if [ ! -w "${BACKUP_DIR}" ]; then
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Backup directory is not writable: ${BACKUP_DIR}"
+        share_mkdir "${STATE_DIR}/logs" || true
+        # STATE_DIR, not the mount root: csi-driver-nfs re-groups an RWX root to its last mounter's fsGroup.
+        if [ ! -w "${STATE_DIR}" ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Backup directory is not writable: ${STATE_DIR}"
             exit 1
         fi
-
-        share_mkdir "${STATE_DIR}/logs" || true
 
         # INT/TERM must exit too: ash/dash would resume unlocked after the handler (DN-20).
         LOCK_COMPONENTS=$(lock_list 4)
@@ -5635,6 +5666,14 @@ cmd_restore() {
             log "ERROR" "Nothing was changed. Pick another backup (see 'list'), or use --skip-<component> to drop it."
             exit 1
         fi
+    fi
+    # The default selection refuses too, rather than restore the rest and report success (DN-21).
+    local _gaps="" _g=""
+    _gaps=$(default_restore_gaps)
+    if [ -n "${_gaps}" ]; then
+        log "ERROR" "${BACKUP_NAME} has component(s) that cannot be restored:${_gaps}"
+        log "ERROR" "Nothing was changed. Restore the rest with$(for _g in ${_gaps}; do printf ' --skip-%s' "$(comp_col "${_g%%(*}" 2)"; done), or name the components to restore."
+        exit 1
     fi
 
     # Validate before the confirmation prompt (DN-15).

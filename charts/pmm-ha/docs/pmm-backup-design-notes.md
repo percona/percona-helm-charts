@@ -332,6 +332,12 @@ mixed-vintage data, and one PMM replica booting with stale `/srv` while the othe
 restored one is an inconsistent HA cluster. Multi-pod components therefore return 0 on partial
 success but only set their success flag on FULL success, and the caller gates on both.
 
+The same holds for restoring a partial backup: with no component flags, a `failed` or `pruned`
+component refuses the restore instead of being dropped from it, so restoring the rest is always a
+choice made with `--skip-<component>`. Success is also read from the command's own exit code, which
+in-pod scripts print as a marker (`TAR_RC`, `PG_RESTORE_RC`): kubectl exits 1 for a dropped exec
+stream too, the same code tar and pg_restore use for "warnings only".
+
 ## DN-22 — Shell portability traps that shipped
 
 - `${var:0:16}` is a bash/ash-with-bash-compat extension and a **fatal** "Bad substitution" on
@@ -1245,7 +1251,8 @@ would back up but could not be restored, so the backup refuses it up front.
 ### Cross-namespace readability (`backup_victoriametrics`, `backup_encryption_key`)
 
 In shared mode, vmbackup creates its tree under the vmstorage container's umask (0700), which a
-peer namespace cannot read. So the destination is pre-created as `2775`, and after a successful
+peer namespace cannot read. So the orchestrator pre-creates every level of the destination `2777`
+(`share_mkdir`, not from inside the pod: BusyBox `mkdir -p` there gets EACCES on NFS), and after a successful
 run `chmod -R g+rX` plus setgid on directories is applied from the owning pod (best-effort). The
 staged encryption key is written under umask 027 (0640, group root) in shared mode and 077 in s3
 mode. OpenShift gives every arbitrary-uid pod gid 0, so group-read is the narrowest mode that a DR

@@ -181,11 +181,15 @@ refused at validation:
 [ERROR]   PMM is at 0 replicas — an earlier run scaled it down and did not finish.
 ```
 
-Scale the tiers back to the values your install uses, then re-run the restore:
+Scale the tiers back to the values your install uses and wait until every vmstorage pod is Ready,
+then re-run the restore. A re-run started before the pods exist is refused at validation again
+(it changes nothing):
 
 ```bash
 kubectl patch vmcluster <vmcluster> -n <namespace> --type=merge \
   -p '{"spec":{"vmstorage":{"replicaCount":3},"vminsert":{"replicaCount":2}}}'
+until [ "$(kubectl get statefulset vmstorage-<vmcluster> -n <namespace> \
+    -o jsonpath='{.status.readyReplicas}')" = 3 ]; do sleep 10; done
 ```
 
 `<vmcluster>` is the name `kubectl get vmcluster -n <namespace>` prints (the chart fullname plus
@@ -1865,7 +1869,9 @@ central mount). Discovery is from the manifest.
 
 **Component selection**: `--postgresql`, `--clickhouse`, `--victoriametrics`, `--pmm-server`,
 `--encryption-key` (plus `--skip-<component>` to drop components from the default set).
-If none are set, every component the manifest marks `success` is restored; explicitly
+If none are set, every component the manifest marks `success` is restored, and the restore
+refuses before changing anything when a component is marked `failed` or `pruned` — pass
+`--skip-<component>` for each to restore the rest, or name the components. Explicitly
 requesting a component the manifest does NOT mark `success` is a hard error. The encryption
 key follows PostgreSQL, because it must match the PostgreSQL data PMM runs on: it is restored
 with PostgreSQL (unless `--skip-encryption-key`), and without a PostgreSQL restore only when
@@ -2168,7 +2174,8 @@ wrote (logs, `.metrics`, shared-mode backups) needs a one-time `chown -R 65534:6
 Shared mode writes the RWX volume from several uids (PMM 1000, ClickHouse 101, vmstorage and the
 tools 65534), and a driver that applies `fsGroup` (csi-driver-nfs does by default) re-groups the
 volume to whichever pod mounted it last. So the orchestrator creates its directories `2777` and
-retention can delete across uids. A shared volume written by an earlier, root-run version needs
+retention can delete across uids, and a backup checks it can write `<namespace>/<release>`, not
+the volume root (which a long-lived backup-tools pod loses as soon as another pod mounts). A shared volume written by an earlier, root-run version needs
 `chmod -R a+rwX` on its backup tree once, as root (e.g. from a one-off pod that mounts the claim).
 Setting the CSI driver's `fsGroupPolicy` to `None` also stops the recursive re-grouping on every
 mount, which is slow on a large backup volume. On OpenShift, `examples/values-openshift.yaml` nulls the ids so the SCC assigns them.

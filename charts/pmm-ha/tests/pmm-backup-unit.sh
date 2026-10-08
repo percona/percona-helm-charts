@@ -1871,6 +1871,52 @@ assert_eq "explicit selection stays narrow (PG on)"  "true"  "${RESTORE_POSTGRES
 assert_eq "explicit selection stays narrow (CH off)" "false" "${RESTORE_CLICKHOUSE}"
 _rs_reset
 
+# PR #919 (4nte): the default selection dropped a failed/pruned component and reported success.
+assert_eq "all success -> no gaps" "" "$(default_restore_gaps)"
+MF_PG_STATUS=failed
+assert_eq "failed PG is a gap" " postgresql(failed)" "$(default_restore_gaps)"
+SKIP_POSTGRESQL=true
+assert_eq "...unless --skip-postgresql" "" "$(default_restore_gaps)"
+_rs_reset; MF_PG_STATUS=pruned; MF_VM_STATUS=pruned; MF_PMM_STATUS=pruned; MF_ENC_STATUS=pruned
+assert_eq "retention-pinned id: every pruned component" \
+    " encryption(pruned) postgresql(pruned) victoriametrics(pruned) pmm-server(pruned)" "$(default_restore_gaps)"
+_rs_reset; MF_VM_STATUS=""; MF_PMM_STATUS=""
+assert_eq "absent components (a scoped backup) are no gap" "" "$(default_restore_gaps)"
+_rs_reset; MF_CH_STATUS=failed; EXPLICIT_SELECTION=true
+assert_eq "explicit selection has its own check" "" "$(default_restore_gaps)"
+_rs_reset
+
+# The real cmd_restore default path, stubbed up to validate_restore_targets: the refusal comes
+# before anything is validated or changed.
+_crd() {   # <expect-validate yes|no> <desc> <MF/SKIP assignments...>
+    _crd_want=$1 _crd_desc=$2; shift 2
+    _crd_act="${TMPDIR:-/tmp}/.crd_act.$$"; : > "${_crd_act}"
+    (
+        _rs_reset; for _a in "$@"; do eval "${_a}"; done
+        DRY_RUN=false; TEMP_PODS_MARKER="${_crd_act}.m"; PG_STAGE_MARKER="${_crd_act}.s"; BACKUP_NAME=backup_x
+        log() { printf '%s\n' "$*" >> "${_crd_act}.log"; }
+        preflight_checks() { return 0; }; restore_cleanup() { :; }; stop_children() { :; }
+        load_manifest() { return 0; }; resolve_component_scope() { return 0; }
+        validate_restore_targets() { echo validate >> "${_crd_act}"; return 1; }
+        cmd_restore
+    ) >/dev/null 2>&1
+    assert_eq "${_crd_desc}" "${_crd_want}" "$(grep -q validate "${_crd_act}" && echo yes || echo no)"
+}
+_crd yes "default restore of a complete backup reaches validation"
+_crd no  "default restore with a failed PG refuses before validation" MF_PG_STATUS=failed
+assert_eq "the refusal names the component and the flag" "yes" \
+    "$(grep -q 'postgresql(failed)' "${_crd_act}.log" && grep -q -- '--skip-postgresql,' "${_crd_act}.log" && echo yes || echo no)"
+rm -f "${_crd_act}.log"
+_crd yes "...and with --skip-postgresql restores the rest" MF_PG_STATUS=failed SKIP_POSTGRESQL=true
+_crd no  "retention-pinned id refuses by default" MF_PG_STATUS=pruned MF_VM_STATUS=pruned MF_PMM_STATUS=pruned MF_ENC_STATUS=pruned
+assert_eq "...and names --skip-encryption-key for the key" "yes" \
+    "$(grep -q -- '--skip-encryption-key' "${_crd_act}.log" && echo yes || echo no)"
+_crd yes "...but --clickhouse restores its ClickHouse" MF_PG_STATUS=pruned MF_VM_STATUS=pruned MF_PMM_STATUS=pruned \
+    MF_ENC_STATUS=pruned EXPLICIT_SELECTION=true RESTORE_CLICKHOUSE=true
+rm -f "${_crd_act}" "${_crd_act}.log"
+unset -f _crd
+_rs_reset
+
 #########################################################################################
 section "CHARACTERIZATION: store_list family + prune sweep, in a FRESH shell"
 #########################################################################################
@@ -2853,6 +2899,21 @@ real_fn lease_try_acquire resolve_one stop_lock_renewer start_lock_renewer
 LOCK_COMPONENTS=""; SCOPE_PMM_STS=""
 
 #########################################################################################
+section "cmd_backup — writability is checked where the run writes, not at the mount root"
+#########################################################################################
+# PR #919 round 12 (D): csi-driver-nfs re-groups an RWX root to the last mounter's fsGroup, so a
+# long-lived backup-tools pod lost write access to /backups and refused every exec'd backup.
+_cb_d=$(mktemp -d); mkdir -p "${_cb_d}/root/ns/rel"; chmod 2777 "${_cb_d}/root/ns" "${_cb_d}/root/ns/rel"; chmod 555 "${_cb_d}/root"
+_cb() {   # <state-dir> -> rc (42 = got past the check)
+    ( BACKUP_DIR="${_cb_d}/root"; STATE_DIR=$1; DRY_RUN=false; lock_list() { :; }; release_locks() { :; }
+      resolve_component_scope() { exit 42; }; cmd_backup ) >/dev/null 2>&1
+}
+_cb "${_cb_d}/root/ns/rel"; assert_rc "read-only mount root, writable <ns>/<release> -> proceeds" 42 $?
+chmod 555 "${_cb_d}/root/ns/rel"
+_cb "${_cb_d}/root/ns/rel"; assert_rc "read-only <ns>/<release> -> refused" 1 $?
+chmod -R u+w "${_cb_d}"; rm -rf "${_cb_d}"; unset -f _cb
+
+#########################################################################################
 section "restore_manifest_unchanged — a sweep between validation and the lock stops the restore"
 #########################################################################################
 
@@ -3709,15 +3770,24 @@ pg_free_bytes() { echo 999999999; }
 pg_stage_dump() { return 0; }
 timeout() { shift; "$@"; }   # else `timeout ... kubectl` execs the real binary, not the stub
 _pr_args="${TMPDIR:-/tmp}/.pr_args.$$"
+# Like the pod: the in-pod sh prints pg_restore's rc as PG_RESTORE_RC and exits 0. "-" = no marker
+# (kubectl failed on its own), with kubectl's rc as the optional 5th argument (default 1).
 kubectl() {
     case "$*" in *pg_restore*) ;; *) return 0 ;; esac   # only the restore itself is under test
-    printf '%s\n' "$*" > "${_pr_args}"; printf '%s\n' "${_pr_out}"; return "${_pr_rc}"; }
-_pr() { _pr_rc=$1; _pr_out=$2; restore_postgresql >/dev/null 2>&1 && rc=0 || rc=$?; assert_rc "$3" "$4" "${rc}"; }
+    printf '%s\n' "$*" > "${_pr_args}"; printf '%s\n' "${_pr_out}"
+    [ "${_pr_rc}" = "-" ] && return "${_pr_krc}"
+    echo "PG_RESTORE_RC=${_pr_rc}"; return "${_pr_krc:-0}"; }
+_pr() { _pr_rc=$1; _pr_out=$2; _pr_krc=${5:-}; [ "${_pr_rc}" = "-" ] && _pr_krc=${5:-1}
+        restore_postgresql >/dev/null 2>&1 && rc=0 || rc=$?; assert_rc "$3" "$4" "${rc}"; }
 _pr 0   ""                                                    "exit 0 -> restored"                    0
 _pr 1   "pg_restore: warning: errors ignored on restore: 2"   "exit 1, warnings only -> restored"     0
 _pr 1   "pg_restore: error: could not read input file"        "exit 1 with error: -> failed"          1
 _pr 137 ""                                                    "exit 137 (killed) -> failed"           1
 _pr 2   "some kubectl noise"                                  "any other exit -> failed"              1
+# PR #919: kubectl exits 1 for its own failures too, and not all of them print 'error:'.
+_pr -   "Unable to connect to the server: dial tcp: i/o timeout" "kubectl exit 1, no marker -> failed"  1
+_pr -   "error: error reading from error stream: websocket: close 1006" "dropped stream -> failed"      1
+_pr 0   ""                         "marker 0, then the stream drops (kubectl 1) -> restored"  0  1
 # Review #7: the database is recreated first, so pg_restore runs without --clean; a database that
 # could not be recreated is failed and never restored into.
 _pr 0 "" "restore into a recreated database" 0
@@ -3747,6 +3817,46 @@ _pr 0 "" "sessions could not be ended -> failed" 1
 assert_eq "and pg_restore never ran" "" "$(cat "${_pr_args}")"
 rm -f "${LOG_FILE}" "${_pr_args}"
 unset -f _pr pg_recreate_db pg_end_sessions pg_free_bytes pg_stage_dump timeout
+
+#########################################################################################
+section "backup_pmm_server (shared) — tar's rc comes from TAR_RC, not kubectl's exit"
+#########################################################################################
+# PR #919 (4nte): kubectl exits 1 for a dropped exec stream too; that read as "tar warnings", and a
+# partial srv.tar.gz was recorded as a success that latest then pointed at.
+_bp_st="${TMPDIR:-/tmp}/.bp_st.$$"
+_bp() {   # <pod_sh output> <pod_sh rc> <expected> <desc>
+    _bp_out=$1 _bp_rc=$2; : > "${_bp_st}"
+    (
+        BACKUP_TARGET=shared; S3_ENABLED=false; DRY_RUN=false; NAMESPACE=ns; SHARED_MOUNT_PATH=/central
+        PMM_SRV_PATH=/srv; BACKUP_DIR="${TMPDIR:-/tmp}"; TIMESTAMP=20260610-120000; CURRENT_ID=backup_20260610-120000
+        LOG_FILE=/dev/null
+        kubectl() { case "$*" in *metadata.name*) echo pmm-0 ;; *status.phase*) echo Running ;; *mountPath*) echo "/srv /central" ;; esac; }
+        share_mkdir() { return 0; }; store_bytes() { echo 1000; }
+        store_delete_object() { echo deleted >> "${_bp_st}"; }
+        result_set() { echo "status=$4" >> "${_bp_st}"; }
+        pod_sh() { printf '%s\n' "${_bp_out}"; return "${_bp_rc}"; }
+        backup_pmm_server
+    ) >/dev/null 2>&1
+    assert_eq "$4" "$3" "$(sed -n 's/^status=//p' "${_bp_st}")$(grep -q deleted "${_bp_st}" && echo +deleted)"
+}
+_bp "TAR_RC=0" 0 success "tar rc 0 -> success"
+_bp "tar: ./x: file changed as we read it
+TAR_RC=1" 0 success "tar rc 1 (warnings) -> success"
+_bp "error: error reading from error stream: next reader: websocket: close 1006 (abnormal closure)" 1 \
+    "failed+deleted" "kubectl exit 1 without TAR_RC (stream cut) -> failed, partial archive deleted"
+_bp "TAR_RC=2" 0 "failed+deleted" "tar rc 2 -> failed"
+rm -f "${_bp_st}"; unset -f _bp
+
+# The in-pod script itself: TAR_RC on success; a failed cd exits 2 with no marker (bash in the PMM
+# image would otherwise hand tar's slot rc 1 from cd).
+_bp_script=$(grep -F 'echo "TAR_RC=$?"' "${TARGET}" | sed "s/^[^']*'//; s/'[^']*\$//")
+_bp_d=$(mktemp -d); mkdir -p "${_bp_d}/srv/a"; echo x > "${_bp_d}/srv/a/f"
+_bp_o=$(sh -c "${_bp_script}" sh "${_bp_d}/out/pmm-0" "${_bp_d}/srv" "${_bp_d}/out/pmm-0/srv.tar.gz" 2>&1)
+assert_eq "in-pod tar prints TAR_RC=0" "0" "$(printf '%s\n' "${_bp_o}" | marker_rc TAR_RC)"
+assert_eq "...and wrote the archive" "yes" "$([ -s "${_bp_d}/out/pmm-0/srv.tar.gz" ] && echo yes || echo no)"
+_bp_o=$(sh -c "${_bp_script}" sh "${_bp_d}/out/pmm-0" "${_bp_d}/missing" "${_bp_d}/out/pmm-0/x.tar.gz" 2>&1); _bp_r=$?
+assert_eq "a failed cd exits 2 with no TAR_RC" "2:" "${_bp_r}:$(printf '%s\n' "${_bp_o}" | marker_rc TAR_RC)"
+rm -rf "${_bp_d}"
 
 #########################################################################################
 section "pg_end_tagged / release_locks — orphaned pg_dump/pg_restore sessions are ended"
