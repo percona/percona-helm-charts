@@ -924,7 +924,8 @@ What runs as what:
 | Helper Jobs                                                   | 65534               | read-only                                | `jobs.podSecurityContext`, `jobs.securityContext`             |
 
 **Privileges.** PMM Server does not call the Kubernetes API: its pods run with
-`automountServiceAccountToken: false` and get no RBAC. The chart creates:
+`automountServiceAccountToken: false` and get no RBAC. The same goes for PMM Client, HAProxy,
+ClickHouse and ClickHouse Keeper. The chart creates:
 
 - two Roles for the helper Jobs, each limited to the one Secret its Job manages
   (`pg-encryption-key` and `<release>-pg-db-pmm-secret`) plus `create` on Secrets, which
