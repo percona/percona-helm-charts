@@ -95,3 +95,125 @@ tests:
           content:
             type: NodePort
             nodePort: 32017
+
+  - it: renders config server external members and scheduling settings
+    set:
+      sharding.configrs.externalNodes:
+        - host: config.example
+          port: 27019
+          votes: 0
+      sharding.configrs.serviceAccountName: mongo-config
+      sharding.configrs.topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+      sharding.configrs.nodeSelector.disktype: ssd
+      sharding.configrs.tolerations:
+        - key: dedicated
+          operator: Exists
+      sharding.configrs.hookScript.configMapRef.name: config-hooks
+    asserts:
+      - equal:
+          path: spec.sharding.configsvrReplSet.externalNodes
+          value:
+            - host: config.example
+              port: 27019
+              votes: 0
+      - equal:
+          path: spec.sharding.configsvrReplSet.serviceAccountName
+          value: mongo-config
+      - equal:
+          path: spec.sharding.configsvrReplSet.topologySpreadConstraints
+          value:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: DoNotSchedule
+      - equal:
+          path: spec.sharding.configsvrReplSet.nodeSelector.disktype
+          value: ssd
+      - equal:
+          path: spec.sharding.configsvrReplSet.tolerations
+          value:
+            - key: dedicated
+              operator: Exists
+      - equal:
+          path: spec.sharding.configsvrReplSet.hookScript.configMapRef.name
+          value: config-hooks
+
+  - it: renders mongos network and audit settings
+    set:
+      sharding.mongos.expose.type: LoadBalancer
+      sharding.mongos.expose.servicePerPod: true
+      sharding.mongos.expose.loadBalancerSourceRanges:
+        - 10.0.0.0/8
+      sharding.mongos.expose.annotations:
+        example.com/service: router
+      sharding.mongos.auditLog:
+        destination: file
+        format: BSON
+        filter: '{}'
+      sharding.mongos.hostAliases:
+        - ip: 10.10.0.2
+          hostnames:
+            - router.example
+    asserts:
+      - isSubset:
+          path: spec.sharding.mongos.expose
+          content:
+            type: LoadBalancer
+            servicePerPod: true
+            loadBalancerSourceRanges:
+              - 10.0.0.0/8
+            annotations:
+              example.com/service: router
+      - equal:
+          path: spec.sharding.mongos.auditLog
+          value:
+            destination: file
+            format: BSON
+            filter: '{}'
+      - equal:
+          path: spec.sharding.mongos.hostAliases
+          value:
+            - ip: 10.10.0.2
+              hostnames:
+                - router.example
+
+  - it: renders mongos pod integrations and a hook script
+    set:
+      sharding.mongos.serviceAccountName: mongo-router
+      sharding.mongos.runtimeClass: kata
+      sharding.mongos.envFrom:
+        - secretRef:
+            name: router-env
+      sharding.mongos.sidecars:
+        - name: metrics
+          image: metrics:latest
+      sharding.mongos.sidecarVolumes:
+        - name: metrics-config
+          configMap:
+            name: metrics-config
+      sharding.mongos.hookScript.script: |-
+        #!/bin/sh
+        echo router-ready
+    asserts:
+      - isSubset:
+          path: spec.sharding.mongos
+          content:
+            serviceAccountName: mongo-router
+            runtimeClassName: kata
+            envFrom:
+              - secretRef:
+                  name: router-env
+            sidecars:
+              - name: metrics
+                image: metrics:latest
+            sidecarVolumes:
+              - name: metrics-config
+                configMap:
+                  name: metrics-config
+      - equal:
+          path: spec.sharding.mongos.hookScript.script
+          value: |
+            #!/bin/sh
+            echo router-ready

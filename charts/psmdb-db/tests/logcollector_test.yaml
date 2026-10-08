@@ -72,3 +72,29 @@ tests:
       - equal:
           path: spec.logcollector.livenessProbe.initialDelaySeconds
           value: 10
+
+  - it: renders log collector environment and container probes
+    set:
+      logcollector.envFrom:
+        - configMapRef:
+            name: fluent-bit-env
+      logcollector.readinessProbe.tcpSocket.port: 2020
+      logcollector.logrotate.livenessProbe.exec.command:
+        - /bin/true
+      logcollector.logrotate.readinessProbe.initialDelaySeconds: 5
+    asserts:
+      - equal:
+          path: spec.logcollector.envFrom
+          value:
+            - configMapRef:
+                name: fluent-bit-env
+      - equal:
+          path: spec.logcollector.readinessProbe.tcpSocket.port
+          value: 2020
+      - equal:
+          path: spec.logcollector.logrotate.livenessProbe.exec.command
+          value:
+            - /bin/true
+      - equal:
+          path: spec.logcollector.logrotate.readinessProbe.initialDelaySeconds
+          value: 5

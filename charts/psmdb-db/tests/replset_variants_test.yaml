@@ -107,3 +107,76 @@ tests:
           value:
             - name: ARBITER_TEST
               value: "1"
+
+  - it: renders member overrides advanced affinity and an inline hook
+    set:
+      replsets.rs0.replsetOverrides:
+        unit-psmdb-db-rs0-0:
+          host: mongo-0.example:27017
+          priority: 3
+          tags:
+            region: east
+      replsets.rs0.affinity.advanced:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: disktype
+                    operator: In
+                    values:
+                      - ssd
+      replsets.rs0.hookScript.script: |-
+        #!/bin/sh
+        echo replica-started
+    asserts:
+      - equal:
+          path: spec.replsets[0].replsetOverrides
+          value:
+            unit-psmdb-db-rs0-0:
+              host: mongo-0.example:27017
+              priority: 3
+              tags:
+                region: east
+      - equal:
+          path: spec.replsets[0].affinity.advanced.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight
+          value: 100
+      - equal:
+          path: spec.replsets[0].hookScript.script
+          value: |
+            #!/bin/sh
+            echo replica-started
+
+  - it: renders optional hidden nonvoting and arbiter pod settings
+    set:
+      replsets.rs0.hidden.enabled: true
+      replsets.rs0.hidden.podSecurityContext.fsGroup: 1001
+      replsets.rs0.hidden.volumeSpec.hostPath.path: /hidden-data
+      replsets.rs0.nonvoting.enabled: true
+      replsets.rs0.nonvoting.envFrom:
+        - secretRef:
+            name: nonvoting-env
+      replsets.rs0.arbiter.enabled: true
+      replsets.rs0.arbiter.hookScript.configMapRef.name: arbiter-hooks
+      replsets.rs0.arbiter.resources.requests.memory: 256Mi
+    asserts:
+      - equal:
+          path: spec.replsets[0].hidden.podSecurityContext.fsGroup
+          value: 1001
+      - equal:
+          path: spec.replsets[0].hidden.volumeSpec
+          value:
+            hostPath:
+              path: /hidden-data
+              type: Directory
+      - equal:
+          path: spec.replsets[0].nonvoting.envFrom
+          value:
+            - secretRef:
+                name: nonvoting-env
+      - equal:
+          path: spec.replsets[0].arbiter.hookScript.configMapRef.name
+          value: arbiter-hooks
+      - equal:
+          path: spec.replsets[0].arbiter.resources.requests.memory
+          value: 256Mi

@@ -60,3 +60,68 @@ tests:
             resources:
               requests:
                 memory: 1Gi
+
+  - it: renders search placement and probe options
+    set:
+      search.enabled: true
+      search.affinity.antiAffinityTopologyKey: topology.kubernetes.io/zone
+      search.tolerations:
+        - key: search
+          operator: Exists
+      search.annotations.team: search
+      search.labels.component: mongot
+      search.podSecurityContext.fsGroup: 1001
+      search.containerSecurityContext.runAsUser: 1001
+      search.readinessProbe.periodSeconds: 10
+    asserts:
+      - isSubset:
+          path: spec.search
+          content:
+            affinity:
+              antiAffinityTopologyKey: topology.kubernetes.io/zone
+            tolerations:
+              - key: search
+                operator: Exists
+            annotations:
+              team: search
+            labels:
+              component: mongot
+            podSecurityContext:
+              fsGroup: 1001
+            containerSecurityContext:
+              runAsUser: 1001
+            readinessProbe:
+              periodSeconds: 10
+
+  - it: renders a replica set search override independently of cluster defaults
+    set:
+      search.enabled: true
+      search.size: 2
+      replsets.rs0.search.size: 1
+      replsets.rs0.search.storage.persistentVolumeClaim.resources.requests.storage: 20Gi
+      replsets.rs0.search.affinity.antiAffinityTopologyKey: kubernetes.io/hostname
+      replsets.rs0.search.jvmFlags:
+        - -Xmx1g
+      replsets.rs0.search.nodeSelector.disktype: ssd
+      replsets.rs0.search.podSecurityContext.fsGroup: 1001
+    asserts:
+      - equal:
+          path: spec.search.size
+          value: 2
+      - equal:
+          path: spec.replsets[0].search
+          value:
+            size: 1
+            storage:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 20Gi
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            jvmFlags:
+              - -Xmx1g
+            nodeSelector:
+              disktype: ssd
+            podSecurityContext:
+              fsGroup: 1001

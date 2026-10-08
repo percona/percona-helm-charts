@@ -97,3 +97,64 @@ tests:
           value:
             - name: local
               mountPath: /mnt/backups
+
+  - it: renders backup scheduling metadata and an inline hook
+    set:
+      backup.startingDeadlineSeconds: 180
+      backup.annotations.team: database
+      backup.hookScript.script: |-
+        #!/bin/sh
+        echo backup-started
+    asserts:
+      - equal:
+          path: spec.backup.startingDeadlineSeconds
+          value: 180
+      - equal:
+          path: spec.backup.annotations.team
+          value: database
+      - equal:
+          path: spec.backup.hookScript.script
+          value: |
+            #!/bin/sh
+            echo backup-started
+
+  - it: renders backup container settings
+    set:
+      backup.image.repository: registry.example/backup
+      backup.image.tag: test
+      backup.podSecurityContext.fsGroup: 1001
+      backup.containerSecurityContext.runAsUser: 1001
+      backup.env:
+        - name: BACKUP_MODE
+          value: full
+      backup.envFrom:
+        - secretRef:
+            name: backup-env
+      backup.resources.requests.memory: 512Mi
+      backup.livenessProbe.exec.command:
+        - /bin/true
+      backup.readinessProbe.initialDelaySeconds: 5
+    asserts:
+      - isSubset:
+          path: spec.backup
+          content:
+            image: registry.example/backup:test
+            podSecurityContext:
+              fsGroup: 1001
+            containerSecurityContext:
+              runAsUser: 1001
+            env:
+              - name: BACKUP_MODE
+                value: full
+            envFrom:
+              - secretRef:
+                  name: backup-env
+            resources:
+              requests:
+                memory: 512Mi
+            livenessProbe:
+              exec:
+                command:
+                  - /bin/true
+            readinessProbe:
+              initialDelaySeconds: 5

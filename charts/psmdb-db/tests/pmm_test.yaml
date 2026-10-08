@@ -24,11 +24,6 @@ tests:
       pmm.querySource: mongolog
       pmm.customClusterName: mongo-production
       pmm.authenticationMechanism: SCRAM-SHA-256
-      pmm.resources.requests.memory: 256Mi
-      pmm.containerSecurityContext.runAsUser: 1001
-      pmm.livenessProbe.httpGet.path: /local/Status
-      pmm.livenessProbe.httpGet.port: 7777
-      pmm.readinessProbe.tcpSocket.port: 7777
     asserts:
       - isSubset:
           path: spec.pmm
@@ -40,6 +35,20 @@ tests:
             querySource: mongolog
             customClusterName: mongo-production
             authenticationMechanism: SCRAM-SHA-256
+
+  - it: renders PMM resources security context and probes
+    set:
+      pmm.enabled: true
+      pmm.resources.requests.memory: 256Mi
+      pmm.containerSecurityContext.runAsUser: 1001
+      pmm.livenessProbe.httpGet.path: /local/Status
+      pmm.livenessProbe.httpGet.port: 7777
+      pmm.readinessProbe.tcpSocket.port: 7777
+    asserts:
+      - isSubset:
+          path: spec.pmm
+          content:
+            enabled: true
             resources:
               requests:
                 memory: 256Mi

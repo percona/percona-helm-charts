@@ -32,7 +32,7 @@ tests:
                   requests:
                     storage: 3Gi
 
-  - it: test_replset renders changed default values
+  - it: renders changed rs0 pod and storage settings
     values:
       - values/replset-changed-defaults.yaml
     asserts:
@@ -74,6 +74,14 @@ tests:
                 resources:
                   requests:
                     storage: 10Gi
+
+  - it: renders changed rs0 sidecars and volumes
+    values:
+      - values/replset-changed-defaults.yaml
+    asserts:
+      - isSubset:
+          path: spec.replsets[0]
+          content:
             sidecars:
               - image: changed-image
                 name: sidecar
@@ -86,6 +94,11 @@ tests:
                 kind: PersistentVolumeClaim
                 metadata:
                   name: sidecar-volume-claim
+
+  - it: renders changed rs1 scheduling and probes
+    values:
+      - values/replset-changed-defaults.yaml
+    asserts:
       - isSubset:
           path: spec.replsets[1]
           content:
@@ -120,6 +133,14 @@ tests:
               periodSeconds: 3
               successThreshold: 1
               timeoutSeconds: 2
+
+  - it: renders changed rs1 security environment and storage engine
+    values:
+      - values/replset-changed-defaults.yaml
+    asserts:
+      - isSubset:
+          path: spec.replsets[1]
+          content:
             podSecurityContext:
               fsGroup: 1001
             containerSecurityContext:
@@ -132,6 +153,14 @@ tests:
                   name: my-secret
             storage:
               engine: wiredTiger
+
+  - it: renders changed rs1 exposure and data volume
+    values:
+      - values/replset-changed-defaults.yaml
+    asserts:
+      - isSubset:
+          path: spec.replsets[1]
+          content:
             hostAliases:
               - ip: 10.10.0.2
                 hostnames:
@@ -155,6 +184,11 @@ tests:
               hostPath:
                 path: /data
                 type: Directory
+
+  - it: renders enabled hidden nonvoting and arbiter members
+    values:
+      - values/replset-changed-defaults.yaml
+    asserts:
       - isSubset:
           path: spec.replsets[1].hidden
           content:

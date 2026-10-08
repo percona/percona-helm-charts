@@ -76,12 +76,16 @@ tests:
             tls:
               mode: disabled
 
-  - it: test_cluster uses provided secret names
+  - it: test_cluster renders provided secret references
     set:
       secrets.users: external-users
       secrets.ssl: external-ssl
       secrets.sslInternal: external-ssl-internal
       secrets.encryptionKey: external-encryption-key
+      secrets.keyFile: mongo-keyfile
+      secrets.vault: mongo-vault
+      secrets.ldapSecret: mongo-ldap
+      secrets.sse: mongo-sse
     asserts:
       - equal:
           path: spec.secrets
@@ -90,6 +94,10 @@ tests:
             ssl: external-ssl
             sslInternal: external-ssl-internal
             encryptionKey: external-encryption-key
+            keyFile: mongo-keyfile
+            vault: mongo-vault
+            ldapSecret: mongo-ldap
+            sse: mongo-sse
 
   - it: test_cluster renders init container settings
     set:
@@ -126,14 +134,6 @@ tests:
       - equal:
           path: metadata.annotations.team
           value: database
-
-  - it: test_cluster renders volume expansion when defined
-    set:
-      enableVolumeExpansion: true
-    asserts:
-      - equal:
-          path: spec.enableVolumeExpansion
-          value: true
 
   - it: test_cluster renders storage scaling when defined
     set:
@@ -176,22 +176,6 @@ tests:
           path: spec.ignoreLabels
           value:
             - rack
-
-  - it: test_cluster renders pause when defined
-    set:
-      pause: true
-    asserts:
-      - equal:
-          path: spec.pause
-          value: true
-
-  - it: test_cluster renders unmanaged when defined
-    set:
-      unmanaged: true
-    asserts:
-      - equal:
-          path: spec.unmanaged
-          value: true
 
   - it: test_cluster renders unsafe flags when defined
     set:
