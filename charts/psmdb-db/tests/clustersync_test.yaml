@@ -1,0 +1,150 @@
+suite: psmdb-db ClusterSync
+templates:
+  - templates/clustersync.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: omits ClusterSync by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: requires a source URI when enabled
+    set:
+      clusterSync.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: clusterSync.source.uri is required when clusterSync.enabled
+
+  - it: renders default names and source secret reference
+    set:
+      clusterSync.enabled: true
+      clusterSync.source.uri: mongodb://source.example:27017
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: PerconaServerMongoDBClusterSync
+      - isSubset:
+          path: metadata
+          content:
+            name: unit-psmdb-db-sync
+            namespace: test-ns
+      - isSubset:
+          path: spec
+          content:
+            clusterName: unit-psmdb-db
+            image: percona/percona-clustersync-mongodb:0.9.0
+            mode: running
+            source:
+              uri: mongodb://source.example:27017
+              credentialsSecret: unit-psmdb-db-sync-source
+      - notExists:
+          path: spec.resources
+
+  - it: renders custom cluster and source secret names
+    set:
+      clusterSync.enabled: true
+      clusterSync.name: custom-sync
+      clusterSync.clusterName: target-cluster
+      clusterSync.source.uri: mongodb://source.example:27017
+      clusterSync.source.credentialsSecret: external-source
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-sync
+      - isSubset:
+          path: spec
+          content:
+            clusterName: target-cluster
+            source:
+              uri: mongodb://source.example:27017
+              credentialsSecret: external-source
+
+  - it: renders custom ClusterSync image and sync settings
+    set:
+      clusterSync.enabled: true
+      clusterSync.source.uri: mongodb://source.example:27017
+      clusterSync.image: registry.example/pcsm:dev
+      clusterSync.imagePullPolicy: IfNotPresent
+      clusterSync.imagePullSecrets:
+        - name: registry-credentials
+      clusterSync.mode: paused
+      clusterSync.excludeNamespaces:
+        - admin
+      clusterSync.pcsmConfig:
+        logLevel: debug
+        logJSON: true
+      clusterSync.env:
+        - name: PCSM_TEST
+          value: "1"
+    asserts:
+      - isSubset:
+          path: spec
+          content:
+            image: registry.example/pcsm:dev
+            imagePullPolicy: IfNotPresent
+            imagePullSecrets:
+              - name: registry-credentials
+            mode: paused
+            excludeNamespaces:
+              - admin
+            pcsmConfig:
+              logLevel: debug
+              logJSON: true
+            env:
+              - name: PCSM_TEST
+                value: "1"
+
+  - it: renders custom ClusterSync pod settings
+    set:
+      clusterSync.enabled: true
+      clusterSync.source.uri: mongodb://source.example:27017
+      clusterSync.resources:
+        requests:
+          cpu: 500m
+      clusterSync.nodeSelector:
+        disktype: ssd
+      clusterSync.tolerations:
+        - key: dedicated
+          operator: Exists
+      clusterSync.runtimeClassName: sandbox
+      clusterSync.labels:
+        team: databases
+      clusterSync.annotations:
+        example.com/owner: qa
+      clusterSync.containerSecurityContext:
+        runAsUser: 1001
+      clusterSync.podSecurityContext:
+        fsGroup: 1001
+      clusterSync.livenessProbe:
+        initialDelaySeconds: 10
+      clusterSync.readinessProbe:
+        periodSeconds: 5
+    asserts:
+      - isSubset:
+          path: spec
+          content:
+            resources:
+              requests:
+                cpu: 500m
+            nodeSelector:
+              disktype: ssd
+            tolerations:
+              - key: dedicated
+                operator: Exists
+            runtimeClassName: sandbox
+            labels:
+              team: databases
+            annotations:
+              example.com/owner: qa
+            containerSecurityContext:
+              runAsUser: 1001
+            podSecurityContext:
+              fsGroup: 1001
+            livenessProbe:
+              initialDelaySeconds: 10
+            readinessProbe:
+              periodSeconds: 5

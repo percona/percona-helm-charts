@@ -1,0 +1,18 @@
+crVersion: 9.9.9
+pause: true
+unmanaged: true
+enableVolumeExpansion: true
+updateStrategy: RollingUpdate
+upgradeOptions:
+  versionServiceEndpoint: https://versions.test
+  apply: recommended
+  schedule: "0 1 * * *"
+  setFCV: true
+secrets:
+  users: secret
+tls:
+  mode: disabled
+image:
+  repository: changed-image
+  tag: changed-tag
+imagePullPolicy: IfNotPresent

@@ -1,0 +1,160 @@
+suite: psmdb-db backup
+templates:
+  - templates/cluster.yaml
+tests:
+  - it: renders default backup and disabled PITR
+    asserts:
+      - isSubset:
+          path: spec.backup
+          content:
+            enabled: true
+            image: percona/percona-backup-mongodb:2.15.0
+            storages: {}
+            volumeMounts: []
+            pitr:
+              enabled: false
+            tasks: []
+
+  - it: keeps PITR disabled when backup is disabled
+    set:
+      backup.enabled: false
+      backup.pitr.enabled: true
+    asserts:
+      - equal:
+          path: spec.backup.enabled
+          value: false
+      - equal:
+          path: spec.backup.pitr
+          value:
+            enabled: false
+
+  - it: renders PITR storage and a scheduled task
+    set:
+      backup.pitr.enabled: true
+      backup.pitr.oplogOnly: true
+      backup.pitr.oplogSpanMin: 10
+      backup.pitr.compressionType: gzip
+      backup.pitr.compressionLevel: 6
+      backup.storages.archive:
+        type: s3
+        s3:
+          bucket: backups
+          credentialsSecret: s3-credentials
+      backup.tasks:
+        - name: daily
+          enabled: true
+          schedule: "0 0 * * *"
+          storageName: archive
+      backup.configuration:
+        backupOptions:
+          timeouts:
+            startingStatus: 33
+    asserts:
+      - equal:
+          path: spec.backup.pitr
+          value:
+            enabled: true
+            oplogOnly: true
+            oplogSpanMin: 10
+            compressionType: gzip
+            compressionLevel: 6
+      - equal:
+          path: spec.backup.storages.archive
+          value:
+            type: s3
+            s3:
+              bucket: backups
+              credentialsSecret: s3-credentials
+      - equal:
+          path: spec.backup.tasks[0]
+          value:
+            name: daily
+            enabled: true
+            schedule: "0 0 * * *"
+            storageName: archive
+      - equal:
+          path: spec.backup.configuration.backupOptions.timeouts.startingStatus
+          value: 33
+
+  - it: renders filesystem storage with a volume mount
+    set:
+      backup.storages.local:
+        type: filesystem
+        filesystem:
+          path: /mnt/backups
+      backup.volumeMounts:
+        - name: local
+          mountPath: /mnt/backups
+    asserts:
+      - equal:
+          path: spec.backup.storages.local
+          value:
+            type: filesystem
+            filesystem:
+              path: /mnt/backups
+      - equal:
+          path: spec.backup.volumeMounts
+          value:
+            - name: local
+              mountPath: /mnt/backups
+
+  - it: renders backup scheduling metadata and an inline hook
+    set:
+      backup.startingDeadlineSeconds: 180
+      backup.annotations.team: database
+      backup.hookScript.script: |-
+        #!/bin/sh
+        echo backup-started
+    asserts:
+      - equal:
+          path: spec.backup.startingDeadlineSeconds
+          value: 180
+      - equal:
+          path: spec.backup.annotations.team
+          value: database
+      - equal:
+          path: spec.backup.hookScript.script
+          value: |
+            #!/bin/sh
+            echo backup-started
+
+  - it: renders backup container settings
+    set:
+      backup.image.repository: registry.example/backup
+      backup.image.tag: test
+      backup.podSecurityContext.fsGroup: 1001
+      backup.containerSecurityContext.runAsUser: 1001
+      backup.env:
+        - name: BACKUP_MODE
+          value: full
+      backup.envFrom:
+        - secretRef:
+            name: backup-env
+      backup.resources.requests.memory: 512Mi
+      backup.livenessProbe.exec.command:
+        - /bin/true
+      backup.readinessProbe.initialDelaySeconds: 5
+    asserts:
+      - isSubset:
+          path: spec.backup
+          content:
+            image: registry.example/backup:test
+            podSecurityContext:
+              fsGroup: 1001
+            containerSecurityContext:
+              runAsUser: 1001
+            env:
+              - name: BACKUP_MODE
+                value: full
+            envFrom:
+              - secretRef:
+                  name: backup-env
+            resources:
+              requests:
+                memory: 512Mi
+            livenessProbe:
+              exec:
+                command:
+                  - /bin/true
+            readinessProbe:
+              initialDelaySeconds: 5

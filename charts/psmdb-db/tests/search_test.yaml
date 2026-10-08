@@ -1,0 +1,127 @@
+suite: psmdb-db vector search
+templates:
+  - templates/cluster.yaml
+tests:
+  - it: omits search when it is not configured
+    asserts:
+      - notExists:
+          path: spec.search
+      - notExists:
+          path: spec.replsets[0].search
+
+  - it: renders cluster search settings and a replica set override
+    set:
+      search.enabled: true
+      search.image.repository: perconalab/percona-search-mongodb
+      search.image.tag: 1.70.1-1
+      search.imagePullPolicy: IfNotPresent
+      search.size: 2
+      search.configuration: |-
+        syncSource:
+          replicaSet:
+            hostAndPort: mongo.example:27017
+      search.storage.persistentVolumeClaim.resources.requests.storage: 10Gi
+      search.resources.requests.memory: 2Gi
+      search.jvmFlags:
+        - -Xmx2g
+      search.nodeSelector.disktype: ssd
+      search.livenessProbe.initialDelaySeconds: 60
+      replsets.rs0.search.size: 1
+      replsets.rs0.search.resources.requests.memory: 1Gi
+    asserts:
+      - isSubset:
+          path: spec.search
+          content:
+            enabled: true
+            image: perconalab/percona-search-mongodb:1.70.1-1
+            imagePullPolicy: IfNotPresent
+            size: 2
+            storage:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 10Gi
+            resources:
+              requests:
+                memory: 2Gi
+            jvmFlags:
+              - -Xmx2g
+            nodeSelector:
+              disktype: ssd
+            livenessProbe:
+              initialDelaySeconds: 60
+      - matchRegex:
+          path: spec.search.configuration
+          pattern: 'hostAndPort: mongo.example:27017'
+      - equal:
+          path: spec.replsets[0].search
+          value:
+            size: 1
+            resources:
+              requests:
+                memory: 1Gi
+
+  - it: renders search placement and probe options
+    set:
+      search.enabled: true
+      search.affinity.antiAffinityTopologyKey: topology.kubernetes.io/zone
+      search.tolerations:
+        - key: search
+          operator: Exists
+      search.annotations.team: search
+      search.labels.component: mongot
+      search.podSecurityContext.fsGroup: 1001
+      search.containerSecurityContext.runAsUser: 1001
+      search.readinessProbe.periodSeconds: 10
+    asserts:
+      - isSubset:
+          path: spec.search
+          content:
+            affinity:
+              antiAffinityTopologyKey: topology.kubernetes.io/zone
+            tolerations:
+              - key: search
+                operator: Exists
+            annotations:
+              team: search
+            labels:
+              component: mongot
+            podSecurityContext:
+              fsGroup: 1001
+            containerSecurityContext:
+              runAsUser: 1001
+            readinessProbe:
+              periodSeconds: 10
+
+  - it: renders a replica set search override independently of cluster defaults
+    set:
+      search.enabled: true
+      search.size: 2
+      replsets.rs0.search.size: 1
+      replsets.rs0.search.storage.persistentVolumeClaim.resources.requests.storage: 20Gi
+      replsets.rs0.search.affinity.antiAffinityTopologyKey: kubernetes.io/hostname
+      replsets.rs0.search.jvmFlags:
+        - -Xmx1g
+      replsets.rs0.search.nodeSelector.disktype: ssd
+      replsets.rs0.search.podSecurityContext.fsGroup: 1001
+    asserts:
+      - equal:
+          path: spec.search.size
+          value: 2
+      - equal:
+          path: spec.replsets[0].search
+          value:
+            size: 1
+            storage:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 20Gi
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            jvmFlags:
+              - -Xmx1g
+            nodeSelector:
+              disktype: ssd
+            podSecurityContext:
+              fsGroup: 1001

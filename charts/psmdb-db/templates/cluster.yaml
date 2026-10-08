@@ -115,7 +115,7 @@ spec:
   upgradeOptions:
     versionServiceEndpoint: {{ .Values.upgradeOptions.versionServiceEndpoint }}
     apply: {{ .Values.upgradeOptions.apply }}
-    schedule: {{ .Values.upgradeOptions.schedule }}
+    schedule: {{ .Values.upgradeOptions.schedule | quote }}
     setFCV: {{ .Values.upgradeOptions.setFCV }}
   {{- end }}
   {{- if .Values.storageScaling }}
@@ -289,13 +289,8 @@ spec:
     sidecarPVCs:
 {{ $replset.sidecarPVCs | toYaml | indent 6 }}
     {{- end }}
-    {{- if $replset.podDisruptionBudget }}
-    podDisruptionBudget:
-      {{- if $replset.podDisruptionBudget.maxUnavailable }}
-      maxUnavailable: {{ $replset.podDisruptionBudget.maxUnavailable }}
-      {{- else }}
-      minAvailable: {{ $replset.podDisruptionBudget.minAvailable }}
-      {{- end }}
+    {{- with $replset.podDisruptionBudget }}
+{{- include "psmdb-database.podDisruptionBudget" . | nindent 4 }}
     {{- end }}
     {{- if $replset.splitHorizons }}
     splitHorizons:
@@ -426,13 +421,8 @@ spec:
       tolerations:
 {{ $replset.hidden.tolerations | toYaml | indent 8 }}
       {{- end }}
-      {{- if $replset.hidden.podDisruptionBudget }}
-      podDisruptionBudget:
-        {{- if $replset.hidden.podDisruptionBudget.maxUnavailable }}
-        maxUnavailable: {{ $replset.hidden.podDisruptionBudget.maxUnavailable }}
-        {{- else }}
-        minAvailable: {{ $replset.hidden.podDisruptionBudget.minAvailable }}
-        {{- end }}
+      {{- with $replset.hidden.podDisruptionBudget }}
+{{- include "psmdb-database.podDisruptionBudget" . | nindent 6 }}
       {{- end }}
       {{- if $replset.hidden.resources }}
       resources:
@@ -531,13 +521,8 @@ spec:
       tolerations:
 {{ $replset.nonvoting.tolerations | toYaml | indent 8 }}
       {{- end }}
-      {{- if $replset.nonvoting.podDisruptionBudget }}
-      podDisruptionBudget:
-        {{- if $replset.nonvoting.podDisruptionBudget.maxUnavailable }}
-        maxUnavailable: {{ $replset.nonvoting.podDisruptionBudget.maxUnavailable }}
-        {{- else }}
-        minAvailable: {{ $replset.nonvoting.podDisruptionBudget.minAvailable }}
-        {{- end }}
+      {{- with $replset.nonvoting.podDisruptionBudget }}
+{{- include "psmdb-database.podDisruptionBudget" . | nindent 6 }}
       {{- end }}
       {{- if $replset.nonvoting.resources }}
       resources:
@@ -733,13 +718,8 @@ spec:
       sidecarPVCs:
 {{ .Values.sharding.configrs.sidecarPVCs | toYaml | indent 8 }}
       {{- end }}
-      {{- if .Values.sharding.configrs.podDisruptionBudget }}
-      podDisruptionBudget:
-        {{- if .Values.sharding.configrs.podDisruptionBudget.maxUnavailable }}
-        maxUnavailable: {{ .Values.sharding.configrs.podDisruptionBudget.maxUnavailable }}
-        {{- else }}
-        minAvailable: {{ .Values.sharding.configrs.podDisruptionBudget.minAvailable }}
-        {{- end }}
+      {{- with .Values.sharding.configrs.podDisruptionBudget }}
+{{- include "psmdb-database.podDisruptionBudget" . | nindent 6 }}
       {{- end }}
       {{- if .Values.sharding.configrs.expose }}
       expose:
@@ -886,13 +866,8 @@ spec:
       sidecarPVCs:
 {{ .Values.sharding.mongos.sidecarPVCs | toYaml | indent 8 }}
       {{- end }}
-      {{- if .Values.sharding.mongos.podDisruptionBudget }}
-      podDisruptionBudget:
-        {{- if .Values.sharding.mongos.podDisruptionBudget.maxUnavailable }}
-        maxUnavailable: {{ .Values.sharding.mongos.podDisruptionBudget.maxUnavailable }}
-        {{- else }}
-        minAvailable: {{ .Values.sharding.mongos.podDisruptionBudget.minAvailable }}
-        {{- end }}
+      {{- with .Values.sharding.mongos.podDisruptionBudget }}
+{{- include "psmdb-database.podDisruptionBudget" . | nindent 6 }}
       {{- end }}
       resources:
         limits:
@@ -1035,7 +1010,8 @@ spec:
     enabled: {{ .Values.logcollector.enabled }}
     image: "{{ .Values.logcollector.image.repository }}:{{ .Values.logcollector.image.tag }}"
     {{- if .Values.logcollector.configuration }}
-    configuration: {{ .Values.logcollector.configuration }}
+    configuration: |-
+{{ .Values.logcollector.configuration | trimSuffix "\n" | indent 6 }}
     {{- end }}
     {{- if .Values.logcollector.env }}
     env:
