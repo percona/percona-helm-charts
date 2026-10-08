@@ -1,0 +1,153 @@
+suite: psmdb-db cluster options
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: omits optional integrations when unset
+    asserts:
+      - notExists:
+          path: spec.platform
+      - notExists:
+          path: spec.vault
+      - notExists:
+          path: spec.defaultRWConcern
+      - notExists:
+          path: spec.imagePullSecrets
+      - notExists:
+          path: spec.users
+      - notExists:
+          path: spec.roles
+      - notExists:
+          path: spec.enableExternalVolumeAutoscaling
+
+  - it: renders cluster wide integration and DNS settings
+    set:
+      platform: openshift
+      enableExternalVolumeAutoscaling: false
+      defaultRWConcern.readConcern: majority
+      defaultRWConcern.writeConcern.w: majority
+      defaultRWConcern.writeConcern.wtimeout: 0
+      clusterServiceDNSSuffix: svc.example.test
+      clusterServiceDNSMode: External
+      multiCluster.enabled: true
+      multiCluster.DNSSuffix: svc.clusterset.local
+      imagePullSecrets:
+        - name: private-registry
+      vault.endpointURL: https://vault.example
+      vault.tlsSecret: vault-tls
+      vault.syncUsers.role: mongo-operator
+      vault.syncUsers.mountPath: kv
+      vault.syncUsers.keyPath: clusters/unit/users
+      vault.syncUsers.tokenSecret: vault-token
+    asserts:
+      - equal:
+          path: spec.platform
+          value: openshift
+      - equal:
+          path: spec.enableExternalVolumeAutoscaling
+          value: false
+      - equal:
+          path: spec.defaultRWConcern
+          value:
+            readConcern: majority
+            writeConcern:
+              w: majority
+              wtimeout: 0
+      - equal:
+          path: spec.clusterServiceDNSSuffix
+          value: svc.example.test
+      - equal:
+          path: spec.clusterServiceDNSMode
+          value: External
+      - equal:
+          path: spec.multiCluster
+          value:
+            enabled: true
+            DNSSuffix: svc.clusterset.local
+      - equal:
+          path: spec.imagePullSecrets
+          value:
+            - name: private-registry
+      - equal:
+          path: spec.vault
+          value:
+            endpointURL: https://vault.example
+            tlsSecret: vault-tls
+            syncUsers:
+              role: mongo-operator
+              mountPath: kv
+              keyPath: clusters/unit/users
+              tokenSecret: vault-token
+
+  - it: applies name and namespace overrides to the cluster and default users secret
+    set:
+      fullnameOverride: mongo-custom
+      namespaceOverride: databases
+      annotations.team: storage
+    asserts:
+      - equal:
+          path: metadata.name
+          value: mongo-custom
+      - equal:
+          path: metadata.namespace
+          value: databases
+      - equal:
+          path: metadata.annotations.team
+          value: storage
+      - equal:
+          path: spec.secrets.users
+          value: mongo-custom-secrets
+
+  - it: evaluates a templated users secret name
+    set:
+      secrets.users: '{{ .Release.Name }}-external-users'
+    asserts:
+      - equal:
+          path: spec.secrets.users
+          value: unit-external-users
+
+  - it: renders application users and custom roles
+    set:
+      users:
+        - name: app
+          db: appdb
+          passwordSecretRef:
+            name: app-password
+            key: password
+          roles:
+            - name: readWrite
+              db: appdb
+      roles:
+        - role: appReader
+          db: appdb
+          privileges:
+            - resource:
+                db: appdb
+                collection: records
+              actions:
+                - find
+    asserts:
+      - equal:
+          path: spec.users[0]
+          value:
+            name: app
+            db: appdb
+            passwordSecretRef:
+              name: app-password
+              key: password
+            roles:
+              - name: readWrite
+                db: appdb
+      - equal:
+          path: spec.roles[0]
+          value:
+            role: appReader
+            db: appdb
+            privileges:
+              - resource:
+                  db: appdb
+                  collection: records
+                actions:
+                  - find

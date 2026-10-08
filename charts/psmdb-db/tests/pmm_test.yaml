@@ -1,0 +1,54 @@
+suite: psmdb-db PMM
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+tests:
+  - it: renders PMM disabled by default
+    asserts:
+      - isSubset:
+          path: spec.pmm
+          content:
+            enabled: false
+            image: percona/pmm-client:3.8.1
+            serverHost: monitoring-service
+      - notExists:
+          path: spec.pmm.querySource
+
+  - it: renders enabled PMM settings and evaluates parameter templates
+    set:
+      pmm.enabled: true
+      pmm.serverHost: pmm.example
+      pmm.mongodParams: "--cluster={{ .Release.Name }}"
+      pmm.mongosParams: "--router={{ .Release.Name }}"
+      pmm.querySource: mongolog
+      pmm.customClusterName: mongo-production
+      pmm.authenticationMechanism: SCRAM-SHA-256
+      pmm.resources.requests.memory: 256Mi
+      pmm.containerSecurityContext.runAsUser: 1001
+      pmm.livenessProbe.httpGet.path: /local/Status
+      pmm.livenessProbe.httpGet.port: 7777
+      pmm.readinessProbe.tcpSocket.port: 7777
+    asserts:
+      - isSubset:
+          path: spec.pmm
+          content:
+            enabled: true
+            serverHost: pmm.example
+            mongodParams: --cluster=unit
+            mongosParams: --router=unit
+            querySource: mongolog
+            customClusterName: mongo-production
+            authenticationMechanism: SCRAM-SHA-256
+            resources:
+              requests:
+                memory: 256Mi
+            containerSecurityContext:
+              runAsUser: 1001
+            livenessProbe:
+              httpGet:
+                path: /local/Status
+                port: 7777
+            readinessProbe:
+              tcpSocket:
+                port: 7777

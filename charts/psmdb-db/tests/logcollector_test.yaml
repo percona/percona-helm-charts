@@ -1,0 +1,74 @@
+suite: psmdb-db log collector
+templates:
+  - templates/cluster.yaml
+tests:
+  - it: renders the default log collector
+    asserts:
+      - isSubset:
+          path: spec.logcollector
+          content:
+            enabled: true
+            image: percona/fluentbit:5.0.9-1
+            resources:
+              requests:
+                memory: 100M
+                cpu: 200m
+      - notExists:
+          path: spec.logcollector.logrotate
+
+  - it: renders multiline log collector configuration as a string
+    set:
+      logcollector.configuration: |-
+        [SERVICE]
+            Flush        1
+            Log_Level    error
+    asserts:
+      - equal:
+          path: spec.logcollector.configuration
+          value: |-
+            [SERVICE]
+                Flush        1
+                Log_Level    error
+
+  - it: renders a disabled log collector
+    set:
+      logcollector.enabled: false
+    asserts:
+      - equal:
+          path: spec.logcollector.enabled
+          value: false
+
+  - it: renders optional logrotate and container settings
+    set:
+      logcollector.logrotate.configuration: |-
+        /var/log/mongo/*.log {
+          rotate 5
+        }
+      logcollector.logrotate.schedule: "0 1 * * *"
+      logcollector.logrotate.extraConfig.name: mongo-logrotate
+      logcollector.env:
+        - name: LOG_LEVEL
+          value: debug
+      logcollector.containerSecurityContext.runAsUser: 1001
+      logcollector.livenessProbe.initialDelaySeconds: 10
+    asserts:
+      - equal:
+          path: spec.logcollector.logrotate.schedule
+          value: "0 1 * * *"
+      - equal:
+          path: spec.logcollector.logrotate.extraConfig.name
+          value: mongo-logrotate
+      - matchRegex:
+          path: spec.logcollector.logrotate.configuration
+          pattern: 'rotate 5'
+      - equal:
+          path: spec.logcollector.env
+          value:
+            - name: LOG_LEVEL
+              value: debug
+      - equal:
+          path: spec.logcollector.containerSecurityContext.runAsUser
+          value: 1001
+      - equal:
+          path: spec.logcollector.livenessProbe.initialDelaySeconds
+          value: 10

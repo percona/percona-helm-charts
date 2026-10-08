@@ -1,0 +1,97 @@
+suite: psmdb-db sharding
+templates:
+  - templates/cluster.yaml
+tests:
+  - it: renders the default sharded cluster
+    asserts:
+      - equal:
+          path: spec.sharding.enabled
+          value: true
+      - equal:
+          path: spec.sharding.balancer.enabled
+          value: true
+      - isSubset:
+          path: spec.sharding.configsvrReplSet
+          content:
+            size: 3
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            resources:
+              limits:
+                cpu: 600m
+                memory: 1Gi
+              requests:
+                cpu: 300m
+                memory: 1Gi
+            volumeSpec:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 3Gi
+      - isSubset:
+          path: spec.sharding.mongos
+          content:
+            size: 3
+            expose:
+              type: ClusterIP
+
+  - it: renders a disabled sharding and balancer configuration
+    set:
+      sharding.enabled: false
+      sharding.balancer.enabled: false
+    asserts:
+      - equal:
+          path: spec.sharding.enabled
+          value: false
+      - equal:
+          path: spec.sharding.balancer.enabled
+          value: false
+
+  - it: renders custom config server and mongos settings
+    set:
+      sharding.configrs.size: 5
+      sharding.configrs.configuration: |-
+        net:
+          port: 27019
+      sharding.configrs.volumeSpec.hostPath.path: /mongo-config
+      sharding.configrs.expose.enabled: true
+      sharding.configrs.expose.type: LoadBalancer
+      sharding.mongos.size: 2
+      sharding.mongos.configuration: |-
+        net:
+          port: 27017
+      sharding.mongos.expose.type: NodePort
+      sharding.mongos.expose.nodePort: 32017
+    asserts:
+      - equal:
+          path: spec.sharding.configsvrReplSet.size
+          value: 5
+      - equal:
+          path: spec.sharding.configsvrReplSet.configuration
+          value: |
+            net:
+              port: 27019
+      - equal:
+          path: spec.sharding.configsvrReplSet.volumeSpec
+          value:
+            hostPath:
+              path: /mongo-config
+              type: Directory
+      - isSubset:
+          path: spec.sharding.configsvrReplSet.expose
+          content:
+            enabled: true
+            type: LoadBalancer
+      - equal:
+          path: spec.sharding.mongos.size
+          value: 2
+      - equal:
+          path: spec.sharding.mongos.configuration
+          value: |
+            net:
+              port: 27017
+      - isSubset:
+          path: spec.sharding.mongos.expose
+          content:
+            type: NodePort
+            nodePort: 32017

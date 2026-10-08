@@ -1,0 +1,62 @@
+suite: psmdb-db vector search
+templates:
+  - templates/cluster.yaml
+tests:
+  - it: omits search when it is not configured
+    asserts:
+      - notExists:
+          path: spec.search
+      - notExists:
+          path: spec.replsets[0].search
+
+  - it: renders cluster search settings and a replica set override
+    set:
+      search.enabled: true
+      search.image.repository: perconalab/percona-search-mongodb
+      search.image.tag: 1.70.1-1
+      search.imagePullPolicy: IfNotPresent
+      search.size: 2
+      search.configuration: |-
+        syncSource:
+          replicaSet:
+            hostAndPort: mongo.example:27017
+      search.storage.persistentVolumeClaim.resources.requests.storage: 10Gi
+      search.resources.requests.memory: 2Gi
+      search.jvmFlags:
+        - -Xmx2g
+      search.nodeSelector.disktype: ssd
+      search.livenessProbe.initialDelaySeconds: 60
+      replsets.rs0.search.size: 1
+      replsets.rs0.search.resources.requests.memory: 1Gi
+    asserts:
+      - isSubset:
+          path: spec.search
+          content:
+            enabled: true
+            image: perconalab/percona-search-mongodb:1.70.1-1
+            imagePullPolicy: IfNotPresent
+            size: 2
+            storage:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 10Gi
+            resources:
+              requests:
+                memory: 2Gi
+            jvmFlags:
+              - -Xmx2g
+            nodeSelector:
+              disktype: ssd
+            livenessProbe:
+              initialDelaySeconds: 60
+      - matchRegex:
+          path: spec.search.configuration
+          pattern: 'hostAndPort: mongo.example:27017'
+      - equal:
+          path: spec.replsets[0].search
+          value:
+            size: 1
+            resources:
+              requests:
+                memory: 1Gi
