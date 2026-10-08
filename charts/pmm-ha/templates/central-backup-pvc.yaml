@@ -17,7 +17,7 @@ metadata:
   name: {{ $pvcName }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.componentLabels" (list . "central-backup-storage") | nindent 4 }}
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "central-backup-storage") | nindent 4 }}
   annotations:
     helm.sh/resource-policy: keep
 spec:

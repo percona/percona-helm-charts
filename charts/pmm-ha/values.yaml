@@ -1189,8 +1189,16 @@ haproxy:
   ## must be above 1024, because restricted-v2 runs the container as a non-root uid with
   ## all capabilities dropped and so without NET_BIND_SERVICE.
   ##
+  ## @param haproxy.containerPorts.http Unset: nothing listens on it
+  ## @param haproxy.containerPorts.stat Unset so a LoadBalancer or NodePort Service does not publish the stats page
+  ## The subchart publishes every containerPorts entry on the Service, and its defaults add
+  ## http: 80 and stat: 1024, so both are nulled here. vmagent reaches the stats page and
+  ## /metrics through the headless pmm-ha-haproxy-stats Service instead.
+  ##
   containerPorts:
     https: 443
+    http: null
+    stat: null
 
   ## @param haproxy.podSecurityContext Pod Security Context of the HAProxy pods
   ## The image would run as root; its `haproxy` user is uid 1000. The sysctl lets it bind :443
@@ -1321,16 +1329,11 @@ haproxy:
       port: 1024
       uri: /stats
       refresh: 30s
-    # Enable Prometheus metrics export
+    # Enable Prometheus metrics export. Served on the stats frontend, so it needs stats.enabled;
+    # vmagent scrapes HAProxy only while both are enabled.
     prometheus:
       enabled: true
-      port: 1024
       path: /metrics
-  
-  # HAProxy security configuration
-  security:
-    # Enable HTTP to HTTPS redirect
-    redirectToHttps: true
 
 # HAProxy TLS configuration
 tls:

@@ -1,3 +1,4 @@
+{{- include "pmm.helmVersion.validate" . -}}
 {{- include "pmm.nodeExporter.validate" . -}}
 {{- include "pmm.dataRetention.validate" . -}}
 {{- include "pmm.openshift.validate" . -}}

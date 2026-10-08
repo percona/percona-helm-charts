@@ -43,6 +43,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+"pmm.labels" with app.kubernetes.io/component set to .component, for objects other than the PMM
+Server. It cannot simply append the component: "pmm.selectorLabels" already emits exactly one
+"app.kubernetes.io/component: pmm-server" line, and a second one would be a duplicate key, which
+helm-unittest rejects. So the rendered line is substituted instead.
+Usage: include "pmm.componentLabels" (dict "ctx" $ "component" "vmagent")
+*/}}
+{{- define "pmm.componentLabels" -}}
+{{ include "pmm.labels" .ctx | replace "app.kubernetes.io/component: pmm-server" (printf "app.kubernetes.io/component: %s" .component) }}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "pmm.selectorLabels" -}}
@@ -325,6 +336,14 @@ in-cluster consumer of PMM has to follow it rather than assume 443.
 */}}
 {{- define "pmm.haproxy.httpsPort" -}}
 {{- (.Values.haproxy.containerPorts).https | default 443 -}}
+{{- end -}}
+
+{{/*
+Port of the HAProxy stats frontend, which serves both the stats page and the Prometheus exporter.
+The pmm-ha-haproxy-stats Service publishes it; pmm-ha-haproxy does not.
+*/}}
+{{- define "pmm.haproxy.statsPort" -}}
+{{- .Values.haproxy.monitoring.stats.port | default 1024 -}}
 {{- end -}}
 
 {{/*
@@ -655,6 +674,23 @@ Called from statefulset.yaml, which always renders.
 {{- fail (printf "pg-db.pmm.serverHost is %q, which resolves to port %d, but haproxy.containerPorts.https is %d. The PostgreSQL operator copies serverHost verbatim into PMM_AGENT_SERVER_ADDRESS and pmm-agent appends :443 to an address with no port, so the PMM sidecar would dial a port HAProxy does not publish - silently, while every pod stays Running and the PMM inventory stays empty. Set pg-db.pmm.serverHost to %q." $host $declared $port (printf "%s:%d" $svc $port)) -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast check for the minimum Helm version, 3.17.0. Two things set it:
+- Helm before 3.13.0 ignores a null in this chart's values.yaml that should remove a subchart
+  default, so the haproxytech defaults stat: 1024 and http: 80 stay on the pmm-ha-haproxy
+  Service, and a LoadBalancer or NodePort service type exposes the unauthenticated stats page
+  while the install reports success.
+- Without a cluster (helm template), Helm checks kubeVersion against the Kubernetes version it
+  was built for, which is below the chart's 1.32 floor before Helm 3.17.0 (3.16 assumes 1.31).
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.helmVersion.validate" -}}
+{{- $version := .Capabilities.HelmVersion.Version -}}
+{{- if not (semverCompare ">=3.17.0-0" $version) -}}
+{{- fail (printf "pmm-ha supports Helm 3.17.0 or later, got %s; upgrade Helm. The minimum exists because Helm before 3.17.0 assumes a Kubernetes version older than 1.32 when rendering without a cluster, so it rejects the chart's kubeVersion, and Helm before 3.13.0 also ignores the nulls in values.yaml that keep the HAProxy stats port off the pmm-ha-haproxy Service, so it would publish the unauthenticated stats page on port %s." $version (include "pmm.haproxy.statsPort" .)) -}}
 {{- end -}}
 {{- end -}}
 
@@ -1048,20 +1084,6 @@ release inherit the previous install's dead token.
 {{- else -}}
 {{- printf "%s-pmm-secret" (include "pg-database.fullname" .) -}}
 {{- end -}}
-{{- end -}}
-
-{{/*
-Labels with the component replaced (not duplicated) in pmm.labels. Called as (list . "backup-tools").
-*/}}
-{{- define "pmm.componentLabels" -}}
-{{- $root := index . 0 -}}
-{{- $component := index . 1 -}}
-{{- $out := include "pmm.labels" $root -}}
-{{- /* A silent no-op would leave backup Jobs Pending on a selector that matches nothing. */}}
-{{- if not (contains "app.kubernetes.io/component: pmm-server" $out) -}}
-{{- fail "pmm.componentLabels: pmm.labels no longer emits 'app.kubernetes.io/component: pmm-server' — update this helper" -}}
-{{- end -}}
-{{- $out | replace "app.kubernetes.io/component: pmm-server" (printf "app.kubernetes.io/component: %s" $component) -}}
 {{- end -}}
 
 {{/*

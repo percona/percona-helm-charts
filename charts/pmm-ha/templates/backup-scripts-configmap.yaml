@@ -7,7 +7,7 @@ metadata:
   name: {{ .Release.Name }}-backup-scripts
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.componentLabels" (list . "backup-tools") | nindent 4 }}
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
 data:
   pmm-backup.sh: |
 {{ required "files/pmm-backup.sh is missing from the chart — every backup/restore entry point execs it, and .Files.Get would silently render an empty key" (.Files.Get "files/pmm-backup.sh") | indent 4 }}

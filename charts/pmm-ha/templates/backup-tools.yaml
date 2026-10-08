@@ -7,7 +7,7 @@ metadata:
   name: {{ .Release.Name }}-backup-tools
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.componentLabels" (list . "backup-tools") | nindent 4 }}
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
 spec:
   replicas: 1
   strategy:
@@ -18,7 +18,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "pmm.componentLabels" (list . "backup-tools") | nindent 8 }}
+        {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 8 }}
       annotations:
         # subPath mounts don't live-update; roll the pod on script changes.
         checksum/backup-scripts: {{ include (print $.Template.BasePath "/backup-scripts-configmap.yaml") . | sha256sum }}
@@ -141,7 +141,7 @@ metadata:
   name: {{ .Release.Name }}-backup-sa
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.componentLabels" (list . "backup-tools") | nindent 4 }}
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
   {{- /* IRSA: the role's trust policy must name this SA as well as the S3 SA. */}}
   {{- with include "pmm.backupIrsaAnnotations" . }}
   annotations:
@@ -159,7 +159,7 @@ metadata:
   name: {{ .Release.Name }}-backup-role
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.componentLabels" (list . "backup-tools") | nindent 4 }}
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
 rules:
   # create/delete: restore spawns temp pods that mount the RWO data PVCs (DN-19).
   - apiGroups: [""]
@@ -212,7 +212,7 @@ metadata:
   name: {{ .Release.Name }}-backup-rolebinding
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.componentLabels" (list . "backup-tools") | nindent 4 }}
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
 subjects:
   {{- /* Only the run SA. Never the S3 SA: every VM and ClickHouse pod runs under that one. */}}
   - kind: ServiceAccount

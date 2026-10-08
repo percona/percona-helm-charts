@@ -30,7 +30,7 @@ metadata:
   name: {{ $cjName | trimSuffix "-" }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.componentLabels" (list . "backup-cronjob") | nindent 4 }}
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-cronjob") | nindent 4 }}
 spec:
   suspend: {{ not $s.enabled }}
   schedule: {{ $s.cron | quote }}
@@ -54,7 +54,7 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "pmm.componentLabels" (list . "backup-cronjob") | nindent 12 }}
+            {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-cronjob") | nindent 12 }}
           annotations:
             # Self-scopes to the run since the pod exits with the backup.
             karpenter.sh/do-not-disrupt: "true"
