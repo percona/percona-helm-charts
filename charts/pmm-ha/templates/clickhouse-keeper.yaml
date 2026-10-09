@@ -36,6 +36,8 @@ spec:
         spec:
           securityContext:
             {{- toYaml .Values.clickhouse.keeper.podSecurityContext | nindent 12 }}
+          # Neither ClickHouse nor Keeper calls the Kubernetes API; the operator uses its own ServiceAccount.
+          automountServiceAccountToken: false
           # Pod anti-affinity to spread Keeper nodes across different hosts
           # Using preferredDuringScheduling for soft anti-affinity (allows single-node deployments)
           # Weight 100 (max) makes this the highest priority soft constraint
