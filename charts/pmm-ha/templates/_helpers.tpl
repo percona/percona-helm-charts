@@ -137,6 +137,16 @@ Included from statefulset.yaml and vmauth.yaml - both read these keys, and vmaut
 renders first, so it needs its own call to report the missing key rather than dying on a
 b64dec. Keep every consumer that decodes a key from this secret calling it.
 */}}
+{{/*
+Refuse IRSA with serviceAccount.create=false and no static keys: the PMM /srv sidecar would have no S3 credentials.
+*/}}
+{{- define "pmm.validateBackupIrsaSa" -}}
+{{- $cbs := .Values.centralBackupStorage -}}
+{{- if and $cbs.enabled (eq $cbs.mode "s3") $cbs.s3.irsaRoleArn (not .Values.serviceAccount.create) (not $cbs.s3.existingSecret) -}}
+{{- fail (printf "centralBackupStorage.s3.irsaRoleArn is set (%s), but serviceAccount.create is false. IRSA authenticates a POD through the ServiceAccount it runs under, and with create=false this chart neither creates that ServiceAccount nor gives the PMM pods one: statefulset.yaml omits serviceAccountName entirely, so they run under the namespace 'default' account. The pmm-backup sidecar would then assume the role with that 'default' account's token, which the role's trust policy does not name, and every /srv backup would fail with 403.\n\nSetting serviceAccount.name does NOT help here - it names the account the chart would have created, and nothing reads it while create is false.\n\nPick one:\n  - set serviceAccount.create=true and let the chart create the ServiceAccount, whose token the sidecar assumes the role with (this is what IRSA needs; the chart also creates the matching ClusterRole/ClusterRoleBinding here); or\n  - use static keys instead: centralBackupStorage.s3.existingSecret=<secret>, which authenticates the sidecar directly and needs no ServiceAccount at all." $cbs.s3.irsaRoleArn) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "pmm.validateSecret" -}}
 {{/*
 An empty secret.name is never a working configuration - statefulset.yaml drops both the envFrom
@@ -732,6 +742,66 @@ when nodeExporter.mode == "openshift".
 {{- end -}}
 
 {{/*
+Central backup volume entry "central-backup-storage".
+*/}}
+{{- define "pmm.centralBackupVolume" -}}
+{{- /* Always a PVC: restore temp pods can only mount a claim. Use a PV for raw NFS. */}}
+- name: central-backup-storage
+  persistentVolumeClaim:
+    claimName: {{ .Values.centralBackupStorage.existingClaim | default (printf "%s-central-backup" .Release.Name) }}
+{{- end -}}
+
+{{/*
+Key name inside an S3 credentials Secret: (dict "keys" <existingSecretKeys> "which" "access"|"secret").
+*/}}
+{{- define "pmm.s3SecretKeyName" -}}
+{{- $keys := .keys | default dict -}}
+{{- if eq .which "access" -}}
+{{- $keys.accessKey | default "access-key" -}}
+{{- else -}}
+{{- $keys.secretKey | default "secret-key" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Static S3 key env from a Secret: (dict "secret" <name> "keys" <existingSecretKeys> ["idVar" "secretVar"]).
+*/}}
+{{- define "pmm.s3KeyEnv" -}}
+- name: {{ .idVar | default "AWS_ACCESS_KEY_ID" }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ .secret }}
+      key: {{ include "pmm.s3SecretKeyName" (dict "keys" .keys "which" "access") }}
+- name: {{ .secretVar | default "AWS_SECRET_ACCESS_KEY" }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ .secret }}
+      key: {{ include "pmm.s3SecretKeyName" (dict "keys" .keys "which" "secret") }}
+{{- end -}}
+
+{{/*
+rclone "s3" remote env for the pmm-backup sidecar and pmm-backup.sh runs; render_rclone_s3_env() mirrors it for temp pods.
+*/}}
+{{- define "pmm.rcloneS3Env" -}}
+{{- $s3 := .Values.centralBackupStorage.s3 -}}
+- name: RCLONE_CONFIG_S3_TYPE
+  value: "s3"
+- name: RCLONE_CONFIG_S3_PROVIDER
+  value: {{ $s3.provider | default "AWS" | quote }}
+- name: RCLONE_CONFIG_S3_ENV_AUTH
+  value: "true"
+- name: RCLONE_CONFIG_S3_REGION
+  value: {{ $s3.region | quote }}
+{{- /* The IAM policy has no CreateBucket. */}}
+- name: RCLONE_CONFIG_S3_NO_CHECK_BUCKET
+  value: "true"
+{{- with $s3.endpoint }}
+- name: RCLONE_CONFIG_S3_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
 Name of the chart-managed secret holding the read-only ClickHouse data source credentials.
 
 Kept apart from .Values.secret.name because that secret is user-managed by default, and these
@@ -775,6 +845,53 @@ Once generated it is read back from the chart-managed secret, so upgrades keep t
 {{- end -}}
 
 {{/*
+Backup S3 ServiceAccount name; release-scoped so two releases can share a namespace.
+*/}}
+{{- define "pmm.backupS3SaName" -}}
+{{- .Values.centralBackupStorage.s3.serviceAccountName | default (printf "%s-backup-s3" .Release.Name) -}}
+{{- end -}}
+
+{{/*
+S3 key root for this install: <namespace>/<prefix>, prefix defaulting to the release name.
+Retention deletes by age under its root, so the root must be unique per install.
+*/}}
+{{- define "pmm.backupS3Root" -}}
+{{- $prefix := .Values.centralBackupStorage.s3.prefix | default .Release.Name | trimPrefix "/" | trimSuffix "/" -}}
+{{- printf "%s/%s" .Release.Namespace $prefix -}}
+{{- end -}}
+
+{{/*
+Shared-target install path; independent of s3.prefix by design.
+*/}}
+{{- define "pmm.backupInstallPath" -}}
+{{- printf "%s/%s" .Release.Namespace .Release.Name -}}
+{{- end -}}
+
+{{/*
+This install's logs/, .staging/ and .metrics/ root. Shared mode nests it under the install path,
+or two installs on one volume overwrite each other's metrics and reap each other's logs.
+*/}}
+{{- define "pmm.backupStateDir" -}}
+{{- if eq .Values.centralBackupStorage.mode "shared" -}}
+{{- printf "%s/%s" .Values.centralBackupStorage.mountPath (include "pmm.backupInstallPath" .) -}}
+{{- else -}}
+{{- .Values.centralBackupStorage.mountPath -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Scope a scrape job to this release's backup-tools pod. regexQuoteMeta: relabel regexes are not escaped.
+*/}}
+{{- define "pmm.backupToolsScrapeKeep" -}}
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+  regex: 'backup-tools'
+  action: keep
+- source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+  regex: '{{ regexQuoteMeta .Release.Name }}'
+  action: keep
+{{- end -}}
+
+{{/*
 Reject a ClickHouse identifier that would not survive being written into the users.d drop-in.
 
 The data source username becomes an XML element name and the database name goes into a GRANT
@@ -784,6 +901,119 @@ dict with "name" and "value".
 {{- define "pmm.clickhouse.validateIdentifier" -}}
 {{- if not (regexMatch "^[A-Za-z_][A-Za-z0-9_-]*$" .value) -}}
 {{- fail (printf "%s must match ^[A-Za-z_][A-Za-z0-9_-]*$ to be usable in the ClickHouse users.d drop-in, got %q" .name .value) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Env for a pmm-backup.sh run, shared by the Deployment and Job pods so their targets can't drift.
+*/}}
+{{- define "pmm.backupRunEnv" -}}
+- name: NAMESPACE
+  value: {{ .Release.Namespace }}
+{{- /* Scopes the backup-tools selector when two releases share a namespace. */}}
+- name: RELEASE_NAME
+  value: {{ .Release.Name }}
+{{- /* ClickHouse credentials: the same Secret the ClickHouse pods use, not the script's pmm-secret default. */}}
+- name: CH_SECRET_NAME
+  value: {{ .Values.secret.name | quote }}
+- name: BACKUP_DIR
+  value: {{ .Values.centralBackupStorage.mountPath }}
+- name: STATE_DIR
+  value: {{ include "pmm.backupStateDir" . }}
+- name: METRICS_DIR
+  value: {{ include "pmm.backupStateDir" . }}/.metrics
+{{- /* Manual runs prune too, so they need retentionDays. */}}
+- name: BACKUP_RETENTION
+  value: {{ .Values.centralBackupStorage.schedule.retentionDays | int | quote }}
+# Defaults for pmm-backup.sh; flags still override.
+- name: BACKUP_TARGET
+  value: {{ .Values.centralBackupStorage.mode | quote }}
+{{- if eq .Values.centralBackupStorage.mode "shared" }}
+- name: SHARED_MOUNT_PATH
+  value: {{ .Values.centralBackupStorage.sharedMountPath | quote }}
+{{- /* Per-install catalog under a shared mount; same string as S3_PREFIX. */}}
+- name: SHARED_SUBPATH
+  value: {{ include "pmm.backupInstallPath" . | quote }}
+{{- else }}
+- name: S3_BUCKET
+  value: {{ .Values.centralBackupStorage.s3.bucket | quote }}
+- name: S3_REGION
+  value: {{ .Values.centralBackupStorage.s3.region | quote }}
+- name: S3_PREFIX
+  value: {{ include "pmm.backupS3Root" . | quote }}
+- name: S3_PROVIDER
+  value: {{ .Values.centralBackupStorage.s3.provider | default "AWS" | quote }}
+{{ include "pmm.rcloneS3Env" . }}
+{{- with .Values.centralBackupStorage.s3.existingSecret }}
+{{ include "pmm.s3KeyEnv" (dict "secret" . "keys" $.Values.centralBackupStorage.s3.existingSecretKeys) }}
+{{- end }}
+{{- with .Values.centralBackupStorage.s3.endpoint }}
+- name: S3_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
+{{- /* vmbackup/vmrestore take the endpoint only as a flag, so this pod needs VM's own (DN-28). */}}
+{{- $vmEndpoint := .Values.victoriaMetrics.vmstorage.backup.s3.endpoint | default .Values.centralBackupStorage.s3.endpoint }}
+{{- if and $vmEndpoint (ne $vmEndpoint .Values.centralBackupStorage.s3.endpoint) }}
+- name: VM_S3_ENDPOINT
+  value: {{ $vmEndpoint | quote }}
+{{- end }}
+{{- /* VM region/secret overrides, so vmrestore's temp pod reads what vmbackup wrote. */}}
+{{- $vmS3 := .Values.victoriaMetrics.vmstorage.backup.s3 }}
+{{- $vmRegion := $vmS3.region | default .Values.centralBackupStorage.s3.region }}
+{{- if and $vmRegion (ne $vmRegion .Values.centralBackupStorage.s3.region) }}
+- name: VM_S3_REGION
+  value: {{ $vmRegion | quote }}
+{{- end }}
+{{- /* Whenever set, even if it names the central Secret: its keys may differ (vmcluster.yaml uses them). */}}
+{{- if $vmS3.existingSecret }}
+- name: VM_S3_SECRET_NAME
+  value: {{ $vmS3.existingSecret | quote }}
+- name: VM_S3_SECRET_ACCESS_KEY_KEY
+  value: {{ include "pmm.s3SecretKeyName" (dict "keys" $vmS3.existingSecretKeys "which" "access") | quote }}
+- name: VM_S3_SECRET_SECRET_KEY_KEY
+  value: {{ include "pmm.s3SecretKeyName" (dict "keys" $vmS3.existingSecretKeys "which" "secret") | quote }}
+{{- end }}
+{{- with .Values.centralBackupStorage.s3.existingSecret }}
+- name: S3_SECRET_NAME
+  value: {{ . | quote }}
+- name: S3_SECRET_ACCESS_KEY_KEY
+  value: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "access") | quote }}
+- name: S3_SECRET_SECRET_KEY_KEY
+  value: {{ include "pmm.s3SecretKeyName" (dict "keys" $.Values.centralBackupStorage.s3.existingSecretKeys "which" "secret") | quote }}
+{{- end }}
+{{- /* Only when the SA is created; a missing SA fails temp pods at admission mid-restore. */}}
+{{- if .Values.centralBackupStorage.s3.irsaRoleArn }}
+- name: S3_SERVICE_ACCOUNT
+  value: {{ include "pmm.backupS3SaName" . | quote }}
+{{- end }}
+{{- end }}
+{{- with .Values.victoriaMetrics.vmstorage.backup.restoreImage }}
+- name: VMRESTORE_IMAGE
+  value: {{ . | quote }}
+{{- end }}
+{{- /* Both modes: a ResourceQuota would reject unqualified temp pods after scale-down. */}}
+- name: TEMP_POD_RESOURCES
+  value: {{ .Values.centralBackupStorage.tools.restorePodResources | default .Values.centralBackupStorage.tools.resources | default dict | toJson | quote }}
+{{- end -}}
+
+{{/*
+SA every backup/restore run uses (the one bound to the backup Role).
+*/}}
+{{- define "pmm.backupRunSaName" -}}
+{{- printf "%s-backup-sa" .Release.Name -}}
+{{- end -}}
+
+{{/*
+IRSA annotations for backup SAs; role-arn only if the user didn't set it (duplicate keys fail).
+*/}}
+{{- define "pmm.backupIrsaAnnotations" -}}
+{{- if and (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn -}}
+{{- with .Values.centralBackupStorage.s3.serviceAccountAnnotations }}
+{{ toYaml . }}
+{{- end }}
+{{- if not (hasKey (.Values.centralBackupStorage.s3.serviceAccountAnnotations | default dict) "eks.amazonaws.com/role-arn") }}
+eks.amazonaws.com/role-arn: {{ .Values.centralBackupStorage.s3.irsaRoleArn | quote }}
+{{- end }}
 {{- end -}}
 {{- end -}}
 
@@ -854,6 +1084,42 @@ release inherit the previous install's dead token.
 {{- else -}}
 {{- printf "%s-pmm-secret" (include "pg-database.fullname" .) -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+backup-tools identity: Deployment selector and backup Job podAffinity.
+*/}}
+{{- define "pmm.backupToolsSelectorLabels" -}}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: backup-tools
+{{- end -}}
+
+{{/*
+Chart-shipped scripts; subPath mounts keep /usr/local/bin intact.
+*/}}
+{{- define "pmm.backupScriptsVolume" -}}
+- name: backup-scripts
+  configMap:
+    name: {{ .Release.Name }}-backup-scripts
+    defaultMode: 0555
+{{- end -}}
+
+{{- define "pmm.backupScriptsMounts" -}}
+- name: backup-scripts
+  mountPath: /usr/local/bin/pmm-backup.sh
+  subPath: pmm-backup.sh
+- name: backup-scripts
+  mountPath: /usr/local/bin/backup-entrypoint.sh
+  subPath: backup-entrypoint.sh
+{{- end -}}
+
+{{- define "pmm.backupRunResources" -}}
+{{- toYaml (.Values.centralBackupStorage.tools.resources | default dict) -}}
+{{- end -}}
+
+{{- define "pmm.centralBackupMount" -}}
+- name: central-backup-storage
+  mountPath: {{ .Values.centralBackupStorage.mountPath }}
 {{- end -}}
 
 {{/*

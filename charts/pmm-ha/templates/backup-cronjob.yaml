@@ -1,0 +1,118 @@
+{{- if .Values.centralBackupStorage.enabled }}
+{{- /* Every backup covers all four components; with a sidecar off each run fails it, so latest and retention never move (DN-14/DN-40). */}}
+{{- if not (and .Values.clickhouse.backup.enabled .Values.victoriaMetrics.vmstorage.backup.enabled) }}
+{{- fail "centralBackupStorage.enabled needs clickhouse.backup.enabled and victoriaMetrics.vmstorage.backup.enabled: every backup covers PostgreSQL, ClickHouse, VictoriaMetrics and PMM Server, and with a sidecar off each run fails that component, so 'latest' never moves and retention never prunes. Turn the sidecar back on, or set centralBackupStorage.enabled=false." }}
+{{- end }}
+{{- $cbs := .Values.centralBackupStorage }}
+{{- $s := $cbs.schedule }}
+{{- /* Only schedule-decided flags; target/retention come from pmm.backupRunEnv (flags would override it). */}}
+{{- $args := list "backup" }}
+{{- if eq $cbs.mode "s3" }}
+  {{- /* Not gated on schedule.enabled: the jobTemplate is the clone source for manual runs. */}}
+  {{- $_ := required "centralBackupStorage.mode is s3 but centralBackupStorage.s3.bucket is empty — set centralBackupStorage.s3.bucket (every backup, restore and scheduled run needs it)." $cbs.s3.bucket }}
+{{- end }}
+{{- /* components/extraArgs default to list so a null override (e.g. `components:`) doesn't nil-panic concat. */}}
+{{- $args = concat $args ($s.components | default list) ($s.extraArgs | default list) }}
+{{- /* s3 mode: Jobs must co-locate with backup-tools on the RWO volume unless accessMode declares RWX. */}}
+{{- $rwxAccess := eq ($cbs.accessMode | default "") "ReadWriteMany" }}
+{{- $needsColocation := and (eq $cbs.mode "s3") (not $rwxAccess) }}
+---
+# The Job pod runs pmm-backup.sh itself (DN-47). Always rendered, suspended when unscheduled,
+# because `kubectl create job --from=cronjob/<release>-backup` clones this jobTemplate.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  # Capped at 52 chars; longer names get a hash suffix so two releases can't collide.
+  {{- $cjName := printf "%s-backup" .Release.Name }}
+  {{- if gt (len $cjName) 52 }}
+  {{- $cjName = printf "%s-%s-backup" (.Release.Name | trunc 35 | trimSuffix "-") (.Release.Name | sha256sum | trunc 8) }}
+  {{- end }}
+  name: {{ $cjName | trimSuffix "-" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-cronjob") | nindent 4 }}
+spec:
+  suspend: {{ not $s.enabled }}
+  schedule: {{ $s.cron | quote }}
+  # Forbid does not cover manual --from clones. Pause via schedule.enabled, not kubectl patch.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ $s.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: {{ $s.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ $s.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      # A retry after SIGKILL fails on still-held Leases; the schedule is the real retry loop.
+      {{- /* Nil test, not `default`: 0 must stay 0 (restore clones need no retry). */}}
+      backoffLimit: {{ if ne (toString $s.backoffLimit) "<nil>" }}{{ $s.backoffLimit }}{{ else }}1{{ end }}
+      {{- /* Nil test, not `with`: 0 is a valid TTL; null disables. */}}
+      {{- if ne (toString $s.ttlSecondsAfterFinished) "<nil>" }}
+      # Also sweeps manual clones; a TTL shorter than a sparse schedule loses failed-Job logs.
+      ttlSecondsAfterFinished: {{ $s.ttlSecondsAfterFinished }}
+      {{- end }}
+      # Bounds the backup itself, including Pending time; null/0 fall back to the default.
+      activeDeadlineSeconds: {{ $s.activeDeadlineSeconds | default 21600 }}
+      template:
+        metadata:
+          labels:
+            {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-cronjob") | nindent 12 }}
+          annotations:
+            # Self-scopes to the run since the pod exits with the backup.
+            karpenter.sh/do-not-disrupt: "true"
+        spec:
+          restartPolicy: Never
+          # Room for the TERM trap to release Leases; a SIGKILL leaves them held for 900s.
+          terminationGracePeriodSeconds: {{ $s.terminationGracePeriodSeconds | default 300 }}
+          {{- /* A pod listing pull secrets gets none from its SA, so the tools ones are listed too. */}}
+          {{- with concat (.Values.image.imagePullSecrets | default list) (.Values.centralBackupStorage.tools.imagePullSecrets | default list) | uniq }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "pmm.backupRunSaName" . }}
+          {{- with $cbs.tools.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if $needsColocation }}
+          # Required: without backup-tools on this node the RWO volume is unusable anyway.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      {{- include "pmm.backupToolsSelectorLabels" . | nindent 22 }}
+                  topologyKey: kubernetes.io/hostname
+          {{- end }}
+          containers:
+          - name: backup
+            image: "{{ $cbs.tools.image.registry }}/{{ $cbs.tools.image.repository }}:{{ $cbs.tools.image.tag }}"
+            {{- with $cbs.tools.securityContext }}
+            securityContext:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            env:
+              {{- include "pmm.backupRunEnv" . | nindent 14 }}
+              # Jobs fail loudly on a missing tool; the Deployment deliberately does not.
+              - name: PMM_TOOLS_STRICT
+                value: "true"
+              # Env, not args, so restore clones that rewrite args keep it.
+              - name: TARGET_RELEASE
+                value: {{ .Release.Name | quote }}
+              {{- if eq $cbs.mode "s3" }}
+              - name: PMM_TOOLS_REQUIRE_RCLONE
+                value: "true"
+              {{- end }}
+            # Callers rewrite args only; absolute path in case the image's PATH lacks /usr/local/bin.
+            command: ["/usr/local/bin/backup-entrypoint.sh"]
+            args:
+              {{- range $args }}
+              - {{ . | quote }}
+              {{- end }}
+            volumeMounts:
+              {{- include "pmm.centralBackupMount" . | nindent 14 }}
+              {{- include "pmm.backupScriptsMounts" . | nindent 14 }}
+            resources:
+              {{- include "pmm.backupRunResources" . | nindent 14 }}
+          volumes:
+            {{- include "pmm.backupScriptsVolume" . | nindent 12 }}
+            {{- include "pmm.centralBackupVolume" . | nindent 12 }}
+{{- end }}

@@ -1,0 +1,17 @@
+{{- if .Values.centralBackupStorage.enabled }}
+---
+# Mounted by subPath into backup-tools and every backup/restore Job pod.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-backup-scripts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
+data:
+  pmm-backup.sh: |
+{{ required "files/pmm-backup.sh is missing from the chart — every backup/restore entry point execs it, and .Files.Get would silently render an empty key" (.Files.Get "files/pmm-backup.sh") | indent 4 }}
+  # The Job pods' command, so clones can rewrite args without losing the bootstrap.
+  backup-entrypoint.sh: |
+{{ required "files/backup-entrypoint.sh is missing from the chart — it is the command of every backup/restore Job pod, and .Files.Get would silently render an empty key" (.Files.Get "files/backup-entrypoint.sh") | indent 4 }}
+{{- end }}

@@ -13,10 +13,19 @@
 {{- if or (eq $datasourceUser $clickhouseUser) (eq $datasourceUser "clickhouse_operator") }}
 {{- fail (printf "clickhouse.datasource.user must differ from the PMM ClickHouse user and from clickhouse_operator, otherwise the drop-in merges into that account and strips its privileges, got %s" $datasourceUser) }}
 {{- end }}
+{{- /* pmm-backup.sh backs up and restores one ClickHouse pod, i.e. one shard. */}}
+{{- if and .Values.centralBackupStorage.enabled (gt (int .Values.clickhouse.cluster.shards) 1) }}
+{{- fail (printf "clickhouse.cluster.shards is %v, but ClickHouse backup/restore covers a single shard: the other shards' QAN data would be missing from every backup. Use clickhouse.cluster.shards: 1, or set centralBackupStorage.enabled=false." .Values.clickhouse.cluster.shards) }}
+{{- end }}
 apiVersion: "clickhouse.altinity.com/v1"
 kind: ClickHouseInstallation
 metadata:
   name: {{ .Release.Name }}
+  {{- /* Lets pmm-backup.sh tie-break by release. Not pmm.labels (pmm-server selectors), and no helm.sh/chart:
+         the operator copies these onto the pod template, so every chart version bump would roll ClickHouse. */}}
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   configuration:
     # ClickHouse Keeper coordination
@@ -52,6 +61,11 @@ spec:
              bump only risks the profile failing to apply. */}}
       clickhouse_operator/prefer_localhost_replica: "1"
       readonly/readonly: "2"
+      {{- if .Values.centralBackupStorage.enabled }}
+      # Restore replays explicit-path ReplicatedMergeTree DDL, rejected (error 36) without this.
+      # Known trade-off: profile-wide, as clickhouse-backup shares PMM's user/profile.
+      default/database_replicated_allow_replicated_engine_arguments: "1"
+      {{- end }}
     
     # User management - password from Kubernetes secret using valueFrom
     users:
@@ -148,13 +162,20 @@ spec:
       # engines and table functions - url(), remote(), mysql() and S3 over HTTP - for every user,
       # not just the data source one. Query Analytics does not use them: replication runs over the
       # interserver protocol and Keeper, and schema changes go through ON CLUSTER DDL.
+      # Exception: the backup sidecar's loopback API (integration tables); needs a pod bounce on upgrade.
       config.d/pmm-hardening.xml: |
         <clickhouse>
           <access_control_improvements>
             <settings_constraints_replace_previous>true</settings_constraints_replace_previous>
             <select_from_system_db_requires_grant>true</select_from_system_db_requires_grant>
           </access_control_improvements>
+          {{- if and .Values.centralBackupStorage.enabled .Values.clickhouse.backup.enabled }}
+          <remote_url_allow_hosts>
+            <host>127.0.0.1:7171</host>
+          </remote_url_allow_hosts>
+          {{- else }}
           <remote_url_allow_hosts></remote_url_allow_hosts>
+          {{- end }}
         </clickhouse>
 
   templates:
@@ -167,6 +188,10 @@ spec:
             prometheus.io/port: "9363"
             prometheus.io/path: "/metrics"
         spec:
+          {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "s3") .Values.centralBackupStorage.s3.irsaRoleArn }}
+          # IRSA SA so clickhouse-backup gets S3 credentials without static keys.
+          serviceAccountName: {{ include "pmm.backupS3SaName" . }}
+          {{- end }}
           securityContext:
             {{- toYaml .Values.clickhouse.podSecurityContext | nindent 12 }}
           # Neither ClickHouse nor Keeper calls the Kubernetes API; the operator uses its own ServiceAccount.
@@ -202,12 +227,97 @@ spec:
                   mountPath: /var/log/clickhouse-server
                 - name: tmp
                   mountPath: /tmp
+            {{- /* Without backup infra the sidecar would just idle. */}}
+            {{- if and .Values.centralBackupStorage.enabled .Values.clickhouse.backup.enabled }}
+            - name: clickhouse-backup
+              image: {{ .Values.clickhouse.backup.image }}
+              imagePullPolicy: IfNotPresent
+              {{- with .Values.clickhouse.backup.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              command:
+                - clickhouse-backup
+                - server
+              env:
+                - name: LOG_LEVEL
+                  value: "info"
+                - name: ALLOW_EMPTY_BACKUPS
+                  value: "true"
+                {{- /* Loopback only: the API is unauthenticated and only in-pod ClickHouse calls it. */}}
+                - name: API_LISTEN
+                  value: "127.0.0.1:7171"
+                - name: API_CREATE_INTEGRATION_TABLES
+                  value: "true"
+                - name: BACKUPS_TO_KEEP_LOCAL
+                  value: "{{ .Values.clickhouse.backup.keepLocal }}"
+                {{- /* Keep 0: remote retention belongs to the orchestrator (DN-09). */}}
+                - name: BACKUPS_TO_KEEP_REMOTE
+                  value: "{{ .Values.clickhouse.backup.keepRemote }}"
+                - name: CLICKHOUSE_HOST
+                  value: "localhost"
+                - name: CLICKHOUSE_PORT
+                  value: "9000"
+                - name: CLICKHOUSE_USERNAME
+                  value: "{{ $clickhouseUser }}"
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.secret.name }}
+                      key: PMM_CLICKHOUSE_PASSWORD
+                {{- if or (eq .Values.centralBackupStorage.mode "s3") .Values.clickhouse.backup.s3.enabled }}
+                - name: REMOTE_STORAGE
+                  value: "s3"
+                - name: S3_BUCKET
+                  value: "{{ .Values.clickhouse.backup.s3.bucket | default .Values.centralBackupStorage.s3.bucket }}"
+                - name: S3_REGION
+                  value: "{{ .Values.clickhouse.backup.s3.region | default .Values.centralBackupStorage.s3.region }}"
+                - name: S3_PATH
+                  {{- /* Per-release path so two instances never share chains or retention. */}}
+                  value: "{{ .Values.clickhouse.backup.s3.path | default (printf "%s/clickhouse" (include "pmm.backupS3Root" .)) }}"
+                {{- $chEndpoint := .Values.clickhouse.backup.s3.endpoint | default .Values.centralBackupStorage.s3.endpoint }}
+                {{- if $chEndpoint }}
+                - name: S3_ENDPOINT
+                  value: "{{ $chEndpoint }}"
+                {{- /* Virtual-hosted addressing fails on MinIO/Ceph without wildcard DNS. */}}
+                - name: S3_FORCE_PATH_STYLE
+                  value: "true"
+                {{- end }}
+                {{- $chS3 := .Values.clickhouse.backup.s3 }}
+                {{- $chSecret := $chS3.existingSecret }}
+                {{- $chKeys := $chS3.existingSecretKeys }}
+                {{- if and (not $chSecret) (not $chS3.accessKey) }}{{- $chSecret = .Values.centralBackupStorage.s3.existingSecret }}{{- $chKeys = .Values.centralBackupStorage.s3.existingSecretKeys }}{{- end }}
+                {{- if $chSecret }}
+                {{- include "pmm.s3KeyEnv" (dict "secret" $chSecret "keys" $chKeys "idVar" "S3_ACCESS_KEY" "secretVar" "S3_SECRET_KEY") | nindent 16 }}
+                {{- else if $chS3.accessKey }}
+                - name: S3_ACCESS_KEY
+                  value: "{{ $chS3.accessKey }}"
+                - name: S3_SECRET_KEY
+                  value: "{{ $chS3.secretKey }}"
+                {{- end }}
+                {{- end }}
+              {{- /* No containerPort: 7171 is loopback-only. */}}
+              resources:
+                {{- toYaml .Values.clickhouse.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: clickhouse-data-volume
+                  mountPath: /var/lib/clickhouse
+                {{- if and .Values.centralBackupStorage.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+                # clickhouse-backup has no fs remote, so the orchestrator tars into here.
+                - name: central-backup-storage
+                  mountPath: {{ .Values.centralBackupStorage.sharedMountPath }}
+                {{- end }}
+            {{- end }}
           volumes:
             - name: clickhouse-logs
               emptyDir: {}
             - name: tmp
               emptyDir: {}
-    
+            {{- /* Only the backup sidecar mounts this one, so share its condition. */}}
+            {{- if and .Values.centralBackupStorage.enabled .Values.clickhouse.backup.enabled (eq .Values.centralBackupStorage.mode "shared") }}
+            {{- include "pmm.centralBackupVolume" . | nindent 12 }}
+            {{- end }}
+
     # Persistent volume configuration for ClickHouse data
     volumeClaimTemplates:
       - name: clickhouse-data-volume

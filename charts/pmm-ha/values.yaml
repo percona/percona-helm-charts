@@ -737,6 +737,440 @@ clickhouse:
         - 10.0.0.0/8
         - 172.16.0.0/12
         - 192.168.0.0/16
+  
+  ## @section ClickHouse Backup Configuration (clickhouse-backup sidecar)
+  ## This section configures the clickhouse-backup sidecar container
+  ## clickhouse-backup provides backup/restore functionality via API tables
+  ## Documentation: https://github.com/Altinity/clickhouse-backup
+  ##
+  backup:
+    ## @param clickhouse.backup.enabled Enable clickhouse-backup sidecar container
+    ## When enabled, adds a sidecar container that runs clickhouse-backup in server mode
+    ## Creates system.backup_actions and system.backup_list tables for backup management
+    ## Only takes effect when centralBackupStorage.enabled is true (the backup master switch), and
+    ## must stay true then: every backup covers all four components, so the chart refuses false.
+    enabled: true
+    
+    ## @param clickhouse.backup.image clickhouse-backup image
+    ## Pinned (not :latest) so every CH replica runs the same version — a mixed backup/restore
+    ## version pair can be incompatible. Bump deliberately.
+    image: altinity/clickhouse-backup:2.8.0
+    
+    ## @param clickhouse.backup.resources Resource requests and limits for backup sidecar
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    ## @param clickhouse.backup.securityContext Container securityContext of the backup sidecar (runs as the pod's uid 101)
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    
+    ## @param clickhouse.backup.keepLocal Local (hardlink) backups clickhouse-backup keeps per replica
+    ## Note: Local backups use hardlinks (~0 space) and are copied to central storage
+    keepLocal: 1   # Keep only latest local hardlink backup
+    ## @param clickhouse.backup.keepRemote Remote backups clickhouse-backup itself keeps (0 = the orchestrator prunes)
+    ## keepRemote MUST stay 0 unless you know what you are trading away.
+    ## 0 disables clickhouse-backup's own remote pruning and leaves the REMOTE copy entirely to
+    ## the orchestrator's retention sweep, which is the only thing that knows about the manifest
+    ## index. clickhouse-backup prunes by COUNT; the orchestrator retains by AGE and keeps a
+    ## manifest per backup id. With both active they disagree: on any schedule finer than daily,
+    ## N remote backups is a far shorter window than --retention days, so clickhouse-backup
+    ## deletes ClickHouse data that unexpired manifests still list as `success`. The pre-restore
+    ## gate catches it (it checks the name against `list remote`), so the failure is loud rather
+    ## than mid-restore — but that backup is no longer fully restorable, silently, from the
+    ## moment the count is exceeded. It also breaks incremental chains the orchestrator is
+    ## deliberately preserving. Set a non-zero value only if you are NOT using the orchestrator
+    ## for ClickHouse, and then align it with your manifest retention and chain depth.
+    keepRemote: 0  # Remote (S3) pruning is owned by the orchestrator's retention sweep
+    
+    ## @param clickhouse.backup.s3 S3 configuration for remote backups
+    ## With existingSecret/accessKey empty, clickhouse-backup uses the IRSA credential
+    ## chain (the CH pod's SA role) — no static keys.
+    s3:
+      enabled: false        # set true + bucket/region per install (do not commit creds/bucket)
+      bucket: ""
+      ## Empty (default) inherits centralBackupStorage.s3.region; set to override for ClickHouse only.
+      region: ""
+      ## Key prefix under the bucket; backups land at s3://<bucket>/<path>/<backup_name>/
+      ## Empty (default) resolves through pmm.backupS3Root to
+      ## "<namespace>/<centralBackupStorage.s3.prefix>/clickhouse" — note the leading
+      ## NAMESPACE segment, which is what keeps two installs that share a bucket (and even a
+      ## prefix) apart. Multi-namespace installs must not share a path: incremental chains and
+      ## retention would cross instances.
+      path: ""
+      endpoint: ""  # Leave empty for AWS S3
+      ## S3 credentials - use existing secret (recommended)
+      ## Create secret: kubectl create secret generic clickhouse-backup-s3 \
+      ##   --from-literal=access-key="AKIAIOSFODNN7EXAMPLE" \
+      ##   --from-literal=secret-key="wJalrXUtnFEMI/K7MDENG..." \
+      ##   -n <namespace>
+      ## Empty (default) falls back to centralBackupStorage.s3.existingSecret, so a single
+      ## shared credential authenticates every component's backup. Set here only to point
+      ## ClickHouse at a different secret.
+      existingSecret: ""
+      existingSecretKeys:          # which keys inside existingSecret hold the credentials
+        accessKey: "access-key"
+        secretKey: "secret-key"
+      ## Or provide credentials directly (not recommended for production)
+      # accessKey: ""
+      # secretKey: ""
+
+## @section Central Backup Storage Configuration
+## This section configures a centralized storage location for all component backups
+## All backups (PostgreSQL, ClickHouse, VictoriaMetrics, encryption keys, logs) are
+## consolidated here for easy management, monitoring, and archival
+##
+centralBackupStorage:
+  ## @param centralBackupStorage.enabled Enable backup infrastructure (backup-tools Deployment,
+  ## sidecars, SA wiring, optional CronJob). Opt-in: with it on you must configure a target
+  ## (s3 bucket+credentials, or a shared RWX volume) — otherwise the backup infra can't run.
+  enabled: false
+
+  ## @param centralBackupStorage.mode Backup target: s3 (object storage, recommended) | shared (RWX/NFS mounted in pods)
+  ##
+  ## SECURITY NOTE for mode=s3: the PMM PostgreSQL encryption key is stored in the SAME bucket
+  ## and under the same prefix as the PostgreSQL dumps it decrypts (encryption/<id>/). A single
+  ## read of the bucket therefore yields both the ciphertext and the key, which defeats column
+  ## encryption in a bucket-compromise or stolen-backup scenario. Mitigate at the bucket:
+  ## enable SSE-KMS with a CMK whose key policy is NOT grantable by the backup role, and keep
+  ## the bucket private with versioning/Object Lock if your RPO allows. See
+  ## docs/pmm-backup-design-notes.md (DN-24).
+  ##
+  ## SECURITY NOTE for mode=shared: the same exposure, with a different set of readers, and it
+  ## is the narrower-to-exploit but harder-to-mitigate one. The encryption key is written 0640
+  ## onto the shared volume, deliberately — a DR namespace runs under a different UID and must
+  ## be able to read it for a cross-namespace restore. That volume also holds the PostgreSQL
+  ## dumps the key decrypts, and it is mounted READ-WRITE (no readOnly) into the PMM pods, both
+  ## vmstorage backup sidecars and the clickhouse-backup sidecar, because all of them write
+  ## their own backups to it. So compromise of ANY one of those containers yields the ciphertext
+  ## and the key together.
+  ##
+  ## There is no bucket-policy equivalent to mitigate with. Until the layout separates them:
+  ##   - if you manage the PMM encryption key yourself, exclude it from backups with
+  ##     `pmm-backup.sh backup --skip-encryption-key` and restore it out of band; or
+  ##   - treat every pod that mounts this volume as being in the key's trust boundary, and
+  ##     restrict who can exec into them accordingly.
+  mode: s3
+
+  ## @param centralBackupStorage.sharedMountPath Mount path of the central RWX/NFS volume INSIDE the
+  ## component pods (PMM, vmstorage, ClickHouse) when mode=shared. Each tool writes its backup here
+  ## (vmbackup -dst=fs://, in-pod tar). Must match the orchestrator's --shared-mount-path. The
+  ## backup-tools pod mounts the same volume at centralBackupStorage.mountPath; both resolve to the
+  ## same volume root, so a run lands under <root>/backup_<id>/.
+  sharedMountPath: /central
+
+  ## S3 target (mode=s3): any S3-compatible object storage (AWS S3, MinIO, Ceph RGW, ...).
+  ## Authentication, pick ONE:
+  ##   - static keys (works everywhere): create a Secret with the access/secret key pair
+  ##     and set existingSecret below
+  ##   - IRSA (AWS EKS only, keyless): set irsaRoleArn
+  s3:
+    ## Bucket name (no s3:// prefix). REQUIRED for s3 mode — set per install (do not commit).
+    bucket: ""
+    region: "us-east-1"
+    ## Empty for AWS S3; set for S3-compatible endpoints (e.g. http://minio.minio.svc:9000)
+    endpoint: ""
+    ## rclone S3 provider profile for the PMM sidecar / backup-tools client:
+    ## "AWS" (default), "Minio", "Ceph", or "Other" for anything else S3-compatible.
+    provider: "AWS"
+    ## Key prefix under the bucket. The full root is s3://<bucket>/<namespace>/<prefix>/, with
+    ## every component at <namespace>/<prefix>/<component>/<id>/, the index at
+    ## <namespace>/<prefix>/manifests/<id>.json — the release NAMESPACE is prepended automatically.
+    ##
+    ## Why that matters: retention deletes by AGE under an install's own root and cannot tell
+    ## whose backup an id is, so two installs sharing a root delete each other's backups —
+    ## irreversibly on a bucket without versioning. Because the namespace leads the path, two
+    ## instances in different namespaces of the same cluster are safe even if both leave this
+    ## at the default, and so are two releases in the SAME namespace — empty here means the
+    ## RELEASE NAME, which is what distinguishes them. A fixed literal would give both the same
+    ## root: one catalog, one 'latest', one age-based retention sweep, and either release able
+    ## to delete the other's backups.
+    ##
+    ## SET A DISTINCT VALUE PER CLUSTER if several CLUSTERS share one bucket: Kubernetes
+    ## namespaces are cluster-scoped, so a `demo` namespace on two clusters would otherwise
+    ## resolve to the same root (e.g. "prod-eu" / "dr-us"). Nothing in the chart can detect
+    ## this for you — cluster identity is not readable through its namespaced RBAC.
+    ##
+    ## A DR/restore target keeps its OWN root here and names the source only at restore time:
+    ##   pmm-backup.sh restore --s3-prefix <source-namespace>/<source-prefix>
+    ##
+    ## Empty (the default) resolves to the release name, so the root is <namespace>/<release>.
+    prefix: ""
+    ## Static credentials for the PMM rclone sidecar (pg_dump//srv/encryption-key/manifest
+    ## uploads) and the restore temp pods. Required on non-AWS S3-compatible storage;
+    ## optional on AWS when IRSA is used instead.
+    existingSecret: ""
+    existingSecretKeys:            # which keys inside existingSecret hold the credentials
+      accessKey: "access-key"
+      secretKey: "secret-key"
+    ## IAM role ARN annotated onto the backup ServiceAccounts (IRSA, AWS EKS only). Set per
+    ## install (e.g. arn:aws:iam::<ACCOUNT_ID>:role/pmm-ha-backup-s3). Empty = no IRSA annotation.
+    ## Annotated: <release>-backup-sa (backup-tools and the backup/restore Jobs, the only one bound
+    ## to the backup Role) and the S3 SA below. The PMM server SA is NOT annotated (the pmm container
+    ## and vmagent share it); only its pmm-backup sidecar assumes the role, with that SA's projected
+    ## token. The role's trust policy must name all three.
+    ## S3-mode credentials come from ONE of: irsaRoleArn (IRSA), existingSecret (static keys),
+    ## or ambient AWS credentials on the node (instance profile / kube2iam). With none of the
+    ## three, the backup sidecars deploy but every S3 operation fails with auth errors.
+    irsaRoleArn: ""
+    ## Dedicated IRSA-annotated SA used by operator-managed pods (vmstorage, clickhouse) and the
+    ## restore temp pods so their backup tools get S3 creds via the credential chain. S3 access
+    ## only: no Kubernetes RBAC is bound to it.
+    ## Empty (default) → release-scoped "<release>-backup-s3" so two releases in one namespace
+    ## don't collide on a single fixed SA. Set to pin a specific name.
+    serviceAccountName: ""
+    ## Extra annotations for both IRSA backup ServiceAccounts (the S3 SA and <release>-backup-sa),
+    ## applied when irsaRoleArn is set, e.g. eks.amazonaws.com/sts-regional-endpoints: "false".
+    ## The pmm-backup sidecar's token follows role-arn, audience and token-expiration from here too.
+    serviceAccountAnnotations: {}
+
+  ## In-pod S3 client image (PMM backup sidecar / backup-tools). Override registry for mirrors/air-gap.
+  client:
+    image:
+      registry: docker.io
+      repository: rclone/rclone
+      tag: "1.74.3"
+
+  ## backup-tools Deployment image (kubectl + shell; runs the orchestrator scripts and the
+  ## metrics listeners). Pinned tag — do not use :latest.
+  ##
+  ## THE IMAGE MUST PROVIDE kubectl, jq, AND rclone WHEN mode IS s3. This default carries all
+  ## three, so nothing is installed at run time: files/backup-entrypoint.sh probes first and
+  ## skips its `apk add` fallback entirely.
+  ##
+  ## IF YOU OVERRIDE THIS IMAGE, the replacement must carry them too. An image without them
+  ## falls back to `apk add`, which needs ROOT — so on OpenShift, or any cluster whose SCC /
+  ## PodSecurity assigns a non-root UID, the install fails and backup Jobs (which run with
+  ## PMM_TOOLS_STRICT=true) exit non-zero. That is not fixable in the chart; DN-49 records the
+  ## four alternatives measured against shipping a bundled-tools image.
+  ##
+  ## Three things come with this default, and they are not optional:
+  ##   1. TIMESTAMP TAGS ONLY, never :latest. This image bumps kubectl on its own schedule, and
+  ##      kubectl versions have broken this orchestrator before (`kubectl exec
+  ##      --request-timeout` broke in-cluster API discovery in v1.35.x — the reason every call
+  ##      is wrapped in `timeout`).
+  ##   2. Re-run a backup AND a restore whenever you move the tag, for the same reason.
+  ##   3. Give the backup pods a registry pull secret, or mirror the image. Docker Hub rate
+  ##      limits are a real failure mode. Use tools.imagePullSecrets below — NOT
+  ##      image.imagePullSecrets, which also lands on the PMM StatefulSet and would roll every
+  ##      PMM replica just to fix a tools-image pull.
+  ##
+  ## It is a third-party image (Tiger Computing Ltd) and a general-purpose CI toolbox, so it
+  ## also carries aws-cli, helm, ssh and python3 that this chart never uses. Any image with
+  ## kubectl+jq+rclone works; a minimal one you build yourself (Alpine, `apk add jq`, plus
+  ## `COPY --from` for kubectl and rclone) carries far less surface. See docs/pmm-backup.md §9.
+  ##
+  ## TODO(ImageVolume): once the chart's supported floor is Kubernetes >= 1.33 AND OpenShift
+  ## ships ImageVolume (OCP 4.20+), the better answer is to mount the official upstream
+  ## images as read-only OCI volumes instead of depending on any bundled-tools image:
+  ##   volumes:
+  ##     - name: jq-img     # ghcr.io/jqlang/jq       -> /jq
+  ##       image: { reference: "ghcr.io/jqlang/jq:1.8.1" }
+  ##     - name: rclone-img # rclone/rclone           -> /usr/local/bin/rclone
+  ##       image: { reference: "docker.io/rclone/rclone:1.74.3" }
+  ## then add both to PATH. Verified working on Kubernetes 1.36 as an assigned non-root UID:
+  ## official binaries only, read-only mounts nothing in the pod can tamper with, each tool
+  ## pinned independently, and kubectl stays on this chart's own pinned image. Blocked today
+  ## purely by availability — the chart supports 1.22+, ImageVolume is 1.33+, and
+  ## ImageVolumeWithDigest (pinning by digest rather than tag) is still alpha. DN-49 records
+  ## the full comparison so this is not re-derived from scratch.
+  tools:
+    image:
+      registry: docker.io
+      repository: tigercomputing/cloud-tools
+      tag: "20260831175138"
+    ## @param centralBackupStorage.tools.imagePullSecrets Pull secrets for the backup pods only
+    ## Rendered onto the backup ServiceAccount (s3-mode temp restore pods) and merged with
+    ## image.imagePullSecrets on the backup-tools and backup/restore Job pods — without touching
+    ## image.imagePullSecrets, which is chart-wide and would roll the PMM StatefulSet too.
+    ## E.g. imagePullSecrets: [{name: dockerhub}]
+    imagePullSecrets: []
+    ## @param centralBackupStorage.tools.resources Resources for anything running the orchestrator
+    ## Applied to BOTH the always-on backup-tools pod and every backup/restore Job pod — they run
+    ## the same code, so they are sized from one key rather than two blocks that claim to match.
+    ## Raise the memory limit for very large installs (the pg_dump stream is the one payload that
+    ## passes through this process; /srv and ClickHouse tars go pod-to-destination directly).
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    ## @param centralBackupStorage.tools.restorePodResources Resources for the temporary restore pods
+    ## vmrestore (-concurrency=10) and the /srv download + extract run inside these pods, one at a
+    ## time, while PMM and vmstorage are at 0. Empty = tools.resources.
+    restorePodResources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+    ## @param centralBackupStorage.tools.podSecurityContext Pod securityContext of backup-tools and the backup/restore Jobs
+    ## Pod Security "restricted", like the rest of the chart: the default image ships jq and rclone, so
+    ## nothing needs root. The central volume must be writable by this uid; null the ids on OpenShift.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      fsGroup: 65534
+      fsGroupChangePolicy: OnRootMismatch
+      seccompProfile:
+        type: RuntimeDefault
+    ## @param centralBackupStorage.tools.securityContext Container securityContext of the same pods
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
+
+  ## @param centralBackupStorage.storageSize Size of central backup storage
+  ## Should be sized for: PostgreSQL + ClickHouse + VictoriaMetrics + logs
+  ## Recommended: 100Gi+ for production
+  storageSize: 100Gi
+  
+  ## @param centralBackupStorage.storageClassName Storage class for central backup PVC
+  ## Empty (default) uses the cluster's default storage class. Set a class that exists on
+  ## your cluster — a non-existent class leaves the PVC Pending and blocks the install.
+  ## shared mode needs an RWX class (NFS/EFS); s3 mode only needs a small RWO logs volume.
+  ## Examples: "gp3", "efs-sc", "nfs-client", etc.
+  storageClassName: ""
+
+  ## @param centralBackupStorage.accessMode Access mode for central backup storage
+  ## Empty (default) picks by mode: ReadWriteMany for shared (many component pods mount the
+  ## volume) and ReadWriteOnce for s3 (only the backup-tools pod mounts a small logs volume).
+  ## Set explicitly to override — e.g. "ReadWriteMany" on NFS/EFS, "ReadWriteOnce" on EBS.
+  ## Immutable once the chart has created the PVC: a later change (or a mode switch) fails the render.
+  ## (Forcing RWX on a cluster whose only storage class is RWO leaves the PVC Pending.)
+  ## In s3 mode an explicit ReadWriteMany also LIFTS the backup Job's required co-location with
+  ## the backup-tools pod: that affinity exists only because an RWO volume can be mounted from a
+  ## single node, so an RWX logs volume (e.g. EFS) lets scheduled runs schedule anywhere.
+  ##
+  ## RECOMMENDED in s3 mode on any platform that gives each POD its own SELinux MCS categories
+  ## — EKS Auto Mode / Bottlerocket, and SELinux-enforcing hosts generally. The RWO default
+  ## costs two things there, both of them silent:
+  ##
+  ##   1. Schedulability. The co-location affinity above pins every backup Job to the one node
+  ##      holding the volume. If that node has no room the Job sits Pending until
+  ##      schedule.activeDeadlineSeconds (6h by default) kills it — no log, no metric, no alert.
+  ##      Restarting backup-tools does not move it: the RWO volume is already attached there.
+  ##   2. Metric continuity. Deployment and Job pods get different MCS categories, and each
+  ##      mount relabels the volume to the mounting pod. After any Job runs, the backup-tools
+  ##      pod can no longer read /backups/.metrics — /metrics then answers 200 with the
+  ##      HELP/TYPE preamble and ZERO samples, so every backup alert stops evaluating while the
+  ##      scrape still succeeds. `kubectl rollout restart deploy/<release>-backup-tools` clears
+  ##      it until the next Job. Measured on EKS Auto Mode; an NFS/EFS mount takes one
+  ##      mount-wide SELinux context instead of per-file labels, so it is unaffected.
+  ##
+  ## OpenShift does not need this: it assigns MCS per NAMESPACE, so all pods of an install
+  ## share one context and the relabel is a no-op. Only (1) applies there.
+  ##
+  ## With existingClaim (or a pre-bound static PV) this value is the chart's ONLY knowledge of
+  ## the real access mode — it creates no PVC to read it from — so it is treated as your
+  ## DECLARATION about that volume: an RWX claim needs it set to lift the affinity, and setting
+  ## it on a claim that is actually RWO lifts the affinity wrongly and yields Multi-Attach.
+  accessMode: ""
+
+  ## @param centralBackupStorage.existingClaim Name of a PRE-CREATED PVC to consume
+  ## When set, the chart does NOT create a PVC: it only references this one by name, so the
+  ## claim must already exist (standard Helm existingClaim semantics — the chart must not try
+  ## to own a PVC it did not create, which fails on ownership metadata).
+  ## When empty (default), the chart creates and owns <release>-central-backup.
+  ## Example: "pmm-ha-central-backup-efs"
+  existingClaim: ""
+
+  ## @param centralBackupStorage.volumeName Bind the central PVC to a PRE-CREATED static PV
+  ## (sets volumeName + storageClassName:"" to disable dynamic provisioning). Use this to put
+  ## the central volume on a specific EFS/NFS sub-path so PostgreSQL's pgBackRest repo (on a
+  ## sibling sub-path PV) lands in the SAME filesystem tree. Empty = dynamic provisioning.
+  volumeName: ""
+
+  ## @param centralBackupStorage.mountPath Mount path in backup orchestrator pod
+  ## This is where all component backups will be consolidated
+  mountPath: /backups
+  
+  ## NOTE: backup retention is controlled by centralBackupStorage.schedule.retentionDays, which
+  ## the chart projects as BACKUP_RETENTION into every backup run (manual and scheduled, even
+  ## with the schedule disabled). There is no per-component retention here.
+
+  ## @param centralBackupStorage.schedule Scheduled full backups via a Kubernetes CronJob.
+  ## Each run is a JOB that executes pmm-backup.sh itself — there is no exec into the
+  ## backup-tools Deployment and no detached process. The Job pod carries
+  ## karpenter.sh/do-not-disrupt for exactly the run's lifetime, so consolidation cannot
+  ## kill a backup and nothing pins a node once the run ends. In s3 mode the Job
+  ## co-schedules with backup-tools (required podAffinity) to share the RWO logs/metrics
+  ## volume — RWO is node-scoped, so two pods on one node mount it fine; consequence: the
+  ## Job cannot schedule while backup-tools is unschedulable. shared/NFS modes mount from
+  ## any node. Manual full backup, same run:
+  ##   kubectl create job --from=cronjob/<release>-backup manual-$(date +%s) -n <ns>
+  ## Disabled by default — enable once the target (s3/shared) is configured. Restore is
+  ## never scheduled; it stays a deliberate manual action (see examples/restore-job.yaml).
+  schedule:
+    ## @param centralBackupStorage.schedule.enabled Create the backup CronJob
+    enabled: false
+    ## @param centralBackupStorage.schedule.cron Cron expression (cluster timezone)
+    cron: "0 2 * * *"          # daily at 02:00
+    ## @param centralBackupStorage.schedule.retentionDays Prune backups older than N days (BACKUP_RETENTION; applies to manual runs too)
+    retentionDays: 7
+    ## @param centralBackupStorage.schedule.components Components to back up (empty = all four).
+    ## e.g. ["--postgresql", "--clickhouse"] or add ["--skip-victoriametrics"]
+    ##
+    ## WARNING: a partial scope FREEZES the 'latest' pointer. 'latest' only advances onto a
+    ## complete, full-scope backup - that is what stops `restore --backup-id latest` from
+    ## restoring a single component - so if every scheduled run is partial, nothing ever moves
+    ## it again. `restore --backup-id latest` then refuses (even with --yes) while newer backups
+    ## exist that it skipped, and you must name a backup id; the fix is to keep at least one
+    ## full-scope schedule. Leave empty unless you have one.
+    components: []
+    ## @param centralBackupStorage.schedule.extraArgs Extra args appended to the backup command
+    extraArgs: []
+    ## @param centralBackupStorage.schedule.startingDeadlineSeconds Skip a run if it can't start within N seconds
+    startingDeadlineSeconds: 600
+    ## @param centralBackupStorage.schedule.terminationGracePeriodSeconds Time a run gets to shut down
+    ## The orchestrator's TERM trap is what releases the per-component Leases and, on a restore,
+    ## deletes the temp mounter pods — all apiserver calls. Kubernetes' 30s default is not enough
+    ## for a multi-component run, and a SIGKILL instead leaves the Leases held for 900s, which
+    ## makes the backoffLimit retry abort immediately. Applies to activeDeadlineSeconds kills and
+    ## to `kubectl delete job`.
+    terminationGracePeriodSeconds: 300
+    ## @param centralBackupStorage.schedule.backoffLimit Retries for a failed run
+    ## A retry RE-RUNS the whole backup (there is no in-flight run to re-attach to), which is
+    ## safe but not free. It only helps when the killed attempt RELEASED ITS LOCKS: a graceful
+    ## TERM, a failed tool install, a preflight refusal. After a SIGKILL (node loss, OOM kill,
+    ## kubectl delete --force) the traps never ran, the component Leases stay held for
+    ## LOCK_LEASE_SECONDS (900s by default) and the retry aborts on them immediately — so the
+    ## schedule, not this counter, is the real retry loop. A run killed by activeDeadlineSeconds
+    ## is not retried at all, whatever this is set to.
+    backoffLimit: 1
+    ## @param centralBackupStorage.schedule.ttlSecondsAfterFinished Delete finished Jobs after N seconds
+    ## The history limits below also count manual `kubectl create job --from` clones (they are owned
+    ## by the CronJob); the documented restore clone drops that ownerReference, so this TTL is what
+    ## sweeps it. It applies to the CronJob's own Jobs too and is
+    ## INDEPENDENT of failedJobsHistoryLimit: on a sparse schedule (weekly, monthly) a TTL
+    ## shorter than the interval deletes a failed Job — and its pod log, which is the only place
+    ## a failure BEFORE the orchestrator starts is recorded — before anyone looks. Set to null
+    ## on such schedules and let the history limits do the pruning; 0 is a valid Kubernetes
+    ## value meaning "delete as soon as it finishes" and is honoured as such. Default 7 days.
+    ttlSecondsAfterFinished: 604800
+    ## @param centralBackupStorage.schedule.activeDeadlineSeconds Hard cap (seconds) on one scheduled run.
+    ## The run lives INSIDE the Job, so hitting this deadline KILLS the backup itself — the
+    ## interrupted run releases its locks and writes no manifest (restore never sees a
+    ## partial backup), but the time is lost. MUST comfortably exceed the real backup
+    ## duration. Default 6h; raise for very large installs (multi-TB VM data). A run still
+    ## going at the next schedule tick makes that tick skip (concurrencyPolicy: Forbid).
+    activeDeadlineSeconds: 21600
+    ## @param centralBackupStorage.schedule.successfulJobsHistoryLimit Kept succeeded jobs
+    successfulJobsHistoryLimit: 3
+    ## @param centralBackupStorage.schedule.failedJobsHistoryLimit Kept failed jobs
+    failedJobsHistoryLimit: 3
 
 haproxy:
   # Override the HAProxy service name to be fixed (not include release name)
@@ -1405,6 +1839,7 @@ victoriaMetrics:
     ## @param victoriaMetrics.vmstorage.storageClassName Storage class for VictoriaMetrics persistent volumes
     ## If empty, uses the cluster's default storage class
     storageClassName: ""
+    
     ## @param victoriaMetrics.vmstorage.affinity Pod affinity configuration for vmstorage
     affinity:
       podAntiAffinity:
@@ -1423,3 +1858,55 @@ victoriaMetrics:
     podAnnotations: {}
     ## @param victoriaMetrics.vmstorage.extraArgs Extra arguments for vmstorage
     extraArgs: {}
+    
+    ## @section VictoriaMetrics Backup Configuration (vmbackup sidecar)
+    ## vmbackup provides backup/restore functionality for vmstorage
+    ## Documentation: https://docs.victoriametrics.com/vmbackup/
+    ##
+    backup:
+      ## @param victoriaMetrics.vmstorage.backup.enabled Enable vmbackup sidecar container
+      ## Only takes effect when centralBackupStorage.enabled is true (the backup master switch), and
+      ## must stay true then: every backup covers all four components, so the chart refuses false.
+      enabled: true
+      
+      ## @param victoriaMetrics.vmstorage.backup.image vmbackup image
+      ## Pinned (not :latest) for reproducibility; keep in step with the vmstorage version.
+      image: victoriametrics/vmbackup:v1.151.0
+
+      ## @param victoriaMetrics.vmstorage.backup.restoreImage vmrestore image for the restore temp pods
+      ## Keep the same version as backup.image. Passed to pmm-backup.sh as VMRESTORE_IMAGE.
+      restoreImage: victoriametrics/vmrestore:v1.151.0
+      
+      ## @param victoriaMetrics.vmstorage.backup.resources Resource requests and limits for vmbackup sidecar
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+      ## @param victoriaMetrics.vmstorage.backup.securityContext Container securityContext of the vmbackup sidecar
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      
+      ## @param victoriaMetrics.vmstorage.backup.s3 S3 configuration for remote backups
+      s3:
+        ## Enables the vmbackup sidecar's AWS env (AWS_REGION). With existingSecret empty,
+        ## vmbackup uses the IRSA credential chain (no static keys). The bucket/key come
+        ## from the -dst the orchestrator passes, not from here. In s3 mode this env is
+        ## wired automatically (see vmcluster.yaml); set true only to force it independently.
+        enabled: false
+        ## Empty (default) inherits centralBackupStorage.s3.region; set to override for VM only.
+        region: ""
+        endpoint: ""  # Leave empty for AWS S3
+        ## S3 credentials - leave empty to use IRSA (the vmstorage SA's role), or to fall back
+        ## to centralBackupStorage.s3.existingSecret (static keys) if that is set. Set here
+        ## only to point vmbackup at a different secret.
+        existingSecret: ""
+        existingSecretKeys:      # which keys inside existingSecret hold the credentials
+          accessKey: "access-key"
+          secretKey: "secret-key"
