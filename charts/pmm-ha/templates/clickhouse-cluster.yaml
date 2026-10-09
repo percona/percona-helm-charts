@@ -45,7 +45,11 @@ spec:
     
     # Profiles configuration
     profiles:
-      clickhouse_operator/allow_experimental_analyzer: "0"
+      {{- /* allow_experimental_analyzer was dropped here in PMM-15462: on ClickHouse 25.8 it is
+             an obsolete alias for enable_analyzer (default on), it only ever scoped the
+             clickhouse_operator profile - never PMM's own user or the Grafana datasource - and
+             PMM Server does not set it at all. Carrying an obsolete setting across a version
+             bump only risks the profile failing to apply. */}}
       clickhouse_operator/prefer_localhost_replica: "1"
       readonly/readonly: "2"
     
@@ -163,6 +167,10 @@ spec:
             prometheus.io/port: "9363"
             prometheus.io/path: "/metrics"
         spec:
+          securityContext:
+            {{- toYaml .Values.clickhouse.podSecurityContext | nindent 12 }}
+          # Neither ClickHouse nor Keeper calls the Kubernetes API; the operator uses its own ServiceAccount.
+          automountServiceAccountToken: false
           # Pod anti-affinity to spread replicas across different nodes
           # Using preferredDuringScheduling for soft anti-affinity (allows single-node deployments)
           # Weight 100 (max) makes this the highest priority soft constraint
@@ -180,12 +188,25 @@ spec:
             - name: clickhouse
               image: {{ .Values.clickhouse.image.repository }}:{{ .Values.clickhouse.image.tag }}
               imagePullPolicy: {{ .Values.clickhouse.image.pullPolicy }}
+              securityContext:
+                {{- toYaml .Values.clickhouse.securityContext | nindent 16 }}
               ports:
                 - name: metrics
                   containerPort: 9363
                   protocol: TCP
               resources:
                 {{- toYaml .Values.clickhouse.resources | nindent 16 }}
+              # The only writes outside the data volume, so the root filesystem can be read-only.
+              volumeMounts:
+                - name: clickhouse-logs
+                  mountPath: /var/log/clickhouse-server
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: clickhouse-logs
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
     
     # Persistent volume configuration for ClickHouse data
     volumeClaimTemplates:

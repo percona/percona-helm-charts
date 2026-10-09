@@ -1,0 +1,90 @@
+# maxReplicas is the ceiling the validator enforces on replicas, so the ConfigMap that
+# consumes it must stay in step. Both sides read pmm.maxReplicas; this pins that they do.
+suite: pmm-ha HAProxy config
+templates:
+  - templates/haproxy-configmap.yaml
+release:
+  name: smoke
+  namespace: pmm
+tests:
+  - it: defaults to ten server-template slots
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "server-template pmm 1-10 "
+
+  - it: follows an explicit maxReplicas
+    set: {maxReplicas: 7}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "server-template pmm 1-7 "
+
+  - it: follows maxReplicas at the ceiling
+    set: {maxReplicas: 100}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "server-template pmm 1-100 "
+
+  # Only the Raft leader answers this with 200, which is why a pod without a slot is not
+  # merely unrouted: if leadership lands there, no backend is UP at all.
+  - it: health-checks the leader endpoint
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "/v1/server/leaderHealthCheck"
+
+  # PMM-15608: the default must stay above the pmm-server nginx 64 KiB header limit.
+  - it: raises tune.bufsize above the pmm-server nginx header limit by default
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "(?m)^global\\n(.*\\n)*?\\s+tune\\.bufsize 131072\\n"
+
+  - it: follows an explicit haproxy.bufsize
+    set: {haproxy.bufsize: 262144}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "\\s+tune\\.bufsize 262144\\n"
+
+  - it: rejects a haproxy.bufsize HTTP/2 cannot run with
+    set: {haproxy.bufsize: 8192}
+    asserts:
+      - failedTemplate:
+          errorMessage: "haproxy.bufsize must be at least 16384 (HTTP/2 needs it), got 8192"
+
+  # The stats page has no authentication, so it must not change backend states.
+  - it: keeps the stats page read-only
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats\\n\\s+bind \\*:1024\\n\\s+stats enable\\n"
+      - notMatchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "(?m)^\\s*stats admin"
+
+  - it: binds the stats frontend to an explicit stats port
+    set: {haproxy.monitoring.stats.port: 9101}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats\\n\\s+bind \\*:9101\\n"
+
+  - it: omits the stats frontend when stats are disabled
+    set: {haproxy.monitoring.stats.enabled: false}
+    asserts:
+      - notMatchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats"
+
+  - it: omits the Prometheus exporter when it is disabled
+    set: {haproxy.monitoring.prometheus.enabled: false}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats\\n"
+      - notMatchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "prometheus-exporter"
