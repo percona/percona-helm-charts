@@ -133,7 +133,8 @@ Storage scales close to linearly with retention:
 100 monitored nodes, matching the default `dataRetentionDays`. Raise the two
 together: when the volume fills, vmstorage stops accepting writes rather than
 dropping old data. 90 days at 100 nodes needs 150Gi per the table above, and a
-larger `storageSize` on an existing install means a PVC expansion.
+larger `storageSize` on an existing install means a PVC expansion, see
+[Expanding a volume](#expanding-a-volume).
 
 **Lowering retention on a running install deletes data older than the new window
 on the next reconcile.** There is no confirmation step.
@@ -169,6 +170,78 @@ ClickHouse's own `system.*` log tables are also worth attention: on a lightly
 loaded install they were measured at 17x the size of the actual Query Analytics
 data. Setting a TTL on them, or disabling `trace_log` and
 `asynchronous_metric_log`, reclaims most of the ClickHouse PVC.
+
+## When a volume fills up
+
+Every store keeps its data on its own PersistentVolumeClaims, and none of them
+frees space when it runs out. Watch the **Storage Usage** gauges on the *HA Health
+Overview* dashboard. From PMM 3.10.0, the built-in alert *PMM HA disk space usage
+is high* fires when any PVC in the release's namespace stays above 80% for 10
+minutes.
+
+| Volume | Size, values key (default) | When it is full |
+| --- | --- | --- |
+| vmstorage ×3 | `victoriaMetrics.vmstorage.storageSize` (50Gi) | The pod goes read-only and vminsert sends its share to the other pods, so they fill faster. Once all three are read-only, metric ingest stops: clients buffer up to 1 GB each, then drop samples, leaving gaps in dashboards and metric alerts. |
+| ClickHouse ×3 | `clickhouse.storage.size` (50Gi) | Inserts and merges fail with "not enough space" and new Query Analytics data is lost. Every replica holds a full copy, so all three fill at about the same time. |
+| ClickHouse Keeper ×3 | `clickhouse.keeper.storage.size` (5Gi) | Keeper stops accepting writes, and the replicated Query Analytics tables become read-only. |
+| PostgreSQL ×3 | `pg-db.instances[].dataVolumeClaimSpec.resources.requests.storage` (10Gi) | PostgreSQL shuts down when it cannot write WAL, and failover does not help because the replicas are the same size. pmm-managed and Grafana keep their state here, so the PMM UI, API and alerting all go down. |
+| pgBackRest repository | `pg-db.backups.pgbackrest.repos[].volume.volumeClaimSpec.resources.requests.storage` (1Gi) | Backups and WAL archiving fail. PostgreSQL keeps running, so nothing else shows the problem. |
+| PMM Server ×3 | `storage.size` (40Gi) | Writes to `/srv` on that replica fail. |
+| PMM Client ×3 | `pmmClient.storage.size` (2Gi) | The Agent can no longer buffer metrics while PMM Server is unreachable. |
+
+To see which volume is filling, run this against vmselect, for example from
+*Explore* in PMM:
+
+```promql
+max by (persistentvolumeclaim) (100 * (1 -
+  kubelet_volume_stats_available_bytes{job="kubelet", namespace="<namespace>"}
+  / kubelet_volume_stats_capacity_bytes{job="kubelet", namespace="<namespace>"}))
+```
+
+On `local-path` and other hostPath-backed storage classes, kubelet reports the
+node's filesystem instead of the volume, so this shows node disk usage.
+
+### Expanding a volume
+
+Volumes can only grow, and only on a storage class with `allowVolumeExpansion:
+true`, see [Prerequisites](#prerequisites). Check it before you need it:
+
+```sh
+kubectl get storageclass -o custom-columns=NAME:.metadata.name,EXPANSION:.allowVolumeExpansion
+```
+
+**vmstorage, ClickHouse, Keeper, PostgreSQL and the pgBackRest repository** are
+managed by their operators. Raise the size in your values and run `helm upgrade`;
+the operator resizes the existing PVCs in place. Confirm with `kubectl get pvc -n
+<namespace>`. `pg-db.backups.pgbackrest.repos` is a list, and Helm replaces lists
+instead of merging them, so copy the whole `repo1` entry, `schedules` included,
+when you change its size.
+
+**PMM Server and PMM Client** are StatefulSets owned by the chart. Kubernetes does
+not allow changing a StatefulSet's volume claim template, so `helm upgrade` with a
+larger `storage.size` or `pmmClient.storage.size` fails. Grow the PVCs directly,
+then let the upgrade recreate the StatefulSet around them. For PMM Server:
+
+```sh
+NS=pmm NEW=80Gi
+# 1. Grow every replica's PVC
+for pvc in $(kubectl get pvc -n $NS -o name | grep pmm-storage); do
+  kubectl patch -n $NS "$pvc" -p "{\"spec\":{\"resources\":{\"requests\":{\"storage\":\"$NEW\"}}}}"
+done
+# 2. Delete the StatefulSet, leaving its pods and PVCs running
+kubectl delete statefulset pmm-ha -n $NS --cascade=orphan
+# 3. Recreate it with the new size, pinned to the running chart (CHART column of helm list)
+helm upgrade pmm-ha percona/pmm-ha -n $NS --version <chart-version> --reuse-values \
+  --set storage.size=$NEW
+```
+
+For PMM Client, use `grep pmm-agent`, `statefulset pmm-ha-client` and
+`--set pmmClient.storage.size=$NEW`.
+
+Lowering `dataRetentionDays` also frees metrics and Query Analytics space, but it
+deletes everything older than the new window, see [Grow the PVC together with
+retention](#grow-the-pvc-together-with-retention). It does not touch PostgreSQL,
+Keeper, the backup repository or ClickHouse's `system.*` log tables.
 
 ## Prerequisites
 
