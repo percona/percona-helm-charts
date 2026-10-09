@@ -43,6 +43,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+"pmm.labels" with app.kubernetes.io/component set to .component, for objects other than the PMM
+Server. It cannot simply append the component: "pmm.selectorLabels" already emits exactly one
+"app.kubernetes.io/component: pmm-server" line, and a second one would be a duplicate key, which
+helm-unittest rejects. So the rendered line is substituted instead.
+Usage: include "pmm.componentLabels" (dict "ctx" $ "component" "vmagent")
+*/}}
+{{- define "pmm.componentLabels" -}}
+{{ include "pmm.labels" .ctx | replace "app.kubernetes.io/component: pmm-server" (printf "app.kubernetes.io/component: %s" .component) }}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "pmm.selectorLabels" -}}
@@ -64,6 +75,14 @@ Create the name of the service account to use
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
+{{- end }}
+
+{{/*
+Name of the VMAgent CR, its ServiceAccount and RBAC. The operator names its config Secret
+"vmagent-" + this.
+*/}}
+{{- define "pmm.vmagent.name" -}}
+{{- printf "%s-vmagent" (include "pmm.fullname" .) -}}
 {{- end }}
 
 {{/*
@@ -307,6 +326,14 @@ in-cluster consumer of PMM has to follow it rather than assume 443.
 */}}
 {{- define "pmm.haproxy.httpsPort" -}}
 {{- (.Values.haproxy.containerPorts).https | default 443 -}}
+{{- end -}}
+
+{{/*
+Port of the HAProxy stats frontend, which serves both the stats page and the Prometheus exporter.
+The pmm-ha-haproxy-stats Service publishes it; pmm-ha-haproxy does not.
+*/}}
+{{- define "pmm.haproxy.statsPort" -}}
+{{- .Values.haproxy.monitoring.stats.port | default 1024 -}}
 {{- end -}}
 
 {{/*
@@ -554,9 +581,29 @@ clearing those keys is an escape hatch for anyone running with anyuid.
 {{- if not (kindIs "invalid" .Values.pmmClient.fsGroup) -}}
 {{- $pinned = append $pinned "pmmClient.fsGroup" -}}
 {{- end -}}
-{{- if $pinned -}}
-{{- fail (printf "This cluster exposes security.openshift.io/v1 (OpenShift), but openshift=false. %s would be rendered onto the PMM Server and PMM Client StatefulSets, and restricted-v2 rejects uids and groups outside the namespace's assigned ranges.\n\nThe pods are ADMITTED at apply time and only REPLACEMENT pods are refused, so the StatefulSet degrades silently later, and a failed upgrade leaves values that no subsequent upgrade can clear (Helm diffs against the last successful release).\n\nSet openshift=true, or install with -f examples/values-openshift.yaml. If you deliberately run with anyuid, clear those keys instead (podSecurityContext={} and pmmClient.fsGroup=null)." (join ", " $pinned)) -}}
+{{- $cpsc := .Values.pmmClient.podSecurityContext | default dict -}}
+{{- range $k := (list "runAsUser" "runAsGroup" "fsGroup") -}}
+{{- if hasKey $cpsc $k -}}{{- $pinned = append $pinned (printf "pmmClient.podSecurityContext.%s" $k) -}}{{- end -}}
 {{- end -}}
+{{- if $pinned -}}
+{{- fail (printf "This cluster exposes security.openshift.io/v1 (OpenShift), but openshift=false. %s would be rendered onto the PMM Server and PMM Client StatefulSets, and restricted-v2 rejects uids and groups outside the namespace's assigned ranges.\n\nThe pods are ADMITTED at apply time and only REPLACEMENT pods are refused, so the StatefulSet degrades silently later, and a failed upgrade leaves values that no subsequent upgrade can clear (Helm diffs against the last successful release).\n\nSet openshift=true, or install with -f examples/values-openshift.yaml. If you deliberately run with anyuid, clear those keys instead (podSecurityContext={}, pmmClient.fsGroup=null and pmmClient.podSecurityContext.runAsUser=null)." (join ", " $pinned)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Refuse a namespace enforcing "restricted" while the PostgreSQL PMM sidecar is on: the operator
+adds it without a security context once PMM is up, the re-created PostgreSQL pod is refused, and
+Helm still reports success. Offline renders skip this (`lookup`), OpenShift's restricted-v2 fills
+the context in, and pgDbPmmSidecarPatched acknowledges the manual patch in the README.
+*/}}
+{{- define "pmm.podSecurity.validate" -}}
+{{- if and (index .Values "pg-db" "pmm" "enabled") (not .Values.openshift) (not .Values.pgDbPmmSidecarPatched) -}}
+{{- $ns := lookup "v1" "Namespace" "" .Release.Namespace -}}
+{{- $enforce := dig "metadata" "labels" "pod-security.kubernetes.io/enforce" "" ($ns | default dict) -}}
+{{- if eq $enforce "restricted" -}}
+{{- fail (printf "Namespace '%s' enforces the \"restricted\" Pod Security Standard, and pg-db.pmm.enabled=true. The PostgreSQL Operator adds the PMM sidecar to the PostgreSQL pods without a security context once PMM is up, so those pods are then refused and PMM Server loses its database while Helm still reports success.\n\nEither set pg-db.pmm.enabled=false (PMM then does not monitor its own database), or set pgDbPmmSidecarPatched=true and hand the security context to the operator right after installing:\n\n  kubectl -n %s patch perconapgcluster %s-pg-db --type merge -p '{\"spec\":{\"pmm\":{\"containerSecurityContext\":{\"runAsUser\":1002,\"runAsNonRoot\":true,\"allowPrivilegeEscalation\":false,\"capabilities\":{\"drop\":[\"ALL\"]},\"seccompProfile\":{\"type\":\"RuntimeDefault\"}}}}}'\n\nSee \"PMM sidecar in the PostgreSQL pods\" in the chart README." .Release.Namespace .Release.Namespace .Release.Name) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -617,6 +664,23 @@ Called from statefulset.yaml, which always renders.
 {{- fail (printf "pg-db.pmm.serverHost is %q, which resolves to port %d, but haproxy.containerPorts.https is %d. The PostgreSQL operator copies serverHost verbatim into PMM_AGENT_SERVER_ADDRESS and pmm-agent appends :443 to an address with no port, so the PMM sidecar would dial a port HAProxy does not publish - silently, while every pod stays Running and the PMM inventory stays empty. Set pg-db.pmm.serverHost to %q." $host $declared $port (printf "%s:%d" $svc $port)) -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fail-fast check for the minimum Helm version, 3.17.0. Two things set it:
+- Helm before 3.13.0 ignores a null in this chart's values.yaml that should remove a subchart
+  default, so the haproxytech defaults stat: 1024 and http: 80 stay on the pmm-ha-haproxy
+  Service, and a LoadBalancer or NodePort service type exposes the unauthenticated stats page
+  while the install reports success.
+- Without a cluster (helm template), Helm checks kubeVersion against the Kubernetes version it
+  was built for, which is below the chart's 1.32 floor before Helm 3.17.0 (3.16 assumes 1.31).
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.helmVersion.validate" -}}
+{{- $version := .Capabilities.HelmVersion.Version -}}
+{{- if not (semverCompare ">=3.17.0-0" $version) -}}
+{{- fail (printf "pmm-ha supports Helm 3.17.0 or later, got %s; upgrade Helm. The minimum exists because Helm before 3.17.0 assumes a Kubernetes version older than 1.32 when rendering without a cluster, so it rejects the chart's kubeVersion, and Helm before 3.13.0 also ignores the nulls in values.yaml that keep the HAProxy stats port off the pmm-ha-haproxy Service, so it would publish the unauthenticated stats page on port %s." $version (include "pmm.haproxy.statsPort" .)) -}}
 {{- end -}}
 {{- end -}}
 
@@ -751,16 +815,22 @@ securityContext: {}
 
 {{/*
 Pod security context for the PMM Client StatefulSet. Same reasoning as above; the client image
-runs as uid 1002 rather than 1000, and fsGroup is the only key the chart sets, so on OpenShift
-nothing is left to emit.
+runs as uid 1002 rather than 1000. `pmmClient.fsGroup` owns the group - the image user has to
+own the volume to write to it - and `pmmClient.podSecurityContext` carries the rest.
 */}}
 {{- define "pmm.client.podSecurityContext" -}}
+{{- $ctx := deepCopy (.Values.pmmClient.podSecurityContext | default dict) -}}
+{{- if not (kindIs "invalid" .Values.pmmClient.fsGroup) -}}
+{{- $_ := set $ctx "fsGroup" .Values.pmmClient.fsGroup -}}
+{{- end -}}
 {{- if .Values.openshift -}}
-securityContext: {}
-{{- else -}}
+{{- $ctx = omit $ctx "runAsUser" "runAsGroup" "fsGroup" -}}
+{{- end -}}
+{{- if $ctx -}}
 securityContext:
-  # The PMM Client image runs as this user, which has to own the volume to write to it.
-  fsGroup: {{ .Values.pmmClient.fsGroup }}
+  {{- toYaml $ctx | nindent 2 }}
+{{- else -}}
+securityContext: {}
 {{- end -}}
 {{- end -}}
 

@@ -14,6 +14,12 @@ data:
         log stdout    local1 info
         log stdout    local2 info
         daemon
+        {{- $bufsize := int .Values.haproxy.bufsize }}
+        {{- if lt $bufsize 16384 }}
+        {{- fail (printf "haproxy.bufsize must be at least 16384 (HTTP/2 needs it), got %d" $bufsize) }}
+        {{- end }}
+        # A larger request makes HAProxy drop the whole HTTP/2 connection (PMM-15608)
+        tune.bufsize {{ $bufsize }}
     
     resolvers k8s
         # Read the cluster DNS server from the pod's own /etc/resolv.conf rather than naming
@@ -39,15 +45,16 @@ data:
         timeout client  50000
         timeout server  50000
     
-    {{- if .Values.haproxy.monitoring.stats.enabled | default true }}
-    # Statistics and monitoring
+    {{- if .Values.haproxy.monitoring.stats.enabled }}
+    # Statistics and monitoring. Unauthenticated, so read-only (no "stats admin"). Not published
+    # on pmm-ha-haproxy, only on the headless pmm-ha-haproxy-stats Service, but readable by
+    # anything that can reach the pod IPs.
     frontend stats
-        bind *:{{ .Values.haproxy.monitoring.stats.port | default 1024 }}
+        bind *:{{ include "pmm.haproxy.statsPort" . }}
         stats enable
         stats uri {{ .Values.haproxy.monitoring.stats.uri | default "/stats" }}
         stats refresh {{ .Values.haproxy.monitoring.stats.refresh | default "30s" }}
-        stats admin if TRUE
-        {{- if .Values.haproxy.monitoring.prometheus.enabled | default true }}
+        {{- if .Values.haproxy.monitoring.prometheus.enabled }}
         http-request use-service prometheus-exporter if { path {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }} }
         {{- end }}
     {{- end }}
@@ -77,7 +84,9 @@ data:
         # Use server-template for dynamic DNS-based discovery of PMM pods
         # This automatically discovers pods when scaling up/down without requiring HAProxy restart
         # HAProxy will re-resolve DNS based on 'hold valid' setting in the resolver (10s)
-        server-template pmm 1-{{ include "pmm.maxReplicas" $ }} {{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none resolvers k8s init-addr last,libc,none
+        # on-marked-down closes a pod's connections once it stops being the leader, so pmm-agents
+        # reconnect to the new leader instead of staying on a follower.
+        server-template pmm 1-{{ include "pmm.maxReplicas" $ }} {{ $.Values.service.name | default "monitoring-service" }}.{{ $.Release.Namespace }}.svc.cluster.local:8443 check ssl verify none resolvers k8s init-addr last,libc,none on-marked-down shutdown-sessions
     {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled }}
 
     backend vmauth_write

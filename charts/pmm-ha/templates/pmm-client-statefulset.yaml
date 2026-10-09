@@ -26,6 +26,8 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- include "pmm.client.podSecurityContext" . | nindent 6 }}
+      # pmm-agent talks to PMM Server only, never to the Kubernetes API.
+      automountServiceAccountToken: false
       {{- with .Values.pmmClient.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -46,6 +48,8 @@ spec:
         - name: pmm-client-register
           image: "{{ .Values.pmmClient.image.repository }}:{{ .Values.pmmClient.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.pmmClient.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.pmmClient.securityContext | nindent 12 }}
           command:
             - /bin/sh
             - -c
@@ -94,6 +98,8 @@ spec:
         - name: pmm-client
           image: "{{ .Values.pmmClient.image.repository }}:{{ .Values.pmmClient.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.pmmClient.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.pmmClient.securityContext | nindent 12 }}
           env:
             {{- include "pmm.client.env" . | nindent 12 }}
           ports:
