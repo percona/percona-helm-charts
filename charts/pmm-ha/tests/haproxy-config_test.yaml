@@ -54,3 +54,37 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "haproxy.bufsize must be at least 16384 (HTTP/2 needs it), got 8192"
+
+  # The stats page has no authentication, so it must not change backend states.
+  - it: keeps the stats page read-only
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats\\n\\s+bind \\*:1024\\n\\s+stats enable\\n"
+      - notMatchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "(?m)^\\s*stats admin"
+
+  - it: binds the stats frontend to an explicit stats port
+    set: {haproxy.monitoring.stats.port: 9101}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats\\n\\s+bind \\*:9101\\n"
+
+  - it: omits the stats frontend when stats are disabled
+    set: {haproxy.monitoring.stats.enabled: false}
+    asserts:
+      - notMatchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats"
+
+  - it: omits the Prometheus exporter when it is disabled
+    set: {haproxy.monitoring.prometheus.enabled: false}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "frontend stats\\n"
+      - notMatchRegex:
+          path: data["haproxy.cfg"]
+          pattern: "prometheus-exporter"

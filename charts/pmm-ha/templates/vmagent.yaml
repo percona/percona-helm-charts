@@ -4,12 +4,12 @@
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMAgent
 metadata:
-  name: {{ include "pmm.fullname" . }}-vmagent
+  name: {{ include "pmm.vmagent.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: vmagent
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "vmagent") | nindent 4 }}
 spec:
+  useStrictSecurity: {{ .Values.victoriaMetrics.useStrictSecurity }}
   {{- if .Values.victoriaMetrics.version }}
   # Pinned alongside the VMCluster - see victoriaMetrics.version in values.yaml.
   componentVersion: {{ .Values.victoriaMetrics.version | quote }}
@@ -18,10 +18,9 @@ spec:
   # Number of VMAgent replicas
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
 
-  {{- if .Values.serviceAccount.create }}
-  # Use PMM's service account so vmagent can scrape the kubelet/cAdvisor through
-  # the apiserver proxy (requires the nodes/proxy permission granted in clusterrole.yaml).
-  serviceAccountName: {{ include "pmm.serviceAccountName" . }}
+  {{- if .Values.victoriaMetrics.vmagent.rbac.create }}
+  # Created with its RBAC in vmagent-rbac.yaml.
+  serviceAccountName: {{ include "pmm.vmagent.name" . }}
   {{- end }}
 
   # Remote write configuration - forwards metrics to VMAuth with secure basicAuth
@@ -40,7 +39,8 @@ spec:
   
   # Inline scrape configuration for infrastructure metrics
   inlineScrapeConfig: |
-    # Scrape HAProxy metrics
+    {{- if and .Values.haproxy.monitoring.stats.enabled .Values.haproxy.monitoring.prometheus.enabled }}
+    # Scrape HAProxy metrics. The exporter is served on the stats frontend, so it needs both flags.
     - job_name: 'haproxy'
       kubernetes_sd_configs:
         - role: endpoints
@@ -48,9 +48,9 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # Keep only HAProxy service endpoints
+        # The stats port is not published on pmm-ha-haproxy, only on this headless Service
         - source_labels: [__meta_kubernetes_service_name]
-          regex: 'pmm-ha-haproxy'
+          regex: 'pmm-ha-haproxy-stats'
           action: keep
         # Target the stats/metrics port (1024)
         - source_labels: [__meta_kubernetes_endpoint_port_name]
@@ -61,11 +61,13 @@ spec:
           target_label: pod
         - source_labels: [__meta_kubernetes_namespace]
           target_label: namespace
-        - source_labels: [__meta_kubernetes_service_name]
-          target_label: service
+        # Keep the label HAProxy series carried before the stats Service existed
+        - target_label: service
+          replacement: pmm-ha-haproxy
         # Set the metrics path
         - target_label: __metrics_path__
           replacement: {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }}
+    {{- end }}
     
     # Scrape ClickHouse metrics
     - job_name: 'clickhouse'

@@ -8,6 +8,7 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
     app.kubernetes.io/component: victoria-metrics-cluster
 spec:
+  useStrictSecurity: {{ .Values.victoriaMetrics.useStrictSecurity }}
   {{- if .Values.victoriaMetrics.version }}
   # VictoriaMetrics version for vmselect/vminsert/vmstorage. Pinned so that bumping the
   # operator does not silently move the data plane - see victoriaMetrics.version in values.yaml.

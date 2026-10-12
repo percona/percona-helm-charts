@@ -32,6 +32,9 @@ nodeExporter:
 haproxy:
   containerPorts:
     https: 8443
+  ## The chart runs HAProxy as uid 1000; let the SCC assign one instead.
+  podSecurityContext:
+    runAsUser: null
 
 ## The PGO PMM sidecar in every PostgreSQL pod reaches PMM through HAProxy too, and the operator
 ## copies this value verbatim into PMM_AGENT_SERVER_ADDRESS. pmm-agent appends :443 to an address
@@ -40,3 +43,27 @@ haproxy:
 pg-db:
   pmm:
     serverHost: pmm-ha-haproxy:8443
+    ## For when pg-db passes it through: let the SCC assign the uid.
+    containerSecurityContext:
+      runAsUser: null
+
+## `openshift: true` covers PMM Server and PMM Client only; restricted-v2 also rejects the uids
+## pinned for ClickHouse, Keeper and the helper Jobs, so let the SCC assign those.
+clickhouse:
+  podSecurityContext:
+    runAsUser: null
+    runAsGroup: null
+    fsGroup: null
+  keeper:
+    podSecurityContext:
+      runAsUser: null
+      runAsGroup: null
+      fsGroup: null
+
+jobs:
+  podSecurityContext:
+    runAsUser: null
+
+## Strict security pins uid 65534, which restricted-v2 refuses; the SCC supplies an equivalent.
+victoriaMetrics:
+  useStrictSecurity: false

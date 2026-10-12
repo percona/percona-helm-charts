@@ -40,6 +40,9 @@ test-pxc-operator:
 test-pxc-db:
 	$(HELM) unittest charts/pxc-db
 
+# The suites render subchart templates, so the gitignored subchart archives must be built first.
+# Needs the chart's repositories added (see charts/pmm-ha/Chart.yaml); Helm names any missing one.
 .PHONY: test-pmm-ha
 test-pmm-ha:
+	$(HELM) dependency build --skip-refresh charts/pmm-ha
 	$(HELM) unittest charts/pmm-ha
