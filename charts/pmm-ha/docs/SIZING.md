@@ -181,7 +181,7 @@ minutes.
 | ClickHouse ×3 | `clickhouse.storage.size` (50Gi) | Inserts and merges fail with "not enough space" and new Query Analytics data is lost. Every replica holds a full copy, so all three fill at about the same time. |
 | ClickHouse Keeper ×3 | `clickhouse.keeper.storage.size` (5Gi) | Keeper stops accepting writes, and the replicated Query Analytics tables become read-only. |
 | PostgreSQL ×3 | `pg-db.instances[].dataVolumeClaimSpec.resources.requests.storage` (10Gi) | PostgreSQL shuts down when it cannot write WAL, and failover does not help because the replicas are the same size. pmm-managed and Grafana keep their state here, so the PMM UI, API and alerting all go down. |
-| pgBackRest repository | `pg-db.backups.pgbackrest.repos[].volume.volumeClaimSpec.resources.requests.storage` (1Gi) | Backups and WAL archiving fail. PostgreSQL keeps running, so nothing else shows the problem. |
+| pgBackRest repository | `pg-db.backups.pgbackrest.repos[].volume.volumeClaimSpec.resources.requests.storage` (1Gi) | Backups and WAL archiving fail, but the operator's `archive_command` still reports success, so PostgreSQL keeps running and recycles the WAL, and `pg_stat_archiver` shows no failures. A replica rebuilt from the repository can no longer catch up, and point-in-time recovery stops at the first missing segment. The chart sets no backup retention, so this volume fills even at a steady load. |
 | PMM Server ×3 | `storage.size` (40Gi) | Writes to `/srv` on that replica fail. |
 | PMM Client ×3 | `pmmClient.storage.size` (2Gi) | The Agent can no longer buffer metrics while PMM Server is unreachable. |
 
@@ -209,9 +209,10 @@ kubectl get storageclass -o custom-columns=NAME:.metadata.name,EXPANSION:.allowV
 **vmstorage, ClickHouse, Keeper, PostgreSQL and the pgBackRest repository** are
 managed by their operators. Raise the size in your values and run `helm upgrade`;
 the operator resizes the existing PVCs in place. Confirm with `kubectl get pvc -n
-<namespace>`. `pg-db.backups.pgbackrest.repos` is a list, and Helm replaces lists
-instead of merging them, so copy the whole `repo1` entry, `schedules` included,
-when you change its size.
+<namespace>`. `pg-db.instances` and `pg-db.backups.pgbackrest.repos` are lists,
+and Helm replaces lists instead of merging them, so copy the whole `instance1` or
+`repo1` entry and change only the size. A partial `instance1` entry drops its
+name, replicas and anti-affinity; a partial `repo1` entry drops its schedule.
 
 **PMM Server and PMM Client** are StatefulSets owned by the chart. Kubernetes does
 not allow changing a StatefulSet's volume claim template, so `helm upgrade` with a
@@ -237,7 +238,9 @@ For PMM Client, use `grep pmm-agent`, `statefulset pmm-ha-client` and
 Lowering `dataRetentionDays` also frees metrics and Query Analytics space, but it
 deletes everything older than the new window, see [Grow the PVC together with
 retention](#grow-the-pvc-together-with-retention). It does not touch PostgreSQL,
-Keeper, the backup repository or ClickHouse's `system.*` log tables.
+Keeper, the backup repository or ClickHouse's `system.*` log tables. pgBackRest
+keeps every full backup and its WAL until you set
+`pg-db.backups.pgbackrest.global.repo1-retention-full`, for example to `"2"`.
 
 ## Prerequisites
 
