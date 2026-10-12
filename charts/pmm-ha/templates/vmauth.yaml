@@ -6,9 +6,7 @@
 
        This is not a complete guard. pmm.validateSecret is a no-op when secret.create is set,
        and there a pmm-secret that predates the PMM_HA_VM_* keys resolves to a freshly
-       generated credential instead of failing. clickhouse-cluster.yaml still reads a key
-       straight out of the secret with no guard at all; PMM-15436 fixes that at the read
-       site. */ -}}
+       generated credential instead of failing. */ -}}
 {{- include "pmm.validateSecret" . -}}
 {{- /* Resolved centrally so vmauth's config and pmm-secret cannot end up with different credentials */ -}}
 {{- $vmuser := include "pmm.vm.username" . }}
