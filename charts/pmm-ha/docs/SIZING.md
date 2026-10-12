@@ -164,7 +164,9 @@ The chart's own vmagent scrapes `kubelet`, `cAdvisor`, `kube-apiserver` and
 `kube-state-metrics` in addition to the PMM components. On a mid-sized cluster
 that is around 165,000 active series before a single database is monitored -
 comparable to 30 monitored nodes. If you already collect Kubernetes metrics
-elsewhere, disabling those jobs is the cheapest saving available.
+elsewhere, disabling those jobs is the cheapest saving available. Keep the
+`kubelet` job: the disk checks in [When a volume fills up](#when-a-volume-fills-up)
+read it.
 
 ClickHouse's own `system.*` log tables are also worth attention: on a lightly
 loaded install they were measured at 17x the size of the actual Query Analytics
@@ -198,8 +200,13 @@ max by (persistentvolumeclaim) (100 * (1 -
   / kubelet_volume_stats_capacity_bytes{job="kubelet", namespace="<namespace>"}))
 ```
 
-On `local-path` and other hostPath-backed storage classes, kubelet reports the
-node's filesystem instead of the volume, so this shows node disk usage.
+The query and the built-in alert read the chart's vmagent `kubelet` job. With
+`victoriaMetrics.vmagent.enabled` or `victoriaMetrics.vmagent.rbac.create` set to
+`false` they return nothing, which does not mean the volumes have room. They also
+depend on the storage class: on k3s's `local-path` class kubelet reports the
+node's filesystem instead of the volume, so the query shows node disk usage, and
+for `hostPath` volumes (the default of the upstream local-path provisioner, used
+by kind) kubelet reports nothing.
 
 ### Expanding a volume
 
@@ -210,41 +217,80 @@ true`, see [Prerequisites](#prerequisites). Check it before you need it:
 kubectl get storageclass -o custom-columns=NAME:.metadata.name,EXPANSION:.allowVolumeExpansion
 ```
 
+The commands below pass `--reuse-values` and pin `--version` to the running
+chart, as in [Scaling PMM HA](../README.md#scaling-pmm-ha). If you install with a
+values file, change the size there and pass `-f values.yaml` instead: the next
+`helm upgrade -f values.yaml` would otherwise ask for the old size, which
+Kubernetes rejects, and every later upgrade fails until the file is fixed.
+
 **vmstorage, ClickHouse, Keeper, PostgreSQL and the pgBackRest repository** are
-managed by their operators. Raise the size in your values and run `helm upgrade`;
-the operator resizes the existing PVCs in place. Confirm with `kubectl get pvc -n
-<namespace>`. `pg-db.instances` and `pg-db.backups.pgbackrest.repos` are lists,
-and Helm replaces lists instead of merging them, so copy the whole `instance1` or
-`repo1` entry and change only the size. A partial `instance1` entry drops its
-name, replicas and anti-affinity; a partial `repo1` entry drops its schedule.
+managed by their operators. Raise the size and run `helm upgrade`; the operator
+resizes the existing PVCs in place. `pg-db.instances` and
+`pg-db.backups.pgbackrest.repos` are lists, and Helm replaces lists instead of
+merging them, so copy the whole `instance1` or `repo1` entry and change only the
+size. `helm get values <release> -n <namespace> --all` prints both; `repo1` comes
+from the pg-db subchart, not from pmm-ha's `values.yaml`. A partial entry loses
+every field it leaves out, such as the name, replicas, resources and
+anti-affinity of `instance1`, or the backup schedule of `repo1`.
+
+Confirm with `kubectl get pvc -n <namespace>`: CAPACITY shows the new size once
+the volume has grown. The ClickHouse operator restarts the ClickHouse and Keeper
+pods one at a time to apply the change, and the VictoriaMetrics operator grows
+one vmstorage PVC at a time, waiting for each to finish. A PVC with the condition
+`FileSystemResizePending` is on a CSI driver that grows the filesystem only when
+the volume is next mounted: delete that store's pods one at a time, waiting for
+each to be Ready.
 
 **PMM Server and PMM Client** are StatefulSets owned by the chart. Kubernetes does
 not allow changing a StatefulSet's volume claim template, so `helm upgrade` with a
 larger `storage.size` or `pmmClient.storage.size` fails. Grow the PVCs directly,
-then let the upgrade recreate the StatefulSet around them. For PMM Server:
+then let the upgrade recreate the StatefulSet around them. The StatefulSet is
+named `<release>-pmm-ha`, or `<release>` when the release name already contains
+`pmm-ha`. For PMM Server:
 
 ```sh
-NS=pmm NEW=80Gi
-# 1. Grow every replica's PVC
-for pvc in $(kubectl get pvc -n $NS -o name | grep pmm-storage); do
+NS=pmm RELEASE=pmm-ha STS=pmm-ha NEW=80Gi
+VERSION=$(helm get metadata $RELEASE -n $NS -o json | jq -r .version)
+SEL=app.kubernetes.io/instance=$RELEASE,app.kubernetes.io/component=pmm-server
+for pvc in $(kubectl get pvc -n $NS -l $SEL -o name); do
   kubectl patch -n $NS "$pvc" -p "{\"spec\":{\"resources\":{\"requests\":{\"storage\":\"$NEW\"}}}}"
 done
-# 2. Delete the StatefulSet, leaving its pods and PVCs running
-kubectl delete statefulset pmm-ha -n $NS --cascade=orphan
-# 3. Recreate it with the new size, pinned to the running chart (CHART column of helm list)
-helm upgrade pmm-ha percona/pmm-ha -n $NS --version <chart-version> --reuse-values \
+echo "chart $VERSION"
+kubectl get pvc -n $NS -l $SEL -o custom-columns=NAME:.metadata.name,REQUEST:.spec.resources.requests.storage
+```
+
+Continue only when the chart version is printed and every REQUEST shows the new
+size. Then delete the StatefulSet, leaving its pods and PVCs running, and let
+`helm upgrade` recreate it with the new size:
+
+```sh
+kubectl delete statefulset $STS -n $NS --cascade=orphan
+helm upgrade $RELEASE percona/pmm-ha -n $NS --version $VERSION --reuse-values \
   --set storage.size=$NEW
 ```
 
-For PMM Client, use `grep pmm-agent`, `statefulset pmm-ha-client` and
+If `helm upgrade` fails, fix the cause and run it again: until it succeeds, the
+pods have no controller, and an evicted pod is not recreated. The new StatefulSet
+adopts the running pods without restarting them, so on a driver that leaves the
+PVCs in `FileSystemResizePending`, delete the pods one at a time (`$STS-0`, then
+`-1`, `-2`), waiting for each to be Ready.
+
+For PMM Client, use `component=pmm-client`, `STS=<the PMM Server name>-client` and
 `--set pmmClient.storage.size=$NEW`.
 
-Lowering `dataRetentionDays` also frees metrics and Query Analytics space, but it
-deletes everything older than the new window, see [Grow the PVC together with
-retention](#grow-the-pvc-together-with-retention). It does not touch PostgreSQL,
-Keeper, the backup repository or ClickHouse's `system.*` log tables. pgBackRest
-keeps every full backup and its WAL until you set
-`pg-db.backups.pgbackrest.global.repo1-retention-full`, for example to `"2"`.
+Lowering `dataRetentionDays` deletes everything older than the new window, see
+[Grow the PVC together with retention](#grow-the-pvc-together-with-retention).
+Query Analytics then drops whole daily partitions as the PMM pods restart, which
+rewrites no data and frees ClickHouse space at once. VictoriaMetrics deletes old
+data only as background merges reach it, so lowering retention slows vmstorage
+growth but does not rescue a full volume. Retention does not touch PostgreSQL,
+Keeper, the backup repository or ClickHouse's `system.*` log tables.
+
+pgBackRest keeps every full backup and its WAL until you set
+`pg-db.backups.pgbackrest.global.repo1-retention-full`, for example to `"2"`. The
+value must be a string: pass it with `--set-string`, or quote it in your values
+file. pgBackRest removes old backups only after the next backup succeeds, which a
+full repository cannot take, so grow the repository first.
 
 ## Prerequisites
 
