@@ -284,6 +284,25 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.requests`                  | PMM Container resource requests                                                                                                                                                                   | `{"memory": "150M", "cpu": "300m"}` |
 | `pmm.resources.limits`                    | PMM Container resource limits                                                                                                                                                                     | `{}`                                |
 ||
+| `logcollector.enabled`                             | Enable the Fluent Bit log collector and logrotate sidecars                                                                       | `true`                           |
+| `logcollector.image.repository`                    | Log collector Container image repository                                                                                         | `perconalab/fluentbit`           |
+| `logcollector.image.tag`                           | Log collector Container image tag                                                                                                | `main-logcollector`              |
+| `logcollector.imagePullPolicy`                     | The policy used to update images                                                                                                 | `Always`                         |
+| `logcollector.configuration`                       | Custom Fluent Bit configuration merged into the log collector pipeline. Must be in Fluent Bit's YAML format (`.conf` is not supported) | `""`                        |
+| `logcollector.env`                                 | Environment variables for the log collector Container                                                                            | `[]`                             |
+| `logcollector.envFrom`                             | Environment variable sources for the log collector Container                                                                     | `[]`                             |
+| `logcollector.containerSecurityContext`            | A custom Kubernetes Security Context for the log collector Container                                                             | `{}`                             |
+| `logcollector.resources`                           | Log collector Container resource requests and limits                                                                             | `{}`                             |
+| `logcollector.readinessProbe`                      | Readiness probe for the log collector Container. No probe is set when empty                                                      | `{}`                             |
+| `logcollector.livenessProbe`                       | Liveness probe for the log collector Container. No probe is set when empty                                                       | `{}`                             |
+| `logcollector.volumeMounts`                        | Additional volume mounts for the log collector Container                                                                         | `[]`                             |
+| `logcollector.volumes`                             | Additional volumes available to the log collector Container                                                                      | `[]`                             |
+| `logcollector.logRotate.schedule`                  | Cron schedule on which logrotate runs                                                                                            | `0 0 * * *`                      |
+| `logcollector.logRotate.configuration`             | Override the default logrotate configuration                                                                                     | `""`                             |
+| `logcollector.logRotate.extraConfig.name`          | Name of a ConfigMap with additional logrotate configuration files. Keys must end with `.conf`                                    | `""`                             |
+| `logcollector.logRotate.readinessProbe`            | Readiness probe for the logrotate Container. No probe is set when empty                                                          | `{}`                             |
+| `logcollector.logRotate.livenessProbe`             | Liveness probe for the logrotate Container. No probe is set when empty                                                           | `{}`                             |
+||
 | `toolkit.image.repository`   | Percona Toolkit Container image repository | `percona/percona-toolkit` |
 | `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.7.1-4`                 |
 | `toolkit.imagePullPolicy`    | The policy used to update images           | ``                        |
