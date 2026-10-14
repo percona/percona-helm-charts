@@ -1402,7 +1402,7 @@ Common troubleshooting steps for PMM HA:
 2. **Verify network connectivity**: Check if all HA ports (9096, 9097, 9094) are accessible
 3. **Review logs**: Check logs from all PMM server replicas
 4. **Validate secrets**: Ensure all required secrets are properly configured
-5. **Check storage**: Verify persistent volumes are properly mounted and accessible
+5. **Check storage**: Verify persistent volumes are properly mounted and accessible. For a full volume, see [When a volume fills up](docs/SIZING.md#when-a-volume-fills-up)
 
 ## Known Limitations
 
