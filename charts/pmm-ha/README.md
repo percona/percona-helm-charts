@@ -254,6 +254,11 @@ kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh list
 kubectl exec -n <namespace> deploy/<release>-backup-tools -- pmm-backup.sh restore --backup-id latest --yes
 ```
 
+> **Use a hostname, not an IP, as the PMM Public Address.** A restore into another install (DR)
+> brings the source's Public Address with it. With a hostname you repoint DNS at the target;
+> with an IP you have to update it after the restore in
+> **Configuration > Settings > Advanced settings > Public address**.
+
 Scheduled backups (Kubernetes CronJob, disabled by default — enable once the target is
 configured; restore stays manual):
 

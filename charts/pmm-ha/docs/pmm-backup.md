@@ -228,8 +228,8 @@ Skipping this is recoverable but not free; see
 
 ### After a cross-namespace restore
 
-A restore across namespaces changes two things nothing else reports. The restore prints both at
-the end of its summary; they are repeated here with the reasoning.
+A restore across namespaces changes four things nothing else reports. The restore prints the
+first two at the end of its summary; they are repeated here with the reasoning.
 
 **1. The admin password is now the SOURCE's.** Grafana's `admin` row lives in the grafana
 database, which was just replaced. This install answers to the source's password while its own
@@ -267,15 +267,38 @@ Neither applies to a same-namespace restore, and neither affects **external** pm
 agent ids live in `pmm-managed`, which the restore brings across, so repointing them at the DR
 install works without any change.
 
+**3. The PMM Public Address is the SOURCE's.** It is stored in `pmm-managed`, so it is restored
+with it. Set it to a **hostname, not an IP**, on PMM-HA installs: for DR, point the DNS name at
+the target and nothing in PMM changes. If it is an IP, update it after the restore in
+**Configuration > Settings > Advanced settings > Public address**.
+
+**4. Inventory lists the SOURCE's internal nodes.** The chart's own nodes are named
+`<namespace>-<pod>`, so the `pmm-ha-client` and `pg-db` nodes restored from the source carry the
+source namespace and release. Their agents report to the source, so they stay down here. Once
+(1) is done (and, for `pg-db`, the PG token re-minted, see [§8.4](#84-post-restore-steps)), the
+target's own nodes register next to them under the target's names. Remove the
+source's ones in **Inventory > Nodes > Delete** with **Force mode**, which also drops their
+agents and services. Delete only nodes named `<source-ns>-...`: the other nodes are the
+databases this install should keep monitoring.
+
 ### Restore another install's backup into this one (DR)
 
 Same as above plus `--s3-prefix`, pointing at the SOURCE install's root
-(`<source-namespace>/<source-release>` by default). Run it from the TARGET namespace:
+`<source-namespace>/<source-prefix>`, where `<source-prefix>` is the source's
+`centralBackupStorage.s3.prefix` (its release name when that is empty). The source's `S3_PREFIX`
+holds that whole value; if the source is gone, list the bucket instead:
+
+```bash
+kubectl exec -n <source-namespace> deploy/<source-release>-backup-tools -- printenv S3_PREFIX
+aws s3 ls s3://<bucket>/<source-namespace>/
+```
+
+Run the restore from the TARGET namespace:
 
 ```bash
 kubectl exec -n <target-namespace> deploy/<target-release>-backup-tools -- \
   pmm-backup.sh restore --backup-id latest \
-    --s3-prefix <source-namespace>/<source-release> --yes
+    --s3-prefix <source-namespace>/<source-prefix> --yes
 ```
 
 In `shared` mode the equivalent flag is `--shared-source-path`: both installs mount the same
@@ -337,15 +360,17 @@ Kubernetes API server.
 | Encryption key | kubectl + rclone | Secret exported and uploaded to S3 |
 
 **S3 layout** — PostgreSQL, PMM `/srv`, VictoriaMetrics and the encryption key all land under
-one per-run prefix; only clickhouse-backup keeps its own native remote layout:
+one per-run prefix; only clickhouse-backup keeps its own native remote layout. The install's
+key root is `<namespace>/<prefix>`: the release namespace, then `centralBackupStorage.s3.prefix`
+(the release name when empty):
 
 ```
-s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump                     (pg_dump, custom format)
-s3://<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz
-s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>/…  (+ backup_complete.ignore)
-s3://<bucket>/<prefix>/encryption/<id>/pg-encryption-key.yaml
-s3://<bucket>/<prefix>/manifests/<id>.json                           (per-run index)
-s3://<bucket>/<prefix>/clickhouse/backup_<id>/…                          (clickhouse-backup layout)
+s3://<bucket>/<namespace>/<prefix>/postgresql/<id>/<db>.dump                     (pg_dump, custom format)
+s3://<bucket>/<namespace>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz
+s3://<bucket>/<namespace>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>/…  (+ backup_complete.ignore)
+s3://<bucket>/<namespace>/<prefix>/encryption/<id>/pg-encryption-key.yaml
+s3://<bucket>/<namespace>/<prefix>/manifests/<id>.json                           (per-run index)
+s3://<bucket>/<namespace>/<prefix>/clickhouse/backup_<id>/…                          (clickhouse-backup layout)
 ```
 
 A run only marks itself complete when **every selected component fully succeeds**
@@ -405,7 +430,7 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
   application databases (everything except templates and the empty `postgres` db), and run
   `pg_dump -Fc` per database via local peer auth as the `postgres` superuser.
 - **Where stored**: one custom-format file per database under this component's prefix —
-  `s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump` (s3, streamed `pg_dump | rclone rcat`
+  `s3://<bucket>/<namespace>/<prefix>/postgresql/<id>/<db>.dump` (s3, streamed `pg_dump | rclone rcat`
   by the backup-tools pod's own rclone) or `<central>/postgresql/<id>/<db>.dump`
   (shared, `pg_dump` streamed onto the mounted volume). For PMM that's typically
   `pmm-managed` + `grafana`.
@@ -418,7 +443,7 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
 
 - **Tool**: clickhouse-backup (Altinity sidecar)
 - **How**: `kubectl exec` into the ClickHouse pod, issues SQL commands against the `system.backup_actions` table to trigger `clickhouse-backup create`
-- **Where stored** (s3): `clickhouse-backup create` makes near-zero-space hardlinks on the pod, then `upload` pushes them to S3 (`REMOTE_STORAGE=s3`, `S3_PATH=<prefix>/clickhouse`, configured credentials — static keys or IRSA), then `delete local`. Objects land at `s3://<bucket>/<prefix>/clickhouse/backup_<id>/…`.
+- **Where stored** (s3): `clickhouse-backup create` makes near-zero-space hardlinks on the pod, then `upload` pushes them to S3 (`REMOTE_STORAGE=s3`, `S3_PATH=<namespace>/<prefix>/clickhouse`, configured credentials — static keys or IRSA), then `delete local`. Objects land at `s3://<bucket>/<namespace>/<prefix>/clickhouse/backup_<id>/…`.
 - **Incremental** (`--ch-backup-type incremental`): the local `create` is always a full
   hardlink snapshot; the diff happens at **upload** time — `upload
   --diff-from-remote=<previous-remote-backup> <name>` (flags before the positional name).
@@ -432,14 +457,14 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
 
 - **Tool**: vmbackup (sidecar in vmstorage pods)
 - **How**: For each vmstorage pod, `kubectl exec` into the `vmbackup` sidecar, creates a snapshot and runs `vmbackup-prod -dst=<target>`
-- **Where stored** (s3): `vmbackup -dst=s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>` uploads the snapshot **directly to S3** (configured credentials, `AWS_REGION` from the pod env; custom endpoints via `-customS3Endpoint`). vmbackup writes `backup_complete.ignore` at the destination as its **final** step, so the completion marker that `vmrestore` requires is always present.
+- **Where stored** (s3): `vmbackup -dst=s3://<bucket>/<namespace>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>` uploads the snapshot **directly to S3** (configured credentials, `AWS_REGION` from the pod env; custom endpoints via `-customS3Endpoint`). vmbackup writes `backup_complete.ignore` at the destination as its **final** step, so the completion marker that `vmrestore` requires is always present.
 - **Note**: per-pod backups; the run is only marked complete if **every** vmstorage pod succeeds.
 
 ### PMM Server `/srv`
 
 - **Tool**: `tar` + `rclone` in the `pmm-backup` sidecar
-- **How**: PMM pods are discovered by label (`app.kubernetes.io/component=pmm-server`); for each, `kubectl exec` into the `pmm-backup` sidecar and run `tar -czf - -C / srv | rclone rcat --s3-no-check-bucket s3:<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz`. The exec carries only the command; the tarball streams sidecar→S3.
-- **Where stored** (s3): `s3://<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz`. After upload the script verifies the object exists (`rclone size`) and treats an empty/missing result as a failure.
+- **How**: PMM pods are discovered by label (`app.kubernetes.io/component=pmm-server`); for each, `kubectl exec` into the `pmm-backup` sidecar and run `tar -czf - -C / srv | rclone rcat --s3-no-check-bucket s3:<bucket>/<namespace>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz`. The exec carries only the command; the tarball streams sidecar→S3.
+- **Where stored** (s3): `s3://<bucket>/<namespace>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz`. After upload the script verifies the object exists (`rclone size`) and treats an empty/missing result as a failure.
 - **Prerequisite**: the `pmm-backup` rclone sidecar (added by the chart in `s3` mode) running in the PMM pods.
 
 ### Encryption Key
@@ -447,7 +472,7 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
 - **Tool**: `kubectl get secret` + rclone
 - **How**: Exports the `pg-encryption-key` Kubernetes Secret to clean YAML
 - **Tied to**: Only backed up when `--postgresql` is selected (it's a PostgreSQL encryption key)
-- **Where stored** (s3): uploaded to `s3://<bucket>/<prefix>/encryption/<id>/pg-encryption-key.yaml` (SHA256 recorded). Note: the key is stored in the **same bucket** as the data — tighten with a separate prefix/restricted IAM if required.
+- **Where stored** (s3): uploaded to `s3://<bucket>/<namespace>/<prefix>/encryption/<id>/pg-encryption-key.yaml` (SHA256 recorded). Note: the key is stored in the **same bucket** as the data — tighten with a separate prefix/restricted IAM if required.
 
 ---
 
@@ -1222,7 +1247,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `--s3-bucket BUCKET` | S3 bucket name (required for `s3`; chart-set via `S3_BUCKET`, so optional inside backup-tools) | |
 | `--s3-endpoint URL` | S3 endpoint (empty for AWS; set for S3-compatible/MinIO) | |
 | `--s3-region REGION` | S3 region | us-east-1 |
-| `--s3-prefix PREFIX` | Key namespace under the bucket. Point it at ANOTHER install's root for a cross-namespace/DR restore | `<namespace>/<release>` (matches what the chart projects) |
+| `--s3-prefix PREFIX` | Key namespace under the bucket. Point it at ANOTHER install's root for a cross-namespace/DR restore | `<namespace>/<prefix>` (matches what the chart projects; `<prefix>` is `centralBackupStorage.s3.prefix`, the release name when empty) |
 | `--shared-source-path PATH` | The shared-target twin of `--s3-prefix`: subdirectory of the shared mount to read/write. Point it at ANOTHER install's subpath for a cross-namespace/DR restore | `<namespace>/<release>` (matches what the chart projects) |
 | `--shared-mount-path PATH` | RWX mount path inside pods (`--target shared`) | /central |
 | `--release NAME` | Scope every destructive lookup to one Helm release (`app.kubernetes.io/instance`). Needed only when a namespace holds more than one pmm-ha install, where an unscoped lookup would refuse rather than guess | *(unscoped)* |
@@ -1253,7 +1278,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `PMM_SERVER_REPLICAS` | Replica count a restore scales PMM back up to, used **only** when the live `spec.replicas` is 0/unreadable *and* the count stashed on the StatefulSet (`restore.pmm.percona.com/original-replicas`) is unusable. Set it when re-running a restore against an install that does not run 3. | 3 |
 | `TEMP_POD_RESOURCES` | JSON `resources` for the temp pods a restore creates (`vm-restore-*`, `pmm-srv-restore-*`); the chart sets it from `centralBackupStorage.tools.restorePodResources`. Raise it if those pods are OOM-killed on large volumes; note that raising it also makes them harder to schedule on a full node. | `{"requests":{"cpu":"100m","memory":"256Mi"},"limits":{"cpu":"2","memory":"2Gi"}}` |
 | `S3_BUCKET` | S3 bucket (required for `s3`; set by Helm) | |
-| `S3_REGION` / `S3_ENDPOINT` / `S3_PREFIX` | S3 region / endpoint / key prefix (set by Helm) | us-east-1 / / `<namespace>/<release>` |
+| `S3_REGION` / `S3_ENDPOINT` / `S3_PREFIX` | S3 region / endpoint / key prefix (set by Helm) | us-east-1 / / `<namespace>/<prefix>` |
 | `SHARED_SUBPATH` | Shared-target equivalent of `S3_PREFIX`: the install's subdirectory under the shared mount (set by Helm) | `<namespace>/<release>` |
 | `SHARED_MOUNT_PATH` | RWX mount path inside pods (`shared` mode; set by Helm) | /central |
 | `RCLONE_REMOTE` | rclone remote name (configured via `RCLONE_CONFIG_*`) | s3 |
@@ -1509,18 +1534,18 @@ name, so it is uploaded by clickhouse-backup itself, so its directory contents a
 
 | Component | Object location |
 |-----------|-----------------|
-| PostgreSQL | `s3://<bucket>/<prefix>/postgresql/<id>/<db>.dump` *(pg_dump per database)* |
-| PMM `/srv` | `s3://<bucket>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz` |
-| VictoriaMetrics | `s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>/` |
-| Encryption key | `s3://<bucket>/<prefix>/encryption/<id>/pg-encryption-key.yaml` |
-| ClickHouse | `s3://<bucket>/<prefix>/clickhouse/backup_<id>/` *(clickhouse-backup's own layout)* |
+| PostgreSQL | `s3://<bucket>/<namespace>/<prefix>/postgresql/<id>/<db>.dump` *(pg_dump per database)* |
+| PMM `/srv` | `s3://<bucket>/<namespace>/<prefix>/pmm-server/<id>/<pod>/srv.tar.gz` |
+| VictoriaMetrics | `s3://<bucket>/<namespace>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id>/` |
+| Encryption key | `s3://<bucket>/<namespace>/<prefix>/encryption/<id>/pg-encryption-key.yaml` |
+| ClickHouse | `s3://<bucket>/<namespace>/<prefix>/clickhouse/backup_<id>/` *(clickhouse-backup's own layout)* |
 
 To tie them together (and to record where ClickHouse landed), **every run writes one
 index**:
 
 ```
-s3://<bucket>/<prefix>/manifests/<id>.json   # per component: status + how to locate/restore it
-s3://<bucket>/<prefix>/latest               # text pointer -> newest backup id
+s3://<bucket>/<namespace>/<prefix>/manifests/<id>.json   # per component: status + how to locate/restore it
+s3://<bucket>/<namespace>/<prefix>/latest               # text pointer -> newest backup id
 ```
 
 **List with the orchestrator** (reads the manifests with the backup-tools pod's own rclone):
@@ -1544,23 +1569,24 @@ Only ClickHouse lives outside that prefix; the manifest records its name
 (`components.clickhouse.name` → `clickhouse-backup restore_remote <name>`). PostgreSQL is
 under `postgresql/<id>/` and restores with `pg_restore`.
 
-**List with raw AWS CLI / rclone** (e.g. from a workstation, no sidecar needed):
+**List with raw AWS CLI / rclone** (e.g. from a workstation, no sidecar needed; `<prefix>` is
+`centralBackupStorage.s3.prefix`, the release name when empty):
 
 ```bash
 # All backup ids + the latest pointer
-aws s3 ls s3://my-bucket/<namespace>/<release>/manifests/
-aws s3 cp s3://my-bucket/<namespace>/<release>/latest -   # prints the newest id
+aws s3 ls s3://my-bucket/<namespace>/<prefix>/manifests/
+aws s3 cp s3://my-bucket/<namespace>/<prefix>/latest -   # prints the newest id
 
 # One backup: read the manifest, then list its objects
-aws s3 cp s3://my-bucket/<namespace>/<release>/manifests/backup_20260610-120000.json -
-aws s3 ls --recursive s3://my-bucket/<namespace>/<release>/postgresql/backup_20260610-120000/
+aws s3 cp s3://my-bucket/<namespace>/<prefix>/manifests/backup_20260610-120000.json -
+aws s3 ls --recursive s3://my-bucket/<namespace>/<prefix>/postgresql/backup_20260610-120000/
 
 # ClickHouse keeps its own layout outside the per-run prefix:
-aws s3 ls --recursive s3://my-bucket/<namespace>/<release>/clickhouse/backup_20260610-120000/
+aws s3 ls --recursive s3://my-bucket/<namespace>/<prefix>/clickhouse/backup_20260610-120000/
 
 # rclone equivalents (remote 's3' configured for the bucket)
-rclone cat   s3:my-bucket/<namespace>/<release>/manifests/backup_20260610-120000.json
-rclone lsl   s3:my-bucket/<namespace>/<release>/postgresql/backup_20260610-120000/
+rclone cat   s3:my-bucket/<namespace>/<prefix>/manifests/backup_20260610-120000.json
+rclone lsl   s3:my-bucket/<namespace>/<prefix>/postgresql/backup_20260610-120000/
 ```
 
 > The manifest is the source of truth for *what belongs to a backup*. Restore should be
@@ -1711,8 +1737,8 @@ wget -qO- "http://${POD_IP}:9091/"
 
   ```bash
   # s3 mode
-  aws s3 cp s3://<bucket>/<prefix>/clickhouse/<id>/metadata/pmm/metrics.json - | jq '.parts'
-  aws s3 ls --recursive s3://<bucket>/<prefix>/clickhouse/<id>/shadow/
+  aws s3 cp s3://<bucket>/<namespace>/<prefix>/clickhouse/<id>/metadata/pmm/metrics.json - | jq '.parts'
+  aws s3 ls --recursive s3://<bucket>/<namespace>/<prefix>/clickhouse/<id>/shadow/
   ```
 
 - Compare with the source at the time the backup ran, not with now:
@@ -1765,7 +1791,7 @@ kubectl exec -n <namespace> deploy/<release>-backup-tools -- cat /backups/postgr
   | kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- sh -c 'cat > /pgdata/restore.dump'
 #    s3: stream it from the bucket with the backup-tools pod's own rclone
 kubectl exec -n <namespace> deploy/<release>-backup-tools -- \
-  rclone cat --s3-no-check-bucket s3:<bucket>/<prefix>/postgresql/<id>/<db>.dump \
+  rclone cat --s3-no-check-bucket s3:<bucket>/<namespace>/<prefix>/postgresql/<id>/<db>.dump \
   | kubectl exec -i -n <namespace> <pg-primary-pod> -c database -- sh -c 'cat > /pgdata/restore.dump'
 
 # 2. Recreate the database empty from template0, keeping its owner (read it first). template0,
@@ -1802,7 +1828,7 @@ ClickHouse restores in the live `clickhouse-backup` sidecar (with PMM scaled dow
 # cross-namespace/cross-prefix (DR) restores. The orchestrator always passes them.
 kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
   clickhouse-backup restore_remote \
-  --env S3_BUCKET=<source-bucket> --env S3_PATH=<source-prefix>/clickhouse \
+  --env S3_BUCKET=<source-bucket> --env S3_PATH=<source-namespace>/<source-prefix>/clickhouse \
   --rm <backup-name>
 
 # shared: untar the archive into the backup dir, then restore
@@ -1819,7 +1845,7 @@ own location:
 
 ```bash
 # in a temp pod that mounts vmstorage-db-<pod> at /vmstorage-data:
-vmrestore -src=s3://<bucket>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id> \
+vmrestore -src=s3://<bucket>/<namespace>/<prefix>/victoriametrics/<id>/<pod>/vm_backup_<id> \
   -storageDataPath=/vmstorage-data          # s3
 vmrestore -src=fs:///central/victoriametrics/backup_<id>/<pod>/vm_backup_<id> \
   -storageDataPath=/vmstorage-data          # shared
@@ -1960,7 +1986,9 @@ The backup-tools pod exposes port 9091 and VMAgent's single `backup-metrics` scr
 
 Restore one instance's backup into a DIFFERENT namespace (e.g. production `pmm` into a DR
 namespace) on the same cluster. Run the restore in the **target** namespace's backup-tools
-pod and point `--s3-prefix` at the **source** instance's prefix — IAM/bucket access is the
+pod and point `--s3-prefix` at the **source** instance's root, `<SOURCE-ns>/<SOURCE-prefix>`
+(`<SOURCE-prefix>` is the source's `centralBackupStorage.s3.prefix`, its release name when
+empty; the source's `S3_PREFIX` env holds the whole value) — IAM/bucket access is the
 same, and the orchestrator passes every tool the full source location (including a
 per-invocation `--env S3_BUCKET/S3_PATH` override for `clickhouse-backup`, whose
 `restore_remote` otherwise only looks under the target sidecar's own configured path):
@@ -1968,7 +1996,7 @@ per-invocation `--env S3_BUCKET/S3_PATH` override for `clickhouse-backup`, whose
 ```bash
 kubectl exec -n <target-ns> deploy/<target-release>-backup-tools -- \
   pmm-backup.sh restore --namespace <target-ns> --target s3 \
-  --s3-bucket <bucket> --s3-prefix <SOURCE-prefix> --s3-region <region> \
+  --s3-bucket <bucket> --s3-prefix <SOURCE-ns>/<SOURCE-prefix> --s3-region <region> \
   --backup-id <backup_id-or-latest> --yes
 ```
 
@@ -2055,6 +2083,12 @@ data transfer:
   kubectl delete job -n <ns> <release>-pmm-token-init --ignore-not-found
   helm upgrade <release> charts/pmm-ha -n <ns> --reuse-values --no-hooks
   ```
+- **Public Address**: restored with `pmm-managed`, so it is the SOURCE's. Use a hostname and
+  repoint its DNS at the target; an IP has to be changed by hand in
+  **Configuration > Settings > Advanced settings > Public address**.
+- **Stale source nodes**: Inventory keeps the source's `pmm-ha-client` and `pg-db` nodes
+  (`<source-ns>-...`), which never connect here. Remove them in **Inventory > Nodes > Delete**
+  with **Force mode**; leave every other node alone.
 
 
 ---
