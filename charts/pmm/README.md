@@ -65,6 +65,40 @@ It removes all of the resources associated with the last release of the chart as
 | `certs`               | Optional certificates, if not provided PMM would use generated self-signed certificates,                                                                                           | `{}`         |
 
 
+### PMM encryption key
+
+PMM encrypts the credentials of monitored services with a key stored at `/srv/pmm-encryption.key` on the PMM data volume, or at `PMM_ENCRYPTION_KEY_PATH` when `pmmEnv` overrides it. By default the chart also keeps a copy of that key in a Kubernetes secret, so the credentials stay readable if the data volume is lost while the database survives, which is possible when PMM is pointed at an external PostgreSQL.
+
+The key on the data volume is the one PMM encrypted with, and it always takes precedence: the secret is only read to restore a key when the volume has none, so restarts, upgrades and reinstalls over retained data keep working. The copy is brought in line with the volume when the pod starts, so restart the pod after rotating the key.
+
+The secret is named `<fullname>-encryption-key` unless `encryptionKey.secretName` overrides it. It is not owned by the Helm release, so it outlives `helm uninstall`. Back up the key it holds together with the rest of your PMM configuration:
+
+```sh
+kubectl get secret <fullname>-encryption-key -o jsonpath='{.data.key}' | base64 -d > pmm-encryption.key
+```
+
+To supply your own key, or to restore a backed-up one, create the secret from the key file before installing the chart:
+
+```sh
+kubectl create secret generic <fullname>-encryption-key --from-file=key=pmm-encryption.key
+```
+
+The key must be a base64-encoded Tink keyset. Generate a new one with `pmm-encryption-rotation`, which ships in the PMM Server image; see [PMM data encryption](https://docs.percona.com/percona-monitoring-and-management/3/admin/security/data_encryption.html):
+
+```sh
+docker run --rm --entrypoint /usr/sbin/pmm-encryption-rotation percona/pmm-server:3 --generate-key > pmm-encryption.key
+```
+
+| Name                                 | Description                                                                                                                                                                                                                                                          | Value           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `encryptionKey.backupToSecret`       | Keep a copy of the PMM encryption key in a Kubernetes secret. Grants the PMM pod's service account create on secrets in the release namespace, plus get and update on the key secret itself; since `serviceAccount.create` is false by default that is the namespace's `default` service account. Its token is mounted into the init container that manages the secret even where token automount is turned off. The key has to be on the data volume, so rendering fails when `pmmEnv.PMM_ENCRYPTION_KEY_PATH` or `extraVolumeMounts` put it anywhere else. | `true`          |
+| `encryptionKey.secretName`           | Name of the secret holding the copy of the encryption key. Defaults to `<fullname>-encryption-key`.                                                                                                                                                                   | `""`            |
+| `encryptionKey.image.repository`     | Repository for the image used to reconcile the key secret                                                                                                                                                                                                            | `alpine/kubectl` |
+| `encryptionKey.image.tag`            | Tag for the image used to reconcile the key secret                                                                                                                                                                                                                   | `1.34.1`        |
+| `encryptionKey.image.pullPolicy`     | Pull policy for the image used to reconcile the key secret                                                                                                                                                                                                           | `IfNotPresent`  |
+| `encryptionKey.resources`            | Optional [resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for the encryption key init containers                                                                                                                 | `{}`            |
+
+
 ### PMM network configuration
 
 | Name                              | Description                                                                                                                                    | Value                 |
