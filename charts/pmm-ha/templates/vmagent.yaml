@@ -340,6 +340,27 @@ spec:
     {{- toYaml .Values.victoriaMetrics.vmagent.scrapeConfigs | nindent 4 }}
     {{- end }}
 
+    {{- if .Values.centralBackupStorage.enabled }}
+    # One job for all backup/restore metrics; component is a label (DN-42).
+    - job_name: 'backup-metrics'
+      {{- /* 30s so short-lived restore-phase gauges are observable. */}}
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        {{- include "pmm.backupToolsScrapeKeep" . | nindent 8 }}
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '9091'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+    {{- end }}
+
   {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
   # Additional scrape configurations - can reference VMScrapeConfig resources
   scrapeConfigSelector: {}
