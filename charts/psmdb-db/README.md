@@ -23,14 +23,14 @@ To install the chart with the `psmdb` release name using a dedicated namespace (
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/psmdb-db --version 1.23.0 --namespace my-namespace
+helm install my-db percona/psmdb-db --version 1.23.4 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                                | Description                                                                                                                                                                                   | Default                               |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `crVersion`                                              | CR Cluster Manifest version                                                                                                                                                                   | `1.23.0`                              |
+| `crVersion`                                              | CR Cluster Manifest version                                                                                                                                                                   | `1.23.1`                              |
 | `pause`                                                  | Stop PSMDB Database safely                                                                                                                                                                    | `false`                               |
 | `unmanaged`                                              | Start cluster and don't manage it (cross cluster replication)                                                                                                                                 | `false`                               |
 | `enableVolumeExpansion`                                  | **Deprecated.** Use `storageScaling.enableVolumeScaling` instead. Allows to resize `PersistentVolumeClaim`s by changing `.volumeSpec.persistentVolumeClaim.resources` field                   | `false`                               |
@@ -65,7 +65,7 @@ The chart can be customized using the following configurable parameters:
 | `finalizers:percona.com/delete-psmdb-pods-in-order`      | Set this if you want to delete PSMDB pods in order (primary last)                                                                                                                             | `[]`                                  |
 | `finalizers:percona.com/delete-pitr-chunks`              | Set this if you want to delete all pitr chunks on cluster deletion                                                                                                                            | `[]`                                  |
 | `image.repository`                                       | PSMDB Container image repository                                                                                                                                                              | `percona/percona-server-mongodb`      |
-| `image.tag`                                              | PSMDB Container image tag                                                                                                                                                                     | `8.0.26-11`                           |
+| `image.tag`                                              | PSMDB Container image tag                                                                                                                                                                     | `8.0.32-14`                           |
 | `imagePullPolicy`                                        | The policy used to update images                                                                                                                                                              | `Always`                              |
 | `imagePullSecrets`                                       | PSMDB Container pull secret                                                                                                                                                                   | `[]`                                  |
 | `initImage.repository`                                   | Repository for custom init image                                                                                                                                                              | `""`                                  |
@@ -82,6 +82,8 @@ The chart can be customized using the following configurable parameters:
 | |
 | `vault.endpointURL`            | Vault address                                                                                      | `""` |
 | `vault.tlsSecret`              | Kubernetes secret containing Vault TLS certs                                                       | `""` |
+| `vault.reinitInterval`         | How often the Vault client should be re-initialized                                                | `""` |
+| `vault.requestInterval`        | How often the operator queries Vault for the users secret (queries on every reconciliation if not set) | `""` |
 | `vault.syncUsers.role`         | Vault role name                                                                                    | `""` |
 | `vault.syncUsers.mountPath`    | Vault mount path (https://developer.hashicorp.com/vault/docs/secrets/kv)                           | `""` |
 | `vault.syncUsers.keyPath`      | Vault key path for password                                                                        | `""` |
@@ -98,12 +100,13 @@ The chart can be customized using the following configurable parameters:
 | |
 | `pmm.enabled`                  | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`              |
 | `pmm.image.repository`         | PMM Container image repository                                                                                                                                                           | `percona/pmm-client` |
-| `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `3.8.1`              |
+| `pmm.image.tag`                | PMM Container image tag                                                                                                                                                                  | `3.9.1`              |
 | `pmm.serverHost`               | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service` |
 | `pmm.containerSecurityContext` | Set the security context for PMM container                                                                                                                                               | `{}`                 |
 | `pmm.resources`                | Set resources for PMM container                                                                                                                                                          | `{}`                 |
 | `pmm.mongodParams`             | PMM mongod params                                                                                                                                                                        | `""`                 |
 | `pmm.mongosParams`             | PMM mongos params                                                                                                                                                                        | `""`                 |
+| `pmm.querySource`              | PMM query source. One of `profiler` or `mongolog`. `mongolog` requires logcollector to be enabled                                                                                        | `""`                 |
 | `pmm.customClusterName`        | PMM cluster name. If not set Operator uses cr.Name for PMM cluster name                                                                                                                  | `""`                 |
 | `pmm.authenticationMechanism`  | SASL mechanism the PMM client uses to authenticate against mongod/mongos. One of `SCRAM-SHA-256` or `SCRAM-SHA-1`                                                                        | `""`                 |
 | `pmm.livenessProbe`            | Override the built-in liveness probe of the pmm-client container. When not set, the Operator uses HTTP GET :7777/local/Status                                                            | `{}`                 |
@@ -335,6 +338,8 @@ The chart can be customized using the following configurable parameters:
 | `sharding.mongos.expose.externalTrafficPolicy`                | Mongos service external traffic policy                                                                                                                                                                                   | `Local`                  |
 | `sharding.mongos.expose.nodePort`                             | Custom port if exposing mongos via NodePort                                                                                                                                                                              | `""`                     |
 | `sharding.mongos.hostAliases`                                 | The IP address for Kubernetes host aliases                                                                                                                                                                               | `[]`                     |
+| `sharding.mongos.logs`                                        | Logging configuration for mongos                                                                                                                                                                                         | `{}`                     |
+| `sharding.mongos.logs.persistentVolumeClaim`                  | PVC configuration for mongos logs                                                                                                                                                                                        | `{}`                     |
 | |
 | `users.name`                   | The username of the MongoDB application user                                                                                                                                                                                                                                                                 | `""` |
 | `users.db`                     | Database that the user authenticates against                                                                                                                                                                                                                                                                 | `""` |
@@ -390,7 +395,7 @@ The chart can be customized using the following configurable parameters:
 | `systemUsers`                                      | PSMDB operator system users                                                   | `{}`                             |
 | `logcollector.enabled`                             | Enable or disable the log collector sidecar container                         | `true`                           |
 | `logcollector.image.repository`                    | Container image repository for the log collector (Fluent Bit)                 | `percona/fluentbit`              |
-| `logcollector.image.tag`                           | Image tag for the log collector                                               | `5.0.9-1`                        |
+| `logcollector.image.tag`                           | Image tag for the log collector                                               | `5.1.2-1`                        |
 | `logcollector.env`                                 | Custom environment variables for Log Collector Pods                           | `[]`                             |
 | `logcollector.envFrom`                             | Custom environment variable sources (ConfigMaps/Secrets) for Log Collector    | `[]`                             |
 | `logcollector.resources`                           | Resource requests and limits                                                  | `{}`                             |
