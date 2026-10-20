@@ -11,6 +11,7 @@ finalizers:
   # - percona.com/delete-mysql-pvc
 
 #  unsafeFlags:
+#    asyncFailoverWithPossibleDataLoss: false
 #    mysqlSize: false
 #    orchestrator: false
 #    orchestratorSize: false
@@ -620,7 +621,7 @@ orchestrator:
     requests:
       memory: 128M
     limits:
-      memory: 256M
+      memory: 512M
 
   affinity:
     antiAffinityTopologyKey: "kubernetes.io/hostname"
@@ -643,7 +644,7 @@ orchestrator:
 
   # configuration: |
   #   {
-  #     "FailMasterPromotionOnLagMinutes": 10
+  #     "ReasonableReplicationLagSeconds": 30
   #   }
 
   # runtimeClassName: image-rc
@@ -680,6 +681,9 @@ orchestrator:
     #   rack: rack-22
     # loadBalancerSourceRanges:
     #   - 10.0.0.0/8
+  # failover:
+  #   onTimeout: Abort
+  #   timeout: 1h
 
 # Custom MySQL users to be created and managed by the Operator.
 # If "passwordSecretRef" is not set, the Operator generates a password and

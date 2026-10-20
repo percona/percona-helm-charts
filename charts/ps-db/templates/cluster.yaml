@@ -721,6 +721,10 @@ spec:
     expose:
 {{ tpl ($orc.expose | toYaml) $ | indent 8 }}
     {{- end }}
+    {{- if $orc.failover }}
+    failover:
+{{ $orc.failover | toYaml | indent 6 }}
+    {{- end }}
   {{- end }}
 
   {{- if .Values.users }}

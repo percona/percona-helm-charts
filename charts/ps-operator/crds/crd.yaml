@@ -12134,6 +12134,19 @@ spec:
                       type:
                         type: string
                     type: object
+                  failover:
+                    properties:
+                      onTimeout:
+                        default: Abort
+                        enum:
+                        - Abort
+                        - ForceWithPossibleDataLoss
+                        type: string
+                      timeout:
+                        default: 1h
+                        pattern: ^([0-9]+(\.[0-9]+)?(ns|us|ms|s|m|h))+$
+                        type: string
+                    type: object
                   gracePeriod:
                     format: int64
                     type: integer
@@ -16186,6 +16199,8 @@ spec:
                   rule: has(self.image) && size(self.image) > 0
               unsafeFlags:
                 properties:
+                  asyncFailoverWithPossibleDataLoss:
+                    type: boolean
                   backupNonReadyCluster:
                     type: boolean
                   mysqlSize:
@@ -16252,6 +16267,12 @@ spec:
               rule: '!(self.mysql.clusterType == ''async'') || self.unsafeFlags.orchestrator
                 || (has(self.orchestrator) && self.orchestrator.enabled)'
             - message: 'Invalid configuration: When ''mysql.clusterType'' is set to
+                ''async'', ''backup.enabled'' must be true unless ''unsafeFlags.asyncFailoverWithPossibleDataLoss''
+                is enabled. Without backups a failover cannot recover the transactions
+                stranded on the old primary'
+              rule: '!(self.mysql.clusterType == ''async'') || self.unsafeFlags.asyncFailoverWithPossibleDataLoss
+                || (has(self.backup) && self.backup.enabled)'
+            - message: 'Invalid configuration: When ''mysql.clusterType'' is set to
                 ''async'', ''proxy.haproxy.enabled'' must be true unless ''unsafeFlags.proxy''
                 is enabled'
               rule: '!(self.mysql.clusterType == ''async'') || self.unsafeFlags.proxy
@@ -16302,6 +16323,10 @@ spec:
               rule: '!has(self.proxy) || !(has(self.proxy.router) && has(self.proxy.router.enabled)
                 && self.proxy.router.enabled && has(self.proxy.haproxy) && has(self.proxy.haproxy.enabled)
                 && self.proxy.haproxy.enabled)'
+            - message: 'Invalid configuration: ''orchestrator.failover'' only applies
+                when ''mysql.clusterType'' is set to ''async'''
+              rule: '!(self.mysql.clusterType == ''group-replication'') || !has(self.orchestrator)
+                || !has(self.orchestrator.failover)'
           status:
             properties:
               backupVersion:
