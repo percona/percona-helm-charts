@@ -427,10 +427,12 @@ The chart can be customized using the following configurable parameters:
 | `clusterSync.enabled`                              | Create a `PerconaServerMongoDBClusterSync` CR to replicate data from a source MongoDB into this cluster | `false`                                     |
 | `clusterSync.name`                                 | Override the generated CR name (defaults to `<fullname>-sync`)                                          | `""`                                        |
 | `clusterSync.clusterName`                          | Target `PerconaServerMongoDB` cluster name (defaults to this chart's cluster)                           | `""`                                        |
-| `clusterSync.image`                                | Percona ClusterSync for MongoDB (PCSM) container image                                                  | `percona/percona-clustersync-mongodb:0.9.0` |
+| `clusterSync.image`                                | Percona ClusterSync for MongoDB (PCSM) container image                                                  | `percona/percona-clustersync-mongodb:1.0.0` |
 | `clusterSync.imagePullPolicy`                      | Pull policy for the PCSM image                                                                          | `""`                                        |
 | `clusterSync.imagePullSecrets`                     | Image pull secrets for the PCSM container                                                               | `[]`                                        |
 | `clusterSync.mode`                                 | Lifecycle intent: `running`, `paused`, or `finalized`                                                   | `running`                                   |
+| `clusterSync.size`                                 | Number of PCSM instances; above 1 they form an active/standby group electing a leader via a lease       | `1`                                         |
+| `clusterSync.podDisruptionBudget`                  | PDB for the PCSM Pods, only applied when `size` > 1 (operator defaults to `maxUnavailable: 1`)          | `{}`                                        |
 | `clusterSync.source.uri`                           | Source MongoDB connection string without credentials (mongos or mongod)                                 | `""`                                        |
 | `clusterSync.source.credentialsSecret`             | Same-namespace Secret with `username`/`password` keys (defaults to `<sync-name>-source`)                | `""`                                        |
 | `clusterSync.source.credentials.username`          | Inline source username (chart creates the Secret automatically when set)                                | `""`                                        |
@@ -479,6 +481,8 @@ $ helm install my-target percona/psmdb-db --namespace psmdb \
 ```
 
 To use a pre-created Secret instead of inlining credentials, set `clusterSync.source.credentialsSecret` and leave `clusterSync.source.credentials` empty.
+
+For a highly available replication, set `clusterSync.size` above `1`. The instances form an active/standby group: one replicates while the rest wait on a lease in the target cluster and take over within seconds if the active one dies. The operator then also creates a PodDisruptionBudget (defaulting to `maxUnavailable: 1`), which you can override through `clusterSync.podDisruptionBudget`. The `Ready` and `Active` columns of `kubectl get psmdb-clustersync` report the ready instances and the pod currently holding the lease.
 
 Use `clusterSync.mode` to pause (`paused`) or finalize (`finalized`) the replication without deleting the CR; flip it back to `running` to resume. See the [PCSM documentation](https://docs.percona.com/percona-clustersync-for-mongodb/intro.html) for details on lifecycle, lag reporting, and the `pcsmConfig`/`env` knobs.
 

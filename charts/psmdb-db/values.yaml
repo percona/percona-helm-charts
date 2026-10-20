@@ -1207,7 +1207,7 @@ clusterSync:
   # name: ""
   # Defaults to the PerconaServerMongoDB created by this chart (<release-fullname>)
   # clusterName: ""
-  image: percona/percona-clustersync-mongodb:0.9.0
+  image: percona/percona-clustersync-mongodb:1.0.0
   # imagePullPolicy: IfNotPresent
   # imagePullSecrets:
   #   - name: my-pull-secret
@@ -1217,6 +1217,17 @@ clusterSync:
   #   paused    - pause an active replication
   #   finalized - stop replication and tear down owned resources
   mode: running
+
+  # Number of PCSM instances. Above 1 they form an active/standby group: one
+  # instance replicates while the others wait on a lease in the target cluster
+  # and take over within seconds if it dies.
+  size: 1
+
+  # Only applied when size > 1. Defaults to maxUnavailable: 1 on the operator
+  # side so a drain cannot evict the whole group at once.
+  podDisruptionBudget: {}
+  #   maxUnavailable: 1
+  #   minAvailable: 1
 
   source:
     # Source MongoDB connection string WITHOUT credentials (mongos or mongod).
