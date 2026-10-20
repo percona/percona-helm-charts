@@ -772,6 +772,7 @@ spec:
 
   {{- if .Values.logcollector }}
   {{- $logcollector := .Values.logcollector }}
+
   logcollector:
   {{- if not $logcollector.enabled }}
     enabled: false

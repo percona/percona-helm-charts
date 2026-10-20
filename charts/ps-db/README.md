@@ -285,8 +285,8 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.limits`                    | PMM Container resource limits                                                                                                                                                                     | `{}`                                |
 ||
 | `logcollector.enabled`                             | Enable the Fluent Bit log collector and logrotate sidecars                                                                       | `true`                           |
-| `logcollector.image.repository`                    | Log collector Container image repository                                                                                         | `perconalab/fluentbit`           |
-| `logcollector.image.tag`                           | Log collector Container image tag                                                                                                | `main-logcollector`              |
+| `logcollector.image.repository`                    | Log collector Container image repository                                                                                         | `percona/fluentbit`           |
+| `logcollector.image.tag`                           | Log collector Container image tag                                                                                                | `5.1.2-1`              |
 | `logcollector.imagePullPolicy`                     | The policy used to update images                                                                                                 | `Always`                         |
 | `logcollector.configuration`                       | Custom Fluent Bit configuration merged into the log collector pipeline. Must be in Fluent Bit's YAML format (`.conf` is not supported) | `""`                        |
 | `logcollector.env`                                 | Environment variables for the log collector Container                                                                            | `[]`                             |

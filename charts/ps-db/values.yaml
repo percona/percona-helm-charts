@@ -732,9 +732,9 @@ pmm:
 logcollector:
   enabled: true
   image:
-    repository: perconalab/fluentbit
-    tag: main-logcollector
-  imagePullPolicy: Always
+    repository: percona/fluentbit
+    tag: 5.1.2-1
+  # imagePullPolicy: Always
   # Custom Fluent Bit configuration, merged into the log collector pipeline.
   # Must be in Fluent Bit's YAML configuration format (the classic ".conf"
   # format is not supported).
