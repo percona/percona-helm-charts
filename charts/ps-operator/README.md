@@ -24,24 +24,29 @@ helm install my-operator percona/ps-operator --version 1.3.0 --namespace my-name
 
 The chart can be customized using the following configurable parameters:
 
-| Parameter               | Description                                                                                    | Default                                 |
-| ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `image.repository`      | PS Operator Container image name                                                               | `percona/percona-server-mysql-operator` |
-| `image.tag`             | PS Operator Container image tag                                                                | `1.3.0`                                 |
-| `image.pullPolicy`      | PS Operator Container pull policy                                                              | `Always`                                |
-| `imagePullSecrets`      | PS Operator Pod pull secret                                                                    | `[]`                                    |
-| `replicaCount`          | PS Operator Pod quantity                                                                       | `1`                                     |
-| `tolerations`           | List of node taints to tolerate                                                                | `[]`                                    |
-| `resources`             | Resource requests and limits                                                                   | `{}`                                    |
-| `nodeSelector`          | Labels for Pod assignment                                                                      | `{}`                                    |
-| `rbac.create`           | If false RBAC will not be created. RBAC resources will need to be created manually             | `true`                                  |
-| `serviceAccount.create` | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually | `true`                                  |
-| `env.logStructured`     | Enable JSON format for logs                                                                    | `false`                                 |
-| `env.logLevel`          | Set appropriate log level (INFO, DEBUG, ERROR)                                                 | `INFO`                                  |
-| `env.maxConcurrentReconciles` | Limits the number of parallel cluster reconciles                                         | `1`                                     |
-| `disableTelemetry`      | Disable sending PS Operator telemetry data to Percona                                          | `false`                                 |
-| `watchNamespace`        | Set this variable if the target cluster namespace differs from operator's namespace            | `.Release.Namespace`                    |
-| `watchAllNamespaces`    | Set if operator should be deployed in cluster-wide mode                                        | `false`                                 |
+| Parameter                      | Description                                                                                    | Default                                 |
+| ------------------------------ | ---------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `image.repository`             | PS Operator Container image name                                                               | `percona/percona-server-mysql-operator` |
+| `image.tag`                    | PS Operator Container image tag                                                                | `1.3.0`                                 |
+| `image.pullPolicy`             | PS Operator Container pull policy                                                              | `Always`                                |
+| `imagePullSecrets`             | PS Operator Pod pull secret                                                                    | `[]`                                    |
+| `replicaCount`                 | PS Operator Pod quantity                                                                       | `1`                                     |
+| `tolerations`                  | List of node taints to tolerate                                                                | `[]`                                    |
+| `resources`                    | Resource requests and limits                                                                   | `{}`                                    |
+| `nodeSelector`                 | Labels for Pod assignment                                                                      | `{}`                                    |
+| `rbac.create`                  | If false RBAC will not be created. RBAC resources will need to be created manually             | `true`                                  |
+| `serviceAccount.create`        | If false the ServiceAccounts will not be created. The ServiceAccounts must be created manually | `true`                                  |
+| `env.logStructured`            | Enable JSON format for logs                                                                    | `false`                                 |
+| `env.logLevel`                 | Set appropriate log level (INFO, DEBUG, ERROR)                                                 | `INFO`                                  |
+| `env.maxConcurrentReconciles`  | Limits the number of parallel cluster reconciles                                               | `1`                                     |
+| `disableTelemetry`             | Disable sending PS Operator telemetry data to Percona                                          | `false`                                 |
+| `watchNamespace`               | Set this variable if the target cluster namespace differs from operator's namespace            | `.Release.Namespace`                    |
+| `watchAllNamespaces`           | Set if operator should be deployed in cluster-wide mode                                        | `false`                                 |
+| `leaderElection.enabled`       | Enable leader election                                                                         | `true`                                  |
+| `leaderElection.leaseName`     | Lease name                                                                                     | `08db2feb.percona.com`                  |
+| `leaderElection.leaseDuration` | Time candidates wait after the last lease renewal before attempting to acquire leadership      | `60s`                                   |
+| `leaderElection.renewDeadline` | Time allowed to renew a lease                                                                  | `40s`                                   |
+| `leaderElection.retryPeriod`   | Time between election attempts                                                                 | `10s`                                   |
 
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
