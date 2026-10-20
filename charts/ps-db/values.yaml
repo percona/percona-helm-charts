@@ -76,7 +76,7 @@ mysql:
   autoRecovery: true
   autoConfig:
     enabled: true
-    version: "8.4"
+    version: 8.4.0
     loadType: someWrites
   # vaultSecretName: ps-cluster1-vault
   podDisruptionBudget:
