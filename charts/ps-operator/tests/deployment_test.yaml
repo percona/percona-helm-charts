@@ -1,0 +1,247 @@
+suite: ps-operator deployment
+templates:
+  - templates/deployment.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders the default operator deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: unit-ps-operator
+      - equal:
+          path: metadata.namespace
+          value: test-ns
+      - isSubset:
+          path: metadata.labels
+          content:
+            app.kubernetes.io/name: ps-operator
+            app.kubernetes.io/instance: unit
+            app.kubernetes.io/managed-by: Helm
+      - isSubset:
+          path: spec
+          content:
+            replicas: 1
+            selector:
+              matchLabels:
+                app.kubernetes.io/name: ps-operator
+                app.kubernetes.io/instance: unit
+            strategy:
+              rollingUpdate:
+                maxUnavailable: 1
+              type: RollingUpdate
+      - equal:
+          path: spec.template.metadata.labels
+          value:
+            app.kubernetes.io/name: ps-operator
+            app.kubernetes.io/instance: unit
+      - isSubset:
+          path: spec.template.spec
+          content:
+            serviceAccountName: unit-ps-operator
+            terminationGracePeriodSeconds: 10
+            securityContext:
+              runAsNonRoot: true
+      - notExists:
+          path: spec.template.spec.imagePullSecrets
+      - notExists:
+          path: spec.template.spec.nodeSelector
+      - notExists:
+          path: spec.template.spec.affinity
+      - notExists:
+          path: spec.template.spec.tolerations
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: '^percona/percona-server-mysql-operator:.+$'
+      - isSubset:
+          path: spec.template.spec.containers[0]
+          content:
+            name: manager
+            imagePullPolicy: Always
+            command:
+              - /usr/local/bin/percona-server-mysql-operator
+            env:
+              - name: LOG_STRUCTURED
+                value: "false"
+              - name: LOG_LEVEL
+                value: INFO
+              - name: WATCH_NAMESPACE
+                value: test-ns
+              - name: DISABLE_TELEMETRY
+                value: "false"
+              - name: PSO_LEADER_ELECTION_ENABLED
+                value: "true"
+              - name: PSO_LEADER_ELECTION_LEASE_NAME
+                value: 08db2feb.percona.com
+              - name: PSO_LEADER_ELECTION_LEASE_DURATION
+                value: 60s
+              - name: PSO_LEADER_ELECTION_RENEW_DEADLINE
+                value: 40s
+              - name: PSO_LEADER_ELECTION_RETRY_PERIOD
+                value: 10s
+              - name: MAX_CONCURRENT_RECONCILES
+                value: "1"
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.name
+              - name: POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.namespace
+            livenessProbe:
+              httpGet:
+                path: /healthz
+                port: 8081
+              initialDelaySeconds: 15
+              periodSeconds: 20
+            readinessProbe:
+              httpGet:
+                path: /readyz
+                port: 8081
+              initialDelaySeconds: 5
+              periodSeconds: 10
+            resources: {}
+            securityContext:
+              allowPrivilegeEscalation: false
+
+  - it: renders changed default deployment values
+    values:
+      - values/deployment-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value:
+            - name: pull-secret
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            disktype: ssd
+      - equal:
+          path: spec.template.spec.affinity
+          value:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: zone
+                        operator: In
+                        values:
+                          - a
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: test
+              operator: Exists
+              effect: NoSchedule
+      - isSubset:
+          path: spec.template.spec.containers[0]
+          content:
+            image: operator:dummy
+            imagePullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: LOG_STRUCTURED
+              value: "true"
+            - name: LOG_LEVEL
+              value: DEBUG
+            - name: WATCH_NAMESPACE
+              value: test-ns
+            - name: DISABLE_TELEMETRY
+              value: "true"
+            - name: PSO_LEADER_ELECTION_ENABLED
+              value: "true"
+            - name: PSO_LEADER_ELECTION_LEASE_NAME
+              value: custom-lease
+            - name: PSO_LEADER_ELECTION_LEASE_DURATION
+              value: 30s
+            - name: PSO_LEADER_ELECTION_RENEW_DEADLINE
+              value: 20s
+            - name: PSO_LEADER_ELECTION_RETRY_PERIOD
+              value: 5s
+            - name: MAX_CONCURRENT_RECONCILES
+              value: "3"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+
+  - it: renders an empty watch namespace for cluster-wide mode
+    set:
+      watchAllNamespaces: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: ""
+
+  - it: renders a specific watch namespace when configured
+    set:
+      watchNamespace: watch-ns
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WATCH_NAMESPACE
+            value: watch-ns
+
+  - it: renders leader election explicitly disabled
+    set:
+      leaderElection.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PSO_LEADER_ELECTION_ENABLED
+            value: "false"
+
+  - it: skips leader election env vars when leaderElection is unset
+    set:
+      leaderElection: null
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PSO_LEADER_ELECTION_ENABLED
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PSO_LEADER_ELECTION_LEASE_NAME
+          any: true
+
+  - it: uses fullnameOverride for resource and service account names
+    set:
+      fullnameOverride: custom-operator
+    asserts:
+      - equal:
+          path: metadata.name
+          value: custom-operator
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: custom-operator

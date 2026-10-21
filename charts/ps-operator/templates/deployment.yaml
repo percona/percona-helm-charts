@@ -38,7 +38,7 @@ spec:
         - name: DISABLE_TELEMETRY
           value: "{{ .Values.disableTelemetry }}"
           {{- if .Values.leaderElection }}
-          {{- if .Values.leaderElection.enabled }}
+          {{- if hasKey .Values.leaderElection "enabled" }}
         - name: PSO_LEADER_ELECTION_ENABLED
           value: "{{ .Values.leaderElection.enabled }}"
           {{- end }}
