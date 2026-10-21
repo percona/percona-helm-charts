@@ -54,3 +54,13 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{/* Render the selected PodDisruptionBudget bound for a cluster component. */}}
+{{- define "psmdb-database.podDisruptionBudget" -}}
+podDisruptionBudget:
+{{- if hasKey . "maxUnavailable" }}
+  maxUnavailable: {{ .maxUnavailable }}
+{{- else }}
+  minAvailable: {{ .minAvailable }}
+{{- end }}
+{{- end -}}

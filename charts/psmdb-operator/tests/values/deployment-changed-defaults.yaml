@@ -1,0 +1,59 @@
+replicaCount: 2
+revisionHistoryLimit: 5
+image:
+  repository: operator
+  tag: dummy
+  pullPolicy: Always
+imagePullSecrets:
+  - name: pull-secret
+resources:
+  requests:
+    cpu: 1m
+    memory: 1Mi
+  limits:
+    cpu: 2m
+    memory: 2Mi
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 2
+nodeSelector:
+  disktype: ssd
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: zone
+              operator: In
+              values:
+                - a
+tolerations:
+  - key: test
+    operator: Exists
+    effect: NoSchedule
+podAnnotations:
+  test: annotation
+logStructured: true
+logLevel: DEBUG
+disableTelemetry: true
+maxConcurrentReconciles: "2"
+env:
+  resyncPeriod: 10s
+  reconcileInterval: 15s
+operatorName: custom-operator
+certManagerNamespace: custom-cert-manager
+livenessProbe:
+  failureThreshold: 5
+  httpGet:
+    path: /healthz
+    port: health
+    scheme: HTTP
+readinessProbe:
+  failureThreshold: 4
+  httpGet:
+    path: /readyz
+    port: health
+    scheme: HTTP
