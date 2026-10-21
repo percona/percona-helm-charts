@@ -32,3 +32,14 @@ tests:
           value:
             app.kubernetes.io/name: psmdb-operator
             app.kubernetes.io/instance: unit
+
+  - it: renders maxUnavailable zero when set
+    set:
+      podDisruptionBudget.enabled: true
+      podDisruptionBudget.maxUnavailable: 0
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 0
+      - notExists:
+          path: spec.minAvailable
