@@ -25,14 +25,27 @@ tests:
               resources:
                 - pods
               verbs:
+                - get
                 - list
                 - patch
+            - apiGroups:
+                - ""
+              resources:
+                - pods/exec
+              verbs:
+                - create
             - apiGroups:
                 - ps.percona.com
               resources:
                 - perconaservermysqls
               verbs:
                 - get
+            - apiGroups:
+                - ""
+              resources:
+                - events
+              verbs:
+                - create
 
   - it: renders the orchestrator service account and role binding
     templates:

@@ -12,7 +12,7 @@ tests:
           pattern: '^percona/percona-server:.+$'
       - matchRegex:
           path: spec.mysql.autoConfig.version
-          pattern: '^\d+\.\d+$'
+          pattern: '^\d+\.\d+\.\d+$'
       - isSubset:
           path: spec.mysql.autoConfig
           content:
