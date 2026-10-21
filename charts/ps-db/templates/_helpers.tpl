@@ -48,6 +48,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 Resources with optional requests and limits
 */}}
 {{- define "ps-db.resources" -}}
+{{- if or (hasKey .resources "requests") (hasKey .resources "limits") -}}
 resources:
   {{- if hasKey .resources "requests" }}
   requests:
@@ -58,11 +59,14 @@ resources:
     {{- tpl (toYaml .resources.limits) .root | nindent 4 }}
   {{- end }}
 {{- end -}}
+{{- end -}}
 
 {{/*
 Init container. Image is omitted when empty so the operator picks its default.
 */}}
 {{- define "ps-db.initContainer" -}}
+{{- $resources := include "ps-db.resources" (dict "resources" (.initContainer.resources | default dict) "root" .root) -}}
+{{- if or .initContainer.image .initContainer.containerSecurityContext $resources -}}
 initContainer:
   {{- with .initContainer.image }}
   image: {{ . }}
@@ -71,7 +75,8 @@ initContainer:
   containerSecurityContext:
     {{- tpl (toYaml .) $.root | nindent 4 }}
   {{- end }}
-  {{- with .initContainer.resources }}
-  {{- include "ps-db.resources" (dict "resources" . "root" $.root) | nindent 2 }}
+  {{- with $resources }}
+  {{- . | nindent 2 }}
   {{- end }}
+{{- end -}}
 {{- end -}}

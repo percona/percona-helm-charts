@@ -195,6 +195,31 @@ tests:
               requests:
                 cpu: 1m
 
+  - it: omits init containers that have no fields to render
+    set:
+      initContainer.image: ""
+      mysql.initContainer.image: ""
+      proxy.haproxy.initContainer.resources.foo: bar
+      proxy.router.enabled: true
+      proxy.router.initContainer.image: ""
+      backup.initContainer.image: ""
+      mysql.clusterType: async
+      orchestrator.enabled: true
+      orchestrator.initContainer.image: ""
+    asserts:
+      - notExists:
+          path: spec.initContainer
+      - notExists:
+          path: spec.mysql.initContainer
+      - notExists:
+          path: spec.proxy.haproxy.initContainer
+      - notExists:
+          path: spec.proxy.router.initContainer
+      - notExists:
+          path: spec.backup.initContainer
+      - notExists:
+          path: spec.orchestrator.initContainer
+
   - it: truncates the cluster name to 21 characters
     release:
       name: my-very-long-release
