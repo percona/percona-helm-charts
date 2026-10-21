@@ -11,17 +11,34 @@ on:
     - '.github/workflows/unit-test.yaml'
 
 jobs:
+  detect:
+    name: Detect changed charts
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            common: &common
+              - 'Makefile'
+              - '.github/workflows/unit-test.yaml'
+            pxc-operator: [*common, 'charts/pxc-operator/**']
+            pxc-db: [*common, 'charts/pxc-db/**']
+            ps-operator: [*common, 'charts/ps-operator/**']
+            ps-db: [*common, 'charts/ps-db/**']
+
   unit-test:
-    name: Helm Unit Tests (${{ matrix.target }})
+    name: Helm Unit Tests (test-${{ matrix.chart }})
+    needs: detect
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - test-pxc-operator
-          - test-pxc-db
-          - test-ps-operator
-          - test-ps-db
+        chart: ${{ fromJson(needs.detect.outputs.charts) }}
+        exclude:
+          - chart: common
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -34,5 +51,5 @@ jobs:
       - name: Install helm-unittest plugin
         run: make helm-unittest
 
-      - name: Run ${{ matrix.target }}
-        run: make ${{ matrix.target }}
+      - name: Run test-${{ matrix.chart }}
+        run: make test-${{ matrix.chart }}
