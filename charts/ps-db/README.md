@@ -70,7 +70,7 @@ The chart can be customized using the following configurable parameters:
 | `mysql.podDisruptionBudget.maxUnavailable`        | MySQL failed Pods maximum quantity                                                                                                                            | `1`                        |
 | `mysql.podDisruptionBudget.minAvailable`          | MySQL available Pods minimum quantity                                                                                                                         | ``                         |
 | `mysql.image.repository`                          | MySQL Container image repository                                                                                                                              | `percona/percona-server`   |
-| `mysql.image.tag`                                 | MySQL Container image tag                                                                                                                                     | `8.4.10-10.1`              |
+| `mysql.image.tag`                                 | MySQL Container image tag                                                                                                                                     | `8.4.11-11.1`              |
 | `mysql.imagePullPolicy`                           | The policy used to update images                                                                                                                              | `Always`                   |
 | `mysql.imagePullSecrets`                          | MySQL Container pull secret                                                                                                                                   | `[]`                       |
 | `mysql.initContainer.image`                       | An alternative image for the initial Operator installation                                                                                                    | `""`                       |
@@ -87,7 +87,7 @@ The chart can be customized using the following configurable parameters:
 | `mysql.schedulerName`                             | The Kubernetes Scheduler                                                                                                                                      | `""`                       |
 | `mysql.resources.requests`                        | MySQL Pods resource requests                                                                                                                                  | `memory: 4Gi, cpu: 2`      |
 | `mysql.resources.limits`                          | MySQL Pods resource limits                                                                                                                                    | `memory: 8Gi, cpu: 4`      |
-| `mysql.startupProbe`                             | MySQL Pods startupProbe structure                                                                                                                              | `{}`                       |
+| `mysql.startupProbe`                              | MySQL Pods startupProbe structure                                                                                                                             | `{}`                       |
 | `mysql.livenessProbe`                             | MySQL Pods livenessProbe structure                                                                                                                            | `{}`                       |
 | `mysql.readinessProbe`                            | MySQL Pods readinessProbe structure                                                                                                                           | `{}`                       |
 | `mysql.nodeSelector`                              | MySQL Pods key-value pairs setting for K8S node assignment                                                                                                    | `{}`                       |
@@ -176,7 +176,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `proxy.router.enabled`                                | Enable/Disable Router pods in group replication                                                                                                           | `false`                        |
 | `proxy.router.image.repository`                       | Router Container image repository                                                                                                                         | `percona/percona-mysql-router` |
-| `proxy.router.image.tag`                              | Router Container image tag                                                                                                                                | `8.4.10`                       |
+| `proxy.router.image.tag`                              | Router Container image tag                                                                                                                                | `8.4.11`                       |
 | `proxy.router.imagePullPolicy`                        | The policy used to update images                                                                                                                          | `Always`                       |
 | `proxy.router.imagePullSecrets`                       | Router Container pull secret                                                                                                                              | `[]`                           |
 | `proxy.router.initContainer.image`                    | An alternative image for the initial Operator installation                                                                                                | `""`                           |
@@ -218,7 +218,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `orchestrator.enabled`                                   | Enable/Disable orchestrator pods in async replication                                                                                                     | `true`                         |
 | `orchestrator.image.repository`                          | Orchestrator Container image repository                                                                                                                   | `percona/percona-orchestrator` |
-| `orchestrator.image.tag`                                 | Orchestrator Container image tag                                                                                                                          | `3.2.6-22`                     |
+| `orchestrator.image.tag`                                 | Orchestrator Container image tag                                                                                                                          | `3.2.6-24`                     |
 | `orchestrator.imagePullPolicy`                           | The policy used to update images                                                                                                                          | `Always`                       |
 | `orchestrator.imagePullSecrets`                          | Orchestrator Container pull secret                                                                                                                        | `[]`                           |
 | `orchestrator.serviceAccountName`                        | A custom service account to be used instead of the default one                                                                                            | `""`                           |
@@ -268,7 +268,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `pmm.enabled`                             | Enable integration with [Percona Monitoring and Management software](https://docs.percona.com/pmm/)                                                                                               | `false`                             |
 | `pmm.image.repository`                    | PMM Container image repository                                                                                                                                                                    | `percona/pmm-client`                |
-| `pmm.image.tag`                           | PMM Container image tag                                                                                                                                                                           | `3.8.1`                             |
+| `pmm.image.tag`                           | PMM Container image tag                                                                                                                                                                           | `3.9.1`                             |
 | `pmm.imagePullPolicy`                     | The policy used to update images                                                                                                                                                                  | ``                                  |
 | `pmm.readinessProbe.failureThreshold`     | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                   | `5`                                 |
 | `pmm.readinessProbe.initialDelaySeconds`  | Number of seconds after the container has started before liveness or readiness probes are initiated                                                                                               | `15`                                |
@@ -281,9 +281,9 @@ The chart can be customized using the following configurable parameters:
 | `pmm.livenessProbe.successThreshold`      | Minimum consecutive successes for the probe to be considered successful after having failed                                                                                                       | `1`                                 |
 | `pmm.livenessProbe.timeoutSeconds`        | Number of seconds after which the probe times out                                                                                                                                                 | `5`                                 |
 | `pmm.serverHost`                          | PMM server related K8S service hostname                                                                                                                                                           | `monitoring-service`                |
-| `pmm.mysqlParams`                         | Additional parameters which will be passed to the pmm-admin add mysql command for `mysql` Pods | `""`                                |
-| `pmm.haproxyParams`                       | Additional parameters which will be passed to the pmm-admin add haproxy command for `haproxy` Pods     | `""`                                |
-| `pmm.customClusterName`                  | Cluster name in pmm                                                                                                                                                                                | `""`                                |    
+| `pmm.mysqlParams`                         | Additional parameters which will be passed to the pmm-admin add mysql command for `mysql` Pods                                                                                                    | `""`                                |
+| `pmm.haproxyParams`                       | Additional parameters which will be passed to the pmm-admin add haproxy command for `haproxy` Pods                                                                                                | `""`                                |
+| `pmm.customClusterName`                   | Cluster name in pmm                                                                                                                                                                               | `""`                                |    
 | `pmm.resources.requests`                  | PMM Container resource requests                                                                                                                                                                   | `{"memory": "150M", "cpu": "300m"}` |
 | `pmm.resources.limits`                    | PMM Container resource limits                                                                                                                                                                     | `{}`                                |
 ||
@@ -321,33 +321,33 @@ The chart can be customized using the following configurable parameters:
 | `users.passwordSecretRef.name`   | Name of the Secret that contains the user's password                   | `""`       |
 | `users.passwordSecretRef.key`    | Key in the Secret that corresponds to the value of the user's password | `password` |
 ||
-| `backup.enabled`                                | Enable backups                                                                              | `true`                       |
-| `backup.sourcePod`                              | Specify backup source pod                                                                   | ``                           |
-| `backup.encryptionKeySecret.name`               | Name of the Kubernetes Secret with the backup encryption key                                | ``                           |
-| `backup.encryptionKeySecret.key`                | Key in the Secret that contains the backup encryption key                                   | `encryptionKey`              |
-| `backup.image.repository`                       | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
-| `backup.image.tag`                              | Backup Container image tag                                                                  | `8.4.0-6.1`                  |
-| `backup.backoffLimit`                           | The number of retries to make a backup                                                      | ``                           |
-| `backup.startingDeadlineSeconds`                | The maximum time in seconds for a backup to start                                           | `0`                          |
-| `backup.suspendedDeadlineSeconds`               | The maximum time in seconds for a backup to remain in a suspended state                     | `0`                          |
-| `backup.imagePullPolicy`                        | The policy used to update images                                                            | `Always`                     |
-| `backup.imagePullSecrets`                       | Backup Container pull secret                                                                | `[]`                         |
-| `backup.initContainer.image`                    | An alternative image for the initial Operator installation                                  | `""`                         |
-| `backup.initContainer.containerSecurityContext` | A custom Kubernetes Security Context for an init container                                  | `{}`                         |
-| `backup.initContainer.resources.requests`       | Init container resource requests                                                            | `{}`                         |
-| `backup.initContainer.resources.limits`         | Init container resource limits                                                              | `{}`                         |
-| `backup.serviceAccountName`                     | Run Backup Container under specified K8S SA                                                 | `""`                         |
-| `backup.containerSecurityContext`               | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                         |
-| `backup.resources`                              | Backup Pods resource requests and limits                                                    | `{}`                         |
-| `backup.storages`                               | Local/remote backup storages settings                                                       | `{}`                         |
-| `backup.storages.[storage-name].s3.caBundle.name` | Name of the Secret containing the CA certificate for an S3-compatible storage              | `""`                         |
+| `backup.enabled`                                  | Enable backups                                                                              | `true`                       |
+| `backup.sourcePod`                                | Specify backup source pod                                                                   | ``                           |
+| `backup.encryptionKeySecret.name`                 | Name of the Kubernetes Secret with the backup encryption key                                | ``                           |
+| `backup.encryptionKeySecret.key`                  | Key in the Secret that contains the backup encryption key                                   | `encryptionKey`              |
+| `backup.image.repository`                         | Backup Container image repository                                                           | `percona/percona-xtrabackup` |
+| `backup.image.tag`                                | Backup Container image tag                                                                  | `8.4.0-6.1`                  |
+| `backup.backoffLimit`                             | The number of retries to make a backup                                                      | ``                           |
+| `backup.startingDeadlineSeconds`                  | The maximum time in seconds for a backup to start                                           | `0`                          |
+| `backup.suspendedDeadlineSeconds`                 | The maximum time in seconds for a backup to remain in a suspended state                     | `0`                          |
+| `backup.imagePullPolicy`                          | The policy used to update images                                                            | `Always`                     |
+| `backup.imagePullSecrets`                         | Backup Container pull secret                                                                | `[]`                         |
+| `backup.initContainer.image`                      | An alternative image for the initial Operator installation                                  | `""`                         |
+| `backup.initContainer.containerSecurityContext`   | A custom Kubernetes Security Context for an init container                                  | `{}`                         |
+| `backup.initContainer.resources.requests`         | Init container resource requests                                                            | `{}`                         |
+| `backup.initContainer.resources.limits`           | Init container resource limits                                                              | `{}`                         |
+| `backup.serviceAccountName`                       | Run Backup Container under specified K8S SA                                                 | `""`                         |
+| `backup.containerSecurityContext`                 | A custom Kubernetes Security Context for a Container to be used instead of the default one  | `{}`                         |
+| `backup.resources`                                | Backup Pods resource requests and limits                                                    | `{}`                         |
+| `backup.storages`                                 | Local/remote backup storages settings                                                       | `{}`                         |
+| `backup.storages.[storage-name].s3.caBundle.name` | Name of the Secret containing the CA certificate for an S3-compatible storage               | `""`                         |
 | `backup.storages.[storage-name].s3.caBundle.key`  | Key in the CA bundle Secret containing the CA certificate                                   | `ca.crt`                     |
-| `backup.schedule`                               | Backup execution timetable                                                                  | `[]`                         |
-| `backup.schedule.[0].name`                      | Backup execution timetable name                                                             | `daily-backup`               |
-| `backup.schedule.[0].type`                      | Backup type (`full` or `incremental`)                                                       | `full`                       |
-| `backup.schedule.[0].schedule`                  | Backup execution timetable cron timing                                                      | `0 0 * * *`                  |
-| `backup.schedule.[0].keep`                      | Backup items to keep                                                                        | `5`                          |
-| `backup.schedule.[0].storageName`               | Backup target storage                                                                       | `fs-pvc`                     |
+| `backup.schedule`                                 | Backup execution timetable                                                                  | `[]`                         |
+| `backup.schedule.[0].name`                        | Backup execution timetable name                                                             | `daily-backup`               |
+| `backup.schedule.[0].type`                        | Backup type (`full` or `incremental`)                                                       | `full`                       |
+| `backup.schedule.[0].schedule`                    | Backup execution timetable cron timing                                                      | `0 0 * * *`                  |
+| `backup.schedule.[0].keep`                        | Backup items to keep                                                                        | `5`                          |
+| `backup.schedule.[0].storageName`                 | Backup target storage                                                                       | `fs-pvc`                     |
 ||
 | `backup.pitr.enabled`                                          | Enable point-in-time recovery                                                    | `false`                                                            |
 | `backup.pitr.binlogServer.image`                               | Binlog server Container image                                                    | `perconalab/percona-binlog-server:0.3.1`                           |
