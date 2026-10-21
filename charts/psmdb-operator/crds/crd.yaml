@@ -424,6 +424,14 @@ spec:
       jsonPath: .status.lagTimeSeconds
       name: Lag(s)
       type: integer
+    - description: Ready PCSM instances
+      jsonPath: .status.readyReplicas
+      name: Ready
+      type: integer
+    - description: Pod holding the PCSM lease
+      jsonPath: .status.activeInstance
+      name: Active
+      type: string
     - description: Created time
       jsonPath: .metadata.creationTimestamp
       name: Age
@@ -1170,6 +1178,19 @@ spec:
                     - error
                     type: string
                 type: object
+              podDisruptionBudget:
+                properties:
+                  maxUnavailable:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    x-kubernetes-int-or-string: true
+                  minAvailable:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    x-kubernetes-int-or-string: true
+                type: object
               podSecurityContext:
                 properties:
                   appArmorProfile:
@@ -1365,6 +1386,11 @@ spec:
                 type: object
               runtimeClassName:
                 type: string
+              size:
+                default: 1
+                format: int32
+                minimum: 1
+                type: integer
               source:
                 properties:
                   credentialsSecret:
@@ -1398,6 +1424,8 @@ spec:
             type: object
           status:
             properties:
+              activeInstance:
+                type: string
               conditions:
                 items:
                   properties:
@@ -1445,6 +1473,12 @@ spec:
                 - running
                 - finalized
                 type: string
+              readyReplicas:
+                format: int32
+                type: integer
+              size:
+                format: int32
+                type: integer
               startedAt:
                 format: date-time
                 type: string
