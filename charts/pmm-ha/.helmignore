@@ -21,3 +21,12 @@
 .idea/
 *.tmproj
 .vscode/
+
+# Dev-only harnesses for files/pmm-backup.sh (see the Makefile and the backup-script-tests CI
+# job). They source the orchestrator as a library and stub the storage layer, so they are of no
+# use to a chart consumer and ~49KB of shell in every release tarball.
+tests/
+
+# Read on GitHub; every packaged file is stored in each Helm release Secret (1 MiB cap), docs/ was
+# ~140 KB of it (PMM-13858 review #5). examples/ stays: the README's `-f examples/...` needs it.
+docs/

@@ -7,7 +7,14 @@ metadata:
     {{- include "pmm.labels" . | nindent 4 }}
 data:
 # environment passed to the PMM
-  {{- with .Values.pmmEnv }}
+  {{- /* A null is how --set deletes a key, so it is dropped rather than rendered as "null". */}}
+  {{- $env := dict }}
+  {{- range $k, $v := .Values.pmmEnv }}
+    {{- if not (kindIs "invalid" $v) }}
+      {{- $_ := set $env $k $v }}
+    {{- end }}
+  {{- end }}
+  {{- with $env }}
     {{- . | toYaml | nindent 6 }}
   {{- end }}
 {{- end }}
