@@ -238,6 +238,143 @@ pmmEnv:
   PMM_DATA_RETENTION: "2160h" # 90 days
 ```
 
+### Kubernetes cluster monitoring for Percona Everest (optional)
+
+[Percona Everest](https://github.com/openeverest/openeverest) ships database metrics to a PMM instance through its `MonitoringConfig` custom resource. That mechanism only needs the VictoriaMetrics Operator CRDs (`VMAgent`) to be present in the cluster — Everest itself no longer bundles or installs the operator.
+
+If you also want full Kubernetes cluster infrastructure metrics (nodes, pods, `kube-state-metrics`) shipped into this PMM instance — the way Everest used to bundle by default — you can recreate that setup yourself with a handful of commands. None of this is required for Everest's core "ship database metrics to PMM" flow; it only adds cluster-wide infra visibility.
+
+1. Install the VictoriaMetrics Operator. It provides the `VMAgent` CRD that Everest's `MonitoringConfig` controller uses, as well as the `VMServiceScrape`/`VMNodeScrape`/`VMPodScrape` CRDs used by the scrape resources below:
+
+   ```sh
+   helm repo add vm https://victoriametrics.github.io/helm-charts/
+   helm repo update
+
+   helm install vm-operator vm/victoria-metrics-operator \
+     --namespace everest-monitoring --create-namespace \
+     --set admissionWebhooks.enabled=true
+   ```
+
+   > Use the same namespace here as the `monitoringNamespace` value configured for the `everest` Helm chart (`everest-monitoring` by default), since that is the namespace Everest's controller uses for the `VMAgent` and credentials `Secret` it creates.
+
+2. Install `kube-state-metrics` to expose cluster/object-level metrics:
+
+   ```sh
+   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+   helm repo update
+
+   helm install kube-state-metrics prometheus-community/kube-state-metrics \
+     --namespace everest-monitoring
+   ```
+
+3. Apply the scrape resources so the operator starts collecting `kube-state-metrics`, cAdvisor, kubelet, and PMM-client pod metrics:
+
+   ```sh
+   kubectl apply -n everest-monitoring -f - <<'EOF'
+   apiVersion: operator.victoriametrics.com/v1beta1
+   kind: VMServiceScrape
+   metadata:
+     name: kube-state-metrics
+   spec:
+     jobLabel: app.kubernetes.io/name
+     namespaceSelector: {}
+     endpoints:
+       - scheme: http
+         port: http
+         honorLabels: true
+     selector:
+       matchLabels:
+         app.kubernetes.io/name: kube-state-metrics
+   ---
+   apiVersion: operator.victoriametrics.com/v1beta1
+   kind: VMNodeScrape
+   metadata:
+     name: pmm-vm-cadvisor-metrics
+   spec:
+     scheme: "https"
+     interval: "10s"
+     honorLabels: true
+     scrapeTimeout: "2s"
+     selector: {}
+     tlsConfig:
+       insecureSkipVerify: true
+       caFile: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+     bearerTokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+     relabelConfigs:
+       - action: labelmap
+         regex: __meta_kubernetes_node_label_(.+)
+       - targetLabel: __address__
+         replacement: kubernetes.default.svc:443
+       - sourceLabels: [__meta_kubernetes_node_name]
+         regex: (.+)
+         targetLabel: __metrics_path__
+         replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+     metricRelabelConfigs:
+       - action: labeldrop
+         regex: cloud_google_com.*
+       - source_labels: [namespace, pod]
+         target_label: node_name
+         regex: (.+);(.+)
+         replacement: $1-$2
+   ---
+   apiVersion: operator.victoriametrics.com/v1beta1
+   kind: VMNodeScrape
+   metadata:
+     name: pmm-vm-kubelet-metrics
+   spec:
+     bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+     honorLabels: true
+     interval: 30s
+     metricRelabelConfigs:
+       - action: labeldrop
+         regex: (uid)
+       - action: labeldrop
+         regex: (id|name)
+       - action: drop
+         regex: (rest_client_request_duration_seconds_bucket|rest_client_request_duration_seconds_sum|rest_client_request_duration_seconds_count)
+         source_labels: [__name__]
+       - action: labeldrop
+         regex: cloud_google_com.*
+     relabelConfigs:
+       - action: labelmap
+         regex: __meta_kubernetes_node_label_(.+)
+       - sourceLabels: [__metrics_path__]
+         targetLabel: metrics_path
+       - replacement: kubelet
+         targetLabel: job
+     scheme: https
+     scrapeTimeout: 5s
+     tlsConfig:
+       caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+       insecureSkipVerify: true
+   ---
+   apiVersion: operator.victoriametrics.com/v1beta1
+   kind: VMPodScrape
+   metadata:
+     name: pmm-vm-pod-scrape
+   spec:
+     podMetricsEndpoints:
+       - port: metrics
+         scheme: http
+     selector:
+       matchLabels:
+         monitored-by: vm-operator
+   EOF
+   ```
+
+4. Create a `MonitoringConfig` in Everest pointing at this PMM instance (see the [Everest monitoring documentation](https://docs.percona.com/everest/monitoring/overview.html)). Everest's `MonitoringConfig` controller will create a `VMAgent` resource using the operator installed above, which both ships database metrics and remote-writes the cluster metrics collected by the scrape resources above into this PMM instance.
+
+To remove the optional cluster-monitoring setup, reverse the steps above:
+
+```sh
+kubectl delete -n everest-monitoring \
+  vmservicescrape/kube-state-metrics \
+  vmnodescrape/pmm-vm-cadvisor-metrics vmnodescrape/pmm-vm-kubelet-metrics \
+  vmpodscrape/pmm-vm-pod-scrape
+helm uninstall kube-state-metrics --namespace everest-monitoring
+helm uninstall vm-operator --namespace everest-monitoring
+```
+
 # Need help?
 
 **Commercial Support**  | **Community Support** |
