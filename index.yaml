@@ -3902,6 +3902,26 @@ entries:
     version: 0.1.0
   pmm:
   - apiVersion: v2
+    appVersion: 3.10.0
+    created: "2026-10-22T12:18:56.280175087Z"
+    description: A Helm chart for Percona Monitoring and Management (PMM)
+    digest: 155015f3c65b405bd7bdbc33acd34f2aa27d6ed150199e98b2361bfd923c4b44
+    home: https://github.com/percona/pmm
+    icon: https://raw.githubusercontent.com/percona/pmm/v3/documentation/docs/assets/pmm-logo.png
+    keywords:
+    - PMM
+    - Monitoring
+    maintainers:
+    - email: tibor.korocz@percona.com
+      name: tibi
+    - email: alexander.demidoff@percona.com
+      name: alex
+    name: pmm
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-1.10.0/pmm-1.10.0.tgz
+    version: 1.10.0
+  - apiVersion: v2
     appVersion: 3.9.1
     created: "2026-08-19T16:46:06.110032454Z"
     description: A Helm chart for Percona Monitoring and Management (PMM)
@@ -5539,6 +5559,42 @@ entries:
     version: 0.1.0
   pmm-ha:
   - apiVersion: v2
+    appVersion: 3.10.0
+    created: "2026-10-22T12:18:56.523119599Z"
+    dependencies:
+    - name: haproxy
+      repository: https://haproxytech.github.io/helm-charts/
+      version: 1.24.0
+    - name: pg-db
+      repository: https://percona.github.io/percona-helm-charts/
+      version: 3.1.0
+    - condition: kube-state-metrics.enabled
+      name: kube-state-metrics
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 7.0.1
+    - condition: prometheus-node-exporter.enabled
+      name: prometheus-node-exporter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 4.51.0
+    description: A Helm chart for Percona Monitoring and Management (PMM)
+    digest: 82e64f53f4465f0905edb60125102315c5a93f9f811e73f655ab4c396af8b1c1
+    home: https://github.com/percona/pmm
+    icon: https://raw.githubusercontent.com/percona/pmm/v3/documentation/docs/assets/pmm-logo.png
+    keywords:
+    - PMM
+    - Monitoring
+    kubeVersion: '>=1.32.0-0'
+    maintainers:
+    - email: tibor.korocz@percona.com
+      name: tibi
+    - email: alexander.demidoff@percona.com
+      name: alex
+    name: pmm-ha
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-ha-1.8.0/pmm-ha-1.8.0.tgz
+    version: 1.8.0
+  - apiVersion: v2
     appVersion: 3.9.1
     created: "2026-08-19T16:46:06.272559631Z"
     dependencies:
@@ -5784,6 +5840,38 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/pmm-ha-1.3.23/pmm-ha-1.3.23.tgz
     version: 1.3.23
   pmm-ha-dependencies:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-10-22T12:18:56.916744984Z"
+    dependencies:
+    - name: victoria-metrics-operator
+      repository: https://victoriametrics.github.io/helm-charts/
+      version: 0.67.3
+    - name: altinity-clickhouse-operator
+      repository: https://helm.altinity.com
+      version: 0.27.3
+    - name: pg-operator
+      repository: https://percona.github.io/percona-helm-charts/
+      version: 3.1.0
+    description: Kubernetes operators required for PMM HA deployment
+    digest: 8d67926fc21feb9a95e9a3fd6c7c69d586485d737d0590e09da2ad487bf74fc3
+    home: https://github.com/percona/percona-helm-charts
+    icon: https://www.percona.com/sites/default/files/pmm-logo.png
+    keywords:
+    - PMM
+    - Operators
+    - Dependencies
+    kubeVersion: '>=1.32.0-0'
+    maintainers:
+    - email: tibor.korocz@percona.com
+      name: tibi
+    - email: alexander.demidoff@percona.com
+      name: alex
+    name: pmm-ha-dependencies
+    type: application
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/pmm-ha-dependencies-1.2.0/pmm-ha-dependencies-1.2.0.tgz
+    version: 1.2.0
   - apiVersion: v2
     appVersion: 1.0.0
     created: "2026-02-10T17:17:42.619153435Z"
@@ -9976,4 +10064,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2026-10-05T18:50:14.101542637Z"
+generated: "2026-10-22T12:18:56.917608546Z"
