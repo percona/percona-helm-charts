@@ -30,7 +30,7 @@ helm-unittest:
 	$(HELM) plugin install https://github.com/helm-unittest/helm-unittest.git
 
 .PHONY: test
-test: test-pxc-operator test-pxc-db test-pmm-ha
+test: test-pxc-operator test-pxc-db test-pmm-ha test-pmm-backup
 
 .PHONY: test-pxc-operator
 test-pxc-operator:
