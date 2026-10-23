@@ -267,7 +267,7 @@ If you also want full Kubernetes cluster infrastructure metrics (nodes, pods, `k
      --namespace everest-monitoring
    ```
 
-3. Apply the scrape resources so the operator starts collecting `kube-state-metrics`, cAdvisor, kubelet, and PMM-client pod metrics:
+3. Apply the scrape resources so the operator starts collecting `kube-state-metrics`, cAdvisor, kubelet, and PMM-client pod metrics. The cAdvisor scrape hits each node's kubelet directly on `/metrics/cadvisor` rather than proxying through the API server, since recent VictoriaMetrics Operator versions no longer grant the `VMAgent` service account `nodes/proxy` RBAC by default (that permission can be used for privilege escalation, see [VictoriaMetrics/operator#1753](https://github.com/VictoriaMetrics/operator/issues/1753)):
 
    ```sh
    kubectl apply -n everest-monitoring -f - <<'EOF'
@@ -295,6 +295,7 @@ If you also want full Kubernetes cluster infrastructure metrics (nodes, pods, `k
      interval: "10s"
      honorLabels: true
      scrapeTimeout: "2s"
+     path: /metrics/cadvisor
      selector: {}
      tlsConfig:
        insecureSkipVerify: true
@@ -303,12 +304,6 @@ If you also want full Kubernetes cluster infrastructure metrics (nodes, pods, `k
      relabelConfigs:
        - action: labelmap
          regex: __meta_kubernetes_node_label_(.+)
-       - targetLabel: __address__
-         replacement: kubernetes.default.svc:443
-       - sourceLabels: [__meta_kubernetes_node_name]
-         regex: (.+)
-         targetLabel: __metrics_path__
-         replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
      metricRelabelConfigs:
        - action: labeldrop
          regex: cloud_google_com.*
