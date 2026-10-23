@@ -11,12 +11,13 @@ finalizers:
   # - percona.com/delete-mysql-pvc
 
 #  unsafeFlags:
+#    asyncFailoverWithPossibleDataLoss: false
 #    mysqlSize: false
 #    orchestrator: false
 #    orchestratorSize: false
 #    proxy: false
 #    proxySize: false
-crVersion: 1.2.0
+crVersion: 1.3.0
 # storageScaling:
 #   enableVolumeScaling: false
 #   enableExternalAutoscaling: false
@@ -26,7 +27,7 @@ crVersion: 1.2.0
 #     growthStep: 2Gi
 #     maxSize: 100Gi
 pause: false
-# initImage: percona/percona-server-mysql-operator:1.2.0
+# initImage: percona/percona-server-mysql-operator:1.3.0
 
 updateStrategy: SmartUpdate
 upgradeOptions:
@@ -34,7 +35,7 @@ upgradeOptions:
   apply: disabled
 
 # initContainer:
-#   image: percona/percona-server-mysql-operator:1.2.0
+#   image: percona/percona-server-mysql-operator:1.3.0
 #   containerSecurityContext:
 #     privileged: false
 #     runAsUser: 1001
@@ -73,17 +74,21 @@ upgradeOptions:
 mysql:
   clusterType: group-replication
   autoRecovery: true
+  autoConfig:
+    enabled: true
+    version: 8.4.0
+    loadType: someWrites
   # vaultSecretName: ps-cluster1-vault
   podDisruptionBudget:
     maxUnavailable: 1
     # minAvailable: 0
   image:
     repository: percona/percona-server
-    tag: 8.4.10-10.1
+    tag: 8.4.11-11.1
   imagePullPolicy: Always
   imagePullSecrets: []
   # initContainer:
-  #   image: percona/percona-server-mysql-operator:1.2.0
+  #   image: percona/percona-server-mysql-operator:1.3.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -103,9 +108,11 @@ mysql:
 
   resources:
     requests:
-      memory: 2Gi
-    limits:
       memory: 4Gi
+      cpu: "2"
+    limits:
+      memory: 8Gi
+      cpu: "4"
 
   # startupProbe:
   #   initialDelaySeconds: 15
@@ -134,6 +141,8 @@ mysql:
   #   value: "3"
   # - name: ASYNC_SOURCE_CONNECT_RETRY
   #   value: "60"
+  # - name: BOOTSTRAP_CLONE_STALL_TIMEOUT
+  #   value: "900"
   # envFrom:
   # - secretRef:
   #     name: my-env-secret
@@ -191,7 +200,7 @@ mysql:
     pvc:
       resources:
         requests:
-          storage: 3Gi
+          storage: 30Gi
     # emptyDir: {}
     # hostPath:
     #   path: /data
@@ -258,7 +267,7 @@ proxy:
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: percona/percona-server-mysql-operator:1.2.0
+    #   image: percona/percona-server-mysql-operator:1.3.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -412,11 +421,11 @@ proxy:
     enabled: false
     image:
       repository: percona/percona-mysql-router
-      tag: 8.4.10
+      tag: 8.4.11
     imagePullPolicy: Always
     imagePullSecrets: []
     # initContainer:
-    #   image: percona/percona-server-mysql-operator:1.2.0
+    #   image: percona/percona-server-mysql-operator:1.3.0
     #   containerSecurityContext:
     #     privileged: false
     #     runAsUser: 1001
@@ -561,12 +570,12 @@ orchestrator:
   enabled: false
   image:
     repository: percona/percona-orchestrator
-    tag: 3.2.6-22
+    tag: 3.2.6-24
   imagePullPolicy: Always
   imagePullSecrets: []
   # serviceAccountName: percona-server-mysql-operator-orchestrator
   # initContainer:
-  #   image: percona/percona-server-mysql-operator:1.2.0
+  #   image: percona/percona-server-mysql-operator:1.3.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -612,7 +621,7 @@ orchestrator:
     requests:
       memory: 128M
     limits:
-      memory: 256M
+      memory: 512M
 
   affinity:
     antiAffinityTopologyKey: "kubernetes.io/hostname"
@@ -635,7 +644,8 @@ orchestrator:
 
   # configuration: |
   #   {
-  #     "FailMasterPromotionOnLagMinutes": 10
+  #     "ReasonableReplicationLagSeconds": 60,
+  #     "ReasonableMaintenanceReplicationLagSeconds": 120
   #   }
 
   # runtimeClassName: image-rc
@@ -672,12 +682,35 @@ orchestrator:
     #   rack: rack-22
     # loadBalancerSourceRanges:
     #   - 10.0.0.0/8
+  # failover:
+  #   onTimeout: Abort
+  #   timeout: 1h
+
+# Custom MySQL users to be created and managed by the Operator.
+# If "passwordSecretRef" is not set, the Operator generates a password and
+# stores it in the "<cluster-name>-user-<username>" Secret.
+# users:
+# - name: my-user
+#   dbs:
+#   - db1
+#   - db2
+#   hosts:
+#   - localhost
+#   grants:
+#   - SELECT
+#   - DELETE
+#   - INSERT
+#   withGrantOption: true
+#   passwordSecretRef:
+#     name: my-user-pwd
+#     key: my-user-pwd-key
+# - name: my-user-two
 
 pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.8.1
+    tag: 3.9.1
   imagePullPolicy: Always
 #  readinessProbe:
 #    initialDelaySeconds: 15
@@ -693,6 +726,7 @@ pmm:
 #    failureThreshold: 3
   serverHost: monitoring-service
   # mysqlParams: "--disable-tablestats-limit=2000"
+  # haproxyParams: "--environment=production"
   # customClusterName: "cluster1-custom"
   resources:
     requests:
@@ -700,10 +734,83 @@ pmm:
       cpu: 300m
     limits: {}
 
+logcollector:
+  enabled: true
+  image:
+    repository: percona/fluentbit
+    tag: 5.1.2-1
+  # imagePullPolicy: Always
+  # Custom Fluent Bit configuration, merged into the log collector pipeline.
+  # Must be in Fluent Bit's YAML configuration format (the classic ".conf"
+  # format is not supported).
+  # configuration: |
+  #   pipeline:
+  #     filters:
+  #       - name: record_modifier
+  #         match: "*"
+  #         record:
+  #           - cluster_name cluster1
+  # env: []
+  # envFrom: []
+  # containerSecurityContext:
+  #   privileged: false
+  #   runAsGroup: 1001
+  #   runAsUser: 1001
+  # resources:
+  #   requests:
+  #     memory: 150M
+  #     cpu: 300m
+  #   limits:
+  #     memory: 200M
+  #     cpu: 350m
+  # readinessProbe:
+  #   initialDelaySeconds: 5
+  #   periodSeconds: 10
+  #   tcpSocket:
+  #     port: 2020
+  # livenessProbe:
+  #   initialDelaySeconds: 30
+  #   periodSeconds: 15
+  #   tcpSocket:
+  #     port: 2020
+  # volumeMounts: []
+  # volumes: []
+  # logRotate:
+  #   schedule: "0 0 * * *"
+  #   configuration: |
+  #     /var/lib/mysql/log/*.log {
+  #         daily
+  #         minsize 10M
+  #         maxsize 100M
+  #         rotate 7
+  #         missingok
+  #         nocompress
+  #         notifempty
+  #         nocreate
+  #         sharedscripts
+  #         postrotate
+  #             /opt/percona/logcollector/logrotate/postrotate-mysql.sh
+  #         endscript
+  #     }
+  #   extraConfig:
+  #     name: my-logrotate-config
+  #   readinessProbe:
+  #     exec:
+  #       command:
+  #         - /bin/true
+  #     initialDelaySeconds: 5
+  #     periodSeconds: 10
+  #   livenessProbe:
+  #     exec:
+  #       command:
+  #         - /bin/true
+  #     initialDelaySeconds: 30
+  #     periodSeconds: 15
+
 backup:
   enabled: true
   # initContainer:
-  #   image: percona/percona-server-mysql-operator:1.2.0
+  #   image: percona/percona-server-mysql-operator:1.3.0
   #   containerSecurityContext:
   #     privileged: false
   #     runAsUser: 1001
@@ -721,7 +828,7 @@ backup:
 #    name: my-encryption-key-secret
   image:
     repository: percona/percona-xtrabackup
-    tag: 8.4.0-6.1
+    tag: 8.4.0-7.1
 #  schedule:
 #    - name: "sat-night-backup"
 #      schedule: "0 0 * * 6"
@@ -734,6 +841,8 @@ backup:
 #      storageName: s3
 #      type: incremental
   # backoffLimit: 6
+  # startingDeadlineSeconds: 0
+  # suspendedDeadlineSeconds: 0
   imagePullPolicy: Always
   imagePullSecrets: []
   resources:
@@ -825,6 +934,9 @@ backup:
     #     credentialsSecret: cluster1-s3-credentials
     #     region: us-west-2
     #     prefix: ""
+    #     caBundle:
+    #       name: s3-ca-bundle-secret-name
+    #       key: ca.crt
   # pitr:
   #   enabled: false
   #   binlogServer:
@@ -840,6 +952,9 @@ backup:
   #         endpointUrl: https://s3.amazonaws.com
   #         prefix: PREFIX_NAME
   #         region: us-west-2
+  #         caBundle:
+  #           name: s3-ca-bundle-secret-name
+  #           key: ca.crt
   #     connectTimeout: 30
   #     readTimeout: 30
   #     writeTimeout: 30
