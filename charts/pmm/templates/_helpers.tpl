@@ -89,6 +89,20 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Labels for objects that are embedded in the pod template, such as the Secret manifest the
+encryption-key init container renders inside its own command. Identical to pmm.labels but
+without helm.sh/chart: that label changes on every chart version bump, and anything inside
+the pod template rolls the StatefulSet when it changes.
+*/}}
+{{- define "pmm.podTemplateEmbeddedLabels" -}}
+{{ include "pmm.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "pmm.selectorLabels" -}}
