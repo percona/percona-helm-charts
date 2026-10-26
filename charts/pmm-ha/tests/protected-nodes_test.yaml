@@ -1,0 +1,54 @@
+# PMM refuses to remove a Node whose name starts with PMM_PROTECTED_NODE_NAME_PREFIXES while
+# its pmm-agent is connected. The PMM Client pods register as "<namespace>-<pod name>", so the
+# prefix must follow the Client StatefulSet's name, which is built from pmm.fullname - NOT from
+# .Release.Name. Release "smoke" is where the two differ.
+suite: pmm-ha protected Nodes
+templates:
+  - templates/statefulset.yaml
+  - templates/pmm-client-statefulset.yaml
+  - templates/configmap.yaml
+  - templates/clickhouse-datasource-secret.yaml
+release:
+  name: pmm-ha
+  namespace: pmm
+tests:
+  - it: protects the Nodes of the PMM Client pods
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_PROTECTED_NODE_NAME_PREFIXES")].value
+          value: pmm-pmm-ha-client-
+        template: templates/statefulset.yaml
+      - equal:
+          path: metadata.name
+          value: pmm-ha-client
+        template: templates/pmm-client-statefulset.yaml
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_AGENT_SETUP_NODE_NAME")].value
+          value: $(POD_NAMESPACE)-$(POD_NAME)
+        template: templates/pmm-client-statefulset.yaml
+
+  - it: builds the prefix from pmm.fullname, not the release name
+    release:
+      name: smoke
+      namespace: monitoring
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_PROTECTED_NODE_NAME_PREFIXES")].value
+          value: monitoring-smoke-pmm-ha-client-
+        template: templates/statefulset.yaml
+      - equal:
+          path: metadata.name
+          value: smoke-pmm-ha-client
+        template: templates/pmm-client-statefulset.yaml
+
+  # Scaling the Clients to zero and back must not change the PMM Server pod template.
+  - it: keeps the prefix when no PMM Client pods are deployed
+    set: {pmmClient.replicas: 0}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="PMM_PROTECTED_NODE_NAME_PREFIXES")].value
+          value: pmm-pmm-ha-client-
+        template: templates/statefulset.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/pmm-client-statefulset.yaml
