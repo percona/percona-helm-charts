@@ -22,7 +22,7 @@ namespaceOverride: ""
 fullnameOverride: ""
 
 
-crVersion: 1.23.0
+crVersion: 1.23.1
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -68,13 +68,13 @@ upgradeOptions:
 
 image:
   repository: percona/percona-server-mongodb
-  tag: 8.0.26-11
+  tag: 8.0.32-14
 
 imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.23.0
+#   tag: 1.23.1
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -101,6 +101,8 @@ secrets: {}
 # vault:
 #   endpointURL: https://vault-service:8200
 #   tlsSecret: my-tls-vault-secret
+#   reinitInterval: 30m
+#   requestInterval: 1m
 #   syncUsers:
 #     role: operator
 #     mountPath: secrets
@@ -110,7 +112,7 @@ pmm:
   enabled: false
   image:
     repository: percona/pmm-client
-    tag: 3.8.1
+    tag: 3.9.1
   serverHost: monitoring-service
 #  customClusterName: ""
 #  mongodParams: ""
@@ -809,6 +811,12 @@ sharding:
     #   hostnames:
     #   - "host1"
     #   - "host2"
+#    logs:
+#      persistentVolumeClaim:
+#        accessModes: [ "ReadWriteOnce" ]
+#        resources:
+#          requests:
+#            storage: 1Gi
 
 # users:
 # - name: my-user
@@ -1088,7 +1096,7 @@ logcollector:
   enabled: true
   image:
     repository: percona/fluentbit
-    tag: 5.0.9-1
+    tag: 5.1.2-1
   #  configuration: |
   #    [SERVICE]
   #        Flush        1
