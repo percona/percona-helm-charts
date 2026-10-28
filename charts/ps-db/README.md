@@ -131,7 +131,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `proxy.haproxy.enabled`                                | Enable/Disable HAProxy pods                                                                                                                               | `true`                     |
 | `proxy.haproxy.image.repository`                       | HAProxy Container image repository                                                                                                                        | `percona/haproxy`          |
-| `proxy.haproxy.image.tag`                              | HAProxy Container image tag                                                                                                                               | `2.8.18-1`                 |
+| `proxy.haproxy.image.tag`                              | HAProxy Container image tag                                                                                                                               | `2.8.29-1`                 |
 | `proxy.haproxy.imagePullPolicy`                        | The policy used to update images                                                                                                                          | `Always`                   |
 | `proxy.haproxy.imagePullSecrets`                       | HAProxy Container pull secret                                                                                                                             | `[]`                       |
 | `proxy.haproxy.initImage`                              | An alternative image for the initial haproxy setup                                                                                                        | `""`                       |
@@ -176,7 +176,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `proxy.router.enabled`                                | Enable/Disable Router pods in group replication                                                                                                           | `false`                        |
 | `proxy.router.image.repository`                       | Router Container image repository                                                                                                                         | `percona/percona-mysql-router` |
-| `proxy.router.image.tag`                              | Router Container image tag                                                                                                                                | `8.4.11`                       |
+| `proxy.router.image.tag`                              | Router Container image tag                                                                                                                                | `8.4.11-11.1`                  |
 | `proxy.router.imagePullPolicy`                        | The policy used to update images                                                                                                                          | `Always`                       |
 | `proxy.router.imagePullSecrets`                       | Router Container pull secret                                                                                                                              | `[]`                           |
 | `proxy.router.initContainer.image`                    | An alternative image for the initial Operator installation                                                                                                | `""`                           |
@@ -268,7 +268,7 @@ The chart can be customized using the following configurable parameters:
 ||
 | `pmm.enabled`                             | Enable integration with [Percona Monitoring and Management software](https://docs.percona.com/pmm/)                                                                                               | `false`                             |
 | `pmm.image.repository`                    | PMM Container image repository                                                                                                                                                                    | `percona/pmm-client`                |
-| `pmm.image.tag`                           | PMM Container image tag                                                                                                                                                                           | `3.9.1`                             |
+| `pmm.image.tag`                           | PMM Container image tag                                                                                                                                                                           | `3.10.0`                            |
 | `pmm.imagePullPolicy`                     | The policy used to update images                                                                                                                                                                  | ``                                  |
 | `pmm.readinessProbe.failureThreshold`     | When a probe fails, Kubernetes will try failureThreshold times before giving up                                                                                                                   | `5`                                 |
 | `pmm.readinessProbe.initialDelaySeconds`  | Number of seconds after the container has started before liveness or readiness probes are initiated                                                                                               | `15`                                |
@@ -288,8 +288,8 @@ The chart can be customized using the following configurable parameters:
 | `pmm.resources.limits`                    | PMM Container resource limits                                                                                                                                                                     | `{}`                                |
 ||
 | `logcollector.enabled`                             | Enable the Fluent Bit log collector and logrotate sidecars                                                                       | `true`                           |
-| `logcollector.image.repository`                    | Log collector Container image repository                                                                                         | `percona/fluentbit`           |
-| `logcollector.image.tag`                           | Log collector Container image tag                                                                                                | `5.1.2-1`              |
+| `logcollector.image.repository`                    | Log collector Container image repository                                                                                         | `percona/fluentbit`              |
+| `logcollector.image.tag`                           | Log collector Container image tag                                                                                                | `5.1.4-1`                        |
 | `logcollector.imagePullPolicy`                     | The policy used to update images                                                                                                 | `Always`                         |
 | `logcollector.configuration`                       | Custom Fluent Bit configuration merged into the log collector pipeline. Must be in Fluent Bit's YAML format (`.conf` is not supported) | `""`                        |
 | `logcollector.env`                                 | Environment variables for the log collector Container                                                                            | `[]`                             |
@@ -307,7 +307,7 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.logRotate.livenessProbe`             | Liveness probe for the logrotate Container. No probe is set when empty                                                           | `{}`                             |
 ||
 | `toolkit.image.repository`   | Percona Toolkit Container image repository | `percona/percona-toolkit` |
-| `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.7.1-4`                 |
+| `toolkit.image.tag`          | Percona Toolkit Container image tag        | `3.7.2-1`                 |
 | `toolkit.imagePullPolicy`    | The policy used to update images           | ``                        |
 | `toolkit.resources.requests` | Toolkit Container resource requests        | `{}`                      |
 | `toolkit.resources.limits`   | Toolkit Container resource limits          | `{}`                      |
@@ -350,7 +350,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.schedule.[0].storageName`                 | Backup target storage                                                                       | `fs-pvc`                     |
 ||
 | `backup.pitr.enabled`                                          | Enable point-in-time recovery                                                    | `false`                                                            |
-| `backup.pitr.binlogServer.image`                               | Binlog server Container image                                                    | `perconalab/percona-binlog-server:0.3.1`                           |
+| `backup.pitr.binlogServer.image`                               | Binlog server Container image                                                    | `percona/percona-server-mysql-operator:1.3.0-binlog-server-0.4.1`  |
 | `backup.pitr.binlogServer.imagePullPolicy`                     | The policy used to update images                                                 | `Always`                                                           |
 | `backup.pitr.binlogServer.imagePullSecrets`                    | Binlog server Container pull secrets                                             | `[]`                                                               |
 | `backup.pitr.binlogServer.serverId`                            | MySQL server ID used by the binlog server replica                                | `100`                                                              |
