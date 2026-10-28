@@ -442,7 +442,7 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
 ### ClickHouse
 
 - **Tool**: clickhouse-backup (Altinity sidecar)
-- **How**: `kubectl exec` into the ClickHouse pod, issues SQL commands against the `system.backup_actions` table to trigger `clickhouse-backup create`
+- **How**: `kubectl exec` into the ClickHouse pod whose `pmm.metrics` has the most rows (pods can hold different `pmm` copies, PMM-15785), issues SQL commands against the `system.backup_actions` table to trigger `clickhouse-backup create`
 - **Where stored** (s3): `clickhouse-backup create` makes near-zero-space hardlinks on the pod, then `upload` pushes them to S3 (`REMOTE_STORAGE=s3`, `S3_PATH=<namespace>/<prefix>/clickhouse`, configured credentials — static keys or IRSA), then `delete local`. Objects land at `s3://<bucket>/<namespace>/<prefix>/clickhouse/backup_<id>/…`.
 - **Incremental** (`--ch-backup-type incremental`): the local `create` is always a full
   hardlink snapshot; the diff happens at **upload** time — `upload
@@ -1819,22 +1819,26 @@ No pgBackRest, stanza, or `PerconaPGRestore` involved.
 
 #### ClickHouse
 
-ClickHouse restores in the live `clickhouse-backup` sidecar (with PMM scaled down):
+ClickHouse restores in the live `clickhouse-backup` sidecar (with PMM scaled down). The automated restore stages the backup, then drops `pmm` on every ClickHouse pod and creates it again with one UUID, then restores, so the restore cannot leave pods with different `pmm` copies (PMM-15785). Its preflight refuses the restore while any ClickHouse host does not answer. Run by hand, the restore is:
 
 ```bash
-# s3: download + restore from the bucket directly. The --env overrides point the tool at
-# the SOURCE backup's bucket/prefix — restore_remote has no source-path argument and would
-# otherwise only look under the S3_PATH baked into THIS sidecar's env, which is wrong for
-# cross-namespace/cross-prefix (DR) restores. The orchestrator always passes them.
+# 1. Stage the backup. s3: the --env overrides point the tool at the SOURCE backup's
+# bucket/prefix, which is required for cross-namespace/cross-prefix (DR) restores.
 kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
-  clickhouse-backup restore_remote \
+  clickhouse-backup download \
   --env S3_BUCKET=<source-bucket> --env S3_PATH=<source-namespace>/<source-prefix>/clickhouse \
-  --rm <backup-name>
+  <backup-name>
+# shared: untar the archive into the backup dir instead
+kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
+  tar -xzf /central/clickhouse/backup_<id>/<backup-name>.tar.gz -C /var/lib/clickhouse/backup
 
-# shared: untar the archive into the backup dir, then restore
-kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- sh -c \
-  "tar -xzf /central/clickhouse/backup_<id>/<backup-name>.tar.gz -C /var/lib/clickhouse/backup \
-   && clickhouse-backup restore --rm <backup-name>"
+# 2. On EVERY ClickHouse pod, with the same <uuid> everywhere (as the PMM ClickHouse user):
+#    DROP DATABASE IF EXISTS pmm SYNC
+#    CREATE DATABASE pmm UUID '<uuid>' ENGINE = Replicated('/clickhouse/databases/{uuid}', '{shard}', '{replica}')
+
+# 3. Restore into the pod used in step 1
+kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
+  clickhouse-backup restore --rm <backup-name>
 ```
 
 #### VictoriaMetrics

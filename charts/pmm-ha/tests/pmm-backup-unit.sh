@@ -3951,6 +3951,49 @@ if command -v pgrep >/dev/null 2>&1; then
     rm -rf "${_sc_d}"
 fi
 
+#########################################################################################
+section "ClickHouse pmm copies — backup the most rows, restore into one pmm (PMM-15785)"
+#########################################################################################
+kubectl() { printf 'ch-0 ch-1 ch-2'; }
+ch_resolve_credentials() { :; }
+ch_query() { case "${CH_POD}" in ch-0) echo 5 ;; ch-1) echo 9 ;; *) return 1 ;; esac; }
+ch_resolve_pod
+assert_eq "backup uses the pod with the most rows" "ch-1" "${CH_POD}"
+
+_cop_log=$(mktemp); LOG_FILE=/dev/null
+ch_query() { case "$1" in "SELECT generateUUIDv4()") echo u1 ;; *) echo "${CH_POD} $1" >>"${_cop_log}" ;; esac; }
+ch_one_pmm
+assert_rc "restore recreates pmm on every pod" 0 $?
+assert_eq "...dropping it and creating it with one UUID on each" "3 3" \
+    "$(grep -c 'DROP DATABASE IF EXISTS pmm SYNC' "${_cop_log}") $(grep -c "CREATE DATABASE pmm UUID 'u1'" "${_cop_log}")"
+ch_query() { case "${CH_POD}" in ch-1) return 1 ;; *) echo u1 ;; esac; }
+ch_one_pmm
+assert_rc "...and fails when a pod does not answer" 1 $?
+ch_query() { return 0; }
+kubectl() { return 0; }
+ch_one_pmm
+assert_rc "...and fails when no pod is found" 1 $?
+rm -f "${_cop_log}"
+
+# Preflight: every host of the cluster must answer, including one whose pod is gone.
+timeout() { shift; "$@"; }
+S3_ENABLED=false MF_CH_NAME=b1 _vrc_pods='ch-0 ch-1 ch-2' _vrc_down=""
+kubectl() { case "$1" in get) printf '%s' "${_vrc_pods}" ;; esac; return 0; }
+ch_query() {
+    [ "${CH_POD}" != "${_vrc_down}" ] || return 1
+    case "$1" in *system.clusters*) echo 3 ;; esac
+}
+validate_restore_clickhouse
+assert_rc "preflight passes when all 3 hosts answer" 0 $?
+_vrc_down=ch-2
+validate_restore_clickhouse
+assert_rc "...refuses when a pod does not answer" 1 $?
+_vrc_down="" _vrc_pods='ch-0 ch-1'
+validate_restore_clickhouse
+assert_rc "...and when a pod is missing" 1 $?
+unset -f timeout kubectl
+real_fn ch_query ch_resolve_credentials
+
 echo "========================================"
 if [ "${FAIL}" -eq 0 ]; then
     echo "OK: ${PASS} assertion(s) passed"

@@ -2323,15 +2323,22 @@ CH_POD=""
 CH_USER=""
 CH_PASS=""
 
+# The pod with the most pmm.metrics rows: pods can hold different pmm copies (PMM-15785).
 ch_resolve_pod() {
-    CH_POD=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" \
-        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    _crp_best="" _crp_max=-2
+    for CH_POD in $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" \
+        -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+        _crp_rows=$(ch_query "SELECT count() FROM pmm.metrics" 2>/dev/null) || _crp_rows=-1
+        case "${_crp_rows}" in ''|*[!0-9]*) _crp_rows=-1 ;; esac
+        if [ "${_crp_rows}" -gt "${_crp_max}" ]; then _crp_max=${_crp_rows}; _crp_best=${CH_POD}; fi
+    done
+    CH_POD="${_crp_best}"
     if [ -z "${CH_POD}" ]; then
         log "ERROR" "[ClickHouse] No pods found in namespace: ${NAMESPACE}"
         log "ERROR" "[ClickHouse] Check that the operator is running: kubectl get pods -n ${NAMESPACE}"
         return 1
     fi
-    log "INFO" "[ClickHouse] Using pod: ${CH_POD}"
+    log "INFO" "[ClickHouse] Using pod: ${CH_POD} (${_crp_max} rows in pmm.metrics)"
     return 0
 }
 
@@ -2355,8 +2362,9 @@ ch_resolve_credentials() {
 }
 
 # Password via stdin, never argv (DN-23).
+# $2: timeout in seconds, KUBECTL_STATUS_TIMEOUT by default.
 ch_query() {
-    printf '%s' "${CH_PASS}" | timeout "${KUBECTL_STATUS_TIMEOUT}" kubectl exec -i -n "${NAMESPACE}" "${CH_POD}" -c clickhouse -- \
+    printf '%s' "${CH_PASS}" | timeout "${2:-${KUBECTL_STATUS_TIMEOUT}}" kubectl exec -i -n "${NAMESPACE}" "${CH_POD}" -c clickhouse -- \
         sh -c 'CLICKHOUSE_PASSWORD=$(cat); export CLICKHOUSE_PASSWORD; exec clickhouse-client --user="$1" --query="$2"' sh "${CH_USER}" "$1"
 }
 
@@ -2466,8 +2474,8 @@ backup_clickhouse() {
         share_mkdir "$(comp_path clickhouse)"
     fi
 
-    ch_resolve_pod || return 1
     ch_resolve_credentials
+    ch_resolve_pod || return 1
     ch_has_backup_api || return 1
 
     # Same layout as other components; retention caveats in DN-09.
@@ -3414,6 +3422,18 @@ validate_restore_postgresql() {
 validate_restore_clickhouse() {
     local fail=0
     local _chpod=""
+    # The restore recreates pmm on every pod, so every host of the cluster must answer (PMM-15785).
+    ch_resolve_credentials
+    _vrc_up=0 _vrc_want=""
+    for CH_POD in $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+        ch_query "SELECT 1" >/dev/null 2>&1 || continue
+        _vrc_up=$((_vrc_up + 1))
+        [ -n "${_vrc_want}" ] || _vrc_want=$(ch_query "SELECT count() FROM system.clusters WHERE cluster = getMacro('cluster')" 2>/dev/null)
+    done
+    if [ "${_vrc_up}" != "${_vrc_want}" ]; then
+        log "ERROR" "[Preflight] clickhouse: ${_vrc_up} of ${_vrc_want:-?} ClickHouse pods answer; the restore needs all of them (--skip-clickhouse to drop it)"
+        fail=1
+    fi
     _chpod=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -z "${_chpod}" ]; then
         log "ERROR" "[Preflight] clickhouse: no pod matching '$(comp_pod_selector clickhouse)' (--skip-clickhouse to drop it)"
@@ -3986,9 +4006,25 @@ restore_postgresql() {
 
 ################################################################################
 # ClickHouse — restored in the LIVE clickhouse-backup sidecar (PMM is down):
-#   s3     -> clickhouse-backup restore_remote --rm <name>   (downloads from S3)
-#   shared -> untar <central>/<id>/clickhouse/<name>.tar.gz, then restore --rm
+#   stage  -> s3: clickhouse-backup download <name>; shared: untar <central>/<id>/clickhouse/<name>.tar.gz
+#   then   -> ch_one_pmm, then clickhouse-backup restore --rm <name>
 ################################################################################
+# Recreates pmm on every pod with one UUID, so the restore below cannot leave pods split (PMM-15785).
+ch_one_pmm() {
+    ch_resolve_credentials
+    _cop_uuid=""
+    for CH_POD in $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+        [ -n "${_cop_uuid}" ] || _cop_uuid=$(ch_query "SELECT generateUUIDv4()") || return 1
+        if ! ch_query "DROP DATABASE IF EXISTS pmm SYNC" "${CH_LIST_TIMEOUT}" >>"${LOG_FILE}" 2>&1 \
+            || ! ch_query "CREATE DATABASE pmm UUID '${_cop_uuid}' ENGINE = Replicated('/clickhouse/databases/{uuid}', '{shard}', '{replica}')" >>"${LOG_FILE}" 2>&1; then
+            log "ERROR" "[ClickHouse] Could not recreate pmm on ${CH_POD}"
+            return 1
+        fi
+    done
+    if [ -z "${_cop_uuid}" ]; then log "ERROR" "[ClickHouse] No ClickHouse pod found to recreate pmm on"; return 1; fi
+    log "INFO" "[ClickHouse] Recreated pmm with UUID ${_cop_uuid} on every pod"
+}
+
 restore_clickhouse() {
     local ch_pod name
     ch_pod=$(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
@@ -3996,24 +4032,33 @@ restore_clickhouse() {
     name="${MF_CH_NAME}"
     if [ -z "${name}" ]; then log "ERROR" "[ClickHouse] No backup name in manifest"; return 1; fi
 
+    # Stage the backup first: pmm is dropped below only once there is something to restore (PMM-15785).
     local rc=0
     if [ "${S3_ENABLED}" = "true" ]; then
-        # restore_remote reads S3_BUCKET/S3_PATH from env; --env redirects to the backup's prefix.
-        log "INFO" "[ClickHouse] restore_remote --rm ${name} (from s3://$(ch_restore_bucket)/$(ch_restore_path), in ${ch_pod})..."
+        # --env redirects S3_BUCKET/S3_PATH to the backup's prefix.
+        log "INFO" "[ClickHouse] download ${name} (from s3://$(ch_restore_bucket)/$(ch_restore_path), in ${ch_pod})..."
         pod_exec ClickHouse "${ch_pod}" clickhouse-backup 0 \
-            clickhouse-backup restore_remote \
+            clickhouse-backup download \
             --env "S3_BUCKET=$(ch_restore_bucket)" --env "S3_PATH=$(ch_restore_path)" \
-            --rm "${name}" >>"${LOG_FILE}" 2>&1 || rc=$?
+            "${name}" >>"${LOG_FILE}" 2>&1 || rc=$?
     else
         local tarball="$(comp_inpod clickhouse)/${name}.tar.gz"
-        log "INFO" "[ClickHouse] untar ${tarball} + restore --rm ${name} (in ${ch_pod})..."
-        # Positional args, not interpolated: both are manifest-derived.
+        log "INFO" "[ClickHouse] untar ${tarball} (in ${ch_pod})..."
+        # Positional args, not interpolated: manifest-derived.
         pod_sh ClickHouse "${ch_pod}" clickhouse-backup 0 \
-            'mkdir -p /var/lib/clickhouse/backup && tar -xzf "$1" -C /var/lib/clickhouse/backup && clickhouse-backup restore --rm "$2"' \
-            "${tarball}" "${name}" >>"${LOG_FILE}" 2>&1 || rc=$?
+            'mkdir -p /var/lib/clickhouse/backup && tar -xzf "$1" -C /var/lib/clickhouse/backup' \
+            "${tarball}" >>"${LOG_FILE}" 2>&1 || rc=$?
     fi
+    if [ ${rc} -ne 0 ]; then log "ERROR" "[ClickHouse] staging the backup failed (exit ${rc}); pmm was not touched"; return 1; fi
+    if [ "${DRY_RUN}" = "true" ]; then
+        log "INFO" "[ClickHouse] [DRY RUN] would drop pmm on every pod, create it with one UUID, then restore --rm ${name}"
+        return 0
+    fi
+
+    ch_one_pmm || return 1
+    log "INFO" "[ClickHouse] restore --rm ${name} (in ${ch_pod})..."
+    pod_exec ClickHouse "${ch_pod}" clickhouse-backup 0 clickhouse-backup restore --rm "${name}" >>"${LOG_FILE}" 2>&1 || rc=$?
     if [ ${rc} -ne 0 ]; then log "ERROR" "[ClickHouse] restore failed (exit ${rc})"; return 1; fi
-    [ "${DRY_RUN}" = "true" ] && return 0    # pod_exec/pod_sh only printed; nothing was restored
     log "INFO" "[ClickHouse] Restore complete"
     return 0
 }
