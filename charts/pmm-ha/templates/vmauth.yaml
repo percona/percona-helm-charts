@@ -68,8 +68,7 @@ metadata:
   name: {{ include "pmm.fullname" . }}-vmauth-config
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: vmauth
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "vmauth") | nindent 4 }}
 type: Opaque
 stringData:
   config.yaml: |
@@ -94,8 +93,7 @@ metadata:
   name: {{ include "pmm.fullname" . }}-vmauth
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: vmauth
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "vmauth") | nindent 4 }}
 spec:
   useStrictSecurity: {{ .Values.victoriaMetrics.useStrictSecurity }}
   {{- if .Values.victoriaMetrics.version }}
