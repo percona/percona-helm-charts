@@ -127,7 +127,7 @@ spec:
                 name: $SECRET
                 namespace: $NAMESPACE
                 labels:
-                  {{- include "pmm.labels" . | nindent 18 }}
+                  {{- include "pmm.podTemplateEmbeddedLabels" . | nindent 18 }}
               data:
                 key: $(base64 < "$1" | tr -d '\n')
               EOF
