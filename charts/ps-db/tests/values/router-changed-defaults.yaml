@@ -1,0 +1,72 @@
+proxy:
+  haproxy:
+    enabled: false
+  router:
+    enabled: true
+    image:
+      repository: changed-image
+      tag: changed-tag
+    imagePullPolicy: IfNotPresent
+    imagePullSecrets:
+      - name: pull-secret
+    initContainer:
+      image: custom-init:tag
+      resources:
+        limits:
+          cpu: 5m
+    podDisruptionBudget:
+      minAvailable: 1
+      maxUnavailable: null
+    ports:
+      - name: http
+        port: 8443
+        targetPort: 0
+      - name: custom-port
+        port: 1111
+        targetPort: 6446
+    size: 5
+    resources:
+      requests:
+        memory: 1Mi
+      limits:
+        memory: 2Mi
+    env:
+      - name: MY_ENV
+        value: "1000"
+    envFrom:
+      - secretRef:
+          name: my-env-secret
+    startupProbe:
+      timeoutSeconds: 43200
+    readinessProbe:
+      timeoutSeconds: 3
+    livenessProbe:
+      timeoutSeconds: 4
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+    gracePeriod: 60
+    configuration: |
+      [logger]
+      level=DEBUG
+    runtimeClassName: image-rc
+    priorityClassName: high-priority
+    schedulerName: custom-scheduler
+    annotations:
+      test: annotation
+    labels:
+      test: label
+    nodeSelector:
+      disktype: ssd
+    tolerations:
+      - key: test
+        operator: Exists
+        effect: NoSchedule
+    containerSecurityContext:
+      privileged: false
+    podSecurityContext:
+      fsGroup: 1001
+    serviceAccountName: workload-sa
+    expose:
+      type: LoadBalancer
