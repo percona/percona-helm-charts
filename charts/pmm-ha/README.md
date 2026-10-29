@@ -468,7 +468,7 @@ To create additional service tokens manually, see the [PMM documentation on serv
 PMM Clients push metrics with a `vmagent` that PMM Server configures for them. Starting with the PMM
 Server release that pairs with this chart, PMM Server tells every client to write to the address the
 client already uses, `https://<pmm-ha-haproxy>/victoriametrics/api/v1/write`, authenticated with the
-VictoriaMetrics credentials from `pmm-secret`. HAProxy routes exactly that path to the in-cluster
+VictoriaMetrics credentials from `pmm-secret`. HAProxy routes exactly that path, when it carries Basic auth, to the in-cluster
 `vmauth` service (`templates/haproxy-configmap.yaml`), so metric writes never pass through the PMM
 Server pods, and clients outside the cluster can write although `vmauth` itself is not exposed.
 Every other path, including VictoriaMetrics queries, keeps going to the PMM Server pods behind PMM's
@@ -476,10 +476,20 @@ own authentication. PMM Server's own agents, which run inside the pods, write to
 
 Consequences:
 
+- A write with a PMM service-account token (`Authorization: Bearer <token>`) goes to the PMM Server pods instead, which check the token and forward it to VictoriaMetrics. This is meant for collectors outside PMM, such as a Kubernetes collector in another cluster (see [Kubernetes dashboards](#kubernetes-dashboards)), and passes through the current PMM leader. PMM Server 3.10 and later send this path to a local VictoriaMetrics that PMM HA does not run, so these writes get `502` until PMM Server routes it to the external one.
 - The route lives in HAProxy, which is how PMM HA is exposed. The chart's `ingress.*` values are not a supported alternative for this deployment: they do not render against its single-port `service`, and an Ingress would send the write path to the PMM Server pods, which reject the VictoriaMetrics credential.
 - The write endpoint is reachable wherever HAProxy is reachable (see [External access to PMM HA](#external-access-to-pmm-ha)) and is protected by HTTP basic auth with the shared VictoriaMetrics credentials. Revoking one client's write access means rotating that credential.
 - Upgrading from a Technical Preview installation renames the VictoriaMetrics credential keys in `pmm-secret`. With `secret.create: false` (the default) the chart refuses to render until you rename them yourself, see [Creating PMM Secret Manually](#creating-pmm-secret-manually). With `secret.create: true` the chart writes a **new, randomly generated** credential under the new names: the Technical Preview value is not carried over. Anything outside the chart that authenticated to `vmauth` with the old credential (your own `vmagent`, a Grafana or Prometheus data source, a script) has to be pointed at the new one, which `kubectl get secret pmm-secret -n <namespace> -o jsonpath='{.data.PMM_HA_VM_PASSWORD}' | base64 --decode` prints. PMM HA is Technical Preview until the release that carries this change, so the credential is renamed and regenerated once here rather than carried forward.
 - Upgrade this chart before upgrading PMM Server to a release that expects the route. A PMM Server that expects it, behind a chart without it, cannot deliver client metrics: the PMM Server pods reject every write with `401 Unauthorized`, because the VictoriaMetrics credential the clients present is not a PMM credential. A chart with the route, running an older PMM Server, is harmless: the older server still tells clients to write to `vmauth` directly, so clients outside the cluster cannot deliver metrics, which is the limitation this route removes.
+
+### Kubernetes dashboards
+
+PMM HA reports the Kubernetes cluster it runs in to PMM's Kubernetes dashboards without extra setup: its
+vmagent labels every series with `k8s_cluster_id` (the `k8sClusterId` value, default the release name), and its
+kube-state-metrics exports the Percona operator custom resources (PXC, PSMDB, PostgreSQL, PS).
+
+Other Kubernetes clusters can't report to PMM HA yet: their collector writes with a PMM service-account token,
+which PMM Server 3.10 and later answer with `502` (see the limitation above).
 
 ## Parameters
 
@@ -493,6 +503,7 @@ Consequences:
 | `image.imagePullSecrets`             | Global Docker registry secret names as an array                                                                                                                                                                                               | `[]`                 |
 | `pmmEnv.PMM_ENABLE_UPDATES`             | Enable a periodic check for new PMM versions as well as ability to apply upgrades using the UI (need to be disabled in k8s environment as updates rolled with helm/container update)                                                        | `0`                  |
 | `dataRetentionDays`                  | Data retention in whole days, applied to metrics and Query Analytics alike. The only way to set retention in HA. See [Data retention](#data-retention)                                                                                         | `30`                 |
+| `k8sClusterId`                       | Name of this cluster in PMM's Kubernetes dashboards (`k8s_cluster_id` label). Empty = release name; must be unique per cluster | `""` |
 | `pmmResources`                       | optional [Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) requested for [PMM container](https://docs.percona.com/percona-monitoring-and-management/setting-up/server/index.html#set-up-pmm-server) | `{requests: {memory: 4Gi, cpu: 2}, limits: {memory: 8Gi, cpu: 4}}` |
 | `readyProbeConf.initialDelaySeconds` | Number of seconds after the container has started before readiness probes is initiated                                                                                                                                                        | `10`                 |
 | `readyProbeConf.periodSeconds`       | How often (in seconds) to perform the probe                                                                                                                                                                                                   | `5`                  |

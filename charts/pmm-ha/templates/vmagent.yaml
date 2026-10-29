@@ -18,6 +18,10 @@ spec:
   # Number of VMAgent replicas
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
 
+  # The Kubernetes dashboards select clusters by this label; set k8sClusterId when remote clusters also report. PMM-13674
+  externalLabels:
+    k8s_cluster_id: {{ .Values.k8sClusterId | default .Release.Name | quote }}
+
   {{- if .Values.victoriaMetrics.vmagent.rbac.create }}
   # Created with its RBAC in vmagent-rbac.yaml.
   serviceAccountName: {{ include "pmm.vmagent.name" . }}
@@ -250,6 +254,8 @@ spec:
     {{- if eq (include "pmm.kubeStateMetrics.bundledEnabled" .) "true" }}
     # Scrape kube-state-metrics for Kubernetes object state
     - job_name: 'kube-state-metrics'
+      # Object labels win over the scraper's (honor_labels); PMM_HA_Health_Overview still reads exported_*. PMM-13674
+      honor_labels: true
       kubernetes_sd_configs:
         - role: endpoints
           namespaces:
@@ -266,6 +272,11 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
+      metric_relabel_configs:
+        - source_labels: [namespace]
+          target_label: exported_namespace
+        - source_labels: [pod]
+          target_label: exported_pod
     {{- end }}
     {{- if and (eq (include "pmm.nodeExporter.mode" .) "internal") (eq (include "pmm.nodeExporter.bundledEnabled" .) "true") }}
     # Scrape node-exporter for node-level metrics (bundled prometheus-node-exporter DaemonSet)
@@ -296,8 +307,9 @@ spec:
       kubernetes_sd_configs:
         - role: node
       relabel_configs:
-        - action: labelmap
-          regex: __meta_kubernetes_node_label_(.+)
+        # One node label instead of all of them: keeps series under the 40-label limit; instance is the apiserver. PMM-13674
+        - source_labels: [__meta_kubernetes_node_name]
+          target_label: node
         - target_label: __address__
           replacement: kubernetes.default.svc:443
         - source_labels: [__meta_kubernetes_node_name]
@@ -313,8 +325,9 @@ spec:
       kubernetes_sd_configs:
         - role: node
       relabel_configs:
-        - action: labelmap
-          regex: __meta_kubernetes_node_label_(.+)
+        # One node label instead of all of them: keeps series under the 40-label limit; instance is the apiserver. PMM-13674
+        - source_labels: [__meta_kubernetes_node_name]
+          target_label: node
         - target_label: __address__
           replacement: kubernetes.default.svc:443
         - source_labels: [__meta_kubernetes_node_name]
