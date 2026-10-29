@@ -20,6 +20,10 @@ data:
         {{- end }}
         # A larger request makes HAProxy drop the whole HTTP/2 connection (PMM-15608)
         tune.bufsize {{ $bufsize }}
+        {{- if eq (.Values.tls.secretFormat | default "pem") "kubernetes.io/tls" }}
+        # Load tls.key next to "crt .../tls.crt" (HAProxy would otherwise look for tls.crt.key).
+        ssl-load-extra-del-ext
+        {{- end }}
     
     resolvers k8s
         # Read the cluster DNS server from the pod's own /etc/resolv.conf rather than naming
@@ -66,7 +70,7 @@ data:
         # unavailable and binding 443 fails with EACCES. The Service port follows the same
         # value, so expose 443 externally with an OpenShift Route or an Ingress that points at
         # this Service.
-        bind *:{{ include "pmm.haproxy.httpsPort" . }} ssl crt /etc/haproxy/certs/pmm.pem
+        bind *:{{ include "pmm.haproxy.httpsPort" . }} ssl crt /etc/haproxy/certs/{{ if eq (.Values.tls.secretFormat | default "pem") "kubernetes.io/tls" }}tls.crt{{ else }}pmm.pem{{ end }}
         {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled }}
         # Metrics written by PMM Clients go to VictoriaMetrics (vmauth) directly, not to the PMM
         # Server pods: pmm-managed tells every client vmagent to write to this address, and the

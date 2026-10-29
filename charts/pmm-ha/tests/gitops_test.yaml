@@ -1,0 +1,153 @@
+# gitops.enabled must render the same manifest with or without a cluster to ask, because that is
+# what Argo CD and Flux do: `helm template`, where lookup returns nothing. The cases that matter
+# fake a pmm-secret for lookup and assert that the render ignores it.
+#
+# vmauth.yaml is not listed: its VMAuth carries app.kubernetes.io/component twice (pmm.labels plus
+# its own), which helm unittest rejects before any assertion runs, as with vmcluster.yaml.
+suite: pmm-ha gitops
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/clickhouse-datasource-secret.yaml
+  - templates/clickhouse-cluster.yaml
+  - templates/pg-user-credentials-secrets.yaml
+  - templates/haproxy-tls-secret.yaml
+  - templates/haproxy-configmap.yaml
+  - templates/pg-pmm-token-job.yaml
+release:
+  name: smoke
+  namespace: pmm
+set:
+  gitops.enabled: true
+kubernetesProvider:
+  scheme:
+    "v1/Secret": {gvr: {version: v1, resource: secrets}, namespaced: true}
+  objects:
+    - kind: Secret
+      apiVersion: v1
+      metadata: {name: pmm-secret, namespace: pmm}
+      data: {PMM_CLICKHOUSE_USER: c3RvcmVk, PG_PASSWORD: cGc=, GF_PASSWORD: Z2Y=, PMM_HA_VM_USERNAME: c3RvcmVk, PMM_HA_VM_PASSWORD: dm0=}
+    - kind: Secret
+      apiVersion: v1
+      metadata: {name: haproxy-tls-secret, namespace: pmm}
+      data: {pmm.pem: cGVt}
+tests:
+  - it: renders
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: takes the ClickHouse user from values, not from the secret it could look up
+    template: templates/clickhouse-cluster.yaml
+    asserts:
+      - equal:
+          path: spec.configuration.users["clickhouse_pmm/profile"]
+          value: default
+      - notExists:
+          path: spec.configuration.users["stored/profile"]
+
+  - it: does not copy the PostgreSQL passwords into the users' credentials secrets
+    template: templates/pg-user-credentials-secrets.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: reads the PostgreSQL passwords from the operator's credentials secrets
+    template: templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMM_POSTGRES_DBPASSWORD
+            valueFrom: {secretKeyRef: {name: pmmuser-credentials, key: password}}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GF_DATABASE_PASSWORD
+            valueFrom: {secretKeyRef: {name: gfuser-credentials, key: password}}
+
+  - it: does not generate the data source secret
+    template: templates/clickhouse-datasource-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: reads the data source password from the PMM secret
+    template: templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMM_CLICKHOUSE_DATASOURCE_USER
+            value: clickhouse_pmm_readonly
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
+            valueFrom: {secretKeyRef: {name: pmm-secret, key: PMM_CLICKHOUSE_DATASOURCE_PASSWORD}}
+
+  - it: hands ClickHouse the data source password through the environment
+    template: templates/clickhouse-cluster.yaml
+    asserts:
+      - matchRegex:
+          path: spec.configuration.files["users.d/pmm-datasource-user.xml"]
+          pattern: '<password from_env="PMM_CLICKHOUSE_DATASOURCE_PASSWORD"/>'
+      - notMatchRegex:
+          path: spec.configuration.files["users.d/pmm-datasource-user.xml"]
+          pattern: password_sha256_hex
+      - contains:
+          path: spec.templates.podTemplates[0].spec.containers[0].env
+          content:
+            name: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
+            valueFrom: {secretKeyRef: {name: pmm-secret, key: PMM_CLICKHOUSE_DATASOURCE_PASSWORD}}
+
+  - it: leaves the HAProxy certificate secret to the user
+    template: templates/haproxy-tls-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: points HAProxy at tls.crt for a kubernetes.io/tls secret
+    template: templates/haproxy-configmap.yaml
+    set: {tls.secretFormat: kubernetes.io/tls}
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: 'ssl crt /etc/haproxy/certs/tls\.crt'
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: 'ssl-load-extra-del-ext'
+
+  - it: keeps the finished token Job, so it is not reported missing once a TTL removes it
+    template: templates/pg-pmm-token-job.yaml
+    documentSelector: {path: kind, value: Job}
+    asserts:
+      - notExists:
+          path: spec.ttlSecondsAfterFinished
+
+  - it: refuses secret.create
+    template: templates/statefulset.yaml
+    set: {secret.create: true}
+    asserts:
+      - failedTemplate:
+          errorPattern: "gitops.enabled requires secret.create=false"
+
+  - it: refuses a data source password in values
+    template: templates/statefulset.yaml
+    set: {clickhouse.datasource.password: x}
+    asserts:
+      - failedTemplate:
+          errorPattern: "clickhouse.datasource.password is not used with gitops.enabled"
+
+  - it: refuses an unknown tls.secretFormat
+    template: templates/statefulset.yaml
+    set: {tls.secretFormat: der}
+    asserts:
+      - failedTemplate:
+          errorPattern: 'tls.secretFormat must be "pem" or "kubernetes.io/tls"'
+
+  - it: refuses kubernetes.io/tls for a secret the chart would create
+    template: templates/statefulset.yaml
+    set: {gitops.enabled: false, secret.requireExisting: false, tls.secretFormat: kubernetes.io/tls}
+    asserts:
+      - failedTemplate:
+          errorPattern: "describes a secret the chart does not create"
