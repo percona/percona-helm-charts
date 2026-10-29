@@ -10,6 +10,53 @@
 {{- include "pmm.validateSecret" . -}}
 {{- /* Resolved centrally so vmauth's config and pmm-secret cannot end up with different credentials */ -}}
 {{- $vmuser := include "pmm.vm.username" . }}
+{{- $insertURL := printf "http://vminsert-%s-vmcluster.%s.svc.cluster.local:8480/insert/0/prometheus/" (include "pmm.fullname" .) .Release.Namespace }}
+{{- $selectURL := printf "http://vmselect-%s-vmcluster.%s.svc.cluster.local:8481/select/0/prometheus/" (include "pmm.fullname" .) .Release.Namespace }}
+{{- /* Every read path Grafana's Prometheus data source reaches for. A path that is not
+       listed here does not 404 quietly - vmauth answers 400 with a plain-text
+       "missing route for ...", which Grafana then fails to parse as a Prometheus
+       response. query_exemplars and status/buildinfo were missing, so each panel with
+       exemplars enabled logged a parse failure on every refresh (PMM-15461). vmselect
+       serves both: exemplars return an empty placeholder, buildinfo the Prometheus
+       version Grafana uses to pick its API dialect.
+
+       Once buildinfo answered, Grafana's Alert rules page started asking this data
+       source for its rules too, and failed with "Errors loading rules" (PMM-15556).
+       vmselect answers rules and alerts with empty placeholders, as single-node
+       VictoriaMetrics does, because PMM sets no -vmalert.proxyURL. */}}
+{{- $readPaths := list "/api/v1/query" "/api/v1/query_range" "/api/v1/series" "/api/v1/labels" "/api/v1/label/.+/values" "/api/v1/query_exemplars" "/api/v1/status/buildinfo" "/api/v1/rules" "/api/v1/alerts" }}
+{{- if .Values.gitops.enabled }}
+---
+# The user vmauth validates requests against. A VMUser rather than a config secret, because the
+# operator resolves passwordRef from the PMM secret at runtime, so the password never has to be
+# known when the chart is rendered. The username is not a secret and comes from values; it must
+# equal PMM_HA_VM_USERNAME in the PMM secret, which PMM Server and vmagent authenticate with.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMUser
+metadata:
+  name: {{ include "pmm.fullname" . }}-vmauth
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "vmauth") | nindent 4 }}
+spec:
+  username: {{ $vmuser | quote }}
+  passwordRef:
+    name: {{ .Values.secret.name }}
+    key: PMM_HA_VM_PASSWORD
+  # Otherwise the operator copies the credential into a vmuser-<name> secret of its own.
+  disable_secret_creation: true
+  targetRefs:
+    - static:
+        url: {{ $insertURL | quote }}
+      paths:
+        - "/api/v1/write"
+    - static:
+        url: {{ $selectURL | quote }}
+      paths:
+        {{- range $readPaths }}
+        - {{ . | quote }}
+        {{- end }}
+{{- else }}
 {{- $vmpass := include "pmm.vm.password" . }}
 ---
 # Secret for VMAuth configuration
@@ -32,30 +79,13 @@ stringData:
       url_map:
       - src_paths:
         - "/api/v1/write"
-        url_prefix: "http://vminsert-{{ include "pmm.fullname" . }}-vmcluster.{{ .Release.Namespace }}.svc.cluster.local:8480/insert/0/prometheus/"
-      {{- /* Every read path Grafana's Prometheus data source reaches for. A path that is not
-             listed here does not 404 quietly - vmauth answers 400 with a plain-text
-             "missing route for ...", which Grafana then fails to parse as a Prometheus
-             response. query_exemplars and status/buildinfo were missing, so each panel with
-             exemplars enabled logged a parse failure on every refresh (PMM-15461). vmselect
-             serves both: exemplars return an empty placeholder, buildinfo the Prometheus
-             version Grafana uses to pick its API dialect.
-
-             Once buildinfo answered, Grafana's Alert rules page started asking this data
-             source for its rules too, and failed with "Errors loading rules" (PMM-15556).
-             vmselect answers rules and alerts with empty placeholders, as single-node
-             VictoriaMetrics does, because PMM sets no -vmalert.proxyURL. */}}
+        url_prefix: {{ $insertURL | quote }}
       - src_paths:
-        - "/api/v1/query"
-        - "/api/v1/query_range"
-        - "/api/v1/series"
-        - "/api/v1/labels"
-        - "/api/v1/label/.+/values"
-        - "/api/v1/query_exemplars"
-        - "/api/v1/status/buildinfo"
-        - "/api/v1/rules"
-        - "/api/v1/alerts"
-        url_prefix: "http://vmselect-{{ include "pmm.fullname" . }}-vmcluster.{{ .Release.Namespace }}.svc.cluster.local:8481/select/0/prometheus/"
+        {{- range $readPaths }}
+        - {{ . | quote }}
+        {{- end }}
+        url_prefix: {{ $selectURL | quote }}
+{{- end }}
 ---
 # VMAuth CRD managed by VictoriaMetrics operator
 apiVersion: operator.victoriametrics.com/v1beta1
@@ -76,8 +106,17 @@ spec:
   # Number of VMAuth replicas
   replicaCount: {{ .Values.victoriaMetrics.vmauth.replicaCount }}
   
+  {{ if .Values.gitops.enabled -}}
+  # Config generated by the operator from this release's VMUser only, not every VMUser in the namespace.
+  selectAllByDefault: false
+  userSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: vmauth
+  {{- else -}}
   # Reference to the config secret
   configSecret: {{ include "pmm.fullname" . }}-vmauth-config
+  {{- end }}
   
   {{- if .Values.victoriaMetrics.vmauth.resources }}
   # Resource limits and requests

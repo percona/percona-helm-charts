@@ -48,7 +48,12 @@ metadata:
   labels:
     {{- include "pmm.pgTokenJob.labels" . | nindent 4 }}
 spec:
+  {{- /* A GitOps tool tracks the Job as part of the release: once the TTL controller deletes it,
+         the application reports it missing and a self-heal re-runs it every day. The pod-spec hash
+         in the name already replaces it whenever it changes. */}}
+  {{- if not .Values.gitops.enabled }}
   ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  {{- end }}
   backoffLimit: 10
 {{- include "pmm.pgTokenJobPodTemplate" . }}
 {{- end }}
