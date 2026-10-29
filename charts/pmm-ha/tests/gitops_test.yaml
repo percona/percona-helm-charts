@@ -1,9 +1,7 @@
 # gitops.enabled must render the same manifest with or without a cluster to ask, because that is
 # what Argo CD and Flux do: `helm template`, where lookup returns nothing. The cases that matter
-# fake a pmm-secret for lookup and assert that the render ignores it.
-#
-# vmauth.yaml is not listed: its VMAuth carries app.kubernetes.io/component twice (pmm.labels plus
-# its own), which helm unittest rejects before any assertion runs, as with vmcluster.yaml.
+# fake a pmm-secret for lookup and assert that the render ignores it. vmauth.yaml's gitops output
+# is asserted in pmm-ha-pr-checks.yaml.
 suite: pmm-ha gitops
 templates:
   - templates/statefulset.yaml

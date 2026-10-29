@@ -1,5 +1,4 @@
-# templates/vmagent.yaml cannot be loaded here (it repeats the app.kubernetes.io/component label);
-# its serviceAccountName is asserted in pmm-ha-pr-checks.yaml instead.
+# vmagent.yaml's serviceAccountName is asserted in pmm-ha-pr-checks.yaml.
 suite: pmm-ha vmagent RBAC
 templates:
   - templates/vmagent-rbac.yaml
