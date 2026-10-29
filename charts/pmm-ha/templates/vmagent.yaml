@@ -320,6 +320,7 @@ spec:
         - source_labels: [__meta_kubernetes_node_name]
           target_label: __metrics_path__
           replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+    {{- if .Values.victoriaMetrics.vmagent.scrapeApiserver }}
     # Scrape Kubernetes apiserver metrics
     - job_name: 'kube-apiserver'
       scheme: https
@@ -335,6 +336,7 @@ spec:
         - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
           regex: 'kubernetes;https'
           action: keep
+    {{- end }}
     {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
     # User-provided scrape configs (appended)
     {{- toYaml .Values.victoriaMetrics.vmagent.scrapeConfigs | nindent 4 }}
