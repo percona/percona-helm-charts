@@ -85,6 +85,7 @@ subjects:
 - kind: ServiceAccount
   name: {{ $name }}
   namespace: {{ .Release.Namespace }}
+{{- if .Values.victoriaMetrics.vmagent.scrapeApiserver }}
 ---
 # The kube-apiserver job discovers the `kubernetes` Service's endpoints, which live in `default`.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -117,6 +118,7 @@ subjects:
 - kind: ServiceAccount
   name: {{ $name }}
   namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- if eq (include "pmm.nodeExporter.mode" .) "openshift" }}
 ---
 # The platform node-exporter; its kube-rbac-proxy checks the /metrics grant in the ClusterRole.

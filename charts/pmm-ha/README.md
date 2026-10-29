@@ -658,6 +658,7 @@ to change on OpenShift.
 | `jobs.securityContext`                  | Helper Job containers                                                                                               | `allowPrivilegeEscalation: false`, drop `ALL`, `readOnlyRootFilesystem: true`           |
 | `kubectl.image.repository`              | kubectl image used by the helper Jobs                                                                               | `alpine/kubectl`                                                                        |
 | `kubectl.image.tag`                     | Pinned tag of that image                                                                                            | `1.35.0`                                                                                |
+| `victoriaMetrics.vmagent.scrapeApiserver` | Scrape the Kubernetes apiserver; also creates a Role and RoleBinding in `default`, where its endpoints live. `false` where the release may not touch `default` (e.g. an Argo CD project) | `true` |
 | `victoriaMetrics.vmagent.rbac.create`  | Give vmagent its own ServiceAccount and the RBAC its scrape jobs need; with `false` the operator creates them and kubelet/cAdvisor scraping gets 403 | `true` |
 | `victoriaMetrics.vmagent.rbac.extraClusterRules` | Rules appended to vmagent's ClusterRole, for `scrapeConfigs` that discover outside the release namespace | `[]` |
 | `victoriaMetrics.vmagent.rbac.extraRules` | Rules appended to vmagent's Role in the release namespace | `[]` |

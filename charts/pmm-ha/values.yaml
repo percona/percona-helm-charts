@@ -1795,6 +1795,11 @@ victoriaMetrics:
     enabled: true
     ## @param victoriaMetrics.vmagent.replicaCount Number of vmagent replicas
     replicaCount: 2
+    ## @param victoriaMetrics.vmagent.scrapeApiserver Scrape the Kubernetes apiserver
+    ## Its endpoints live in the `default` namespace, so this also creates a Role and RoleBinding
+    ## there. Set false where the release may not touch `default`, e.g. an Argo CD project that
+    ## does not allow it as a destination.
+    scrapeApiserver: true
     ## @param victoriaMetrics.vmagent.rbac.create Create a ServiceAccount and RBAC for vmagent
     ## With false the operator creates them, without nodes/proxy, so the kubelet and cAdvisor jobs
     ## get 403. The grants cover the release namespace (and `default` for the apiserver); a job in
