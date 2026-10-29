@@ -5905,6 +5905,24 @@ entries:
     version: 1.0.0
   ps-db:
   - apiVersion: v2
+    appVersion: 1.3.0
+    created: "2026-10-29T14:02:55.230780473Z"
+    description: A Helm chart for installing Percona Server Databases using the PS
+      Operator.
+    digest: b7c4aef25590dc73ecffd8132eb02618488792a9dfed0fd71f55beadede5e463
+    home: https://www.percona.com/doc/kubernetes-operator-for-mysql/ps
+    maintainers:
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    name: ps-db
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/ps-db-1.3.0/ps-db-1.3.0.tgz
+    version: 1.3.0
+  - apiVersion: v2
     appVersion: 1.2.0
     created: "2026-07-03T17:52:16.224841777Z"
     description: A Helm chart for installing Percona Server Databases using the PS
@@ -6357,6 +6375,26 @@ entries:
     - https://github.com/percona/percona-helm-charts/releases/download/ps-db-0.2.0/ps-db-0.2.0.tgz
     version: 0.2.0
   ps-operator:
+  - apiVersion: v2
+    appVersion: 1.3.0
+    created: "2026-10-29T14:02:55.426043504Z"
+    description: A Helm chart for Deploying the Percona Operator for MySQL (based
+      on Percona Server for MySQL)
+    digest: 222a1be93c4d281d5f32ffb3bf580731bf6515cd8e93644505cf562b99a76c36
+    home: https://docs.percona.com/percona-operator-for-mysql/ps/
+    maintainers:
+    - email: julio.pasinatto@percona.com
+      name: jvpasinatto
+    - email: natalia.marukovich@percona.com
+      name: nmarukovich
+    - email: eleonora.zinchenko@percona.com
+      name: eleo007
+    - email: valmira.nogueira@percona.com
+      name: valmiranogueira
+    name: ps-operator
+    urls:
+    - https://github.com/percona/percona-helm-charts/releases/download/ps-operator-1.3.0/ps-operator-1.3.0.tgz
+    version: 1.3.0
   - apiVersion: v2
     appVersion: 1.2.0
     created: "2026-07-03T17:52:16.343767336Z"
@@ -10064,4 +10102,4 @@ entries:
     urls:
     - https://github.com/Percona-Lab/percona-helm-charts/releases/download/pxc-operator-0.1.5/pxc-operator-0.1.5.tgz
     version: 0.1.5
-generated: "2026-10-22T12:18:56.917608546Z"
+generated: "2026-10-29T14:02:55.426747703Z"
