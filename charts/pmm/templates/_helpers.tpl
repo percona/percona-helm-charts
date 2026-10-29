@@ -125,6 +125,32 @@ checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sh
 {{- end }}
 
 {{/*
+Name of the secret holding a copy of the PMM encryption key.
+*/}}
+{{- define "pmm.encryptionKeySecretName" -}}
+{{- default (printf "%s-encryption-key" (include "pmm.fullname" .)) .Values.encryptionKey.secretName }}
+{{- end }}
+
+{{/*
+Path of the PMM encryption key on the data volume, as PMM itself resolves it. Fails when the key
+is anywhere else, since the init containers that back it up mount nothing but the data volume.
+*/}}
+{{- define "pmm.encryptionKeyPath" -}}
+{{- $path := clean (default "/srv/pmm-encryption.key" (dig "PMM_ENCRYPTION_KEY_PATH" "" (.Values.pmmEnv | default dict))) }}
+{{- $onDataVolume := hasPrefix "/srv/" $path }}
+{{- range .Values.extraVolumeMounts }}
+{{- $mountPath := clean .mountPath }}
+{{- if or (eq $path $mountPath) (hasPrefix (printf "%s/" $mountPath) $path) }}
+{{- $onDataVolume = false }}
+{{- end }}
+{{- end }}
+{{- if not $onDataVolume }}
+{{- fail (printf "encryptionKey.backupToSecret needs the PMM encryption key on the data volume, but %s is not on it; set encryptionKey.backupToSecret to false" $path) }}
+{{- end }}
+{{- $path }}
+{{- end }}
+
+{{/*
 Create password if it does not exist or reuse existing one.
 */}}
 {{- define "pmm.password" -}}
