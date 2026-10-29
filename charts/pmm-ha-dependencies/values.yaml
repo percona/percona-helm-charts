@@ -13,7 +13,8 @@ victoria-metrics-operator:
   crds:
     enabled: true
   admissionWebhooks:
-    # Enable admission webhooks for validation
+    # Enable admission webhooks for validation. Its certificate is generated on every render,
+    # which a GitOps tool shows as drift: there, set certManager.enabled or turn the webhook off.
     enabled: true
 
 ## @section Altinity ClickHouse Operator Configuration
