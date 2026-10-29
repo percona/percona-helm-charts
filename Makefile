@@ -53,6 +53,7 @@ test-ps-db:
 test-pmm-ha:
 	$(HELM) dependency build --skip-refresh charts/pmm-ha
 	$(HELM) unittest charts/pmm-ha
+	charts/pmm-ha/tests/k8s-monitoring-render.sh
 
 # pmm-ha's backup orchestrator (charts/pmm-ha/files/pmm-backup.sh) carries its own suites,
 # because the bugs it keeps citing in its comments are invisible to `sh -n`: a `set -u` read of

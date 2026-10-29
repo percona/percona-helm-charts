@@ -536,6 +536,10 @@ podSecurityContext:
 ##
 openshift: false
 
+## Name of this Kubernetes cluster in PMM's Kubernetes dashboards (label k8s_cluster_id on
+## every series PMM HA's vmagent sends). Empty = the release name. Must be unique per cluster.
+k8sClusterId: ""
+
 ## @param securityContext Configure Container Security Context
 ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
 ## Applied to the PMM Server container, its init containers and the log-streamer sidecars.
@@ -1542,6 +1546,76 @@ kube-state-metrics:
     limits:
       cpu: 500m
       memory: 512Mi
+  # Percona operator custom resources for the Kubernetes dashboards: only the metrics they read,
+  # named as in Percona-Lab/k8s-monitoring. A CRD that is not installed is skipped. PMM-13674
+  customResourceState:
+    enabled: true
+    config:
+      kind: CustomResourceStateMetrics
+      spec:
+        resources:
+          - groupVersionKind: {group: pxc.percona.com, version: v1, kind: PerconaXtraDBCluster}
+            labelsFromPath: {name: [metadata, name], namespace: [metadata, namespace]}
+            metricNamePrefix: kube_pxc
+            metrics:
+              - name: status_state
+                help: "PXC state"
+                each:
+                  type: StateSet
+                  stateSet: {labelName: state, path: [status, state], list: [unknown, ready, initializing, error, paused]}
+          - groupVersionKind: {group: psmdb.percona.com, version: v1, kind: PerconaServerMongoDB}
+            labelsFromPath: {name: [metadata, name], namespace: [metadata, namespace]}
+            metricNamePrefix: kube_psmdb
+            metrics:
+              - name: sharding_enabled
+                help: "Sharding enabled"
+                each:
+                  type: Gauge
+                  gauge: {path: [spec, sharding, enabled]}
+              - name: status_state
+                help: "PSMDB state"
+                each:
+                  type: StateSet
+                  stateSet: {labelName: state, path: [status, state], list: [stopping, ready, initializing, error, paused]}
+          - groupVersionKind: {group: pgv2.percona.com, version: v2, kind: PerconaPGCluster}
+            labelsFromPath: {name: [metadata, name], namespace: [metadata, namespace]}
+            metricNamePrefix: kube_pg
+            metrics:
+              - name: status_state
+                help: "PG state"
+                each:
+                  type: StateSet
+                  stateSet: {labelName: state, path: [status, state], list: [stopping, ready, initializing, error, paused]}
+          - groupVersionKind: {group: ps.percona.com, version: v1, kind: PerconaServerMySQL}
+            labelsFromPath: {name: [metadata, name], namespace: [metadata, namespace]}
+            metricNamePrefix: kube_ps_mysql
+            metrics:
+              - name: status_state
+                help: "PS MySQL state"
+                each:
+                  type: StateSet
+                  stateSet: {labelName: state, path: [status, state], list: [stopping, ready, initializing, error, paused]}
+  # kube_pod_labels / kube_persistentvolumeclaim_labels carry these, so pods map to their database cluster. PMM-13674
+  metricLabelsAllowlist:
+    - pods=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]
+    - persistentvolumeclaims=[app.kubernetes.io/component,app.kubernetes.io/instance,app.kubernetes.io/managed-by,app.kubernetes.io/name,app.kubernetes.io/part-of]
+  rbac:
+    extraRules:
+      - apiGroups: [apiextensions.k8s.io]
+        resources: [customresourcedefinitions]
+        verbs: [list, watch]
+      - apiGroups: [pxc.percona.com]
+        resources: [perconaxtradbclusters]
+        verbs: [list, watch]
+      - apiGroups: [psmdb.percona.com]
+        resources: [perconaservermongodbs]
+        verbs: [list, watch]
+      - apiGroups: [pgv2.percona.com]
+        resources: [perconapgclusters]
+        verbs: [list, watch]
+      - apiGroups: [ps.percona.com]
+        resources: [perconaservermysqls]
+        verbs: [list, watch]
 
 prometheus-node-exporter:
   enabled: true
