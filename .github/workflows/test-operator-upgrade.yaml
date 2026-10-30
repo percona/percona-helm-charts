@@ -1,0 +1,258 @@
+name: Test Chart Deploy and Upgrades
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'charts/psmdb-operator/**'
+      - '!charts/psmdb-operator/crds/**'
+      - 'charts/psmdb-operator-crds/**'
+      - 'charts/psmdb-db/**'
+      - '.github/workflows/test-operator-upgrade.yaml'
+      - '.github/workflows/scripts/collect-cluster-logs'
+      - '.github/workflows/scripts/detect-changes'
+      - '.github/workflows/scripts/detect-comment'
+      - '.github/workflows/scripts/test-operator-with-helm'
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+env:
+  SUPPORTED_CHARTS: psmdb-operator,psmdb-operator-crds,psmdb-db
+  SUPPORTED_JOBS: install,upgrade
+  SELECT_ALL_ON_CHANGES: >-
+    .github/workflows/test-operator-upgrade.yaml,
+    .github/workflows/scripts/collect-cluster-logs,
+    .github/workflows/scripts/detect-changes,
+    .github/workflows/scripts/detect-comment,
+    .github/workflows/scripts/test-operator-with-helm
+
+jobs:
+  install-test:
+    name: install-test-${{ matrix.product }}
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER') &&
+       startsWith(github.event.comment.body, '/run-test-upgrade'))
+    # PSMDB 8 cannot start on Linux kernels 6.19 through 7.0.13.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        product: [psmdb]
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+
+      - name: Detect tests
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPPORTED_OPERATORS: ${{ matrix.product }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == issue_comment ]]; then
+            .github/workflows/scripts/detect-comment
+          else
+            .github/workflows/scripts/detect-changes
+          fi
+
+      - name: Checkout selected commit
+        if: >-
+          !env.ACT &&
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        env:
+          HEAD_SHA: ${{ steps.changes.outputs.head-sha }}
+        run: git checkout --detach "$HEAD_SHA"
+
+      - uses: azure/setup-helm@v5.0.0
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        with:
+          version: v3.21.0
+
+      - uses: manusa/actions-setup-minikube@v2.19.0
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        with:
+          minikube version: v1.39.0
+          kubernetes version: v1.34.0
+          driver: docker
+          start args: >-
+            --cpus=4
+            --memory=12gb
+            --base-image=gcr.io/k8s-minikube/kicbase:v0.0.51
+            --profile=minikube-${{ matrix.product }}-install
+            --force
+          github token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install operator and database
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        run: |
+          version="$(
+            awk '$1 == "appVersion:" {
+              gsub(/"/, "", $2)
+              print $2
+              exit
+            }' "charts/${{ matrix.product }}-operator/Chart.yaml"
+          )"
+
+          .github/workflows/scripts/test-operator-with-helm \
+            install "${{ matrix.product }}" "--version=$version"
+
+      - name: Collect cluster logs
+        if: failure()
+        env:
+          MINIKUBE_PROFILE: minikube-${{ matrix.product }}-install
+        run: bash .github/workflows/scripts/collect-cluster-logs
+
+      - name: Upload cluster logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cluster-logs-${{ matrix.product }}-install
+          path: cluster-logs/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: |
+          minikube \
+            --profile "minikube-${{ matrix.product }}-install" \
+            delete || true
+          docker volume rm \
+            "minikube-${{ matrix.product }}-install" || true
+
+  upgrade-test:
+    name: upgrade-test-${{ matrix.product }}
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER') &&
+       startsWith(github.event.comment.body, '/run-test-upgrade'))
+    # PSMDB 8 cannot start on Linux kernels 6.19 through 7.0.13.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        product: [psmdb]
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+
+      - name: Detect tests
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPPORTED_OPERATORS: ${{ matrix.product }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == issue_comment ]]; then
+            .github/workflows/scripts/detect-comment
+          else
+            .github/workflows/scripts/detect-changes
+          fi
+
+      - name: Checkout selected commit
+        if: >-
+          !env.ACT &&
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        env:
+          HEAD_SHA: ${{ steps.changes.outputs.head-sha }}
+        run: git checkout --detach "$HEAD_SHA"
+
+      - uses: azure/setup-helm@v5.0.0
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        with:
+          version: v3.21.0
+
+      - uses: manusa/actions-setup-minikube@v2.19.0
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        with:
+          minikube version: v1.39.0
+          kubernetes version: v1.34.0
+          driver: docker
+          start args: >-
+            --cpus=4
+            --memory=12gb
+            --base-image=gcr.io/k8s-minikube/kicbase:v0.0.51
+            --profile=minikube-${{ matrix.product }}-upgrade
+            --force
+          github token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install previous version and upgrade
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          steps.changes.outputs.base-sha != '' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        env:
+          BASE_SHA: ${{ steps.changes.outputs.base-sha }}
+        run: |
+          version="$(
+            awk '$1 == "appVersion:" {
+              gsub(/"/, "", $2)
+              print $2
+              exit
+            }' "charts/${{ matrix.product }}-operator/Chart.yaml"
+          )"
+
+          .github/workflows/scripts/test-operator-with-helm \
+            upgrade "${{ matrix.product }}" "--version=$version"
+
+      - name: Collect cluster logs
+        if: failure()
+        env:
+          MINIKUBE_PROFILE: minikube-${{ matrix.product }}-upgrade
+        run: bash .github/workflows/scripts/collect-cluster-logs
+
+      - name: Upload cluster logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cluster-logs-${{ matrix.product }}-upgrade
+          path: cluster-logs/
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: |
+          minikube \
+            --profile "minikube-${{ matrix.product }}-upgrade" \
+            delete || true
+          docker volume rm \
+            "minikube-${{ matrix.product }}-upgrade" || true

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+OUT="${OUT:-cluster-logs}"
+mkdir -p "$OUT/pods"
+
+save() {
+  local file="$1"
+  shift
+  "$@" > "$OUT/$file" 2>&1 || true
+}
+
+save resources.txt kubectl get all,pvc,pv,storageclass -A -o wide
+save events.txt kubectl get events -A --sort-by=.lastTimestamp
+save nodes.txt kubectl describe nodes
+{
+  for resource in psmdb ps perconapgcluster pxc; do
+    kubectl get "$resource" -A -o wide 2>&1 || true
+  done
+} > "$OUT/clusters.txt"
+
+while read -r ns pod; do
+  [ -n "$ns" ] || continue
+  dir="$OUT/pods/$ns/$pod"
+  mkdir -p "$dir"
+  kubectl describe pod "$pod" -n "$ns" > "$dir/describe.txt" 2>&1 || true
+
+  while read -r container restarts; do
+    [ -n "$container" ] || continue
+    kubectl logs "$pod" -n "$ns" -c "$container" --timestamps --tail=500 \
+      > "$dir/$container.log" 2>&1 || true
+    if [ "$restarts" -gt 0 ]; then
+      kubectl logs "$pod" -n "$ns" -c "$container" --previous --timestamps --tail=500 \
+        > "$dir/$container-previous.log" 2>&1 || true
+    fi
+  done < <(kubectl get pod "$pod" -n "$ns" -o json | jq -r '
+    [.status.initContainerStatuses[]?, .status.containerStatuses[]?] |
+    .[] | [.name, (.restartCount // 0)] | @tsv')
+
+  if kubectl get pod "$pod" -n "$ns" -o json | jq --exit-status \
+    '.spec.containers | any(.name == "logs")' >/dev/null; then
+    mkdir -p "$dir/database-logs"
+    while IFS= read -r log_file; do
+      [ -n "$log_file" ] || continue
+      log_name=${log_file##*/}
+      kubectl exec "$pod" -n "$ns" -c logs -- \
+        tail -n 2000 "$log_file" \
+        > "$dir/database-logs/$log_name" 2>&1 || true
+    done < <(
+      # The variables in this command are expanded inside the pod.
+      # shellcheck disable=SC2016
+      kubectl exec "$pod" -n "$ns" -c logs -- sh -c '
+        for file in /data/db/logs/*; do
+          [ ! -f "$file" ] || printf "%s\n" "$file"
+        done
+      ' 2>/dev/null || true
+    )
+  fi
+done < <(kubectl get pods -A --no-headers -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name')
+
+if [ -n "${MINIKUBE_PROFILE:-}" ]; then
+  save minikube.txt minikube --profile "$MINIKUBE_PROFILE" logs --problems
+fi
+
+echo "Diagnostics saved to $OUT/"

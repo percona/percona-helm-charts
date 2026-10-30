@@ -1,0 +1,443 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+usage='Usage: test-operator-with-helm <install|upgrade> <psmdb> <--version=TAG|--branch=TAG>'
+mode=${1:?$usage}
+product=${2:?$usage}
+image_selector=${3:?$usage}
+base_sha=${BASE_SHA:-}
+operator_namespace=operator
+database_namespace=database
+db_args=()
+
+case "$product" in
+  psmdb)
+    resource=perconaservermongodb
+    image_name=percona-server-mongodb-operator
+    image_values=structured
+    db_args=(
+      --set unsafeFlags.replsetSize=true
+      --set unsafeFlags.mongosSize=true
+      --set replsets.rs0.size=1
+      --set sharding.enabled=true
+      --set sharding.configrs.size=1
+      --set sharding.mongos.size=1
+    )
+  ;;
+
+  *)
+    echo "Unsupported product: $product" >&2
+    exit 1
+    ;;
+esac
+
+case "$image_selector" in
+  --version=*)
+    released_image=true
+    image_tag=${image_selector#--version=}
+    image_repository="percona/$image_name"
+    ;;
+  --branch=*)
+    released_image=false
+    image_tag=${image_selector#--branch=}
+    image_repository="perconalab/$image_name"
+    ;;
+  *)
+    echo "$usage" >&2
+    exit 1
+    ;;
+esac
+
+if [[ -z "$image_tag" ]]; then
+  echo "Image version or branch cannot be empty" >&2
+  exit 1
+fi
+
+if [[ ! "$image_tag" =~ ^[[:alnum:]_][[:alnum:]_.-]{0,127}$ ]]; then
+  echo "Invalid container image tag: $image_tag" >&2
+  exit 1
+fi
+
+operator_image="$image_repository:$image_tag"
+
+if [[ "$released_image" == true ]]; then
+  manifest_error=''
+  if manifest_error="$(
+    docker manifest inspect "$operator_image" 2>&1 >/dev/null
+  )"; then
+    :
+  elif grep --ignore-case --extended-regexp --quiet \
+    'manifest unknown|no such manifest|not found' <<< "$manifest_error"; then
+    echo "$operator_image is not released; using the main development image"
+    image_repository="perconalab/$image_name"
+    image_tag=main
+    operator_image="$image_repository:$image_tag"
+  else
+    echo "Could not inspect $operator_image: $manifest_error" >&2
+    exit 1
+  fi
+fi
+
+operator_image_args=()
+
+if [[ "$image_values" == legacy ]]; then
+  operator_image_args+=(--set "image=$operator_image")
+else
+  operator_image_args+=(
+    --set "image.repository=$image_repository"
+    --set "image.tag=$image_tag"
+  )
+fi
+
+echo "Testing $mode for $product with $operator_image"
+
+operator="${product}-operator"
+crd="${product}-operator-crds"
+db="${product}-db"
+cluster="test-${db}"
+
+for chart in "$crd" "$operator" "$db"; do
+  if [[ ! -f "charts/$chart/Chart.yaml" ]]; then
+    echo "Chart not found: charts/$chart" >&2
+    exit 1
+  fi
+done
+
+log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+
+validate_kernel() {
+  local kernel_version
+
+  kernel_version="$(uname -r)"
+  kernel_version=${kernel_version%%-*}
+
+  if [[ "$(printf '%s\n' 6.19 "$kernel_version" | sort -V | head -1)" == 6.19 &&
+        "$kernel_version" != 7.0.14 &&
+        "$(printf '%s\n' 7.0.14 "$kernel_version" | sort -V | head -1)" == "$kernel_version" ]]; then
+    echo "PSMDB 8 is incompatible with Linux kernel $kernel_version; use a kernel older than 6.19 or at least 7.0.14" >&2
+    exit 1
+  fi
+}
+
+get_cr_version() {
+  kubectl get "$resource/$cluster" -n "$database_namespace" -o json |
+    jq -r '.spec.crVersion // empty'
+}
+
+get_workloads() {
+  kubectl get statefulsets,deployments -n "$database_namespace" \
+    -l "app.kubernetes.io/instance=$cluster" -o json
+}
+
+get_crashlooping_containers() {
+  kubectl get pods -n "$database_namespace" \
+    -l "app.kubernetes.io/instance=$cluster" -o json 2>/dev/null |
+    jq -r '
+      [.items[] as $pod |
+       (($pod.status.initContainerStatuses // []) +
+        ($pod.status.containerStatuses // []))[] |
+       select((.restartCount // 0) >= 3 and
+              .state.waiting.reason == "CrashLoopBackOff") |
+       "\($pod.metadata.name)/\(.name) (restarts=\(.restartCount))"] |
+      join(", ")
+    '
+}
+
+save_generations() {
+  get_workloads | jq -ce '
+    if (.items | length) == 0 then error("No workloads found") else
+      [.items[] | {key: (.kind + "/" + .metadata.name), value: .metadata.generation}]
+      | from_entries
+    end
+  '
+}
+
+wait_ready() {
+  local previous=${1:-'{}'}
+  local deadline=$((SECONDS + 420))
+  local cr crashlooping workloads result
+
+  log "Waiting for $cluster and workloads (timeout: 7m0s)"
+  while (( SECONDS < deadline )); do
+    cr="$(kubectl get "$resource/$cluster" -n "$database_namespace" -o json 2>/dev/null || echo '{}')"
+    workloads="$(get_workloads)"
+
+    result="$(jq -cn --argjson cr "$cr" --argjson workloads "$workloads" --argjson previous "$previous" '
+      def ready:
+        (.spec.replicas // 1) as $n |
+        (.status.observedGeneration // 0) >= .metadata.generation and
+        (.status.replicas // 0) == $n and
+        (.status.updatedReplicas // 0) == $n and
+        (.status.readyReplicas // 0) == $n and
+        (if .kind == "StatefulSet" then
+           (.spec.updateStrategy.type // "RollingUpdate") == "OnDelete" or
+           .status.currentRevision == .status.updateRevision
+         else (.status.availableReplicas // 0) == $n end);
+      ($workloads.items | map(
+        (.kind + "/" + .metadata.name) as $key |
+        {name: $key, generation: .metadata.generation,
+         previous: $previous[$key], ready: ready,
+         increased: ($previous == {} or
+                     ($previous[$key] != null and .metadata.generation > $previous[$key]))}
+      )) as $items |
+      {cluster: ($cr.status.state // "NotReady"),
+       generation: ($cr.metadata.generation // 0),
+       observed: ($cr.status.observedGeneration // 0),
+       workloads: $items,
+       success: (($cr.status.state // "" | ascii_downcase) == "ready" and
+         ($cr.status.observedGeneration // 0) >= ($cr.metadata.generation // 0) and
+         ($items | length) > 0 and
+         ($previous == {} or (($items | map(.name) | sort) == ($previous | keys | sort))) and
+         all($items[]; .ready and .increased))}
+    ')"
+
+    log "$(jq -c 'del(.success)' <<< "$result")"
+    if [[ "$(jq -r '.success' <<< "$result")" == true ]]; then
+      log "SUCCESS: cluster Ready; all workloads updated and Ready"
+      return 0
+    fi
+
+    crashlooping="$(get_crashlooping_containers)"
+    if [[ -n "$crashlooping" ]]; then
+      log "ERROR: database containers are crash-looping: $crashlooping" >&2
+      return 1
+    fi
+    sleep 15
+  done
+  log "ERROR: timed out waiting for cluster/workloads" >&2
+  return 1
+}
+
+database_pod_state() {
+  local pods
+
+  pods="$(
+    kubectl get pods \
+      --namespace "$database_namespace" \
+      --selector "app.kubernetes.io/instance=$cluster" \
+      --output json
+  )"
+
+  if ! jq --exit-status '.items | length > 0' <<< "$pods" >/dev/null; then
+    echo "No database pods found for $cluster" >&2
+    return 1
+  fi
+
+  jq --compact-output '
+    [.items[] | {
+      name: .metadata.name,
+      uid: .metadata.uid,
+      containers: (
+        ((.status.initContainerStatuses // []) +
+         (.status.containerStatuses // []) +
+         (.status.ephemeralContainerStatuses // [])) |
+        map({name, restartCount}) |
+        sort_by(.name)
+      )
+    }] | sort_by(.name)
+  ' <<< "$pods"
+}
+
+verify_operator_ready() {
+  kubectl rollout status "deployment/$operator" \
+    --namespace "$operator_namespace" \
+    --timeout 10m
+  kubectl wait pods \
+    --namespace "$operator_namespace" \
+    --selector "app.kubernetes.io/instance=$operator" \
+    --for condition=Ready \
+    --timeout 5m
+}
+
+verify_database_stability() {
+  local before=$1
+  local after
+
+  echo "Operator $operator is ready; checking database pod stability for 60 seconds"
+  sleep 60
+
+  kubectl wait pods \
+    --namespace "$database_namespace" \
+    --selector "app.kubernetes.io/instance=$cluster" \
+    --for condition=Ready \
+    --timeout 5m
+  after="$(database_pod_state)"
+
+  if [[ "$before" != "$after" ]]; then
+    echo "A database pod was replaced or a container restarted after the operator upgrade" >&2
+    echo "Before: $before" >&2
+    echo "After:  $after" >&2
+    return 1
+  fi
+
+  echo "Database pods remained stable without restarts for 60 seconds"
+}
+
+validate_crds() {
+  local crd_list
+  local crds=()
+
+  crd_list="$(
+    kubectl get customresourcedefinitions \
+      --selector 'app.kubernetes.io/component=crd,app.kubernetes.io/part-of=percona-server-mongodb-operator' \
+      --output name
+  )"
+  mapfile -t crds <<< "$crd_list"
+  if (( ${#crds[@]} == 0 )) || [[ -z "${crds[0]}" ]]; then
+    echo "No CRDs were installed by $crd" >&2
+    return 1
+  fi
+
+  kubectl wait \
+    --for condition=Established \
+    --timeout 2m \
+    "${crds[@]}"
+  kubectl get "${crds[@]}" \
+    --output custom-columns='NAME:.metadata.name,ESTABLISHED:.status.conditions[?(@.type=="Established")].status'
+}
+
+install_crd_chart() {
+  local crd_source=$1
+  local crd_version=${2:-}
+  local crd_args=()
+
+  [[ -z "$crd_version" ]] || crd_args+=(--version "$crd_version")
+
+  helm install "$crd" "$crd_source" \
+    --namespace "$operator_namespace" \
+    --create-namespace \
+    --wait \
+    --timeout 5m \
+    "${crd_args[@]}"
+  validate_crds
+}
+
+upgrade_crd_chart() {
+  helm upgrade "$crd" "charts/$crd" \
+    --namespace "$operator_namespace" \
+    --wait \
+    --timeout 5m
+  validate_crds
+}
+
+install_charts() {
+  local operator_source=$1
+  local db_source=$2
+  local crd_source=$3
+  local operator_version=${4:-}
+  local db_version=${5:-}
+  local crd_version=${6:-}
+  local use_target_image=${7:-false}
+  local operator_args=()
+  local db_install_args=()
+
+  [[ -z "$operator_version" ]] || operator_args+=(--version "$operator_version")
+  [[ -z "$db_version" ]] || db_install_args+=(--version "$db_version")
+  [[ "$use_target_image" != true ]] || operator_args+=("${operator_image_args[@]}")
+  operator_args+=(--set watchAllNamespaces=true)
+
+  install_crd_chart "$crd_source" "$crd_version"
+
+  helm install "$operator" "$operator_source" \
+    --namespace "$operator_namespace" \
+    --create-namespace \
+    --skip-crds \
+    --wait \
+    --timeout 10m \
+    "${operator_args[@]}"
+
+  helm install test "$db_source" \
+    --namespace "$database_namespace" \
+    --create-namespace \
+    "${db_install_args[@]}" \
+    "${db_args[@]}"
+}
+
+chart_version() {
+  git show "$base_sha:$1/Chart.yaml" |
+    awk '$1 == "version:" { gsub(/"/, "", $2); print $2; exit }'
+}
+
+case "$mode" in
+  install)
+    validate_kernel
+    install_charts \
+      "charts/$operator" \
+      "charts/$db" \
+      "charts/$crd" \
+      '' '' '' true
+    wait_ready
+    ;;
+  upgrade)
+    validate_kernel
+    if [[ -z "$base_sha" ]]; then
+      echo "BASE_SHA is required for an upgrade test" >&2
+      exit 1
+    fi
+
+    if ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+      git fetch --no-tags origin "$base_sha"
+    fi
+
+    previous_operator_version="$(chart_version "charts/$operator")"
+    previous_db_version="$(chart_version "charts/$db")"
+    previous_crd_version="$(chart_version "charts/$crd")"
+
+    if [[ -z "$previous_operator_version" ||
+          -z "$previous_db_version" ||
+          -z "$previous_crd_version" ]]; then
+      echo "Could not determine previous chart versions from $base_sha" >&2
+      exit 1
+    fi
+
+    helm repo add percona \
+      https://percona.github.io/percona-helm-charts/ \
+      --force-update
+    helm repo update
+
+    install_charts \
+      "percona/$operator" \
+      "percona/$db" \
+      "percona/$crd" \
+      "$previous_operator_version" \
+      "$previous_db_version" \
+      "$previous_crd_version"
+    wait_ready
+
+    database_state_before="$(database_pod_state)"
+    upgrade_crd_chart
+    helm upgrade "$operator" "charts/$operator" \
+      --namespace "$operator_namespace" \
+      --wait \
+      --timeout 10m \
+      --set watchAllNamespaces=true \
+      "${operator_image_args[@]}"
+    verify_operator_ready
+    verify_database_stability "$database_state_before"
+    cr_version_before="$(get_cr_version)"
+    log "CR version before upgrade: ${cr_version_before:-unset}"
+    generations_before="$(save_generations)"
+    log "Workload generations before upgrade: $generations_before"
+
+    helm upgrade test "charts/$db" \
+      --namespace "$database_namespace" \
+      --reset-values \
+      "${db_args[@]}"
+    cr_version_after="$(get_cr_version)"
+    log "CR version after upgrade: ${cr_version_after:-unset}"
+
+    if [[ "$cr_version_before" != "$cr_version_after" ]]; then
+      log "CR version changed: requiring workload generations to increase"
+      wait_ready "$generations_before"
+    else
+      log "CR version unchanged: waiting 30 seconds before readiness checks"
+      sleep 30
+      wait_ready
+    fi
+    ;;
+  *)
+    echo "Unsupported mode: $mode" >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,54 @@
+
+name: Test Chart Lint
+
+on:
+  pull_request:
+    paths:
+      - 'charts/*-operator/**'
+      - '!charts/*-operator/crds/**'
+      - 'charts/*-db/**'
+      - 'charts/pmm/**'
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+
+      - uses: azure/setup-helm@v5.0.0
+        with:
+          version: v3.21.0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - uses: helm/chart-testing-action@v2.8.0
+
+      - name: Run linter
+        run: |
+          excluded_charts=(
+            gcp-marketplace
+            pmm-ha
+            pmm-ha-dependencies
+          )
+          for chart in charts/*-operator-crds; do
+            [[ -d "$chart" ]] || continue
+            excluded_charts+=("${chart#charts/}")
+          done
+          excluded="$(IFS=,; echo "${excluded_charts[*]}")"
+
+          chart_args=()
+          if [[ -n "${ACT_CHARTS:-}" ]]; then
+            chart_args+=(--charts="$ACT_CHARTS")
+          fi
+
+          ct lint \
+            --config .github/ct.yaml \
+            --lint-conf .github/lintconf.yaml \
+            --excluded-charts="$excluded" \
+            "${chart_args[@]}" \
+            --target-branch "$GITHUB_BASE_REF"

@@ -1,0 +1,49 @@
+name: Helm Unit Tests
+
+on:
+  pull_request:
+    paths:
+      - 'charts/pxc-operator/**'
+      - 'charts/pxc-db/**'
+      - 'charts/ps-operator/**'
+      - 'charts/ps-db/**'
+
+jobs:
+  unit-test:
+    name: Helm Unit Tests (test-${{ matrix.chart }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart:
+          - pxc-operator
+          - pxc-db
+          - ps-operator
+          - ps-db
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Detect changed charts
+        id: changes
+        env:
+          SUPPORTED_CHARTS: pxc-operator,pxc-db,ps-operator,ps-db
+        run: .github/workflows/scripts/detect-changes
+
+      - name: Set up Helm
+        if: contains(fromJSON(steps.changes.outputs.charts), matrix.chart)
+        uses: azure/setup-helm@v5.0.0
+        with:
+          version: v3.21.0
+
+      - name: Install helm-unittest plugin
+        if: contains(fromJSON(steps.changes.outputs.charts), matrix.chart)
+        run: make helm-unittest
+
+      - name: Run test-${{ matrix.chart }}
+        if: contains(fromJSON(steps.changes.outputs.charts), matrix.chart)
+        run: make test-${{ matrix.chart }}
