@@ -8,6 +8,11 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
+  {{- if .Values.gitops.enabled }}
+  annotations:
+    # Over client-side apply's 256 KiB last-applied-configuration limit, so Argo CD must apply it server-side (PMM-15826).
+    argocd.argoproj.io/sync-options: ServerSideApply=true
+  {{- end }}
 data:
   pmm-backup.sh: |
 {{ required "files/pmm-backup.sh is missing from the chart — every backup/restore entry point execs it, and .Files.Get would silently render an empty key" (.Files.Get "files/pmm-backup.sh") | indent 4 }}

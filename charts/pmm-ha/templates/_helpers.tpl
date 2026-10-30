@@ -116,7 +116,35 @@ exists carrying no data at all.
 */}}
 {{- define "pmm.secret.cached" -}}
 {{- if not (hasKey .Values "cachedPmmSecret") -}}
+{{- if .Values.gitops.enabled -}}
+{{- $_ := set .Values "cachedPmmSecret" dict -}}
+{{- else -}}
 {{- $_ := set .Values "cachedPmmSecret" (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+gitops.enabled renders without the cluster, so every value the default path would read back from
+it or generate has to come from somewhere fixed instead. Refuse the settings that would bring the
+nondeterminism back, rather than rendering a different secret on every Argo CD refresh.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.gitops.validate" -}}
+{{- $format := .Values.tls.secretFormat | default "pem" -}}
+{{- if not (has $format (list "pem" "kubernetes.io/tls")) -}}
+{{- fail (printf "tls.secretFormat must be \"pem\" or \"kubernetes.io/tls\", got %q" $format) -}}
+{{- end -}}
+{{- if and (eq $format "kubernetes.io/tls") (not .Values.gitops.enabled) (not .Values.tls.manualSecret) -}}
+{{- fail "tls.secretFormat=kubernetes.io/tls describes a secret the chart does not create: set tls.manualSecret=true (or gitops.enabled=true) and create the secret, or leave tls.secretFormat at pem." -}}
+{{- end -}}
+{{- if .Values.gitops.enabled -}}
+{{- if .Values.secret.create -}}
+{{- fail "gitops.enabled requires secret.create=false: secret.create generates passwords at render time, and an offline render cannot see the ones it generated before, so every Argo CD refresh would rotate them. Create the secret out of band (External Secrets, Sealed Secrets, SOPS or kubectl) before the first sync." -}}
+{{- end -}}
+{{- if .Values.clickhouse.datasource.password -}}
+{{- fail (printf "clickhouse.datasource.password is not used with gitops.enabled: the data source password is read from the PMM_CLICKHOUSE_DATASOURCE_PASSWORD key of secret '%s' at runtime. Move it there and unset clickhouse.datasource.password." .Values.secret.name) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -609,7 +637,7 @@ Helm still reports success. Offline renders skip this (`lookup`), OpenShift's re
 the context in, and pgDbPmmSidecarPatched acknowledges the manual patch in the README.
 */}}
 {{- define "pmm.podSecurity.validate" -}}
-{{- if and (index .Values "pg-db" "pmm" "enabled") (not .Values.openshift) (not .Values.pgDbPmmSidecarPatched) -}}
+{{- if and (index .Values "pg-db" "pmm" "enabled") (not .Values.openshift) (not .Values.pgDbPmmSidecarPatched) (not .Values.gitops.enabled) -}}
 {{- $ns := lookup "v1" "Namespace" "" .Release.Namespace -}}
 {{- $enforce := dig "metadata" "labels" "pod-security.kubernetes.io/enforce" "" ($ns | default dict) -}}
 {{- if eq $enforce "restricted" -}}
@@ -1269,6 +1297,8 @@ Only what the chart can see is checked. A generated password is alphanumeric, an
 secret is read here through the same memoised lookup every other consumer uses.
 */}}
 {{- define "pmm.vm.validateCredential" -}}
+{{- /* gitops.enabled never sees the secret, and would only validate a password it is not going to use. */ -}}
+{{- if not .Values.gitops.enabled -}}
 {{- $username := include "pmm.vm.username" . -}}
 {{- $password := include "pmm.vm.password" . -}}
 {{- if not (regexMatch "^[A-Za-z0-9._~!$&'()*+,;=@-]+$" $username) -}}
@@ -1276,6 +1306,7 @@ secret is read here through the same memoised lookup every other consumer uses.
 {{- end -}}
 {{- if not (regexMatch "^[A-Za-z0-9._~!$&'()*+,;=:@-]+$" $password) -}}
 {{- fail (printf "The VictoriaMetrics password is not usable in PMM_VM_URL: PMM Server parses that URL with url.Parse, which returns the password unchanged only when it is built from letters, digits and the punctuation -._~!$&'()*+,;=:@ . Any other character, '%%' and whitespace included, changes the credential, drops it, or fails the parse, and every metric write and query then fails with 401. Set it to a value from that set, in the PMM_HA_VM_PASSWORD key of secret '%s' or in secret.victoriametrics_password." .Values.secret.name) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 

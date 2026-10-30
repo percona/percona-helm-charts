@@ -4,8 +4,7 @@ metadata:
   name: postgresql-init-extensions
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: postgresql
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "postgresql") | nindent 4 }}
   annotations:
     meta.helm.sh/release-name: {{ .Release.Name }}
     meta.helm.sh/release-namespace: {{ .Release.Namespace }}

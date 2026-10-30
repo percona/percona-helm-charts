@@ -1,5 +1,4 @@
-# templates/vmagent.yaml cannot be loaded here (it repeats the app.kubernetes.io/component label);
-# its serviceAccountName is asserted in pmm-ha-pr-checks.yaml instead.
+# vmagent.yaml's serviceAccountName is asserted in pmm-ha-pr-checks.yaml.
 suite: pmm-ha vmagent RBAC
 templates:
   - templates/vmagent-rbac.yaml
@@ -133,4 +132,16 @@ tests:
     asserts:
       - hasDocuments:
           count: 7
+        template: templates/vmagent-rbac.yaml
+
+  - it: touches nothing in default when scrapeApiserver is false
+    set:
+      victoriaMetrics.vmagent.scrapeApiserver: false
+    asserts:
+      - hasDocuments:
+          count: 5
+        template: templates/vmagent-rbac.yaml
+      - notEqual:
+          path: metadata.namespace
+          value: default
         template: templates/vmagent-rbac.yaml
