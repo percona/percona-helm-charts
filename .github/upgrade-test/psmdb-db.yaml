@@ -1,0 +1,11 @@
+unsafeFlags:
+  replsetSize: true
+  mongosSize: true
+replsets:
+  rs0:
+    size: 1
+sharding:
+  configrs:
+    size: 1
+  mongos:
+    size: 1

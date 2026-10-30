@@ -1,0 +1,8 @@
+unsafeFlags:
+  mysqlSize: true
+  proxySize: true
+mysql:
+  size: 1
+proxy:
+  haproxy:
+    size: 1
