@@ -12,6 +12,7 @@ templates:
   - templates/haproxy-tls-secret.yaml
   - templates/haproxy-configmap.yaml
   - templates/pg-pmm-token-job.yaml
+  - templates/backup-scripts-configmap.yaml
 release:
   name: smoke
   namespace: pmm
@@ -149,3 +150,11 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "describes a secret the chart does not create"
+
+  - it: marks the backup-scripts ConfigMap for server-side apply (too large for client-side apply)
+    template: templates/backup-scripts-configmap.yaml
+    set: {centralBackupStorage: {enabled: true, mode: s3, s3: {bucket: bk}}}
+    asserts:
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-options"]
+          value: ServerSideApply=true

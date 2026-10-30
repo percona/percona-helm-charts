@@ -1015,6 +1015,33 @@ Install `pmm-ha-dependencies` as its own application first and let it become hea
 client-side apply), and give `pmm-ha` `SkipDryRunOnMissingResource=true` plus a sync retry, so a
 first sync that races the CRDs retries instead of failing.
 
+With `centralBackupStorage.enabled`, the backup-scripts ConfigMap is larger than a client-side
+apply allows (its `last-applied-configuration` annotation is capped at 256 KiB). The chart marks
+that one object `argocd.argoproj.io/sync-options: ServerSideApply=true`, so Argo CD needs nothing
+extra; if you apply `helm template` output yourself, use `kubectl apply --server-side`.
+
+`pmm-backup.sh restore` scales the PMM StatefulSet and the VMCluster to 0 while it runs. Argo CD
+self-heal would scale them straight back up, and the restore would time out and abort. The script
+writes the scale-down as field manager `pmm-backup`, so the application can ignore those replica
+counts only while a restore holds them (names shown for release `pmm-ha`):
+
+```yaml
+spec:
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: pmm-ha
+      managedFieldsManagers: [pmm-backup]
+    - group: operator.victoriametrics.com
+      kind: VMCluster
+      name: pmm-ha-vmcluster
+      managedFieldsManagers: [pmm-backup]
+```
+
+The restore's scale-up takes the fields back, so self-heal covers them again afterwards. Without
+this, turn self-heal off for the duration of a restore. Either way, a sync during a restore (a new
+commit, for example) scales PMM back up, so do not merge changes to the application while one runs.
+
 The checks that need the cluster are skipped with `gitops.enabled`: a missing `pmm-secret` key,
 a VictoriaMetrics credential that `PMM_VM_URL` cannot carry, and a namespace enforcing the
 "restricted" Pod Security Standard. A missing key shows up as a pod in
