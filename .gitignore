@@ -1,6 +1,7 @@
 .deploy/
 .idea/
 *.tgz
+cluster-logs/
 *__snapshot__*
 .DS_Store
 # Local-only Helm value overrides with real env/account/bucket details — never commit

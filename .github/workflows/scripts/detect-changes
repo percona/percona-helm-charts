@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+if (( $# != 0 )); then
+  echo 'Usage: detect-changes' >&2
+  exit 1
+fi
+
+event_path=${GITHUB_EVENT_PATH:?GITHUB_EVENT_PATH is required}
+output_file=${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}
+supported_charts_csv=${SUPPORTED_CHARTS:-}
+supported_operators_csv=${SUPPORTED_OPERATORS:-}
+supported_jobs_csv=${SUPPORTED_JOBS:-}
+select_all_on_changes_csv=${SELECT_ALL_ON_CHANGES:-}
+base_sha="$(jq --raw-output '.pull_request.base.sha // empty' "$event_path")"
+head_sha="$(jq --raw-output '.pull_request.head.sha // empty' "$event_path")"
+head_repository="$(
+  jq --raw-output '.pull_request.head.repo.full_name // empty' "$event_path"
+)"
+head_repository=${head_repository:-${GITHUB_REPOSITORY:-}}
+
+json_array() {
+  tr ',' '\n' <<< "$1" |
+    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' |
+    sort -u |
+    jq -R . |
+    jq -sc .
+}
+
+if [[ -n "${ACT_CHARTS:-}" ]]; then
+  changed_files="$(tr ',' '\n' <<< "$ACT_CHARTS")"
+  head_sha="${head_sha:-$(git rev-parse HEAD)}"
+  base_sha="${base_sha:-$(git rev-parse "$head_sha^")}"
+else
+  merge_base="$(git merge-base "$base_sha" "$head_sha")"
+  changed_files="$(git diff --name-only "$merge_base" "$head_sha")"
+fi
+
+detected_charts="$(
+  printf '%s\n' "$changed_files" |
+    sed -nE 's#^charts/([^/]+)(/.*)?$#\1#p' |
+    sort -u |
+    jq -R . |
+    jq -sc .
+)"
+
+if [[ -n "$supported_charts_csv" ]]; then
+  supported_charts="$(json_array "$supported_charts_csv")"
+  select_all=false
+
+  if [[ -n "$select_all_on_changes_csv" ]]; then
+    while IFS= read -r common_path; do
+      if grep --fixed-strings --line-regexp --quiet \
+        "$common_path" <<< "$changed_files"; then
+        select_all=true
+        break
+      fi
+    done < <(
+      tr ',' '\n' <<< "$select_all_on_changes_csv" |
+        sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+    )
+  fi
+
+  if [[ "$select_all" == true ]]; then
+    charts=$supported_charts
+  else
+    charts="$(
+      jq --compact-output --null-input \
+        --argjson detected "$detected_charts" \
+        --argjson supported "$supported_charts" \
+        '$detected | map(select(. as $chart | $supported | index($chart)))'
+    )"
+  fi
+else
+  charts=$detected_charts
+fi
+chart_paths="$(
+  jq --raw-output 'map("charts/" + .) | join(",")' <<< "$charts"
+)"
+
+products='[]'
+if [[ -n "$supported_operators_csv" ]]; then
+  supported_operators="$(json_array "$supported_operators_csv")"
+  products="$(
+    jq --compact-output --null-input \
+      --argjson charts "$charts" \
+      --argjson supported "$supported_operators" \
+      '$charts |
+        map(select(test("-(operator-crds|operator|db)$"))) |
+        map(sub("-(operator-crds|operator|db)$"; "")) |
+        unique |
+        map(select(. as $product | $supported | index($product)))'
+  )"
+fi
+
+jobs='[]'
+[[ -z "$supported_jobs_csv" ]] || jobs="$(json_array "$supported_jobs_csv")"
+
+should_run=false
+if [[ -n "$supported_charts_csv" && "$charts" != '[]' ]] ||
+   [[ -n "$supported_operators_csv" && "$products" != '[]' ]]; then
+  should_run=true
+fi
+
+{
+  echo "charts=$charts"
+  echo "chart-paths=$chart_paths"
+  echo "products=$products"
+  echo "jobs=$jobs"
+  echo "should-run=$should_run"
+  echo "base-sha=$base_sha"
+  echo "head-sha=$head_sha"
+  echo "head-repository=$head_repository"
+} >> "$output_file"

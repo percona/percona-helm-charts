@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+output_dir="${OUT:-cluster-logs}"
+
+capture() {
+  local output=$1
+  shift
+  "$@" > "$output" 2>&1 || true
+}
+
+collect_pod() {
+  local namespace=$1
+  local pod=$2
+  local pod_dir="$output_dir/pods/$namespace/$pod"
+  local pod_json
+
+  mkdir -p "$pod_dir"
+  capture "$pod_dir/describe.txt" \
+    kubectl describe pod "$pod" -n "$namespace"
+
+  pod_json="$(kubectl get pod "$pod" -n "$namespace" -o json 2>/dev/null || true)"
+  [[ -n "$pod_json" ]] || return
+
+  while IFS=$'\t' read -r container restarts; do
+    capture "$pod_dir/$container.log" \
+      kubectl logs "$pod" -n "$namespace" -c "$container" \
+        --timestamps --tail=500
+    if (( restarts > 0 )); then
+      capture "$pod_dir/$container-previous.log" \
+        kubectl logs "$pod" -n "$namespace" -c "$container" \
+          --previous --timestamps --tail=500
+    fi
+  done < <(jq -r '
+    [.status.initContainerStatuses[]?, .status.containerStatuses[]?] |
+    .[] | [.name, (.restartCount // 0)] | @tsv' <<< "$pod_json")
+
+  if jq -e '.spec.containers | any(.name == "logs")' \
+    <<< "$pod_json" >/dev/null; then
+    # The variables in this command are expanded inside the pod.
+    # shellcheck disable=SC2016
+    capture "$pod_dir/database-logs.txt" \
+      kubectl exec "$pod" -n "$namespace" -c logs -- sh -c '
+        for file in /data/db/logs/*; do
+          [ -f "$file" ] || continue
+          printf "===== %s =====\n" "$file"
+          tail -n 2000 "$file"
+        done
+      '
+  fi
+}
+
+collect_cluster_overview() {
+  capture "$output_dir/resources.txt" \
+    kubectl get all,pvc,pv,storageclass -A -o wide
+  capture "$output_dir/events.txt" \
+    kubectl get events -A --sort-by=.lastTimestamp
+  capture "$output_dir/nodes.txt" kubectl describe nodes
+
+  {
+    for resource in psmdb ps pg pxc; do
+      kubectl get "$resource" -A -o wide 2>&1 || true
+    done
+  } > "$output_dir/clusters.txt"
+}
+
+collect_pods() {
+  while read -r namespace pod; do
+    collect_pod "$namespace" "$pod"
+  done < <(
+    kubectl get pods -A --no-headers \
+      -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name'
+  )
+}
+
+collect_minikube_logs() {
+  [[ -n "${MINIKUBE_PROFILE:-}" ]] || return
+  capture "$output_dir/minikube.txt" \
+    minikube --profile "$MINIKUBE_PROFILE" logs --problems
+}
+
+main() {
+  mkdir -p "$output_dir/pods"
+
+  collect_cluster_overview
+  collect_pods
+  collect_minikube_logs
+
+  echo "Diagnostics saved to $output_dir/"
+}
+
+main "$@"

@@ -1,0 +1,124 @@
+name: Test CRD Charts
+
+on:
+  pull_request:
+    paths:
+      - 'charts/*-operator-crds/**'
+      - 'charts/*-operator/crds/**'
+      - 'charts/*-operator/Chart.yaml'
+
+jobs:
+  crd-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5.0.0
+        with:
+          version: v3.21.0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.8.0
+
+      - name: Check chart version increments
+        run: |
+          ct lint \
+            --config .github/ct.yaml \
+            --lint-conf .github/lintconf.yaml \
+            --excluded-charts=gcp-marketplace,pmm-ha,pmm-ha-dependencies \
+            --target-branch "$GITHUB_BASE_REF"
+
+      - name: Check CRD synchronization
+        run: |
+          shopt -s nullglob
+          crd_charts=(charts/*-operator-crds)
+
+          if (( ${#crd_charts[@]} == 0 )); then
+            echo "No CRD charts found"
+            exit 0
+          fi
+
+          chart_value() {
+            local chart_file=$1
+            local key=$2
+
+            awk -v key="$key" \
+              '$1 == key ":" { gsub(/"/, "", $2); print $2; exit }' \
+              "$chart_file"
+          }
+
+          for crd_chart in "${crd_charts[@]}"; do
+            operator_chart="${crd_chart%-crds}"
+
+            if [[ ! -f "$operator_chart/Chart.yaml" ]]; then
+              echo "Operator chart not found for $crd_chart: $operator_chart" >&2
+              exit 1
+            fi
+
+            operator_crds=("$operator_chart"/crds/*.yaml "$operator_chart"/crds/*.yml)
+            crd_templates=("$crd_chart"/templates/*.yaml "$crd_chart"/templates/*.yml)
+
+            if (( ${#operator_crds[@]} == 0 )); then
+              echo "No source CRDs found in $operator_chart/crds" >&2
+              exit 1
+            fi
+            if (( ${#crd_templates[@]} == 0 )); then
+              echo "No CRD templates found in $crd_chart/templates" >&2
+              exit 1
+            fi
+
+            operator_app_version="$(chart_value "$operator_chart/Chart.yaml" appVersion)"
+            crd_chart_version="$(chart_value "$crd_chart/Chart.yaml" version)"
+            crd_app_version="$(chart_value "$crd_chart/Chart.yaml" appVersion)"
+
+            if [[ "${crd_chart_version%.*}" != "${operator_app_version%.*}" ]]; then
+              echo "$crd_chart version ($crd_chart_version) must share major.minor with $operator_chart appVersion ($operator_app_version)" >&2
+              exit 1
+            fi
+
+            if [[ "$crd_app_version" != "$operator_app_version" ]]; then
+              echo "$crd_chart appVersion ($crd_app_version) must match $operator_chart appVersion ($operator_app_version)" >&2
+              exit 1
+            fi
+
+            diff -u \
+              --label "templates ($crd_chart)" \
+              --label "source CRDs ($operator_chart)" \
+              <(sed -e '/^---$/d' -e '/{{/d' -e '/helm.sh\/resource-policy:/d' "${crd_templates[@]}") \
+              <(sed '/^---$/d' "${operator_crds[@]}")
+
+            echo "CRDs are synchronized: $crd_chart"
+          done
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.14.0
+
+      - name: Run CRD chart test
+        run: |
+          shopt -s nullglob
+          crd_charts=(charts/*-operator-crds)
+
+          if (( ${#crd_charts[@]} == 0 )); then
+            echo "No CRD charts found"
+            exit 0
+          fi
+
+          for chart_path in "${crd_charts[@]}"; do
+            release="${chart_path##*/}"
+
+            helm lint "$chart_path"
+            helm install "$release" "$chart_path" \
+              --namespace default \
+              --take-ownership \
+              --wait
+            helm uninstall "$release" --namespace default
+          done
