@@ -3742,12 +3742,14 @@ scale_down_pmm() {
     if [ -z "${PMM_STATEFULSET_NAME}" ]; then log "WARN" "PMM StatefulSet not found, skipping scale down"; return 0; fi
     PMM_SAVED_REPLICAS=$(pmm_replica_count "${PMM_STATEFULSET_NAME}")
     if [ "${DRY_RUN}" = "true" ]; then
-        log "INFO" "[DRY RUN] kubectl scale statefulset ${PMM_STATEFULSET_NAME} --replicas=0 (restore to: ${PMM_SAVED_REPLICAS})"
+        log "INFO" "[DRY RUN] kubectl patch statefulset ${PMM_STATEFULSET_NAME} replicas=0 --field-manager=pmm-backup (restore to: ${PMM_SAVED_REPLICAS})"
         return 0
     fi
     # Stash the count so an interrupted/re-run restore can recover the true original.
     kubectl annotate statefulset "${PMM_STATEFULSET_NAME}" -n "${NAMESPACE}" "restore.pmm.percona.com/original-replicas=${PMM_SAVED_REPLICAS}" --overwrite >> "${LOG_FILE}" 2>&1 || true
-    kubectl scale statefulset "${PMM_STATEFULSET_NAME}" -n "${NAMESPACE}" --replicas=0 >> "${LOG_FILE}" 2>&1 || { log "ERROR" "Failed to scale down PMM"; return 1; }
+    # Field manager pmm-backup lets Argo CD ignore the 0 only while the restore holds it; scale_up_pmm keeps the default
+    # manager, which takes the field back (PMM-15826). A plain patch: writes through /scale are not in managedFields.
+    kubectl patch statefulset "${PMM_STATEFULSET_NAME}" -n "${NAMESPACE}" --type=merge -p '{"spec":{"replicas":0}}' --field-manager=pmm-backup >> "${LOG_FILE}" 2>&1 || { log "ERROR" "Failed to scale down PMM"; return 1; }
     log "INFO" "Scaled down PMM ${PMM_STATEFULSET_NAME} to 0 (restore to ${PMM_SAVED_REPLICAS} on success)"
     wait_for_pods_gone "${NAMESPACE}" "$(comp_pod_selector pmm-server)" || { log "ERROR" "PMM pods did not terminate"; return 1; }
     return 0
@@ -4405,7 +4407,8 @@ restore_victoriametrics() {
     _vmi_old=$(kubectl get pods -n "${NAMESPACE}" -l "$(vm_role_selector vminsert)" -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}' 2>/dev/null) || _vmi_old=""
 
     log "INFO" "[VictoriaMetrics] Scaling vminsert+vmstorage to 0 (vmrestore needs exclusive PVC access)..."
-    kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge \
+    # Field manager pmm-backup: see scale_down_pmm (PMM-15826).
+    kubectl patch vmcluster "${vmcluster_name}" -n "${NAMESPACE}" --type=merge --field-manager=pmm-backup \
         -p '{"spec":{"vminsert":{"replicaCount":0},"vmstorage":{"replicaCount":0}}}' 2>&1 | append_to_log || true
     # Soft wait: vminsert holds no PVCs.
     wait_for_pods_gone "${NAMESPACE}" "$(vm_role_selector vminsert)" 120 soft || log "WARN" "[VictoriaMetrics] vminsert not gone in time, continuing (non-blocking)"

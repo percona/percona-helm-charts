@@ -208,7 +208,8 @@ jobs:
             exit 1
           fi
           render -f charts/pmm-ha/examples/values-openshift.yaml > /dev/null
-          render --set tls.secretFormat=kubernetes.io/tls | grep -q 'ssl crt /etc/haproxy/certs/tls.crt'
+          # Not `render | grep -q`: grep exits at the match and pipefail turns helm's SIGPIPE into a failure.
+          grep -q 'ssl crt /etc/haproxy/certs/tls.crt' <<<"$(render --set tls.secretFormat=kubernetes.io/tls)"
 
       # Value validation, peer addressing and the HAProxy server-template, asserted with
       # helm unittest: no cluster, no dependency on Helm's template ordering, and runnable
