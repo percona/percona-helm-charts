@@ -1,0 +1,22 @@
+# With Argo CD label tracking (`label` or `annotation+label`), Argo CD rewrites
+# app.kubernetes.io/instance to the Application name, so the VMAuth must find its VMUser by a
+# label of the chart's own (PMM-15826).
+suite: pmm-ha vmauth user selector
+templates:
+  - templates/vmauth.yaml
+release:
+  name: smoke
+  namespace: pmm
+set:
+  gitops.enabled: true
+tests:
+  - it: selects the VMUser on a label Argo CD label tracking does not rewrite
+    asserts:
+      - equal:
+          path: metadata.labels["pmm.percona.com/vmauth-user"]
+          value: smoke-pmm-ha
+        documentSelector: {path: kind, value: VMUser}
+      - equal:
+          path: spec.userSelector.matchLabels
+          value: {pmm.percona.com/vmauth-user: smoke-pmm-ha}
+        documentSelector: {path: kind, value: VMAuth}
