@@ -1,0 +1,120 @@
+mysql:
+  clusterType: async
+  autoRecovery: true
+  autoConfig:
+    enabled: false
+    version: "8.0"
+    loadType: heavyWrites
+  vaultSecretName: vault-secret
+  podDisruptionBudget:
+    maxUnavailable: null
+    minAvailable: 0
+  image:
+    repository: changed-image
+    tag: changed-tag
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets:
+    - name: pull-secret
+  initContainer:
+    image: custom-init:tag
+    containerSecurityContext:
+      privileged: false
+    resources:
+      requests:
+        cpu: 5m
+        memory: 5Mi
+      limits:
+        cpu: 6m
+        memory: 6Mi
+  size: 5
+  configuration: |
+    max_connections=250
+    innodb_buffer_pool_size={{ .Release.Name }}
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+    limits:
+      cpu: 2m
+      memory: 2Mi
+  startupProbe:
+    initialDelaySeconds: 15
+    timeoutSeconds: 43200
+  readinessProbe:
+    initialDelaySeconds: 30
+    timeoutSeconds: 10
+  livenessProbe:
+    initialDelaySeconds: 15
+    timeoutSeconds: 10
+  env:
+    - name: BOOTSTRAP_READ_TIMEOUT
+      value: "600"
+  envFrom:
+    - secretRef:
+        name: my-env-secret
+  affinity:
+    advanced:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: zone
+                  operator: In
+                  values:
+                    - a
+  topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: percona-server
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+  expose:
+    enabled: true
+    type: LoadBalancer
+    annotations:
+      test: annotation
+  exposePrimary:
+    enabled: true
+    type: ClusterIP
+    labels:
+      rack: rack-22
+  volumeSpec:
+    pvc:
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 10Gi
+  gracePeriod: 300
+  runtimeClassName: image-rc
+  priorityClassName: high-priority
+  schedulerName: custom-scheduler
+  annotations:
+    test: annotation
+  labels:
+    test: label
+  nodeSelector:
+    disktype: ssd
+  tolerations:
+    - key: test
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 60
+  containerSecurityContext:
+    privileged: false
+  podSecurityContext:
+    fsGroup: 1001
+  serviceAccountName: workload-sa
+  sidecars:
+    - name: noop
+      image: busybox
+  sidecarVolumes:
+    - name: memory-vol
+      emptyDir:
+        medium: Memory
+  sidecarPVCs:
+    - name: pvc-vol
+      spec:
+        resources:
+          requests:
+            storage: 1G
