@@ -1,0 +1,7 @@
+unsafeFlags:
+  pxcSize: true
+  proxySize: true
+pxc:
+  size: 1
+haproxy:
+  size: 1
