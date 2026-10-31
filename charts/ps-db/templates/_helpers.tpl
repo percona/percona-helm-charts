@@ -43,3 +43,40 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
+
+{{/*
+Resources with optional requests and limits
+*/}}
+{{- define "ps-db.resources" -}}
+{{- if or (hasKey .resources "requests") (hasKey .resources "limits") -}}
+resources:
+  {{- if hasKey .resources "requests" }}
+  requests:
+    {{- tpl (toYaml .resources.requests) .root | nindent 4 }}
+  {{- end }}
+  {{- if hasKey .resources "limits" }}
+  limits:
+    {{- tpl (toYaml .resources.limits) .root | nindent 4 }}
+  {{- end }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Init container. Image is omitted when empty so the operator picks its default.
+*/}}
+{{- define "ps-db.initContainer" -}}
+{{- $resources := include "ps-db.resources" (dict "resources" (.initContainer.resources | default dict) "root" .root) -}}
+{{- if or .initContainer.image .initContainer.containerSecurityContext $resources -}}
+initContainer:
+  {{- with .initContainer.image }}
+  image: {{ . }}
+  {{- end }}
+  {{- with .initContainer.containerSecurityContext }}
+  containerSecurityContext:
+    {{- tpl (toYaml .) $.root | nindent 4 }}
+  {{- end }}
+  {{- with $resources }}
+  {{- . | nindent 2 }}
+  {{- end }}
+{{- end -}}
+{{- end -}}

@@ -1,0 +1,74 @@
+proxy:
+  haproxy:
+    enabled: true
+    image:
+      repository: changed-image
+      tag: changed-tag
+    imagePullPolicy: IfNotPresent
+    imagePullSecrets:
+      - name: pull-secret
+    initContainer:
+      image: custom-init:tag
+      resources:
+        requests:
+          cpu: 5m
+    podDisruptionBudget:
+      maxUnavailable: 2
+    size: 5
+    resources:
+      requests:
+        cpu: 1m
+        memory: 1Mi
+      limits:
+        cpu: 2m
+        memory: 2Mi
+    sidecarResources:
+      mysql-monit:
+        requests:
+          cpu: 3m
+        limits:
+          cpu: 4m
+    env:
+      - name: HA_CONNECTION_TIMEOUT
+        value: "1000"
+    envFrom:
+      - secretRef:
+          name: haproxy-env-secret
+    startupProbe:
+      timeoutSeconds: 43200
+    readinessProbe:
+      timeoutSeconds: 3
+    livenessProbe:
+      timeoutSeconds: 4
+    gracePeriod: 60
+    configuration: |
+      global
+        maxconn 2048
+    affinity:
+      antiAffinityTopologyKey: topology.kubernetes.io/zone
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+    runtimeClassName: image-rc
+    priorityClassName: high-priority
+    schedulerName: custom-scheduler
+    annotations:
+      test: annotation
+    labels:
+      test: label
+    nodeSelector:
+      disktype: ssd
+    tolerations:
+      - key: test
+        operator: Exists
+        effect: NoSchedule
+    containerSecurityContext:
+      privileged: false
+    podSecurityContext:
+      fsGroup: 1001
+    serviceAccountName: workload-sa
+    expose:
+      type: LoadBalancer
+      loadBalancerSourceRanges:
+        - 10.0.0.0/8
