@@ -1566,16 +1566,15 @@ Common troubleshooting steps for PMM HA:
   `503`. The chart rejects this combination.
 - **Raising `maxReplicas` needs an HAProxy restart.** It is rendered into the
   `pmm-ha-haproxy` ConfigMap, which the chart does not roll on upgrade. Routing itself
-  is DNS-based, so changing `replicas` needs no restart. Bump
-  `haproxy.podAnnotations."pmm.percona.com/config-version"` in the same `helm upgrade`
-  so the pods restart and pick up the new `server-template`. It has to be a value the
-  release is not already running - the chart ships `"6"`, so the examples below use `"7"`:
+  is DNS-based, so changing `replicas` needs no restart. When you raise `maxReplicas`,
+  set a pod annotation of your own to the new value in the same `helm upgrade`, so the
+  pods restart and pick up the new `server-template`:
 
   ```sh
   helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
     --version <chart-version> --reuse-values \
     --set maxReplicas=20 \
-    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=7'
+    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/max-replicas=20'
   ```
 
   Or in `values.yaml`:
@@ -1584,11 +1583,16 @@ Common troubleshooting steps for PMM HA:
   maxReplicas: 20
   haproxy:
     podAnnotations:
-      pmm.percona.com/config-version: "7"
+      pmm.percona.com/max-replicas: "20"
   ```
 
-  Prefer this over `kubectl rollout restart`: the bump is part of the same declarative
-  upgrade, so the restart is reproducible from the chart alone. An out-of-band restart
+  Do not use `pmm.percona.com/config-version` for this. The chart raises that annotation
+  itself when a release changes the HAProxy configuration. A value you set is kept by
+  later upgrades with `--reset-then-reuse-values` or the same values file and overrides
+  those raises, so HAProxy would no longer restart on later chart upgrades.
+
+  Prefer this over `kubectl rollout restart`: the annotation is part of the same
+  declarative upgrade, so the restart is reproducible from your values. An out-of-band restart
   also picks up the new config, but a GitOps controller strips the `restartedAt`
   annotation on its next sync and triggers a second, pointless rollout.
 - **`haproxy.replicaCount` past the worker-node count buys throughput, not fault
