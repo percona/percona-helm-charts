@@ -399,9 +399,9 @@ replicas: 3
 ## replicas - the chart rejects a replicas above it.
 ##
 ## Raising this alone is not enough: it is rendered into the HAProxy ConfigMap, which
-## the chart does not roll on upgrade. Bump haproxy.podAnnotations
-## "pmm.percona.com/config-version" in the same upgrade so HAProxy restarts and picks
-## up the new server-template.
+## the chart does not roll on upgrade. Set a pod annotation of your own to the new value
+## in the same upgrade, e.g. haproxy.podAnnotations "pmm.percona.com/max-replicas", so
+## HAProxy restarts and picks up the new server-template.
 maxReplicas: 10
 
 ## Ingress controller configuration
@@ -1241,7 +1241,7 @@ haproxy:
       memory: 512Mi
   
   ## @param haproxy.bufsize HAProxy tune.bufsize in bytes: the largest request header block accepted
-  ## Keep it above the pmm-server nginx 64 KiB header limit (PMM-15608). Bump config-version when changing it.
+  ## Keep it above the pmm-server nginx 64 KiB header limit (PMM-15608). Changing it needs an HAProxy restart (see podAnnotations).
   bufsize: 131072
 
   ## HAProxy Service configuration for external access
@@ -1268,8 +1268,12 @@ haproxy:
   #
   # Routing itself is DNS-based, so changing `replicas` needs no restart to take effect.
   # Changing `maxReplicas` does: without one, HAProxy keeps serving the old slot count.
-  # Increment config-version in the same upgrade for that, and for any other ConfigMap
-  # change that requires a restart.
+  # For that, and for any other ConfigMap change you make that requires a restart, set an
+  # annotation of your own in the same upgrade (e.g. pmm.percona.com/max-replicas: "20").
+  #
+  # config-version belongs to the chart: releases that change haproxy.cfg increment it.
+  # Do not override it - a user-set value is kept by later upgrades and masks those
+  # increments, so HAProxy stops restarting on chart upgrades.
   podAnnotations:
     pmm.percona.com/config-version: "6"
 
