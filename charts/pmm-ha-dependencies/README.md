@@ -157,10 +157,11 @@ of that rule matter:
    namespace collides on those no matter what it is called: the install either aborts on an
    existing resource, or — on an adopt/`--force` path — silently repoints the first instance's
    HAProxy at the second instance's pods.
-2. **A distinct release name per instance.** The `pmm-ha` chart's `ClusterRole` and
-   `ClusterRoleBinding` are named after `pmm.fullname`, which derives from the release name.
-   Those are cluster-scoped, so two instances sharing a release name collide even when they are
-   in different namespaces. Uniqueness is the only requirement — the release name does **not**
+2. **A distinct release name per instance.** The `kube-state-metrics` subchart's `ClusterRole`
+   and `ClusterRoleBinding` are named `<release>-kube-state-metrics`. Those are cluster-scoped, so
+   two instances sharing a release name collide even when they are in different namespaces. (The
+   chart's other cluster-scoped objects, vmagent's `<namespace>-<fullname>-vmagent`, carry the
+   namespace and do not collide.) Uniqueness is the only requirement — the release name does **not**
    need to contain the chart name, because pod and peer DNS are derived from `pmm.fullname`, not
    from `Release.Name`. A release named `pmm-dr` renders pods `pmm-dr-pmm-ha-0...` and matching
    HA peers, exactly like the default `pmm-ha` release does.
@@ -173,8 +174,8 @@ deploy its own. And each namespace needs its own `pmm-secret` **before** you ins
 
 > **Note:** each instance runs its own `kube-state-metrics` with cluster-wide read access, so
 > every instance ingests and displays object state for the whole cluster, not just for its own
-> namespace. Each instance's ServiceAccount likewise holds cluster-wide read/delete on Secrets,
-> so instances are not isolated from each other's credentials. Separate namespaces are **not** a
+> namespace. The `kube-state-metrics` ServiceAccount can also list and watch every Secret in the
+> cluster, so instances are not isolated from each other's credentials. Separate namespaces are **not** a
 > tenancy boundary here — do not use them as a security boundary between untrusted teams.
 
 ### Existing installations: upgrade the operators first

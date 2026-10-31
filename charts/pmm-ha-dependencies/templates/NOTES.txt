@@ -12,12 +12,13 @@ The following operators have been deployed:
 {{- end }}
 
 {{- /* Report the watch scope that was actually configured: both operators can be narrowed
-       back down (pg-operator.watchAllNamespaces=false, or a WATCH_NAMESPACES other than
-       ".*"), and a narrowed install does NOT reconcile pmm-ha in other namespaces. */}}
+       back down (pg-operator.watchAllNamespaces=false or a watchNamespace, or a WATCH_NAMESPACES
+       other than ".*"), and a narrowed install does NOT reconcile pmm-ha in other namespaces. */}}
 {{- $pg := default dict (index .Values "pg-operator") }}
 {{- $ch := default dict (index .Values "altinity-clickhouse-operator") }}
 {{- $pgEnabled := $pg.enabled }}
-{{- $pgAllNs := $pg.watchAllNamespaces }}
+{{- /* pg-operator: a non-empty watchNamespace wins over watchAllNamespaces (PMM-15781). */}}
+{{- $pgAllNs := and $pg.watchAllNamespaces (not $pg.watchNamespace) }}
 {{- $chEnabled := $ch.enabled }}
 {{- $chAllNs := false }}
 {{- range (default list (default dict $ch.operator).env) }}
@@ -31,7 +32,7 @@ The following operators have been deployed:
 🌐 SCOPE: this install is NOT fully cluster-wide, because you have narrowed the watch
    configuration:
 {{- if $pgScoped }}
-   ✗ PostgreSQL operator: watches only namespace {{ .Release.Namespace }} (pg-operator.watchAllNamespaces=false).
+   ✗ PostgreSQL operator: watches only namespace {{ $pg.watchNamespace | default .Release.Namespace }} ({{ if $pg.watchNamespace }}pg-operator.watchNamespace{{ else }}pg-operator.watchAllNamespaces=false{{ end }}).
 {{- end }}
 {{- if $chScoped }}
    ✗ ClickHouse operator: WATCH_NAMESPACES is not ".*" - see the notes in values.yaml. A
