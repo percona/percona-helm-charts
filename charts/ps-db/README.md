@@ -19,14 +19,14 @@ To install the chart with the `ps` release name using a dedicated namespace (rec
 
 ```sh
 helm repo add percona https://percona.github.io/percona-helm-charts/
-helm install my-db percona/ps-db --version 1.3.0 --namespace my-namespace
+helm install my-db percona/ps-db --version 1.4.0 --namespace my-namespace
 ```
 
 The chart can be customized using the following configurable parameters:
 
 | Parameter                                           | Description                                                                                                                                                             | Default                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `1.3.0`                     |
+| `crVersion`                                         | CR Cluster Manifest version                                                                                                                                             | `1.4.0`                     |
 | `enableVolumeExpansion`                             | Deprecated. Enable PVC volume expansion. Use `storageScaling.enableVolumeScaling` instead                                                                               | `false`                     |
 | `storageScaling.enableVolumeScaling`                | Allow the operator to resize/expand PVCs when the storage request changes in the spec                                                                                   | `false`                     |
 | `storageScaling.enableExternalAutoscaling`          | Let an external controller manage storage autoscaling (skips the operator's built-in autoscaler)                                                                        | `false`                     |
@@ -350,7 +350,7 @@ The chart can be customized using the following configurable parameters:
 | `backup.schedule.[0].storageName`                 | Backup target storage                                                                       | `fs-pvc`                     |
 ||
 | `backup.pitr.enabled`                                          | Enable point-in-time recovery                                                    | `false`                                                            |
-| `backup.pitr.binlogServer.image`                               | Binlog server Container image                                                    | `percona/percona-server-mysql-operator:1.3.0-binlog-server-0.4.1`  |
+| `backup.pitr.binlogServer.image`                               | Binlog server Container image                                                    | `percona/percona-server-mysql-operator:1.4.0-binlog-server-0.4.1`  |
 | `backup.pitr.binlogServer.imagePullPolicy`                     | The policy used to update images                                                 | `Always`                                                           |
 | `backup.pitr.binlogServer.imagePullSecrets`                    | Binlog server Container pull secrets                                             | `[]`                                                               |
 | `backup.pitr.binlogServer.serverId`                            | MySQL server ID used by the binlog server replica                                | `100`                                                              |
