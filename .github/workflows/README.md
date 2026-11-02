@@ -9,7 +9,7 @@ charts in this repository.
 | --- | --- | --- |
 | [`labeler.yaml`](./labeler.yaml) | Applies labels to pull requests based on the changed files. | Pull request opened or synchronized |
 | [`release.yaml`](./release.yaml) | Packages and publishes changed Helm charts. | Push to `main` |
-| [`test-chart-lint.yaml`](./test-chart-lint.yaml) | Lints changed PG, PS, PSMDB, PXC operator/database charts and the PMM chart. | Pull request changing a supported chart, excluding operator CRD-only changes |
+| [`test-chart-lint.yaml`](./test-chart-lint.yaml) | Lints changed PG, PS, PSMDB, PXC operator/database charts and the PMM chart. | Pull request changing a supported chart (excluding operator CRD-only changes) or the lint workflow itself |
 | [`test-chart-install.yaml`](./test-chart-install.yaml) | Installs the PMM chart on Kind, then packages and uploads it. | Pull request changing the PMM chart |
 | [`test-operator-crd.yaml`](./test-operator-crd.yaml) | Checks separate operator CRD charts for versioning, synchronization, installation, and removal. | Pull request changing operator metadata, embedded CRDs, or a `*-operator-crds` chart |
 | [`test-chart-unit.yaml`](./test-chart-unit.yaml) | Runs Helm unit tests for changed PXC and PS operator/database charts, or all four suites when shared test files change. | Pull request changing a supported chart, `Makefile`, the unit-test workflow, or `detect-changes` |

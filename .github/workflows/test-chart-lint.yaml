@@ -8,6 +8,7 @@ on:
       - '!charts/*-operator/crds/**'
       - 'charts/*-db/**'
       - 'charts/pmm/**'
+      - '.github/workflows/test-chart-lint.yaml'
 
 jobs:
   lint-test:
