@@ -302,5 +302,3 @@ jobs:
           minikube \
             --profile "minikube-${{ matrix.product }}-upgrade" \
             delete || true
-          docker volume rm \
-            "minikube-${{ matrix.product }}-upgrade" || true

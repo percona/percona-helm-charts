@@ -124,6 +124,14 @@ On failure, both jobs collect Kubernetes resources, events, pod descriptions,
 current and previous logs for regular and init containers, database logs stored
 on disk, and Minikube problem logs. The resulting `cluster-logs` directory is
 uploaded as an artifact before the cluster is deleted.
+The collector defines per-product file patterns for PS/PXC MySQL logs and
+configuration, PXC Galera state, PSMDB disk logs, and PG logs and configuration.
+Files are read from their database containers into `<container>-files.txt`.
+Configuration output includes only selected diagnostic directives, not full
+configuration files or credentials. Patterns cover known paths; files at other
+locations are not discovered automatically. Container logs are limited to 500
+lines and disk logs to 2,000 lines per file. File collection errors are reported
+without stopping the remaining diagnostics.
 
 ### Pull request comment commands
 
