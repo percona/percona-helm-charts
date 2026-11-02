@@ -38,6 +38,21 @@ The upgrade job also verifies that the operator Deployment becomes ready, then
 waits 60 seconds and checks that no database pod was replaced or restarted
 before upgrading the database chart with its new values.
 
+Before upgrading the operator, the test pins the baseline database's observed
+`mongo-init` image through a Helm values override and waits for readiness.
+This keeps a switch to the development operator repository from changing
+database pod templates during the operator-only stability check. The database
+upgrade uses `--reset-values` to remove this temporary override and apply the
+target chart's init image configuration.
+
+The pin helper uses per-operator configuration: `init_container_name` selects
+the observed init container, and `init_image_value` selects the Helm value to
+override. Set `init_image_tag_value` for charts that split repository and tag;
+leave it empty for a single image value such as `initContainer.image`, which
+also supports digest references. PSMDB configures `mongo-init` and
+`initImage.repository`/`initImage.tag`. This reusable helper does not enable
+installation or upgrade tests for additional operators.
+
 The test configuration enables sharding with one replica set member, one config
 server, and one mongos instance. The required replica set and mongos unsafe
 flags are enabled for this single-node test configuration.

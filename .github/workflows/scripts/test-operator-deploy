@@ -65,22 +65,32 @@ configure() {
   product=$2
   [[ "$mode" == install || "$mode" == upgrade ]] ||
     die "Unsupported mode: $mode"
-  [[ "$product" == psmdb ]] || die "Unsupported product: $product"
 
-  image_name=percona-server-mongodb-operator
-  resource=perconaservermongodb
+  case "$product" in
+    psmdb)
+      image_name=percona-server-mongodb-operator
+      init_container_name=mongo-init
+      init_image_value=initImage.repository
+      init_image_tag_value=initImage.tag
+      resource=perconaservermongodb
+      db_args=(
+        --set unsafeFlags.replsetSize=true
+        --set unsafeFlags.mongosSize=true
+        --set replsets.rs0.size=1
+        --set sharding.enabled=true
+        --set sharding.configrs.size=1
+        --set sharding.mongos.size=1
+      )
+      ;;
+    *)
+      die "Unsupported product: $product"
+      ;;
+  esac
+
   operator="${product}-operator"
   crd="${product}-operator-crds"
   db="${product}-db"
   cluster="test-${db}"
-  db_args=(
-    --set unsafeFlags.replsetSize=true
-    --set unsafeFlags.mongosSize=true
-    --set replsets.rs0.size=1
-    --set sharding.enabled=true
-    --set sharding.configrs.size=1
-    --set sharding.mongos.size=1
-  )
 
   resolve_operator_image "$3"
 
@@ -390,6 +400,41 @@ install_previous_charts() {
   install_database_chart "percona/$db" "$db_version"
 }
 
+pin_baseline_init_image() {
+  local init_image
+  local image_args=()
+
+  init_image="$(
+    kubectl get pods -n "$database_namespace" \
+      -l "app.kubernetes.io/instance=$cluster" -o json |
+      jq -er --arg container "$init_container_name" '
+        [.items[].spec.initContainers[]? |
+         select(.name == $container) | .image] | unique |
+        if length == 1 then .[0]
+        else error("Expected one baseline image for init container " + $container) end
+      '
+  )"
+
+  if [[ -n "$init_image_tag_value" ]]; then
+    [[ "$init_image" != *@* && "${init_image##*/}" == *:* ]] ||
+      die "Expected a tagged baseline init image: $init_image"
+    image_args=(
+      --set-string "$init_image_value=${init_image%:*}"
+      --set-string "$init_image_tag_value=${init_image##*:}"
+    )
+  else
+    image_args=(--set-string "$init_image_value=$init_image")
+  fi
+
+  log "Pinning baseline database init image: $init_image"
+  helm upgrade test "percona/$db" \
+    --version "$(chart_version "charts/$db")" \
+    --namespace "$database_namespace" \
+    --reuse-values \
+    "${image_args[@]}"
+  wait_ready
+}
+
 upgrade_operator() {
   local database_state
 
@@ -440,6 +485,7 @@ run_install() {
 run_upgrade() {
   install_previous_charts
   wait_ready
+  pin_baseline_init_image
   upgrade_operator
   upgrade_database
 }
