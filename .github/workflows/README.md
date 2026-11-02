@@ -13,13 +13,18 @@ charts in this repository.
 | [`test-chart-install.yaml`](./test-chart-install.yaml) | Installs the PMM chart on Kind, then packages and uploads it. | Pull request changing the PMM chart |
 | [`test-operator-crd.yaml`](./test-operator-crd.yaml) | Checks separate operator CRD charts for versioning, synchronization, installation, and removal. | Pull request changing operator metadata, embedded CRDs, or a `*-operator-crds` chart |
 | [`test-chart-unit.yaml`](./test-chart-unit.yaml) | Runs Helm unit tests for changed PXC and PS operator/database charts, or all four suites when shared test files change. | Pull request changing a supported chart, `Makefile`, the unit-test workflow, or `detect-changes` |
-| [`test-operator-upgrade.yaml`](./test-operator-upgrade.yaml) | Runs independent PSMDB install and upgrade scenarios on Minikube. | Pull request targeting `main` and changing supported PSMDB charts or lifecycle-test files, or an authorized PR comment |
+| [`test-operator-deploy.yaml`](./test-operator-deploy.yaml) | Installs PSMDB, PXC, PS, and PG on Minikube; runs an independent PSMDB upgrade scenario. | Pull request targeting `main` and changing supported charts or lifecycle-test files, or an authorized same-repository PR comment |
 | [`pmm-ha-pr-checks.yaml`](./pmm-ha-pr-checks.yaml) | Runs PMM-HA shell tests, linting, rendering checks, Helm unit tests, and installation tests. | Pull request changing PMM-HA files or the Makefile |
 
 ## Operator install and upgrade tests
 
-The [`test-operator-upgrade.yaml`](./test-operator-upgrade.yaml) workflow
-currently supports PSMDB and runs two independent jobs:
+The [`test-operator-deploy.yaml`](./test-operator-deploy.yaml) workflow
+uses an installation matrix for `psmdb`, `pxc`, `ps`, and `pg`, and a separate
+upgrade matrix limited to `psmdb`. PXC, PS, and PG install a separate
+`<product>-operator-crds` chart first when it exists, then install the operator
+with `--skip-crds`. Otherwise, the operator installs its embedded CRDs.
+They then run `ct install` for the corresponding database chart.
+The detailed lifecycle checks below apply to PSMDB:
 
 - `install-test`: installs the current CRD, operator, and database charts.
 - `upgrade-test`: reads chart versions from `BASE_SHA`, installs those versions
@@ -106,12 +111,14 @@ Add one of these commands to the pull request conversation:
 | `/run-test-upgrade psmdb upgrade` | Only the PSMDB upgrade job |
 
 The helper accepts commands from repository owners and members
-(`OWNER` or `MEMBER`). Keep the command on a single line with no additional
-content.
+(`OWNER` or `MEMBER`) only on same-repository pull requests. Fork pull requests
+are rejected before any PR revision is fetched or checked out. Keep the command
+on a single line with no additional content.
 
 Currently supported values:
 
-- Operators: `psmdb`
+- Installation operators: `psmdb`, `pxc`, `ps`, `pg`
+- Upgrade operators: `psmdb`
 - Jobs: `install`, `upgrade`
 
 Unsupported operators and jobs are ignored.

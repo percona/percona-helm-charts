@@ -91,6 +91,10 @@ if [[ "$event_name" == issue_comment &&
       head_repository="$(
         jq --raw-output '.head.repo.full_name // empty' <<< "$pull"
       )"
+      if [[ "$head_repository" != "$repo" ]]; then
+        echo "Comment-triggered tests only support same-repository PRs; source: $head_repository" >&2
+        exit 1
+      fi
       base_sha="$(jq --raw-output '.base.sha // empty' <<< "$pull")"
       merge_sha="$(jq --raw-output '.merge_commit_sha // empty' <<< "$pull")"
 

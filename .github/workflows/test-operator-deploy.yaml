@@ -9,7 +9,16 @@ on:
       - '!charts/psmdb-operator/crds/**'
       - 'charts/psmdb-operator-crds/**'
       - 'charts/psmdb-db/**'
-      - '.github/workflows/test-operator-upgrade.yaml'
+      - 'charts/pxc-operator/**'
+      - 'charts/pxc-operator-crds/**'
+      - 'charts/pxc-db/**'
+      - 'charts/ps-operator/**'
+      - 'charts/ps-operator-crds/**'
+      - 'charts/ps-db/**'
+      - 'charts/pg-operator/**'
+      - 'charts/pg-operator-crds/**'
+      - 'charts/pg-db/**'
+      - '.github/workflows/test-operator-deploy.yaml'
       - '.github/workflows/scripts/collect-cluster-logs'
       - '.github/workflows/scripts/detect-changes'
       - '.github/workflows/scripts/detect-comment'
@@ -27,7 +36,7 @@ env:
   SUPPORTED_CHARTS: psmdb-operator,psmdb-operator-crds,psmdb-db
   SUPPORTED_JOBS: install,upgrade
   SELECT_ALL_ON_CHANGES: >-
-    .github/workflows/test-operator-upgrade.yaml,
+    .github/workflows/test-operator-deploy.yaml,
     .github/workflows/scripts/collect-cluster-logs,
     .github/workflows/scripts/detect-changes,
     .github/workflows/scripts/detect-comment,
@@ -43,13 +52,15 @@ jobs:
        (github.event.comment.author_association == 'OWNER' ||
         github.event.comment.author_association == 'MEMBER') &&
        startsWith(github.event.comment.body, '/run-test-upgrade'))
-    # PSMDB 8 cannot start on Linux kernels 6.19 through 7.0.13.
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        product: [psmdb]
+        product: [psmdb, pxc, ps, pg]
+    env:
+      SUPPORTED_CHARTS: psmdb-operator,psmdb-operator-crds,psmdb-db,pxc-operator,pxc-operator-crds,pxc-db,ps-operator,ps-operator-crds,ps-db,pg-operator,pg-operator-crds,pg-db
+      SUPPORTED_JOBS: install
     steps:
       - uses: actions/checkout@v4
         if: ${{ !env.ACT }}
@@ -104,12 +115,67 @@ jobs:
             --force
           github token: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: actions/setup-python@v5
+        if: >-
+          matrix.product != 'psmdb' &&
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        with:
+          python-version: '3.13'
+
+      - uses: helm/chart-testing-action@v2.8.0
+        if: >-
+          matrix.product != 'psmdb' &&
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+
       - name: Install operator and database
         if: >-
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         run: |
+          if [[ "${{ matrix.product }}" != psmdb ]]; then
+            operator="${{ matrix.product }}-operator"
+            crd="$operator-crds"
+            crd_args=()
+            if [[ -f "charts/$crd/Chart.yaml" ]]; then
+              helm install "$crd" "charts/$crd" \
+                --namespace default --wait --timeout 5m
+              crd_args+=(--skip-crds)
+            fi
+            image_args=()
+            if [[ "$GITHUB_BASE_REF" == release-* ]]; then
+              repository="$(yq -r '.operatorImageRepository // ""' "charts/$operator/values.yaml")"
+              if [[ -n "$repository" ]]; then
+                image_args=(
+                  --set "operatorImageRepository=perconalab/${repository##*/}"
+                  --set "image=perconalab/${repository##*/}:main"
+                )
+              else
+                repository="$(yq -r '.image.repository' "charts/$operator/values.yaml")"
+                image_args=(
+                  --set "image.repository=perconalab/${repository##*/}"
+                  --set image.tag=main
+                )
+              fi
+            fi
+            helm install "$operator" "charts/$operator" \
+              --namespace default --wait --timeout 10m \
+              "${image_args[@]}" "${crd_args[@]}"
+            ct install \
+              --config .github/ct.yaml \
+              --charts="charts/${{ matrix.product }}-db" \
+              --target-branch "${GITHUB_BASE_REF:-main}"
+            helm uninstall "$operator" --namespace default
+            if [[ -f "charts/$crd/Chart.yaml" ]]; then
+              helm uninstall "$crd" --namespace default
+            fi
+            exit 0
+          fi
+
           version="$(
             awk '$1 == "appVersion:" {
               gsub(/"/, "", $2)
