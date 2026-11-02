@@ -93,6 +93,7 @@ For an unreleased operator version, they use `perconalab/<operator>:main`
 instead.
 
 Each job runs on Ubuntu 22.04 and creates its own Minikube cluster using
+the Docker driver and containerd as the Kubernetes container runtime,
 the latest stable Kubernetes version resolved from `dl.k8s.io/release/stable.txt`,
 four CPUs, and 12 GB of memory. The resolved version is printed in each job's logs.
 Ubuntu 22.04 avoids the

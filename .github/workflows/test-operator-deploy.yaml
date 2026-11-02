@@ -127,6 +127,7 @@ jobs:
           minikube version: v1.39.0
           kubernetes version: ${{ steps.kubernetes.outputs.version }}
           driver: docker
+          container runtime: containerd
           start args: >-
             --cpus=4
             --memory=12gb
@@ -253,6 +254,7 @@ jobs:
           minikube version: v1.39.0
           kubernetes version: ${{ steps.kubernetes.outputs.version }}
           driver: docker
+          container runtime: containerd
           start args: >-
             --cpus=4
             --memory=12gb
