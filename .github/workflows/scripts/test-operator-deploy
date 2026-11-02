@@ -506,10 +506,28 @@ run_install() {
   if [[ "$product" == psmdb ]]; then
     wait_ready
   else
-    kubectl wait "$resource/$cluster" -n "$database_namespace" \
-      --for=jsonpath='{.status.state}'=ready --timeout=10m
+    wait_database_ready
   fi
   helm test test --namespace "$database_namespace" --timeout 10m
+}
+
+wait_database_ready() {
+  local deadline=$((SECONDS + 600))
+  local status
+
+  log "Waiting for $resource/$cluster (timeout: 10m)"
+  while ((SECONDS < deadline)); do
+    status="$(kubectl get "$resource/$cluster" -n "$database_namespace" -o json)"
+    log "$(jq -c '{generation: .metadata.generation, status: .status}' <<< "$status")"
+    kubectl get pods -n "$database_namespace" -o wide
+    if [[ "$(jq -r '.status.state // empty' <<< "$status")" == ready ]]; then
+      log "SUCCESS: $cluster is ready"
+      return 0
+    fi
+    sleep 15
+  done
+  kubectl describe "$resource/$cluster" -n "$database_namespace"
+  die "Timed out waiting for $resource/$cluster to become ready"
 }
 
 run_upgrade() {

@@ -60,6 +60,10 @@ collect_cluster_overview() {
   {
     for resource in psmdb ps pg pxc; do
       kubectl get "$resource" -A -o wide 2>&1 || true
+      capture "$output_dir/cluster-$resource.yaml" \
+        kubectl get "$resource" -A -o yaml
+      capture "$output_dir/cluster-$resource-describe.txt" \
+        kubectl describe "$resource" -A
     done
   } > "$output_dir/clusters.txt"
 }
