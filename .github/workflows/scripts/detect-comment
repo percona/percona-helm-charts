@@ -13,6 +13,7 @@ supported_operators_csv=${SUPPORTED_OPERATORS:?SUPPORTED_OPERATORS is required}
 supported_jobs_csv=${SUPPORTED_JOBS:?SUPPORTED_JOBS is required}
 event_name=${GITHUB_EVENT_NAME:?GITHUB_EVENT_NAME is required}
 head_sha=''
+merge_sha=''
 head_repository=''
 base_sha=''
 products='[]'
@@ -91,6 +92,7 @@ if [[ "$event_name" == issue_comment &&
         jq --raw-output '.head.repo.full_name // empty' <<< "$pull"
       )"
       base_sha="$(jq --raw-output '.base.sha // empty' <<< "$pull")"
+      merge_sha="$(jq --raw-output '.merge_commit_sha // empty' <<< "$pull")"
 
       if [[ ! "$head_sha" =~ ^[0-9a-f]{40}$ ||
             ! "$base_sha" =~ ^[0-9a-f]{40}$ ||
@@ -99,11 +101,18 @@ if [[ "$event_name" == issue_comment &&
         exit 1
       fi
 
+      if [[ "$(jq --raw-output '.state' <<< "$pull")" != open ||
+            ! "$merge_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        echo "Pull request must be open with an available merge revision" >&2
+        exit 1
+      fi
+
       git fetch --no-tags origin \
-        "+refs/pull/$pull_number/head:refs/remotes/origin/pr-$pull_number"
-      fetched_sha="$(git rev-parse "refs/remotes/origin/pr-$pull_number")"
-      if [[ "$fetched_sha" != "$head_sha" ]]; then
-        echo "Fetched PR head $fetched_sha does not match API head $head_sha" >&2
+        "+refs/pull/$pull_number/merge:refs/remotes/origin/pr-$pull_number-merge"
+      fetched_sha="$(git rev-parse "refs/remotes/origin/pr-$pull_number-merge")"
+      if [[ "$fetched_sha" != "$merge_sha" ||
+            "$(git show -s --format=%P "$fetched_sha")" != "$base_sha $head_sha" ]]; then
+        echo "Fetched PR merge does not match the API merge, base, and head SHAs" >&2
         exit 1
       fi
 
@@ -118,5 +127,6 @@ fi
   echo "should-run=$should_run"
   echo "base-sha=$base_sha"
   echo "head-sha=$head_sha"
+  echo "merge-sha=$merge_sha"
   echo "head-repository=$head_repository"
 } >> "$output_file"

@@ -12,7 +12,7 @@ charts in this repository.
 | [`test-chart-lint.yaml`](./test-chart-lint.yaml) | Lints changed PG, PS, PSMDB, PXC operator/database charts and the PMM chart. | Pull request changing a supported chart, excluding operator CRD-only changes |
 | [`test-chart-install.yaml`](./test-chart-install.yaml) | Installs the PMM chart on Kind, then packages and uploads it. | Pull request changing the PMM chart |
 | [`test-operator-crd.yaml`](./test-operator-crd.yaml) | Checks separate operator CRD charts for versioning, synchronization, installation, and removal. | Pull request changing operator metadata, embedded CRDs, or a `*-operator-crds` chart |
-| [`test-operator-template.yaml`](./test-operator-template.yaml) | Runs Helm unit tests only for changed PXC and PS operator/database charts. | Pull request changing a supported chart |
+| [`test-chart-unit.yaml`](./test-chart-unit.yaml) | Runs Helm unit tests for changed PXC and PS operator/database charts, or all four suites when shared test files change. | Pull request changing a supported chart, `Makefile`, the unit-test workflow, or `detect-changes` |
 | [`test-operator-upgrade.yaml`](./test-operator-upgrade.yaml) | Runs independent PSMDB install and upgrade scenarios on Minikube. | Pull request targeting `main` and changing supported PSMDB charts or lifecycle-test files, or an authorized PR comment |
 | [`pmm-ha-pr-checks.yaml`](./pmm-ha-pr-checks.yaml) | Runs PMM-HA shell tests, linting, rendering checks, Helm unit tests, and installation tests. | Pull request changing PMM-HA files or the Makefile |
 
@@ -66,6 +66,10 @@ the previous chart versions before upgrading them, so it does not depend on
 the install job. For pull request events, the baseline SHA is the pull request
 base SHA.
 
+Automatic runs retain the GitHub pull request merge checkout, so the tested
+charts include changes already present in the base branch even when the pull
+request head is behind it.
+
 ### Failure diagnostics
 
 On failure, both jobs collect Kubernetes resources, events, pod descriptions,
@@ -97,8 +101,11 @@ Currently supported values:
 
 Unsupported operators and jobs are ignored.
 
-The workflow resolves and checks out the pull request head, and uses the pull
-request base SHA as the upgrade baseline. GitHub only delivers `issue_comment`
+The workflow fetches the open pull request's merge revision and validates its
+SHA and both parents against the API's merge, base, and head SHAs before checking
+it out. Missing or mismatched merge revisions fail explicitly; conflicting pull
+requests must be updated before testing. The pull request base SHA remains the
+upgrade baseline. GitHub only delivers `issue_comment`
 events to a workflow that already exists on the default branch.
 
 ## Workflow helper scripts
@@ -109,7 +116,7 @@ The shared workflow scripts are stored in
 - [`detect-changes`](./scripts/detect-changes) detects changed charts and can
   either filter supported charts or select the corresponding operators.
 - [`detect-comment`](./scripts/detect-comment) validates pull request comment
-  commands, fetches the selected PR head, and selects the requested operators
+  commands, fetches and validates the PR merge, and selects the requested operators
   and jobs.
 - [`test-operator-deploy`](./scripts/test-operator-deploy) performs the
   Helm install and upgrade scenarios.

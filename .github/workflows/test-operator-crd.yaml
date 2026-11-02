@@ -1,4 +1,4 @@
-name: Test CRD Charts
+name: crd-test
 
 on:
   pull_request:
@@ -9,6 +9,7 @@ on:
 
 jobs:
   crd-test:
+    name: charts
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

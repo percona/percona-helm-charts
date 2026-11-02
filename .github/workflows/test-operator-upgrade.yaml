@@ -1,4 +1,4 @@
-name: Test Chart Deploy and Upgrades
+name: operator-test
 
 on:
   pull_request:
@@ -35,7 +35,7 @@ env:
 
 jobs:
   install-test:
-    name: install-test-${{ matrix.product }}
+    name: install-${{ matrix.product }}
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' &&
@@ -68,15 +68,16 @@ jobs:
             .github/workflows/scripts/detect-changes
           fi
 
-      - name: Checkout selected commit
+      - name: Checkout PR merge
         if: >-
           !env.ACT &&
+          github.event_name == 'issue_comment' &&
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         env:
-          HEAD_SHA: ${{ steps.changes.outputs.head-sha }}
-        run: git checkout --detach "$HEAD_SHA"
+          MERGE_SHA: ${{ steps.changes.outputs.merge-sha }}
+        run: git checkout --detach "$MERGE_SHA"
 
       - uses: azure/setup-helm@v5.0.0
         if: >-
@@ -145,7 +146,7 @@ jobs:
             "minikube-${{ matrix.product }}-install" || true
 
   upgrade-test:
-    name: upgrade-test-${{ matrix.product }}
+    name: upgrade-${{ matrix.product }}
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' &&
@@ -178,15 +179,16 @@ jobs:
             .github/workflows/scripts/detect-changes
           fi
 
-      - name: Checkout selected commit
+      - name: Checkout PR merge
         if: >-
           !env.ACT &&
+          github.event_name == 'issue_comment' &&
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         env:
-          HEAD_SHA: ${{ steps.changes.outputs.head-sha }}
-        run: git checkout --detach "$HEAD_SHA"
+          MERGE_SHA: ${{ steps.changes.outputs.merge-sha }}
+        run: git checkout --detach "$MERGE_SHA"
 
       - uses: azure/setup-helm@v5.0.0
         if: >-

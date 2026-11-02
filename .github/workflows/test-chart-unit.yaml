@@ -1,4 +1,4 @@
-name: Test Chart Unit
+name: unit-test
 
 on:
   pull_request:
@@ -7,10 +7,13 @@ on:
       - 'charts/pxc-db/**'
       - 'charts/ps-operator/**'
       - 'charts/ps-db/**'
+      - 'Makefile'
+      - '.github/workflows/test-chart-unit.yaml'
+      - '.github/workflows/scripts/detect-changes'
 
 jobs:
   unit-test:
-    name: Helm Unit Tests (test-${{ matrix.chart }})
+    name: ${{ matrix.chart }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -32,6 +35,10 @@ jobs:
         id: changes
         env:
           SUPPORTED_CHARTS: pxc-operator,pxc-db,ps-operator,ps-db
+          SELECT_ALL_ON_CHANGES: >-
+            Makefile,
+            .github/workflows/test-chart-unit.yaml,
+            .github/workflows/scripts/detect-changes
         run: .github/workflows/scripts/detect-changes
 
       - name: Set up Helm

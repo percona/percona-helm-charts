@@ -1,4 +1,4 @@
-name: Label PRs
+name: label
 
 on:
   pull_request_target:
@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   label:
+    name: prs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/labeler@v5
