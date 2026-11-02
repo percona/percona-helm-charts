@@ -103,20 +103,31 @@ jobs:
         with:
           version: v3.21.0
 
-      - name: Resolve latest stable Kubernetes version
+      - name: Resolve latest Minikube and supported Kubernetes versions
         id: kubernetes
         if: >-
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         run: |
-          version="$(curl --fail --silent --show-error --location --retry 3 https://dl.k8s.io/release/stable.txt)"
+          minikube_version="$(
+            curl --fail --silent --show-error --location --retry 3 \
+              https://api.github.com/repos/kubernetes/minikube/releases/latest |
+              jq -er '.tag_name'
+          )"
+          echo "minikube-version=$minikube_version" >> "$GITHUB_OUTPUT"
+          echo "Using Minikube $minikube_version"
+          version="$(
+            curl --fail --silent --show-error --location --retry 3 \
+              "https://raw.githubusercontent.com/kubernetes/minikube/$minikube_version/pkg/minikube/constants/constants.go" |
+              awk '$1 == "NewestKubernetesVersion" {gsub(/"/, "", $3); print $3}'
+          )"
           [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "::error::Invalid Kubernetes version: $version"
+            echo "::error::Could not resolve a stable Kubernetes version supported by Minikube"
             exit 1
           }
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Using Kubernetes $version"
+          echo "Using supported Kubernetes $version"
 
       - uses: manusa/actions-setup-minikube@v2.19.0
         if: >-
@@ -124,7 +135,7 @@ jobs:
           contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         with:
-          minikube version: v1.39.0
+          minikube version: ${{ steps.kubernetes.outputs.minikube-version }}
           kubernetes version: ${{ steps.kubernetes.outputs.version }}
           driver: docker
           container runtime: containerd
@@ -174,8 +185,6 @@ jobs:
           minikube \
             --profile "minikube-${{ matrix.product }}-install" \
             delete || true
-          docker volume rm \
-            "minikube-${{ matrix.product }}-install" || true
 
   upgrade-test:
     name: upgrade-${{ matrix.product }}
@@ -230,20 +239,31 @@ jobs:
         with:
           version: v3.21.0
 
-      - name: Resolve latest stable Kubernetes version
+      - name: Resolve latest Minikube and supported Kubernetes versions
         id: kubernetes
         if: >-
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         run: |
-          version="$(curl --fail --silent --show-error --location --retry 3 https://dl.k8s.io/release/stable.txt)"
+          minikube_version="$(
+            curl --fail --silent --show-error --location --retry 3 \
+              https://api.github.com/repos/kubernetes/minikube/releases/latest |
+              jq -er '.tag_name'
+          )"
+          echo "minikube-version=$minikube_version" >> "$GITHUB_OUTPUT"
+          echo "Using Minikube $minikube_version"
+          version="$(
+            curl --fail --silent --show-error --location --retry 3 \
+              "https://raw.githubusercontent.com/kubernetes/minikube/$minikube_version/pkg/minikube/constants/constants.go" |
+              awk '$1 == "NewestKubernetesVersion" {gsub(/"/, "", $3); print $3}'
+          )"
           [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "::error::Invalid Kubernetes version: $version"
+            echo "::error::Could not resolve a stable Kubernetes version supported by Minikube"
             exit 1
           }
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Using Kubernetes $version"
+          echo "Using supported Kubernetes $version"
 
       - uses: manusa/actions-setup-minikube@v2.19.0
         if: >-
@@ -251,7 +271,7 @@ jobs:
           contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         with:
-          minikube version: v1.39.0
+          minikube version: ${{ steps.kubernetes.outputs.minikube-version }}
           kubernetes version: ${{ steps.kubernetes.outputs.version }}
           driver: docker
           container runtime: containerd

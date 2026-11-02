@@ -94,8 +94,11 @@ instead.
 
 Each job runs on Ubuntu 22.04 and creates its own Minikube cluster using
 the Docker driver and containerd as the Kubernetes container runtime,
-the latest stable Kubernetes version resolved from `dl.k8s.io/release/stable.txt`,
+the newest stable Kubernetes version declared by that Minikube release's
+`NewestKubernetesVersion` constant,
 four CPUs, and 12 GB of memory. The resolved version is printed in each job's logs.
+The latest stable Minikube release is resolved through the GitHub releases API
+on each run. Its version is logged.
 Ubuntu 22.04 avoids the
 Linux 6.19 through 7.0.13 kernels that are incompatible with PSMDB 8. The
 install job has a 30-minute timeout; the upgrade job has a 40-minute timeout.
