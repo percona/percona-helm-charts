@@ -1271,11 +1271,11 @@ haproxy:
   # For that, and for any other ConfigMap change you make that requires a restart, set an
   # annotation of your own in the same upgrade (e.g. pmm.percona.com/max-replicas: "20").
   #
-  # config-version belongs to the chart: releases that change haproxy.cfg increment it.
-  # Do not override it - a user-set value is kept by later upgrades and masks those
+  # haproxy-config-version belongs to the chart: releases that change haproxy.cfg increment
+  # it. Do not override it - a user-set value is kept by later upgrades and masks those
   # increments, so HAProxy stops restarting on chart upgrades.
   podAnnotations:
-    pmm.percona.com/config-version: "6"
+    pmm.percona.com/haproxy-config-version: "6"
 
   # HAProxy pod spread across nodes.
   #

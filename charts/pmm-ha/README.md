@@ -1586,10 +1586,14 @@ Common troubleshooting steps for PMM HA:
       pmm.percona.com/max-replicas: "20"
   ```
 
-  Do not use `pmm.percona.com/config-version` for this. The chart raises that annotation
-  itself when a release changes the HAProxy configuration. A value you set is kept by
-  later upgrades with `--reset-then-reuse-values` or the same values file and overrides
-  those raises, so HAProxy would no longer restart on later chart upgrades.
+  Do not use `pmm.percona.com/haproxy-config-version` for this. The chart raises that
+  annotation itself when a release changes the HAProxy configuration. A value you set is
+  kept by later upgrades with `--reset-then-reuse-values` or the same values file and
+  overrides those raises, so HAProxy would no longer restart on later chart upgrades.
+
+  pmm-ha 1.8.0 suggested setting `pmm.percona.com/config-version` instead. The chart no
+  longer uses that annotation, so a value you set there has no effect and you can remove
+  it from your values.
 
   Prefer this over `kubectl rollout restart`: the annotation is part of the same
   declarative upgrade, so the restart is reproducible from your values. An out-of-band restart
