@@ -147,10 +147,10 @@ get_cr_version() {
 
 get_workloads() {
   kubectl get statefulsets,deployments -n "$database_namespace" -o json |
-    jq --arg label "$workload_label" --arg cluster "$cluster" '
+    jq --arg label_key "$workload_label" --arg cluster "$cluster" '
       .items |= map(select(
-        .metadata.labels[$label] == $cluster or
-        .spec.template.metadata.labels[$label] == $cluster
+        .metadata.labels[$label_key] == $cluster or
+        .spec.template.metadata.labels[$label_key] == $cluster
       ))
     '
 }

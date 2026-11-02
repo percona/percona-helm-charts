@@ -93,7 +93,9 @@ For an unreleased operator version, they use `perconalab/<operator>:main`
 instead.
 
 Each job runs on Ubuntu 22.04 and creates its own Minikube cluster using
-Kubernetes `v1.34.0`, four CPUs, and 12 GB of memory. Ubuntu 22.04 avoids the
+the latest stable Kubernetes version resolved from `dl.k8s.io/release/stable.txt`,
+four CPUs, and 12 GB of memory. The resolved version is printed in each job's logs.
+Ubuntu 22.04 avoids the
 Linux 6.19 through 7.0.13 kernels that are incompatible with PSMDB 8. The
 install job has a 30-minute timeout; the upgrade job has a 40-minute timeout.
 Cleanup runs regardless of job success or failure.

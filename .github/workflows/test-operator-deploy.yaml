@@ -103,6 +103,21 @@ jobs:
         with:
           version: v3.21.0
 
+      - name: Resolve latest stable Kubernetes version
+        id: kubernetes
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        run: |
+          version="$(curl --fail --silent --show-error --location --retry 3 https://dl.k8s.io/release/stable.txt)"
+          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::Invalid Kubernetes version: $version"
+            exit 1
+          }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Using Kubernetes $version"
+
       - uses: manusa/actions-setup-minikube@v2.19.0
         if: >-
           steps.changes.outputs.should-run == 'true' &&
@@ -110,7 +125,7 @@ jobs:
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         with:
           minikube version: v1.39.0
-          kubernetes version: v1.34.0
+          kubernetes version: ${{ steps.kubernetes.outputs.version }}
           driver: docker
           start args: >-
             --cpus=4
@@ -214,6 +229,21 @@ jobs:
         with:
           version: v3.21.0
 
+      - name: Resolve latest stable Kubernetes version
+        id: kubernetes
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        run: |
+          version="$(curl --fail --silent --show-error --location --retry 3 https://dl.k8s.io/release/stable.txt)"
+          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::Invalid Kubernetes version: $version"
+            exit 1
+          }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Using Kubernetes $version"
+
       - uses: manusa/actions-setup-minikube@v2.19.0
         if: >-
           steps.changes.outputs.should-run == 'true' &&
@@ -221,7 +251,7 @@ jobs:
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         with:
           minikube version: v1.39.0
-          kubernetes version: v1.34.0
+          kubernetes version: ${{ steps.kubernetes.outputs.version }}
           driver: docker
           start args: >-
             --cpus=4
