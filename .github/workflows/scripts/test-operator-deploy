@@ -72,6 +72,8 @@ configure() {
   [[ "$mode" != upgrade || "$product" == psmdb ]] ||
     die "Upgrade is only supported for psmdb"
 
+  workload_label=app.kubernetes.io/instance
+  check_observed_generation=true
   case "$product" in
     psmdb)
       image_name=percona-server-mongodb-operator
@@ -83,6 +85,7 @@ configure() {
     ps)
       image_name=percona-server-mysql-operator
       resource=perconaservermysql
+      check_observed_generation=false
       ;;
     pxc)
       image_name=percona-xtradb-cluster-operator
@@ -91,6 +94,7 @@ configure() {
     pg)
       image_name=percona-postgresql-operator
       resource=perconapgcluster
+      workload_label=postgres-operator.crunchydata.com/cluster
       ;;
     *)
       die "Unsupported product: $product"
@@ -101,6 +105,7 @@ configure() {
   crd="${product}-operator-crds"
   db="${product}-db"
   cluster="test-${db}"
+  workload_selector="$workload_label=$cluster"
   local values_file=".github/workflows/files/minimal-${product}-values.yaml"
   [[ -f "$values_file" ]] || die "Test values not found: $values_file"
   db_args=(-f "$values_file")
@@ -141,13 +146,18 @@ get_cr_version() {
 }
 
 get_workloads() {
-  kubectl get statefulsets,deployments -n "$database_namespace" \
-    -l "app.kubernetes.io/instance=$cluster" -o json
+  kubectl get statefulsets,deployments -n "$database_namespace" -o json |
+    jq --arg label "$workload_label" --arg cluster "$cluster" '
+      .items |= map(select(
+        .metadata.labels[$label] == $cluster or
+        .spec.template.metadata.labels[$label] == $cluster
+      ))
+    '
 }
 
 get_crashlooping_containers() {
   kubectl get pods -n "$database_namespace" \
-    -l "app.kubernetes.io/instance=$cluster" -o json 2>/dev/null |
+    -l "$workload_selector" -o json |
     jq -r '
       [.items[] as $pod |
        (($pod.status.initContainerStatuses // []) +
@@ -176,6 +186,7 @@ readiness_status() {
   jq -cn \
     --argjson cr "$cr" \
     --argjson workloads "$workloads" \
+    --argjson check_observed_generation "$check_observed_generation" \
     --argjson previous "$previous" '
     def ready:
       (.spec.replicas // 1) as $n |
@@ -199,7 +210,8 @@ readiness_status() {
      observed: ($cr.status.observedGeneration // 0),
      workloads: $items,
      success: (($cr.status.state // "" | ascii_downcase) == "ready" and
-       ($cr.status.observedGeneration // 0) >= ($cr.metadata.generation // 0) and
+       (($check_observed_generation | not) or
+        ($cr.status.observedGeneration // 0) >= ($cr.metadata.generation // 0)) and
        ($items | length) > 0 and
        ($previous == {} or (($items | map(.name) | sort) == ($previous | keys | sort))) and
        all($items[]; .ready and .increased))}
@@ -211,15 +223,17 @@ wait_ready() {
   local deadline=$((SECONDS + 420))
   local cr crashlooping workloads result
 
-  log "Waiting for $cluster and workloads (timeout: 7m0s)"
+  log "Waiting for $cluster and workloads (timeout: 420s)"
   while ((SECONDS < deadline)); do
-    cr="$(kubectl get "$resource/$cluster" -n "$database_namespace" -o json 2>/dev/null || echo '{}')"
+    cr="$(kubectl get "$resource/$cluster" -n "$database_namespace" -o json)"
+    log "$(jq -c '{generation: .metadata.generation, status: .status}' <<< "$cr")"
+    kubectl get pods -n "$database_namespace" -o wide
     workloads="$(get_workloads)"
     result="$(readiness_status "$cr" "$workloads" "$previous")"
-
     log "$(jq -c 'del(.success)' <<<"$result")"
+
     if [[ "$(jq -r '.success' <<<"$result")" == true ]]; then
-      log "SUCCESS: cluster Ready; all workloads updated and Ready"
+      log "SUCCESS: $cluster passed readiness checks"
       return 0
     fi
 
@@ -230,7 +244,8 @@ wait_ready() {
     fi
     sleep 15
   done
-  log "ERROR: timed out waiting for cluster/workloads" >&2
+  kubectl describe "$resource/$cluster" -n "$database_namespace"
+  log "ERROR: timed out waiting for $cluster" >&2
   return 1
 }
 
@@ -240,7 +255,7 @@ database_pod_state() {
   pods="$(
     kubectl get pods \
       --namespace "$database_namespace" \
-      --selector "app.kubernetes.io/instance=$cluster" \
+      --selector "$workload_selector" \
       --output json
   )"
 
@@ -503,31 +518,8 @@ upgrade_database() {
 
 run_install() {
   install_current_charts
-  if [[ "$product" == psmdb ]]; then
-    wait_ready
-  else
-    wait_database_ready
-  fi
+  wait_ready
   helm test test --namespace "$database_namespace" --timeout 10m
-}
-
-wait_database_ready() {
-  local deadline=$((SECONDS + 600))
-  local status
-
-  log "Waiting for $resource/$cluster (timeout: 10m)"
-  while ((SECONDS < deadline)); do
-    status="$(kubectl get "$resource/$cluster" -n "$database_namespace" -o json)"
-    log "$(jq -c '{generation: .metadata.generation, status: .status}' <<< "$status")"
-    kubectl get pods -n "$database_namespace" -o wide
-    if [[ "$(jq -r '.status.state // empty' <<< "$status")" == ready ]]; then
-      log "SUCCESS: $cluster is ready"
-      return 0
-    fi
-    sleep 15
-  done
-  kubectl describe "$resource/$cluster" -n "$database_namespace"
-  die "Timed out waiting for $resource/$cluster to become ready"
 }
 
 run_upgrade() {

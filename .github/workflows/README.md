@@ -30,6 +30,14 @@ The helper installs the charts using Helm, waits for database readiness, and
 runs `helm test`. The job cleanup deletes the test cluster. No Python or
 chart-testing setup is needed in this workflow.
 
+All products use the same readiness checks with a 7-minute timeout: the database
+CR must be ready and its StatefulSets and Deployments must be reconciled, updated,
+and ready. CR observed generation is also checked where supported (PS does not
+expose this field). PG uses its native cluster label to select workloads.
+While waiting, the helper prints CR status and pod status every 15 seconds and
+fails early when a database container is in CrashLoopBackOff with at least three
+restarts. On timeout, it also describes the database CR.
+
 Minimal database values are stored in [`files/`](./files/) and loaded explicitly:
 
 - [`minimal-ps-values.yaml`](./files/minimal-ps-values.yaml)
