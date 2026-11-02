@@ -23,7 +23,25 @@ uses an installation matrix for `psmdb`, `pxc`, `ps`, and `pg`, and a separate
 upgrade matrix limited to `psmdb`. PXC, PS, and PG install a separate
 `<product>-operator-crds` chart first when it exists, then install the operator
 with `--skip-crds`. Otherwise, the operator installs its embedded CRDs.
-They then run `ct install` for the corresponding database chart.
+Operators watch all namespaces so they can reconcile database resources in
+the `database` namespace used for installation.
+All installation matrix entries invoke `scripts/test-operator-deploy install`.
+The helper installs the charts using Helm, waits for database readiness, and
+runs `helm test`. The job cleanup deletes the test cluster. No Python or
+chart-testing setup is needed in this workflow.
+
+Minimal database values are stored in [`files/`](./files/) and loaded explicitly:
+
+- [`minimal-ps-values.yaml`](./files/minimal-ps-values.yaml)
+- [`minimal-pxc-values.yaml`](./files/minimal-pxc-values.yaml)
+- [`minimal-pg-values.yaml`](./files/minimal-pg-values.yaml)
+- [`minimal-psmdb-values.yaml`](./files/minimal-psmdb-values.yaml)
+
+PS's configuration follows the operator's minimal CR: one MySQL instance, one HAProxy
+instance, a 2 GiB data volume, and the required unsafe size flags. MySQL
+auto-configuration, Router, Orchestrator, and backups are disabled; the log
+collector stays enabled. Smaller resource requests and disabled host
+anti-affinity keep this configuration suitable for the single-node CI cluster.
 The detailed lifecycle checks below apply to PSMDB:
 
 - `install-test`: installs the current CRD, operator, and database charts.

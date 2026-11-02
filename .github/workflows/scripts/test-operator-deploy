@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-usage='Usage: test-operator-deploy <install|upgrade> <psmdb> <--version=TAG|--branch=TAG>'
+usage='Usage: test-operator-deploy <install|upgrade> <psmdb|ps|pxc|pg> <--version=TAG|--branch=TAG> (upgrade: psmdb only)'
 operator_namespace=operator
 database_namespace=database
 base_sha=${BASE_SHA:-}
@@ -52,10 +52,14 @@ resolve_operator_image() {
     operator_image="$image_repository:$image_tag"
   fi
 
-  operator_image_args=(
-    --set "image.repository=$image_repository"
-    --set "image.tag=$image_tag"
-  )
+  if [[ "$product" == pg || "$product" == pxc ]]; then
+    operator_image_args=(--set "image=$operator_image")
+  else
+    operator_image_args=(
+      --set "image.repository=$image_repository"
+      --set "image.tag=$image_tag"
+    )
+  fi
 }
 
 configure() {
@@ -65,6 +69,8 @@ configure() {
   product=$2
   [[ "$mode" == install || "$mode" == upgrade ]] ||
     die "Unsupported mode: $mode"
+  [[ "$mode" != upgrade || "$product" == psmdb ]] ||
+    die "Upgrade is only supported for psmdb"
 
   case "$product" in
     psmdb)
@@ -73,14 +79,18 @@ configure() {
       init_image_value=initImage.repository
       init_image_tag_value=initImage.tag
       resource=perconaservermongodb
-      db_args=(
-        --set unsafeFlags.replsetSize=true
-        --set unsafeFlags.mongosSize=true
-        --set replsets.rs0.size=1
-        --set sharding.enabled=true
-        --set sharding.configrs.size=1
-        --set sharding.mongos.size=1
-      )
+      ;;
+    ps)
+      image_name=percona-server-mysql-operator
+      resource=perconaservermysql
+      ;;
+    pxc)
+      image_name=percona-xtradb-cluster-operator
+      resource=perconaxtradbcluster
+      ;;
+    pg)
+      image_name=percona-postgresql-operator
+      resource=perconapgcluster
       ;;
     *)
       die "Unsupported product: $product"
@@ -91,11 +101,14 @@ configure() {
   crd="${product}-operator-crds"
   db="${product}-db"
   cluster="test-${db}"
+  local values_file=".github/workflows/files/minimal-${product}-values.yaml"
+  [[ -f "$values_file" ]] || die "Test values not found: $values_file"
+  db_args=(-f "$values_file")
 
   resolve_operator_image "$3"
 
   local chart
-  for chart in "$crd" "$operator" "$db"; do
+  for chart in "$operator" "$db"; do
     [[ -f "charts/$chart/Chart.yaml" ]] ||
       die "Chart not found: charts/$chart"
   done
@@ -322,7 +335,12 @@ install_crd_chart() {
     --wait \
     --timeout 5m \
     "${crd_args[@]}"
-  validate_crds
+  if [[ "$product" == psmdb ]]; then
+    validate_crds
+  else
+    helm template "$crd" "$crd_source" "${crd_args[@]}" |
+      kubectl wait --for condition=Established --timeout 2m -f -
+  fi
 }
 
 upgrade_crd_chart() {
@@ -342,11 +360,13 @@ install_operator_chart() {
   [[ -z "$version" ]] || operator_args+=(--version "$version")
   [[ "$use_target_image" != true ]] || operator_args+=("${operator_image_args[@]}")
   operator_args+=(--set watchAllNamespaces=true)
+  if [[ -f "charts/$crd/Chart.yaml" ]]; then
+    operator_args+=(--skip-crds)
+  fi
 
   helm install "$operator" "$source" \
     --namespace "$operator_namespace" \
     --create-namespace \
-    --skip-crds \
     --wait \
     --timeout 10m \
     "${operator_args[@]}"
@@ -362,6 +382,8 @@ install_database_chart() {
   helm install test "$source" \
     --namespace "$database_namespace" \
     --create-namespace \
+    --wait \
+    --timeout 10m \
     "${version_args[@]}" \
     "${db_args[@]}"
 }
@@ -372,7 +394,9 @@ chart_version() {
 }
 
 install_current_charts() {
-  install_crd_chart "charts/$crd"
+  if [[ -f "charts/$crd/Chart.yaml" ]]; then
+    install_crd_chart "charts/$crd"
+  fi
   install_operator_chart "charts/$operator" '' true
   install_database_chart "charts/$db"
 }
@@ -479,7 +503,13 @@ upgrade_database() {
 
 run_install() {
   install_current_charts
-  wait_ready
+  if [[ "$product" == psmdb ]]; then
+    wait_ready
+  else
+    kubectl wait "$resource/$cluster" -n "$database_namespace" \
+      --for=jsonpath='{.status.state}'=ready --timeout=10m
+  fi
+  helm test test --namespace "$database_namespace" --timeout 10m
 }
 
 run_upgrade() {
@@ -492,7 +522,7 @@ run_upgrade() {
 
 main() {
   configure "$@"
-  validate_kernel
+  [[ "$product" != psmdb ]] || validate_kernel
 
   case "$mode" in
     install) run_install ;;

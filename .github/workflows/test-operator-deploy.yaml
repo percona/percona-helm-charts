@@ -23,6 +23,7 @@ on:
       - '.github/workflows/scripts/detect-changes'
       - '.github/workflows/scripts/detect-comment'
       - '.github/workflows/scripts/test-operator-deploy'
+      - '.github/workflows/files/minimal-*-values.yaml'
   issue_comment:
     types:
       - created
@@ -40,7 +41,11 @@ env:
     .github/workflows/scripts/collect-cluster-logs,
     .github/workflows/scripts/detect-changes,
     .github/workflows/scripts/detect-comment,
-    .github/workflows/scripts/test-operator-deploy
+    .github/workflows/scripts/test-operator-deploy,
+    .github/workflows/files/minimal-psmdb-values.yaml,
+    .github/workflows/files/minimal-ps-values.yaml,
+    .github/workflows/files/minimal-pxc-values.yaml,
+    .github/workflows/files/minimal-pg-values.yaml
 
 jobs:
   install-test:
@@ -115,67 +120,12 @@ jobs:
             --force
           github token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-python@v5
-        if: >-
-          matrix.product != 'psmdb' &&
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
-        with:
-          python-version: '3.13'
-
-      - uses: helm/chart-testing-action@v2.8.0
-        if: >-
-          matrix.product != 'psmdb' &&
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
-
       - name: Install operator and database
         if: >-
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         run: |
-          if [[ "${{ matrix.product }}" != psmdb ]]; then
-            operator="${{ matrix.product }}-operator"
-            crd="$operator-crds"
-            crd_args=()
-            if [[ -f "charts/$crd/Chart.yaml" ]]; then
-              helm install "$crd" "charts/$crd" \
-                --namespace default --wait --timeout 5m
-              crd_args+=(--skip-crds)
-            fi
-            image_args=()
-            if [[ "$GITHUB_BASE_REF" == release-* ]]; then
-              repository="$(yq -r '.operatorImageRepository // ""' "charts/$operator/values.yaml")"
-              if [[ -n "$repository" ]]; then
-                image_args=(
-                  --set "operatorImageRepository=perconalab/${repository##*/}"
-                  --set "image=perconalab/${repository##*/}:main"
-                )
-              else
-                repository="$(yq -r '.image.repository' "charts/$operator/values.yaml")"
-                image_args=(
-                  --set "image.repository=perconalab/${repository##*/}"
-                  --set image.tag=main
-                )
-              fi
-            fi
-            helm install "$operator" "charts/$operator" \
-              --namespace default --wait --timeout 10m \
-              "${image_args[@]}" "${crd_args[@]}"
-            ct install \
-              --config .github/ct.yaml \
-              --charts="charts/${{ matrix.product }}-db" \
-              --target-branch "${GITHUB_BASE_REF:-main}"
-            helm uninstall "$operator" --namespace default
-            if [[ -f "charts/$crd/Chart.yaml" ]]; then
-              helm uninstall "$crd" --namespace default
-            fi
-            exit 0
-          fi
-
           version="$(
             awk '$1 == "appVersion:" {
               gsub(/"/, "", $2)
