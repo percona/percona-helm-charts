@@ -137,6 +137,11 @@ memory/CPU counters and pressure metrics. These are snapshots taken during
 collection, not continuous measurements of the first startup.
 Their log sidecars are also queried for shared disk logs, so collection can
 still retrieve mounted files while the database container is restarting.
+PS/PXC diagnostics include process executable paths, allowlisted command-line
+options, configuration directory permissions, and filtered `my_print_defaults`
+output. The latter shows file-derived options, not live MySQL system variables.
+File diagnostics run before container logs to reduce the chance of missing
+a running database container.
 When `MINIKUBE_PROFILE` is set, `host-resources.txt` also captures host memory
 and pressure metrics, Docker versions, the Minikube container's resource limits,
 OOM state, and a Docker usage snapshot.

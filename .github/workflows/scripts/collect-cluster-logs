@@ -48,6 +48,21 @@ collect_container_files() {
   capture "$destination" \
     kubectl exec "$pod" -n "$namespace" -c "$container" -- sh -c '
       status=0
+      selected_options() {
+        awk '"'"'
+          /^[[:space:]]*(!include(dir)?[[:space:]]|\[[^]]+\])/ { print; next }
+          {
+            key = $0
+            sub(/^[[:space:]]*/, "", key)
+            sub(/^--/, "", key)
+            sub(/[[:space:]=].*$/, "", key)
+            gsub(/_/, "-", key)
+            sub(/^loose-/, "", key)
+            if (key ~ /^(no-defaults|defaults-file|defaults-extra-file|defaults-group-suffix|persisted-globals-load|wsrep-provider|wsrep-on|wsrep-cluster-address|wsrep-node-address|wsrep-node-name|wsrep-cluster-name|wsrep-sst-method|socket|port|bind-address|admin-address|admin-port|extra-port|datadir|basedir|plugin-dir|lc-messages-dir|log-error|log-error-verbosity|innodb-buffer-pool-size|innodb-buffer-pool-chunk-size|innodb-buffer-pool-instances|max-connections|gtid-mode|enforce-gtid-consistency|server-id|plugin-load|plugin-load-add|group-replication-group-seeds|group-replication-local-address|group-replication-start-on-boot|group-replication-bootstrap-group|group-replication-communication-stack|listen-addresses|unix-socket-directories|data-directory|logging-collector|log-directory|log-filename)$/)
+              print
+          }
+        '"'"'
+      }
       if [ "$4" = true ]; then
         printf "\n===== Runtime and resource diagnostics =====\n"
         date -u
@@ -73,11 +88,29 @@ collect_container_files() {
           [ -r "$process/comm" ] || continue
           read -r name < "$process/comm" || continue
           case "$name" in mysqld|mysqld-debug|mysql-state-mon*) ;; *) continue ;; esac
+          printf "\n===== %s executable and selected arguments (%s) =====\n" "$process" "$name"
+          readlink "$process/exe" || status=1
+          # Argument values may contain passwords; only allowlisted --key=value options are emitted.
+          tr "\000" "\n" < "$process/cmdline" | selected_options || status=1
           for file in "$process/status" "$process/limits" "$process/io"; do
             [ -f "$file" ] || continue
             printf "\n===== %s (%s) =====\n" "$file" "$name"
             cat "$file" || status=1
           done
+          printf "\n===== Configuration path permissions =====\n"
+          for directory in /etc /etc/mysql /etc/mysql/config /etc/my.cnf.d \
+            /etc/percona-xtradb-cluster.conf.d /usr/share/percona-server \
+            /usr/share/percona-xtradb-cluster; do
+            [ -d "$directory" ] || continue
+            ls -ld "$directory" || status=1
+          done
+          printf "\n===== my_print_defaults (selected options only) =====\n"
+          if command -v my_print_defaults >/dev/null 2>&1; then
+            defaults="$(my_print_defaults mysqld server mysqld-8.4)" || status=1
+            printf "%s\n" "$defaults" | selected_options
+          else
+            echo "my_print_defaults is not installed"
+          fi
         done
         printf "\n===== TCP sockets =====\n"
         if command -v ss >/dev/null 2>&1; then
@@ -86,6 +119,7 @@ collect_container_files() {
           cat /proc/net/tcp /proc/net/tcp6 || status=1
         fi
         for file in /usr/share/percona-server/english/errmsg.sys \
+          /usr/share/percona-xtradb-cluster/english/errmsg.sys \
           /usr/share/mysql/english/errmsg.sys; do
           [ -f "$file" ] || continue
           printf "\n===== %s =====\n" "$file"
@@ -102,18 +136,7 @@ collect_container_files() {
         [ -f "$file" ] || continue
         printf "\n===== %s (selected directives only) =====\n" "$file"
         ls -l "$file" || status=1
-        awk '"'"'
-            /^[[:space:]]*(!include(dir)?[[:space:]]|\[[^]]+\])/ { print; next }
-            {
-              key = $0
-              sub(/^[[:space:]]*/, "", key)
-              sub(/[[:space:]=].*$/, "", key)
-              gsub(/_/, "-", key)
-              sub(/^loose-/, "", key)
-              if (key ~ /^(wsrep-provider|wsrep-on|wsrep-cluster-address|wsrep-node-address|wsrep-node-name|wsrep-cluster-name|wsrep-sst-method|socket|port|bind-address|admin-address|admin-port|extra-port|datadir|basedir|plugin-dir|lc-messages-dir|log-error|log-error-verbosity|innodb-buffer-pool-size|innodb-buffer-pool-chunk-size|innodb-buffer-pool-instances|max-connections|group-replication-group-seeds|group-replication-local-address|group-replication-start-on-boot|group-replication-bootstrap-group|group-replication-communication-stack|listen-addresses|unix-socket-directories|data-directory|logging-collector|log-directory|log-filename)$/)
-                print
-            }
-        '"'"' "$file" || status=1
+        selected_options < "$file" || status=1
       done
       exit "$status"
     ' sh "$files" "$configs" "$disk_log_lines" "$runtime"
@@ -137,6 +160,11 @@ collect_pod() {
     [.spec.containers[].name | select(. == "mysql" or . == "pxc")][0] // ""
   ' <<< "$pod_json")"
 
+  while IFS= read -r container; do
+    collect_container_files "$namespace" "$pod" "$container" \
+      "$pod_dir/$container-files.txt" "$database_container"
+  done < <(jq -r '.spec.containers[].name' <<< "$pod_json")
+
   while IFS=$'\t' read -r container restarts; do
     capture "$pod_dir/$container.log" \
       kubectl logs "$pod" -n "$namespace" -c "$container" \
@@ -150,10 +178,6 @@ collect_pod() {
     [.status.initContainerStatuses[]?, .status.containerStatuses[]?] |
     .[] | [.name, (.restartCount // 0)] | @tsv' <<< "$pod_json")
 
-  while IFS= read -r container; do
-    collect_container_files "$namespace" "$pod" "$container" \
-      "$pod_dir/$container-files.txt" "$database_container"
-  done < <(jq -r '.spec.containers[].name' <<< "$pod_json")
 }
 
 collect_cluster_overview() {
