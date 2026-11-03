@@ -22,7 +22,7 @@ should_run=false
 
 json_array() {
   tr ',' '\n' <<< "$1" |
-    sed '/^$/d' |
+    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' |
     sort -u |
     jq -R . |
     jq -sc .
@@ -53,7 +53,7 @@ if [[ "$event_name" == issue_comment &&
       ( "$association" == OWNER || "$association" == MEMBER ) ]]; then
   read -r command requested_operator requested_job extra <<< "$comment"
 
-  if [[ "$command" == /run-test-upgrade && -z "${extra:-}" ]]; then
+  if [[ "$command" == /run-deploy-test && -z "${extra:-}" ]]; then
     requested_operator=${requested_operator:-all}
     requested_job=${requested_job:-all}
     supported_operators="$(json_array "$supported_operators_csv")"

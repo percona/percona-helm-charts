@@ -33,6 +33,10 @@ if [[ -n "${ACT_CHARTS:-}" ]]; then
   head_sha="${head_sha:-$(git rev-parse HEAD)}"
   base_sha="${base_sha:-$(git rev-parse "$head_sha^")}"
 else
+  if [[ -z "$base_sha" || -z "$head_sha" ]]; then
+    echo "Pull request base.sha and head.sha are required unless ACT_CHARTS is set" >&2
+    exit 1
+  fi
   merge_base="$(git merge-base "$base_sha" "$head_sha")"
   changed_files="$(git diff --name-only "$merge_base" "$head_sha")"
 fi

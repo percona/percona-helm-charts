@@ -98,7 +98,8 @@ the newest stable Kubernetes version declared by that Minikube release's
 `NewestKubernetesVersion` constant,
 four CPUs, and 12 GB of memory. The resolved version is printed in each job's logs.
 The latest stable Minikube release is resolved through the GitHub releases API
-on each run. Its version is logged.
+on each run. Its version is logged. CI authenticates the request with
+`GH_TOKEN`; local runs can omit the token.
 Both jobs explicitly install `kubectl` with the resolved Kubernetes version,
 so they do not depend on tools preinstalled in GitHub runners or local `act`
 container images.
@@ -115,6 +116,10 @@ these paths change:
 - `charts/psmdb-operator/**`, excluding `charts/psmdb-operator/crds/**`
 - `charts/psmdb-operator-crds/**`
 - `charts/psmdb-db/**`
+
+Changes to either version helper or `disable-app-armor-profiles.sh` also
+trigger the workflow and select all supported installation products and the
+PSMDB upgrade scenario.
 
 The install and upgrade jobs are independent. The upgrade scenario installs
 the previous chart versions before upgrading them, so it does not depend on
@@ -176,12 +181,12 @@ Add one of these commands to the pull request conversation:
 
 | Command | Tests triggered |
 | --- | --- |
-| `/run-test-upgrade` | All jobs for all supported operators |
-| `/run-test-upgrade psmdb` | All jobs for PSMDB |
-| `/run-test-upgrade install` | The install job for all supported operators |
-| `/run-test-upgrade upgrade` | The upgrade job for all supported operators |
-| `/run-test-upgrade psmdb install` | Only the PSMDB install job |
-| `/run-test-upgrade psmdb upgrade` | Only the PSMDB upgrade job |
+| `/run-deploy-test` | All jobs for all supported operators |
+| `/run-deploy-test psmdb` | All jobs for PSMDB |
+| `/run-deploy-test install` | The install job for all supported operators |
+| `/run-deploy-test upgrade` | The upgrade job for all supported operators |
+| `/run-deploy-test psmdb install` | Only the PSMDB install job |
+| `/run-deploy-test psmdb upgrade` | Only the PSMDB upgrade job |
 
 The helper accepts commands from repository owners and members
 (`OWNER` or `MEMBER`) only on same-repository pull requests. Fork pull requests

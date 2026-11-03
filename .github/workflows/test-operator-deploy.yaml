@@ -23,6 +23,9 @@ on:
       - '.github/workflows/scripts/detect-changes.sh'
       - '.github/workflows/scripts/detect-comment.sh'
       - '.github/workflows/scripts/test-operator-deploy.sh'
+      - '.github/workflows/scripts/latest-stable-minikube-version.sh'
+      - '.github/workflows/scripts/latest-stable-kubernetes-version.sh'
+      - '.github/workflows/scripts/disable-app-armor-profiles.sh'
       - '.github/workflows/files/minimal-*-values.yaml'
   issue_comment:
     types:
@@ -42,6 +45,9 @@ env:
     .github/workflows/scripts/detect-changes.sh,
     .github/workflows/scripts/detect-comment.sh,
     .github/workflows/scripts/test-operator-deploy.sh,
+    .github/workflows/scripts/latest-stable-minikube-version.sh,
+    .github/workflows/scripts/latest-stable-kubernetes-version.sh,
+    .github/workflows/scripts/disable-app-armor-profiles.sh,
     .github/workflows/files/minimal-psmdb-values.yaml,
     .github/workflows/files/minimal-ps-values.yaml,
     .github/workflows/files/minimal-pxc-values.yaml,
@@ -56,7 +62,7 @@ jobs:
        github.event.issue.pull_request != null &&
        (github.event.comment.author_association == 'OWNER' ||
         github.event.comment.author_association == 'MEMBER') &&
-       startsWith(github.event.comment.body, '/run-test-upgrade'))
+       startsWith(github.event.comment.body, '/run-deploy-test'))
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     strategy:
@@ -110,6 +116,8 @@ jobs:
       - name: Resolve latest stable Minikube version
         id: minikube
         if: steps.tests.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           version="$(bash .github/workflows/scripts/latest-stable-minikube-version.sh)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -197,7 +205,7 @@ jobs:
        github.event.issue.pull_request != null &&
        (github.event.comment.author_association == 'OWNER' ||
         github.event.comment.author_association == 'MEMBER') &&
-       startsWith(github.event.comment.body, '/run-test-upgrade'))
+       startsWith(github.event.comment.body, '/run-deploy-test'))
     # PSMDB 8 cannot start on Linux kernels 6.19 through 7.0.13.
     runs-on: ubuntu-22.04
     timeout-minutes: 40
@@ -249,6 +257,8 @@ jobs:
       - name: Resolve latest stable Minikube version
         id: minikube
         if: steps.tests.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           version="$(bash .github/workflows/scripts/latest-stable-minikube-version.sh)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
