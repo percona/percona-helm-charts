@@ -3,6 +3,11 @@ unsafeFlags:
   proxySize: true
 
 mysql:
+  containerSecurityContext:
+    appArmorProfile:
+      type: Unconfined
+    seccompProfile:
+      type: Unconfined
   size: 3
   autoConfig:
     enabled: false

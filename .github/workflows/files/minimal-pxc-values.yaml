@@ -3,6 +3,11 @@ unsafeFlags:
   proxySize: true
 
 pxc:
+  containerSecurityContext:
+    appArmorProfile:
+      type: Unconfined
+    seccompProfile:
+      type: Unconfined
   size: 3
   affinity:
     antiAffinityTopologyKey: none

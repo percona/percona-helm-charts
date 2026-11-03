@@ -123,6 +123,14 @@ request head is behind it.
 
 ### Failure diagnostics
 
+For the PS/PXC confinement experiment, their minimal test values set the
+database container's AppArmor and seccomp profiles to `Unconfined`. The
+installation job also unloads the host MySQL AppArmor profile, if loaded,
+before creating Kind on GitHub runners. This host change is skipped under
+`act`; no chart defaults or other host AppArmor profiles are changed.
+This reduces confinement for these tests and does not establish AppArmor
+as the cause of the startup failures.
+
 On failure, both jobs collect Kubernetes resources, events, pod descriptions,
 current and previous logs for regular and init containers, database logs stored
 on disk, and Kind node logs. The resulting `cluster-logs` directory is
