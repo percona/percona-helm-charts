@@ -31,6 +31,42 @@ tests:
         template: templates/role-binding.yaml
         documentIndex: 1
 
+  - it: grants the permissions needed to apply VPA recommendations
+    templates:
+      - templates/role.yaml
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - autoscaling.k8s.io
+            resources:
+              - verticalpodautoscalers
+            verbs:
+              - get
+              - list
+              - watch
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - ""
+            resources:
+              - pods/resize
+            verbs:
+              - patch
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - apps
+            resources:
+              - controllerrevisions
+            verbs:
+              - get
+              - list
+              - watch
+
   - it: renders cluster-wide RBAC when watching all namespaces
     templates:
       - templates/role.yaml
