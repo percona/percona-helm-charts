@@ -19,10 +19,10 @@ on:
       - 'charts/pg-operator-crds/**'
       - 'charts/pg-db/**'
       - '.github/workflows/test-operator-deploy.yaml'
-      - '.github/workflows/scripts/collect-cluster-logs'
-      - '.github/workflows/scripts/detect-changes'
-      - '.github/workflows/scripts/detect-comment'
-      - '.github/workflows/scripts/test-operator-deploy'
+      - '.github/workflows/scripts/collect-cluster-logs.sh'
+      - '.github/workflows/scripts/detect-changes.sh'
+      - '.github/workflows/scripts/detect-comment.sh'
+      - '.github/workflows/scripts/test-operator-deploy.sh'
       - '.github/workflows/files/minimal-*-values.yaml'
   issue_comment:
     types:
@@ -38,10 +38,10 @@ env:
   SUPPORTED_JOBS: install,upgrade
   SELECT_ALL_ON_CHANGES: >-
     .github/workflows/test-operator-deploy.yaml,
-    .github/workflows/scripts/collect-cluster-logs,
-    .github/workflows/scripts/detect-changes,
-    .github/workflows/scripts/detect-comment,
-    .github/workflows/scripts/test-operator-deploy,
+    .github/workflows/scripts/collect-cluster-logs.sh,
+    .github/workflows/scripts/detect-changes.sh,
+    .github/workflows/scripts/detect-comment.sh,
+    .github/workflows/scripts/test-operator-deploy.sh,
     .github/workflows/files/minimal-psmdb-values.yaml,
     .github/workflows/files/minimal-ps-values.yaml,
     .github/workflows/files/minimal-pxc-values.yaml,
@@ -79,63 +79,69 @@ jobs:
           SUPPORTED_OPERATORS: ${{ matrix.product }}
         run: |
           if [[ "$GITHUB_EVENT_NAME" == issue_comment ]]; then
-            .github/workflows/scripts/detect-comment
+            .github/workflows/scripts/detect-comment.sh
           else
-            .github/workflows/scripts/detect-changes
+            .github/workflows/scripts/detect-changes.sh
           fi
+
+      - name: Select tests
+        id: tests
+        env:
+          RUN_TEST: >-
+            ${{ steps.changes.outputs.should-run == 'true' &&
+                contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+                contains(fromJSON(steps.changes.outputs.products), matrix.product) }}
+        run: echo "run=$RUN_TEST" >> "$GITHUB_OUTPUT"
 
       - name: Checkout PR merge
         if: >-
           !env.ACT &&
           github.event_name == 'issue_comment' &&
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+          steps.tests.outputs.run == 'true'
         env:
           MERGE_SHA: ${{ steps.changes.outputs.merge-sha }}
         run: git checkout --detach "$MERGE_SHA"
 
       - uses: azure/setup-helm@v5.0.0
-        if: >-
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        if: steps.tests.outputs.run == 'true'
         with:
           version: v3.21.0
 
-      - name: Resolve latest Minikube and supported Kubernetes versions
-        id: kubernetes
-        if: >-
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+      - name: Resolve latest stable Minikube version
+        id: minikube
+        if: steps.tests.outputs.run == 'true'
         run: |
-          minikube_version="$(
-            curl --fail --silent --show-error --location --retry 3 \
-              https://api.github.com/repos/kubernetes/minikube/releases/latest |
-              jq -er '.tag_name'
-          )"
-          echo "minikube-version=$minikube_version" >> "$GITHUB_OUTPUT"
-          echo "Using Minikube $minikube_version"
-          version="$(
-            curl --fail --silent --show-error --location --retry 3 \
-              "https://raw.githubusercontent.com/kubernetes/minikube/$minikube_version/pkg/minikube/constants/constants.go" |
-              awk '$1 == "NewestKubernetesVersion" {gsub(/"/, "", $3); print $3}'
-          )"
-          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "::error::Could not resolve a stable Kubernetes version supported by Minikube"
-            exit 1
-          }
+          version="$(bash .github/workflows/scripts/latest-stable-minikube-version.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Using Minikube $version"
+
+      - name: Resolve latest stable Kubernetes supported by Minikube
+        id: kubernetes
+        if: steps.tests.outputs.run == 'true'
+        env:
+          MINIKUBE_VERSION: ${{ steps.minikube.outputs.version }}
+        run: |
+          version="$(bash .github/workflows/scripts/latest-stable-kubernetes-version.sh "$MINIKUBE_VERSION")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Using supported Kubernetes $version"
 
-      - uses: manusa/actions-setup-minikube@v2.19.0
-        if: >-
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        if: steps.tests.outputs.run == 'true'
         with:
-          minikube version: ${{ steps.kubernetes.outputs.minikube-version }}
+          version: ${{ steps.kubernetes.outputs.version }}
+
+      - name: Unload host MySQL AppArmor profile for PS/PXC tests
+        if: >-
+          !env.ACT &&
+          (matrix.product == 'ps' || matrix.product == 'pxc') &&
+          steps.tests.outputs.run == 'true'
+        run: bash .github/workflows/scripts/disable-app-armor-profiles.sh
+
+      - uses: manusa/actions-setup-minikube@v2.19.0
+        if: steps.tests.outputs.run == 'true'
+        with:
+          minikube version: ${{ steps.minikube.outputs.version }}
           kubernetes version: ${{ steps.kubernetes.outputs.version }}
           driver: docker
           container runtime: containerd
@@ -148,10 +154,7 @@ jobs:
           github token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install operator and database
-        if: >-
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        if: steps.tests.outputs.run == 'true'
         run: |
           version="$(
             awk '$1 == "appVersion:" {
@@ -161,14 +164,14 @@ jobs:
             }' "charts/${{ matrix.product }}-operator/Chart.yaml"
           )"
 
-          .github/workflows/scripts/test-operator-deploy \
+          .github/workflows/scripts/test-operator-deploy.sh \
             install "${{ matrix.product }}" "--version=$version"
 
       - name: Collect cluster logs
         if: failure()
         env:
           MINIKUBE_PROFILE: minikube-${{ matrix.product }}-install
-        run: bash .github/workflows/scripts/collect-cluster-logs
+        run: bash .github/workflows/scripts/collect-cluster-logs.sh
 
       - name: Upload cluster logs
         if: failure()
@@ -215,63 +218,62 @@ jobs:
           SUPPORTED_OPERATORS: ${{ matrix.product }}
         run: |
           if [[ "$GITHUB_EVENT_NAME" == issue_comment ]]; then
-            .github/workflows/scripts/detect-comment
+            .github/workflows/scripts/detect-comment.sh
           else
-            .github/workflows/scripts/detect-changes
+            .github/workflows/scripts/detect-changes.sh
           fi
+
+      - name: Select tests
+        id: tests
+        env:
+          RUN_TEST: >-
+            ${{ steps.changes.outputs.should-run == 'true' &&
+                contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
+                contains(fromJSON(steps.changes.outputs.products), matrix.product) }}
+        run: echo "run=$RUN_TEST" >> "$GITHUB_OUTPUT"
 
       - name: Checkout PR merge
         if: >-
           !env.ACT &&
           github.event_name == 'issue_comment' &&
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+          steps.tests.outputs.run == 'true'
         env:
           MERGE_SHA: ${{ steps.changes.outputs.merge-sha }}
         run: git checkout --detach "$MERGE_SHA"
 
       - uses: azure/setup-helm@v5.0.0
-        if: >-
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        if: steps.tests.outputs.run == 'true'
         with:
           version: v3.21.0
 
-      - name: Resolve latest Minikube and supported Kubernetes versions
-        id: kubernetes
-        if: >-
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+      - name: Resolve latest stable Minikube version
+        id: minikube
+        if: steps.tests.outputs.run == 'true'
         run: |
-          minikube_version="$(
-            curl --fail --silent --show-error --location --retry 3 \
-              https://api.github.com/repos/kubernetes/minikube/releases/latest |
-              jq -er '.tag_name'
-          )"
-          echo "minikube-version=$minikube_version" >> "$GITHUB_OUTPUT"
-          echo "Using Minikube $minikube_version"
-          version="$(
-            curl --fail --silent --show-error --location --retry 3 \
-              "https://raw.githubusercontent.com/kubernetes/minikube/$minikube_version/pkg/minikube/constants/constants.go" |
-              awk '$1 == "NewestKubernetesVersion" {gsub(/"/, "", $3); print $3}'
-          )"
-          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "::error::Could not resolve a stable Kubernetes version supported by Minikube"
-            exit 1
-          }
+          version="$(bash .github/workflows/scripts/latest-stable-minikube-version.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Using Minikube $version"
+
+      - name: Resolve latest stable Kubernetes supported by Minikube
+        id: kubernetes
+        if: steps.tests.outputs.run == 'true'
+        env:
+          MINIKUBE_VERSION: ${{ steps.minikube.outputs.version }}
+        run: |
+          version="$(bash .github/workflows/scripts/latest-stable-kubernetes-version.sh "$MINIKUBE_VERSION")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Using supported Kubernetes $version"
 
-      - uses: manusa/actions-setup-minikube@v2.19.0
-        if: >-
-          steps.changes.outputs.should-run == 'true' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        if: steps.tests.outputs.run == 'true'
         with:
-          minikube version: ${{ steps.kubernetes.outputs.minikube-version }}
+          version: ${{ steps.kubernetes.outputs.version }}
+
+      - uses: manusa/actions-setup-minikube@v2.19.0
+        if: steps.tests.outputs.run == 'true'
+        with:
+          minikube version: ${{ steps.minikube.outputs.version }}
           kubernetes version: ${{ steps.kubernetes.outputs.version }}
           driver: docker
           container runtime: containerd
@@ -285,29 +287,24 @@ jobs:
 
       - name: Install previous version and upgrade
         if: >-
-          steps.changes.outputs.should-run == 'true' &&
-          steps.changes.outputs.base-sha != '' &&
-          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
-          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+          steps.tests.outputs.run == 'true' &&
+          steps.changes.outputs.base-sha != ''
         env:
           BASE_SHA: ${{ steps.changes.outputs.base-sha }}
         run: |
           version="$(
-            awk '$1 == "appVersion:" {
-              gsub(/"/, "", $2)
-              print $2
-              exit
-            }' "charts/${{ matrix.product }}-operator/Chart.yaml"
+            awk '$1 == "appVersion:" {gsub(/"/, "", $2); print $2; exit}' \
+              "charts/${{ matrix.product }}-operator/Chart.yaml"
           )"
 
-          .github/workflows/scripts/test-operator-deploy \
+          .github/workflows/scripts/test-operator-deploy.sh \
             upgrade "${{ matrix.product }}" "--version=$version"
 
       - name: Collect cluster logs
         if: failure()
         env:
           MINIKUBE_PROFILE: minikube-${{ matrix.product }}-upgrade
-        run: bash .github/workflows/scripts/collect-cluster-logs
+        run: bash .github/workflows/scripts/collect-cluster-logs.sh
 
       - name: Upload cluster logs
         if: failure()

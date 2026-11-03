@@ -25,7 +25,7 @@ upgrade matrix limited to `psmdb`. PXC, PS, and PG install a separate
 with `--skip-crds`. Otherwise, the operator installs its embedded CRDs.
 Operators watch all namespaces so they can reconcile database resources in
 the `database` namespace used for installation.
-All installation matrix entries invoke `scripts/test-operator-deploy install`.
+All installation matrix entries invoke `scripts/test-operator-deploy.sh install`.
 The helper installs the charts using Helm, waits for database readiness, and
 runs `helm test`. The job cleanup deletes the test cluster. No Python or
 chart-testing setup is needed in this workflow.
@@ -99,6 +99,9 @@ the newest stable Kubernetes version declared by that Minikube release's
 four CPUs, and 12 GB of memory. The resolved version is printed in each job's logs.
 The latest stable Minikube release is resolved through the GitHub releases API
 on each run. Its version is logged.
+Both jobs explicitly install `kubectl` with the resolved Kubernetes version,
+so they do not depend on tools preinstalled in GitHub runners or local `act`
+container images.
 Ubuntu 22.04 avoids the
 Linux 6.19 through 7.0.13 kernels that are incompatible with PSMDB 8. The
 install job has a 30-minute timeout; the upgrade job has a 40-minute timeout.
@@ -117,12 +120,42 @@ The install and upgrade jobs are independent. The upgrade scenario installs
 the previous chart versions before upgrading them, so it does not depend on
 the install job. For pull request events, the baseline SHA is the pull request
 base SHA.
+Each job computes `steps.tests.outputs.run` once from the detected jobs and
+products, then reuses it to gate its setup and test steps.
 
 Automatic runs retain the GitHub pull request merge checkout, so the tested
 charts include changes already present in the base branch even when the pull
 request head is behind it.
 
 ### Failure diagnostics
+
+The version helpers are
+[`latest-stable-minikube-version.sh`](./scripts/latest-stable-minikube-version.sh)
+(latest stable release) and
+[`latest-stable-kubernetes-version.sh`](./scripts/latest-stable-kubernetes-version.sh)
+(newest supported Kubernetes for the supplied Minikube release). Both print
+only the version to stdout; failures stop the job.
+
+PS/PXC installation jobs run
+[`disable-app-armor-profiles.sh`](./scripts/disable-app-armor-profiles.sh) before
+creating Minikube. Ubuntu enables AppArmor by default, and installing its
+MySQL package loads a profile attached to `/usr/sbin/mysqld`, as on GitHub's
+Ubuntu runner images. That profile permits Ubuntu's MySQL file layout, not
+all Percona paths. In our Azure reproduction, loading it caused audit denials
+for `/etc/my.cnf` and `/usr/share/percona-server/english/errmsg.sys`, matching
+the configuration discrepancies and missing administrative listener seen in CI.
+
+The host profile attached to MySQL even when the node and database container
+requested AppArmor `Unconfined`. A shell and `my_print_defaults` could still
+read the configuration because they were not the confined MySQL executable.
+Therefore container values alone did not remove this restriction. This
+demonstrates the mechanism on Azure; the original CI process profile and audit
+denials have not been captured.
+
+The helper unloads only the MySQL profile, not AppArmor globally, and skips
+host changes under `act`. It reduces isolation only on the disposable test
+runner, leaves other profiles and seccomp unchanged, and does not change
+production chart defaults. Do not use this workaround on production hosts.
 
 On failure, both jobs collect Kubernetes resources, events, pod descriptions,
 current and previous logs for regular and init containers, database logs stored
@@ -175,10 +208,10 @@ events to a workflow that already exists on the default branch.
 The shared workflow scripts are stored in
 [`scripts/`](./scripts/):
 
-- [`detect-changes`](./scripts/detect-changes) detects changed charts and can
+- [`detect-changes.sh`](./scripts/detect-changes.sh) detects changed charts and can
   either filter supported charts or select the corresponding operators.
-- [`detect-comment`](./scripts/detect-comment) validates pull request comment
+- [`detect-comment.sh`](./scripts/detect-comment.sh) validates pull request comment
   commands, fetches and validates the PR merge, and selects the requested operators
   and jobs.
-- [`test-operator-deploy`](./scripts/test-operator-deploy) performs the
+- [`test-operator-deploy.sh`](./scripts/test-operator-deploy.sh) performs the
   Helm install and upgrade scenarios.

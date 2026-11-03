@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-usage='Usage: test-operator-deploy <install|upgrade> <psmdb|ps|pxc|pg> <--version=TAG|--branch=TAG> (upgrade: psmdb only)'
+usage='Usage: test-operator-deploy.sh <install|upgrade> <psmdb|ps|pxc|pg> <--version=TAG|--branch=TAG> (upgrade: psmdb only)'
 operator_namespace=operator
 database_namespace=database
 base_sha=${BASE_SHA:-}

@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 if (( $# != 0 )); then
-  echo 'Usage: detect-changes' >&2
+  echo 'Usage: detect-changes.sh' >&2
   exit 1
 fi
 
