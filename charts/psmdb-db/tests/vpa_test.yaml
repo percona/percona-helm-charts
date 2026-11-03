@@ -1,0 +1,108 @@
+suite: psmdb-db vpa
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: omits vpa when unset
+    asserts:
+      - notExists:
+          path: spec.vpa
+      - notExists:
+          path: spec.replsets[0].vpa
+      - notExists:
+          path: spec.sharding.configsvrReplSet.vpa
+      - notExists:
+          path: spec.sharding.mongos.vpa
+
+  - it: renders cluster wide vpa settings
+    set:
+      vpa:
+        enabled: true
+        updateMode: "Auto"
+        controlledValues: RequestsAndLimits
+        minAllowed:
+          cpu: 100m
+          memory: 256Mi
+        maxAllowed:
+          cpu: "8"
+          memory: 16Gi
+        stabilizationWindow: 2h
+        inPlaceResize: true
+    asserts:
+      - equal:
+          path: spec.vpa
+          value:
+            enabled: true
+            updateMode: "Auto"
+            controlledValues: RequestsAndLimits
+            minAllowed:
+              cpu: 100m
+              memory: 256Mi
+            maxAllowed:
+              cpu: "8"
+              memory: 16Gi
+            stabilizationWindow: 2h
+            inPlaceResize: true
+
+  - it: defaults enabled to false when only bounds are given
+    set:
+      vpa:
+        minAllowed:
+          memory: 256Mi
+    asserts:
+      - equal:
+          path: spec.vpa.enabled
+          value: false
+      - notExists:
+          path: spec.vpa.updateMode
+      - notExists:
+          path: spec.vpa.inPlaceResize
+
+  - it: renders per component vpa overrides
+    set:
+      sharding.enabled: true
+      replsets.rs0.vpa:
+        objectName: custom-rs0-vpa
+        minAllowed:
+          memory: 512Mi
+        stabilizationWindow: 4h
+      replsets.rs0.nonvoting.enabled: true
+      replsets.rs0.nonvoting.vpa:
+        maxAllowed:
+          memory: 8Gi
+      replsets.rs0.hidden.enabled: true
+      replsets.rs0.hidden.vpa:
+        objectName: custom-hidden-vpa
+      sharding.configrs.vpa:
+        objectName: custom-cfg-vpa
+      sharding.mongos.vpa:
+        maxAllowed:
+          cpu: "4"
+    asserts:
+      - equal:
+          path: spec.replsets[0].vpa
+          value:
+            objectName: custom-rs0-vpa
+            minAllowed:
+              memory: 512Mi
+            stabilizationWindow: 4h
+      - equal:
+          path: spec.replsets[0].nonvoting.vpa
+          value:
+            maxAllowed:
+              memory: 8Gi
+      - equal:
+          path: spec.replsets[0].hidden.vpa
+          value:
+            objectName: custom-hidden-vpa
+      - equal:
+          path: spec.sharding.configsvrReplSet.vpa
+          value:
+            objectName: custom-cfg-vpa
+      - equal:
+          path: spec.sharding.mongos.vpa
+          value:
+            maxAllowed:
+              cpu: "4"
