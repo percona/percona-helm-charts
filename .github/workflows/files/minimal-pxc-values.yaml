@@ -3,7 +3,7 @@ unsafeFlags:
   proxySize: true
 
 pxc:
-  size: 1
+  size: 3
   affinity:
     antiAffinityTopologyKey: none
   resources:
@@ -15,7 +15,7 @@ pxc:
 
 haproxy:
   enabled: true
-  size: 1
+  size: 3
   affinity:
     antiAffinityTopologyKey: none
   resources:

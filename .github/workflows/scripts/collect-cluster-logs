@@ -5,9 +5,9 @@ output_dir="${OUT:-cluster-logs}"
 container_log_lines=500
 disk_log_lines=2000
 
-ps_log_files='/var/lib/mysql/log/*.log /var/lib/mysql/*.err'
+ps_log_files='/var/lib/mysql/log/*.log /var/lib/mysql/*.log /var/lib/mysql/*.err'
 ps_config_files='/etc/my.cnf /etc/my.cnf.d/*.cnf /etc/mysql/config/auto-config.cnf /etc/mysql/config/my-config.cnf'
-pxc_log_files='/var/lib/mysql/*.log /var/lib/mysql/*.err'
+pxc_log_files='/var/lib/mysql/*.log /var/lib/mysql/*.err /var/lib/mysql/log/*.log /var/lib/mysql/.sst/*.log'
 pxc_config_files='/etc/my.cnf /etc/mysql/node.cnf /etc/my.cnf.d/*.cnf /etc/percona-xtradb-cluster.conf.d/*.cnf'
 pxc_state_files='/var/lib/mysql/grastate.dat /var/lib/mysql/gvwstate.dat'
 psmdb_log_files='/data/db/logs/*'
@@ -25,13 +25,20 @@ capture() {
 }
 
 collect_container_files() {
-  local namespace=$1 pod=$2 container=$3 destination=$4
-  local files='' configs=''
+  local namespace=$1 pod=$2 container=$3 destination=$4 database_container=${5:-}
+  local files='' configs='' runtime=false
 
   case "$container" in
-    mysql) files=$ps_log_files; configs=$ps_config_files ;;
-    pxc) files="$pxc_log_files $pxc_state_files"; configs=$pxc_config_files ;;
-    mongod|mongos|logs) files=$psmdb_log_files ;;
+    mysql) files=$ps_log_files; configs=$ps_config_files; runtime=true ;;
+    pxc) files="$pxc_log_files $pxc_state_files"; configs=$pxc_config_files; runtime=true ;;
+    logs|logrotate)
+      case "$database_container" in
+        mysql) files=$ps_log_files ;;
+        pxc) files="$pxc_log_files $pxc_state_files" ;;
+        *) files=$psmdb_log_files ;;
+      esac
+      ;;
+    mongod|mongos) files=$psmdb_log_files ;;
     database) files=$pg_log_files; configs=$pg_config_files ;;
     *) return ;;
   esac
@@ -40,15 +47,61 @@ collect_container_files() {
   # shellcheck disable=SC2016
   capture "$destination" \
     kubectl exec "$pod" -n "$namespace" -c "$container" -- sh -c '
+      status=0
+      if [ "$4" = true ]; then
+        printf "\n===== Runtime and resource diagnostics =====\n"
+        date -u
+        for file in /proc/meminfo /proc/pressure/* /proc/self/cgroup \
+          /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory.max \
+          /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.events \
+          /sys/fs/cgroup/memory.stat /sys/fs/cgroup/memory.pressure \
+          /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat \
+          /sys/fs/cgroup/cpu.pressure /sys/fs/cgroup/io.stat \
+          /sys/fs/cgroup/memory/memory.usage_in_bytes \
+          /sys/fs/cgroup/memory/memory.limit_in_bytes \
+          /sys/fs/cgroup/memory/memory.max_usage_in_bytes \
+          /sys/fs/cgroup/memory/memory.failcnt \
+          /sys/fs/cgroup/memory/memory.oom_control \
+          /sys/fs/cgroup/cpu/cpu.stat; do
+          [ -f "$file" ] || continue
+          printf "\n===== %s =====\n" "$file"
+          cat "$file" || status=1
+        done
+        df -h /var/lib/mysql || status=1
+        df -i /var/lib/mysql || status=1
+        for process in /proc/[0-9]*; do
+          [ -r "$process/comm" ] || continue
+          read -r name < "$process/comm" || continue
+          case "$name" in mysqld|mysqld-debug|mysql-state-mon*) ;; *) continue ;; esac
+          for file in "$process/status" "$process/limits" "$process/io"; do
+            [ -f "$file" ] || continue
+            printf "\n===== %s (%s) =====\n" "$file" "$name"
+            cat "$file" || status=1
+          done
+        done
+        printf "\n===== TCP sockets =====\n"
+        if command -v ss >/dev/null 2>&1; then
+          ss -lnt || status=1
+        else
+          cat /proc/net/tcp /proc/net/tcp6 || status=1
+        fi
+        for file in /usr/share/percona-server/english/errmsg.sys \
+          /usr/share/mysql/english/errmsg.sys; do
+          [ -f "$file" ] || continue
+          printf "\n===== %s =====\n" "$file"
+          ls -l "$file" || status=1
+          if [ -r "$file" ]; then echo readable; else echo not-readable; fi
+        done
+      fi
       for file in $1; do
         [ -f "$file" ] || continue
         printf "\n===== %s =====\n" "$file"
-        tail -n "$3" "$file"
+        tail -n "$3" "$file" || status=1
       done
       for file in $2; do
         [ -f "$file" ] || continue
         printf "\n===== %s (selected directives only) =====\n" "$file"
-        ls -l "$file"
+        ls -l "$file" || status=1
         awk '"'"'
             /^[[:space:]]*(!include(dir)?[[:space:]]|\[[^]]+\])/ { print; next }
             {
@@ -56,26 +109,33 @@ collect_container_files() {
               sub(/^[[:space:]]*/, "", key)
               sub(/[[:space:]=].*$/, "", key)
               gsub(/_/, "-", key)
-              if (key ~ /^(wsrep-provider|wsrep-on|socket|port|admin-address|admin-port|extra-port|datadir|basedir|plugin-dir|lc-messages-dir|log-error|group-replication-group-seeds|group-replication-local-address|group-replication-start-on-boot|group-replication-bootstrap-group|listen-addresses|unix-socket-directories|data-directory|logging-collector|log-directory|log-filename)$/)
+              sub(/^loose-/, "", key)
+              if (key ~ /^(wsrep-provider|wsrep-on|wsrep-cluster-address|wsrep-node-address|wsrep-node-name|wsrep-cluster-name|wsrep-sst-method|socket|port|bind-address|admin-address|admin-port|extra-port|datadir|basedir|plugin-dir|lc-messages-dir|log-error|log-error-verbosity|innodb-buffer-pool-size|innodb-buffer-pool-chunk-size|innodb-buffer-pool-instances|max-connections|group-replication-group-seeds|group-replication-local-address|group-replication-start-on-boot|group-replication-bootstrap-group|group-replication-communication-stack|listen-addresses|unix-socket-directories|data-directory|logging-collector|log-directory|log-filename)$/)
                 print
             }
-        '"'"' "$file"
+        '"'"' "$file" || status=1
       done
-    ' sh "$files" "$configs" "$disk_log_lines"
+      exit "$status"
+    ' sh "$files" "$configs" "$disk_log_lines" "$runtime"
 }
 
 collect_pod() {
   local namespace=$1
   local pod=$2
   local pod_dir="$output_dir/pods/$namespace/$pod"
-  local pod_json
+  local pod_json database_container
 
   mkdir -p "$pod_dir"
   capture "$pod_dir/describe.txt" \
     kubectl describe pod "$pod" -n "$namespace"
 
-  pod_json="$(kubectl get pod "$pod" -n "$namespace" -o json 2>/dev/null || true)"
-  [[ -n "$pod_json" ]] || return
+  if ! pod_json="$(kubectl get pod "$pod" -n "$namespace" -o json)"; then
+    printf 'Could not collect pod metadata: %s/%s\n' "$namespace" "$pod" >&2
+    return 1
+  fi
+  database_container="$(jq -r '
+    [.spec.containers[].name | select(. == "mysql" or . == "pxc")][0] // ""
+  ' <<< "$pod_json")"
 
   while IFS=$'\t' read -r container restarts; do
     capture "$pod_dir/$container.log" \
@@ -92,7 +152,7 @@ collect_pod() {
 
   while IFS= read -r container; do
     collect_container_files "$namespace" "$pod" "$container" \
-      "$pod_dir/$container-files.txt"
+      "$pod_dir/$container-files.txt" "$database_container"
   done < <(jq -r '.spec.containers[].name' <<< "$pod_json")
 }
 
@@ -148,12 +208,31 @@ collect_kind_logs() {
     kind export logs "$output_dir/kind" --name "$KIND_CLUSTER_NAME"
 }
 
+collect_host_resources() {
+  [[ -n "${MINIKUBE_PROFILE:-}" ]] || return
+  capture "$output_dir/host-resources.txt" bash -c '
+    status=0
+    uname -a
+    for file in /proc/meminfo /proc/pressure/*; do
+      [ -f "$file" ] || continue
+      printf "\n===== %s =====\n" "$file"
+      cat "$file" || status=1
+    done
+    docker version || status=1
+    docker inspect "$1" --format \
+      "MemoryLimit={{.HostConfig.Memory}} MemorySwap={{.HostConfig.MemorySwap}} NanoCPUs={{.HostConfig.NanoCpus}} OOMKilled={{.State.OOMKilled}}" || status=1
+    docker stats --no-stream "$1" || status=1
+    exit "$status"
+  ' bash "$MINIKUBE_PROFILE"
+}
+
 main() {
   mkdir -p "$output_dir/pods"
 
   collect_cluster_overview
   collect_pods
   collect_kind_logs
+  collect_host_resources
 
   echo "Diagnostics saved to $output_dir/"
 }

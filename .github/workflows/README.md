@@ -130,6 +130,16 @@ uploaded as an artifact before the cluster is deleted.
 The collector defines per-product file patterns for PS/PXC MySQL logs and
 configuration, PXC Galera state, PSMDB disk logs, and PG logs and configuration.
 Files are read from their database containers into `<container>-files.txt`.
+PS collection includes MySQL state-monitor and pre-stop logs. PXC collection
+includes SST logs and Galera state files. PS/PXC file diagnostics also capture
+TCP listeners, MySQL process status and limits, disk usage, and available cgroup
+memory/CPU counters and pressure metrics. These are snapshots taken during
+collection, not continuous measurements of the first startup.
+Their log sidecars are also queried for shared disk logs, so collection can
+still retrieve mounted files while the database container is restarting.
+When `MINIKUBE_PROFILE` is set, `host-resources.txt` also captures host memory
+and pressure metrics, Docker versions, the Minikube container's resource limits,
+OOM state, and a Docker usage snapshot.
 Configuration output includes only selected diagnostic directives, not full
 configuration files or credentials. Patterns cover known paths; files at other
 locations are not discovered automatically. Container logs are limited to 500
