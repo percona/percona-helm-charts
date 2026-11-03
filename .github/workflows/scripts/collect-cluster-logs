@@ -142,10 +142,10 @@ collect_pods() {
   )
 }
 
-collect_minikube_logs() {
-  [[ -n "${MINIKUBE_PROFILE:-}" ]] || return
-  capture "$output_dir/minikube.txt" \
-    minikube --profile "$MINIKUBE_PROFILE" logs --problems
+collect_kind_logs() {
+  [[ -n "${KIND_CLUSTER_NAME:-}" ]] || return
+  capture "$output_dir/kind-export.txt" \
+    kind export logs "$output_dir/kind" --name "$KIND_CLUSTER_NAME"
 }
 
 main() {
@@ -153,7 +153,7 @@ main() {
 
   collect_cluster_overview
   collect_pods
-  collect_minikube_logs
+  collect_kind_logs
 
   echo "Diagnostics saved to $output_dir/"
 }

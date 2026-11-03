@@ -13,7 +13,7 @@ charts in this repository.
 | [`test-chart-install.yaml`](./test-chart-install.yaml) | Installs the PMM chart on Kind, then packages and uploads it. | Pull request changing the PMM chart |
 | [`test-operator-crd.yaml`](./test-operator-crd.yaml) | Checks separate operator CRD charts for versioning, synchronization, installation, and removal. | Pull request changing operator metadata, embedded CRDs, or a `*-operator-crds` chart |
 | [`test-chart-unit.yaml`](./test-chart-unit.yaml) | Runs Helm unit tests for changed PXC and PS operator/database charts, or all four suites when shared test files change. | Pull request changing a supported chart, `Makefile`, the unit-test workflow, or `detect-changes` |
-| [`test-operator-deploy.yaml`](./test-operator-deploy.yaml) | Installs PSMDB, PXC, PS, and PG on Minikube; runs an independent PSMDB upgrade scenario. | Pull request targeting `main` and changing supported charts or lifecycle-test files, or an authorized same-repository PR comment |
+| [`test-operator-deploy.yaml`](./test-operator-deploy.yaml) | Installs PSMDB, PXC, PS, and PG on Kind; runs an independent PSMDB upgrade scenario. | Pull request targeting `main` and changing supported charts or lifecycle-test files, or an authorized same-repository PR comment |
 | [`pmm-ha-pr-checks.yaml`](./pmm-ha-pr-checks.yaml) | Runs PMM-HA shell tests, linting, rendering checks, Helm unit tests, and installation tests. | Pull request changing PMM-HA files or the Makefile |
 
 ## Operator install and upgrade tests
@@ -92,13 +92,12 @@ The tests use `percona/<operator>:<appVersion>` when that operator image exists.
 For an unreleased operator version, they use `perconalab/<operator>:main`
 instead.
 
-Each job runs on Ubuntu 22.04 and creates its own Minikube cluster using
-the Docker driver and containerd as the Kubernetes container runtime,
-the newest stable Kubernetes version declared by that Minikube release's
-`NewestKubernetesVersion` constant,
-four CPUs, and 12 GB of memory. The resolved version is printed in each job's logs.
-The latest stable Minikube release is resolved through the GitHub releases API
-on each run. Its version is logged.
+Each job runs on Ubuntu 22.04 and creates its own Kind cluster. The latest
+stable Kind release is resolved through the GitHub releases API on each run.
+The workflow uses the newest Kubernetes node image published for that release
+and pins it by digest. The control-plane container is limited to four CPUs and
+12 GB of memory. The resolved Kind and Kubernetes versions are printed in the
+job logs.
 Ubuntu 22.04 avoids the
 Linux 6.19 through 7.0.13 kernels that are incompatible with PSMDB 8. The
 install job has a 30-minute timeout; the upgrade job has a 40-minute timeout.
@@ -126,7 +125,7 @@ request head is behind it.
 
 On failure, both jobs collect Kubernetes resources, events, pod descriptions,
 current and previous logs for regular and init containers, database logs stored
-on disk, and Minikube problem logs. The resulting `cluster-logs` directory is
+on disk, and Kind node logs. The resulting `cluster-logs` directory is
 uploaded as an artifact before the cluster is deleted.
 The collector defines per-product file patterns for PS/PXC MySQL logs and
 configuration, PXC Galera state, PSMDB disk logs, and PG logs and configuration.

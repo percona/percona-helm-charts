@@ -103,49 +103,54 @@ jobs:
         with:
           version: v3.21.0
 
-      - name: Resolve latest Minikube and supported Kubernetes versions
-        id: kubernetes
+      - name: Resolve latest Kind and Kubernetes versions
+        id: kind
         if: >-
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         run: |
-          minikube_version="$(
+          release="$(
             curl --fail --silent --show-error --location --retry 3 \
-              https://api.github.com/repos/kubernetes/minikube/releases/latest |
-              jq -er '.tag_name'
+              https://api.github.com/repos/kubernetes-sigs/kind/releases/latest
           )"
-          echo "minikube-version=$minikube_version" >> "$GITHUB_OUTPUT"
-          echo "Using Minikube $minikube_version"
-          version="$(
-            curl --fail --silent --show-error --location --retry 3 \
-              "https://raw.githubusercontent.com/kubernetes/minikube/$minikube_version/pkg/minikube/constants/constants.go" |
-              awk '$1 == "NewestKubernetesVersion" {gsub(/"/, "", $3); print $3}'
+          kind_version="$(jq -er '.tag_name' <<< "$release")"
+          node_image="$(
+            jq -r '.body' <<< "$release" |
+              grep -Eo 'kindest/node:v[0-9]+\.[0-9]+\.[0-9]+@sha256:[a-f0-9]{64}' |
+              head -1
           )"
-          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "::error::Could not resolve a stable Kubernetes version supported by Minikube"
+          [[ "$kind_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ &&
+              "$node_image" =~ ^kindest/node:v[0-9]+\.[0-9]+\.[0-9]+@sha256:[a-f0-9]{64}$ ]] || {
+            echo "::error::Could not resolve the latest stable Kind and Kubernetes versions"
             exit 1
           }
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Using supported Kubernetes $version"
+          kubernetes_version="${node_image#kindest/node:}"
+          kubernetes_version="${kubernetes_version%@*}"
+          echo "kind-version=$kind_version" >> "$GITHUB_OUTPUT"
+          echo "node-image=$node_image" >> "$GITHUB_OUTPUT"
+          echo "kubernetes-version=$kubernetes_version" >> "$GITHUB_OUTPUT"
+          echo "Using Kind $kind_version with Kubernetes $kubernetes_version"
 
-      - uses: manusa/actions-setup-minikube@v2.19.0
+      - uses: helm/kind-action@v1.14.0
         if: >-
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         with:
-          minikube version: ${{ steps.kubernetes.outputs.minikube-version }}
-          kubernetes version: ${{ steps.kubernetes.outputs.version }}
-          driver: docker
-          container runtime: containerd
-          start args: >-
-            --cpus=4
-            --memory=12gb
-            --base-image=gcr.io/k8s-minikube/kicbase:v0.0.51
-            --profile=minikube-${{ matrix.product }}-install
-            --force
-          github token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ steps.kind.outputs.kind-version }}
+          node_image: ${{ steps.kind.outputs.node-image }}
+          kubectl_version: ${{ steps.kind.outputs.kubernetes-version }}
+          cluster_name: kind-${{ matrix.product }}-install
+
+      - name: Configure Kind node resources
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        run: >-
+          docker update --cpus 4 --memory 12g --memory-swap 12g
+          "kind-${{ matrix.product }}-install-control-plane"
 
       - name: Install operator and database
         if: >-
@@ -167,7 +172,7 @@ jobs:
       - name: Collect cluster logs
         if: failure()
         env:
-          MINIKUBE_PROFILE: minikube-${{ matrix.product }}-install
+          KIND_CLUSTER_NAME: kind-${{ matrix.product }}-install
         run: bash .github/workflows/scripts/collect-cluster-logs
 
       - name: Upload cluster logs
@@ -181,10 +186,7 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: |
-          minikube \
-            --profile "minikube-${{ matrix.product }}-install" \
-            delete || true
+        run: kind delete cluster --name "kind-${{ matrix.product }}-install" || true
 
   upgrade-test:
     name: upgrade-${{ matrix.product }}
@@ -239,49 +241,54 @@ jobs:
         with:
           version: v3.21.0
 
-      - name: Resolve latest Minikube and supported Kubernetes versions
-        id: kubernetes
+      - name: Resolve latest Kind and Kubernetes versions
+        id: kind
         if: >-
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         run: |
-          minikube_version="$(
+          release="$(
             curl --fail --silent --show-error --location --retry 3 \
-              https://api.github.com/repos/kubernetes/minikube/releases/latest |
-              jq -er '.tag_name'
+              https://api.github.com/repos/kubernetes-sigs/kind/releases/latest
           )"
-          echo "minikube-version=$minikube_version" >> "$GITHUB_OUTPUT"
-          echo "Using Minikube $minikube_version"
-          version="$(
-            curl --fail --silent --show-error --location --retry 3 \
-              "https://raw.githubusercontent.com/kubernetes/minikube/$minikube_version/pkg/minikube/constants/constants.go" |
-              awk '$1 == "NewestKubernetesVersion" {gsub(/"/, "", $3); print $3}'
+          kind_version="$(jq -er '.tag_name' <<< "$release")"
+          node_image="$(
+            jq -r '.body' <<< "$release" |
+              grep -Eo 'kindest/node:v[0-9]+\.[0-9]+\.[0-9]+@sha256:[a-f0-9]{64}' |
+              head -1
           )"
-          [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "::error::Could not resolve a stable Kubernetes version supported by Minikube"
+          [[ "$kind_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ &&
+              "$node_image" =~ ^kindest/node:v[0-9]+\.[0-9]+\.[0-9]+@sha256:[a-f0-9]{64}$ ]] || {
+            echo "::error::Could not resolve the latest stable Kind and Kubernetes versions"
             exit 1
           }
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Using supported Kubernetes $version"
+          kubernetes_version="${node_image#kindest/node:}"
+          kubernetes_version="${kubernetes_version%@*}"
+          echo "kind-version=$kind_version" >> "$GITHUB_OUTPUT"
+          echo "node-image=$node_image" >> "$GITHUB_OUTPUT"
+          echo "kubernetes-version=$kubernetes_version" >> "$GITHUB_OUTPUT"
+          echo "Using Kind $kind_version with Kubernetes $kubernetes_version"
 
-      - uses: manusa/actions-setup-minikube@v2.19.0
+      - uses: helm/kind-action@v1.14.0
         if: >-
           steps.changes.outputs.should-run == 'true' &&
           contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
           contains(fromJSON(steps.changes.outputs.products), matrix.product)
         with:
-          minikube version: ${{ steps.kubernetes.outputs.minikube-version }}
-          kubernetes version: ${{ steps.kubernetes.outputs.version }}
-          driver: docker
-          container runtime: containerd
-          start args: >-
-            --cpus=4
-            --memory=12gb
-            --base-image=gcr.io/k8s-minikube/kicbase:v0.0.51
-            --profile=minikube-${{ matrix.product }}-upgrade
-            --force
-          github token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ steps.kind.outputs.kind-version }}
+          node_image: ${{ steps.kind.outputs.node-image }}
+          kubectl_version: ${{ steps.kind.outputs.kubernetes-version }}
+          cluster_name: kind-${{ matrix.product }}-upgrade
+
+      - name: Configure Kind node resources
+        if: >-
+          steps.changes.outputs.should-run == 'true' &&
+          contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
+          contains(fromJSON(steps.changes.outputs.products), matrix.product)
+        run: >-
+          docker update --cpus 4 --memory 12g --memory-swap 12g
+          "kind-${{ matrix.product }}-upgrade-control-plane"
 
       - name: Install previous version and upgrade
         if: >-
@@ -306,7 +313,7 @@ jobs:
       - name: Collect cluster logs
         if: failure()
         env:
-          MINIKUBE_PROFILE: minikube-${{ matrix.product }}-upgrade
+          KIND_CLUSTER_NAME: kind-${{ matrix.product }}-upgrade
         run: bash .github/workflows/scripts/collect-cluster-logs
 
       - name: Upload cluster logs
@@ -320,7 +327,4 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: |
-          minikube \
-            --profile "minikube-${{ matrix.product }}-upgrade" \
-            delete || true
+        run: kind delete cluster --name "kind-${{ matrix.product }}-upgrade" || true
