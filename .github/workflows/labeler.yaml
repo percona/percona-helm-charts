@@ -13,6 +13,6 @@ jobs:
     name: prs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/labeler@v5
+      - uses: actions/labeler@v7.0.0
         with:
           sync-labels: true
