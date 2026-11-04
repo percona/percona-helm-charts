@@ -13,7 +13,7 @@ charts in this repository.
 | [`test-chart-install.yaml`](./test-chart-install.yaml) | Installs the PMM chart on Kind, then packages and uploads it. | Pull request changing the PMM chart |
 | [`test-operator-crd.yaml`](./test-operator-crd.yaml) | Checks separate operator CRD charts for versioning, synchronization, installation, and removal. | Pull request changing operator metadata, embedded CRDs, or a `*-operator-crds` chart |
 | [`test-chart-unit.yaml`](./test-chart-unit.yaml) | Runs Helm unit tests for changed PXC and PS operator/database charts, or all four suites when shared test files change. | Pull request changing a supported chart, `Makefile`, the unit-test workflow, or `detect-changes` |
-| [`test-operator-deploy.yaml`](./test-operator-deploy.yaml) | Installs PSMDB, PXC, PS, and PG on Minikube; runs an independent PSMDB upgrade scenario. | Pull request targeting `main` and changing supported charts or lifecycle-test files, or an authorized same-repository PR comment |
+| [`test-operator-deploy.yaml`](./test-operator-deploy.yaml) | Installs PSMDB, PXC, PS, and PG on Minikube; runs an independent PSMDB upgrade scenario. | Pull request changing supported charts or lifecycle-test files (automatic upgrade only when targeting `main`), or an authorized same-repository PR comment |
 | [`pmm-ha-pr-checks.yaml`](./pmm-ha-pr-checks.yaml) | Runs PMM-HA shell tests, linting, rendering checks, Helm unit tests, and installation tests. | Pull request changing PMM-HA files or the Makefile |
 
 ## Operator install and upgrade tests
@@ -107,8 +107,10 @@ Cleanup runs regardless of job success or failure.
 
 ### Automatic pull request trigger
 
-Pull requests targeting `main` automatically run both scenarios when any of
-these paths change:
+Pull requests targeting any branch automatically run installation tests when
+supported paths change. Automatic PSMDB upgrade tests run only when the PR
+targets `main`. Authorized comment-triggered runs remain available.
+Supported PSMDB chart paths include:
 
 - `charts/psmdb-operator/**`, excluding `charts/psmdb-operator/crds/**`
 - `charts/psmdb-operator-crds/**`

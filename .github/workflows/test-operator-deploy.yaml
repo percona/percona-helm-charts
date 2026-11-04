@@ -2,8 +2,6 @@ name: operator-test
 
 on:
   pull_request:
-    branches:
-      - main
     paths:
       - 'charts/psmdb-operator/**'
       - '!charts/psmdb-operator/crds/**'
@@ -204,7 +202,7 @@ jobs:
   upgrade-test:
     name: upgrade-${{ matrix.product }}
     if: >-
-      github.event_name == 'pull_request' ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request != null &&
        (github.event.comment.author_association == 'OWNER' ||
