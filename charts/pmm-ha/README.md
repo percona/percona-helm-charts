@@ -1580,13 +1580,13 @@ Common troubleshooting steps for PMM HA:
   is DNS-based, so changing `replicas` needs no restart. Bump
   `haproxy.podAnnotations."pmm.percona.com/config-version"` in the same `helm upgrade`
   so the pods restart and pick up the new `server-template`. It has to be a value the
-  release is not already running - the chart ships `"6"`, so the examples below use `"7"`:
+  release is not already running - the chart ships `"7"`, so the examples below use `"8"`:
 
   ```sh
   helm upgrade pmm-ha percona/pmm-ha --namespace pmm \
     --version <chart-version> --reuse-values \
     --set maxReplicas=20 \
-    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=7'
+    --set-string 'haproxy.podAnnotations.pmm\.percona\.com/config-version=8'
   ```
 
   Or in `values.yaml`:
@@ -1595,7 +1595,7 @@ Common troubleshooting steps for PMM HA:
   maxReplicas: 20
   haproxy:
     podAnnotations:
-      pmm.percona.com/config-version: "7"
+      pmm.percona.com/config-version: "8"
   ```
 
   Prefer this over `kubectl rollout restart`: the bump is part of the same declarative

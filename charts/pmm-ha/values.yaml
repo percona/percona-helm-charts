@@ -1275,7 +1275,7 @@ haproxy:
   # Increment config-version in the same upgrade for that, and for any other ConfigMap
   # change that requires a restart.
   podAnnotations:
-    pmm.percona.com/config-version: "6"
+    pmm.percona.com/config-version: "7"
 
   # HAProxy pod spread across nodes.
   #
