@@ -69,6 +69,17 @@ The upgrade job also verifies that the operator Deployment becomes ready, then
 waits 60 seconds and checks that no database pod was replaced or restarted
 before upgrading the database chart with its new values. The database upgrade
 uses `--reset-values` to apply the target chart defaults and test values.
+Only when the target operator image comes from `perconalab`, the PSMDB upgrade
+pins the observed baseline `mongo-init` image before upgrading the operator.
+This prevents a development repository change from replacing database pods
+during the operator-only stability check. The database upgrade removes this
+temporary override with `--reset-values`. Released `percona` operator images
+do not use this pin.
+The test saves the previous images for a per-operator list of components and
+passes that snapshot to the pin function. A separate operator case selects the
+Helm fields to override. Initially only PSMDB's `mongo-init` is configured;
+PMM and other components are not overridden, and upgrade coverage remains
+limited to PSMDB.
 
 The test configuration enables sharding with one replica set member, one config
 server, and one mongos instance. The required replica set and mongos unsafe

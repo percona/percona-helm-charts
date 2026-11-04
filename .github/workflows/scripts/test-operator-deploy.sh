@@ -436,6 +436,53 @@ install_previous_charts() {
   install_database_chart "percona/$db" "$db_version"
 }
 
+# List only components whose baseline images must survive a perconalab upgrade.
+# Add each operator's component names here and its Helm fields in the pin function.
+save_baseline_init_images() {
+  local containers
+
+  case "$product" in
+    psmdb) containers='["mongo-init"]' ;;
+    *) die "Baseline init images are not configured for $product" ;;
+  esac
+
+  kubectl get pods -n "$database_namespace" \
+    -l "$workload_selector" -o json |
+    jq -ce --argjson containers "$containers" '
+      [.items[].spec.initContainers[]?] as $images |
+      reduce $containers[] as $container ({};
+        ([$images[] | select(.name == $container) | .image] | unique) as $found |
+        if ($found | length) == 1 then .[$container] = $found[0]
+        else error("Expected one baseline image for " + $container) end)
+    '
+}
+
+pin_baseline_init_images() {
+  local previous_images=$1 init_image
+  local image_args=()
+
+  case "$product" in
+    psmdb)
+      init_image="$(jq -er '."mongo-init" | select(type == "string" and length > 0)' <<< "$previous_images")"
+      [[ "$init_image" != *@* && "${init_image##*/}" == *:* ]] ||
+        die "Expected a tagged baseline image for mongo-init: $init_image"
+      image_args+=(
+        --set-string "initImage.repository=${init_image%:*}"
+        --set-string "initImage.tag=${init_image##*:}"
+      )
+      ;;
+    *) die "Baseline init image overrides are not configured for $product" ;;
+  esac
+
+  log "Pinning baseline init images: $previous_images"
+  helm upgrade test "percona/$db" \
+    --version "$(chart_version "charts/$db")" \
+    --namespace "$database_namespace" \
+    --reuse-values \
+    "${image_args[@]}"
+  wait_ready
+}
+
 upgrade_operator() {
   local database_state
 
@@ -485,8 +532,14 @@ run_install() {
 }
 
 run_upgrade() {
+  local previous_init_images
+
   install_previous_charts
   wait_ready
+  if [[ "$image_repository" == perconalab/* ]]; then
+    previous_init_images="$(save_baseline_init_images)"
+    pin_baseline_init_images "$previous_init_images"
+  fi
   upgrade_operator
   upgrade_database
 }
