@@ -77,9 +77,6 @@ configure() {
   case "$product" in
     psmdb)
       image_name=percona-server-mongodb-operator
-      init_container_name=mongo-init
-      init_image_value=initImage.repository
-      init_image_tag_value=initImage.tag
       resource=perconaservermongodb
       ;;
     ps)
@@ -439,41 +436,6 @@ install_previous_charts() {
   install_database_chart "percona/$db" "$db_version"
 }
 
-pin_baseline_init_image() {
-  local init_image
-  local image_args=()
-
-  init_image="$(
-    kubectl get pods -n "$database_namespace" \
-      -l "app.kubernetes.io/instance=$cluster" -o json |
-      jq -er --arg container "$init_container_name" '
-        [.items[].spec.initContainers[]? |
-         select(.name == $container) | .image] | unique |
-        if length == 1 then .[0]
-        else error("Expected one baseline image for init container " + $container) end
-      '
-  )"
-
-  if [[ -n "$init_image_tag_value" ]]; then
-    [[ "$init_image" != *@* && "${init_image##*/}" == *:* ]] ||
-      die "Expected a tagged baseline init image: $init_image"
-    image_args=(
-      --set-string "$init_image_value=${init_image%:*}"
-      --set-string "$init_image_tag_value=${init_image##*:}"
-    )
-  else
-    image_args=(--set-string "$init_image_value=$init_image")
-  fi
-
-  log "Pinning baseline database init image: $init_image"
-  helm upgrade test "percona/$db" \
-    --version "$(chart_version "charts/$db")" \
-    --namespace "$database_namespace" \
-    --reuse-values \
-    "${image_args[@]}"
-  wait_ready
-}
-
 upgrade_operator() {
   local database_state
 
@@ -506,8 +468,8 @@ upgrade_database() {
   log "CR version after upgrade: ${cr_version_after:-unset}"
 
   if [[ "$cr_version_before" == "$cr_version_after" ]]; then
-    log "CR version unchanged: waiting 30 seconds before readiness checks"
-    sleep 30
+    log "CR version unchanged: waiting 60 seconds before readiness checks"
+    sleep 60
     wait_ready
     return
   fi
@@ -525,7 +487,6 @@ run_install() {
 run_upgrade() {
   install_previous_charts
   wait_ready
-  pin_baseline_init_image
   upgrade_operator
   upgrade_database
 }
