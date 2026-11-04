@@ -9,7 +9,7 @@ out="$(mktemp)"
 trap 'rm -f "$out"' EXIT
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
-render() { helm template smoke "$chart" --namespace pmm --set secret.create=true "$@" > "$out"; }
+render() { "${HELM:-helm}" template smoke "$chart" --namespace pmm --set secret.create=true "$@" > "$out"; }
 scrape() { yq e 'select(.kind == "VMAgent") | .spec.inlineScrapeConfig' "$out"; }
 job() { scrape | JOB="$1" yq e '.[] | select(.job_name == strenv(JOB))' -; }
 copied() { job kube-state-metrics | T="$1" yq e '.metric_relabel_configs[] | select(.target_label == strenv(T)) | .source_labels[0]' -; }
