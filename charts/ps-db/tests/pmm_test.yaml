@@ -1,0 +1,63 @@
+suite: ps-db pmm
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders disabled pmm by default
+    asserts:
+      - matchRegex:
+          path: spec.pmm.image
+          pattern: '^percona/pmm-client:.+$'
+      - equal:
+          path: spec.pmm.enabled
+          value: false
+      - notExists:
+          path: spec.pmm.serverHost
+
+  - it: renders enabled pmm with changed values
+    set:
+      pmm:
+        enabled: true
+        image:
+          repository: changed-image
+          tag: changed-tag
+        imagePullPolicy: IfNotPresent
+        serverHost: pmm.example.com
+        mysqlParams: "--disable-tablestats-limit=2000 --custom-labels=env=#prod"
+        haproxyParams: "--environment=production"
+        customClusterName: "1234"
+        readinessProbe:
+          initialDelaySeconds: 15
+        livenessProbe:
+          initialDelaySeconds: 300
+        resources:
+          requests:
+            cpu: 1m
+            memory: 1Mi
+          limits:
+            cpu: 2m
+            memory: 2Mi
+    asserts:
+      - equal:
+          path: spec.pmm
+          value:
+            mysqlParams: "--disable-tablestats-limit=2000 --custom-labels=env=#prod"
+            haproxyParams: "--environment=production"
+            customClusterName: "1234"
+            enabled: true
+            image: changed-image:changed-tag
+            imagePullPolicy: IfNotPresent
+            serverHost: pmm.example.com
+            readinessProbe:
+              initialDelaySeconds: 15
+            livenessProbe:
+              initialDelaySeconds: 300
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
