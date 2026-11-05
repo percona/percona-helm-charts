@@ -4015,7 +4015,8 @@ ch_one_pmm() {
     _cop_uuid=""
     for CH_POD in $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
         [ -n "${_cop_uuid}" ] || _cop_uuid=$(ch_query "SELECT generateUUIDv4()") || return 1
-        if ! ch_query "DROP DATABASE IF EXISTS pmm SYNC" "${CH_LIST_TIMEOUT}" >>"${LOG_FILE}" 2>&1 \
+        # Lift the 50 GB max_table_size_to_drop limit (error 359), or a large pmm.metrics stops the restore halfway.
+        if ! ch_query "DROP DATABASE IF EXISTS pmm SYNC SETTINGS max_table_size_to_drop=0" "${CH_LIST_TIMEOUT}" >>"${LOG_FILE}" 2>&1 \
             || ! ch_query "CREATE DATABASE pmm UUID '${_cop_uuid}' ENGINE = Replicated('/clickhouse/databases/{uuid}', '{shard}', '{replica}')" >>"${LOG_FILE}" 2>&1; then
             log "ERROR" "[ClickHouse] Could not recreate pmm on ${CH_POD}"
             return 1

@@ -1833,7 +1833,8 @@ kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
   tar -xzf /central/clickhouse/backup_<id>/<backup-name>.tar.gz -C /var/lib/clickhouse/backup
 
 # 2. On EVERY ClickHouse pod, with the same <uuid> everywhere (as the PMM ClickHouse user):
-#    DROP DATABASE IF EXISTS pmm SYNC
+#    DROP DATABASE IF EXISTS pmm SYNC SETTINGS max_table_size_to_drop=0
+#    (the setting lifts the 50 GB drop limit; without it a large pmm.metrics fails with error 359)
 #    CREATE DATABASE pmm UUID '<uuid>' ENGINE = Replicated('/clickhouse/databases/{uuid}', '{shard}', '{replica}')
 
 # 3. Restore into the pod used in step 1

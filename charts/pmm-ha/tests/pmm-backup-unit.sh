@@ -3965,7 +3965,7 @@ ch_query() { case "$1" in "SELECT generateUUIDv4()") echo u1 ;; *) echo "${CH_PO
 ch_one_pmm
 assert_rc "restore recreates pmm on every pod" 0 $?
 assert_eq "...dropping it and creating it with one UUID on each" "3 3" \
-    "$(grep -c 'DROP DATABASE IF EXISTS pmm SYNC' "${_cop_log}") $(grep -c "CREATE DATABASE pmm UUID 'u1'" "${_cop_log}")"
+    "$(grep -c 'DROP DATABASE IF EXISTS pmm SYNC SETTINGS max_table_size_to_drop=0' "${_cop_log}") $(grep -c "CREATE DATABASE pmm UUID 'u1'" "${_cop_log}")"
 ch_query() { case "${CH_POD}" in ch-1) return 1 ;; *) echo u1 ;; esac; }
 ch_one_pmm
 assert_rc "...and fails when a pod does not answer" 1 $?
