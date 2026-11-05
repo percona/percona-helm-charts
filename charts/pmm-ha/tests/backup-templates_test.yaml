@@ -173,3 +173,17 @@ tests:
           path: spec.jobTemplate.spec.template.spec.containers[0].env
           content: {name: CH_SECRET_NAME, value: my-pmm-secret}
         template: templates/backup-cronjob.yaml
+
+  - it: passes the QAN database name to the script, which recreates it on restore (PMM-15785)
+    set:
+      pmmEnv.PMM_CLICKHOUSE_DATABASE: qan
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: PMM_CLICKHOUSE_DATABASE, value: qan}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content: {name: PMM_CLICKHOUSE_DATABASE, value: qan}
+        template: templates/backup-cronjob.yaml

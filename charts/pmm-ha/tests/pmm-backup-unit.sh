@@ -3962,6 +3962,11 @@ assert_eq "backup uses the pod with the most rows" "ch-1" "${CH_POD}"
 ch_query() { return 1; }
 ch_resolve_pod
 assert_rc "...and fails when no pod can read pmm.metrics" 1 $?
+CH_DB=qan
+ch_query() { case "$1" in *" qan.metrics") echo 1 ;; *) return 1 ;; esac; }
+ch_resolve_pod
+assert_rc "...and counts the rows in PMM_CLICKHOUSE_DATABASE" 0 $?
+CH_DB=pmm
 
 _cop_log=$(mktemp); LOG_FILE=/dev/null
 ch_query() { case "$1" in "SELECT generateUUIDv4()") echo u1 ;; *) echo "${CH_POD} $1" >>"${_cop_log}" ;; esac; }
@@ -3969,6 +3974,11 @@ ch_one_pmm
 assert_rc "restore recreates pmm on every pod" 0 $?
 assert_eq "...dropping it and creating it with one UUID on each" "3 3" \
     "$(grep -c 'DROP DATABASE IF EXISTS pmm SYNC SETTINGS max_table_size_to_drop=0' "${_cop_log}") $(grep -c "CREATE DATABASE pmm UUID 'u1'" "${_cop_log}")"
+printf '' >"${_cop_log}"; CH_DB=qan
+ch_one_pmm
+CH_DB=pmm
+assert_eq "...or PMM_CLICKHOUSE_DATABASE, never pmm, when that is set" "3 3 0" \
+    "$(grep -c 'DROP DATABASE IF EXISTS qan SYNC' "${_cop_log}") $(grep -c 'CREATE DATABASE qan UUID' "${_cop_log}") $(grep -c ' pmm' "${_cop_log}")"
 ch_query() { case "${CH_POD}" in ch-1) return 1 ;; *) echo u1 ;; esac; }
 ch_one_pmm
 assert_rc "...and fails when a pod does not answer" 1 $?

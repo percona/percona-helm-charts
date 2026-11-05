@@ -1271,6 +1271,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `LOCK_LEASE_SECONDS` / `LOCK_RENEW_SECONDS` | Component lock lease duration / renewal interval | 900 / 60 |
 | `LOCK_RENEWER_MAX_SECONDS` | Backstop lifetime for the lease renewer | 86400 |
 | `CH_SECRET_NAME` | Kubernetes secret for ClickHouse (the chart sets it from `secret.name`) | pmm-secret |
+| `PMM_CLICKHOUSE_DATABASE` | QAN ClickHouse database: a backup reads its row counts, a restore recreates it (the chart sets it from `pmmEnv.PMM_CLICKHOUSE_DATABASE`) | pmm |
 | `CH_CREATE_TIMEOUT` | Max seconds to wait for clickhouse-backup create (the upload has no wall clock) | 300 |
 | `VM_READY_TIMEOUT` | Max seconds a restore waits for vmstorage to be Ready again after vmrestore (a large tier loads its index for minutes). It stops early on vmrestore's incomplete-restore marker or after 5 restarts | 1800 |
 | `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
@@ -1285,7 +1286,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 static keys (required on non-AWS S3-compatible storage; on AWS, IRSA is the keyless alternative) | |
 | `TARGET_RELEASE` | Same as `--release`: scopes destructive lookups to one install | *(unscoped)* |
 | `PMM_SRV_PATH` | Path backed up from the PMM pods | /srv |
-| `CH_LIST_TIMEOUT` | Max seconds to list ClickHouse remote backups (restore preflight; a populated bucket is slow) | 120 |
+| `CH_LIST_TIMEOUT` | Max seconds to list ClickHouse remote backups (restore preflight; a populated bucket is slow), and for each DROP/CREATE of the QAN database in a restore | 120 |
 | `RCLONE_STREAM_IO_TIMEOUT` | Idle-IO bound for STREAMING rclone calls (the PostgreSQL dump pipe), separate from `RCLONE_IO_TIMEOUT` | 300 |
 | `VM_S3_ENDPOINT` | S3 endpoint for vmbackup/vmrestore only, when VictoriaMetrics must use a different endpoint from the rest | *(inherits `S3_ENDPOINT`)* |
 | `PMM_RESTORE_IMAGE` | Image for the `/srv` restore temp pods | *(read from the PMM StatefulSet)* |
@@ -1832,10 +1833,11 @@ kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
 kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
   tar -xzf /central/clickhouse/backup_<id>/<backup-name>.tar.gz -C /var/lib/clickhouse/backup
 
-# 2. On EVERY ClickHouse pod, with the same <uuid> everywhere (as the PMM ClickHouse user):
-#    DROP DATABASE IF EXISTS pmm SYNC SETTINGS max_table_size_to_drop=0
-#    (the setting lifts the 50 GB drop limit; without it a large pmm.metrics fails with error 359)
-#    CREATE DATABASE pmm UUID '<uuid>' ENGINE = Replicated('/clickhouse/databases/{uuid}', '{shard}', '{replica}')
+# 2. On EVERY ClickHouse pod, with the same <uuid> everywhere (as the PMM ClickHouse user);
+#    <db> is pmmEnv.PMM_CLICKHOUSE_DATABASE, pmm by default:
+#    DROP DATABASE IF EXISTS <db> SYNC SETTINGS max_table_size_to_drop=0
+#    (the setting lifts the 50 GB drop limit; without it a large <db>.metrics fails with error 359)
+#    CREATE DATABASE <db> UUID '<uuid>' ENGINE = Replicated('/clickhouse/databases/{uuid}', '{shard}', '{replica}')
 
 # 3. Restore into the pod used in step 1
 kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \

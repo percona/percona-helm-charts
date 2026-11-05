@@ -147,6 +147,8 @@ one_pod() {   # <tag> <what> <selector>
 }
 
 CH_SECRET_NAME="${CH_SECRET_NAME:-pmm-secret}"
+# QAN database (pmmEnv.PMM_CLICKHOUSE_DATABASE); validated as an identifier at render time.
+CH_DB="${PMM_CLICKHOUSE_DATABASE:-pmm}"
 
 # Empty until computed, so an early trap can call release_locks harmlessly.
 LOCK_COMPONENTS=""
@@ -449,8 +451,9 @@ Environment Variables:
   LOCK_RENEW_SECONDS        How often a held lease is renewed (default: 60)
   LOCK_RENEWER_MAX_SECONDS  Backstop lifetime for the lease renewer (default: 86400)
   CH_SECRET_NAME            Kubernetes secret for ClickHouse credentials (default: pmm-secret)
+  PMM_CLICKHOUSE_DATABASE   QAN ClickHouse database (default: pmm)
   CH_CREATE_TIMEOUT         Max seconds to wait for ClickHouse backup creation (default: 300)
-  CH_LIST_TIMEOUT           Budget for the restore pre-flight 'list remote' (default: 120)
+  CH_LIST_TIMEOUT           Budget for the restore pre-flight 'list remote' and the QAN database DROP/CREATE (default: 120)
   PMM_SRV_PATH              Path archived from each PMM server pod (default: /srv)
   PMM_SERVER_REPLICAS       Fallback PMM replica count on restore scale-up (default: 3)
   VMRESTORE_IMAGE           vmrestore image (the chart sets it from
@@ -2328,7 +2331,7 @@ ch_resolve_pod() {
     _crp_best="" _crp_max=-2
     for CH_POD in $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" \
         -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
-        _crp_rows=$(ch_query "SELECT count() FROM pmm.metrics" 2>/dev/null) || _crp_rows=-1
+        _crp_rows=$(ch_query "SELECT count() FROM ${CH_DB}.metrics" 2>/dev/null) || _crp_rows=-1
         case "${_crp_rows}" in ''|*[!0-9]*) _crp_rows=-1 ;; esac
         if [ "${_crp_rows}" -gt "${_crp_max}" ]; then _crp_max=${_crp_rows}; _crp_best=${CH_POD}; fi
     done
@@ -2338,8 +2341,8 @@ ch_resolve_pod() {
         log "ERROR" "[ClickHouse] Check that the operator is running: kubectl get pods -n ${NAMESPACE}"
         return 1
     fi
-    if [ "${_crp_max}" -lt 0 ]; then log "ERROR" "[ClickHouse] pmm.metrics could not be read on any pod"; return 1; fi
-    log "INFO" "[ClickHouse] Using pod: ${CH_POD} (${_crp_max} rows in pmm.metrics)"
+    if [ "${_crp_max}" -lt 0 ]; then log "ERROR" "[ClickHouse] ${CH_DB}.metrics could not be read on any pod"; return 1; fi
+    log "INFO" "[ClickHouse] Using pod: ${CH_POD} (${_crp_max} rows in ${CH_DB}.metrics)"
     return 0
 }
 
@@ -4017,14 +4020,14 @@ ch_one_pmm() {
     for CH_POD in $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
         [ -n "${_cop_uuid}" ] || _cop_uuid=$(ch_query "SELECT generateUUIDv4()") || return 1
         # Lift the 50 GB max_table_size_to_drop limit (error 359), or a large pmm.metrics stops the restore halfway.
-        if ! ch_query "DROP DATABASE IF EXISTS pmm SYNC SETTINGS max_table_size_to_drop=0" "${CH_LIST_TIMEOUT}" >>"${LOG_FILE}" 2>&1 \
-            || ! ch_query "CREATE DATABASE pmm UUID '${_cop_uuid}' ENGINE = Replicated('/clickhouse/databases/{uuid}', '{shard}', '{replica}')" "${CH_LIST_TIMEOUT}" >>"${LOG_FILE}" 2>&1; then
-            log "ERROR" "[ClickHouse] Could not recreate pmm on ${CH_POD}"
+        if ! ch_query "DROP DATABASE IF EXISTS ${CH_DB} SYNC SETTINGS max_table_size_to_drop=0" "${CH_LIST_TIMEOUT}" >>"${LOG_FILE}" 2>&1 \
+            || ! ch_query "CREATE DATABASE ${CH_DB} UUID '${_cop_uuid}' ENGINE = Replicated('/clickhouse/databases/{uuid}', '{shard}', '{replica}')" "${CH_LIST_TIMEOUT}" >>"${LOG_FILE}" 2>&1; then
+            log "ERROR" "[ClickHouse] Could not recreate ${CH_DB} on ${CH_POD}"
             return 1
         fi
     done
-    if [ -z "${_cop_uuid}" ]; then log "ERROR" "[ClickHouse] No ClickHouse pod found to recreate pmm on"; return 1; fi
-    log "INFO" "[ClickHouse] Recreated pmm with UUID ${_cop_uuid} on every pod"
+    if [ -z "${_cop_uuid}" ]; then log "ERROR" "[ClickHouse] No ClickHouse pod found to recreate ${CH_DB} on"; return 1; fi
+    log "INFO" "[ClickHouse] Recreated ${CH_DB} with UUID ${_cop_uuid} on every pod"
 }
 
 restore_clickhouse() {
@@ -4053,7 +4056,7 @@ restore_clickhouse() {
     fi
     if [ ${rc} -ne 0 ]; then log "ERROR" "[ClickHouse] staging the backup failed (exit ${rc}); pmm was not touched"; return 1; fi
     if [ "${DRY_RUN}" = "true" ]; then
-        log "INFO" "[ClickHouse] [DRY RUN] would drop pmm on every pod, create it with one UUID, then restore --rm ${name}"
+        log "INFO" "[ClickHouse] [DRY RUN] would drop ${CH_DB} on every pod, create it with one UUID, then restore --rm ${name}"
         return 0
     fi
 
