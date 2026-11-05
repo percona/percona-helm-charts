@@ -1,0 +1,32 @@
+suite: psmdb-db pod disruption budgets
+templates:
+  - templates/cluster.yaml
+tests:
+  - it: renders zero maxUnavailable for every pod disruption budget
+    set:
+      replsets.rs0.podDisruptionBudget.maxUnavailable: 0
+      replsets.rs0.hidden.podDisruptionBudget.maxUnavailable: 0
+      replsets.rs0.nonvoting.podDisruptionBudget.maxUnavailable: 0
+      sharding.configrs.podDisruptionBudget.maxUnavailable: 0
+      sharding.mongos.podDisruptionBudget.maxUnavailable: 0
+    asserts:
+      - equal:
+          path: spec.replsets[0].podDisruptionBudget
+          value:
+            maxUnavailable: 0
+      - equal:
+          path: spec.replsets[0].hidden.podDisruptionBudget
+          value:
+            maxUnavailable: 0
+      - equal:
+          path: spec.replsets[0].nonvoting.podDisruptionBudget
+          value:
+            maxUnavailable: 0
+      - equal:
+          path: spec.sharding.configsvrReplSet.podDisruptionBudget
+          value:
+            maxUnavailable: 0
+      - equal:
+          path: spec.sharding.mongos.podDisruptionBudget
+          value:
+            maxUnavailable: 0

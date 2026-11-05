@@ -1,0 +1,171 @@
+replsets:
+  rs0:
+    size: 5
+    annotations:
+      test: annotation
+    labels:
+      test: label
+    resources:
+      requests:
+        cpu: 1m
+        memory: 1Mi
+      limits:
+        cpu: 2m
+        memory: 2Mi
+    affinity:
+      antiAffinityTopologyKey: kubernetes.io/zone
+    nodeSelector:
+      disktype: ssd
+    tolerations:
+      - key: test
+        operator: Exists
+        effect: NoExecute
+        tolerationSeconds: 60
+    podDisruptionBudget:
+      maxUnavailable: 2
+    expose:
+      enabled: true
+      type: LoadBalancer
+    volumeSpec:
+      pvc:
+        resources:
+          requests:
+            storage: 10Gi
+    sidecars:
+      - image: changed-image
+        name: sidecar
+    sidecarVolumes:
+      - name: sidecar-secret
+        secret:
+          secretName: mysecret
+    sidecarPVCs:
+      - apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: sidecar-volume-claim
+  rs1:
+    size: 3
+    terminationGracePeriodSeconds: 300
+    configuration: |
+      operationProfiling:
+        mode: slowOp
+    schedulerName: mycustom-scheduler
+    serviceAccountName: percona-server-mongodb-operator-workload
+    priorityClass: high-priority
+    runtimeClass: image-rc
+    annotations:
+      iam.amazonaws.com/role: role-arn
+    labels:
+      rack: rack-22
+    nodeSelector:
+      disktype: nvme
+    tolerations:
+      - key: node.alpha.kubernetes.io/unreachable
+        operator: Exists
+        effect: NoExecute
+        tolerationSeconds: 6000
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+    livenessProbe:
+      failureThreshold: 4
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 10
+    readinessProbe:
+      failureThreshold: 8
+      initialDelaySeconds: 10
+      periodSeconds: 3
+      successThreshold: 1
+      timeoutSeconds: 2
+    podSecurityContext:
+      fsGroup: 1001
+    containerSecurityContext:
+      runAsUser: 1001
+    env:
+      - name: MY_ENV_VAR
+        value: my-value
+    envFrom:
+      - secretRef:
+          name: my-secret
+    storage:
+      engine: wiredTiger
+    hostAliases:
+      - ip: 10.10.0.2
+        hostnames:
+          - host1
+    affinity:
+      antiAffinityTopologyKey: kubernetes.io/zone
+    podDisruptionBudget:
+      minAvailable: 1
+    expose:
+      enabled: true
+      type: LoadBalancer
+      loadBalancerClass: service.k8s.aws/nlb
+      loadBalancerIP: 10.0.0.1
+      loadBalancerSourceRanges:
+        - 10.0.0.0/8
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+      labels:
+        some-label: some-key
+      internalTrafficPolicy: Local
+      externalTrafficPolicy: Local
+    resources:
+      requests:
+        cpu: 3m
+        memory: 3Mi
+      limits:
+        cpu: 4m
+        memory: 4Mi
+    volumeSpec:
+      hostPath:
+        path: /data
+        type: Directory
+    hidden:
+      enabled: true
+      size: 1
+      affinity:
+        antiAffinityTopologyKey: kubernetes.io/hostname
+      resources:
+        requests:
+          cpu: 1m
+          memory: 1Mi
+        limits:
+          cpu: 2m
+          memory: 2Mi
+      volumeSpec:
+        pvc:
+          resources:
+            requests:
+              storage: 1Gi
+    nonvoting:
+      enabled: true
+      size: 1
+      affinity:
+        antiAffinityTopologyKey: kubernetes.io/hostname
+      resources:
+        requests:
+          cpu: 1m
+          memory: 1Mi
+        limits:
+          cpu: 2m
+          memory: 2Mi
+      volumeSpec:
+        pvc:
+          resources:
+            requests:
+              storage: 1Gi
+    arbiter:
+      enabled: true
+      size: 1
+      affinity:
+        antiAffinityTopologyKey: kubernetes.io/hostname
+      resources:
+        requests:
+          cpu: 1m
+          memory: 1Mi
+        limits:
+          cpu: 2m
+          memory: 2Mi

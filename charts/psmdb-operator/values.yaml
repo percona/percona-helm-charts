@@ -7,7 +7,7 @@ replicaCount: 1
 
 image:
   repository: percona/percona-server-mongodb-operator
-  tag: 1.23.1
+  tag: 1.24.0
   pullPolicy: IfNotPresent
 
 # disableTelemetry: according to
@@ -98,6 +98,12 @@ resources: {}
 nodeSelector: {}
 
 tolerations: []
+
+hostAliases: []
+# - ip: "10.10.0.2"
+#   hostnames:
+#   - "host1"
+#   - "host2"
 
 affinity: {}
 
