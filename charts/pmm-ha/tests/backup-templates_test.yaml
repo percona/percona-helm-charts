@@ -173,3 +173,9 @@ tests:
           path: spec.jobTemplate.spec.template.spec.containers[0].env
           content: {name: CH_SECRET_NAME, value: my-pmm-secret}
         template: templates/backup-cronjob.yaml
+
+  - it: leaves the scripts ConfigMap unannotated without gitops.enabled (the Argo CD annotation is gitops-only, PMM-15826)
+    template: templates/backup-scripts-configmap.yaml
+    asserts:
+      - notExists:
+          path: metadata.annotations

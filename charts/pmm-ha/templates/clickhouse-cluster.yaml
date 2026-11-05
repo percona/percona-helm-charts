@@ -1,6 +1,9 @@
 {{- $clickhouseUser := include "pmm.secret.key" (dict "ctx" $ "key" "PMM_CLICKHOUSE_USER" "override" (.Values.secret.clickhouse_user | default "clickhouse_pmm")) | b64dec }}
 {{- $datasourceUser := include "pmm.clickhouse.datasourceUser" . }}
-{{- $datasourcePassword := include "pmm.clickhouse.datasourcePassword" . }}
+{{- $datasourcePassword := "" }}
+{{- if not .Values.gitops.enabled }}
+{{- $datasourcePassword = include "pmm.clickhouse.datasourcePassword" . }}
+{{- end }}
 {{- $clickhouseDatabase := .Values.pmmEnv.PMM_CLICKHOUSE_DATABASE | default "pmm" }}
 {{- include "pmm.clickhouse.validateIdentifier" (dict "name" "clickhouse.datasource.user" "value" $datasourceUser) }}
 {{- include "pmm.clickhouse.validateIdentifier" (dict "name" "pmmEnv.PMM_CLICKHOUSE_DATABASE" "value" $clickhouseDatabase) }}
@@ -125,7 +128,13 @@ spec:
           </profiles>
           <users>
             <{{ $datasourceUser }}>
+              {{- if .Values.gitops.enabled }}
+              {{- /* Substituted by ClickHouse from the container environment when it loads the
+                     file, so the password is never part of the rendered manifest. */}}
+              <password from_env="PMM_CLICKHOUSE_DATASOURCE_PASSWORD"/>
+              {{- else }}
               <password_sha256_hex>{{ $datasourcePassword | sha256sum }}</password_sha256_hex>
+              {{- end }}
               <networks>
                 {{- range .Values.clickhouse.users.networks.ip }}
                 <ip>{{ . }}</ip>
@@ -215,6 +224,15 @@ spec:
                   protocol: TCP
               resources:
                 {{- toYaml .Values.clickhouse.resources | nindent 16 }}
+              {{- if .Values.gitops.enabled }}
+              # Read by users.d/pmm-datasource-user.xml through from_env.
+              env:
+                - name: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.secret.name }}
+                      key: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
+              {{- end }}
               # The only writes outside the data volume, so the root filesystem can be read-only.
               volumeMounts:
                 - name: clickhouse-logs
