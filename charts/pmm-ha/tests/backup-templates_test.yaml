@@ -173,3 +173,49 @@ tests:
           path: spec.jobTemplate.spec.template.spec.containers[0].env
           content: {name: CH_SECRET_NAME, value: my-pmm-secret}
         template: templates/backup-cronjob.yaml
+
+  # PMM-15780: the Role reaches only the Secrets pmm-backup.sh reads.
+  - it: grants Secret get on secret.name, the key and the S3 Secret, and patch on the key only
+    set:
+      secret.name: my-pmm-secret
+      centralBackupStorage.s3.existingSecret: s3-creds
+    asserts:
+      - contains:
+          path: rules
+          content: {apiGroups: [""], resources: [secrets], resourceNames: [my-pmm-secret, pg-encryption-key, s3-creds], verbs: [get]}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Role}
+      - contains:
+          path: rules
+          content: {apiGroups: [""], resources: [secrets], resourceNames: [pg-encryption-key], verbs: [patch]}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Role}
+      - contains:
+          path: rules
+          content: {apiGroups: [""], resources: [secrets], verbs: [create]}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Role}
+      - notContains:
+          path: rules
+          content: {resources: [secrets], verbs: [get, list, create, update, patch]}
+          any: true
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Role}
+
+  - it: leaves out an unset S3 Secret
+    asserts:
+      - contains:
+          path: rules
+          content: {apiGroups: [""], resources: [secrets], resourceNames: [pmm-secret, pg-encryption-key], verbs: [get]}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Role}
+
+  - it: lists an S3 Secret that is also secret.name once
+    set:
+      centralBackupStorage.s3.existingSecret: pmm-secret
+    asserts:
+      - contains:
+          path: rules
+          content: {apiGroups: [""], resources: [secrets], resourceNames: [pmm-secret, pg-encryption-key], verbs: [get]}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Role}

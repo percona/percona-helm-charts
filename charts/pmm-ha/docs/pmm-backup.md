@@ -797,7 +797,7 @@ The chart creates a ServiceAccount (`<release>-backup-sa`) with a Role granting:
 |---|---|---|---|
 | `""` | `pods`, `pods/log`, `pods/exec` | get, list, create, delete, watch, patch | `exec` is how every component is backed up and restored; `create`/`delete` for the temp vmrestore and `/srv` pods; `patch` to set `karpenter.sh/do-not-disrupt` on the pods a run execs into, so consolidation cannot evict them mid-write |
 | `coordination.k8s.io` | `leases` | get, list, create, update, patch, delete | the per-component locks (§4) — this is what stops two runs touching one component, including a laptop-run restore during a scheduled backup |
-| `""` | `secrets` | get, list, create, update, patch | read the PMM/ClickHouse credentials; `create`/`patch` to restore the PMM encryption key |
+| `""` | `secrets` | get on `secret.name`, `pg-encryption-key` and `centralBackupStorage.s3.existingSecret`; patch on `pg-encryption-key`; create | read the ClickHouse credentials, the PMM encryption key and the S3 keys; restore patches the key back and `create`s the `pg-encryption-key-pre-restore-<timestamp>` copy of the one it replaces (Kubernetes cannot limit `create` by name). A `--ch-secret` or `--s3-secret` naming any other Secret gets a 403 |
 | `""` | `persistentvolumeclaims` | get, list | resolve the `/srv` and vmstorage PVC names from the StatefulSets |
 | `""` | `services` | get, list | reach ClickHouse / PostgreSQL endpoints |
 | `""` | `namespaces` | get | preflight: the target namespace exists |
@@ -819,7 +819,7 @@ operator. No `deployments` access is needed either: a scheduled run is a Job tha
 
 > **Hand-built RBAC for a DR namespace:** a cross-namespace restore needs this same Role in the
 > **target** namespace. Copy the table above in full — omitting the two ownership rules is the
-> one mistake that stops a restore before it starts.
+> one mistake that stops a restore before it starts. The Secret names are the target's.
 
 ---
 
