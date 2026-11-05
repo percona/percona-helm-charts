@@ -1,0 +1,63 @@
+finalizers:
+  - percona.com/delete-mysql-pods-in-order
+  - percona.com/delete-ssl
+crVersion: 1.2.0
+enableVolumeExpansion: true
+storageScaling:
+  enableVolumeScaling: true
+  enableExternalAutoscaling: true
+  autoscaling:
+    enabled: true
+    triggerThresholdPercent: 80
+    growthStep: 2Gi
+    maxSize: 100Gi
+unsafeFlags:
+  mysqlSize: true
+  proxy: true
+pause: true
+updateStrategy: OnDelete
+upgradeOptions:
+  versionServiceEndpoint: https://custom.example.com
+  apply: 8.4-recommended
+initContainer:
+  image: custom-init:tag
+  containerSecurityContext:
+    privileged: false
+    runAsUser: 1001
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+    limits:
+      cpu: 2m
+      memory: 2Mi
+ignoreAnnotations:
+  - service.beta.kubernetes.io/aws-load-balancer-backend-protocol
+ignoreLabels:
+  - rack
+metadata:
+  annotations:
+    test: annotation
+  labels:
+    test: label
+secretsName: custom-secrets
+sslSecretName: custom-ssl
+tls:
+  SANs:
+    - mysql-1.example.com
+  issuerConf:
+    name: custom-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+toolkit:
+  image:
+    repository: changed-toolkit
+    tag: changed-tag
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 3m
+      memory: 3Mi
+    limits:
+      cpu: 4m
+      memory: 4Mi

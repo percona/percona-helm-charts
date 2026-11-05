@@ -8,7 +8,7 @@ tests:
           path: spec.logcollector
           content:
             enabled: true
-            image: percona/fluentbit:5.0.9-1
+            image: percona/fluentbit:5.1.2-1
             resources:
               requests:
                 memory: 100M

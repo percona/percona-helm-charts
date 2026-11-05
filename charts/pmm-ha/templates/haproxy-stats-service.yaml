@@ -1,0 +1,22 @@
+{{- if .Values.haproxy.monitoring.stats.enabled }}
+# The HAProxy stats page and Prometheus exporter, which pmm-ha-haproxy does not publish, for
+# vmagent's haproxy job and kubectl port-forward. Headless, so it only lists the pod IPs.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pmm-ha-haproxy-stats
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "haproxy-stats") | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- /* The subchart's own haproxy.name: nameOverride, else the chart name */}}
+    app.kubernetes.io/name: {{ .Values.haproxy.nameOverride | default "haproxy" | trunc 63 | trimSuffix "-" }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: stat
+      protocol: TCP
+      port: {{ include "pmm.haproxy.statsPort" . }}
+      targetPort: {{ include "pmm.haproxy.statsPort" . }}
+{{- end }}

@@ -1,0 +1,1 @@
+{{- include "pmm-ha-dependencies.openshift.validate" . -}}

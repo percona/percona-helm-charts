@@ -1,0 +1,92 @@
+suite: ps-db backup
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders default backup structure
+    asserts:
+      - matchRegex:
+          path: spec.backup.image
+          pattern: '^percona/percona-xtrabackup:.+$'
+      - isSubset:
+          path: spec.backup
+          content:
+            enabled: true
+            imagePullPolicy: Always
+            resources:
+              requests: {}
+              limits: {}
+            storages: {}
+
+  - it: renders only the image when backup is disabled
+    set:
+      backup.enabled: false
+    asserts:
+      - matchRegex:
+          path: spec.backup.image
+          pattern: '^percona/percona-xtrabackup:.+$'
+      - equal:
+          path: spec.backup.enabled
+          value: false
+      - notExists:
+          path: spec.backup.storages
+
+  - it: renders changed default backup values
+    values:
+      - values/backup-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.backup
+          value:
+            image: changed-image:changed-tag
+            sourcePod: unit-ps-db-mysql-1
+            encryptionKeySecret:
+              name: my-encryption-key-secret
+              key: encryptionKey
+            enabled: true
+            schedule:
+              - name: daily-backup
+                schedule: "0 0 * * *"
+                keep: 5
+                storageName: s3-us-west
+                type: full
+            imagePullPolicy: IfNotPresent
+            imagePullSecrets:
+              - name: pull-secret
+            initContainer:
+              image: custom-init:tag
+              resources:
+                requests:
+                  cpu: 5m
+            backoffLimit: 6
+            startingDeadlineSeconds: 10
+            suspendedDeadlineSeconds: 20
+            serviceAccountName: workload-sa
+            containerSecurityContext:
+              privileged: true
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+            pitr:
+              enabled: true
+              binlogServer:
+                image: changed-binlog:changed-tag
+                storage:
+                  s3:
+                    bucket: binlogs
+                    credentialsSecret: cluster1-s3-credentials
+                    region: us-west-2
+            storages:
+              s3-us-west:
+                type: s3
+                verifyTLS: true
+                s3:
+                  bucket: backups
+                  credentialsSecret: cluster1-s3-credentials
+                  region: us-west-2

@@ -1,0 +1,46 @@
+unsafeFlags:
+  mysqlSize: true
+  proxySize: true
+
+mysql:
+  size: 1
+  autoConfig:
+    enabled: false
+  volumeSpec:
+    pvc:
+      resources:
+        requests:
+          storage: 2Gi
+  affinity:
+    antiAffinityTopologyKey: none
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+proxy:
+  haproxy:
+    size: 1
+    affinity:
+      antiAffinityTopologyKey: none
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  router:
+    enabled: false
+
+orchestrator:
+  enabled: false
+
+backup:
+  enabled: false
+
+logcollector:
+  enabled: true

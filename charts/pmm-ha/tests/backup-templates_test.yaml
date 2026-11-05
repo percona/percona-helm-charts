@@ -1,0 +1,175 @@
+# Backup pod specs and the run environment they share (PR #919 review fixes).
+suite: pmm-ha backup templates
+templates:
+  - templates/backup-tools.yaml
+  - templates/backup-cronjob.yaml
+  - templates/backup-scripts-configmap.yaml
+  - templates/clickhouse-cluster.yaml
+release:
+  name: smoke
+  namespace: pmm
+set:
+  centralBackupStorage:
+    enabled: true
+    mode: s3
+    s3: {bucket: bk}
+tests:
+  - it: lists the tools pull secrets beside the global ones (a pod listing any gets none from its SA)
+    set:
+      image.imagePullSecrets: [{name: global-reg}]
+      centralBackupStorage.tools.imagePullSecrets: [{name: tools-reg}]
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value: [{name: global-reg}, {name: tools-reg}]
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.imagePullSecrets
+          value: [{name: global-reg}, {name: tools-reg}]
+        template: templates/backup-cronjob.yaml
+
+  - it: lists the tools pull secrets alone when there are no global ones
+    set:
+      centralBackupStorage.tools.imagePullSecrets: [{name: tools-reg}]
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value: [{name: tools-reg}]
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+
+  - it: keeps s3-mode state at the mount root (a per-install PVC)
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: STATE_DIR, value: /backups}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: METRICS_DIR, value: /backups/.metrics}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+
+  - it: nests shared-mode logs, staging and metrics under <namespace>/<release>
+    set:
+      centralBackupStorage.mode: shared
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: STATE_DIR, value: /backups/pmm/smoke}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: METRICS_DIR, value: /backups/pmm/smoke/.metrics}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'METRICS_PATH="/backups/pmm/smoke/\.metrics"'
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content: {name: STATE_DIR, value: /backups/pmm/smoke}
+        template: templates/backup-cronjob.yaml
+
+  - it: gives temp restore pods their own resources
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TEMP_POD_RESOURCES
+            value: '{"limits":{"cpu":"2","memory":"2Gi"},"requests":{"cpu":"100m","memory":"256Mi"}}'
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+
+  - it: falls back to tools.resources for temp restore pods when restorePodResources is empty
+    set:
+      centralBackupStorage.tools.restorePodResources: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TEMP_POD_RESOURCES
+            value: '{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"128Mi"}}'
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+
+  - it: projects the VictoriaMetrics keys when it names the central Secret with other key names
+    set:
+      centralBackupStorage.s3.existingSecret: s3-creds
+      victoriaMetrics.vmstorage.backup.s3.existingSecret: s3-creds
+      victoriaMetrics.vmstorage.backup.s3.existingSecretKeys: {accessKey: vm-access, secretKey: vm-secret}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: VM_S3_SECRET_NAME, value: s3-creds}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: VM_S3_SECRET_ACCESS_KEY_KEY, value: vm-access}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: VM_S3_SECRET_SECRET_KEY_KEY, value: vm-secret}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+
+  - it: refuses ClickHouse backups on more than one shard (only one pod is backed up)
+    template: templates/clickhouse-cluster.yaml
+    set:
+      clickhouse.cluster.shards: 2
+    asserts:
+      - failedTemplate:
+          errorPattern: "clickhouse.cluster.shards is 2, but ClickHouse backup/restore covers a single shard"
+
+  - it: allows more than one shard when backups are off
+    template: templates/clickhouse-cluster.yaml
+    set:
+      clickhouse.cluster.shards: 2
+      centralBackupStorage.enabled: false
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: refuses backups with the ClickHouse sidecar off (every run would fail that component)
+    template: templates/backup-cronjob.yaml
+    set:
+      clickhouse.backup.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "centralBackupStorage.enabled needs clickhouse.backup.enabled and victoriaMetrics.vmstorage.backup.enabled"
+
+  - it: refuses backups with the vmbackup sidecar off
+    template: templates/backup-cronjob.yaml
+    set:
+      victoriaMetrics.vmstorage.backup.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "centralBackupStorage.enabled needs clickhouse.backup.enabled and victoriaMetrics.vmstorage.backup.enabled"
+
+  - it: serves metrics with a thread per scrape (two vmagent replicas scrape at the same instant)
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'http\.server\.ThreadingHTTPServer\(\("", 9091\)'
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+
+  - it: reads ClickHouse credentials from secret.name, the Secret the ClickHouse pods use
+    set:
+      secret.name: my-pmm-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: CH_SECRET_NAME, value: my-pmm-secret}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content: {name: CH_SECRET_NAME, value: my-pmm-secret}
+        template: templates/backup-cronjob.yaml

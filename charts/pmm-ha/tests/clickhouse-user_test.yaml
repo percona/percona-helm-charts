@@ -1,0 +1,127 @@
+# clickhouse-cluster.yaml must name the same PMM ClickHouse user that secret.yaml writes to the
+# PMM secret, so each case asserts both, with that secret faked for lookup.
+suite: pmm-ha clickhouse user
+templates:
+  - templates/clickhouse-cluster.yaml
+  - templates/secret.yaml
+release:
+  name: smoke
+  namespace: pmm
+set:
+  secret.create: true
+tests:
+  - it: uses clickhouse_pmm when there is no secret yet
+    asserts:
+      - equal:
+          path: spec.configuration.users["clickhouse_pmm/profile"]
+          value: default
+        template: templates/clickhouse-cluster.yaml
+      - equal:
+          path: data.PMM_CLICKHOUSE_USER
+          value: Y2xpY2tob3VzZV9wbW0=
+        template: templates/secret.yaml
+
+  - it: uses secret.clickhouse_user when there is no secret yet
+    set: {secret.clickhouse_user: foo}
+    asserts:
+      - equal:
+          path: spec.configuration.users["foo/profile"]
+          value: default
+        template: templates/clickhouse-cluster.yaml
+      - equal:
+          path: data.PMM_CLICKHOUSE_USER
+          value: Zm9v
+        template: templates/secret.yaml
+
+  - it: uses the user already stored in the secret
+    set: {secret.clickhouse_user: foo}
+    kubernetesProvider:
+      scheme: &scheme
+        "v1/Secret": {gvr: {version: v1, resource: secrets}, namespaced: true}
+      objects:
+        - {kind: Secret, apiVersion: v1, metadata: {name: pmm-secret, namespace: pmm}, data: {PMM_CLICKHOUSE_USER: c3RvcmVk}}
+    asserts:
+      - equal:
+          path: spec.configuration.users["stored/profile"]
+          value: default
+        template: templates/clickhouse-cluster.yaml
+      - equal:
+          path: data.PMM_CLICKHOUSE_USER
+          value: c3RvcmVk
+        template: templates/secret.yaml
+
+  - it: uses clickhouse_pmm when the secret lacks PMM_CLICKHOUSE_USER
+    kubernetesProvider:
+      scheme: *scheme
+      objects:
+        - {kind: Secret, apiVersion: v1, metadata: {name: pmm-secret, namespace: pmm}, data: {PMM_ADMIN_PASSWORD: YQ==}}
+    asserts:
+      - equal:
+          path: spec.configuration.users["clickhouse_pmm/profile"]
+          value: default
+        template: templates/clickhouse-cluster.yaml
+      - equal:
+          path: data.PMM_CLICKHOUSE_USER
+          value: Y2xpY2tob3VzZV9wbW0=
+        template: templates/secret.yaml
+
+  - it: uses secret.clickhouse_user when the secret lacks PMM_CLICKHOUSE_USER
+    set: {secret.clickhouse_user: foo}
+    kubernetesProvider:
+      scheme: *scheme
+      objects:
+        - {kind: Secret, apiVersion: v1, metadata: {name: pmm-secret, namespace: pmm}, data: {PMM_ADMIN_PASSWORD: YQ==}}
+    asserts:
+      - equal:
+          path: spec.configuration.users["foo/profile"]
+          value: default
+        template: templates/clickhouse-cluster.yaml
+      - equal:
+          path: data.PMM_CLICKHOUSE_USER
+          value: Zm9v
+        template: templates/secret.yaml
+
+  - it: uses clickhouse_pmm when the secret stores an empty PMM_CLICKHOUSE_USER
+    kubernetesProvider:
+      scheme: *scheme
+      objects:
+        - {kind: Secret, apiVersion: v1, metadata: {name: pmm-secret, namespace: pmm}, data: {PMM_CLICKHOUSE_USER: ""}}
+    asserts:
+      - equal:
+          path: spec.configuration.users["clickhouse_pmm/profile"]
+          value: default
+        template: templates/clickhouse-cluster.yaml
+      - equal:
+          path: data.PMM_CLICKHOUSE_USER
+          value: Y2xpY2tob3VzZV9wbW0=
+        template: templates/secret.yaml
+
+  - it: uses clickhouse_pmm when the secret has no data
+    kubernetesProvider:
+      scheme: *scheme
+      objects:
+        - {kind: Secret, apiVersion: v1, metadata: {name: pmm-secret, namespace: pmm}}
+    asserts:
+      - equal:
+          path: spec.configuration.users["clickhouse_pmm/profile"]
+          value: default
+        template: templates/clickhouse-cluster.yaml
+      - equal:
+          path: data.PMM_CLICKHOUSE_USER
+          value: Y2xpY2tob3VzZV9wbW0=
+        template: templates/secret.yaml
+
+  - it: uses the user stored in a pre-created secret
+    set: {secret.create: false, secret.clickhouse_user: foo}
+    kubernetesProvider:
+      scheme: *scheme
+      objects:
+        - {kind: Secret, apiVersion: v1, metadata: {name: pmm-secret, namespace: pmm}, data: {PMM_CLICKHOUSE_USER: c3RvcmVk}}
+    asserts:
+      - equal:
+          path: spec.configuration.users["stored/profile"]
+          value: default
+        template: templates/clickhouse-cluster.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/secret.yaml

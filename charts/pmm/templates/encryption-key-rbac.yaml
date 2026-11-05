@@ -1,0 +1,39 @@
+{{- if .Values.encryptionKey.backupToSecret -}}
+{{/*
+Namespaced permissions for the encryption-key init container. With `serviceAccount.create` false
+- the default - these are granted to the namespace's `default` service account, so reads and
+writes are pinned to the key secret itself. `create` is the one verb that cannot be restricted by
+name, since the name of an object that does not exist yet is not known at authorization time.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "pmm.fullname" . }}-encryption-key
+  {{- include "pmm.includeNamespace" . | nindent 2 }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["{{ include "pmm.encryptionKeySecretName" . }}"]
+  verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "pmm.fullname" . }}-encryption-key
+  {{- include "pmm.includeNamespace" . | nindent 2 }}
+  labels:
+    {{- include "pmm.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "pmm.fullname" . }}-encryption-key
+subjects:
+- kind: ServiceAccount
+  name: {{ include "pmm.serviceAccountName" . }}
+  namespace: {{ include "pmm.namespace" . }}
+{{- end }}

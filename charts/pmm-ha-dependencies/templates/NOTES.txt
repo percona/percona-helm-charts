@@ -11,6 +11,41 @@ The following operators have been deployed:
   ✓ PostgreSQL Operator (Percona Distribution)
 {{- end }}
 
+{{- /* Report the watch scope that was actually configured: both operators can be narrowed
+       back down (pg-operator.watchAllNamespaces=false, or a WATCH_NAMESPACES other than
+       ".*"), and a narrowed install does NOT reconcile pmm-ha in other namespaces. */}}
+{{- $pg := default dict (index .Values "pg-operator") }}
+{{- $ch := default dict (index .Values "altinity-clickhouse-operator") }}
+{{- $pgEnabled := $pg.enabled }}
+{{- $pgAllNs := $pg.watchAllNamespaces }}
+{{- $chEnabled := $ch.enabled }}
+{{- $chAllNs := false }}
+{{- range (default list (default dict $ch.operator).env) }}
+  {{- if and (eq .name "WATCH_NAMESPACES") (eq (toString .value) ".*") }}
+    {{- $chAllNs = true }}
+  {{- end }}
+{{- end }}
+{{- $pgScoped := and $pgEnabled (not $pgAllNs) }}
+{{- $chScoped := and $chEnabled (not $chAllNs) }}
+{{- if or $pgScoped $chScoped }}
+🌐 SCOPE: this install is NOT fully cluster-wide, because you have narrowed the watch
+   configuration:
+{{- if $pgScoped }}
+   ✗ PostgreSQL operator: watches only namespace {{ .Release.Namespace }} (pg-operator.watchAllNamespaces=false).
+{{- end }}
+{{- if $chScoped }}
+   ✗ ClickHouse operator: WATCH_NAMESPACES is not ".*" - see the notes in values.yaml. A
+     one-entry watch list scopes it to that namespace ONLY and breaks this install.
+{{- end }}
+   A pmm-ha instance in another namespace will NOT be fully reconciled: its PMM pod parks at
+   Init:1/2 waiting for resources that no operator creates. Set the narrowed operators back to
+   cluster-wide before installing pmm-ha into a second namespace.
+{{- else }}
+🌐 SCOPE: These operators watch ALL namespaces, so this chart is installed once per cluster.
+   Any pmm-ha instance, in any namespace, is reconciled by them - you do not install this
+   chart again for a second namespace.
+{{- end }}
+
 ⏳ IMPORTANT: Wait for all operators to be ready before installing pmm-ha
 
 Check operator status:
@@ -33,5 +68,8 @@ Once all operators are ready, install the pmm-ha chart:
 
 📚 Documentation: https://docs.percona.com/percona-monitoring-and-management/
 
-⚠️  UNINSTALL ORDER: When uninstalling, remove pmm-ha FIRST, then pmm-ha-dependencies
+⚠️  UNINSTALL ORDER: When uninstalling, remove pmm-ha FIRST, then pmm-ha-dependencies.
+    Because the operators are cluster-wide, uninstalling this chart stops reconciliation for
+    EVERY namespace on the cluster. Check the CHART column of `helm list -A` for other
+    pmm-ha instances first - they may not be named "pmm-ha".
 
