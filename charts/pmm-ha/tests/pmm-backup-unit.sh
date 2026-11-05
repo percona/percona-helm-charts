@@ -3959,6 +3959,9 @@ ch_resolve_credentials() { :; }
 ch_query() { case "${CH_POD}" in ch-0) echo 5 ;; ch-1) echo 9 ;; *) return 1 ;; esac; }
 ch_resolve_pod
 assert_eq "backup uses the pod with the most rows" "ch-1" "${CH_POD}"
+ch_query() { return 1; }
+ch_resolve_pod
+assert_rc "...and fails when no pod can read pmm.metrics" 1 $?
 
 _cop_log=$(mktemp); LOG_FILE=/dev/null
 ch_query() { case "$1" in "SELECT generateUUIDv4()") echo u1 ;; *) echo "${CH_POD} $1" >>"${_cop_log}" ;; esac; }

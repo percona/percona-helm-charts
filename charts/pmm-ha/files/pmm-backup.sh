@@ -2338,6 +2338,7 @@ ch_resolve_pod() {
         log "ERROR" "[ClickHouse] Check that the operator is running: kubectl get pods -n ${NAMESPACE}"
         return 1
     fi
+    if [ "${_crp_max}" -lt 0 ]; then log "ERROR" "[ClickHouse] pmm.metrics could not be read on any pod"; return 1; fi
     log "INFO" "[ClickHouse] Using pod: ${CH_POD} (${_crp_max} rows in pmm.metrics)"
     return 0
 }
@@ -3424,7 +3425,7 @@ validate_restore_clickhouse() {
     local _chpod=""
     # The restore recreates pmm on every pod, so every host of the cluster must answer (PMM-15785).
     ch_resolve_credentials
-    _vrc_up=0 _vrc_want=""
+    local _vrc_up=0 _vrc_want=""
     for CH_POD in $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
         ch_query "SELECT 1" >/dev/null 2>&1 || continue
         _vrc_up=$((_vrc_up + 1))
@@ -4012,7 +4013,7 @@ restore_postgresql() {
 # Recreates pmm on every pod with one UUID, so the restore below cannot leave pods split (PMM-15785).
 ch_one_pmm() {
     ch_resolve_credentials
-    _cop_uuid=""
+    local _cop_uuid=""
     for CH_POD in $(kubectl get pods -n "${NAMESPACE}" -l "$(comp_pod_selector clickhouse)" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
         [ -n "${_cop_uuid}" ] || _cop_uuid=$(ch_query "SELECT generateUUIDv4()") || return 1
         # Lift the 50 GB max_table_size_to_drop limit (error 359), or a large pmm.metrics stops the restore halfway.
