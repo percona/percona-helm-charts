@@ -1,0 +1,46 @@
+name: install-test
+
+on:
+  pull_request:
+    paths:
+      - 'charts/pmm/**'
+
+jobs:
+  install-test:
+    name: charts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+
+      - uses: azure/setup-helm@v5.0.1
+        with:
+          version: v3.21.0
+
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.13'
+
+      - uses: helm/chart-testing-action@v2.9.0
+
+      - uses: helm/kind-action@v1.15.2
+
+      - name: Install chart
+        run: |
+          ct install \
+            --config .github/ct.yaml \
+            --charts=charts/pmm \
+            --target-branch "$GITHUB_BASE_REF"
+
+      - name: Build chart packages
+        run: helm package charts/pmm
+
+      - name: Upload chart packages
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: charts
+          path: ./*.tgz
+          retention-days: 1
+          if-no-files-found: error

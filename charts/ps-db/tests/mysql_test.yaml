@@ -1,0 +1,214 @@
+suite: ps-db mysql
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders default mysql structure
+    asserts:
+      - matchRegex:
+          path: spec.mysql.image
+          pattern: '^percona/percona-server:.+$'
+      - matchRegex:
+          path: spec.mysql.autoConfig.version
+          pattern: '^\d+\.\d+\.\d+$'
+      - isSubset:
+          path: spec.mysql.autoConfig
+          content:
+            enabled: true
+            loadType: someWrites
+      - isSubset:
+          path: spec.mysql
+          content:
+            clusterType: group-replication
+            autoRecovery: true
+            imagePullPolicy: Always
+            podDisruptionBudget:
+              maxUnavailable: 1
+            size: 3
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            annotations: {}
+            labels: {}
+            resources:
+              requests:
+                cpu: "2"
+                memory: 4Gi
+              limits:
+                cpu: "4"
+                memory: 8Gi
+            tolerations: []
+            nodeSelector: {}
+            exposePrimary:
+              enabled: true
+            volumeSpec:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 30Gi
+            gracePeriod: 600
+
+  - it: renders changed default mysql values
+    values:
+      - values/mysql-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.mysql
+          value:
+            clusterType: async
+            autoRecovery: true
+            autoConfig:
+              enabled: false
+              loadType: heavyWrites
+              version: "8.0"
+            vaultSecretName: vault-secret
+            image: changed-image:changed-tag
+            imagePullPolicy: IfNotPresent
+            imagePullSecrets:
+              - name: pull-secret
+            initContainer:
+              image: custom-init:tag
+              containerSecurityContext:
+                privileged: false
+              resources:
+                requests:
+                  cpu: 5m
+                  memory: 5Mi
+                limits:
+                  cpu: 6m
+                  memory: 6Mi
+            podDisruptionBudget:
+              minAvailable: 0
+            size: 5
+            affinity:
+              advanced:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: zone
+                            operator: In
+                            values:
+                              - a
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            priorityClassName: high-priority
+            topologySpreadConstraints:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: percona-server
+                maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+            annotations:
+              test: annotation
+            labels:
+              test: label
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+            env:
+              - name: BOOTSTRAP_READ_TIMEOUT
+                value: "600"
+            envFrom:
+              - secretRef:
+                  name: my-env-secret
+            startupProbe:
+              initialDelaySeconds: 15
+              timeoutSeconds: 43200
+            livenessProbe:
+              initialDelaySeconds: 15
+              timeoutSeconds: 10
+            readinessProbe:
+              initialDelaySeconds: 30
+              timeoutSeconds: 10
+            tolerations:
+              - key: test
+                operator: Exists
+                effect: NoExecute
+                tolerationSeconds: 60
+            nodeSelector:
+              disktype: ssd
+            expose:
+              enabled: true
+              type: LoadBalancer
+              annotations:
+                test: annotation
+            exposePrimary:
+              enabled: true
+              type: ClusterIP
+              labels:
+                rack: rack-22
+            volumeSpec:
+              persistentVolumeClaim:
+                storageClassName: standard
+                resources:
+                  requests:
+                    storage: 10Gi
+            gracePeriod: 300
+            configuration: |
+              max_connections=250
+              innodb_buffer_pool_size=unit
+            sidecars:
+              - name: noop
+                image: busybox
+            sidecarVolumes:
+              - name: memory-vol
+                emptyDir:
+                  medium: Memory
+            sidecarPVCs:
+              - name: pvc-vol
+                spec:
+                  resources:
+                    requests:
+                      storage: 1G
+            schedulerName: custom-scheduler
+            containerSecurityContext:
+              privileged: false
+            podSecurityContext:
+              fsGroup: 1001
+            serviceAccountName: workload-sa
+            runtimeClassName: image-rc
+
+  - it: renders a hostPath volume
+    set:
+      mysql.volumeSpec.pvc: null
+      mysql.volumeSpec.hostPath.path: /data
+    asserts:
+      - equal:
+          path: spec.mysql.volumeSpec
+          value:
+            hostPath:
+              path: /data
+              type: Directory
+
+  - it: renders an emptyDir volume
+    set:
+      mysql.volumeSpec.pvc: null
+      mysql.volumeSpec.emptyDir: {}
+    asserts:
+      - equal:
+          path: spec.mysql.volumeSpec
+          value:
+            emptyDir: {}
+
+  - it: skips expose when enabled is not set
+    set:
+      mysql.expose.type: ClusterIP
+    asserts:
+      - notExists:
+          path: spec.mysql.expose
+
+  - it: renders only enabled false when exposePrimary is disabled
+    set:
+      mysql.exposePrimary.enabled: false
+      mysql.exposePrimary.type: LoadBalancer
+    asserts:
+      - equal:
+          path: spec.mysql.exposePrimary
+          value:
+            enabled: false

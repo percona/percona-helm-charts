@@ -1,0 +1,335 @@
+name: operator-test
+
+on:
+  pull_request:
+    paths:
+      - 'charts/psmdb-operator/**'
+      - '!charts/psmdb-operator/crds/**'
+      - 'charts/psmdb-operator-crds/**'
+      - 'charts/psmdb-db/**'
+      - 'charts/pxc-operator/**'
+      - 'charts/pxc-operator-crds/**'
+      - 'charts/pxc-db/**'
+      - 'charts/ps-operator/**'
+      - 'charts/ps-operator-crds/**'
+      - 'charts/ps-db/**'
+      - 'charts/pg-operator/**'
+      - 'charts/pg-operator-crds/**'
+      - 'charts/pg-db/**'
+      - '.github/workflows/test-operator-deploy.yaml'
+      - '.github/workflows/scripts/collect-cluster-logs.sh'
+      - '.github/workflows/scripts/detect-changes.sh'
+      - '.github/workflows/scripts/detect-comment.sh'
+      - '.github/workflows/scripts/test-operator-deploy.sh'
+      - '.github/workflows/scripts/latest-stable-minikube-version.sh'
+      - '.github/workflows/scripts/latest-stable-kubernetes-version.sh'
+      - '.github/workflows/scripts/disable-app-armor-profiles.sh'
+      - '.github/workflows/files/minimal-*-values.yaml'
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  SUPPORTED_CHARTS: psmdb-operator,psmdb-operator-crds,psmdb-db
+  SUPPORTED_JOBS: install,upgrade
+  SELECT_ALL_ON_CHANGES: >-
+    .github/workflows/test-operator-deploy.yaml,
+    .github/workflows/scripts/collect-cluster-logs.sh,
+    .github/workflows/scripts/detect-changes.sh,
+    .github/workflows/scripts/detect-comment.sh,
+    .github/workflows/scripts/test-operator-deploy.sh,
+    .github/workflows/scripts/latest-stable-minikube-version.sh,
+    .github/workflows/scripts/latest-stable-kubernetes-version.sh,
+    .github/workflows/scripts/disable-app-armor-profiles.sh,
+    .github/workflows/files/minimal-psmdb-values.yaml,
+    .github/workflows/files/minimal-ps-values.yaml,
+    .github/workflows/files/minimal-pxc-values.yaml,
+    .github/workflows/files/minimal-pg-values.yaml
+
+jobs:
+  install-test:
+    name: install-${{ matrix.product }}
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER') &&
+       startsWith(github.event.comment.body, '/run-deploy-test'))
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        product: [psmdb, pxc, ps, pg]
+    env:
+      SUPPORTED_CHARTS: psmdb-operator,psmdb-operator-crds,psmdb-db,pxc-operator,pxc-operator-crds,pxc-db,ps-operator,ps-operator-crds,ps-db,pg-operator,pg-operator-crds,pg-db
+      SUPPORTED_JOBS: install
+    steps:
+      - uses: actions/checkout@v7.0.1
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+
+      - name: Detect tests
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPPORTED_OPERATORS: ${{ matrix.product }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == issue_comment ]]; then
+            .github/workflows/scripts/detect-comment.sh
+          else
+            .github/workflows/scripts/detect-changes.sh
+          fi
+
+      - name: Select tests
+        id: tests
+        env:
+          RUN_TEST: >-
+            ${{ steps.changes.outputs.should-run == 'true' &&
+                contains(fromJSON(steps.changes.outputs.jobs), 'install') &&
+                contains(fromJSON(steps.changes.outputs.products), matrix.product) }}
+        run: echo "run=$RUN_TEST" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout PR merge
+        if: >-
+          !env.ACT &&
+          github.event_name == 'issue_comment' &&
+          steps.tests.outputs.run == 'true'
+        env:
+          MERGE_SHA: ${{ steps.changes.outputs.merge-sha }}
+        run: git checkout --detach "$MERGE_SHA"
+
+      - uses: azure/setup-helm@v5.0.1
+        if: steps.tests.outputs.run == 'true'
+        with:
+          version: v3.21.0
+
+      - name: Resolve latest stable Minikube version
+        id: minikube
+        if: steps.tests.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(bash .github/workflows/scripts/latest-stable-minikube-version.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Using Minikube $version"
+
+      - name: Resolve latest stable Kubernetes supported by Minikube
+        id: kubernetes
+        if: steps.tests.outputs.run == 'true'
+        env:
+          MINIKUBE_VERSION: ${{ steps.minikube.outputs.version }}
+        run: |
+          version="$(bash .github/workflows/scripts/latest-stable-kubernetes-version.sh "$MINIKUBE_VERSION")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Using supported Kubernetes $version"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v5.2.0
+        if: steps.tests.outputs.run == 'true'
+        with:
+          version: ${{ steps.kubernetes.outputs.version }}
+
+      - name: Unload host MySQL AppArmor profile for PS/PXC tests
+        if: >-
+          !env.ACT &&
+          (matrix.product == 'ps' || matrix.product == 'pxc') &&
+          steps.tests.outputs.run == 'true'
+        run: bash .github/workflows/scripts/disable-app-armor-profiles.sh
+
+      - uses: manusa/actions-setup-minikube@v2.19.0
+        if: steps.tests.outputs.run == 'true'
+        with:
+          minikube version: ${{ steps.minikube.outputs.version }}
+          kubernetes version: ${{ steps.kubernetes.outputs.version }}
+          driver: docker
+          container runtime: containerd
+          start args: >-
+            --cpus=4
+            --memory=12gb
+            --base-image=gcr.io/k8s-minikube/kicbase:v0.0.51
+            --profile=minikube-${{ matrix.product }}-install
+            --force
+          github token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install operator and database
+        if: steps.tests.outputs.run == 'true'
+        run: |
+          version="$(
+            awk '$1 == "appVersion:" {
+              gsub(/"/, "", $2)
+              print $2
+              exit
+            }' "charts/${{ matrix.product }}-operator/Chart.yaml"
+          )"
+
+          .github/workflows/scripts/test-operator-deploy.sh \
+            install "${{ matrix.product }}" "--version=$version"
+
+      - name: Collect cluster logs
+        if: failure()
+        env:
+          MINIKUBE_PROFILE: minikube-${{ matrix.product }}-install
+        run: bash .github/workflows/scripts/collect-cluster-logs.sh
+
+      - name: Upload cluster logs
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: cluster-logs-${{ matrix.product }}-install
+          path: cluster-logs/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: |
+          minikube \
+            --profile "minikube-${{ matrix.product }}-install" \
+            delete || true
+
+  upgrade-test:
+    name: upgrade-${{ matrix.product }}
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER') &&
+       startsWith(github.event.comment.body, '/run-deploy-test'))
+    # PSMDB 8 cannot start on Linux kernels 6.19 through 7.0.13.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        product: [psmdb]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        if: ${{ !env.ACT }}
+        with:
+          fetch-depth: 0
+
+      - name: Detect tests
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPPORTED_OPERATORS: ${{ matrix.product }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == issue_comment ]]; then
+            .github/workflows/scripts/detect-comment.sh
+          else
+            .github/workflows/scripts/detect-changes.sh
+          fi
+
+      - name: Select tests
+        id: tests
+        env:
+          RUN_TEST: >-
+            ${{ steps.changes.outputs.should-run == 'true' &&
+                contains(fromJSON(steps.changes.outputs.jobs), 'upgrade') &&
+                contains(fromJSON(steps.changes.outputs.products), matrix.product) }}
+        run: echo "run=$RUN_TEST" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout PR merge
+        if: >-
+          !env.ACT &&
+          github.event_name == 'issue_comment' &&
+          steps.tests.outputs.run == 'true'
+        env:
+          MERGE_SHA: ${{ steps.changes.outputs.merge-sha }}
+        run: git checkout --detach "$MERGE_SHA"
+
+      - uses: azure/setup-helm@v5.0.1
+        if: steps.tests.outputs.run == 'true'
+        with:
+          version: v3.21.0
+
+      - name: Resolve latest stable Minikube version
+        id: minikube
+        if: steps.tests.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(bash .github/workflows/scripts/latest-stable-minikube-version.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Using Minikube $version"
+
+      - name: Resolve latest stable Kubernetes supported by Minikube
+        id: kubernetes
+        if: steps.tests.outputs.run == 'true'
+        env:
+          MINIKUBE_VERSION: ${{ steps.minikube.outputs.version }}
+        run: |
+          version="$(bash .github/workflows/scripts/latest-stable-kubernetes-version.sh "$MINIKUBE_VERSION")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Using supported Kubernetes $version"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v5.2.0
+        if: steps.tests.outputs.run == 'true'
+        with:
+          version: ${{ steps.kubernetes.outputs.version }}
+
+      - uses: manusa/actions-setup-minikube@v2.19.0
+        if: steps.tests.outputs.run == 'true'
+        with:
+          minikube version: ${{ steps.minikube.outputs.version }}
+          kubernetes version: ${{ steps.kubernetes.outputs.version }}
+          driver: docker
+          container runtime: containerd
+          start args: >-
+            --cpus=4
+            --memory=12gb
+            --base-image=gcr.io/k8s-minikube/kicbase:v0.0.51
+            --profile=minikube-${{ matrix.product }}-upgrade
+            --force
+          github token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install previous version and upgrade
+        if: >-
+          steps.tests.outputs.run == 'true' &&
+          steps.changes.outputs.base-sha != ''
+        env:
+          BASE_SHA: ${{ steps.changes.outputs.base-sha }}
+        run: |
+          version="$(
+            awk '$1 == "appVersion:" {gsub(/"/, "", $2); print $2; exit}' \
+              "charts/${{ matrix.product }}-operator/Chart.yaml"
+          )"
+
+          .github/workflows/scripts/test-operator-deploy.sh \
+            upgrade "${{ matrix.product }}" "--version=$version"
+
+      - name: Collect cluster logs
+        if: failure()
+        env:
+          MINIKUBE_PROFILE: minikube-${{ matrix.product }}-upgrade
+        run: bash .github/workflows/scripts/collect-cluster-logs.sh
+
+      - name: Upload cluster logs
+        if: failure()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: cluster-logs-${{ matrix.product }}-upgrade
+          path: cluster-logs/
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: |
+          minikube \
+            --profile "minikube-${{ matrix.product }}-upgrade" \
+            delete || true

@@ -1,0 +1,125 @@
+suite: ps-db haproxy
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders default haproxy structure
+    asserts:
+      - matchRegex:
+          path: spec.proxy.haproxy.image
+          pattern: '^percona/haproxy:.+$'
+      - isSubset:
+          path: spec.proxy.haproxy
+          content:
+            enabled: true
+            podDisruptionBudget:
+              maxUnavailable: 1
+            imagePullPolicy: Always
+            size: 3
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            annotations: {}
+            labels: {}
+            tolerations: []
+            nodeSelector: {}
+            resources:
+              requests:
+                cpu: 600m
+                memory: 1Gi
+              limits: {}
+            gracePeriod: 30
+
+  - it: renders changed default haproxy values
+    values:
+      - values/haproxy-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.proxy.haproxy
+          value:
+            enabled: true
+            podDisruptionBudget:
+              maxUnavailable: 2
+            image: changed-image:changed-tag
+            imagePullPolicy: IfNotPresent
+            imagePullSecrets:
+              - name: pull-secret
+            initContainer:
+              image: custom-init:tag
+              resources:
+                requests:
+                  cpu: 5m
+            size: 5
+            affinity:
+              antiAffinityTopologyKey: topology.kubernetes.io/zone
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+            priorityClassName: high-priority
+            annotations:
+              test: annotation
+            labels:
+              test: label
+            tolerations:
+              - key: test
+                operator: Exists
+                effect: NoSchedule
+            nodeSelector:
+              disktype: ssd
+            resources:
+              requests:
+                cpu: 1m
+                memory: 1Mi
+              limits:
+                cpu: 2m
+                memory: 2Mi
+            sidecarResources:
+              mysql-monit:
+                limits:
+                  cpu: 4m
+                requests:
+                  cpu: 3m
+            env:
+              - name: HA_CONNECTION_TIMEOUT
+                value: "1000"
+            envFrom:
+              - secretRef:
+                  name: haproxy-env-secret
+            startupProbe:
+              timeoutSeconds: 43200
+            livenessProbe:
+              timeoutSeconds: 4
+            readinessProbe:
+              timeoutSeconds: 3
+            gracePeriod: 60
+            configuration: |
+              global
+                maxconn 2048
+            schedulerName: custom-scheduler
+            containerSecurityContext:
+              privileged: false
+            podSecurityContext:
+              fsGroup: 1001
+            serviceAccountName: workload-sa
+            runtimeClassName: image-rc
+            expose:
+              type: LoadBalancer
+              loadBalancerSourceRanges:
+                - 10.0.0.0/8
+
+  - it: renders disabled haproxy with zero size
+    set:
+      proxy.haproxy.enabled: false
+    asserts:
+      - matchRegex:
+          path: spec.proxy.haproxy.image
+          pattern: '^percona/haproxy:.+$'
+      - isSubset:
+          path: spec.proxy.haproxy
+          content:
+            enabled: false
+            size: 0
+      - notExists:
+          path: spec.proxy.haproxy.resources
