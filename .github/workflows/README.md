@@ -20,7 +20,7 @@ charts in this repository.
 
 The [`test-operator-deploy.yaml`](./test-operator-deploy.yaml) workflow
 uses an installation matrix for `psmdb`, `pxc`, `ps`, and `pg`, and a separate
-upgrade matrix limited to `psmdb`. PXC, PS, and PG install a separate
+upgrade matrix for `psmdb` and `pg`. PXC and PS install a separate
 `<product>-operator-crds` chart first when it exists, then install the operator
 with `--skip-crds`. Otherwise, the operator installs its embedded CRDs.
 Operators watch all namespaces so they can reconcile database resources in
@@ -50,7 +50,7 @@ instance, a 2 GiB data volume, and the required unsafe size flags. MySQL
 auto-configuration, Router, Orchestrator, and backups are disabled; the log
 collector stays enabled. Smaller resource requests and disabled host
 anti-affinity keep this configuration suitable for the single-node CI cluster.
-The detailed lifecycle checks below apply to PSMDB:
+The detailed lifecycle checks below apply to PSMDB and PG:
 
 - `install-test`: installs the current CRD, operator, and database charts.
 - `upgrade-test`: reads chart versions from `BASE_SHA`, installs those versions
@@ -75,12 +75,6 @@ This prevents a development repository change from replacing database pods
 during the operator-only stability check. The database upgrade removes this
 temporary override with `--reset-values`. Released `percona` operator images
 do not use this pin.
-The test saves the previous images for a per-operator list of components and
-passes that snapshot to the pin function. A separate operator case selects the
-Helm fields to override. Initially only PSMDB's `mongo-init` is configured;
-PMM and other components are not overridden, and upgrade coverage remains
-limited to PSMDB.
-
 The test configuration enables sharding with one replica set member, one config
 server, and one mongos instance. The required replica set and mongos unsafe
 flags are enabled for this single-node test configuration.

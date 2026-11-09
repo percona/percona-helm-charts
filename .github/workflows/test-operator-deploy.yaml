@@ -3,19 +3,10 @@ name: operator-test
 on:
   pull_request:
     paths:
-      - 'charts/psmdb-operator/**'
-      - '!charts/psmdb-operator/crds/**'
-      - 'charts/psmdb-operator-crds/**'
-      - 'charts/psmdb-db/**'
-      - 'charts/pxc-operator/**'
-      - 'charts/pxc-operator-crds/**'
-      - 'charts/pxc-db/**'
-      - 'charts/ps-operator/**'
-      - 'charts/ps-operator-crds/**'
-      - 'charts/ps-db/**'
-      - 'charts/pg-operator/**'
-      - 'charts/pg-operator-crds/**'
-      - 'charts/pg-db/**'
+      - 'charts/*-operator/**'
+      - '!charts/*-operator/crds/**'
+      - 'charts/*-operator-crds/**'
+      - 'charts/*-db/**'
       - '.github/workflows/test-operator-deploy.yaml'
       - '.github/workflows/scripts/collect-cluster-logs.sh'
       - '.github/workflows/scripts/detect-changes.sh'
@@ -70,9 +61,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        product: [psmdb, pxc, ps, pg]
+        include:
+          - product: psmdb
+            supportedCharts:
+              - psmdb-operator
+              - psmdb-operator-crds
+              - psmdb-db
+          - product: pxc
+            supportedCharts:
+              - pxc-operator
+              - pxc-operator-crds
+              - pxc-db
+          - product: ps
+            supportedCharts:
+              - ps-operator
+              - ps-operator-crds
+              - ps-db
+          - product: pg
+            supportedCharts:
+              - pg-operator
+              - pg-operator-crds
+              - pg-db
     env:
-      SUPPORTED_CHARTS: psmdb-operator,psmdb-operator-crds,psmdb-db,pxc-operator,pxc-operator-crds,pxc-db,ps-operator,ps-operator-crds,ps-db,pg-operator,pg-operator-crds,pg-db
+      SUPPORTED_CHARTS: ${{ join(matrix.supportedCharts, ',') }}
       SUPPORTED_JOBS: install
     steps:
       - uses: actions/checkout@v7.0.1
@@ -211,10 +222,29 @@ jobs:
     # PSMDB 8 cannot start on Linux kernels 6.19 through 7.0.13.
     runs-on: ubuntu-22.04
     timeout-minutes: 40
+    env:
+      SUPPORTED_CHARTS: ${{ join(matrix.supportedCharts, ',') }}
+      SUPPORTED_JOBS: ${{ join(matrix.supportedJobs, ',') }}
     strategy:
       fail-fast: false
       matrix:
-        product: [psmdb]
+        include:
+          - product: psmdb
+            supportedCharts:
+              - psmdb-operator
+              - psmdb-operator-crds
+              - psmdb-db
+            supportedJobs:
+              - install
+              - upgrade
+          - product: pg
+            supportedCharts:
+              - pg-operator
+              - pg-operator-crds
+              - pg-db
+            supportedJobs:
+              - install
+              - upgrade
     steps:
       - uses: actions/checkout@v7.0.1
         if: ${{ !env.ACT }}
