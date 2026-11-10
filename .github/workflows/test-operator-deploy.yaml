@@ -46,7 +46,7 @@ env:
 
 jobs:
   install-test:
-    name: install-${{ matrix.product }}
+    name: install-test
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' &&
@@ -193,7 +193,7 @@ jobs:
             delete || true
 
   upgrade-test:
-    name: upgrade-${{ matrix.product }}
+    name: upgrade-test
     if: >-
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
       (github.event_name == 'issue_comment' &&
