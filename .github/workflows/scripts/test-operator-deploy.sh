@@ -98,11 +98,17 @@ configure() {
       ;;
   esac
 
+  if [[ "$product" == ps ]]; then
+    operator_log_args=(--set env.logLevel=DEBUG)
+  else
+    operator_log_args=(--set logLevel=DEBUG)
+  fi
+
   operator="${product}-operator"
   crd="${product}-operator-crds"
   db="${product}-db"
   cluster="test-${db}"
-  workload_selector="$workload_label=$cluster"
+  workload_selector="$workload_label=$cluster,!job-name,!batch.kubernetes.io/job-name"
   local values_file=".github/workflows/files/minimal-${product}-values.yaml"
   [[ -f "$values_file" ]] || die "Test values not found: $values_file"
   db_args=(-f "$values_file")
@@ -246,7 +252,7 @@ wait_ready() {
   return 1
 }
 
-database_pod_state() {
+cluster_pods_state() {
   local pods
 
   pods="$(
@@ -256,23 +262,23 @@ database_pod_state() {
       --output json
   )"
 
-  if ! jq --exit-status '.items | length > 0' <<<"$pods" >/dev/null; then
-    echo "No database pods found for $cluster" >&2
-    return 1
-  fi
-
-  jq --compact-output '
-    [.items[] | {
-      name: .metadata.name,
-      uid: .metadata.uid,
-      containers: (
-        ((.status.initContainerStatuses // []) +
-         (.status.containerStatuses // []) +
-         (.status.ephemeralContainerStatuses // [])) |
-        map({name, restartCount}) |
-        sort_by(.name)
-      )
-    }] | sort_by(.name)
+  jq --compact-output --exit-status --arg cluster "$cluster" '
+    [.items[] |
+      select((.metadata.ownerReferences // [] | map(.kind) | index("Job")) == null) |
+      {
+        name: .metadata.name,
+        uid: .metadata.uid,
+        containers: (
+          ((.status.initContainerStatuses // []) +
+           (.status.containerStatuses // []) +
+           (.status.ephemeralContainerStatuses // [])) |
+          map({name, restartCount}) |
+          sort_by(.name)
+        )
+      }
+    ] |
+    if length == 0 then error("No non-Job cluster pods found for " + $cluster)
+    else sort_by(.name) end
   ' <<<"$pods"
 }
 
@@ -287,28 +293,24 @@ verify_operator_ready() {
     --timeout 5m
 }
 
-verify_database_stability() {
-  local before=$1
-  local after
+verify_cluster_stability() {
+  local cluster_state_before=$1
+  local context=${2:-operator upgrade}
+  local cluster_state_after
 
-  echo "Operator $operator is ready; checking database pod stability for 60 seconds"
-  sleep 60
+  echo "Checking cluster pod stability after $context for 120 seconds"
+  sleep 120
+  wait_ready
+  cluster_state_after="$(cluster_pods_state)"
 
-  kubectl wait pods \
-    --namespace "$database_namespace" \
-    --selector "$workload_selector" \
-    --for condition=Ready \
-    --timeout 5m
-  after="$(database_pod_state)"
-
-  if [[ "$before" != "$after" ]]; then
-    echo "A database pod was replaced or a container restarted after the operator upgrade" >&2
-    echo "Before: $before" >&2
-    echo "After:  $after" >&2
+  if [[ "$cluster_state_before" != "$cluster_state_after" ]]; then
+    echo "A cluster pod was replaced or a container restarted after the $context" >&2
+    echo "Cluster state before: $cluster_state_before" >&2
+    echo "Cluster state after:  $cluster_state_after" >&2
     return 1
   fi
 
-  echo "Database pods remained stable without restarts for 60 seconds"
+  echo "Cluster pods remained stable without restarts after the $context"
 }
 
 validate_crds() {
@@ -376,6 +378,7 @@ install_operator_chart() {
   [[ -z "$version" ]] || operator_args+=(--version "$version")
   [[ "$use_target_image" != true ]] || operator_args+=("${operator_image_args[@]}")
   operator_args+=(--set watchAllNamespaces=true)
+  operator_args+=("${operator_log_args[@]}")
   if [[ -f "charts/$crd/Chart.yaml" ]]; then
     operator_args+=(--skip-crds)
   fi
@@ -499,25 +502,28 @@ pin_baseline_init_images() {
 }
 
 upgrade_operator() {
-  local database_state
+  local cluster_state_before
+  local operator_args=(--set watchAllNamespaces=true)
+  operator_args+=("${operator_log_args[@]}")
 
-  database_state="$(database_pod_state)"
+  cluster_state_before="$(cluster_pods_state)"
   upgrade_crd
   helm upgrade "$operator" "charts/$operator" \
     --namespace "$operator_namespace" \
     --wait \
     --timeout 10m \
-    --set watchAllNamespaces=true \
+    "${operator_args[@]}" \
     "${operator_image_args[@]}"
   verify_operator_ready
-  verify_database_stability "$database_state"
+  verify_cluster_stability "$cluster_state_before" "operator upgrade"
 }
 
 upgrade_database() {
-  local cr_version_before cr_version_after generations_before
+  local cr_version_before cr_version_after generations_before cluster_state_before
 
   cr_version_before="$(get_cr_version)"
   generations_before="$(save_generations)"
+  cluster_state_before="$(cluster_pods_state)"
   log "CR version before upgrade: ${cr_version_before:-unset}"
   log "Workload generations before upgrade: $generations_before"
 
@@ -530,9 +536,8 @@ upgrade_database() {
   log "CR version after upgrade: ${cr_version_after:-unset}"
 
   if [[ "$cr_version_before" == "$cr_version_after" ]]; then
-    log "CR version unchanged: waiting 60 seconds before readiness checks"
-    sleep 60
-    wait_ready
+    log "CR version unchanged: checking database pod stability after chart upgrade"
+    verify_cluster_stability "$cluster_state_before" "database chart upgrade"
     return
   fi
 
