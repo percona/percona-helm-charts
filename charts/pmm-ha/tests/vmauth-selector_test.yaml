@@ -8,7 +8,7 @@ release:
   name: smoke
   namespace: pmm
 set:
-  gitops.enabled: true
+  offlineRender.enabled: true
 tests:
   - it: selects the VMUser on a label Argo CD label tracking does not rewrite
     asserts:

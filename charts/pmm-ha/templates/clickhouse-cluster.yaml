@@ -1,7 +1,7 @@
-{{- $clickhouseUser := include "pmm.secret.key" (dict "ctx" $ "key" "PMM_CLICKHOUSE_USER" "override" (.Values.secret.clickhouse_user | default "clickhouse_pmm")) | b64dec }}
+{{- $clickhouseUser := include "pmm.clickhouse.user" . }}
 {{- $datasourceUser := include "pmm.clickhouse.datasourceUser" . }}
 {{- $datasourcePassword := "" }}
-{{- if not .Values.gitops.enabled }}
+{{- if not .Values.offlineRender.enabled }}
 {{- $datasourcePassword = include "pmm.clickhouse.datasourcePassword" . }}
 {{- end }}
 {{- $clickhouseDatabase := .Values.pmmEnv.PMM_CLICKHOUSE_DATABASE | default "pmm" }}
@@ -128,7 +128,7 @@ spec:
           </profiles>
           <users>
             <{{ $datasourceUser }}>
-              {{- if .Values.gitops.enabled }}
+              {{- if .Values.offlineRender.enabled }}
               {{- /* Substituted by ClickHouse from the container environment when it loads the
                      file, so the password is never part of the rendered manifest. */}}
               <password from_env="PMM_CLICKHOUSE_DATASOURCE_PASSWORD"/>
@@ -224,7 +224,7 @@ spec:
                   protocol: TCP
               resources:
                 {{- toYaml .Values.clickhouse.resources | nindent 16 }}
-              {{- if .Values.gitops.enabled }}
+              {{- if .Values.offlineRender.enabled }}
               # Read by users.d/pmm-datasource-user.xml through from_env.
               env:
                 - name: PMM_CLICKHOUSE_DATASOURCE_PASSWORD

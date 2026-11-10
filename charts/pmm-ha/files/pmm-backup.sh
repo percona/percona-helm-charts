@@ -3747,8 +3747,9 @@ scale_down_pmm() {
     fi
     # Stash the count so an interrupted/re-run restore can recover the true original.
     kubectl annotate statefulset "${PMM_STATEFULSET_NAME}" -n "${NAMESPACE}" "restore.pmm.percona.com/original-replicas=${PMM_SAVED_REPLICAS}" --overwrite >> "${LOG_FILE}" 2>&1 || true
-    # Field manager pmm-backup lets Argo CD ignore the 0 only while the restore holds it; scale_up_pmm keeps the default
-    # manager, which takes the field back (PMM-15826). A plain patch: writes through /scale are not in managedFields.
+    # Field manager pmm-backup lets Argo CD ignore the 0 only while the restore holds it; scale_up_pmm's `kubectl scale`
+    # writes as the default manager (a /scale write is in managedFields too, subresource: scale) and takes the field back
+    # (PMM-15826). A patch rather than `kubectl scale`, because only a patch takes --field-manager.
     kubectl patch statefulset "${PMM_STATEFULSET_NAME}" -n "${NAMESPACE}" --type=merge -p '{"spec":{"replicas":0}}' --field-manager=pmm-backup >> "${LOG_FILE}" 2>&1 || { log "ERROR" "Failed to scale down PMM"; return 1; }
     log "INFO" "Scaled down PMM ${PMM_STATEFULSET_NAME} to 0 (restore to ${PMM_SAVED_REPLICAS} on success)"
     wait_for_pods_gone "${NAMESPACE}" "$(comp_pod_selector pmm-server)" || { log "ERROR" "PMM pods did not terminate"; return 1; }

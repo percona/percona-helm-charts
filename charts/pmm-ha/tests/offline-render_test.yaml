@@ -1,8 +1,8 @@
-# gitops.enabled must render the same manifest with or without a cluster to ask, because that is
-# what Argo CD and Flux do: `helm template`, where lookup returns nothing. The cases that matter
-# fake a pmm-secret for lookup and assert that the render ignores it. vmauth.yaml's gitops output
-# is asserted in pmm-ha-pr-checks.yaml.
-suite: pmm-ha gitops
+# offlineRender.enabled must render the same manifest with or without a cluster to ask, because that is
+# what Argo CD does: `helm template`, where lookup returns nothing. The cases that matter fake a
+# pmm-secret for lookup and assert that the render ignores it. vmauth.yaml's offline output is
+# asserted in pmm-ha-pr-checks.yaml.
+suite: pmm-ha offline render
 templates:
   - templates/statefulset.yaml
   - templates/configmap.yaml
@@ -12,12 +12,12 @@ templates:
   - templates/haproxy-tls-secret.yaml
   - templates/haproxy-configmap.yaml
   - templates/pg-pmm-token-job.yaml
-  - templates/backup-scripts-configmap.yaml
+  - templates/pmm-secret-init-job.yaml
 release:
   name: smoke
   namespace: pmm
 set:
-  gitops.enabled: true
+  offlineRender.enabled: true
 kubernetesProvider:
   scheme:
     "v1/Secret": {gvr: {version: v1, resource: secrets}, namespaced: true}
@@ -116,26 +116,45 @@ tests:
           path: data["haproxy.cfg"]
           pattern: 'ssl-load-extra-del-ext'
 
-  - it: keeps the finished token Job, so it is not reported missing once a TTL removes it
-    template: templates/pg-pmm-token-job.yaml
-    documentSelector: {path: kind, value: Job}
+  - it: takes PMM Server's usernames from the values ClickHouse and the VMUser use, not from the secret
+    template: templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: PMM_CLICKHOUSE_USER, value: clickhouse_pmm}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: PMM_HA_VM_USERNAME, value: victoriametrics_pmm}
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content: {name: PMM_CLICKHOUSE_USER, value: clickhouse_pmm}
+
+  - it: makes the encryption-key Job an ordinary resource, not a hook Argo CD re-runs on every sync
+    template: templates/pmm-secret-init-job.yaml
     asserts:
       - notExists:
+          path: metadata.annotations["helm.sh/hook"]
+      - matchRegex:
+          path: metadata.name
+          pattern: ^smoke-secret-init-[0-9a-f]{8}$
+        documentSelector: {path: kind, value: Job}
+      - notExists:
           path: spec.ttlSecondsAfterFinished
+        documentSelector: {path: kind, value: Job}
 
   - it: refuses secret.create
     template: templates/statefulset.yaml
     set: {secret.create: true}
     asserts:
       - failedTemplate:
-          errorPattern: "gitops.enabled requires secret.create=false"
+          errorPattern: "offlineRender.enabled requires secret.create=false"
 
   - it: refuses a data source password in values
     template: templates/statefulset.yaml
     set: {clickhouse.datasource.password: x}
     asserts:
       - failedTemplate:
-          errorPattern: "clickhouse.datasource.password is not used with gitops.enabled"
+          errorPattern: "clickhouse.datasource.password is not used with offlineRender.enabled"
 
   - it: refuses an unknown tls.secretFormat
     template: templates/statefulset.yaml
@@ -146,15 +165,14 @@ tests:
 
   - it: refuses kubernetes.io/tls for a secret the chart would create
     template: templates/statefulset.yaml
-    set: {gitops.enabled: false, secret.requireExisting: false, tls.secretFormat: kubernetes.io/tls}
+    set: {offlineRender.enabled: false, secret.requireExisting: false, tls.secretFormat: kubernetes.io/tls}
     asserts:
       - failedTemplate:
           errorPattern: "describes a secret the chart does not create"
 
-  - it: marks the backup-scripts ConfigMap for server-side apply (too large for client-side apply)
-    template: templates/backup-scripts-configmap.yaml
-    set: {centralBackupStorage: {enabled: true, mode: s3, s3: {bucket: bk}}}
+  - it: refuses tls.existingTLSSecret, which only the certificate secret it does not render reads
+    template: templates/statefulset.yaml
+    set: {tls.existingTLSSecret: my-tls}
     asserts:
-      - equal:
-          path: metadata.annotations["argocd.argoproj.io/sync-options"]
-          value: ServerSideApply=true
+      - failedTemplate:
+          errorPattern: "tls.existingTLSSecret is not used with offlineRender.enabled"

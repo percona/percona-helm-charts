@@ -116,7 +116,7 @@ exists carrying no data at all.
 */}}
 {{- define "pmm.secret.cached" -}}
 {{- if not (hasKey .Values "cachedPmmSecret") -}}
-{{- if .Values.gitops.enabled -}}
+{{- if .Values.offlineRender.enabled -}}
 {{- $_ := set .Values "cachedPmmSecret" dict -}}
 {{- else -}}
 {{- $_ := set .Values "cachedPmmSecret" (lookup "v1" "Secret" .Release.Namespace .Values.secret.name) -}}
@@ -125,25 +125,36 @@ exists carrying no data at all.
 {{- end -}}
 
 {{/*
-gitops.enabled renders without the cluster, so every value the default path would read back from
-it or generate has to come from somewhere fixed instead. Refuse the settings that would bring the
-nondeterminism back, rather than rendering a different secret on every Argo CD refresh.
+tls.secretFormat describes a certificate secret the chart does not create itself.
 Called from statefulset.yaml, which always renders.
 */}}
-{{- define "pmm.gitops.validate" -}}
+{{- define "pmm.tls.validate" -}}
 {{- $format := .Values.tls.secretFormat | default "pem" -}}
 {{- if not (has $format (list "pem" "kubernetes.io/tls")) -}}
 {{- fail (printf "tls.secretFormat must be \"pem\" or \"kubernetes.io/tls\", got %q" $format) -}}
 {{- end -}}
-{{- if and (eq $format "kubernetes.io/tls") (not .Values.gitops.enabled) (not .Values.tls.manualSecret) -}}
-{{- fail "tls.secretFormat=kubernetes.io/tls describes a secret the chart does not create: set tls.manualSecret=true (or gitops.enabled=true) and create the secret, or leave tls.secretFormat at pem." -}}
+{{- if and (eq $format "kubernetes.io/tls") (not .Values.offlineRender.enabled) (not .Values.tls.manualSecret) -}}
+{{- fail "tls.secretFormat=kubernetes.io/tls describes a secret the chart does not create: set tls.manualSecret=true (or offlineRender.enabled=true) and create the secret, or leave tls.secretFormat at pem." -}}
 {{- end -}}
-{{- if .Values.gitops.enabled -}}
+{{- end -}}
+
+{{/*
+offlineRender.enabled renders without the cluster, so every value the default path would read back from
+it or generate has to come from somewhere fixed instead. Refuse the settings that would bring the
+nondeterminism back, rather than rendering a different secret on every Argo CD refresh, and the ones
+that would silently do nothing.
+Called from statefulset.yaml, which always renders.
+*/}}
+{{- define "pmm.offlineRender.validate" -}}
+{{- if .Values.offlineRender.enabled -}}
+{{- if and .Values.haproxy.enabled .Values.tls.enabled (not .Values.tls.manualSecret) .Values.tls.existingTLSSecret -}}
+{{- fail (printf "tls.existingTLSSecret is not used with offlineRender.enabled: the chart does not create %q, so it has nothing to copy the certificate into. Point tls.pemSecretName at %q and set tls.secretFormat=kubernetes.io/tls, and unset tls.existingTLSSecret." .Values.tls.pemSecretName .Values.tls.existingTLSSecret) -}}
+{{- end -}}
 {{- if .Values.secret.create -}}
-{{- fail "gitops.enabled requires secret.create=false: secret.create generates passwords at render time, and an offline render cannot see the ones it generated before, so every Argo CD refresh would rotate them. Create the secret out of band (External Secrets, Sealed Secrets, SOPS or kubectl) before the first sync." -}}
+{{- fail "offlineRender.enabled requires secret.create=false: secret.create generates passwords at render time, and an offline render cannot see the ones it generated before, so every Argo CD refresh would rotate them. Create the secret out of band (External Secrets, Sealed Secrets, SOPS or kubectl) before the first sync." -}}
 {{- end -}}
 {{- if .Values.clickhouse.datasource.password -}}
-{{- fail (printf "clickhouse.datasource.password is not used with gitops.enabled: the data source password is read from the PMM_CLICKHOUSE_DATASOURCE_PASSWORD key of secret '%s' at runtime. Move it there and unset clickhouse.datasource.password." .Values.secret.name) -}}
+{{- fail (printf "clickhouse.datasource.password is not used with offlineRender.enabled: the data source password is read from the PMM_CLICKHOUSE_DATASOURCE_PASSWORD key of secret '%s' at runtime. Move it there and unset clickhouse.datasource.password." .Values.secret.name) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -637,7 +648,7 @@ Helm still reports success. Offline renders skip this (`lookup`), OpenShift's re
 the context in, and pgDbPmmSidecarPatched acknowledges the manual patch in the README.
 */}}
 {{- define "pmm.podSecurity.validate" -}}
-{{- if and (index .Values "pg-db" "pmm" "enabled") (not .Values.openshift) (not .Values.pgDbPmmSidecarPatched) (not .Values.gitops.enabled) -}}
+{{- if and (index .Values "pg-db" "pmm" "enabled") (not .Values.openshift) (not .Values.pgDbPmmSidecarPatched) (not .Values.offlineRender.enabled) -}}
 {{- $ns := lookup "v1" "Namespace" "" .Release.Namespace -}}
 {{- $enforce := dig "metadata" "labels" "pod-security.kubernetes.io/enforce" "" ($ns | default dict) -}}
 {{- if eq $enforce "restricted" -}}
@@ -838,6 +849,15 @@ them.
 */}}
 {{- define "pmm.clickhouse.datasourceSecretName" -}}
 {{- printf "%s-clickhouse-datasource" (include "pmm.fullname" .) -}}
+{{- end -}}
+
+{{/*
+Username PMM Server writes Query Analytics data with: the PMM_CLICKHOUSE_USER key of the secret,
+else secret.clickhouse_user. The ClickHouseInstallation creates it under this name, and with
+offlineRender.enabled PMM Server takes it from here too, so the two cannot disagree.
+*/}}
+{{- define "pmm.clickhouse.user" -}}
+{{- include "pmm.secret.key" (dict "ctx" . "key" "PMM_CLICKHOUSE_USER" "override" (.Values.secret.clickhouse_user | default "clickhouse_pmm")) | b64dec -}}
 {{- end -}}
 
 {{/*
@@ -1156,10 +1176,9 @@ Name of the pg-db PMM token-init Job, suffixed with a hash of its own pod templa
 A Job's spec.template is immutable, and this Job carries no helm.sh/hook annotations, so Helm
 treats it as an ordinary release resource and patches it on upgrade. Any change to the script
 or to an env value would then fail the upgrade with `spec.template: field is immutable` for as
-long as the previous Job exists - ttlSecondsAfterFinished bounds that to 24h after it
-completed, so it only bites an upgrade that follows soon after an install, which is exactly
-what CI (fresh `ct install` only) never exercises. With the hash in the name such a change
-renames the resource instead, and Helm creates the new Job and prunes the old one.
+long as the previous Job exists, which CI (fresh `ct install` only) never exercises. With the
+hash in the name such a change renames the resource instead, and Helm creates the new Job and
+prunes the old one. That is also why the Job has no TTL: the rename already replaces it.
 
 The release name is truncated, rather than the finished string, so the result stays within the
 63-character limit that applies to the `job-name` label Kubernetes puts on the Job's pods while
@@ -1297,8 +1316,8 @@ Only what the chart can see is checked. A generated password is alphanumeric, an
 secret is read here through the same memoised lookup every other consumer uses.
 */}}
 {{- define "pmm.vm.validateCredential" -}}
-{{- /* gitops.enabled never sees the secret, and would only validate a password it is not going to use. */ -}}
-{{- if not .Values.gitops.enabled -}}
+{{- /* offlineRender.enabled never sees the secret, and would only validate a password it is not going to use. */ -}}
+{{- if not .Values.offlineRender.enabled -}}
 {{- $username := include "pmm.vm.username" . -}}
 {{- $password := include "pmm.vm.password" . -}}
 {{- if not (regexMatch "^[A-Za-z0-9._~!$&'()*+,;=@-]+$" $username) -}}

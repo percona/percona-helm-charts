@@ -180,31 +180,31 @@ jobs:
           helm template smoke charts/pmm-ha --kube-version v1.32.3-eks-4c9d2b1 \
             --set secret.create=true > /dev/null
 
-      # gitops.enabled is the path Argo CD and Flux take: a client-side render, where lookup returns
+      # offlineRender.enabled is the path Argo CD takes: a client-side render, where lookup returns
       # nothing. It has to succeed with no cluster and come out identical every time, or the
       # application never settles - a generated password or certificate would show as drift on
       # every refresh. Two whole renders are compared, which helm unittest cannot do.
-      - name: Check gitops render
+      - name: Check offline render
         run: |
           set -euo pipefail
           render() {
-            helm template pmm-ha charts/pmm-ha -n pmm --set gitops.enabled=true "$@"
+            helm template pmm-ha charts/pmm-ha -n pmm --set offlineRender.enabled=true "$@"
           }
           first=$(render)
           second=$(render)
           if [[ "$first" != "$second" ]]; then
-            echo "::error::gitops render differs between two renders"
+            echo "::error::offline render differs between two renders"
             diff <(echo "$first") <(echo "$second") | head -40
             exit 1
           fi
           if grep -q '^kind: Secret$' <<<"$first"; then
-            echo "::error::gitops render contains a Secret; every credential must be referenced at runtime"
+            echo "::error::offline render contains a Secret; every credential must be referenced at runtime"
             exit 1
           fi
           grep -q '^kind: VMUser$' <<<"$first"
           grep -q 'key: PMM_HA_VM_PASSWORD' <<<"$first"
           if grep -q 'configSecret:' <<<"$first"; then
-            echo "::error::gitops VMAuth still points at a config secret"
+            echo "::error::offline VMAuth still points at a config secret"
             exit 1
           fi
           render -f charts/pmm-ha/examples/values-openshift.yaml > /dev/null
