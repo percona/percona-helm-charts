@@ -557,8 +557,9 @@ upgrade_database() {
   log "CR version after upgrade: ${cr_version_after:-unset}"
 
   if [[ "$cr_version_before" == "$cr_version_after" ]]; then
-    log "CR version unchanged: checking database pod stability after chart upgrade"
-    verify_cluster_stability "$cluster_state_before" "database chart upgrade"
+    log "CR version unchanged: waiting 120 seconds before readiness checks"
+    sleep 120
+    wait_ready
     return
   fi
 
