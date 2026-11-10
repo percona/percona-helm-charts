@@ -16,10 +16,15 @@ log() {
   printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"
 }
 
+# Overrides the operator and init images only for perconalab images.
+# A released percona image keeps the chart defaults.
 resolve_operator_image() {
   local selector=$1
   local released=false
   local manifest_error=''
+
+  operator_image_args=()
+  init_image_args=()
 
   case "$selector" in
     --version=*)
@@ -39,8 +44,12 @@ resolve_operator_image() {
     die "Invalid container image tag: $image_tag"
 
   operator_image="$image_repository:$image_tag"
-  if [[ "$released" == true ]] &&
-    ! manifest_error="$(docker manifest inspect "$operator_image" 2>&1 >/dev/null)"; then
+  if [[ "$released" == true ]]; then
+    if manifest_error="$(docker manifest inspect "$operator_image" 2>&1 >/dev/null)"; then
+      echo "$operator_image is released; using the chart default operator and init images"
+      return 0
+    fi
+
     if ! grep -Eiq 'manifest unknown|no such manifest|not found' \
       <<<"$manifest_error"; then
       die "Could not inspect $operator_image: $manifest_error"
@@ -59,6 +68,15 @@ resolve_operator_image() {
       --set "image.repository=$image_repository"
       --set "image.tag=$image_tag"
     )
+  fi
+
+  if [[ "$product" == psmdb ]]; then
+    init_image_args=(
+      --set "initImage.repository=$image_repository"
+      --set "initImage.tag=$image_tag"
+    )
+  else
+    init_image_args=(--set "initContainer.image=$operator_image")
   fi
 }
 
@@ -394,9 +412,11 @@ install_operator_chart() {
 install_database_chart() {
   local source=$1
   local version=${2:-}
+  local use_target_image=${3:-false}
   local version_args=()
 
   [[ -z "$version" ]] || version_args+=(--version "$version")
+  [[ "$use_target_image" != true ]] || version_args+=("${init_image_args[@]}")
 
   helm install test "$source" \
     --namespace "$database_namespace" \
@@ -417,7 +437,7 @@ install_current_charts() {
     install_crd_chart "charts/$crd"
   fi
   install_operator_chart "charts/$operator" '' true
-  install_database_chart "charts/$db"
+  install_database_chart "charts/$db" '' true
 }
 
 install_previous_charts() {
@@ -530,7 +550,8 @@ upgrade_database() {
   helm upgrade test "charts/$db" \
     --namespace "$database_namespace" \
     --reset-values \
-    "${db_args[@]}"
+    "${db_args[@]}" \
+    "${init_image_args[@]}"
 
   cr_version_after="$(get_cr_version)"
   log "CR version after upgrade: ${cr_version_after:-unset}"
