@@ -296,7 +296,7 @@ verify_database_stability() {
 
   kubectl wait pods \
     --namespace "$database_namespace" \
-    --selector "app.kubernetes.io/instance=$cluster" \
+    --selector "$workload_selector" \
     --for condition=Ready \
     --timeout 5m
   after="$(database_pod_state)"
@@ -358,7 +358,7 @@ install_crd_chart() {
 upgrade_crd() {
   local manifest="charts/$operator/crds/crd.yaml"
 
-  kubectl apply --server-side -f "$manifest"
+  kubectl apply --server-side --force-conflicts -f "$manifest"
   if [[ "$product" == psmdb ]]; then
     validate_crds
   else

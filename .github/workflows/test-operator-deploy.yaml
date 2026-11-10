@@ -5,6 +5,7 @@ on:
     paths:
       - 'charts/*-operator/**'
       - '!charts/*-operator/crds/**'
+      - 'charts/**-operator/crds/**'
       - 'charts/*-operator-crds/**'
       - 'charts/*-db/**'
       - '.github/workflows/test-operator-deploy.yaml'
