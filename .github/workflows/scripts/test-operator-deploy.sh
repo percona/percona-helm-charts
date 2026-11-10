@@ -356,16 +356,14 @@ install_crd_chart() {
 }
 
 upgrade_crd() {
+  local manifest="charts/$operator/crds/crd.yaml"
+
+  kubectl apply --server-side -f "$manifest"
   if [[ "$product" == psmdb ]]; then
-    helm upgrade "$crd" "charts/$crd" \
-      --namespace "$operator_namespace" \
-      --wait \
-      --timeout 5m
     validate_crds
   else
-    kubectl apply -f "charts/$operator/crds/crd.yaml"
     kubectl wait --for condition=Established --timeout 2m \
-      -f "charts/$operator/crds/crd.yaml"
+      -f "$manifest"
   fi
 }
 
