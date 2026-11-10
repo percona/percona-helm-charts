@@ -789,7 +789,9 @@ upgrade if it is missing, because without it PMM would silently keep its built-i
 For a release that was already installed without the key, adding it and upgrading is not enough:
 Grafana applies `GF_SECURITY_ADMIN_PASSWORD` only when it first creates the `admin` user, so the
 password has to be reset out of band (`change-admin-password` in the PMM container, or the Grafana
-API) before `<release>-pmm-token-init` stops getting 401.
+API) before `<release>-pmm-token-init` stops getting 401. PMM 3.11 and later reject a password that
+doesn't meet their password policy; to reset to one anyway, run
+`env GF_AUTH_BASIC_PASSWORD_POLICY=false change-admin-password <password>`.
 
 To get admin password execute:
 

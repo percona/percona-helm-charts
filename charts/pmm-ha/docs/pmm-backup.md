@@ -2070,9 +2070,12 @@ data transfer:
   cross-instance restore the admin password is the SOURCE instance's
   `PMM_ADMIN_PASSWORD`, not the target's secret. Either update the target's PMM secret
   to match, or reset PMM to the target's value — `<secret-name>` is the chart's
-  `secret.name` (default `pmm-secret`):
+  `secret.name` (default `pmm-secret`). PMM 3.11 and later only accept a password of 12+
+  characters with upper- and lowercase letters, a digit and a symbol. A chart-generated
+  password has no symbol, so the reset turns that password policy off for this command only:
   ```bash
-  kubectl exec -n <ns> <pmm-pod-0> -c pmm-ha -- change-admin-password \
+  kubectl exec -n <ns> <pmm-pod-0> -c pmm-ha -- env GF_AUTH_BASIC_PASSWORD_POLICY=false \
+    change-admin-password \
     "$(kubectl get secret <secret-name> -n <ns> -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 -d)"
   ```
 - **PG monitoring token**: the target's `pg-pmm-secret` service token was minted in the
