@@ -1,4 +1,4 @@
-name: unit-test
+name: test-chart
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ on:
 
 jobs:
   unit-test:
-    name: ${{ matrix.chart }}
+    name: unit-test
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
