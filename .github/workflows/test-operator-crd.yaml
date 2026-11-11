@@ -1,4 +1,4 @@
-name: crd-test
+name: operator-test
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   crd-test:
-    name: charts
+    name: crd-test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

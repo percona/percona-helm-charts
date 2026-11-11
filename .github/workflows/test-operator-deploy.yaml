@@ -3,19 +3,11 @@ name: operator-test
 on:
   pull_request:
     paths:
-      - 'charts/psmdb-operator/**'
-      - '!charts/psmdb-operator/crds/**'
-      - 'charts/psmdb-operator-crds/**'
-      - 'charts/psmdb-db/**'
-      - 'charts/pxc-operator/**'
-      - 'charts/pxc-operator-crds/**'
-      - 'charts/pxc-db/**'
-      - 'charts/ps-operator/**'
-      - 'charts/ps-operator-crds/**'
-      - 'charts/ps-db/**'
-      - 'charts/pg-operator/**'
-      - 'charts/pg-operator-crds/**'
-      - 'charts/pg-db/**'
+      - 'charts/*-operator/**'
+      - '!charts/*-operator/crds/**'
+      - 'charts/**-operator/crds/**'
+      - 'charts/*-operator-crds/**'
+      - 'charts/*-db/**'
       - '.github/workflows/test-operator-deploy.yaml'
       - '.github/workflows/scripts/collect-cluster-logs.sh'
       - '.github/workflows/scripts/detect-changes.sh'
@@ -39,8 +31,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SUPPORTED_CHARTS: psmdb-operator,psmdb-operator-crds,psmdb-db
-  SUPPORTED_JOBS: install,upgrade
   SELECT_ALL_ON_CHANGES: >-
     .github/workflows/test-operator-deploy.yaml,
     .github/workflows/scripts/collect-cluster-logs.sh,
@@ -57,7 +47,7 @@ env:
 
 jobs:
   install-test:
-    name: install-${{ matrix.product }}
+    name: install-test
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' &&
@@ -70,9 +60,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        product: [psmdb, pxc, ps, pg]
+        include:
+          - product: psmdb
+          - product: pxc
+          - product: ps
+          - product: pg
     env:
-      SUPPORTED_CHARTS: psmdb-operator,psmdb-operator-crds,psmdb-db,pxc-operator,pxc-operator-crds,pxc-db,ps-operator,ps-operator-crds,ps-db,pg-operator,pg-operator-crds,pg-db
+      SUPPORTED_CHARTS: ${{ format('{0}-operator,{0}-operator-crds,{0}-db', matrix.product) }}
       SUPPORTED_JOBS: install
     steps:
       - uses: actions/checkout@v7.0.1
@@ -200,7 +194,7 @@ jobs:
             delete || true
 
   upgrade-test:
-    name: upgrade-${{ matrix.product }}
+    name: upgrade-test
     if: >-
       (github.event_name == 'pull_request' && github.base_ref == 'main') ||
       (github.event_name == 'issue_comment' &&
@@ -211,10 +205,15 @@ jobs:
     # PSMDB 8 cannot start on Linux kernels 6.19 through 7.0.13.
     runs-on: ubuntu-22.04
     timeout-minutes: 40
+    env:
+      SUPPORTED_CHARTS: ${{ format('{0}-operator,{0}-operator-crds,{0}-db', matrix.product) }}
+      SUPPORTED_JOBS: upgrade
     strategy:
       fail-fast: false
       matrix:
-        product: [psmdb]
+        include:
+          - product: psmdb
+          - product: pg
     steps:
       - uses: actions/checkout@v7.0.1
         if: ${{ !env.ACT }}
