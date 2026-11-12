@@ -88,3 +88,17 @@ tests:
       - notMatchRegex:
           path: data["haproxy.cfg"]
           pattern: "prometheus-exporter"
+
+  # pmm-clients and PMM HA's own vmagent write with the VictoriaMetrics Basic credentials. PMM-13674
+  - it: routes Basic-auth writes to vmauth
+    asserts:
+      - matchRegex:
+          path: data["haproxy.cfg"]
+          pattern: 'use_backend vmauth_write if \{ path /victoriametrics/api/v1/write \} \{ req\.hdr\(authorization\) -i -m beg basic \}'
+
+  # A PMM token (Bearer) must reach PMM Server, which checks it and forwards to vmauth.
+  - it: leaves token writes to PMM Server
+    asserts:
+      - notMatchRegex:
+          path: data["haproxy.cfg"]
+          pattern: 'use_backend vmauth_write if \{ path /victoriametrics/api/v1/write \}\n'
