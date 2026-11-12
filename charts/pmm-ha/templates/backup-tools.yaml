@@ -170,10 +170,19 @@ rules:
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "create", "update", "patch", "delete"]
-  # Secret operations (backup: get/list; restore: apply encryption key)
+  # Only the Secrets pmm-backup.sh reads; restore patches the key (PMM-15780).
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list", "create", "update", "patch"]
+    resourceNames: {{ compact (uniq (list .Values.secret.name "pg-encryption-key" .Values.centralBackupStorage.s3.existingSecret)) | toJson }}
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["pg-encryption-key"]
+    verbs: ["patch"]
+  # `create` cannot be limited by resourceNames: the pre-restore key snapshot, or a missing key.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "list"]
