@@ -128,7 +128,11 @@ checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sh
 Name of the secret holding a copy of the PMM encryption key.
 */}}
 {{- define "pmm.encryptionKeySecretName" -}}
-{{- default (printf "%s-encryption-key" (include "pmm.fullname" .)) .Values.encryptionKey.secretName }}
+{{- $name := default (printf "%s-encryption-key" (include "pmm.fullname" .)) .Values.encryptionKey.secretName }}
+{{- if not (regexMatch `^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$` $name) }}
+{{- fail (printf "encryptionKey.secretName %q is not a valid Kubernetes object name" $name) }}
+{{- end }}
+{{- $name }}
 {{- end }}
 
 {{/*
@@ -137,6 +141,9 @@ is anywhere else, since the init containers that back it up mount nothing but th
 */}}
 {{- define "pmm.encryptionKeyPath" -}}
 {{- $path := clean (default "/srv/pmm-encryption.key" (dig "PMM_ENCRYPTION_KEY_PATH" "" (.Values.pmmEnv | default dict))) }}
+{{- if not (regexMatch `^[A-Za-z0-9._/-]+$` $path) }}
+{{- fail (printf "PMM_ENCRYPTION_KEY_PATH %q may only contain letters, digits, '.', '_', '/' and '-'" $path) }}
+{{- end }}
 {{- $onDataVolume := hasPrefix "/srv/" $path }}
 {{- range .Values.extraVolumeMounts }}
 {{- $mountPath := clean .mountPath }}
