@@ -916,6 +916,9 @@ Env for a pmm-backup.sh run, shared by the Deployment and Job pods so their targ
 {{- /* ClickHouse credentials: the same Secret the ClickHouse pods use, not the script's pmm-secret default. */}}
 - name: CH_SECRET_NAME
   value: {{ .Values.secret.name | quote }}
+{{- /* The QAN database qan-api2 uses, which the restore recreates (PMM-15785). */}}
+- name: PMM_CLICKHOUSE_DATABASE
+  value: {{ .Values.pmmEnv.PMM_CLICKHOUSE_DATABASE | default "pmm" | quote }}
 - name: BACKUP_DIR
   value: {{ .Values.centralBackupStorage.mountPath }}
 - name: STATE_DIR
