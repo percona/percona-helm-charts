@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/component: crd
     app.kubernetes.io/name: percona-server-mongodb
     app.kubernetes.io/part-of: percona-server-mongodb-operator
-    app.kubernetes.io/version: v1.23.1
+    app.kubernetes.io/version: v1.24.0
   name: perconaservermongodbclustersyncs.psmdb.percona.com
 spec:
   group: psmdb.percona.com
@@ -40,6 +40,14 @@ spec:
       jsonPath: .status.lagTimeSeconds
       name: Lag(s)
       type: integer
+    - description: Ready PCSM instances
+      jsonPath: .status.readyReplicas
+      name: Ready
+      type: integer
+    - description: Pod holding the PCSM lease
+      jsonPath: .status.activeInstance
+      name: Active
+      type: string
     - description: Created time
       jsonPath: .metadata.creationTimestamp
       name: Age
@@ -790,6 +798,19 @@ spec:
                     - error
                     type: string
                 type: object
+              podDisruptionBudget:
+                properties:
+                  maxUnavailable:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    x-kubernetes-int-or-string: true
+                  minAvailable:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    x-kubernetes-int-or-string: true
+                type: object
               podSecurityContext:
                 properties:
                   appArmorProfile:
@@ -989,6 +1010,11 @@ spec:
                 type: object
               runtimeClassName:
                 type: string
+              size:
+                default: 1
+                format: int32
+                minimum: 1
+                type: integer
               source:
                 properties:
                   credentialsSecret:
@@ -1022,6 +1048,8 @@ spec:
             type: object
           status:
             properties:
+              activeInstance:
+                type: string
               conditions:
                 items:
                   properties:
@@ -1069,6 +1097,12 @@ spec:
                 - running
                 - finalized
                 type: string
+              readyReplicas:
+                format: int32
+                type: integer
+              size:
+                format: int32
+                type: integer
               startedAt:
                 format: date-time
                 type: string
