@@ -125,7 +125,9 @@ spec:
           volumeMounts:
             {{- include "pmm.client.volumeMounts" . | nindent 12 }}
   volumeClaimTemplates:
-    - metadata:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
         name: pmm-agent
       spec:
         accessModes:

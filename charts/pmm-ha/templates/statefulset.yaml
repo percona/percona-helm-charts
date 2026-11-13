@@ -4,6 +4,8 @@
 {{- include "pmm.openshift.validate" . -}}
 {{- include "pmm.podSecurity.validate" . -}}
 {{- include "pmm.haproxy.validate" . -}}
+{{- include "pmm.tls.validate" . -}}
+{{- include "pmm.offlineRender.validate" . -}}
 {{- include "pmm.validateSecret" . -}}
 {{- include "pmm.vm.validateCredential" . -}}
 {{- include "pmm.validateBackupIrsaSa" . -}}
@@ -106,11 +108,17 @@ spec:
                 sleep 5
               done              
           env:
+            {{- /* Offline, the user ClickHouse is configured with comes from values, so PMM Server
+                   takes it from the same place rather than from a secret key that could differ. */}}
             - name: PMM_CLICKHOUSE_USER
+              {{- if .Values.offlineRender.enabled }}
+              value: {{ include "pmm.clickhouse.user" . | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: PMM_CLICKHOUSE_USER
+              {{- end }}
             - name: PMM_CLICKHOUSE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -241,11 +249,19 @@ spec:
             {{ end }}
             - name: PMM_POSTGRES_USERNAME
               value: {{ index .Values "pg-db" "pmmUserName" | quote }}
+            {{- /* With offlineRender.enabled the chart does not copy PG_PASSWORD/GF_PASSWORD into the users'
+                   credentials secrets (that needs lookup), so the PostgreSQL operator generates them
+                   and PMM and Grafana read the operator's copy instead. */}}
             - name: PMM_POSTGRES_DBPASSWORD
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.offlineRender.enabled }}
+                  name: {{ index .Values "pg-db" "pmmUserName" }}-credentials
+                  key: password
+                  {{- else }}
                   name: {{ .Values.secret.name }}
                   key: PG_PASSWORD
+                  {{- end }}
             - name: GF_DATABASE_TYPE
               value: "postgres"
             - name: GF_DATABASE_HOST
@@ -257,26 +273,43 @@ spec:
             - name: GF_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.offlineRender.enabled }}
+                  name: {{ index .Values "pg-db" "grafanaUserName" }}-credentials
+                  key: password
+                  {{- else }}
                   name: {{ .Values.secret.name }}
                   key: GF_PASSWORD
+                  {{- end }}
             # VictoriaMetrics (vmauth) credentials. Named PMM_HA_* on purpose: PMM Server reads them only
             # through PMM_VM_URL below, and the PMM_HA_ prefix keeps them out of the VMAGENT_* passthrough
             # that PMM forwards to every PMM Client's vmagent.
+            {{- /* Offline, as the VMUser's username: from values. vmagent's basicAuth can only read
+                   it from the secret, so PMM_HA_VM_USERNAME there is the one copy to keep in step. */}}
             - name: PMM_HA_VM_USERNAME
+              {{- if .Values.offlineRender.enabled }}
+              value: {{ include "pmm.vm.username" . | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: PMM_HA_VM_USERNAME
+              {{- end }}
             - name: PMM_HA_VM_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: PMM_HA_VM_PASSWORD
+            {{- /* Offline, the user ClickHouse is configured with comes from values, so PMM Server
+                   takes it from the same place rather than from a secret key that could differ. */}}
             - name: PMM_CLICKHOUSE_USER
+              {{- if .Values.offlineRender.enabled }}
+              value: {{ include "pmm.clickhouse.user" . | quote }}
+              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secret.name }}
                   key: PMM_CLICKHOUSE_USER
+              {{- end }}
             - name: PMM_CLICKHOUSE_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -284,6 +317,15 @@ spec:
                   key: PMM_CLICKHOUSE_PASSWORD
             # Read-only credentials for the Grafana ClickHouse data source, kept apart from the
             # privileged pair above because Grafana queries run on behalf of every signed-in user.
+            {{- if .Values.offlineRender.enabled }}
+            - name: PMM_CLICKHOUSE_DATASOURCE_USER
+              value: {{ include "pmm.clickhouse.datasourceUser" . | quote }}
+            - name: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
+            {{- else }}
             - name: PMM_CLICKHOUSE_DATASOURCE_USER
               valueFrom:
                 secretKeyRef:
@@ -294,6 +336,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "pmm.clickhouse.datasourceSecretName" . }}
                   key: PMM_CLICKHOUSE_DATASOURCE_PASSWORD
+            {{- end }}
             - name: PMM_VM_URL
               value: "http://$(PMM_HA_VM_USERNAME):$(PMM_HA_VM_PASSWORD)@{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/"
             - name: PMM_CLICKHOUSE_ADDR
