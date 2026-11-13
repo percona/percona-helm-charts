@@ -588,7 +588,7 @@ clickhouse:
   # not the supported stable build, and sort newest on Docker Hub.
   image:
     repository: altinity/clickhouse-server
-    tag: 25.8.28.10001.altinitystable-alpine
+    tag: 26.3.60.10002.altinitystable-alpine
     pullPolicy: IfNotPresent
 
   ## @param clickhouse.podSecurityContext Pod Security Context of the ClickHouse server pods
@@ -661,7 +661,7 @@ clickhouse:
     # Must track the ClickHouse server release above - see the note on clickhouse.image.
     image:
       repository: clickhouse/clickhouse-keeper
-      tag: "25.8.28.1"
+      tag: "26.3.62.3"
       pullPolicy: IfNotPresent
     ## @param clickhouse.keeper.podSecurityContext Pod Security Context of the Keeper pods (see clickhouse.podSecurityContext)
     podSecurityContext:
