@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/component: crd
     app.kubernetes.io/name: percona-server-mongodb
     app.kubernetes.io/part-of: percona-server-mongodb-operator
-    app.kubernetes.io/version: v1.23.1
+    app.kubernetes.io/version: v1.24.0
   name: perconaservermongodbbackups.psmdb.percona.com
 spec:
   group: psmdb.percona.com
@@ -324,6 +324,7 @@ spec:
                   debugLogLevels:
                     type: string
                   endpointUrl:
+                    maxLength: 2048
                     type: string
                   forcePathStyle:
                     type: boolean
@@ -382,6 +383,8 @@ spec:
               storageName:
                 type: string
               type:
+                type: string
+              waitingReason:
                 type: string
             type: object
         type: object
