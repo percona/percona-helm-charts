@@ -43,6 +43,11 @@ jobs:
           excluded="$(IFS=,; echo "${excluded_charts[*]}")"
 
           chart_args=()
+          # Version bumps are only required for PRs targeting main
+          check_version_increment=false
+          if [[ "$GITHUB_BASE_REF" == "main" ]]; then
+            check_version_increment=true
+          fi
           if [[ -n "${ACT_CHARTS:-}" ]]; then
             chart_args+=(--charts="$ACT_CHARTS")
           fi
@@ -52,4 +57,5 @@ jobs:
             --lint-conf .github/lintconf.yaml \
             --excluded-charts="$excluded" \
             "${chart_args[@]}" \
+            --check-version-increment="$check_version_increment" \
             --target-branch "$GITHUB_BASE_REF"

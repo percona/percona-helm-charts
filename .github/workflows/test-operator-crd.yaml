@@ -32,10 +32,17 @@ jobs:
 
       - name: Check chart version increments
         run: |
+          # Version bumps are only required for PRs targeting main
+          check_version_increment=false
+          if [[ "$GITHUB_BASE_REF" == "main" ]]; then
+            check_version_increment=true
+          fi
+
           ct lint \
             --config .github/ct.yaml \
             --lint-conf .github/lintconf.yaml \
             --excluded-charts=gcp-marketplace,pmm-ha,pmm-ha-dependencies \
+            --check-version-increment="$check_version_increment" \
             --target-branch "$GITHUB_BASE_REF"
 
       - name: Check CRD synchronization
