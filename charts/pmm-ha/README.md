@@ -380,7 +380,9 @@ set to, and the OpenShift overlay moves it to 8443 because `restricted-v2` canno
 Substitute that port for 443 everywhere below if you changed it.
 
 `pmm-ha-haproxy` publishes only that HTTPS port, so a `LoadBalancer` or `NodePort` service type
-does not expose the HAProxy stats page, which has no authentication. The page is read-only, and
+does not expose the HAProxy stats page, which has no authentication. (Helm 4 keeps the
+subchart's ports 80 and 1024 on the Service when you pass no `haproxy` value at all, which means
+the default `ClusterIP` type.) The page is read-only, and
 like any metrics endpoint it remains readable by anything that can reach the HAProxy pod IPs. To
 open it for debugging, port-forward to the stats Service and browse
 `http://localhost:1024/stats`. The command and URL use the defaults; substitute your
@@ -517,7 +519,7 @@ Consequences:
 | `pmmClient.fsGroup`                  | Group that owns the PMM Client data volume. Ignored when `openshift` is `true` | `1002`                                                                                         |
 | `pmmClient.image.repository`         | PMM Client image repository                                      | `percona/pmm-client`                                                                           |
 | `pmmClient.image.pullPolicy`         | PMM Client image pull policy                                     | `IfNotPresent`                                                                                 |
-| `pmmClient.image.tag`                | PMM Client image tag, defaults to the chart appVersion           | `3.10.0`                                                                                        |
+| `pmmClient.image.tag`                | PMM Client image tag                                             | `3.10.0`                                                                                        |
 | `pmmClient.forceRegistration`        | Register the Node even when one with the same name exists (WARNING: PMM Server may remove the existing Node and its configured Services) | `false`                                                                                        |
 | `pmmClient.storage.size`             | Size of the volume holding the Agent identity and metrics buffer | `2Gi`                                                                                          |
 | `pmmClient.storage.storageClassName` | Storage class of that volume, cluster default if empty           | `""`                                                                                           |
@@ -934,7 +936,7 @@ What the chart creates, who reads it, and what happens to it on `helm upgrade` a
 | `gfuser-credentials`, `pmmuser-credentials` | chart (pre-install/upgrade hook) | the PostgreSQL passwords copied from `pmm-secret` | Percona PostgreSQL Operator, which sets the role passwords | re-copied from `pmm-secret` | kept |
 | `pg-encryption-key` | `pmm-secret-init-job` (pre-install hook) with kubectl | PMM's encryption key (a Tink keyset, which Helm cannot generate) | PMM Server, mounted read-only at `/etc/secrets/key` | untouched | kept on purpose, labelled `pmm.percona.com/lifecycle=kept-on-uninstall` when created by this chart version or later: what PMM encrypted in the database stays readable after a reinstall |
 | `<release>-pg-db-pmm-secret` | `pmm-token-init` Job with kubectl | PMM service-account token for the PostgreSQL pmm-client sidecar | Percona PostgreSQL Operator | validated, re-minted when it no longer authenticates | kept |
-| `<release>-clickhouse-datasource` | chart | read-only ClickHouse user for the Grafana data source | PMM Server env, ClickHouse `users.d` drop-in (SHA-256) | kept (looked up) | deleted, regenerated on reinstall |
+| `<fullname>-clickhouse-datasource` | chart | read-only ClickHouse user for the Grafana data source | PMM Server env, ClickHouse `users.d` drop-in (SHA-256) | kept (looked up) | deleted, regenerated on reinstall |
 | `<release>-vmauth-config` | chart | vmauth users file, copied from `pmm-secret` | vmauth | re-copied | deleted |
 | `haproxy-tls-secret` (`tls.pemSecretName`) | chart | HAProxy certificate and key | HAProxy | kept unless `tls.*` changed | deleted, regenerated on reinstall |
 | PostgreSQL, ClickHouse and VictoriaMetrics operator secrets | the operators | TLS material, internal users | the data stores | operator-managed | follow their CRs |
@@ -1208,7 +1210,7 @@ cannot write. On CSI volumes the kubelet re-owns the data on mount through `fsGr
 (`fsGroupChangePolicy: Always`); on hostPath or `local` volumes nothing does, and the ownership
 has to be fixed by hand.
 
-**Upgrading from 1.8.x or older.** The VictoriaMetrics pods change from root to uid 65534
+**Upgrading from 1.6.x or older.** The VictoriaMetrics pods change from root to uid 65534
 (`victoriaMetrics.useStrictSecurity`), and `vmstorage` keeps data on a volume that root wrote.
 On CSI storage that supports `fsGroup` (most cloud and Ceph drivers) the kubelet re-owns that
 data on the first mount and the upgrade needs nothing from you. On hostPath and `local` volumes,
@@ -1234,7 +1236,7 @@ samples were lost. PMM Server, PMM Client, HAProxy, PostgreSQL and the operators
 ClickHouse and Keeper move to uid 101, but their entrypoint had already chowned the data to
 101 while running as root, so they restart cleanly.
 
-Custom scrape jobs also need a look when upgrading from 1.8.x: vmagent no longer runs under a
+Custom scrape jobs also need a look when upgrading from 1.6.x: vmagent no longer runs under a
 cluster-wide ClusterRole, so a job in `victoriaMetrics.vmagent.scrapeConfigs` that discovers
 outside the release namespace needs `victoriaMetrics.vmagent.rbac.extraClusterRules` (see
 Privileges above).
