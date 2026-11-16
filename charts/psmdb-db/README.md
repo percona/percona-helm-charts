@@ -97,6 +97,7 @@ The chart can be customized using the following configurable parameters:
 | `secrets.sse`           | The name of the Secrets object for server side encryption credentials                      | `""` |
 | `secrets.ssl`           | A secret with TLS certificate generated for external communications                        | `""` |
 | `secrets.sslInternal`   | A secret with TLS certificate generated for internal communications                        | `""` |
+| `secrets.sslPBM`        | A secret with TLS certificate generated for PBM                                            | `""` |
 | |
 | `pmm.enabled`                  | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`              |
 | `pmm.image.repository`         | PMM Container image repository                                                                                                                                                           | `percona/pmm-client` |
