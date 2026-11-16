@@ -533,7 +533,7 @@ lands on a pod that got no slot, every backend is DOWN and PMM serves 503.
 {{- include "pmm.validate.oddCount" (dict "name" "replicas" "value" .Values.replicas "ceiling" $maxReplicas "ceilingName" "maxReplicas") -}}
 {{- $replicas := int .Values.replicas -}}
 {{- if gt $replicas $maxReplicas -}}
-{{- fail (printf "replicas (%d) exceeds maxReplicas (%d): HAProxy renders only %d server-template slots and fills them from DNS in arbitrary order, so a pod left without a slot is invisible to it. Because HAProxy marks a backend UP only when it answers /v1/server/leaderHealthCheck, a Raft leader on that pod leaves every backend DOWN and PMM serves 503. Lower replicas, or raise maxReplicas and bump haproxy.podAnnotations \"pmm.percona.com/config-version\" in the same upgrade so HAProxy restarts with the new server-template." $replicas $maxReplicas $maxReplicas) -}}
+{{- fail (printf "replicas (%d) exceeds maxReplicas (%d): HAProxy renders only %d server-template slots and fills them from DNS in arbitrary order, so a pod left without a slot is invisible to it. Because HAProxy marks a backend UP only when it answers /v1/server/leaderHealthCheck, a Raft leader on that pod leaves every backend DOWN and PMM serves 503. Lower replicas, or raise maxReplicas and set a pod annotation of your own, such as haproxy.podAnnotations \"pmm.percona.com/max-replicas\", to the new value in the same upgrade so HAProxy restarts with the new server-template." $replicas $maxReplicas $maxReplicas) -}}
 {{- end -}}
 {{- end -}}
 
