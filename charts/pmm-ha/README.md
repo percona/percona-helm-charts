@@ -790,6 +790,9 @@ For a release that was already installed without the key, adding it and upgradin
 Grafana applies `GF_SECURITY_ADMIN_PASSWORD` only when it first creates the `admin` user, so the
 password has to be reset out of band (`change-admin-password` in the PMM container, or the Grafana
 API) before `<release>-pmm-token-init` stops getting 401.
+From PMM 3.11.0, both refuse a password that breaks Grafana's password policy (12+ characters with
+upper and lower case, a digit and a symbol), and a password the chart generates has no symbol.
+For such a password, run the reset as `env GF_AUTH_BASIC_PASSWORD_POLICY=false change-admin-password '<password>'`.
 
 To get admin password execute:
 

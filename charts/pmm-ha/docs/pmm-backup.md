@@ -2072,9 +2072,12 @@ data transfer:
   to match, or reset PMM to the target's value — `<secret-name>` is the chart's
   `secret.name` (default `pmm-secret`):
   ```bash
-  kubectl exec -n <ns> <pmm-pod-0> -c pmm-ha -- change-admin-password \
+  kubectl exec -n <ns> <pmm-pod-0> -c pmm-ha -- env GF_AUTH_BASIC_PASSWORD_POLICY=false change-admin-password \
     "$(kubectl get secret <secret-name> -n <ns> -o jsonpath='{.data.PMM_ADMIN_PASSWORD}' | base64 -d)"
   ```
+  From PMM 3.11.0, `change-admin-password` refuses a password that breaks Grafana's password
+  policy (12+ characters with upper and lower case, a digit and a symbol). A password the chart
+  generates has no symbol, so the command turns the policy off for this one reset.
 - **PG monitoring token**: the target's `pg-pmm-secret` service token was minted in the
   (now overwritten) Grafana DB — re-run the token-init **Job** if PG-side monitoring shows
   401s. It is a regular Job, not a bare pod, so deleting its pods does nothing (a completed
