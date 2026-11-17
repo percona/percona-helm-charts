@@ -1,0 +1,70 @@
+mysql:
+  clusterType: async
+orchestrator:
+  enabled: true
+  image:
+    repository: changed-image
+    tag: changed-tag
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets:
+    - name: pull-secret
+  initContainer:
+    image: custom-init:tag
+  env:
+    - name: MY_ENV
+      value: "1000"
+  envFrom:
+    - secretRef:
+        name: my-env-secret
+  startupProbe:
+    timeoutSeconds: 43200
+  readinessProbe:
+    timeoutSeconds: 3
+  livenessProbe:
+    timeoutSeconds: 4
+  podDisruptionBudget:
+    maxUnavailable: 2
+  size: 5
+  resources:
+    requests:
+      memory: 1Mi
+    limits:
+      memory: 2Mi
+  affinity:
+    antiAffinityTopologyKey: topology.kubernetes.io/zone
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+  volumeSpec:
+    pvc:
+      resources:
+        requests:
+          storage: 2G
+  gracePeriod: 60
+  configuration: |
+    {
+      "ReasonableReplicationLagSeconds": 30
+    }
+  runtimeClassName: image-rc
+  priorityClassName: high-priority
+  schedulerName: custom-scheduler
+  annotations:
+    test: annotation
+  labels:
+    test: label
+  nodeSelector:
+    disktype: ssd
+  tolerations:
+    - key: test
+      operator: Exists
+      effect: NoSchedule
+  containerSecurityContext:
+    privileged: false
+  podSecurityContext:
+    fsGroup: 1001
+  expose:
+    type: ClusterIP
+  failover:
+    onTimeout: Abort
+    timeout: 1h

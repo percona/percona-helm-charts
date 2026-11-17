@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+output_dir="${OUT:-cluster-logs}"
+container_log_lines=500
+disk_log_lines=2000
+
+ps_log_files='/var/lib/mysql/log/*.log /var/lib/mysql/*.err'
+ps_config_files='/etc/my.cnf /etc/my.cnf.d/*.cnf /etc/mysql/config/auto-config.cnf /etc/mysql/config/my-config.cnf'
+pxc_log_files='/var/lib/mysql/*.log /var/lib/mysql/*.err'
+pxc_config_files='/etc/my.cnf /etc/mysql/node.cnf /etc/my.cnf.d/*.cnf /etc/percona-xtradb-cluster.conf.d/*.cnf'
+pxc_state_files='/var/lib/mysql/grastate.dat /var/lib/mysql/gvwstate.dat'
+psmdb_log_files='/data/db/logs/*'
+pg_log_files='/pgdata/*/log/*.log /pgdata/*/pg_log/*.log'
+pg_config_files='/pgdata/*/postgresql.conf /pgdata/*/postgresql.auto.conf'
+
+capture() {
+  local output=$1
+  shift
+  local status=0
+  "$@" > "$output" 2>&1 || status=$?
+  if (( status != 0 )); then
+    printf 'Collection failed (exit %s); see %s\n' "$status" "$output" >&2
+  fi
+}
+
+collect_container_files() {
+  local namespace=$1 pod=$2 container=$3 destination=$4
+  local files='' configs=''
+
+  case "$container" in
+    mysql) files=$ps_log_files; configs=$ps_config_files ;;
+    pxc) files="$pxc_log_files $pxc_state_files"; configs=$pxc_config_files ;;
+    mongod|mongos|logs) files=$psmdb_log_files ;;
+    database) files=$pg_log_files; configs=$pg_config_files ;;
+    *) return ;;
+  esac
+
+  # File patterns are expanded inside the container, not on the runner.
+  # shellcheck disable=SC2016
+  capture "$destination" \
+    kubectl exec "$pod" -n "$namespace" -c "$container" -- sh -c '
+      for file in $1; do
+        [ -f "$file" ] || continue
+        printf "\n===== %s =====\n" "$file"
+        tail -n "$3" "$file"
+      done
+      for file in $2; do
+        [ -f "$file" ] || continue
+        printf "\n===== %s (selected directives only) =====\n" "$file"
+        ls -l "$file"
+        awk '"'"'
+            /^[[:space:]]*(!include(dir)?[[:space:]]|\[[^]]+\])/ { print; next }
+            {
+              key = $0
+              sub(/^[[:space:]]*/, "", key)
+              sub(/[[:space:]=].*$/, "", key)
+              gsub(/_/, "-", key)
+              if (key ~ /^(wsrep-provider|wsrep-on|socket|port|admin-address|admin-port|extra-port|datadir|basedir|plugin-dir|lc-messages-dir|log-error|group-replication-group-seeds|group-replication-local-address|group-replication-start-on-boot|group-replication-bootstrap-group|listen-addresses|unix-socket-directories|data-directory|logging-collector|log-directory|log-filename)$/)
+                print
+            }
+        '"'"' "$file"
+      done
+    ' sh "$files" "$configs" "$disk_log_lines"
+}
+
+collect_pod() {
+  local namespace=$1
+  local pod=$2
+  local pod_dir="$output_dir/pods/$namespace/$pod"
+  local pod_json
+
+  mkdir -p "$pod_dir"
+  capture "$pod_dir/describe.txt" \
+    kubectl describe pod "$pod" -n "$namespace"
+
+  pod_json="$(kubectl get pod "$pod" -n "$namespace" -o json 2>/dev/null || true)"
+  [[ -n "$pod_json" ]] || return
+
+  while IFS=$'\t' read -r container restarts; do
+    capture "$pod_dir/$container.log" \
+      kubectl logs "$pod" -n "$namespace" -c "$container" \
+        --timestamps --tail="$container_log_lines"
+    if (( restarts > 0 )); then
+      capture "$pod_dir/$container-previous.log" \
+        kubectl logs "$pod" -n "$namespace" -c "$container" \
+          --previous --timestamps --tail="$container_log_lines"
+    fi
+  done < <(jq -r '
+    [.status.initContainerStatuses[]?, .status.containerStatuses[]?] |
+    .[] | [.name, (.restartCount // 0)] | @tsv' <<< "$pod_json")
+
+  while IFS= read -r container; do
+    collect_container_files "$namespace" "$pod" "$container" \
+      "$pod_dir/$container-files.txt"
+  done < <(jq -r '.spec.containers[].name' <<< "$pod_json")
+}
+
+collect_cluster_overview() {
+  local available_resources resource kind clusters
+
+  capture "$output_dir/resources.txt" \
+    kubectl get all,pvc,pv,storageclass -A -o wide
+  capture "$output_dir/events.txt" \
+    kubectl get events -A --sort-by=.lastTimestamp
+  capture "$output_dir/nodes.txt" kubectl describe nodes
+
+  if ! available_resources="$(kubectl api-resources --verbs=list -o name)"; then
+    printf 'Could not discover cluster resource types\n' >&2
+    return 1
+  fi
+
+  {
+    for resource in psmdb ps pg pxc; do
+      case "$resource" in
+        psmdb) kind=perconaservermongodbs.psmdb.percona.com ;;
+        ps) kind=perconaservermysqls.ps.percona.com ;;
+        pg) kind=perconapgclusters.pgv2.percona.com ;;
+        pxc) kind=perconaxtradbclusters.pxc.percona.com ;;
+      esac
+      grep -Fxq "$kind" <<< "$available_resources" || continue
+      if ! clusters="$(kubectl get "$kind" -A -o json)"; then
+        printf 'Could not list %s\n' "$kind" >&2
+        continue
+      fi
+      jq -e '.items | length > 0' <<< "$clusters" >/dev/null || continue
+      kubectl get "$resource" -A -o wide 2>&1 || true
+      capture "$output_dir/cluster-$resource.yaml" \
+        kubectl get "$resource" -A -o yaml
+      capture "$output_dir/cluster-$resource-describe.txt" \
+        kubectl describe "$resource" -A
+    done
+  } > "$output_dir/clusters.txt"
+}
+
+collect_pods() {
+  while read -r namespace pod; do
+    collect_pod "$namespace" "$pod"
+  done < <(
+    kubectl get pods -A --no-headers \
+      -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name'
+  )
+}
+
+collect_minikube_logs() {
+  [[ -n "${MINIKUBE_PROFILE:-}" ]] || return
+  capture "$output_dir/minikube.txt" \
+    minikube --profile "$MINIKUBE_PROFILE" logs --problems
+}
+
+main() {
+  mkdir -p "$output_dir/pods"
+
+  collect_cluster_overview
+  collect_pods
+  collect_minikube_logs
+
+  echo "Diagnostics saved to $output_dir/"
+}
+
+main "$@"

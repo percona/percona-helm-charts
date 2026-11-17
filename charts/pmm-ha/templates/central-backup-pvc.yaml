@@ -1,0 +1,36 @@
+{{- /* existingClaim is consumed, never created. */}}
+{{- if and .Values.centralBackupStorage.enabled (not .Values.centralBackupStorage.existingClaim) }}
+{{- /* shared needs RWX; s3 needs only a small RWO logs/metrics volume. */}}
+{{- $accessMode := .Values.centralBackupStorage.accessMode }}
+{{- if not $accessMode }}{{- $accessMode = ternary "ReadWriteMany" "ReadWriteOnce" (eq .Values.centralBackupStorage.mode "shared") }}{{- end }}
+{{- $pvcName := printf "%s-central-backup" .Release.Name }}
+{{- /* accessModes are immutable: say so instead of letting the apiserver fail the upgrade. */}}
+{{- with (lookup "v1" "PersistentVolumeClaim" .Release.Namespace $pvcName) }}
+{{- if not (has $accessMode .spec.accessModes) }}
+{{- fail (printf "PVC %s is %s, but these values want %s, and a PVC's access mode cannot change. Set centralBackupStorage.accessMode=%s, or point centralBackupStorage.existingClaim at a new %s claim (the old one keeps its logs and, in shared mode, its backups)." $pvcName (first .spec.accessModes) $accessMode (first .spec.accessModes) $accessMode) }}
+{{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $pvcName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "central-backup-storage") | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ $accessMode }}
+  {{- if .Values.centralBackupStorage.volumeName }}
+  # Bind a pre-created static PV (e.g. an EFS sub-path PV) — disables dynamic provisioning.
+  volumeName: {{ .Values.centralBackupStorage.volumeName }}
+  storageClassName: ""
+  {{- else if .Values.centralBackupStorage.storageClassName }}
+  storageClassName: {{ .Values.centralBackupStorage.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.centralBackupStorage.storageSize }}
+{{- end }}

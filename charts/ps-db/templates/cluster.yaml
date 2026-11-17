@@ -57,28 +57,8 @@ spec:
   unsafeFlags:
 {{ .Values.unsafeFlags | toYaml | indent 4 }}
   {{- end }}
-  {{- if .Values.initContainer }}
-  initContainer:
-    {{- if hasKey .Values.initContainer "image" }}
-    image: {{ .Values.initContainer.image }}
-    {{- else }}
-    image: {{ include "ps-db.operator-image" . }}
-    {{- end }}
-    {{- if .Values.initContainer.containerSecurityContext }}
-    containerSecurityContext:
-{{ tpl (.Values.initContainer.containerSecurityContext | toYaml) $ | indent 6 }}
-    {{- end }}
-    {{- if .Values.initContainer.resources }}
-    resources:
-      {{- if hasKey .Values.initContainer.resources "requests" }}
-      requests:
-{{ tpl (.Values.initContainer.resources.requests | toYaml) $ | indent 8 }}
-      {{- end }}
-      {{- if hasKey .Values.initContainer.resources "limits" }}
-      limits:
-{{ tpl (.Values.initContainer.resources.limits | toYaml) $ | indent 8 }}
-      {{- end }}
-  {{- end }}
+  {{- with .Values.initContainer }}
+  {{- include "ps-db.initContainer" (dict "initContainer" . "root" $) | nindent 2 }}
   {{- end }}
   {{- if .Values.updateStrategy }}
   updateStrategy: {{ .Values.updateStrategy }}
@@ -131,6 +111,18 @@ spec:
     {{- if $mysql.autoRecovery }}
     autoRecovery: {{ $mysql.autoRecovery }}
     {{- end }}
+    {{- if $mysql.autoConfig }}
+    autoConfig:
+      {{- if hasKey $mysql.autoConfig "enabled" }}
+      enabled: {{ $mysql.autoConfig.enabled }}
+      {{- end }}
+      {{- if $mysql.autoConfig.loadType }}
+      loadType: {{ $mysql.autoConfig.loadType }}
+      {{- end }}
+      {{- if $mysql.autoConfig.version }}
+      version: {{ $mysql.autoConfig.version | quote }}
+      {{- end }}
+    {{- end }}
     {{- if $mysql.vaultSecretName }}
     vaultSecretName: {{ $mysql.vaultSecretName }}
     {{- end }}
@@ -144,28 +136,8 @@ spec:
     imagePullSecrets:
 {{ $mysql.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
-    {{- if $mysql.initContainer }}
-    initContainer:
-      {{- if hasKey $mysql.initContainer "image" }}
-      image: {{ $mysql.initContainer.image }}
-      {{- else }}
-      image: {{ include "ps-db.operator-image" . }}
-      {{- end }}
-      {{- if $mysql.initContainer.containerSecurityContext }}
-      containerSecurityContext:
-{{ tpl ($mysql.initContainer.containerSecurityContext | toYaml) $ | indent 8 }}
-      {{- end }}
-      {{- if $mysql.initContainer.resources }}
-      resources:
-        {{- if hasKey $mysql.initContainer.resources "requests" }}
-        requests:
-{{ tpl ($mysql.initContainer.resources.requests | toYaml) $ | indent 10 }}
-        {{- end }}
-        {{- if hasKey $mysql.initContainer.resources "limits" }}
-        limits:
-{{ tpl ($mysql.initContainer.resources.limits | toYaml) $ | indent 10 }}
-        {{- end }}
-    {{- end }}
+    {{- with $mysql.initContainer }}
+    {{- include "ps-db.initContainer" (dict "initContainer" . "root" $) | nindent 4 }}
     {{- end }}
     {{- if $mysql.podDisruptionBudget }}
     podDisruptionBudget:
@@ -187,11 +159,9 @@ spec:
 {{ $mysql.annotations | toYaml | indent 6 }}
     labels:
 {{ $mysql.labels | toYaml | indent 6 }}
-    resources:
-      requests:
-{{ tpl ($mysql.resources.requests | toYaml) $ | indent 8 }}
-      limits:
-{{ tpl ($mysql.resources.limits | toYaml) $ | indent 8 }}
+    {{- with $mysql.resources }}
+    {{- include "ps-db.resources" (dict "resources" . "root" $) | nindent 4 }}
+    {{- end }}
     {{- if $mysql.env }}
     env:
 {{ $mysql.env | toYaml | indent 6 }}
@@ -297,28 +267,8 @@ spec:
       imagePullSecrets:
 {{ $haproxy.imagePullSecrets | toYaml | indent 8 }}
       {{- end }}
-      {{- if $haproxy.initContainer }}
-      initContainer:
-        {{- if hasKey $haproxy.initContainer "image" }}
-        image: {{ $haproxy.initContainer.image }}
-        {{- else }}
-        image: {{ include "ps-db.operator-image" . }}
-        {{- end }}
-        {{- if $haproxy.initContainer.containerSecurityContext }}
-        containerSecurityContext:
-{{ tpl ($haproxy.initContainer.containerSecurityContext | toYaml) $ | indent 10 }}
-        {{- end }}
-        {{- if $haproxy.initContainer.resources }}
-        resources:
-          {{- if hasKey $haproxy.initContainer.resources "requests" }}
-          requests:
-{{ tpl ($haproxy.initContainer.resources.requests | toYaml) $ | indent 12 }}
-          {{- end }}
-          {{- if hasKey $haproxy.initContainer.resources "limits" }}
-          limits:
-{{ tpl ($haproxy.initContainer.resources.limits | toYaml) $ | indent 12 }}
-          {{- end }}
-        {{- end }}
+      {{- with $haproxy.initContainer }}
+      {{- include "ps-db.initContainer" (dict "initContainer" . "root" $) | nindent 6 }}
       {{- end }}
       {{- if $haproxy.size }}
       size: {{ $haproxy.size }}
@@ -340,11 +290,9 @@ spec:
 {{ $haproxy.tolerations | toYaml | indent 8 }}
       nodeSelector:
 {{ $haproxy.nodeSelector | toYaml | indent 8 }}
-      resources:
-        requests:
-{{ tpl ($haproxy.resources.requests | toYaml) $ | indent 10 }}
-        limits:
-{{ tpl ($haproxy.resources.limits | toYaml) $ | indent 10 }}
+      {{- with $haproxy.resources }}
+      {{- include "ps-db.resources" (dict "resources" . "root" $) | nindent 6 }}
+      {{- end }}
       {{- if $haproxy.sidecarResources }}
       sidecarResources:
         {{- range $name, $resources := $haproxy.sidecarResources }}
@@ -449,28 +397,8 @@ spec:
       imagePullSecrets:
 {{ $router.imagePullSecrets | toYaml | indent 8 }}
       {{- end }}
-      {{- if $router.initContainer }}
-      initContainer:
-        {{- if hasKey $router.initContainer "image" }}
-        image: {{ $router.initContainer.image }}
-        {{- else }}
-        image: {{ include "ps-db.operator-image" . }}
-        {{- end }}
-        {{- if $router.initContainer.containerSecurityContext }}
-        containerSecurityContext:
-{{ tpl ($router.initContainer.containerSecurityContext | toYaml) $ | indent 10 }}
-        {{- end }}
-        {{- if $router.initContainer.resources }}
-        resources:
-          {{- if hasKey $router.initContainer.resources "requests" }}
-          requests:
-{{ tpl ($router.initContainer.resources.requests | toYaml) $ | indent 12 }}
-          {{- end }}
-          {{- if hasKey $router.initContainer.resources "limits" }}
-          limits:
-{{ tpl ($router.initContainer.resources.limits | toYaml) $ | indent 12 }}
-          {{- end }}
-        {{- end }}
+      {{- with $router.initContainer }}
+      {{- include "ps-db.initContainer" (dict "initContainer" . "root" $) | nindent 6 }}
       {{- end }}
       {{- if $router.podDisruptionBudget }}
       podDisruptionBudget:
@@ -515,11 +443,9 @@ spec:
 {{ $router.tolerations | toYaml | indent 8 }}
       nodeSelector:
 {{ $router.nodeSelector | toYaml | indent 8 }}
-      resources:
-        requests:
-{{ tpl ($router.resources.requests | toYaml) $ | indent 10 }}
-        limits:
-{{ tpl ($router.resources.limits | toYaml) $ | indent 10 }}
+      {{- with $router.resources }}
+      {{- include "ps-db.resources" (dict "resources" . "root" $) | nindent 6 }}
+      {{- end }}
       {{- if $router.volumeSpec }}
       volumeSpec:
         {{- if $router.volumeSpec.hostPath }}
@@ -577,28 +503,8 @@ spec:
     {{- else }}
     serviceAccountName: {{ include "ps-database.fullname" . }}-orchestrator
     {{- end }}
-    {{- if $orc.initContainer }}
-    initContainer:
-      {{- if hasKey $orc.initContainer "image" }}
-      image: {{ $orc.initContainer.image }}
-      {{- else }}
-      image: {{ include "ps-db.operator-image" . }}
-      {{- end }}
-      {{- if $orc.initContainer.containerSecurityContext }}
-      containerSecurityContext:
-{{ tpl ($orc.initContainer.containerSecurityContext | toYaml) $ | indent 8 }}
-      {{- end }}
-      {{- if $orc.initContainer.resources }}
-      resources:
-        {{- if hasKey $orc.initContainer.resources "requests" }}
-        requests:
-{{ tpl ($orc.initContainer.resources.requests | toYaml) $ | indent 10 }}
-        {{- end }}
-        {{- if hasKey $orc.initContainer.resources "limits" }}
-        limits:
-{{ tpl ($orc.initContainer.resources.limits | toYaml) $ | indent 10 }}
-        {{- end }}
-      {{- end }}
+    {{- with $orc.initContainer }}
+    {{- include "ps-db.initContainer" (dict "initContainer" . "root" $) | nindent 4 }}
     {{- end }}
     {{- if $orc.env }}
     env:
@@ -649,11 +555,9 @@ spec:
 {{ $orc.tolerations | toYaml | indent 6 }}
     nodeSelector:
 {{ $orc.nodeSelector | toYaml | indent 6 }}
-    resources:
-      requests:
-{{ tpl ($orc.resources.requests | toYaml) $ | indent 8 }}
-      limits:
-{{ tpl ($orc.resources.limits | toYaml) $ | indent 8 }}
+    {{- with $orc.resources }}
+    {{- include "ps-db.resources" (dict "resources" . "root" $) | nindent 4 }}
+    {{- end }}
     {{- if $orc.volumeSpec }}
     volumeSpec:
       {{- if $orc.volumeSpec.hostPath }}
@@ -685,6 +589,15 @@ spec:
     expose:
 {{ tpl ($orc.expose | toYaml) $ | indent 8 }}
     {{- end }}
+    {{- if $orc.failover }}
+    failover:
+{{ $orc.failover | toYaml | indent 6 }}
+    {{- end }}
+  {{- end }}
+
+  {{- if .Values.users }}
+  users:
+{{ .Values.users | toYaml | indent 4 }}
   {{- end }}
 
   pmm:
@@ -694,10 +607,13 @@ spec:
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
   {{- else }}
   {{- if $pmm.mysqlParams }}
-    mysqlParams: {{ $pmm.mysqlParams }}
+    mysqlParams: {{ $pmm.mysqlParams | quote }}
+  {{- end }}
+  {{- if $pmm.haproxyParams }}
+    haproxyParams: {{ $pmm.haproxyParams | quote }}
   {{- end }}
   {{- if $pmm.customClusterName }}
-    customClusterName: {{ $pmm.customClusterName }}
+    customClusterName: {{ $pmm.customClusterName | quote }}
   {{- end }}
     enabled: true
     image: {{ $pmm.image.repository }}:{{ $pmm.image.tag }}
@@ -713,11 +629,84 @@ spec:
     livenessProbe:
 {{ tpl ($pmm.livenessProbe | toYaml) $ | indent 6 }}
     {{- end }}
+    {{- with $pmm.resources }}
+    {{- include "ps-db.resources" (dict "resources" . "root" $) | nindent 4 }}
+    {{- end }}
+  {{- end }}
+
+  {{- if .Values.logcollector }}
+  {{- $logcollector := .Values.logcollector }}
+
+  logcollector:
+  {{- if not $logcollector.enabled }}
+    enabled: false
+    image: {{ $logcollector.image.repository }}:{{ $logcollector.image.tag }}
+  {{- else }}
+    enabled: true
+    image: {{ $logcollector.image.repository }}:{{ $logcollector.image.tag }}
+    {{- if $logcollector.imagePullPolicy }}
+    imagePullPolicy: {{ $logcollector.imagePullPolicy }}
+    {{- end }}
+    {{- if $logcollector.configuration }}
+    configuration: |
+{{ tpl $logcollector.configuration $ | indent 6 }}
+    {{- end }}
+    {{- if $logcollector.env }}
+    env:
+{{ tpl ($logcollector.env | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $logcollector.envFrom }}
+    envFrom:
+{{ tpl ($logcollector.envFrom | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $logcollector.containerSecurityContext }}
+    containerSecurityContext:
+{{ tpl ($logcollector.containerSecurityContext | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $logcollector.resources }}
     resources:
-      requests:
-{{ tpl ($pmm.resources.requests | toYaml) $ | indent 8 }}
-      limits:
-{{ tpl ($pmm.resources.limits | toYaml) $ | indent 8 }}
+{{ tpl ($logcollector.resources | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $logcollector.readinessProbe }}
+    readinessProbe:
+{{ tpl ($logcollector.readinessProbe | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $logcollector.livenessProbe }}
+    livenessProbe:
+{{ tpl ($logcollector.livenessProbe | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $logcollector.volumeMounts }}
+    volumeMounts:
+{{ tpl ($logcollector.volumeMounts | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $logcollector.volumes }}
+    volumes:
+{{ tpl ($logcollector.volumes | toYaml) $ | indent 6 }}
+    {{- end }}
+    {{- if $logcollector.logRotate }}
+    {{- $logRotate := $logcollector.logRotate }}
+    logRotate:
+      {{- if $logRotate.schedule }}
+      schedule: {{ $logRotate.schedule | quote }}
+      {{- end }}
+      {{- if $logRotate.configuration }}
+      configuration: |
+{{ tpl $logRotate.configuration $ | indent 8 }}
+      {{- end }}
+      {{- if $logRotate.extraConfig }}
+      extraConfig:
+{{ tpl ($logRotate.extraConfig | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if $logRotate.readinessProbe }}
+      readinessProbe:
+{{ tpl ($logRotate.readinessProbe | toYaml) $ | indent 8 }}
+      {{- end }}
+      {{- if $logRotate.livenessProbe }}
+      livenessProbe:
+{{ tpl ($logRotate.livenessProbe | toYaml) $ | indent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
   {{- end }}
 
   {{- $toolkit := .Values.toolkit }}
@@ -727,12 +716,8 @@ spec:
     {{- if $toolkit.imagePullPolicy }}
     imagePullPolicy: {{ $toolkit.imagePullPolicy }}
     {{- end }}
-    {{- if $toolkit.resources }}
-    resources:
-      requests:
-{{ tpl ($toolkit.resources.requests | toYaml) $ | indent 8 }}
-      limits:
-{{ tpl ($toolkit.resources.limits | toYaml) $ | indent 8 }}
+    {{- with $toolkit.resources }}
+    {{- include "ps-db.resources" (dict "resources" . "root" $) | nindent 4 }}
     {{- end }}
   {{- end }}
 
@@ -760,31 +745,17 @@ spec:
     imagePullSecrets:
 {{ $backup.imagePullSecrets | toYaml | indent 6 }}
     {{- end }}
-    {{- if $backup.initContainer }}
-    initContainer:
-      {{- if hasKey $backup.initContainer "image" }}
-      image: {{ $backup.initContainer.image }}
-      {{- else }}
-      image: {{ include "ps-db.operator-image" . }}
-      {{- end }}
-      {{- if $backup.initContainer.containerSecurityContext }}
-      containerSecurityContext:
-{{ tpl ($backup.initContainer.containerSecurityContext | toYaml) $ | indent 8 }}
-        {{- end }}
-      {{- if $backup.initContainer.resources }}
-      resources:
-        {{- if hasKey $backup.initContainer.resources "requests" }}
-        requests:
-{{ tpl ($backup.initContainer.resources.requests | toYaml) $ | indent 12 }}
-        {{- end }}
-        {{- if hasKey $backup.initContainer.resources "limits" }}
-        limits:
-{{ tpl ($backup.initContainer.resources.limits | toYaml) $ | indent 12 }}
-        {{- end }}
-      {{- end }}
+    {{- with $backup.initContainer }}
+    {{- include "ps-db.initContainer" (dict "initContainer" . "root" $) | nindent 4 }}
     {{- end }}
     {{- if $backup.backoffLimit }}
     backoffLimit: {{ $backup.backoffLimit }}
+    {{- end }}
+    {{- if $backup.startingDeadlineSeconds }}
+    startingDeadlineSeconds: {{ $backup.startingDeadlineSeconds }}
+    {{- end }}
+    {{- if $backup.suspendedDeadlineSeconds }}
+    suspendedDeadlineSeconds: {{ $backup.suspendedDeadlineSeconds }}
     {{- end }}
     {{- if $backup.serviceAccountName }}
     serviceAccountName: {{ $backup.serviceAccountName }}
@@ -793,12 +764,8 @@ spec:
     containerSecurityContext:
 {{ tpl ($backup.containerSecurityContext | toYaml) $ | indent 6 }}
     {{- end }}
-    {{- if $backup.resources }}
-    resources:
-      requests:
-{{ tpl ($backup.resources.requests | toYaml) $ | indent 8 }}
-      limits:
-{{ tpl ($backup.resources.limits | toYaml) $ | indent 8 }}
+    {{- with $backup.resources }}
+    {{- include "ps-db.resources" (dict "resources" . "root" $) | nindent 4 }}
     {{- end }}
     {{- if $backup.pitr }}
     pitr:

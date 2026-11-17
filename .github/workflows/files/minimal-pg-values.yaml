@@ -1,0 +1,16 @@
+instances:
+  - name: instance1
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+    dataVolumeClaimSpec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+proxy:
+  pgBouncer:
+    replicas: 1

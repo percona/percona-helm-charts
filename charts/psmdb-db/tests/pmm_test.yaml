@@ -10,7 +10,7 @@ tests:
           path: spec.pmm
           content:
             enabled: false
-            image: percona/pmm-client:3.8.1
+            image: percona/pmm-client:3.9.1
             serverHost: monitoring-service
       - notExists:
           path: spec.pmm.querySource

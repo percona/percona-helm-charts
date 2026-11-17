@@ -1,0 +1,42 @@
+# PMM HA operators on OpenShift under the default restricted-v2 SecurityContextConstraint.
+#
+#   helm install pmm-operators percona/pmm-ha-dependencies -n <project> -f examples/values-openshift.yaml
+#
+# restricted-v2 rejects pinned user ids, so the ones values.yaml pins are unset here.
+#
+# Images are fully qualified: CRI-O's short-name alias for `victoriametrics/operator` points at
+# registry.connect.redhat.com, where the upstream tags do not exist.
+altinity-clickhouse-operator:
+  operator:
+    image:
+      registry: docker.io
+    containerSecurityContext:
+      runAsUser: null
+  metrics:
+    image:
+      registry: docker.io
+    containerSecurityContext:
+      runAsUser: null
+  crdHook:
+    image:
+      repository: docker.io/alpine/kubectl
+    podSecurityContext:
+      runAsUser: null
+
+victoria-metrics-operator:
+  image:
+    registry: docker.io
+  # The operator also names the images of the pods it creates; qualify those too. The
+  # config-reloader tag has to match the operator version pinned by this chart.
+  env:
+    - name: VM_CONFIG_RELOADER_IMAGE
+      value: docker.io/victoriametrics/operator:config-reloader-v0.74.1
+    - name: VM_VMAGENTDEFAULT_IMAGE
+      value: docker.io/victoriametrics/vmagent
+    - name: VM_VMAUTHDEFAULT_IMAGE
+      value: docker.io/victoriametrics/vmauth
+    - name: VM_VMALERTDEFAULT_IMAGE
+      value: docker.io/victoriametrics/vmalert
+  podSecurityContext:
+    runAsUser: null
+    fsGroup: null

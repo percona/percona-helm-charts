@@ -4,32 +4,43 @@
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMAgent
 metadata:
-  name: {{ include "pmm.fullname" . }}-vmagent
+  name: {{ include "pmm.vmagent.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: vmagent
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "vmagent") | nindent 4 }}
 spec:
+  useStrictSecurity: {{ .Values.victoriaMetrics.useStrictSecurity }}
+  {{- if .Values.victoriaMetrics.version }}
+  # Pinned alongside the VMCluster - see victoriaMetrics.version in values.yaml.
+  componentVersion: {{ .Values.victoriaMetrics.version | quote }}
+  {{- end }}
+
   # Number of VMAgent replicas
   replicaCount: {{ .Values.victoriaMetrics.vmagent.replicaCount }}
-  
+
+  {{- if .Values.victoriaMetrics.vmagent.rbac.create }}
+  # Created with its RBAC in vmagent-rbac.yaml.
+  serviceAccountName: {{ include "pmm.vmagent.name" . }}
+  {{- end }}
+
   # Remote write configuration - forwards metrics to VMAuth with secure basicAuth
   remoteWrite:
     - url: "http://{{ include "pmm.fullname" . }}-vmauth.{{ .Release.Namespace }}.svc.cluster.local:8427/api/v1/write"
       basicAuth:
         username:
           name: {{ .Values.secret.name }}
-          key: VMAGENT_remoteWrite_basicAuth_username
+          key: PMM_HA_VM_USERNAME
         password:
           name: {{ .Values.secret.name }}
-          key: VMAGENT_remoteWrite_basicAuth_password
+          key: PMM_HA_VM_PASSWORD
       {{- if .Values.victoriaMetrics.vmagent.remoteWrite }}
       {{- toYaml .Values.victoriaMetrics.vmagent.remoteWrite | nindent 6 }}
       {{- end }}
   
   # Inline scrape configuration for infrastructure metrics
   inlineScrapeConfig: |
-    # Scrape HAProxy metrics
+    {{- if and .Values.haproxy.monitoring.stats.enabled .Values.haproxy.monitoring.prometheus.enabled }}
+    # Scrape HAProxy metrics. The exporter is served on the stats frontend, so it needs both flags.
     - job_name: 'haproxy'
       kubernetes_sd_configs:
         - role: endpoints
@@ -37,9 +48,9 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # Keep only HAProxy service endpoints
+        # The stats port is not published on pmm-ha-haproxy, only on this headless Service
         - source_labels: [__meta_kubernetes_service_name]
-          regex: 'pmm-ha-haproxy'
+          regex: 'pmm-ha-haproxy-stats'
           action: keep
         # Target the stats/metrics port (1024)
         - source_labels: [__meta_kubernetes_endpoint_port_name]
@@ -50,11 +61,13 @@ spec:
           target_label: pod
         - source_labels: [__meta_kubernetes_namespace]
           target_label: namespace
-        - source_labels: [__meta_kubernetes_service_name]
-          target_label: service
+        # Keep the label HAProxy series carried before the stats Service existed
+        - target_label: service
+          replacement: pmm-ha-haproxy
         # Set the metrics path
         - target_label: __metrics_path__
           replacement: {{ .Values.haproxy.monitoring.prometheus.path | default "/metrics" }}
+    {{- end }}
     
     # Scrape ClickHouse metrics
     - job_name: 'clickhouse'
@@ -64,9 +77,14 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # Keep only ClickHouse pods from this release
+        {{- /* Keep only ClickHouse pods from this release. The label carries the
+               ClickHouseInstallation name, which clickhouse-cluster.yaml sets from Release.Name
+               (NOT pmm.fullname) - they differ whenever the release name does not already
+               contain the chart name, e.g. release "pmm-2" -> CHI "pmm-2", fullname "pmm-2-pmm-ha".
+               regexQuoteMeta: the value lands in a fully-anchored RE2 regex and Helm permits "."
+               in release names, so an unescaped name could match a different CHI. */}}
         - source_labels: [__meta_kubernetes_pod_label_clickhouse_altinity_com_chi]
-          regex: '{{ include "pmm.fullname" . }}'
+          regex: '{{ .Release.Name | regexQuoteMeta }}'
           action: keep
         # Target the metrics port (9363)
         - source_labels: [__meta_kubernetes_pod_container_port_number]
@@ -96,9 +114,10 @@ spec:
             names:
               - {{ .Release.Namespace }}
       relabel_configs:
-        # Keep only ClickHouse Keeper pods from this release
+        {{- /* Keep only ClickHouse Keeper pods from this release. As above, the label carries the
+               ClickHouseKeeperInstallation name, which clickhouse-keeper.yaml sets from Release.Name. */}}
         - source_labels: [__meta_kubernetes_pod_label_clickhouse_keeper_altinity_com_chk]
-          regex: '{{ include "pmm.fullname" . }}-keeper'
+          regex: '{{ .Release.Name | regexQuoteMeta }}-keeper'
           action: keep
         # Target the metrics port (7000)
         - source_labels: [__meta_kubernetes_pod_container_port_number]
@@ -127,7 +146,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: 'vmselect-{{ include "pmm.fullname" . }}-vmcluster'
+          regex: 'vmselect-{{ include "pmm.fullname" . | regexQuoteMeta }}-vmcluster'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -149,7 +168,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: 'vminsert-{{ include "pmm.fullname" . }}-vmcluster'
+          regex: 'vminsert-{{ include "pmm.fullname" . | regexQuoteMeta }}-vmcluster'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -171,7 +190,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: 'vmstorage-{{ include "pmm.fullname" . }}-vmcluster'
+          regex: 'vmstorage-{{ include "pmm.fullname" . | regexQuoteMeta }}-vmcluster'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -193,7 +212,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: '{{ include "pmm.fullname" . }}-vmauth'
+          regex: '{{ include "pmm.fullname" . | regexQuoteMeta }}-vmauth'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -215,7 +234,7 @@ spec:
               - {{ .Release.Namespace }}
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
-          regex: '{{ include "pmm.fullname" . }}-vmagent'
+          regex: '{{ include "pmm.fullname" . | regexQuoteMeta }}-vmagent'
           action: keep
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           regex: 'http'
@@ -228,6 +247,7 @@ spec:
           target_label: service
         - target_label: __metrics_path__
           replacement: /metrics
+    {{- if eq (include "pmm.kubeStateMetrics.bundledEnabled" .) "true" }}
     # Scrape kube-state-metrics for Kubernetes object state
     - job_name: 'kube-state-metrics'
       kubernetes_sd_configs:
@@ -246,7 +266,8 @@ spec:
           target_label: namespace
         - source_labels: [__meta_kubernetes_pod_name]
           target_label: pod
-    {{- if eq (include "pmm.nodeExporter.mode" .) "internal" }}
+    {{- end }}
+    {{- if and (eq (include "pmm.nodeExporter.mode" .) "internal") (eq (include "pmm.nodeExporter.bundledEnabled" .) "true") }}
     # Scrape node-exporter for node-level metrics (bundled prometheus-node-exporter DaemonSet)
     - job_name: 'node-exporter'
       kubernetes_sd_configs:
@@ -317,6 +338,27 @@ spec:
     {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
     # User-provided scrape configs (appended)
     {{- toYaml .Values.victoriaMetrics.vmagent.scrapeConfigs | nindent 4 }}
+    {{- end }}
+
+    {{- if .Values.centralBackupStorage.enabled }}
+    # One job for all backup/restore metrics; component is a label (DN-42).
+    - job_name: 'backup-metrics'
+      {{- /* 30s so short-lived restore-phase gauges are observable. */}}
+      scrape_interval: 30s
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+              - {{ .Release.Namespace }}
+      relabel_configs:
+        {{- include "pmm.backupToolsScrapeKeep" . | nindent 8 }}
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: '9091'
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
     {{- end }}
 
   {{- if .Values.victoriaMetrics.vmagent.scrapeConfigs }}
