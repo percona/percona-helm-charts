@@ -6,11 +6,18 @@ release:
   namespace: test-ns
 tests:
   - it: omits vpa when unset
+    set:
+      replsets.rs0.hidden.enabled: true
+      replsets.rs0.nonvoting.enabled: true
     asserts:
       - notExists:
           path: spec.vpa
       - notExists:
           path: spec.replsets[0].vpa
+      - notExists:
+          path: spec.replsets[0].hidden.vpa
+      - notExists:
+          path: spec.replsets[0].nonvoting.vpa
       - notExists:
           path: spec.sharding.configsvrReplSet.vpa
       - notExists:
