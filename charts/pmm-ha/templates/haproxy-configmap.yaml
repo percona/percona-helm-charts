@@ -70,10 +70,12 @@ data:
         {{- if and .Values.victoriaMetrics.enabled .Values.victoriaMetrics.vmauth.enabled }}
         # Metrics written by PMM Clients go to VictoriaMetrics (vmauth) directly, not to the PMM
         # Server pods: pmm-managed tells every client vmagent to write to this address, and the
-        # pods run no VictoriaMetrics of their own in HA. Only this exact path is
+        # pods run no VictoriaMetrics of their own in HA. Only this exact path, with Basic auth, is
         # routed; every other path, including VictoriaMetrics queries, stays behind PMM's own
         # authentication on the pods.
-        use_backend vmauth_write if { path /victoriametrics/api/v1/write }
+        # Only Basic auth (the VictoriaMetrics credentials) goes straight to vmauth; a PMM token goes to PMM Server,
+        # which checks it and forwards to vmauth. PMM-13674
+        use_backend vmauth_write if { path /victoriametrics/api/v1/write } { req.hdr(authorization) -i -m beg basic }
         {{- end }}
         default_backend https_back
 
