@@ -146,6 +146,30 @@ spec:
       {{- end }}
     {{- end }}
   {{- end }}
+  {{- if .Values.vpa }}
+  vpa:
+    enabled: {{ default false .Values.vpa.enabled }}
+    {{- if .Values.vpa.updateMode }}
+    updateMode: {{ .Values.vpa.updateMode | quote }}
+    {{- end }}
+    {{- if .Values.vpa.controlledValues }}
+    controlledValues: {{ .Values.vpa.controlledValues }}
+    {{- end }}
+    {{- if .Values.vpa.minAllowed }}
+    minAllowed:
+{{ .Values.vpa.minAllowed | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.vpa.maxAllowed }}
+    maxAllowed:
+{{ .Values.vpa.maxAllowed | toYaml | indent 6 }}
+    {{- end }}
+    {{- if .Values.vpa.stabilizationWindow }}
+    stabilizationWindow: {{ .Values.vpa.stabilizationWindow | quote }}
+    {{- end }}
+    {{- if hasKey .Values.vpa "inPlaceResize" }}
+    inPlaceResize: {{ .Values.vpa.inPlaceResize }}
+    {{- end }}
+  {{- end }}
   pmm:
     enabled: {{ .Values.pmm.enabled }}
     image: "{{ .Values.pmm.image.repository }}:{{ .Values.pmm.image.tag }}"
@@ -190,6 +214,10 @@ spec:
   - name: {{ $k }}
   {{- end }}
     size: {{ $replset.size }}
+    {{- if $replset.vpa }}
+    vpa:
+{{ $replset.vpa | toYaml | indent 6 }}
+    {{- end }}
     {{- if $replset.terminationGracePeriodSeconds }}
     terminationGracePeriodSeconds: {{ $replset.terminationGracePeriodSeconds }}
     {{- end }}
@@ -368,6 +396,10 @@ spec:
     hidden:
       enabled: {{ $replset.hidden.enabled }}
       size: {{ $replset.hidden.size }}
+      {{- if $replset.hidden.vpa }}
+      vpa:
+{{ $replset.hidden.vpa | toYaml | indent 8 }}
+      {{- end }}
       {{- if $replset.hidden.configuration }}
       configuration: |
 {{ tpl $replset.hidden.configuration $ | trimSuffix "\n" | indent 8 }}
@@ -468,6 +500,10 @@ spec:
     nonvoting:
       enabled: {{ $replset.nonvoting.enabled }}
       size: {{ $replset.nonvoting.size }}
+      {{- if $replset.nonvoting.vpa }}
+      vpa:
+{{ $replset.nonvoting.vpa | toYaml | indent 8 }}
+      {{- end }}
       {{- if $replset.nonvoting.configuration }}
       configuration: |
 {{ tpl $replset.nonvoting.configuration $ | trimSuffix "\n" | indent 8 }}
@@ -629,6 +665,10 @@ spec:
 
     configsvrReplSet:
       size: {{ .Values.sharding.configrs.size }}
+      {{- if .Values.sharding.configrs.vpa }}
+      vpa:
+{{ .Values.sharding.configrs.vpa | toYaml | indent 8 }}
+      {{- end }}
       {{- if .Values.sharding.configrs.terminationGracePeriodSeconds }}
       terminationGracePeriodSeconds: {{ .Values.sharding.configrs.terminationGracePeriodSeconds }}
       {{- end }}
@@ -785,6 +825,10 @@ spec:
 
     mongos:
       size: {{ .Values.sharding.mongos.size }}
+      {{- if .Values.sharding.mongos.vpa }}
+      vpa:
+{{ .Values.sharding.mongos.vpa | toYaml | indent 8 }}
+      {{- end }}
       {{- if .Values.sharding.mongos.terminationGracePeriodSeconds }}
       terminationGracePeriodSeconds: {{ .Values.sharding.mongos.terminationGracePeriodSeconds }}
       {{- end }}
