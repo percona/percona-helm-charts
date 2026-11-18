@@ -353,6 +353,20 @@ replsets:
         resources:
           requests:
             storage: 3Gi
+    # journalStorage:
+    #   persistentVolumeClaim:
+    #     storageClassName: standard
+    #     accessModes: [ "ReadWriteOnce" ]
+    #     resources:
+    #       requests:
+    #         storage: 2Gi
+    # logStorage:
+    #   persistentVolumeClaim:
+    #     storageClassName: standard
+    #     accessModes: [ "ReadWriteOnce" ]
+    #     resources:
+    #       requests:
+    #         storage: 2Gi
     # hostAliases:
     # - ip: "10.10.0.2"
     #   hostnames:
@@ -465,6 +479,20 @@ replsets:
           resources:
             requests:
               storage: 3Gi
+#      journalStorage:
+#        persistentVolumeClaim:
+#          storageClassName: standard
+#          accessModes: [ "ReadWriteOnce" ]
+#          resources:
+#            requests:
+#              storage: 2Gi
+#      logStorage:
+#        persistentVolumeClaim:
+#          storageClassName: standard
+#          accessModes: [ "ReadWriteOnce" ]
+#          resources:
+#            requests:
+#              storage: 2Gi
 #      sidecars:
 #      - image: busybox
 #        command: ["/bin/sh"]
@@ -555,6 +583,20 @@ replsets:
           resources:
             requests:
               storage: 3Gi
+      # journalStorage:
+      #   persistentVolumeClaim:
+      #     storageClassName: standard
+      #     accessModes: [ "ReadWriteOnce" ]
+      #     resources:
+      #       requests:
+      #         storage: 2Gi
+      # logStorage:
+      #   persistentVolumeClaim:
+      #     storageClassName: standard
+      #     accessModes: [ "ReadWriteOnce" ]
+      #     resources:
+      #       requests:
+      #         storage: 2Gi
       # sidecars:
       # - image: busybox
       #   command: ["/bin/sh"]
@@ -740,6 +782,20 @@ sharding:
         resources:
           requests:
             storage: 3Gi
+    # journalStorage:
+    #   persistentVolumeClaim:
+    #     storageClassName: standard
+    #     accessModes: [ "ReadWriteOnce" ]
+    #     resources:
+    #       requests:
+    #         storage: 2Gi
+    # logStorage:
+    #   persistentVolumeClaim:
+    #     storageClassName: standard
+    #     accessModes: [ "ReadWriteOnce" ]
+    #     resources:
+    #       requests:
+    #         storage: 2Gi
     # hostAliases:
     # - ip: "10.10.0.2"
     #   hostnames:

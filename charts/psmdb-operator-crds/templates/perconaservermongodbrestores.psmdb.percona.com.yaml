@@ -328,6 +328,8 @@ spec:
                   snapshots:
                     items:
                       properties:
+                        journalSnapshotName:
+                          type: string
                         replsetName:
                           type: string
                         snapshotName:
