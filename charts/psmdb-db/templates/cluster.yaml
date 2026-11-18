@@ -383,6 +383,14 @@ spec:
       emptyDir: {}
       {{- end }}
     {{- end }}
+    {{- if $replset.journalStorage }}
+    journalStorage:
+{{ $replset.journalStorage | toYaml | indent 6 }}
+    {{- end }}
+    {{- if $replset.logStorage }}
+    logStorage:
+{{ $replset.logStorage | toYaml | indent 6 }}
+    {{- end }}
     {{- if $replset.hostAliases }}
     hostAliases:
 {{ $replset.hostAliases | toYaml | indent 6 }}
@@ -482,6 +490,14 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      {{- end }}
+      {{- if $replset.hidden.journalStorage }}
+      journalStorage:
+{{ $replset.hidden.journalStorage | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.hidden.logStorage }}
+      logStorage:
+{{ $replset.hidden.logStorage | toYaml | indent 8 }}
       {{- end }}
       {{- if $replset.hidden.sidecars }}
       sidecars:
@@ -586,6 +602,14 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      {{- end }}
+      {{- if $replset.nonvoting.journalStorage }}
+      journalStorage:
+{{ $replset.nonvoting.journalStorage | toYaml | indent 8 }}
+      {{- end }}
+      {{- if $replset.nonvoting.logStorage }}
+      logStorage:
+{{ $replset.nonvoting.logStorage | toYaml | indent 8 }}
       {{- end }}
       {{- if $replset.nonvoting.sidecars }}
       sidecars:
@@ -818,6 +842,14 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
+      {{- if .Values.sharding.configrs.journalStorage }}
+      journalStorage:
+{{ .Values.sharding.configrs.journalStorage | toYaml | indent 8 }}
+      {{- end }}
+      {{- if .Values.sharding.configrs.logStorage }}
+      logStorage:
+{{ .Values.sharding.configrs.logStorage | toYaml | indent 8 }}
+      {{- end }}
       {{- if .Values.sharding.configrs.hostAliases }}
       hostAliases:
 {{ .Values.sharding.configrs.hostAliases | toYaml | indent 8 }}
