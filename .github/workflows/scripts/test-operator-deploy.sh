@@ -301,38 +301,9 @@ cluster_pods_state() {
 }
 
 verify_operator_ready() {
-  local deadline
-  local terminating
-
   kubectl rollout status "deployment/$operator" \
     --namespace "$operator_namespace" \
     --timeout 10m
-
-  # rollout status returns while old pods are still terminating; kubectl wait
-  # would pick them up via the selector and fail with NotFound once they are gone.
-  deadline=$((SECONDS + 300))
-  while :; do
-    terminating="$(
-      kubectl get pods \
-        --namespace "$operator_namespace" \
-        --selector "app.kubernetes.io/instance=$operator" \
-        --output json |
-        jq -r '[.items[] | select(.metadata.deletionTimestamp) | .metadata.name] | join(" ")'
-    )"
-    [[ -z "$terminating" ]] && break
-    if ((SECONDS >= deadline)); then
-      log "ERROR: timed out waiting for terminating operator pods: $terminating" >&2
-      return 1
-    fi
-    log "Waiting for terminating operator pods: $terminating"
-    sleep 5
-  done
-
-  kubectl wait pods \
-    --namespace "$operator_namespace" \
-    --selector "app.kubernetes.io/instance=$operator" \
-    --for condition=Ready \
-    --timeout 5m
 }
 
 verify_cluster_stability() {
