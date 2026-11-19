@@ -2,7 +2,7 @@ apiVersion: v2
 name: pmm-ha-dependencies
 description: Kubernetes operators required for PMM HA deployment
 type: application
-version: 1.2.0
+version: 1.3.0
 appVersion: "1.0.0"
 kubeVersion: ">=1.32.0-0"
 home: https://github.com/percona/percona-helm-charts
@@ -20,9 +20,12 @@ dependencies:
   - name: victoria-metrics-operator
     version: 0.67.3
     repository: https://victoriametrics.github.io/helm-charts/
+    condition: victoria-metrics-operator.enabled
   - name: altinity-clickhouse-operator
     version: 0.27.3
     repository: https://helm.altinity.com
+    condition: altinity-clickhouse-operator.enabled
   - name: pg-operator
     version: 3.1.0
     repository: https://percona.github.io/percona-helm-charts/
+    condition: pg-operator.enabled

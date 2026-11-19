@@ -22,7 +22,7 @@ head_repository=${head_repository:-${GITHUB_REPOSITORY:-}}
 
 json_array() {
   tr ',' '\n' <<< "$1" |
-    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' |
+    sed -e 's/^[[:space:]]*-[[:space:]]*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' |
     sort -u |
     jq -R . |
     jq -sc .

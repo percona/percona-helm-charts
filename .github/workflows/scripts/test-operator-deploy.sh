@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-usage='Usage: test-operator-deploy.sh <install|upgrade> <psmdb|ps|pxc|pg> <--version=TAG|--branch=TAG> (upgrade: psmdb only)'
+usage='Usage: test-operator-deploy.sh <install|upgrade> <psmdb|ps|pxc|pg> <--version=TAG|--branch=TAG> (upgrade: psmdb or pg)'
 operator_namespace=operator
 database_namespace=database
 base_sha=${BASE_SHA:-}
@@ -16,10 +16,15 @@ log() {
   printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"
 }
 
+# Overrides the operator and init images only for perconalab images.
+# A released percona image keeps the chart defaults.
 resolve_operator_image() {
   local selector=$1
   local released=false
   local manifest_error=''
+
+  operator_image_args=()
+  init_image_args=()
 
   case "$selector" in
     --version=*)
@@ -39,8 +44,12 @@ resolve_operator_image() {
     die "Invalid container image tag: $image_tag"
 
   operator_image="$image_repository:$image_tag"
-  if [[ "$released" == true ]] &&
-    ! manifest_error="$(docker manifest inspect "$operator_image" 2>&1 >/dev/null)"; then
+  if [[ "$released" == true ]]; then
+    if manifest_error="$(docker manifest inspect "$operator_image" 2>&1 >/dev/null)"; then
+      echo "$operator_image is released; using the chart default operator and init images"
+      return 0
+    fi
+
     if ! grep -Eiq 'manifest unknown|no such manifest|not found' \
       <<<"$manifest_error"; then
       die "Could not inspect $operator_image: $manifest_error"
@@ -60,6 +69,15 @@ resolve_operator_image() {
       --set "image.tag=$image_tag"
     )
   fi
+
+  if [[ "$product" == psmdb ]]; then
+    init_image_args=(
+      --set "initImage.repository=$image_repository"
+      --set "initImage.tag=$image_tag"
+    )
+  else
+    init_image_args=(--set "initContainer.image=$operator_image")
+  fi
 }
 
 configure() {
@@ -69,8 +87,8 @@ configure() {
   product=$2
   [[ "$mode" == install || "$mode" == upgrade ]] ||
     die "Unsupported mode: $mode"
-  [[ "$mode" != upgrade || "$product" == psmdb ]] ||
-    die "Upgrade is only supported for psmdb"
+  [[ "$mode" != upgrade || "$product" == psmdb || "$product" == pg ]] ||
+    die "Upgrade is only supported for psmdb and pg"
 
   workload_label=app.kubernetes.io/instance
   check_observed_generation=true
@@ -98,11 +116,17 @@ configure() {
       ;;
   esac
 
+  if [[ "$product" == ps ]]; then
+    operator_log_args=(--set env.logLevel=DEBUG)
+  else
+    operator_log_args=(--set logLevel=DEBUG)
+  fi
+
   operator="${product}-operator"
   crd="${product}-operator-crds"
   db="${product}-db"
   cluster="test-${db}"
-  workload_selector="$workload_label=$cluster"
+  workload_selector="$workload_label=$cluster,!job-name,!batch.kubernetes.io/job-name"
   local values_file=".github/workflows/files/minimal-${product}-values.yaml"
   [[ -f "$values_file" ]] || die "Test values not found: $values_file"
   db_args=(-f "$values_file")
@@ -246,7 +270,7 @@ wait_ready() {
   return 1
 }
 
-database_pod_state() {
+cluster_pods_state() {
   local pods
 
   pods="$(
@@ -256,23 +280,23 @@ database_pod_state() {
       --output json
   )"
 
-  if ! jq --exit-status '.items | length > 0' <<<"$pods" >/dev/null; then
-    echo "No database pods found for $cluster" >&2
-    return 1
-  fi
-
-  jq --compact-output '
-    [.items[] | {
-      name: .metadata.name,
-      uid: .metadata.uid,
-      containers: (
-        ((.status.initContainerStatuses // []) +
-         (.status.containerStatuses // []) +
-         (.status.ephemeralContainerStatuses // [])) |
-        map({name, restartCount}) |
-        sort_by(.name)
-      )
-    }] | sort_by(.name)
+  jq --compact-output --exit-status --arg cluster "$cluster" '
+    [.items[] |
+      select((.metadata.ownerReferences // [] | map(.kind) | index("Job")) == null) |
+      {
+        name: .metadata.name,
+        uid: .metadata.uid,
+        containers: (
+          ((.status.initContainerStatuses // []) +
+           (.status.containerStatuses // []) +
+           (.status.ephemeralContainerStatuses // [])) |
+          map({name, restartCount}) |
+          sort_by(.name)
+        )
+      }
+    ] |
+    if length == 0 then error("No non-Job cluster pods found for " + $cluster)
+    else sort_by(.name) end
   ' <<<"$pods"
 }
 
@@ -287,28 +311,24 @@ verify_operator_ready() {
     --timeout 5m
 }
 
-verify_database_stability() {
-  local before=$1
-  local after
+verify_cluster_stability() {
+  local cluster_state_before=$1
+  local context=${2:-operator upgrade}
+  local cluster_state_after
 
-  echo "Operator $operator is ready; checking database pod stability for 60 seconds"
-  sleep 60
+  echo "Checking cluster pod stability after $context for 120 seconds"
+  sleep 120
+  wait_ready
+  cluster_state_after="$(cluster_pods_state)"
 
-  kubectl wait pods \
-    --namespace "$database_namespace" \
-    --selector "app.kubernetes.io/instance=$cluster" \
-    --for condition=Ready \
-    --timeout 5m
-  after="$(database_pod_state)"
-
-  if [[ "$before" != "$after" ]]; then
-    echo "A database pod was replaced or a container restarted after the operator upgrade" >&2
-    echo "Before: $before" >&2
-    echo "After:  $after" >&2
+  if [[ "$cluster_state_before" != "$cluster_state_after" ]]; then
+    echo "A cluster pod was replaced or a container restarted after the $context" >&2
+    echo "Cluster state before: $cluster_state_before" >&2
+    echo "Cluster state after:  $cluster_state_after" >&2
     return 1
   fi
 
-  echo "Database pods remained stable without restarts for 60 seconds"
+  echo "Cluster pods remained stable without restarts after the $context"
 }
 
 validate_crds() {
@@ -355,12 +375,16 @@ install_crd_chart() {
   fi
 }
 
-upgrade_crd_chart() {
-  helm upgrade "$crd" "charts/$crd" \
-    --namespace "$operator_namespace" \
-    --wait \
-    --timeout 5m
-  validate_crds
+upgrade_crd() {
+  local manifest="charts/$operator/crds/crd.yaml"
+
+  kubectl apply --server-side --force-conflicts -f "$manifest"
+  if [[ "$product" == psmdb ]]; then
+    validate_crds
+  else
+    kubectl wait --for condition=Established --timeout 2m \
+      -f "$manifest"
+  fi
 }
 
 install_operator_chart() {
@@ -372,6 +396,7 @@ install_operator_chart() {
   [[ -z "$version" ]] || operator_args+=(--version "$version")
   [[ "$use_target_image" != true ]] || operator_args+=("${operator_image_args[@]}")
   operator_args+=(--set watchAllNamespaces=true)
+  operator_args+=("${operator_log_args[@]}")
   if [[ -f "charts/$crd/Chart.yaml" ]]; then
     operator_args+=(--skip-crds)
   fi
@@ -387,9 +412,11 @@ install_operator_chart() {
 install_database_chart() {
   local source=$1
   local version=${2:-}
+  local use_target_image=${3:-false}
   local version_args=()
 
   [[ -z "$version" ]] || version_args+=(--version "$version")
+  [[ "$use_target_image" != true ]] || version_args+=("${init_image_args[@]}")
 
   helm install test "$source" \
     --namespace "$database_namespace" \
@@ -410,11 +437,11 @@ install_current_charts() {
     install_crd_chart "charts/$crd"
   fi
   install_operator_chart "charts/$operator" '' true
-  install_database_chart "charts/$db"
+  install_database_chart "charts/$db" '' true
 }
 
 install_previous_charts() {
-  local operator_version db_version crd_version
+  local operator_version db_version crd_version=''
 
   [[ -n "$base_sha" ]] || die "BASE_SHA is required for an upgrade test"
   git cat-file -e "$base_sha^{commit}" 2>/dev/null ||
@@ -422,16 +449,22 @@ install_previous_charts() {
 
   operator_version="$(chart_version "charts/$operator")"
   db_version="$(chart_version "charts/$db")"
-  crd_version="$(chart_version "charts/$crd")"
-  [[ -n "$operator_version" && -n "$db_version" && -n "$crd_version" ]] ||
+  [[ -n "$operator_version" && -n "$db_version" ]] ||
     die "Could not determine previous chart versions from $base_sha"
+  if [[ -f "charts/$crd/Chart.yaml" ]]; then
+    crd_version="$(chart_version "charts/$crd")"
+    [[ -n "$crd_version" ]] ||
+      die "Could not determine previous CRD chart version from $base_sha"
+  fi
 
   helm repo add percona \
     https://percona.github.io/percona-helm-charts/ \
     --force-update
   helm repo update
 
-  install_crd_chart "percona/$crd" "$crd_version"
+  if [[ -n "$crd_version" ]]; then
+    install_crd_chart "percona/$crd" "$crd_version"
+  fi
   install_operator_chart "percona/$operator" "$operator_version"
   install_database_chart "percona/$db" "$db_version"
 }
@@ -443,6 +476,7 @@ save_baseline_init_images() {
 
   case "$product" in
     psmdb) containers='["mongo-init"]' ;;
+    pg) containers='["database-init"]' ;;
     *) die "Baseline init images are not configured for $product" ;;
   esac
 
@@ -471,6 +505,10 @@ pin_baseline_init_images() {
         --set-string "initImage.tag=${init_image##*:}"
       )
       ;;
+    pg)
+      init_image="$(jq -er '."database-init" | select(type == "string" and length > 0)' <<< "$previous_images")"
+      image_args+=(--set-string "initContainer.image=$init_image")
+      ;;
     *) die "Baseline init image overrides are not configured for $product" ;;
   esac
 
@@ -484,39 +522,43 @@ pin_baseline_init_images() {
 }
 
 upgrade_operator() {
-  local database_state
+  local cluster_state_before
+  local operator_args=(--set watchAllNamespaces=true)
+  operator_args+=("${operator_log_args[@]}")
 
-  database_state="$(database_pod_state)"
-  upgrade_crd_chart
+  cluster_state_before="$(cluster_pods_state)"
+  upgrade_crd
   helm upgrade "$operator" "charts/$operator" \
     --namespace "$operator_namespace" \
     --wait \
     --timeout 10m \
-    --set watchAllNamespaces=true \
+    "${operator_args[@]}" \
     "${operator_image_args[@]}"
   verify_operator_ready
-  verify_database_stability "$database_state"
+  verify_cluster_stability "$cluster_state_before" "operator upgrade"
 }
 
 upgrade_database() {
-  local cr_version_before cr_version_after generations_before
+  local cr_version_before cr_version_after generations_before cluster_state_before
 
   cr_version_before="$(get_cr_version)"
   generations_before="$(save_generations)"
+  cluster_state_before="$(cluster_pods_state)"
   log "CR version before upgrade: ${cr_version_before:-unset}"
   log "Workload generations before upgrade: $generations_before"
 
   helm upgrade test "charts/$db" \
     --namespace "$database_namespace" \
     --reset-values \
-    "${db_args[@]}"
+    "${db_args[@]}" \
+    "${init_image_args[@]}"
 
   cr_version_after="$(get_cr_version)"
   log "CR version after upgrade: ${cr_version_after:-unset}"
 
   if [[ "$cr_version_before" == "$cr_version_after" ]]; then
-    log "CR version unchanged: waiting 60 seconds before readiness checks"
-    sleep 60
+    log "CR version unchanged: waiting 120 seconds before readiness checks"
+    sleep 120
     wait_ready
     return
   fi
@@ -536,7 +578,8 @@ run_upgrade() {
 
   install_previous_charts
   wait_ready
-  if [[ "$image_repository" == perconalab/* ]]; then
+  if [[ "$image_repository" == perconalab/* ]] &&
+    [[ "$product" == psmdb || "$product" == pg ]]; then
     previous_init_images="$(save_baseline_init_images)"
     pin_baseline_init_images "$previous_init_images"
   fi
