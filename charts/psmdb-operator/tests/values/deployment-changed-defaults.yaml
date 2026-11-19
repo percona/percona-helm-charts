@@ -43,6 +43,8 @@ maxConcurrentReconciles: "2"
 env:
   resyncPeriod: 10s
   reconcileInterval: 15s
+  backupReconcileInterval: 20s
+  restoreReconcileInterval: 25s
 operatorName: custom-operator
 certManagerNamespace: custom-cert-manager
 livenessProbe:
