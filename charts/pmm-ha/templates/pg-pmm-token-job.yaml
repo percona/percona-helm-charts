@@ -48,7 +48,9 @@ metadata:
   labels:
     {{- include "pmm.pgTokenJob.labels" . | nindent 4 }}
 spec:
-  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  {{- /* No ttlSecondsAfterFinished: the pod-template hash in the name already replaces the Job when
+         it changes, and Helm prunes the old one. A TTL would only make Argo CD report the Job
+         missing once it is deleted, and self-heal re-run it every day. */}}
   backoffLimit: 10
 {{- include "pmm.pgTokenJobPodTemplate" . }}
 {{- end }}
@@ -68,9 +70,8 @@ Pod template for the pg-db PMM token-init Job, kept as a named template so the J
 carry a hash of it (see pmm.pgTokenJobName). A Job's spec.template is immutable and this Job
 is an ordinary release resource, not a helm.sh/hook, so a `helm upgrade` that changes the
 script or an env value would otherwise be rejected with "spec.template: field is immutable"
-for as long as the previous Job survives (ttlSecondsAfterFinished bounds that to 24h after
-it completed). Hashing the template into the name makes such a change a create-and-prune
-instead of a patch. A hook would be the other way out, but the readiness loop below is
+for as long as the previous Job exists, which with no TTL is until the next such change.
+Hashing the template into the name makes that change a create-and-prune instead of a patch. A hook would be the other way out, but the readiness loop below is
 unbounded, and a post-install/post-upgrade hook that never returns would hang helm.
 
 Helm does not hand over between the old Job and the new one. `Client.Update` applies the whole

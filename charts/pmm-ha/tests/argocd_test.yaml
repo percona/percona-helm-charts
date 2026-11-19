@@ -1,0 +1,38 @@
+# What the chart does for Argo CD with or without offlineRender.enabled (PMM-15826): annotations
+# that nothing else reads, and nothing that Argo CD would see go missing.
+suite: pmm-ha argo cd
+templates:
+  - templates/backup-scripts-configmap.yaml
+  - templates/central-backup-pvc.yaml
+  - templates/pg-pmm-token-job.yaml
+release:
+  name: smoke
+  namespace: pmm
+set:
+  centralBackupStorage:
+    enabled: true
+    mode: shared
+tests:
+  - it: marks the backup-scripts ConfigMap for server-side apply (too large for client-side apply)
+    template: templates/backup-scripts-configmap.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-options"]
+          value: ServerSideApply=true
+
+  - it: keeps the central backup PVC from Argo CD pruning and deletion, as from helm uninstall
+    template: templates/central-backup-pvc.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-options"]
+          value: Prune=false,Delete=false
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+
+  - it: keeps the finished token Job, so it is not reported missing once a TTL removes it
+    template: templates/pg-pmm-token-job.yaml
+    documentSelector: {path: kind, value: Job}
+    asserts:
+      - notExists:
+          path: spec.ttlSecondsAfterFinished
