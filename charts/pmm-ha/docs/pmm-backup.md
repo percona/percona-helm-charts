@@ -442,7 +442,7 @@ including `-customS3Endpoint` for vmbackup/vmrestore.
 ### ClickHouse
 
 - **Tool**: clickhouse-backup (Altinity sidecar)
-- **How**: `kubectl exec` into the ClickHouse pod, issues SQL commands against the `system.backup_actions` table to trigger `clickhouse-backup create`
+- **How**: `kubectl exec` into the ClickHouse pod whose `pmm.metrics` has the most rows (pods can hold different `pmm` copies, PMM-15785), issues SQL commands against the `system.backup_actions` table to trigger `clickhouse-backup create`
 - **Where stored** (s3): `clickhouse-backup create` makes near-zero-space hardlinks on the pod, then `upload` pushes them to S3 (`REMOTE_STORAGE=s3`, `S3_PATH=<namespace>/<prefix>/clickhouse`, configured credentials — static keys or IRSA), then `delete local`. Objects land at `s3://<bucket>/<namespace>/<prefix>/clickhouse/backup_<id>/…`.
 - **Incremental** (`--ch-backup-type incremental`): the local `create` is always a full
   hardlink snapshot; the diff happens at **upload** time — `upload
@@ -1271,6 +1271,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `LOCK_LEASE_SECONDS` / `LOCK_RENEW_SECONDS` | Component lock lease duration / renewal interval | 900 / 60 |
 | `LOCK_RENEWER_MAX_SECONDS` | Backstop lifetime for the lease renewer | 86400 |
 | `CH_SECRET_NAME` | Kubernetes secret for ClickHouse (the chart sets it from `secret.name`) | pmm-secret |
+| `PMM_CLICKHOUSE_DATABASE` | QAN ClickHouse database: a backup reads its row counts, a restore recreates it (the chart sets it from `pmmEnv.PMM_CLICKHOUSE_DATABASE`) | pmm |
 | `CH_CREATE_TIMEOUT` | Max seconds to wait for clickhouse-backup create (the upload has no wall clock) | 300 |
 | `VM_READY_TIMEOUT` | Max seconds a restore waits for vmstorage to be Ready again after vmrestore (a large tier loads its index for minutes). It stops early on vmrestore's incomplete-restore marker or after 5 restarts | 1800 |
 | `NAMESPACE` | Kubernetes namespace (the chart sets this to the release namespace in backup-tools) | demo |
@@ -1285,7 +1286,7 @@ See [Listing Backups](#listing-backups-s3-mode) for the manifest/catalog details
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 static keys (required on non-AWS S3-compatible storage; on AWS, IRSA is the keyless alternative) | |
 | `TARGET_RELEASE` | Same as `--release`: scopes destructive lookups to one install | *(unscoped)* |
 | `PMM_SRV_PATH` | Path backed up from the PMM pods | /srv |
-| `CH_LIST_TIMEOUT` | Max seconds to list ClickHouse remote backups (restore preflight; a populated bucket is slow) | 120 |
+| `CH_LIST_TIMEOUT` | Max seconds to list ClickHouse remote backups (restore preflight; a populated bucket is slow), and for each DROP/CREATE of the QAN database in a restore | 120 |
 | `RCLONE_STREAM_IO_TIMEOUT` | Idle-IO bound for STREAMING rclone calls (the PostgreSQL dump pipe), separate from `RCLONE_IO_TIMEOUT` | 300 |
 | `VM_S3_ENDPOINT` | S3 endpoint for vmbackup/vmrestore only, when VictoriaMetrics must use a different endpoint from the rest | *(inherits `S3_ENDPOINT`)* |
 | `PMM_RESTORE_IMAGE` | Image for the `/srv` restore temp pods | *(read from the PMM StatefulSet)* |
@@ -1819,22 +1820,28 @@ No pgBackRest, stanza, or `PerconaPGRestore` involved.
 
 #### ClickHouse
 
-ClickHouse restores in the live `clickhouse-backup` sidecar (with PMM scaled down):
+ClickHouse restores in the live `clickhouse-backup` sidecar (with PMM scaled down). The automated restore stages the backup, then drops `pmm` on every ClickHouse pod and creates it again with one UUID, then restores, so the restore cannot leave pods with different `pmm` copies (PMM-15785). Its preflight refuses the restore while any ClickHouse host does not answer. Run by hand, the restore is:
 
 ```bash
-# s3: download + restore from the bucket directly. The --env overrides point the tool at
-# the SOURCE backup's bucket/prefix — restore_remote has no source-path argument and would
-# otherwise only look under the S3_PATH baked into THIS sidecar's env, which is wrong for
-# cross-namespace/cross-prefix (DR) restores. The orchestrator always passes them.
+# 1. Stage the backup. s3: the --env overrides point the tool at the SOURCE backup's
+# bucket/prefix, which is required for cross-namespace/cross-prefix (DR) restores.
 kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
-  clickhouse-backup restore_remote \
+  clickhouse-backup download \
   --env S3_BUCKET=<source-bucket> --env S3_PATH=<source-namespace>/<source-prefix>/clickhouse \
-  --rm <backup-name>
+  <backup-name>
+# shared: untar the archive into the backup dir instead
+kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
+  tar -xzf /central/clickhouse/backup_<id>/<backup-name>.tar.gz -C /var/lib/clickhouse/backup
 
-# shared: untar the archive into the backup dir, then restore
-kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- sh -c \
-  "tar -xzf /central/clickhouse/backup_<id>/<backup-name>.tar.gz -C /var/lib/clickhouse/backup \
-   && clickhouse-backup restore --rm <backup-name>"
+# 2. On EVERY ClickHouse pod, with the same <uuid> everywhere (as the PMM ClickHouse user);
+#    <db> is pmmEnv.PMM_CLICKHOUSE_DATABASE, pmm by default:
+#    DROP DATABASE IF EXISTS <db> SYNC SETTINGS max_table_size_to_drop=0
+#    (the setting lifts the 50 GB drop limit; without it a large <db>.metrics fails with error 359)
+#    CREATE DATABASE <db> UUID '<uuid>' ENGINE = Replicated('/clickhouse/databases/{uuid}', '{shard}', '{replica}')
+
+# 3. Restore into the pod used in step 1
+kubectl exec -n <namespace> <clickhouse-pod> -c clickhouse-backup -- \
+  clickhouse-backup restore --rm <backup-name>
 ```
 
 #### VictoriaMetrics
