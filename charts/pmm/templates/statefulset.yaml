@@ -43,6 +43,10 @@ spec:
       {{- if or ( .Values.serviceAccount.create) (include "pmm.serviceAccountName" .) }}
       serviceAccountName: {{ include "pmm.serviceAccountName" . }}
       {{- end }}
+      {{- if .Values.encryptionKey.backupToSecret }}
+      # The service account can create secrets, so only encryption-key-reconcile gets its token (PMM-15779).
+      automountServiceAccountToken: false
+      {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.nodeSelector }}
@@ -223,8 +227,8 @@ spec:
               mountPath: /srv
             - name: encryption-key-workdir
               mountPath: /shared
-            # Mounted explicitly because hardened clusters turn off token automount for the
-            # default service account. Only this container gets it, not PMM itself.
+            # Mounted explicitly because the pod turns token automount off. Only this container
+            # gets it, not PMM itself.
             - name: encryption-key-api-access
               mountPath: /var/run/secrets/kubernetes.io/serviceaccount
               readOnly: true
