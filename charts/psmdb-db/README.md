@@ -420,7 +420,7 @@ The chart can be customized using the following configurable parameters:
 | `logcollector.readinessProbe`                      | Readiness probe for the logs (fluent-bit) container                           | `{}`                             |
 | `logcollector.logrotate.configuration`             | Custom logrotate configuration                                                | `""`                             |
 | `logcollector.logrotate.extraConfig.name`          | Name of a ConfigMap with extra logrotate configuration                        | `""`                             |
-| `logcollector.logrotate.schedule`                  | Cron schedule for logrotate                                                   | `"0 0 * * *"`                    |
+| `logcollector.logrotate.schedule`                  | Cron schedule for logrotate                                                   | `"0 * * * *"`                    |
 | `logcollector.logrotate.livenessProbe`             | Liveness probe for the logrotate container                                    | `{}`                             |
 | `logcollector.logrotate.readinessProbe`            | Readiness probe for the logrotate container                                   | `{}`                             |
 | |
@@ -469,6 +469,16 @@ The chart can be customized using the following configurable parameters:
 | `clusterSync.podSecurityContext`                   | Pod security context for the PCSM Pod                                                                   | `{}`                                        |
 | `clusterSync.livenessProbe`                        | Liveness probe override                                                                                 | `{}`                                        |
 | `clusterSync.readinessProbe`                       | Readiness probe override                                                                                | `{}`                                        |
+
+Log rotation settings require an operator and log collector image that support
+`logcollector.logrotate`. With the updated log collector image, the built-in
+configuration checks hourly, rotates daily or when logs exceed 500 MB, retains
+7 rotated files, and enables compression with delayed compression. When overriding
+`configuration`, preserve the MongoDB `postrotate` script so MongoDB reopens its
+log files after rotation. With CR version 1.24.0 or later, the operator configures
+TLS connections for rotation and mounts the users Secret; the built-in script
+reads the current `clusterAdmin` credentials on each rotation so password changes
+do not require a Pod restart.
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 Notice that you can use multiple replica sets only with sharding enabled.
