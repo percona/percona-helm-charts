@@ -1,0 +1,48 @@
+logcollector:
+  enabled: true
+  image:
+    repository: changed-image
+    tag: changed-tag
+  imagePullPolicy: IfNotPresent
+  configuration: |
+    pipeline:
+      filters:
+        - name: record_modifier
+          match: "*"
+  env:
+    - name: LOG_ENV
+      value: test
+  envFrom:
+    - secretRef:
+        name: logcollector-env
+  containerSecurityContext:
+    privileged: false
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+    limits:
+      cpu: 2m
+      memory: 2Mi
+  readinessProbe:
+    initialDelaySeconds: 5
+  livenessProbe:
+    initialDelaySeconds: 30
+  volumeMounts:
+    - name: extra
+      mountPath: /extra
+  volumes:
+    - name: extra
+      emptyDir: {}
+  logRotate:
+    schedule: "0 0 * * *"
+    configuration: |
+      /var/lib/mysql/log/*.log {
+          daily
+      }
+    extraConfig:
+      name: my-logrotate-config
+    readinessProbe:
+      initialDelaySeconds: 5
+    livenessProbe:
+      initialDelaySeconds: 30

@@ -1,0 +1,40 @@
+replicaCount: 2
+image:
+  repository: operator
+  tag: dummy
+  pullPolicy: IfNotPresent
+imagePullSecrets:
+  - name: pull-secret
+env:
+  logStructured: true
+  logLevel: DEBUG
+  maxConcurrentReconciles: 3
+disableTelemetry: true
+resources:
+  requests:
+    cpu: 1m
+    memory: 1Mi
+  limits:
+    cpu: 2m
+    memory: 2Mi
+nodeSelector:
+  disktype: ssd
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: zone
+              operator: In
+              values:
+                - a
+tolerations:
+  - key: test
+    operator: Exists
+    effect: NoSchedule
+leaderElection:
+  enabled: true
+  leaseName: custom-lease
+  leaseDuration: 30s
+  renewDeadline: 20s
+  retryPeriod: 5s

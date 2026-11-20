@@ -30,7 +30,7 @@ helm-unittest:
 	$(HELM) plugin install https://github.com/helm-unittest/helm-unittest.git
 
 .PHONY: test
-test: test-pxc-operator test-pxc-db test-pmm-ha
+test: test-pxc-operator test-pxc-db test-pmm-ha test-ps-operator test-ps-db
 
 .PHONY: test-pxc-operator
 test-pxc-operator:
@@ -40,6 +40,13 @@ test-pxc-operator:
 test-pxc-db:
 	$(HELM) unittest charts/pxc-db
 
+.PHONY: test-ps-operator
+test-ps-operator:
+	$(HELM) unittest charts/ps-operator
+
+.PHONY: test-ps-db
+test-ps-db:
+	$(HELM) unittest charts/ps-db
 # The suites render subchart templates, so the gitignored subchart archives must be built first.
 # Needs the chart's repositories added (see charts/pmm-ha/Chart.yaml); Helm names any missing one.
 .PHONY: test-pmm-ha
