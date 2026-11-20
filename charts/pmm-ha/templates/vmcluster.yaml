@@ -5,8 +5,7 @@ metadata:
   name: {{ include "pmm.fullname" . }}-vmcluster
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: victoria-metrics-cluster
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "victoria-metrics-cluster") | nindent 4 }}
 spec:
   useStrictSecurity: {{ .Values.victoriaMetrics.useStrictSecurity }}
   {{- if .Values.victoriaMetrics.version }}

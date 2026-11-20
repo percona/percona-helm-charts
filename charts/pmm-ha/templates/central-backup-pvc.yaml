@@ -5,7 +5,8 @@
 {{- if not $accessMode }}{{- $accessMode = ternary "ReadWriteMany" "ReadWriteOnce" (eq .Values.centralBackupStorage.mode "shared") }}{{- end }}
 {{- $pvcName := printf "%s-central-backup" .Release.Name }}
 {{- /* accessModes are immutable: say so instead of letting the apiserver fail the upgrade. */}}
-{{- with (lookup "v1" "PersistentVolumeClaim" .Release.Namespace $pvcName) }}
+{{- /* Never with offlineRender.enabled, which renders without the cluster. */}}
+{{- with (and (not .Values.offlineRender.enabled) (lookup "v1" "PersistentVolumeClaim" .Release.Namespace $pvcName)) }}
 {{- if not (has $accessMode .spec.accessModes) }}
 {{- fail (printf "PVC %s is %s, but these values want %s, and a PVC's access mode cannot change. Set centralBackupStorage.accessMode=%s, or point centralBackupStorage.existingClaim at a new %s claim (the old one keeps its logs and, in shared mode, its backups)." $pvcName (first .spec.accessModes) $accessMode (first .spec.accessModes) $accessMode) }}
 {{- end }}
@@ -19,7 +20,11 @@ metadata:
   labels:
     {{- include "pmm.componentLabels" (dict "ctx" . "component" "central-backup-storage") | nindent 4 }}
   annotations:
+    # In shared mode this volume holds the backups themselves: keep it when the release goes.
     helm.sh/resource-policy: keep
+    # The same for Argo CD, which ignores the Helm annotation: not pruned when
+    # centralBackupStorage.enabled turns false, not deleted with the Application.
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   accessModes:
     - {{ $accessMode }}

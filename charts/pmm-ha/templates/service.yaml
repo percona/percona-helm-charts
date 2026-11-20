@@ -5,8 +5,7 @@ kind: Service
 metadata:
   name: {{ .Values.service.name }}
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: headless
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "headless") | nindent 4 }}
   {{- with .Values.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -33,8 +32,7 @@ kind: Service
 metadata:
   name: {{ .Values.service.name }}-grpc
   labels:
-    {{- include "pmm.labels" . | nindent 4 }}
-    app.kubernetes.io/component: ingress-backend
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "ingress-backend") | nindent 4 }}
   {{- with .Values.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}

@@ -76,6 +76,14 @@ victoria-metrics-operator:
     enabled: true
 ```
 
+Each operator has an `enabled` value; set it to `false` to leave that operator out, e.g. when the
+cluster already runs it.
+
+With Argo CD or Flux, the webhook's self-signed certificate is generated on every render, so the
+application never settles. Either let cert-manager issue it
+(`admissionWebhooks.certManager.enabled: true`) or turn the webhook off
+(`admissionWebhooks.enabled: false`); it only validates VictoriaMetrics resources.
+
 ### Altinity ClickHouse Operator
 
 ```yaml
