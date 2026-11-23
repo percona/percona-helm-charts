@@ -73,6 +73,10 @@ tests:
                 value: 5s
               - name: RECONCILE_INTERVAL
                 value: 5s
+              - name: BACKUP_RECONCILE_INTERVAL
+                value: 5s
+              - name: RESTORE_RECONCILE_INTERVAL
+                value: 5s
               - name: DISABLE_TELEMETRY
                 value: "false"
               - name: MAX_CONCURRENT_RECONCILES
@@ -170,6 +174,10 @@ tests:
                 value: 10s
               - name: RECONCILE_INTERVAL
                 value: 15s
+              - name: BACKUP_RECONCILE_INTERVAL
+                value: 20s
+              - name: RESTORE_RECONCILE_INTERVAL
+                value: 25s
               - name: DISABLE_TELEMETRY
                 value: "true"
               - name: MAX_CONCURRENT_RECONCILES
@@ -320,6 +328,8 @@ tests:
       maxConcurrentReconciles: "3"
       env.resyncPeriod: 20s
       env.reconcileInterval: 30s
+      env.backupReconcileInterval: 40s
+      env.restoreReconcileInterval: 50s
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -351,3 +361,13 @@ tests:
           content:
             name: RECONCILE_INTERVAL
             value: 30s
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BACKUP_RECONCILE_INTERVAL
+            value: 40s
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RESTORE_RECONCILE_INTERVAL
+            value: 50s

@@ -86,6 +86,10 @@ spec:
               value: "{{ .Values.env.resyncPeriod }}"
             - name: RECONCILE_INTERVAL
               value: "{{ .Values.env.reconcileInterval }}"
+            - name: BACKUP_RECONCILE_INTERVAL
+              value: "{{ .Values.env.backupReconcileInterval }}"
+            - name: RESTORE_RECONCILE_INTERVAL
+              value: "{{ .Values.env.restoreReconcileInterval }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
             {{- if .Values.maxConcurrentReconciles }}
