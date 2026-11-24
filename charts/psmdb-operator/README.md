@@ -112,6 +112,8 @@ The chart can be customized using the following configurable parameters:
 | `livenessProbe`              | Liveness probe for the operator container (served on the `health` port). Set to `null` to disable            | `{httpGet: {path: /healthz, port: health}}` |
 | `readinessProbe`             | Readiness probe for the operator container (served on the `health` port). Set to `null` to disable           | `{httpGet: {path: /readyz, port: health}}`  |
 | `env.reconcileInterval`      | PSMDB Operator reconciliation interval                                                                       | `5s`                                        |
+| `env.backupReconcileInterval`   | Reconciliation interval of the backup controller (minimum `5s`)                                         | `5s`                                        |
+| `env.restoreReconcileInterval`  | Reconciliation interval of the restore controller (minimum `5s`)                                        | `5s`                                        |
 
 Specify parameters using `--set key=value[,key=value]` argument to `helm install`
 

@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+if (( $# != 0 )); then
+  echo 'Usage: detect-comment.sh' >&2
+  exit 1
+fi
+
+event_path=${GITHUB_EVENT_PATH:?GITHUB_EVENT_PATH is required}
+output_file=${GITHUB_OUTPUT:?GITHUB_OUTPUT is required}
+supported_operators_csv=${SUPPORTED_OPERATORS:?SUPPORTED_OPERATORS is required}
+supported_jobs_csv=${SUPPORTED_JOBS:?SUPPORTED_JOBS is required}
+event_name=${GITHUB_EVENT_NAME:?GITHUB_EVENT_NAME is required}
+head_sha=''
+merge_sha=''
+head_repository=''
+base_sha=''
+products='[]'
+jobs='[]'
+should_run=false
+
+json_array() {
+  tr ',' '\n' <<< "$1" |
+    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' |
+    sort -u |
+    jq -R . |
+    jq -sc .
+}
+
+select_value() {
+  local requested=$1
+  local supported=$2
+
+  if [[ "$requested" == all ]]; then
+    printf '%s\n' "$supported"
+  else
+    jq --compact-output --null-input \
+      --arg requested "$requested" \
+      --argjson supported "$supported" \
+      'if $supported | index($requested) then [$requested] else [] end'
+  fi
+}
+
+association="$(jq --raw-output '.comment.author_association // empty' "$event_path")"
+comment="$(jq --raw-output '.comment.body // empty' "$event_path")"
+pull_request_url="$(
+  jq --raw-output '.issue.pull_request.url // empty' "$event_path"
+)"
+
+if [[ "$event_name" == issue_comment &&
+      -n "$pull_request_url" &&
+      ( "$association" == OWNER || "$association" == MEMBER ) ]]; then
+  read -r command requested_operator requested_job extra <<< "$comment"
+
+  if [[ "$command" == /run-deploy-test && -z "${extra:-}" ]]; then
+    requested_operator=${requested_operator:-all}
+    requested_job=${requested_job:-all}
+    supported_operators="$(json_array "$supported_operators_csv")"
+    supported_jobs="$(json_array "$supported_jobs_csv")"
+
+    if [[ "$requested_job" == all ]] &&
+       jq --exit-status --arg requested "$requested_operator" \
+         'index($requested) != null' <<< "$supported_jobs" >/dev/null; then
+      requested_job=$requested_operator
+      requested_operator=all
+    fi
+
+    products="$(select_value "$requested_operator" "$supported_operators")"
+    jobs="$(select_value "$requested_job" "$supported_jobs")"
+
+    if [[ "$products" != '[]' && "$jobs" != '[]' ]]; then
+      repo=${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}
+      api_url=${GITHUB_API_URL:-https://api.github.com}
+      token=${GH_TOKEN:?GH_TOKEN is required}
+      pull_number="$(jq --raw-output '.issue.number' "$event_path")"
+
+      if [[ ! "$pull_number" =~ ^[0-9]+$ ]]; then
+        echo "Invalid pull request number: $pull_number" >&2
+        exit 1
+      fi
+
+      pull="$(
+        curl --fail --silent --show-error \
+          --header "Accept: application/vnd.github+json" \
+          --header "Authorization: Bearer $token" \
+          --header "X-GitHub-Api-Version: 2022-11-28" \
+          "$api_url/repos/$repo/pulls/$pull_number"
+      )"
+      head_sha="$(jq --raw-output '.head.sha // empty' <<< "$pull")"
+      head_repository="$(
+        jq --raw-output '.head.repo.full_name // empty' <<< "$pull"
+      )"
+      if [[ "$head_repository" != "$repo" ]]; then
+        echo "Comment-triggered tests only support same-repository PRs; source: $head_repository" >&2
+        exit 1
+      fi
+      base_sha="$(jq --raw-output '.base.sha // empty' <<< "$pull")"
+      merge_sha="$(jq --raw-output '.merge_commit_sha // empty' <<< "$pull")"
+
+      if [[ ! "$head_sha" =~ ^[0-9a-f]{40}$ ||
+            ! "$base_sha" =~ ^[0-9a-f]{40}$ ||
+            -z "$head_repository" ]]; then
+        echo "Could not resolve pull request source and SHAs" >&2
+        exit 1
+      fi
+
+      if [[ "$(jq --raw-output '.state' <<< "$pull")" != open ||
+            ! "$merge_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        echo "Pull request must be open with an available merge revision" >&2
+        exit 1
+      fi
+
+      git fetch --no-tags origin \
+        "+refs/pull/$pull_number/merge:refs/remotes/origin/pr-$pull_number-merge"
+      fetched_sha="$(git rev-parse "refs/remotes/origin/pr-$pull_number-merge")"
+      if [[ "$fetched_sha" != "$merge_sha" ||
+            "$(git show -s --format=%P "$fetched_sha")" != "$base_sha $head_sha" ]]; then
+        echo "Fetched PR merge does not match the API merge, base, and head SHAs" >&2
+        exit 1
+      fi
+
+      should_run=true
+    fi
+  fi
+fi
+
+{
+  echo "products=$products"
+  echo "jobs=$jobs"
+  echo "should-run=$should_run"
+  echo "base-sha=$base_sha"
+  echo "head-sha=$head_sha"
+  echo "merge-sha=$merge_sha"
+  echo "head-repository=$head_repository"
+} >> "$output_file"

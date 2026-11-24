@@ -1,0 +1,150 @@
+suite: ps-db orchestrator
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+  namespace: test-ns
+tests:
+  - it: renders disabled orchestrator by default
+    asserts:
+      - matchRegex:
+          path: spec.orchestrator.image
+          pattern: '^percona/percona-orchestrator:.+$'
+      - isSubset:
+          path: spec.orchestrator
+          content:
+            enabled: false
+            size: 0
+      - notExists:
+          path: spec.orchestrator.resources
+
+  - it: forces orchestrator disabled for group replication
+    set:
+      orchestrator.enabled: true
+    asserts:
+      - isSubset:
+          path: spec.orchestrator
+          content:
+            enabled: false
+            size: 0
+      - notExists:
+          path: spec.orchestrator.resources
+
+  - it: renders default orchestrator structure for async replication
+    set:
+      mysql.clusterType: async
+      orchestrator.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.orchestrator.image
+          pattern: '^percona/percona-orchestrator:.+$'
+      - isSubset:
+          path: spec.orchestrator
+          content:
+            enabled: true
+            imagePullPolicy: Always
+            serviceAccountName: unit-ps-db-orchestrator
+            size: 3
+            podDisruptionBudget:
+              maxUnavailable: 1
+            affinity:
+              antiAffinityTopologyKey: kubernetes.io/hostname
+            gracePeriod: 30
+            annotations: {}
+            labels: {}
+            tolerations: []
+            nodeSelector: {}
+            resources:
+              requests:
+                memory: 128M
+              limits:
+                memory: 512M
+            volumeSpec:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 1G
+
+  - it: renders changed default orchestrator values
+    values:
+      - values/orchestrator-changed-defaults.yaml
+    asserts:
+      - equal:
+          path: spec.orchestrator
+          value:
+            enabled: true
+            image: changed-image:changed-tag
+            imagePullPolicy: IfNotPresent
+            imagePullSecrets:
+              - name: pull-secret
+            serviceAccountName: unit-ps-db-orchestrator
+            initContainer:
+              image: custom-init:tag
+            env:
+              - name: MY_ENV
+                value: "1000"
+            envFrom:
+              - secretRef:
+                  name: my-env-secret
+            startupProbe:
+              timeoutSeconds: 43200
+            livenessProbe:
+              timeoutSeconds: 4
+            readinessProbe:
+              timeoutSeconds: 3
+            size: 5
+            podDisruptionBudget:
+              maxUnavailable: 2
+            affinity:
+              antiAffinityTopologyKey: topology.kubernetes.io/zone
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: DoNotSchedule
+            gracePeriod: 60
+            configuration: |
+              {
+                "ReasonableReplicationLagSeconds": 30
+              }
+            priorityClassName: high-priority
+            annotations:
+              test: annotation
+            labels:
+              test: label
+            tolerations:
+              - key: test
+                operator: Exists
+                effect: NoSchedule
+            nodeSelector:
+              disktype: ssd
+            resources:
+              requests:
+                memory: 1Mi
+              limits:
+                memory: 2Mi
+            volumeSpec:
+              persistentVolumeClaim:
+                resources:
+                  requests:
+                    storage: 2G
+            schedulerName: custom-scheduler
+            containerSecurityContext:
+              privileged: false
+            podSecurityContext:
+              fsGroup: 1001
+            runtimeClassName: image-rc
+            expose:
+              type: ClusterIP
+            failover:
+              onTimeout: Abort
+              timeout: 1h
+
+  - it: renders a custom orchestrator service account
+    set:
+      mysql.clusterType: async
+      orchestrator.enabled: true
+      orchestrator.serviceAccountName: custom-orc
+    asserts:
+      - equal:
+          path: spec.orchestrator.serviceAccountName
+          value: custom-orc

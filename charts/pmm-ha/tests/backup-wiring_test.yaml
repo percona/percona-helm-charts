@@ -1,0 +1,247 @@
+# Backup wiring outside the backup templates (PR #919 review round 6). vmcluster.yaml is not
+# listed: it renders app.kubernetes.io/component twice, which helm unittest rejects (see
+# data-retention_test.yaml); its vmbackup-only sidecar is checked by the live test instead.
+suite: pmm-ha backup wiring
+templates:
+  - templates/clickhouse-cluster.yaml
+  - templates/serviceaccount.yaml
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/clickhouse-datasource-secret.yaml
+  - templates/backup-tools.yaml
+  - templates/backup-cronjob.yaml
+  - templates/backup-scripts-configmap.yaml
+  - templates/central-backup-pvc.yaml
+  - templates/pg-user-credentials-secrets.yaml
+release:
+  name: smoke
+  namespace: pmm
+set:
+  secret.create: true
+  centralBackupStorage:
+    enabled: true
+    mode: s3
+    s3: {bucket: bk}
+tests:
+  - it: keeps helm.sh/chart off the ClickHouseInstallation (the operator copies its labels onto the pods)
+    template: templates/clickhouse-cluster.yaml
+    asserts:
+      - notExists:
+          path: metadata.labels["helm.sh/chart"]
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: smoke
+
+  - it: does not put the backup role on the shared PMM ServiceAccount
+    template: templates/serviceaccount.yaml
+    set:
+      centralBackupStorage.s3.irsaRoleArn: arn:aws:iam::1:role/backup
+    asserts:
+      - notExists:
+          path: metadata.annotations
+
+  - it: leaves a user's own role on the PMM ServiceAccount to the pmm container
+    template: templates/serviceaccount.yaml
+    set:
+      centralBackupStorage.s3.irsaRoleArn: arn:aws:iam::1:role/backup
+      serviceAccount.annotations: {eks.amazonaws.com/role-arn: "arn:aws:iam::1:role/rds"}
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value: {eks.amazonaws.com/role-arn: "arn:aws:iam::1:role/rds"}
+
+  - it: gives only the pmm-backup sidecar the backup role, through its own projected token
+    template: templates/statefulset.yaml
+    set:
+      centralBackupStorage.s3.irsaRoleArn: arn:aws:iam::1:role/backup
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[?(@.name=="pmm-backup")].env
+          content: {name: AWS_ROLE_ARN, value: "arn:aws:iam::1:role/backup"}
+      - contains:
+          path: spec.template.spec.containers[?(@.name=="pmm-backup")].env
+          content: {name: AWS_WEB_IDENTITY_TOKEN_FILE, value: /var/run/secrets/pmm-backup/token}
+      - contains:
+          path: spec.template.spec.containers[?(@.name=="pmm-backup")].volumeMounts
+          content: {name: pmm-backup-aws-token, mountPath: /var/run/secrets/pmm-backup, readOnly: true}
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: pmm-backup-aws-token
+            projected:
+              sources:
+                - serviceAccountToken: {audience: sts.amazonaws.com, expirationSeconds: 86400, path: token}
+      - notContains:
+          path: spec.template.spec.containers[?(@.name=="pmm-ha")].env
+          content: {name: AWS_ROLE_ARN, value: "arn:aws:iam::1:role/backup"}
+
+  - it: takes role-arn, audience and token expiry for the sidecar from serviceAccountAnnotations
+    template: templates/statefulset.yaml
+    set:
+      centralBackupStorage.s3.irsaRoleArn: arn:aws:iam::1:role/backup
+      centralBackupStorage.s3.serviceAccountAnnotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::1:role/other
+        eks.amazonaws.com/audience: custom-aud
+        eks.amazonaws.com/token-expiration: "3600"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[?(@.name=="pmm-backup")].env
+          content: {name: AWS_ROLE_ARN, value: "arn:aws:iam::1:role/other"}
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: pmm-backup-aws-token
+            projected:
+              sources:
+                - serviceAccountToken: {audience: custom-aud, expirationSeconds: 3600, path: token}
+
+  - it: renders no IRSA wiring with static keys
+    template: templates/statefulset.yaml
+    set:
+      centralBackupStorage.s3.existingSecret: s3-creds
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content: {name: pmm-backup-aws-token}
+          any: true
+      - contains:
+          path: spec.template.spec.containers[?(@.name=="pmm-backup")].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            valueFrom: {secretKeyRef: {name: s3-creds, key: access-key}}
+
+  - it: hands the run its vmrestore image (the vmstorage pods carry no vmrestore container)
+    template: templates/backup-tools.yaml
+    documentSelector: {path: kind, value: Deployment}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: VMRESTORE_IMAGE, value: "victoriametrics/vmrestore:v1.151.0"}
+
+  - it: runs backup-tools and the Job pods "restricted" by default (PMM-14746)
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value: {runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534, fsGroupChangePolicy: OnRootMismatch, seccompProfile: {type: RuntimeDefault}}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.securityContext
+          value: {runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534, fsGroupChangePolicy: OnRootMismatch, seccompProfile: {type: RuntimeDefault}}
+        template: templates/backup-cronjob.yaml
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].securityContext
+          value: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+        template: templates/backup-cronjob.yaml
+
+  - it: leaves the ids to the SCC with the OpenShift overlay
+    values:
+      - ../examples/values-openshift.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext.runAsUser
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+      - notExists:
+          path: spec.template.spec.securityContext.fsGroup
+        template: templates/backup-tools.yaml
+        documentSelector: {path: kind, value: Deployment}
+
+  - it: hardens the backup sidecars like the containers beside them
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="pmm-backup")].securityContext
+          value: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}, readOnlyRootFilesystem: false}
+        template: templates/statefulset.yaml
+      - equal:
+          path: spec.templates.podTemplates[0].spec.containers[?(@.name=="clickhouse-backup")].securityContext
+          value: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+        template: templates/clickhouse-cluster.yaml
+
+  - it: refuses an access-mode change on the chart's PVC instead of letting the apiserver fail it
+    template: templates/central-backup-pvc.yaml
+    set:
+      centralBackupStorage.mode: shared
+    kubernetesProvider:
+      scheme:
+        "v1/PersistentVolumeClaim":
+          gvr: {version: v1, resource: persistentvolumeclaims}
+          namespaced: true
+      objects:
+        - kind: PersistentVolumeClaim
+          apiVersion: v1
+          metadata: {name: smoke-central-backup, namespace: pmm}
+          spec: {accessModes: [ReadWriteOnce]}
+    asserts:
+      - failedTemplate:
+          errorPattern: "PVC smoke-central-backup is ReadWriteOnce, but these values want ReadWriteMany"
+
+  - it: renders the PVC when its access mode is unchanged
+    template: templates/central-backup-pvc.yaml
+    kubernetesProvider:
+      scheme:
+        "v1/PersistentVolumeClaim":
+          gvr: {version: v1, resource: persistentvolumeclaims}
+          namespaced: true
+      objects:
+        - kind: PersistentVolumeClaim
+          apiVersion: v1
+          metadata: {name: smoke-central-backup, namespace: pmm}
+          spec: {accessModes: [ReadWriteOnce]}
+    asserts:
+      - equal:
+          path: spec.accessModes
+          value: [ReadWriteOnce]
+
+  - it: stops an upgrade whose PostgreSQL credentials drifted from the PMM secret
+    template: templates/pg-user-credentials-secrets.yaml
+    kubernetesProvider:
+      scheme:
+        "v1/Secret":
+          gvr: {version: v1, resource: secrets}
+          namespaced: true
+      objects:
+        - kind: Secret
+          apiVersion: v1
+          metadata: {name: pmm-secret, namespace: pmm}
+          data: {GF_PASSWORD: bmV3, PG_PASSWORD: cGc=, PMM_CLICKHOUSE_USER: Y2g=}
+        - kind: Secret
+          apiVersion: v1
+          metadata: {name: gfuser-credentials, namespace: pmm}
+          data: {password: b2xk, verifier: eA==}
+        - kind: Secret
+          apiVersion: v1
+          metadata: {name: pmmuser-credentials, namespace: pmm}
+          data: {password: cGc=}
+    asserts:
+      - failedTemplate:
+          errorPattern: 'patch secret gfuser-credentials .*\{\.data\.GF_PASSWORD\}' 
+
+  - it: lets an upgrade through when the PostgreSQL credentials match
+    template: templates/pg-user-credentials-secrets.yaml
+    kubernetesProvider:
+      scheme:
+        "v1/Secret":
+          gvr: {version: v1, resource: secrets}
+          namespaced: true
+      objects:
+        - kind: Secret
+          apiVersion: v1
+          metadata: {name: pmm-secret, namespace: pmm}
+          data: {GF_PASSWORD: bmV3, PG_PASSWORD: cGc=, PMM_CLICKHOUSE_USER: Y2g=}
+        - kind: Secret
+          apiVersion: v1
+          metadata: {name: gfuser-credentials, namespace: pmm}
+          data: {password: bmV3, verifier: eA==}
+        - kind: Secret
+          apiVersion: v1
+          metadata: {name: pmmuser-credentials, namespace: pmm}
+          data: {password: cGc=}
+    asserts:
+      - hasDocuments:
+          count: 2

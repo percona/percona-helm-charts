@@ -1,0 +1,42 @@
+# The sidecars render inside a range, where `.` is the log file, so values must come through `$`.
+suite: pmm-ha log streamer
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/clickhouse-datasource-secret.yaml
+release:
+  name: smoke
+  namespace: pmm
+tests:
+  - it: renders one sidecar per log file from the pinned image
+    template: templates/statefulset.yaml
+    set:
+      logStreamer.enabled: true
+    asserts:
+      - notFailedTemplate: {}
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="log-streamer-0")].image
+          value: busybox:1.37.0
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="log-streamer-1")].image
+          value: busybox:1.37.0
+
+  - it: gives the sidecars the PMM Server container security context
+    template: templates/statefulset.yaml
+    set:
+      logStreamer.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[?(@.name=="log-streamer-0")].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+
+  - it: renders no sidecar by default
+    template: templates/statefulset.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[?(@.name=="log-streamer-0")]

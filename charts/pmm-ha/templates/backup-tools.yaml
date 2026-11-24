@@ -1,0 +1,225 @@
+{{- if .Values.centralBackupStorage.enabled }}
+---
+# Recreate: the central volume is usually RWO, so a rolling update would deadlock on attach.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-backup-tools
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "pmm.backupToolsSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 8 }}
+      annotations:
+        # subPath mounts don't live-update; roll the pod on script changes.
+        checksum/backup-scripts: {{ include (print $.Template.BasePath "/backup-scripts-configmap.yaml") . | sha256sum }}
+        # No karpenter.sh/do-not-disrupt: on an always-on pod it blocks node rollouts (DN-47).
+    spec:
+      {{- /* A pod listing pull secrets gets none from its SA, so the tools ones are listed too. */}}
+      {{- with concat (.Values.image.imagePullSecrets | default list) (.Values.centralBackupStorage.tools.imagePullSecrets | default list) | uniq }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "pmm.backupRunSaName" . }}
+      {{- with .Values.centralBackupStorage.tools.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: backup-tools
+        image: "{{ .Values.centralBackupStorage.tools.image.registry }}/{{ .Values.centralBackupStorage.tools.image.repository }}:{{ .Values.centralBackupStorage.tools.image.tag }}"
+        {{- with .Values.centralBackupStorage.tools.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        command:
+          - sh
+          - -c
+          - |
+            # Non-fatal: this pod is the DR exec target and must stay up (Not Ready) if install fails.
+{{- if eq .Values.centralBackupStorage.mode "s3" }}
+            PMM_TOOLS_REQUIRE_RCLONE=true \
+{{- end }}
+              sh /usr/local/bin/backup-entrypoint.sh --ensure-tools-only || true
+            METRICS_PATH="{{ include "pmm.backupStateDir" . }}/.metrics"
+            mkdir -p "${METRICS_PATH}/backup"
+            [ -f "${METRICS_PATH}/restore_metrics.prom" ] || echo '# Restore metrics (updated by pmm-backup.sh restore)' > "${METRICS_PATH}/restore_metrics.prom"
+            # One endpoint, component is a label (DN-42). One HELP/TYPE per family, so the backup
+            # preamble lives here; sort keeps each family's samples contiguous. A new .prom family
+            # written by pmm-backup.sh must be added here too.
+            export METRICS_PATH
+            export RENDER_METRICS='printf "%s\n" \
+              "# HELP pmm_ha_backup_last_success Whether the last backup succeeded (1=yes, 0=no)" \
+              "# TYPE pmm_ha_backup_last_success gauge" \
+              "# HELP pmm_ha_backup_last_timestamp_seconds Unix timestamp of backup completion" \
+              "# TYPE pmm_ha_backup_last_timestamp_seconds gauge" \
+              "# HELP pmm_ha_backup_last_duration_seconds Backup duration in seconds" \
+              "# TYPE pmm_ha_backup_last_duration_seconds gauge" \
+              "# HELP pmm_ha_backup_last_size_bytes Backup size in bytes" \
+              "# TYPE pmm_ha_backup_last_size_bytes gauge"
+            { cat "$METRICS_PATH"/backup/*.prom 2>/dev/null || echo "# no backup run yet"; } | sort
+            cat "$METRICS_PATH"/restore_metrics.prom 2>/dev/null
+            cat "$METRICS_PATH"/prune_metrics.prom 2>/dev/null
+            true'
+            # Both vmagent replicas scrape at the same instant and a one-connection nc loop resets
+            # one of them (up ~0.5), so python3 serves each scrape on its own thread; nc is the
+            # fallback. Metrics only, so deliberately not a readiness condition.
+            if command -v python3 >/dev/null 2>&1; then
+              echo "metrics listener: python3"
+              python3 -c '
+            import http.server, os, subprocess
+            class H(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    b = subprocess.run(["sh", "-c", os.environ["RENDER_METRICS"]], stdout=subprocess.PIPE).stdout
+                    self.send_response(200); self.send_header("Content-Type", "text/plain"); self.end_headers(); self.wfile.write(b)
+                def log_message(self, *a): pass
+            http.server.ThreadingHTTPServer(("", 9091), H).serve_forever()
+            ' &
+            else
+              command -v nc >/dev/null 2>&1 || apk add --no-cache netcat-openbsd >/dev/null 2>&1 || true
+              if command -v nc >/dev/null 2>&1; then
+                # BusyBox nc needs `-l -p PORT`; OpenBSD nc needs `-l PORT` and rejects -p.
+                if nc --help 2>&1 | grep -qi busybox; then NC_LISTEN="-l -p"; else NC_LISTEN="-l"; fi
+                echo "metrics listener: nc ${NC_LISTEN} <port> (one scrape at a time)"
+                ( while true; do
+                    _t0=$(date +%s 2>/dev/null || echo 0)
+                    { printf 'HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n'; sh -c "${RENDER_METRICS}"; } \
+                      | nc -w 5 ${NC_LISTEN} 9091 >/dev/null 2>&1
+                    # Rate-limit to 1/s if nc fails fast; both date fallbacks are 0, so it still sleeps.
+                    _t1=$(date +%s 2>/dev/null || echo 0)
+                    [ "$(( _t1 - _t0 ))" -lt 1 ] && sleep 1
+                  done ) &
+              else
+                echo "ERROR: neither python3 nor netcat (nc) is present, and nc could not be installed."
+                echo "ERROR:   Backup and restore are UNAFFECTED — they never use it."
+                echo "ERROR:   The metrics endpoint on :9091 will NOT be served, so every"
+                echo "ERROR:   pmm_ha_backup_* / pmm_ha_restore_* series stops updating and the"
+                echo "ERROR:   scrape target for this pod goes down. Use an image that ships python3 or"
+                echo "ERROR:   netcat (centralBackupStorage.tools.image) or give the pod an Alpine mirror."
+              fi
+            fi
+            sleep infinity
+        readinessProbe:
+          # The only signal of a failed tools install (the start-up script never exits non-zero).
+          exec:
+            {{- /* rclone only in s3 mode; never nc (metrics-only). */}}
+            {{- if eq .Values.centralBackupStorage.mode "s3" }}
+            command: ["sh", "-c", "jq --version >/dev/null && rclone version >/dev/null"]
+            {{- else }}
+            command: ["sh", "-c", "jq --version >/dev/null"]
+            {{- end }}
+          initialDelaySeconds: 2
+          periodSeconds: 10
+          failureThreshold: 3
+        ports:
+          - name: metrics
+            containerPort: 9091
+            protocol: TCP
+        env:
+          {{- include "pmm.backupRunEnv" . | nindent 10 }}
+        volumeMounts:
+          {{- include "pmm.centralBackupMount" . | nindent 10 }}
+          {{- include "pmm.backupScriptsMounts" . | nindent 10 }}
+        resources:
+          {{- include "pmm.backupRunResources" . | nindent 10 }}
+      volumes:
+        {{- include "pmm.backupScriptsVolume" . | nindent 8 }}
+        {{- include "pmm.centralBackupVolume" . | nindent 8 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-backup-sa
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
+  {{- /* IRSA: the role's trust policy must name this SA as well as the S3 SA. */}}
+  {{- with include "pmm.backupIrsaAnnotations" . }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+{{- with .Values.centralBackupStorage.tools.imagePullSecrets }}
+{{- /* On the SA so it reaches every backup pod; keep in sync with backup-s3-serviceaccount.yaml. */}}
+imagePullSecrets:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-backup-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
+rules:
+  # create/delete: restore spawns temp pods that mount the RWO data PVCs (DN-19).
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/exec"]
+    # patch: only for the consolidation-hold annotation on PG/ClickHouse pods during a run.
+    verbs: ["get", "list", "create", "delete", "watch", "patch"]
+  # Component and manifest-merge locks are Leases (DN-37).
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # Secret operations (backup: get/list; restore: apply encryption key)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  # Namespace operations (preflight connectivity check)
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+  # Restore pre-flight checks the temp pods' SA exists before PMM is scaled down.
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get"]
+  # Restore: VMCluster (scale vminsert, patch)
+  - apiGroups: ["operator.victoriametrics.com"]
+    resources: ["vmclusters"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets/scale"]
+    verbs: ["get", "patch"]
+  # Read-only: resolves this release's CRs to scope pod selectors (DN-39).
+  - apiGroups: ["pgv2.percona.com"]
+    resources: ["perconapgclusters"]
+    verbs: ["get", "list"]
+  - apiGroups: ["clickhouse.altinity.com"]
+    resources: ["clickhouseinstallations"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-backup-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pmm.componentLabels" (dict "ctx" . "component" "backup-tools") | nindent 4 }}
+subjects:
+  {{- /* Only the run SA. Never the S3 SA: every VM and ClickHouse pod runs under that one. */}}
+  - kind: ServiceAccount
+    name: {{ include "pmm.backupRunSaName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-backup-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

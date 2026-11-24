@@ -1,0 +1,27 @@
+unsafeFlags:
+  pxcSize: true
+  proxySize: true
+
+pxc:
+  size: 1
+  affinity:
+    antiAffinityTopologyKey: none
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  persistence:
+    size: 2Gi
+
+haproxy:
+  enabled: true
+  size: 1
+  affinity:
+    antiAffinityTopologyKey: none
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+proxysql:
+  enabled: false

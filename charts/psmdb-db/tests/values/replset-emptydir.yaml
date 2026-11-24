@@ -1,0 +1,5 @@
+replsets:
+  rs0:
+    volumeSpec:
+      pvc: null
+      emptyDir: {}

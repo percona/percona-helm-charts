@@ -1,0 +1,115 @@
+# PMM HA sizing profile: ~500 monitored nodes
+#
+#   helm install pmm-ha percona/pmm-ha -f examples/values-500-nodes.yaml
+#
+# Assumes ~5,000 active series per monitored node (a host plus one database
+# service with QAN) and the default dataRetentionDays: 30. See docs/SIZING.md
+# for the model and for how to adjust when your fleet is more cardinal - MySQL
+# with per-table statistics or MongoDB with many collections runs 2-3x higher.
+#
+# Approximate footprint: ~32 CPU and ~84Gi of requests, ~1.6Ti of storage.
+# Requires a storage class with allowVolumeExpansion: true.
+
+pmmResources:
+  requests:
+    cpu: "4"
+    memory: "8Gi"
+  limits:
+    cpu: "8"
+    memory: "16Gi"
+
+haproxy:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 256Mi
+    limits:
+      cpu: 2
+      memory: 1Gi
+
+victoriaMetrics:
+  vminsert:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+
+  vmstorage:
+    resources:
+      requests:
+        cpu: "1"
+        memory: "6Gi"
+      limits:
+        cpu: "4"
+        memory: "12Gi"
+    storageSize: 200Gi
+
+  vmselect:
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+
+  vmauth:
+    resources:
+      requests:
+        cpu: "300m"
+        memory: "256Mi"
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+
+clickhouse:
+  resources:
+    requests:
+      cpu: "2"
+      memory: "8Gi"
+    limits:
+      cpu: "6"
+      memory: "16Gi"
+  storage:
+    size: 200Gi
+
+pg-db:
+  # NOTE: instances is a list, so Helm replaces it wholesale rather than merging.
+  # Every field from the chart default has to be repeated here, not just resources.
+  instances:
+    - name: instance1
+      replicas: 3
+      resources:
+        requests:
+          cpu: 1
+          memory: 2Gi
+        limits:
+          cpu: 4
+          memory: 8Gi
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 30Gi
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  postgres-operator.crunchydata.com/data: postgres
+                  postgres-operator.crunchydata.com/instance-set: instance1
+  proxy:
+    pgBouncer:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: 1
+          memory: 1Gi

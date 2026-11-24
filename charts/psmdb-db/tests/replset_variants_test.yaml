@@ -1,0 +1,182 @@
+suite: psmdb-db replica set variants
+templates:
+  - templates/cluster.yaml
+release:
+  name: unit
+tests:
+  - it: uses the values key as the replica set name and evaluates configuration templates
+    set:
+      replsets.rs0.name: ""
+      replsets.rs0.configuration: |-
+        operationProfiling:
+          mode: {{ .Release.Name }}
+      replsets.rs0.externalNodes:
+        - host: mongo.example
+          port: 27017
+      replsets.rs0.hookScript.configMapRef.name: mongo-hooks
+      replsets.rs0.splitHorizons:
+        mongo.example: external.example
+      replsets.rs0.primaryPreferTagSelector:
+        region: east
+    asserts:
+      - equal:
+          path: spec.replsets[0].name
+          value: rs0
+      - equal:
+          path: spec.replsets[0].configuration
+          value: |
+            operationProfiling:
+              mode: unit
+      - equal:
+          path: spec.replsets[0].externalNodes[0]
+          value:
+            host: mongo.example
+            port: 27017
+      - equal:
+          path: spec.replsets[0].hookScript.configMapRef.name
+          value: mongo-hooks
+      - equal:
+          path: spec.replsets[0].splitHorizons
+          value:
+            mongo.example: external.example
+      - equal:
+          path: spec.replsets[0].primaryPreferTagSelector
+          value:
+            region: east
+
+  - it: chooses hostPath over the default PVC
+    set:
+      replsets.rs0.volumeSpec.hostPath:
+        path: /mongo-data
+        type: DirectoryOrCreate
+    asserts:
+      - equal:
+          path: spec.replsets[0].volumeSpec
+          value:
+            hostPath:
+              path: /mongo-data
+              type: DirectoryOrCreate
+
+  - it: renders emptyDir after the default PVC is removed
+    values:
+      - values/replset-emptydir.yaml
+    asserts:
+      - equal:
+          path: spec.replsets[0].volumeSpec
+          value:
+            emptyDir: {}
+
+  - it: renders settings for hidden nonvoting and arbiter members
+    set:
+      replsets.rs0.hidden.enabled: true
+      replsets.rs0.hidden.configuration: |-
+        operationProfiling:
+          mode: slowOp
+      replsets.rs0.hidden.sidecars:
+        - name: metrics
+          image: example/metrics:1
+      replsets.rs0.nonvoting.enabled: true
+      replsets.rs0.nonvoting.serviceAccountName: mongo-nonvoting
+      replsets.rs0.nonvoting.volumeSpec.hostPath.path: /nonvoting-data
+      replsets.rs0.arbiter.enabled: true
+      replsets.rs0.arbiter.env:
+        - name: ARBITER_TEST
+          value: "1"
+    asserts:
+      - equal:
+          path: spec.replsets[0].hidden.configuration
+          value: |
+            operationProfiling:
+              mode: slowOp
+      - equal:
+          path: spec.replsets[0].hidden.sidecars
+          value:
+            - name: metrics
+              image: example/metrics:1
+      - equal:
+          path: spec.replsets[0].nonvoting.serviceAccountName
+          value: mongo-nonvoting
+      - equal:
+          path: spec.replsets[0].nonvoting.volumeSpec
+          value:
+            hostPath:
+              path: /nonvoting-data
+              type: Directory
+      - equal:
+          path: spec.replsets[0].arbiter.env
+          value:
+            - name: ARBITER_TEST
+              value: "1"
+
+  - it: renders member overrides advanced affinity and an inline hook
+    set:
+      replsets.rs0.replsetOverrides:
+        unit-psmdb-db-rs0-0:
+          host: mongo-0.example:27017
+          priority: 3
+          tags:
+            region: east
+      replsets.rs0.affinity.advanced:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: disktype
+                    operator: In
+                    values:
+                      - ssd
+      replsets.rs0.hookScript.script: |-
+        #!/bin/sh
+        echo replica-started
+    asserts:
+      - equal:
+          path: spec.replsets[0].replsetOverrides
+          value:
+            unit-psmdb-db-rs0-0:
+              host: mongo-0.example:27017
+              priority: 3
+              tags:
+                region: east
+      - equal:
+          path: spec.replsets[0].affinity.advanced.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight
+          value: 100
+      - equal:
+          path: spec.replsets[0].hookScript.script
+          value: |
+            #!/bin/sh
+            echo replica-started
+
+  - it: renders optional hidden nonvoting and arbiter pod settings
+    set:
+      replsets.rs0.hidden.enabled: true
+      replsets.rs0.hidden.podSecurityContext.fsGroup: 1001
+      replsets.rs0.hidden.volumeSpec.hostPath.path: /hidden-data
+      replsets.rs0.nonvoting.enabled: true
+      replsets.rs0.nonvoting.envFrom:
+        - secretRef:
+            name: nonvoting-env
+      replsets.rs0.arbiter.enabled: true
+      replsets.rs0.arbiter.hookScript.configMapRef.name: arbiter-hooks
+      replsets.rs0.arbiter.resources.requests.memory: 256Mi
+    asserts:
+      - equal:
+          path: spec.replsets[0].hidden.podSecurityContext.fsGroup
+          value: 1001
+      - equal:
+          path: spec.replsets[0].hidden.volumeSpec
+          value:
+            hostPath:
+              path: /hidden-data
+              type: Directory
+      - equal:
+          path: spec.replsets[0].nonvoting.envFrom
+          value:
+            - secretRef:
+                name: nonvoting-env
+      - equal:
+          path: spec.replsets[0].arbiter.hookScript.configMapRef.name
+          value: arbiter-hooks
+      - equal:
+          path: spec.replsets[0].arbiter.resources.requests.memory
+          value: 256Mi

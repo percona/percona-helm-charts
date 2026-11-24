@@ -1,0 +1,53 @@
+backup:
+  enabled: true
+  sourcePod: unit-ps-db-mysql-1
+  encryptionKeySecret:
+    name: my-encryption-key-secret
+    key: encryptionKey
+  image:
+    repository: changed-image
+    tag: changed-tag
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets:
+    - name: pull-secret
+  initContainer:
+    image: custom-init:tag
+    resources:
+      requests:
+        cpu: 5m
+  schedule:
+    - name: daily-backup
+      schedule: "0 0 * * *"
+      keep: 5
+      storageName: s3-us-west
+      type: full
+  backoffLimit: 6
+  startingDeadlineSeconds: 10
+  suspendedDeadlineSeconds: 20
+  serviceAccountName: workload-sa
+  containerSecurityContext:
+    privileged: true
+  resources:
+    requests:
+      cpu: 1m
+      memory: 1Mi
+    limits:
+      cpu: 2m
+      memory: 2Mi
+  storages:
+    s3-us-west:
+      type: s3
+      verifyTLS: true
+      s3:
+        bucket: backups
+        credentialsSecret: cluster1-s3-credentials
+        region: us-west-2
+  pitr:
+    enabled: true
+    binlogServer:
+      image: changed-binlog:changed-tag
+      storage:
+        s3:
+          bucket: binlogs
+          credentialsSecret: cluster1-s3-credentials
+          region: us-west-2

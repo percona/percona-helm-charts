@@ -1,0 +1,87 @@
+# pmm.podSecurity.validate: see _helpers.tpl for why the render is refused.
+suite: pmm-ha restricted namespace guard
+templates:
+  - templates/statefulset.yaml
+  - templates/configmap.yaml
+  - templates/clickhouse-datasource-secret.yaml
+release:
+  name: pmm-ha
+  namespace: pmm
+kubernetesProvider:
+  scheme:
+    "v1/Namespace":
+      gvr:
+        version: "v1"
+        resource: "namespaces"
+      namespaced: false
+  objects:
+    - kind: Namespace
+      apiVersion: v1
+      metadata:
+        name: pmm
+        labels:
+          pod-security.kubernetes.io/enforce: restricted
+tests:
+  - it: refuses a restricted namespace while the PostgreSQL PMM sidecar is enabled
+    template: templates/statefulset.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: 'Either set pg-db.pmm.enabled=false .* or set pgDbPmmSidecarPatched=true'
+
+  - it: names the patch for this release in the message
+    template: templates/statefulset.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: 'kubectl -n pmm patch perconapgcluster pmm-ha-pg-db'
+
+  - it: renders with the sidecar disabled
+    template: templates/statefulset.yaml
+    set:
+      pg-db.pmm.enabled: false
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: renders once the patch is acknowledged
+    template: templates/statefulset.yaml
+    set:
+      pgDbPmmSidecarPatched: true
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: renders in a namespace that enforces only baseline
+    template: templates/statefulset.yaml
+    release:
+      namespace: other
+    kubernetesProvider:
+      scheme:
+        "v1/Namespace":
+          gvr:
+            version: "v1"
+            resource: "namespaces"
+          namespaced: false
+      objects:
+        - kind: Namespace
+          apiVersion: v1
+          metadata:
+            name: other
+            labels:
+              pod-security.kubernetes.io/enforce: baseline
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: renders offline, where there is no namespace to read
+    template: templates/statefulset.yaml
+    release:
+      namespace: missing
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: exempts OpenShift installs made with the overlay
+    template: templates/statefulset.yaml
+    capabilities:
+      apiVersions:
+        - security.openshift.io/v1
+    values:
+      - ../examples/values-openshift.yaml
+    asserts:
+      - notFailedTemplate: {}
