@@ -771,7 +771,7 @@ pmm:
   enabled: false
   image:
     repository: docker.io/percona/pmm-client
-    tag: 3.9.1
+    tag: 3.10.0
 #  imagePullPolicy: IfNotPresent
 #  secret: cluster1-pmm-secret
   serverHost: monitoring-service

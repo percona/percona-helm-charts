@@ -7,7 +7,7 @@ Useful links:
 
 ## Pre-requisites
 * [Percona Operator for PostgreSQL](https://hub.helm.sh/charts/percona/pg-operator) running in your Kubernetes cluster. See installation details [here](https://github.com/percona/percona-helm-charts/tree/main/charts/pg-operator) or in the [Operator Documentation](https://www.percona.com/doc/kubernetes-operator-for-postgresql/helm.html).
-* Kubernetes 1.32+
+* Kubernetes 1.34+
 * At least `v3.2.3` version of helm
 
 # Installation
@@ -303,7 +303,7 @@ The chart can be customized using the following configurable parameters:
 | |
 | `pmm.enabled`                   | Enable integration with [Percona Monitoring and Management software](https://www.percona.com/blog/2020/07/23/using-percona-kubernetes-operators-with-percona-monitoring-and-management/) | `false`                       |
 | `pmm.image.repository`          | PMM Container image repository                                                                                                                                                           | `docker.io/percona/pmm-client`|
-| `pmm.image.tag`                 | PMM Container image tag                                                                                                                                                                  | `3.9.1`                       |
+| `pmm.image.tag`                 | PMM Container image tag                                                                                                                                                                  | `3.10.0`                       |
 | `pmm.imagePullPolicy`           | PMM image pull policy                                                                                                                                                                    | `Always`                      |
 | `pmm.serverHost`                | PMM server related K8S service hostname                                                                                                                                                  | `monitoring-service`          |
 | `pmm.secret`                    | Name of the Kubernetes secret object for the PMM Server password                                                                                                                         | `<clusterFullName>-pmm-secret`|
