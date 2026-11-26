@@ -217,3 +217,33 @@ tests:
           value: |
             #!/bin/sh
             echo router-ready
+
+  - it: renders journal and log storage for the config server replica set
+    set:
+      sharding.configrs.journalStorage:
+        persistentVolumeClaim:
+          storageClassName: fast-ssd
+          resources:
+            requests:
+              storage: 5Gi
+      sharding.configrs.logStorage:
+        persistentVolumeClaim:
+          resources:
+            requests:
+              storage: 2Gi
+    asserts:
+      - equal:
+          path: spec.sharding.configsvrReplSet.journalStorage
+          value:
+            persistentVolumeClaim:
+              storageClassName: fast-ssd
+              resources:
+                requests:
+                  storage: 5Gi
+      - equal:
+          path: spec.sharding.configsvrReplSet.logStorage
+          value:
+            persistentVolumeClaim:
+              resources:
+                requests:
+                  storage: 2Gi

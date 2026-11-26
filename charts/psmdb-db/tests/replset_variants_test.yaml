@@ -180,3 +180,101 @@ tests:
       - equal:
           path: spec.replsets[0].arbiter.resources.requests.memory
           value: 256Mi
+
+  - it: omits journal and log storage by default
+    asserts:
+      - notExists:
+          path: spec.replsets[0].journalStorage
+      - notExists:
+          path: spec.replsets[0].logStorage
+      - notExists:
+          path: spec.replsets[0].hidden.journalStorage
+      - notExists:
+          path: spec.replsets[0].hidden.logStorage
+      - notExists:
+          path: spec.replsets[0].nonvoting.journalStorage
+      - notExists:
+          path: spec.replsets[0].nonvoting.logStorage
+
+  - it: renders journal and log storage for replset, hidden and nonvoting members
+    set:
+      replsets.rs0.journalStorage:
+        persistentVolumeClaim:
+          storageClassName: fast-ssd
+          resources:
+            requests:
+              storage: 5Gi
+      replsets.rs0.logStorage:
+        persistentVolumeClaim:
+          resources:
+            requests:
+              storage: 2Gi
+      replsets.rs0.hidden.journalStorage:
+        persistentVolumeClaim:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 3Gi
+      replsets.rs0.hidden.logStorage:
+        persistentVolumeClaim:
+          resources:
+            requests:
+              storage: 1Gi
+      replsets.rs0.nonvoting.journalStorage:
+        persistentVolumeClaim:
+          resources:
+            requests:
+              storage: 4Gi
+      replsets.rs0.nonvoting.logStorage:
+        persistentVolumeClaim:
+          storageClassName: standard
+          resources:
+            requests:
+              storage: 2Gi
+    asserts:
+      - equal:
+          path: spec.replsets[0].journalStorage
+          value:
+            persistentVolumeClaim:
+              storageClassName: fast-ssd
+              resources:
+                requests:
+                  storage: 5Gi
+      - equal:
+          path: spec.replsets[0].logStorage
+          value:
+            persistentVolumeClaim:
+              resources:
+                requests:
+                  storage: 2Gi
+      - equal:
+          path: spec.replsets[0].hidden.journalStorage
+          value:
+            persistentVolumeClaim:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 3Gi
+      - equal:
+          path: spec.replsets[0].hidden.logStorage
+          value:
+            persistentVolumeClaim:
+              resources:
+                requests:
+                  storage: 1Gi
+      - equal:
+          path: spec.replsets[0].nonvoting.journalStorage
+          value:
+            persistentVolumeClaim:
+              resources:
+                requests:
+                  storage: 4Gi
+      - equal:
+          path: spec.replsets[0].nonvoting.logStorage
+          value:
+            persistentVolumeClaim:
+              storageClassName: standard
+              resources:
+                requests:
+                  storage: 2Gi
