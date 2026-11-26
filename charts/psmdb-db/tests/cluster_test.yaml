@@ -140,6 +140,9 @@ tests:
       storageScaling:
         enableVolumeScaling: true
         enableExternalAutoscaling: false
+        enableVolumeShrink: true
+        shrinkOpts:
+          maxDiskUsagePercent: 70
         autoscaling:
           enabled: true
           triggerThresholdPercent: 75
@@ -151,6 +154,9 @@ tests:
           value:
             enableVolumeScaling: true
             enableExternalAutoscaling: false
+            enableVolumeShrink: true
+            shrinkOpts:
+              maxDiskUsagePercent: 70
             autoscaling:
               enabled: true
               triggerThresholdPercent: 75
