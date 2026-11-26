@@ -17,6 +17,13 @@ spec:
 {{ toYaml . | indent 4 }}
   {{- end }}
   mode: {{ .Values.clusterSync.mode }}
+  {{- with .Values.clusterSync.size }}
+  size: {{ . }}
+  {{- end }}
+  {{- with .Values.clusterSync.podDisruptionBudget }}
+  podDisruptionBudget:
+{{ toYaml . | indent 4 }}
+  {{- end }}
   source:
     uri: {{ required "clusterSync.source.uri is required when clusterSync.enabled" .Values.clusterSync.source.uri | quote }}
     credentialsSecret: {{ default (printf "%s-source" (default (printf "%s-sync" (include "psmdb-database.fullname" .)) .Values.clusterSync.name)) .Values.clusterSync.source.credentialsSecret }}
