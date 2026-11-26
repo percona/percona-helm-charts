@@ -30519,6 +30519,8 @@ spec:
                       type: string
                     targetSize:
                       type: string
+                    waitingFor:
+                      type: string
                   required:
                   - phase
                   - primaryPod

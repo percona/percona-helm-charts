@@ -132,6 +132,13 @@ spec:
     {{- if hasKey .Values.storageScaling "enableExternalAutoscaling" }}
     enableExternalAutoscaling: {{ .Values.storageScaling.enableExternalAutoscaling }}
     {{- end }}
+    {{- if hasKey .Values.storageScaling "enableVolumeShrink" }}
+    enableVolumeShrink: {{ .Values.storageScaling.enableVolumeShrink }}
+    {{- end }}
+    {{- if .Values.storageScaling.shrinkOpts }}
+    shrinkOpts:
+{{ .Values.storageScaling.shrinkOpts | toYaml | indent 6 }}
+    {{- end }}
     {{- if .Values.storageScaling.autoscaling }}
     autoscaling:
       enabled: {{ .Values.storageScaling.autoscaling.enabled }}
