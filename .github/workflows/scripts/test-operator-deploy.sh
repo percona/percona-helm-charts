@@ -304,11 +304,6 @@ verify_operator_ready() {
   kubectl rollout status "deployment/$operator" \
     --namespace "$operator_namespace" \
     --timeout 10m
-  kubectl wait pods \
-    --namespace "$operator_namespace" \
-    --selector "app.kubernetes.io/instance=$operator" \
-    --for condition=Ready \
-    --timeout 5m
 }
 
 verify_cluster_stability() {

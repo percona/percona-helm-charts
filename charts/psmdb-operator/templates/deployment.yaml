@@ -35,16 +35,20 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "psmdb-operator.fullname" . }}
+      {{- with .Values.podSecurityContext }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
     {{- end }}
       containers:
         - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -82,6 +86,10 @@ spec:
               value: "{{ .Values.env.resyncPeriod }}"
             - name: RECONCILE_INTERVAL
               value: "{{ .Values.env.reconcileInterval }}"
+            - name: BACKUP_RECONCILE_INTERVAL
+              value: "{{ .Values.env.backupReconcileInterval }}"
+            - name: RESTORE_RECONCILE_INTERVAL
+              value: "{{ .Values.env.restoreReconcileInterval }}"
             - name: DISABLE_TELEMETRY
               value: "{{ .Values.disableTelemetry }}"
             {{- if .Values.maxConcurrentReconciles }}
@@ -100,8 +108,10 @@ spec:
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.resources }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -112,6 +122,10 @@ spec:
     {{- end }}
     {{- with .Values.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.hostAliases }}
+      hostAliases:
         {{- toYaml . | nindent 8 }}
     {{- end }}
     {{- if .Values.securityContext.readOnlyRootFilesystem }}

@@ -22,7 +22,7 @@ namespaceOverride: ""
 fullnameOverride: ""
 
 
-crVersion: 1.23.1
+crVersion: 1.24.0
 pause: false
 unmanaged: false
 unsafeFlags:
@@ -60,21 +60,37 @@ upgradeOptions:
 # storageScaling:
 #  enableVolumeScaling: false
 #  enableExternalAutoscaling: false
+#  enableVolumeShrink: false
+#  shrinkOpts:
+#    maxDiskUsagePercent: 80
 #  autoscaling:
 #    enabled: false
 #    triggerThresholdPercent: 80
 #    growthStep: "2Gi"
 #    maxSize: "100Gi"
 
+# vpa:
+#  enabled: false
+#  updateMode: "Off"
+#  controlledValues: RequestsOnly
+#  minAllowed:
+#    cpu: 100m
+#    memory: 256Mi
+#  maxAllowed:
+#    cpu: "8"
+#    memory: 16Gi
+#  stabilizationWindow: 2h
+#  inPlaceResize: true
+
 image:
   repository: percona/percona-server-mongodb
-  tag: 8.0.32-14
+  tag: 8.3.13-4
 
 imagePullPolicy: Always
 # imagePullSecrets: []
 # initImage:
 #   repository: percona/percona-server-mongodb-operator
-#   tag: 1.23.1
+#   tag: 1.24.0
 # initContainerSecurityContext: {}
 # tls:
 #   mode: preferTLS
@@ -144,6 +160,13 @@ replsets:
   rs0:
     name: rs0
     size: 3
+    # vpa:
+    #   objectName: my-custom-vpa-for-rs0
+    #   minAllowed:
+    #     memory: 512Mi
+    #   maxAllowed:
+    #     memory: 8Gi
+    #   stabilizationWindow: 4h
     # terminationGracePeriodSeconds: 300
     # externalNodes:
     # - host: 34.124.76.90
@@ -364,6 +387,10 @@ replsets:
 
     hidden:
       enabled: false
+#      vpa:
+#        objectName: my-custom-vpa-for-hidden
+#        maxAllowed:
+#          memory: 8Gi
 #      podSecurityContext: {}
 #      containerSecurityContext: {}
 #      env:
@@ -458,6 +485,10 @@ replsets:
 
     nonvoting:
       enabled: false
+      # vpa:
+      #   objectName: my-custom-vpa-for-nonvoting
+      #   maxAllowed:
+      #     memory: 8Gi
       # podSecurityContext: {}
       # containerSecurityContext: {}
       # env:
@@ -596,6 +627,10 @@ sharding:
 
   configrs:
     size: 3
+    # vpa:
+    #   objectName: my-custom-vpa-for-cfg
+    #   maxAllowed:
+    #     cpu: "4"
     # terminationGracePeriodSeconds: 300
     # externalNodes:
     # - host: 34.124.76.90
@@ -716,6 +751,10 @@ sharding:
 
   mongos:
     size: 3
+    # vpa:
+    #   objectName: my-custom-vpa-for-mongos
+    #   maxAllowed:
+    #     cpu: "4"
     # terminationGracePeriodSeconds: 300
     # configuration: |
     #   systemLog:

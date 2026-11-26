@@ -7,6 +7,9 @@ on:
       - 'charts/pxc-db/**'
       - 'charts/ps-operator/**'
       - 'charts/ps-db/**'
+      - 'charts/psmdb-operator/**'
+      - 'charts/psmdb-operator-crds/**'
+      - 'charts/psmdb-db/**'
       - 'Makefile'
       - '.github/workflows/test-chart-unit.yaml'
       - '.github/workflows/scripts/detect-changes.sh'
@@ -23,6 +26,9 @@ jobs:
           - pxc-db
           - ps-operator
           - ps-db
+          - psmdb-operator
+          - psmdb-operator-crds
+          - psmdb-db
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -33,7 +39,7 @@ jobs:
       - name: Detect changed charts
         id: changes
         env:
-          SUPPORTED_CHARTS: pxc-operator,pxc-db,ps-operator,ps-db
+          SUPPORTED_CHARTS: pxc-operator,pxc-db,ps-operator,ps-db,psmdb-operator,psmdb-operator-crds,psmdb-db
           SELECT_ALL_ON_CHANGES: >-
             Makefile,
             .github/workflows/test-chart-unit.yaml,
